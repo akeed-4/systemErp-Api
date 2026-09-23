@@ -1,0 +1,19 @@
+## .NET build output
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+
+## Rider / VS
+.vs/
+.idea/
+*.DotSettings.user
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## Local secrets/config overrides
+appsettings.*.local.json
+*.pfx
+*.pem

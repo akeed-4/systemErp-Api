@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Erp.Api\Erp.Api.csproj" />
+    <ProjectReference Include="..\..\src\Erp.Migrator\Erp.Migrator.csproj" />
+    <ProjectReference Include="..\..\src\Erp.Composition\Erp.Composition.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Platform\Organization\Erp.Modules.Organization.Contracts\Erp.Modules.Organization.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Platform\Identity\Erp.Modules.Identity.Contracts\Erp.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Platform\Permissions\Erp.Modules.Permissions.Contracts\Erp.Modules.Permissions.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Platform\Settings\Erp.Modules.Settings.Contracts\Erp.Modules.Settings.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

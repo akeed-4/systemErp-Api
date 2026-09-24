@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Erp.Api</RootNamespace>
+    <UserSecretsId>systemerp-api-4f1c2a7e</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Erp.Composition\Erp.Composition.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Erp.BuildingBlocks.Web\Erp.BuildingBlocks.Web.csproj" />
+  </ItemGroup>
+</Project>

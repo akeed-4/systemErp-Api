@@ -1,0 +1,7 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)../build/Erp.Common.props" />
+  <PropertyGroup>
+    <!-- Test names use underscores (Given_when_then); tests are not a public API. -->
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA2234;CA1861</NoWarn>
+  </PropertyGroup>
+</Project>

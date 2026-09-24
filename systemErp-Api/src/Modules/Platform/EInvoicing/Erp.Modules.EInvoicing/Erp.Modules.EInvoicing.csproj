@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Erp.Modules.EInvoicing</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Erp.Modules.EInvoicing.Contracts\Erp.Modules.EInvoicing.Contracts.csproj" />
+    <ProjectReference Include="..\..\Organization\Erp.Modules.Organization.Contracts\Erp.Modules.Organization.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\BuildingBlocks\Erp.BuildingBlocks.Infrastructure\Erp.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\BuildingBlocks\Erp.BuildingBlocks.Web\Erp.BuildingBlocks.Web.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Erp.IntegrationTests" />
+    <InternalsVisibleTo Include="Erp.ArchitectureTests" />
+  </ItemGroup>
+</Project>

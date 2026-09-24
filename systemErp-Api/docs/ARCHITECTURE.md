@@ -168,6 +168,12 @@ Then: collect installment → receipt voucher; sales return (credit note, restoc
 - `profit_margin_15` (used cars): 15% × (selling − cost), **added on top of** the selling price.
 - `margin_scheme` and `exempt`: **both come out as 0 VAT**. `margin_scheme` falls through to the exempt branch, which looks like a bug (A3).
 
+**Decision (A3):** the backend has two modes.
+- `standard_15`
+- `margin_scheme`: `profit_margin_15` and `margin_scheme` merged. VAT is **included in the margin**, `VAT = margin × 15/115`, and is never added on top of the price.
+
+`exempt` stays separate. All of this sits behind a configurable `IVehicleVatCalculator`; the accountant confirms before Phase 7.
+
 ### 6.6 General sales
 Quotation (draft | sent | accepted | rejected | converted_to_invoice | converted_to_order) → invoice (tax_invoice | simplified; cash | credit | bank_card | bank_transfer; split payments; line and invoice discount; 15% VAT; approval check when created) → ZATCA QR → return or credit note referencing the original invoice.
 
@@ -238,16 +244,42 @@ Creating a customer, supplier or bank creates a GL sub-account under 112, 211 or
 
 ## 9. Recommended database tables
 
-**Conventions (all tables):** `Id uniqueidentifier` (sequential GUID), `TenantId` (FK → `org.Tenants`, **first column of every index**), `CreatedAt/By`, `UpdatedAt/By`, `RowVersion rowversion` on documents and on Vehicle. Master data is soft-deleted (`IsDeleted`); posted documents are never deleted, only cancelled or reversed.
+**Databases (hybrid multi-tenancy):**
+- **Catalog DB**: platform data only (`catalog` schema, §9.1). It is never tenant-filtered.
+- **Shared tenant DB**: the default home of every tenant.
+- **Dedicated tenant DBs**: one per tenant that is provisioned or moved there.
+
+Shared and dedicated tenant DBs have **exactly the same schema** (all module schemas below plus `platform` for the outbox). A tenant can therefore move between them without schema changes.
+
+**Conventions (all tenant tables, in shared AND dedicated DBs):**
+- `Id uniqueidentifier`: a sequential GUID (`Guid.CreateVersion7()`).
+- `TenantId`:
+  - **Kept even in dedicated DBs.** It has no FK, because the tenant master row lives in the catalog.
+  - **First column of every non-PK index**, and part of **every unique constraint**.
+  - Protected by the global query filter and by a SaveChanges guard that rejects foreign tenant ids.
+- `CreatedAt/By` and `UpdatedAt/By` on every entity; `RowVersion rowversion` on documents and on Vehicle.
+- Master data is soft-deleted (`IsDeleted`). Posted documents are never deleted, only cancelled or reversed.
+
+**Global reference data** (`identity.Roles`, `authz.Screens`) has no `TenantId`. It is owned by the catalog and copied read-only into every tenant DB by the migrator, so local FKs still work.
 Types: money `decimal(18,2)`, quantity `decimal(18,3)`, rates and percentages `decimal(9,4)` (VAT always stored as **15.00**, not 0.15), FX `decimal(18,6)`. Enums are stored as `varchar` codes matching the frontend literals (`bank_transfer`, `vin_received`) and protected by CHECK constraints.
 **Party snapshots** (name, VAT, CR, address) on posted documents are intentional: they are the legal record of the document, **alongside** the FK, not in place of it.
 
-### 9.1 `org`
-- `Tenants`: Code UQ, NameAr/En, VatNumber, CrNumber, Address, City, Country, Phone, Email, BaseCurrencyCode, LogoUrl, FinancialYearStart/End, IsActive
-- `Branches`*: Code UQ(tenant), NameAr/En, Type (head_office | showroom | warehouse), City, Address, IsActive
-- `SubscriptionPlans` (global): Code PK (starter | professional | enterprise), names, PriceMonthly/Yearly, MaxUsers, MaxInvoicesPerMonth, MaxBranches (NULL = unlimited)
+### 9.1 `catalog` (catalog DB) and `org` (tenant DB)
+
+**Catalog DB, schema `catalog`** (its own `CatalogDbContext` and migrations; owned by `Erp.Catalog`):
+- `Tenants`: Id, Code UQ, NameAr/En, Status (active | suspended | provisioning | archived), TenancyMode (shared | dedicated), ConnectionStringEncrypted (NULL for shared; encrypted with `IConnectionStringProtector`), DatabaseName, SchemaVersion, CreatedAt, UpdatedAt
+- `TenantLoginIndex`: TenantId FK, UserId, NormalizedEmail, NormalizedPhone, IsActive. UQ(TenantId, UserId); index on NormalizedEmail; index on NormalizedPhone.
+  - Login and forgot-password happen **before** the tenant (and so the database) is known; this index finds it.
+  - One email may exist in several tenants; login then needs `tenantCode`, or returns the list to choose from.
+  - Identity keeps it in sync through the outbox (user create, update, deactivate). Provisioning writes the owner's row directly.
+- `SubscriptionPlans`: Code PK (starter | professional | enterprise), names, PriceMonthly/Yearly, MaxUsers, MaxInvoicesPerMonth, MaxBranches (NULL = unlimited)
 - `SubscriptionPlanFeatures`: PlanCode FK, FeatureAr, FeatureEn, SortOrder
-- `TenantSubscriptions`: PlanCode FK, BillingCycle, StartDate, ExpiryDate, Status, PaidAmount, PaymentMethod, TransactionReference, AutoRenew. Filtered UQ: one active subscription per tenant
+- `TenantSubscriptions`: TenantId FK, PlanCode FK, BillingCycle, StartDate, ExpiryDate, Status, PaidAmount, PaymentMethod, TransactionReference, AutoRenew. Filtered UQ: one active subscription per tenant. Billing is platform-level, so this table stays in the catalog.
+- `Roles`, `Screens`: master copies of the global reference data (copied into each tenant DB, see §9 conventions)
+
+**Tenant DB, schema `org`:**
+- `Tenants`: the **company profile only**. Id = TenantId = `catalog.Tenants.Id`. Columns: NameAr/En, VatNumber, CrNumber, Address, City, Country, Phone, Email, BaseCurrencyCode, LogoUrl, Industry, FinancialYearStart/End
+- `Branches`: Code UQ(TenantId, Code), NameAr/En, Type (head_office | showroom | warehouse), City, Address, Phone, IsActive, IsDeleted. Provisioning creates a head-office branch `HO`.
 
 ### 9.2 `identity`
 - `Roles` (global): Code PK (owner, admin, general_manager, chief_accountant, sales_rep), NameAr/En
@@ -333,6 +365,7 @@ Types: money `decimal(18,2)`, quantity `decimal(18,3)`, rates and percentages `d
 - `PosOffers`: TitleAr, Type, DiscountPercent, DiscountAmount, BuyQuantity, GetQuantity, TargetCategoryId FK, TargetProductId FK, BadgeText, IsActive
 - `LoyaltyAccounts`: CustomerId FK (UQ), PointsBalance (cached), Tier. Plus `LoyaltyTransactions` (Type earn | redeem | reverse, Points, PosTransactionId, PosReturnId). The earned/redeemed totals are calculated
 - `PosSettings` (PK TenantId): the invoice-settings fields, plus PointsPerSarSpent (0.1) and SarPerPointRedeemed (0.1)
+- `PosTerminalUsers`: TerminalId FK, UserId FK, CanOpenShift, CanCloseShift. UQ(TenantId, TerminalId, UserId). Which cashiers may work on which terminal (Phase 10)
 
 ### 9.15 `vehicles`
 - `CarBrands`: NameAr/En UQ(tenant, NameEn), Country, LogoUrl
@@ -452,13 +485,22 @@ flowchart LR
 
 ```
 systemErp-Api/
+  Erp.Modular.sln                             # new solution (the old ERP.sln is left untouched)
+  build/                                      # Erp.Common.props (net9.0, nullable, warnings-as-errors), central package versions
   src/
-    Erp.Api/                                  # host: Program.cs, auth, middleware, module registration
+    Erp.Api/                                  # host: Program.cs, JWT, middleware, endpoint mapping. Never migrates.
+    Erp.Migrator/                             # console: migrate catalog → shared → every dedicated DB; provision tenants
+    Erp.Composition/                          # AddErpPlatform(): registers building blocks + catalog + all modules (used by both hosts and tests)
     BuildingBlocks/
-      Erp.SharedKernel/                       # Entity, AggregateRoot, Money, Result, DomainEvent, ITenantScoped, SourceRef
-      Erp.BuildingBlocks.Infrastructure/      # ModuleDbContext base, tenancy filter, audit interceptor,
-                                              # shared-connection unit of work, in-process event bus, outbox
-      Erp.BuildingBlocks.Web/                 # ApiResponse/PagedResult, error handling, snake_case enums
+      Erp.SharedKernel/                       # Entity, ITenantScoped, ITenantContext, ICurrentUser, errors, outbox abstractions
+      Erp.BuildingBlocks.Infrastructure/      # ModuleDbContext, tenant filter + SaveChanges guard, tenant connection + unit of work,
+                                              # tenant scope factory, platform scope, tenant cache, outbox (+dispatcher),
+                                              # tenant DB migrator, schema version, connection-string protector
+      Erp.BuildingBlocks.Web/                 # ApiResponse/PagedResult/PaginationParams, RFC 7807 (ar+en), snake_case enums,
+                                              # tenant resolution middleware, Screen:{id}:{action} policies
+    Catalog/
+      Erp.Catalog.Contracts/                  # ITenantDirectory, ITenantLoginIndex, ITenantProvisioningService, ITenantRelocationService, ISubscriptionCatalog
+      Erp.Catalog/                            # CatalogDbContext (schema catalog) + migrations, provisioning, migration orchestrator
     Modules/
       Platform/   Organization, Identity, Permissions, Settings, Workflow, Notifications, EInvoicing, Support
       Finance/    Accounting, Banking, Payments, FixedAssets
@@ -467,9 +509,11 @@ systemErp-Api/
       Automotive/ Vehicles, CarPurchases, CarSales
       Reporting/  Reports
   tests/
-    Erp.ArchitectureTests/                    # enforces the dependency rules below
-    Erp.Modules.<X>.Tests/  Erp.IntegrationTests/
+    Erp.ArchitectureTests/                    # §11.2 rules + model rules (TenantId on every tenant entity/index)
+    Erp.IntegrationTests/                     # tenancy isolation, migrator, provisioning (Testcontainers SQL Server)
 ```
+
+Catalog access rule: only BuildingBlocks, Identity and Organization (and the hosts) may reference `Erp.Catalog.Contracts`. Only the hosts (`Erp.Api`, `Erp.Migrator`, `Erp.Composition`) may reference `Erp.Catalog`.
 
 Each module is **two projects**:
 - `Erp.Modules.X.Contracts`: public interfaces, DTOs and integration events. The only thing other modules may reference.
@@ -487,8 +531,47 @@ Each module is **two projects**:
 4. Reports reads through views in the `reporting` schema (read-only `ReportingDbContext`) and nothing depends on Reports.
 5. A table belongs to exactly one module and only that module writes to it.
 
-### 11.3 Transactions
-All module `DbContext`s share one `DbConnection` and one `DbTransaction` per request (`IUnitOfWork`). Example: a car sale invoice write, `IVehicleStockService.MarkSold`, `IAccountingPostingService.Post` and `IEInvoicingService.Register` **commit together or roll back together**. External calls such as ZATCA HTTP submission happen **after** commit, from an outbox.
+### 11.3 Tenancy, connections and transactions
+
+**Tenant resolution (`ITenantContext`, scoped: TenantId, TenantCode, TenancyMode, ConnectionString)**
+- Authenticated requests: the tenant comes **only** from the JWT `tenant_id` claim. `X-Tenant-Id`, query strings and bodies are ignored.
+- Anonymous endpoints (login, register-company, forgot-password) find the tenant through `catalog.TenantLoginIndex`. They then run in a child DI scope opened for that tenant (`ITenantScopeFactory`).
+- `POST tenants/{id}/switch` checks that the same person (by email) is an active user in the target tenant, then issues a new token for it.
+- Tenant metadata is cached in `IMemoryCache` (60 s) and evicted when the catalog changes (provisioning, status change).
+- Status suspended, provisioning, archived or unknown → **403**; tenant `SchemaVersion` behind the code → **503**. Both return `ApiResponse` + RFC 7807.
+
+**Connections and transactions**
+- `ITenantConnectionFactory` returns the shared connection string, or the tenant's decrypted dedicated one. Connection strings are encrypted at rest with `IConnectionStringProtector` (ASP.NET Data Protection; Key Vault-ready interface).
+- All module `DbContext`s in a scope share **one** `DbConnection` opened on the tenant's database, and **one** `DbTransaction` (`IUnitOfWork`).
+  - Example: a car sale invoice write, `IVehicleStockService.MarkSold`, `IAccountingPostingService.Post` and `IEInvoicingService.Register` commit together or roll back together.
+- A scope's connection is bound to one tenant. If the tenant context changes after the connection is created, it throws, so two tenants are never mixed in one unit of work.
+- Work for another tenant (switch, outbox handlers, provisioning) runs in a **new** DI scope.
+
+**Isolation (defence in depth, in both shared and dedicated DBs)**
+- `ModuleDbContext` applies a global filter `TenantId == current` to every `ITenantScoped` entity.
+  - The only bypass is `IPlatformScope`, which is explicit, logged with a reason, and used by platform jobs such as the migrator and the outbox dispatcher.
+  - An unresolved tenant matches no rows.
+- The SaveChanges guard stamps `TenantId` on insert, and **throws** `TenantIsolationViolationException` if any tracked entity carries a different `TenantId` than the current tenant.
+- Tenant ids are carried by:
+  - cache keys (`ITenantCache` prefixes `t:{tenantId}:`)
+  - outbox messages and domain/integration events (a `TenantId` column; handlers restore `ITenantContext` before running)
+  - background jobs
+  - logs (Serilog `TenantId` property)
+- Document sequences are per tenant (`settings.DocumentSequences`).
+
+**Outbox and background work.** One `platform.OutboxMessages` table per tenant database. The dispatcher (a hosted service) loops over the shared DB and each dedicated DB, restores the tenant context per message and runs its handler. External calls (ZATCA, email/SMS, catalog login-index sync) happen only here, after commit.
+
+**Migrations and provisioning**
+- `Erp.Migrator` applies migrations in this order: catalog → shared DB → every dedicated DB (listed from the catalog). Each module keeps its own history table in its own schema.
+- It is idempotent and resumable. One failing dedicated DB doesn't stop the others. It prints a per-database report and updates `catalog.Tenants.SchemaVersion`.
+- **The API never migrates on startup.**
+- `ITenantProvisioningService.ProvisionAsync` runs these steps, each idempotent so a failed provisioning can be retried:
+  1. Create the catalog row (status provisioning).
+  2. For dedicated tenants: create the database and migrate it, including the reference-data copy.
+  3. Seed through each module's `IModuleSeeder`: company profile, `HO` branch, TenantSettings + SAR currency, owner user, default role permissions. Later phases add chart of accounts, posting mappings and so on.
+  4. Write the subscription, the owner's login-index row and the SchemaVersion.
+  5. Set status active.
+- `ITenantRelocationService` (shared ↔ dedicated) is defined now and implemented later: copy rows by TenantId in §17.2 order, verify counts, switch the catalog row, purge from the old DB.
 
 ---
 
@@ -501,17 +584,65 @@ All module `DbContext`s share one `DbConnection` and one `DbTransaction` per req
 - Envelope `ApiResponse<T>`; lists return `ApiResponse<PagedResult<T>>` with the `PaginationParams` query names (`pageNumber, pageSize, searchTerm, sortBy, isDescending, startDate, endDate, status`). The 6 auth endpoints keep their existing shapes (§5).
 - State changes are **action sub-resources**: `POST /{id}/post`, `/approve`, `/advance`, `/cancel`, `/reverse`. No generic "PUT the whole entity" for documents, and never bind entities directly (the current `BaseCrudController<T>` allows over-posting).
 - Create DTOs **do not** carry totals, VAT, cost, numbers or status. **The server calculates all of them**; the frontend's figures are only a preview.
-- Tenant comes from the JWT `tenant_id` claim (switching tenant issues a new token). `X-Tenant-Id` is not trusted.
+- Tenant comes **only** from the JWT `tenant_id` claim; switching tenant issues a new token. `X-Tenant-Id`, query strings and bodies are never trusted (§11.3). Anonymous auth endpoints resolve the tenant through `catalog.TenantLoginIndex`.
+- Tenant not active → 403; tenant schema behind the code → 503. Both return `ApiResponse` with an RFC 7807 problem.
 - Authorization: policy `Screen:{screenId}:{action}` mapped to `ScreenPermission`.
 - `Idempotency-Key` header on POS checkout and all `/post` actions. `If-Match` (RowVersion) on documents and vehicles.
 - Errors: RFC 7807 inside `ApiResponse.errors`, with Arabic and English messages.
+
+**Screen → endpoint → phase map** (binding; condensed from §2 with the multi-tenancy and POS changes):
+
+| Screen | Endpoint (`/api/v1/...`) | Phase |
+|---|---|---|
+| login | `auth/login`, `auth/forgot-password/{request,verify-otp,reset}`, `GET auth/users` | 1 |
+| register-company | `POST auth/register-company` (runs provisioning through the catalog) | 1 |
+| profile | `PUT users/me` | 1 |
+| company switch | `GET tenants`, `POST tenants/{id}/switch` | 1 |
+| branches | `branches` CRUD | 1 |
+| permissions | `permissions/roles/{role}`, `permissions/users/{id}`, `GET permissions/me` | 1 |
+| subscriptions | `subscriptions/{plans,current,upgrade}` (read from / written to the catalog) | 1 |
+| accounts-tree | `accounts`, `journal-entries` + `{post,reverse}` | 2 |
+| cost-centers | `cost-centers` | 2 |
+| customers / suppliers | `customers`, `suppliers` + `POST {id}/account` | 3 |
+| banks | `banks`, `bank-accounts` + `POST {id}/account` | 3 |
+| payment-methods | `payment-methods` | 3 |
+| vouchers | `vouchers` + `{post,cancel}` | 3 |
+| items / categories / units | `products`, `product-categories`, `units` | 4 |
+| costing | `inventory/costing-policy`, `inventory/costing/recalculate` | 4 |
+| zatca-integration | `zatca/config`, `zatca/config/test-connection`, `zatca/documents` | 5 and 15 |
+| sales/invoices | `sales/invoices` + `{post,cancel}`, `{id}/einvoice/submit` | 6 |
+| sales/quotations | `sales/quotations` + `convert-to-invoice` | 6 |
+| sales/returns | `sales/credit-notes` | 6 |
+| orders | `sales/orders`, `purchases/orders` | 6 |
+| purchases/standard + returns | `purchases/invoices`, `purchases/returns` | 6 |
+| purchases/requisitions | `purchases/requisitions` + `{submit,approve,reject,convert-to-invoice}` | 6 |
+| showroom/vehicles, car-colors | `vehicles/*`, `vehicles/colors`, `vehicles/vat-quote` | 7 |
+| showroom/procurement | `car-purchases/procurement-orders` + `{id}/advance` | 8 |
+| purchases/cars | `car-purchases/{invoices,quotations,returns,installments}` | 8 |
+| showroom/sales (contracts) | `car-sales/contracts` + `{approve,allocate,deliver,invoice,cancel}` | 9 |
+| showroom/invoices | `car-sales/{invoices,quotations,returns,installments}` | 9 |
+| pos (shift panel) | `GET pos/terminals/mine`, `GET pos/terminals/{id}/current-user-shift`, `pos/shifts/open`, `pos/shifts/{id}/close` | 10 |
+| pos/terminal/save | `pos/terminals` CRUD + `pos/terminals/{id}/users` | 10 |
+| pos (selling) | `pos/checkout`, `pos/transactions`, `pos/returns`, `pos/held-carts`, `pos/coupons`, `pos/offers`, `pos/loyalty/*`, `pos/settings` | 10 |
+| agreements | `agreements` + `{id}/items` | 11 |
+| contracts | `contracts` + `advance-stage`, `milestones/{mid}/bill` | 11 |
+| delivery-notes | `delivery-notes` + `{id}/returns`, `{id}/invoice` | 11 |
+| approval-policies | `approvals/policies`, `approvals/requests/{id}/{approve,reject}` | 12 |
+| notifications bell | `notifications`, `{id}/read`, `read-all` | 12 |
+| dashboard / search / reports | `dashboard/{stats,recent-activity}`, `search?q=`, `reports/*` | 13 |
+| fixed-assets / support | `fixed-assets`, `support/tickets` | 14 |
+
+`pos/terminals/{id}/users` fills the gap in the pos/terminal/save screen (assigning cashiers to a terminal).
+
+**Code organization (every module):** `Erp.Modules.X.Contracts` (public interfaces and DTOs only) plus `Erp.Modules.X` with `Domain/` (entities and invariants), `Application/` (use cases, seeders, services behind the contracts), `Persistence/` (DbContext, configuration, migrations), `Endpoints/` (minimal-API mapping, request/response records), and one public `XModule` class that registers and maps the module.
 
 **Endpoints by module** (CRUD = GET list, GET {id}, POST, PUT {id}, DELETE {id})
 
 | Module | Endpoints |
 |---|---|
-| Identity | `POST auth/login`, `auth/refresh`, `auth/logout`, `auth/forgot-password/{request,verify-otp,reset}`, `auth/register-company`; `GET auth/users`, `GET auth/me`; `users` CRUD; `PUT users/me` |
-| Organization | `GET/PUT company`; `GET tenants` (owner); `POST tenants/{id}/switch`; `branches` CRUD; `GET subscriptions/plans`, `GET subscriptions/current`, `POST subscriptions/upgrade` |
+| Identity | `POST auth/login` (body `{email, password, tenantCode?}`; if the email exists in several tenants and no `tenantCode` is sent → `{success:false, requiresTenantSelection:true, tenants:[…]}`), `auth/refresh`, `auth/logout`, `auth/forgot-password/{request,verify-otp,reset}`, `auth/register-company` (provisions a **shared** tenant); `GET auth/users` (authenticated), `GET auth/me`; `users` (GET, POST, PUT {id}, `POST {id}/deactivate`); `PUT users/me`; `POST tenants/{id}/switch` (hosted by Identity because it issues tokens) |
+| Organization | `GET/PUT company`; `GET tenants` (tenants the signed-in person belongs to); `branches` CRUD; `GET subscriptions/plans`, `GET subscriptions/current`; `POST subscriptions/upgrade` (later) |
+| Platform (Migrator CLI, not HTTP) | `migrate`, `provision --mode shared\|dedicated …`, `list-tenants` |
 | Permissions | `GET permissions/screens`; `GET/PUT permissions/roles/{role}`; `GET/PUT permissions/users/{userId}`; `GET permissions/me` |
 | Settings | `GET/PUT settings`; `currencies` CRUD; `GET/PUT document-sequences` |
 | Accounting | `accounts` CRUD (`?view=tree`); `GET accounts/{id}/statement`; `journal-entries` CRUD (drafts only) + `POST {id}/post`, `POST {id}/reverse`; `cost-centers` CRUD; `GET/PUT accounting/posting-mappings`; `fiscal-periods` + `POST {id}/close`; `GET accounting/reports/{trial-balance,income-statement,balance-sheet,journal-ledger,vat-return}` |
@@ -523,7 +654,7 @@ All module `DbContext`s share one `DbConnection` and one `DbTransaction` per req
 | Inventory | `products` CRUD + `GET products/by-barcode/{code}`; `product-categories`, `units`, `warehouses` CRUD; `GET stock-balances`; `GET stock-movements`; `POST stock-adjustments`; `GET/PUT inventory/costing-policy`; `POST inventory/costing/recalculate` |
 | Sales | `sales/quotations` CRUD + `{send,accept,reject,convert-to-invoice,convert-to-order}`; `sales/orders` CRUD + `{confirm,cancel,convert-to-invoice}`; `sales/invoices` (GET, POST, DELETE draft) + `{post,cancel}`, `POST {id}/einvoice/submit`, `GET {id}/print-data`; `sales/credit-notes` (GET, POST) + `post` |
 | Purchasing | `purchases/requisitions` CRUD + `{submit,approve,reject,convert-to-order,convert-to-invoice}`; `purchases/orders` CRUD + `{confirm,cancel,convert-to-invoice}`; `purchases/invoices` + `post`; `purchases/returns` + `post` |
-| POS | `pos/terminals` CRUD; `GET pos/shifts/current`; `POST pos/shifts/open`; `POST pos/shifts/{id}/close`; `POST pos/checkout`; `GET pos/transactions`, `GET pos/transactions/{id}`, `POST pos/transactions/{id}/einvoice/submit`; `pos/returns` (GET, POST); `pos/held-carts` (GET, POST, DELETE); `pos/coupons` CRUD + `POST pos/coupons/validate`; `pos/offers` CRUD; `GET pos/loyalty/{customerId}`, `POST pos/loyalty/redeem-quote`; `GET/PUT pos/settings` |
+| POS | `pos/terminals` CRUD; `GET pos/shifts/current`; `POST pos/shifts/open`; `POST pos/shifts/{id}/close`; `POST pos/checkout`; `GET pos/transactions`, `GET pos/transactions/{id}`, `POST pos/transactions/{id}/einvoice/submit`; `pos/returns` (GET, POST); `pos/held-carts` (GET, POST, DELETE); `pos/coupons` CRUD + `POST pos/coupons/validate`; `pos/offers` CRUD; `GET pos/loyalty/{customerId}`, `POST pos/loyalty/redeem-quote`; `GET/PUT pos/settings`; `pos/terminals/{id}/users` (GET, PUT); `GET pos/terminals/mine` (terminals the current user may use); `GET pos/terminals/{id}/current-user-shift` |
 | Vehicles | `vehicles/brands`, `vehicles/brand-agents`, `vehicles/models`, `vehicles/trims`, `vehicles/model-years`, `vehicles/colors` CRUD; `vehicles` CRUD + `GET vehicles/by-vin/{vin}`, `GET vehicles?status=available`; `POST vehicles/{id}/pdi`; `GET vehicles/{id}/history`; `vehicles/{id}/documents` CRUD; `GET vehicles/vat-quote?vehicleId=&price=&discount=&mode=` (replaces `calculateVat`) |
 | CarPurchases | `car-purchases/procurement-orders` CRUD + `POST {id}/advance` `{toStage, data}`, `{id}/reject`, `PUT {id}/shipment`, `POST {id}/receive-vins`; `car-purchases/quotations` CRUD + `{approve,reject}`; `car-purchases/invoices` + `post`; `car-purchases/returns` + `{approve,post}`; `GET car-purchases/installments`, `POST car-purchases/installments/{id}/settle` |
 | CarSales | `car-sales/quotations` CRUD + `{convert-to-contract,convert-to-invoice}`; `car-sales/contracts` CRUD (draft only) + `{approve,allocate,deliver,invoice,cancel}`, `PUT {id}/{financing,registration,insurance,warranty,accessories}`; `car-sales/invoices` + `{post}`, `POST {id}/einvoice/submit`; `car-sales/returns` (GET, POST); `GET car-sales/installments`, `POST car-sales/installments/{id}/collect` |
@@ -683,7 +814,14 @@ Worth porting: the ZATCA TLV/QR generator, `MovingAverageCalculator`, the journa
 No production data exists: the frontend holds seed data only, and `localStorage` holds users, permissions, approvals and notifications. So:
 - **Seed scripts** per module reproduce today's demo data for QA (tenant, chart of accounts, posting mappings, roles, screens, payment methods, catalog, demo vehicles).
 - `localStorage` data is **not** migrated (plain-text credentials); users re-register or are seeded.
-- EF Core migrations: one migration history per module schema (`__EFMigrationsHistory` per schema), applied in dependency order: org → identity → authz → settings → accounting → customers/suppliers/banking → payments → inventory → vehicles → sales/purchasing/pos/carpurchases/carsales → contracts → einvoicing → workflow/notify → reporting views. Cross-module FK constraints are added in the dependent module's migration.
+- EF Core migrations: one migration history per module schema (`__EFMigrationsHistory` per schema).
+  - **Catalog DB** (`catalog`) is migrated first; its reference data (plans, roles, screens) is upserted.
+  - **Every tenant DB** (the shared DB, then each dedicated DB listed in the catalog) is migrated in dependency order: platform (outbox) → org → identity → authz → settings → accounting → customers/suppliers/banking → payments → inventory → vehicles → sales/purchasing/pos/carpurchases/carsales → contracts → einvoicing → workflow/notify → reporting views.
+  - Cross-module FK constraints are added in the dependent module's migration.
+  - After each tenant DB, the migrator copies roles and screens from the catalog and writes `catalog.Tenants.SchemaVersion`. For the shared DB it writes the version on every shared tenant.
+- **SchemaVersion** is the list of the latest migration id of each tenant-DB module (`org=2026…;identity=2026…`). The API calculates the expected value from the code and refuses (503) any tenant whose stored value differs.
+- The migrator is idempotent and resumable. Failures are reported per database and set the exit code to 1. It runs in CI and on deploy; the API never migrates.
+- **Moving a tenant** shared ↔ dedicated (`ITenantRelocationService`, later): copy rows by `TenantId` in the order above, verify row counts per table, switch the catalog row (mode + connection string), evict the cache, then purge the rows from the source DB.
 
 ### 17.3 Frontend
 Every Angular service keeps its **public signal API**; only the internals change to HTTP (`signal` + `resource`/`rxResource`). Components change only where D1–D18 require it: payment method IDs, customer IDs, removing double-writes, removing the vehicle→product copy, catalog IDs on vehicles. Legacy `services/erp.service.ts` is retired once Agreements and Orders move to the core service.
@@ -692,8 +830,8 @@ Every Angular service keeps its **public signal API**; only the internals change
 
 | Phase | Scope | Why this order |
 |---|---|---|
-| 0 | Host, SharedKernel, BuildingBlocks (tenancy, unit of work, outbox, envelopes, snake_case enums), architecture tests | the foundation |
-| 1 | Organization, Identity (the real 6 auth endpoints), Permissions, Settings (currencies, sequences) | the login screen goes live first |
+| 0 | Host, SharedKernel, BuildingBlocks (tenant resolution, connection routing, unit of work, isolation guard, outbox + dispatcher, envelopes, snake_case enums), **Catalog DB** (tenants, login index, plans, roles, screens), **Erp.Migrator** (catalog → shared → dedicated), provisioning, architecture tests, tenancy integration tests | the foundation, hybrid multi-tenancy included |
+| 1 | Organization (company profile, branches, tenants list, subscriptions read), Identity (the 6 auth endpoints with their current shapes, register-company, refresh tokens, tenant switch, login-index sync), Permissions (`Screen:{id}:{action}` policies), Settings (currencies, sequences) | the login screen goes live first |
 | 2 | Accounting core: accounts, cost centers, journal entries, posting service, posting mappings, provisioning, balances | everything posts through it |
 | 3 | Customers, Suppliers, Banking, Payments (methods + vouchers) | the shared parties |
 | 4 | Inventory (products, units, categories, warehouses, stock, costing) | needed by Sales, Purchasing, POS |
@@ -711,9 +849,18 @@ Every Angular service keeps its **public signal API**; only the internals change
 
 ---
 
-## Appendix A — Decisions needed from you
+## Appendix A — Decisions
 
-| # | Question | My recommendation |
+**Resolved (2026-09-24):**
+- All recommendations below are accepted.
+- A1: rebuild under `src/`; `ERP.sln` untouched.
+- A2: `org.Branches` (head_office | showroom | warehouse).
+- A3: margin scheme with VAT included in the margin (margin × 15/115), behind a configurable `IVehicleVatCalculator`; `exempt` kept separate.
+- Additions:
+  - `pos.PosTerminalUsers`
+  - **hybrid multi-tenancy**: shared DB by default, dedicated DB per tenant on demand, catalog DB (§9.1, §11.3, §17.2)
+
+| # | Question | Recommendation (accepted unless noted above) |
 |---|---|---|
 | A1 | Rebuild as a new modular solution, or refactor `ERP.sln` in place? | Rebuild in the same repo, port selected code (§17.1) |
 | A2 | Branches/showrooms: add a `Branch` entity (vehicles, warehouses, POS terminals, contracts reference it), or keep free-text locations? | Add `org.Branches` (type showroom / warehouse / head office) |

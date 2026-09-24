@@ -1,14 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <RootNamespace>Erp.Api</RootNamespace>
-    <UserSecretsId>systemerp-api-4f1c2a7e</UserSecretsId>
+    <TargetFramework>net9.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ERP.Api</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="Serilog.AspNetCore" />
+    <ProjectReference Include="..\ERP.Service\ERP.Service.csproj" />
+    <ProjectReference Include="..\ERP.Core\ERP.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Erp.Composition\Erp.Composition.csproj" />
-    <ProjectReference Include="..\BuildingBlocks\Erp.BuildingBlocks.Web\Erp.BuildingBlocks.Web.csproj" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="ERP.Core.Models.Shared" />
+    <Using Include="ERP.Core.Models.Accounting" />
+    <Using Include="ERP.Core.Models.CarShowroom" />
+    <Using Include="ERP.Core.Models.POS" />
+    <Using Include="ERP.Core.DTOs.Shared" />
+    <Using Include="ERP.Core.DTOs.Accounting" />
+    <Using Include="ERP.Core.DTOs.CarShowroom" />
+    <Using Include="ERP.Core.DTOs.POS" />
+    <Using Include="ERP.Core.Contracts.Shared" />
   </ItemGroup>
 </Project>

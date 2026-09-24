@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ERP.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="ERP.Core.Models.Shared" />
+    <Using Include="ERP.Core.Models.Accounting" />
+    <Using Include="ERP.Core.Models.CarShowroom" />
+    <Using Include="ERP.Core.Models.POS" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DevExtreme.AspNet.Data" Version="5.1.0" />
+  </ItemGroup>
+</Project>

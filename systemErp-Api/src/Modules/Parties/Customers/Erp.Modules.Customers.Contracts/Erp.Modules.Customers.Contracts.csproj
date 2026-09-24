@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>Erp.Modules.Customers.Contracts</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\..\BuildingBlocks\Erp.SharedKernel\Erp.SharedKernel.csproj" />
-  </ItemGroup>
-</Project>

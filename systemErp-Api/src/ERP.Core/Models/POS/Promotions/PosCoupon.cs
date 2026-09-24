@@ -1,0 +1,16 @@
+namespace ERP.Core.Models.POS;
+
+public class PosCoupon : BaseEntity
+{
+    public string Code { get; set; } = string.Empty;
+    public string TitleAr { get; set; } = string.Empty;
+    public PosDiscountType DiscountType { get; set; }
+    public decimal DiscountValue { get; set; }
+    public decimal MinCartAmount { get; set; }
+    public decimal? MaxDiscountAmount { get; set; }
+    public DateTime ValidFrom { get; set; }
+    public DateTime ValidTo { get; set; }
+    public int UsageCount { get; set; }
+    public int? UsageLimit { get; set; }
+    public bool IsActive { get; set; } = true;
+}

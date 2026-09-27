@@ -28,11 +28,11 @@ public class InvoicesController : ErpControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] InvoiceKind? kind, [FromQuery] PaginationParams q, CancellationToken ct)
+    public async Task<IActionResult> List([FromQuery] InvoiceKind? kind, [FromQuery] PaginationParams q, [FromQuery] bool? hasVehicleLines, CancellationToken ct)
     {
         if (kind.HasValue) await Require(kind.Value, ScreenAction.View, ct);
         else { await Require(InvoiceKind.Sales, ScreenAction.View, ct); await Require(InvoiceKind.Purchase, ScreenAction.View, ct); }
-        return Success(await _invoices.ListAsync(kind, q, ct));
+        return Success(await _invoices.ListAsync(kind, q, hasVehicleLines, ct));
     }
 
     [HttpGet("{id:guid}")]

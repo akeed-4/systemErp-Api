@@ -9,12 +9,35 @@ namespace ERP.Service.Services.CarShowroom;
 public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto, UpdateVehicleDto>, IVehicleService
 {
     // ISO 3779: 17 خانة، بدون الأحرف I و O و Q
-    private static readonly Regex VinPattern = new("^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
+    internal static readonly Regex VinPattern = new("^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
 
     public VehicleService(ErpDbContext db) : base(db) { }
     protected override string Label => "المركبة";
 
     public CarVatResult CalculateVat(CalculateCarVatRequestDto r) => CarVat.Calculate(r.CostPrice, r.SellingPrice, r.Mode);
+
+    public async Task<List<string>> FindExistingChassisNumbersAsync(List<string> vins, CancellationToken ct = default)
+    {
+        var normalized = vins.Select(v => v.Trim().ToUpperInvariant()).ToList();
+        return await Db.Set<Vehicle>().AsNoTracking().Where(v => normalized.Contains(v.ChassisNumber))
+            .Select(v => v.ChassisNumber).ToListAsync(ct);
+    }
+
+    public async Task<PagedResult<VehicleDto>> ListByProcurementOrderAsync(Guid orderId, PaginationParams p, CancellationToken ct = default)
+    {
+        var query = Db.Set<Vehicle>().AsNoTracking().Where(v => v.ProcurementOrderId == orderId);
+        if (!string.IsNullOrWhiteSpace(p.SearchTerm)) query = ApplySearch(query, p.SearchTerm.Trim());
+
+        var total = await query.CountAsync(ct);
+        var entities = await query.OrderByDescending(v => v.CreatedAt)
+            .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
+
+        return new PagedResult<VehicleDto>
+        {
+            Items = entities.Select(ToDto).ToList(),
+            TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
+        };
+    }
 
     protected override IQueryable<Vehicle> ApplySearch(IQueryable<Vehicle> q, string t)
         => q.Where(v => v.ChassisNumber.Contains(t) || v.BrandNameAr.Contains(t) || v.ModelNameAr.Contains(t) || (v.PlateNumber != null && v.PlateNumber.Contains(t)));
@@ -47,6 +70,10 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         if (d.BrandId.HasValue && !await Db.Set<CarBrand>().AnyAsync(b => b.Id == d.BrandId, ct)) throw new ValidationFailedException("الماركة غير موجودة.");
         if (d.ModelId.HasValue && !await Db.Set<CarModel>().AnyAsync(m => m.Id == d.ModelId, ct)) throw new ValidationFailedException("الموديل غير موجود.");
         if (d.TrimId.HasValue && !await Db.Set<CarTrim>().AnyAsync(t => t.Id == d.TrimId, ct)) throw new ValidationFailedException("الفئة غير موجودة.");
+        if (d.ModelId.HasValue && d.BrandId.HasValue && !await Db.Set<CarModel>().AnyAsync(m => m.Id == d.ModelId && m.BrandId == d.BrandId, ct))
+            throw new ValidationFailedException("الموديل المختار لا ينتمي للماركة المحددة.");
+        if (d.TrimId.HasValue && d.ModelId.HasValue && !await Db.Set<CarTrim>().AnyAsync(t => t.Id == d.TrimId && t.ModelId == d.ModelId, ct))
+            throw new ValidationFailedException("الفئة (Trim) المختارة لا تنتمي للموديل المحدد.");
         if (existing != null && existing.Status != VehicleStatus.Available && d.VatMode != existing.VatMode)
             throw new ConflictException("لا يمكن تغيير نمط الضريبة لمركبة محجوزة أو مباعة.");
     }
@@ -63,6 +90,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         var o = Db.Entry(e).OriginalValues;
         e.Status = o.GetValue<VehicleStatus>(nameof(Vehicle.Status)); // الحالة تتغير بدورة البيع فقط
         e.ProcurementOrderId = o.GetValue<Guid?>(nameof(Vehicle.ProcurementOrderId));
+        e.PurchaseInvoiceId = o.GetValue<Guid?>(nameof(Vehicle.PurchaseInvoiceId));
         if (e.Status == VehicleStatus.Sold) throw new ConflictException("لا يمكن تعديل مركبة مباعة.");
         await FillDenormalizedAsync(e, ct);
         Recalculate(e);
@@ -71,6 +99,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     protected override async Task OnDeletingAsync(Vehicle e, CancellationToken ct)
     {
         if (e.Status != VehicleStatus.Available) throw new ConflictException("لا يمكن حذف مركبة محجوزة أو مباعة.");
+        if (e.PurchaseInvoiceId != null) throw new ConflictException("المركبة واردة من فاتورة شراء؛ تُحذف بحذف الفاتورة أو إلغاء ترحيلها.");
         if (await Db.Set<CarSalesContract>().AnyAsync(c => c.VehicleId == e.Id, ct)) throw new ConflictException("المركبة مرتبطة بعقد بيع.");
         if (await Db.Set<CarProcurementOrderVin>().AnyAsync(v => v.VehicleId == e.Id, ct)) throw new ConflictException("المركبة واردة من أمر شراء ولا تُحذف.");
     }

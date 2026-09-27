@@ -51,4 +51,5 @@ public partial class VehicleDto
     public int? WarrantyKm { get; set; }
     public VehiclePdiChecklist? PdiChecklist { get; set; }
     public Guid? ProcurementOrderId { get; set; }
+    public Guid? PurchaseInvoiceId { get; set; }
 }

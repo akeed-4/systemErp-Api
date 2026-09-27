@@ -18,4 +18,13 @@ public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, U
     [HttpPost("calculate-vat")]
     [RequireScreen("car-showroom", ScreenAction.View)]
     public IActionResult CalculateVat([FromBody] CalculateCarVatRequestDto request) => Success(_vehicles.CalculateVat(request));
+
+    [HttpPost("import")]
+    public async Task<IActionResult> Import([FromBody] List<CreateVehicleDto> items, CancellationToken ct)
+        => Success(await _vehicles.ImportAsync(items, ct));
+
+    [HttpPost("check-vins")]
+    [RequireScreen("car-showroom", ScreenAction.View)]
+    public async Task<IActionResult> CheckVins([FromBody] List<string> vins, CancellationToken ct)
+        => Success(await _vehicles.FindExistingChassisNumbersAsync(vins, ct));
 }

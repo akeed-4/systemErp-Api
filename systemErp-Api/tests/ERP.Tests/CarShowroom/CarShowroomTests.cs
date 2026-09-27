@@ -236,4 +236,90 @@ public class CarShowroomTests : TestBase
         var installments = (await api.Get("/reports/car/installments-receivable")).Data!.AsArray();
         Assert.Single(installments);
     }
+
+    private static async Task<string> SeedCarAsync(Client api, char vinPrefix, decimal purchase = 40000, decimal selling = 50000)
+    {
+        var car = await api.Post("/vehicles", new { chassisNumber = Client.NewVin(vinPrefix), brandNameAr = "تويوتا", modelNameAr = "يارس", year = 2024, condition = "new", purchasePrice = purchase, sellingPrice = selling,
+            vatMode = "standard_15", fuelType = "petrol", transmission = "automatic", colorExterior = "أبيض", colorInterior = "أسود", location = "المعرض" });
+        Assert.Equal(201, car.Status);
+        return car.Data!["id"].S();
+    }
+
+    [Fact]
+    public async Task Quick_sale_creates_and_invoices_the_contract_in_one_transaction_and_filters_by_cycle()
+    {
+        var api = await NewTenantAsync();
+        var vid = await SeedCarAsync(api, '6');
+        var r = await api.Post("/carsalescontracts/quick-sale", new { contract = new { cycleType = "corporate", buyerName = "شركة النور", buyerNationalIdOrCr = "7001234567", buyerPhone = "0550000000",
+            vehicleId = vid, sellingPrice = 50000, vatMode = "standard_15", paymentMethod = "bank_transfer", condition = "new" } });
+        Assert.Equal(201, r.Status);
+        Assert.Equal("invoiced", r.Data!["status"].S());
+        Assert.Equal("HO-" + r.Data["contractNumber"].S(), r.Data["handoverProtocolNumber"].S()); // بيانات التسليم الافتراضية من العقد
+        Assert.Equal("شركة النور", r.Data["handoverSignee"].S());
+        Assert.Equal("sold", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
+        Assert.Equal(57500, (await api.Get($"/invoices/{r.Data["invoiceId"].S()}")).Data!["grandTotal"].D());
+
+        Assert.Equal(1, (await api.Get("/carsalescontracts?cycleType=corporate")).Data!["totalCount"].D());
+        Assert.Equal(0, (await api.Get("/carsalescontracts?cycleType=individual")).Data!["totalCount"].D());
+        Assert.Equal(400, (await api.Get("/carsalescontracts?cycleType=bogus")).Status);
+        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+    }
+
+    [Fact]
+    public async Task Quick_sale_rolls_everything_back_when_a_later_step_fails()
+    {
+        var api = await NewTenantAsync();
+        var vid = await SeedCarAsync(api, '7');
+        // البيع الآجل بلا عميل يفشل عند مرحلة الاعتماد — لا يبقى عقد ولا حجز
+        var r = await api.Post("/carsalescontracts/quick-sale", new { contract = new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "1010101010", buyerPhone = "0550000000",
+            vehicleId = vid, sellingPrice = 50000, vatMode = "standard_15", paymentMethod = "credit", condition = "new" } });
+        Assert.Equal(400, r.Status);
+        Assert.Equal(0, (await api.Get("/carsalescontracts")).Data!["totalCount"].D());
+        Assert.Equal("available", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
+    }
+
+    [Fact]
+    public async Task Complete_finishes_an_existing_draft_contract_through_invoicing()
+    {
+        var api = await NewTenantAsync();
+        var vid = await SeedCarAsync(api, '8');
+        var draft = await api.Post("/carsalescontracts", new { cycleType = "individual", buyerName = "فرد", buyerNationalIdOrCr = "1010101010", buyerPhone = "0550000000",
+            vehicleId = vid, sellingPrice = 50000, vatMode = "standard_15", paymentMethod = "cash", condition = "new" });
+        Assert.Equal("draft", draft.Data!["status"].S());
+        var done = await api.Post($"/carsalescontracts/{draft.Data["id"].S()}/complete", new { handoverProtocolNumber = "H-77" });
+        Assert.Equal(200, done.Status);
+        Assert.Equal("invoiced", done.Data!["status"].S());
+        Assert.Equal("H-77", done.Data["handoverProtocolNumber"].S());
+        Assert.Equal(409, (await api.Post($"/carsalescontracts/{draft.Data["id"].S()}/complete", new { })).Status); // منتهٍ
+    }
+
+    [Fact]
+    public async Task Quick_purchase_creates_the_vehicle_and_a_real_purchase_invoice_in_one_call()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api, "مورد أفراد");
+        var vin = Client.NewVin('9');
+        object Body(string v, string cycle = "corporate") => new
+        {
+            purchaseCycle = cycle, supplierId = supplier, paymentType = "credit", creditDays = 30, brandName = "تويوتا", modelName = "كامري", trimName = "GLE", year = 2025,
+            colorExterior = "أبيض", colorInterior = "بيج", vin = v, engineNumber = "E-9", purchasePrice = 80000, sellingPrice = 100000, warehouseLocation = "المعرض",
+        };
+        var r = await api.Post("/carprocurementorders/quick-purchase", Body(vin));
+        Assert.Equal(201, r.Status);
+        Assert.Equal("invoiced", r.Data!["stage"].S());
+        Assert.Equal("corporate", r.Data["purchaseCycle"].S());
+        Assert.False(string.IsNullOrEmpty(r.Data["purchaseInvoiceId"].S()));
+
+        var vehicles = (await api.Get("/vehicles")).Data!["items"]!.AsArray();
+        Assert.Single(vehicles);
+        Assert.Equal(vin, vehicles[0]!["chassisNumber"].S());
+        Assert.Equal("available", vehicles[0]!["status"].S());
+
+        Assert.Equal(1, (await api.Get("/carprocurementorders?purchaseCycle=corporate")).Data!["totalCount"].D());
+        Assert.Equal(0, (await api.Get("/carprocurementorders?purchaseCycle=individual")).Data!["totalCount"].D());
+        Assert.Equal(400, (await api.Post("/carprocurementorders/quick-purchase", Body(Client.NewVin('9'), "bogus"))).Status);
+        Assert.Equal(409, (await api.Post("/carprocurementorders/quick-purchase", Body(vin))).Status); // VIN مكرر
+        Assert.Equal(1, (await api.Get("/carprocurementorders")).Data!["totalCount"].D());             // المحاولة المرفوضة لم تترك أمرًا
+        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+    }
 }

@@ -10,6 +10,7 @@ public partial class CreateCarProcurementOrderDto
     public string? SupplierCr { get; set; }
     public string? SupplierVat { get; set; }
     public string? Priority { get; set; } = "normal";
+    public string? PurchaseCycle { get; set; }
     public string Currency { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1;
     public string PaymentType { get; set; } = "cash";

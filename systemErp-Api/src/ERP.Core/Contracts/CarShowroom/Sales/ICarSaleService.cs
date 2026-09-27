@@ -6,7 +6,8 @@ namespace ERP.Core.Contracts.CarShowroom;
 
 public interface ICarSaleService
 {
-    Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams query, CancellationToken ct = default);
+    /// <summary>cycleType اختياري لتصفية دورة البيع (أفراد/شركات/بنوك/تقسيط).</summary>
+    Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams query, CarSalesCycleType? cycleType = null, CancellationToken ct = default);
     Task<CarSalesContractDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<CarSalesContractDto> CreateAsync(CreateCarSalesContractDto request, CancellationToken ct = default);
     /// <summary>تعديل العقد قبل الفوترة؛ السعر والضريبة يُحسبان في الخادم.</summary>
@@ -15,4 +16,8 @@ public interface ICarSaleService
     Task<CarSalesContractDto> AdvanceStatusAsync(Guid id, AdvanceSalesContractRequestDto request, CancellationToken ct = default);
     Task<CarSalesContractDto> CancelAsync(Guid id, string? reason, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    /// <summary>يُكمل عقدًا قائمًا من مرحلته الحالية حتى الفوترة في معاملة واحدة (بيانات التسليم الفارغة تُملأ من المشتري).</summary>
+    Task<CarSalesContractDto> CompleteAsync(Guid id, CompleteSalesContractRequestDto? request, CancellationToken ct = default);
+    /// <summary>بيع سريع: إنشاء العقد ثم إكماله حتى الفاتورة في معاملة واحدة.</summary>
+    Task<CarSalesContractDto> QuickSaleAsync(QuickSaleRequestDto request, CancellationToken ct = default);
 }

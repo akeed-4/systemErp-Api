@@ -20,15 +20,17 @@ public class CarSaleService : ICarSaleService
     private readonly IInvoiceService _invoices;
     private readonly ICurrentUser _user;
     private readonly ITransactionRunner _tx;
+    private readonly IAuditService _audit;
 
-    public CarSaleService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, ICurrentUser user, ITransactionRunner tx)
+    public CarSaleService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, ICurrentUser user, ITransactionRunner tx, IAuditService audit)
     {
-        _db = db; _numbers = numbers; _invoices = invoices; _user = user; _tx = tx;
+        _db = db; _numbers = numbers; _invoices = invoices; _user = user; _tx = tx; _audit = audit;
     }
 
-    public async Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
+    public async Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams p, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
     {
         var q = _db.Set<CarSalesContract>().AsNoTracking().AsQueryable();
+        if (cycleType.HasValue) q = q.Where(c => c.CycleType == cycleType);
         if (Enum.TryParse<SalesContractStatus>(p.Status, true, out var st)) q = q.Where(c => c.Status == st);
         if (p.StartDate.HasValue) q = q.Where(c => c.Date >= p.StartDate);
         if (p.EndDate.HasValue) q = q.Where(c => c.Date <= p.EndDate);
@@ -106,9 +108,48 @@ public class CarSaleService : ICarSaleService
                 case SalesContractStatus.Invoiced: await InvoiceAsync(c, token); break;
             }
             if (!string.IsNullOrWhiteSpace(r.Notes)) c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? r.Notes : $"{c.Notes}\n{r.Notes}";
+            var from = c.Status;
             c.Status = r.TargetStatus;
+            await _audit.LogAsync("STATUS_ADVANCED", nameof(CarSalesContract), c.Id.ToString(), $"من {from} إلى {c.Status}", token);
             await _db.SaveChangesAsync(token);
             return Mapper.Map<CarSalesContractDto>(c);
+        }, ct);
+
+    public Task<CarSalesContractDto> CompleteAsync(Guid id, CompleteSalesContractRequestDto? h, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var current = await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("عقد البيع غير موجود");
+            if (current.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled)
+                throw new ConflictException("العقد منتهٍ (مفوتر أو ملغى).");
+
+            var status = current.Status;
+            CarSalesContractDto last = Mapper.Map<CarSalesContractDto>(current);
+            while (status != SalesContractStatus.Invoiced)
+            {
+                var next = status + 1;
+                var step = new AdvanceSalesContractRequestDto { TargetStatus = next };
+                if (next == SalesContractStatus.Allocated) { step.PdiInspectionNotes = h?.PdiInspectionNotes; }
+                if (next == SalesContractStatus.Delivered)
+                {
+                    step.HandoverProtocolNumber = string.IsNullOrWhiteSpace(h?.HandoverProtocolNumber) ? $"HO-{current.ContractNumber}" : h!.HandoverProtocolNumber;
+                    step.HandoverSignee = string.IsNullOrWhiteSpace(h?.HandoverSignee) ? current.BuyerName : h!.HandoverSignee;
+                    step.HandoverSigneeNationalId = string.IsNullOrWhiteSpace(h?.HandoverSigneeNationalId) ? current.BuyerNationalIdOrCr : h!.HandoverSigneeNationalId;
+                    step.DeliveryDate = h?.DeliveryDate; step.DeliveryLocation = h?.DeliveryLocation;
+                }
+                if (next == SalesContractStatus.Invoiced) step.Notes = h?.Notes;
+                last = await AdvanceStatusAsync(id, step, token);
+                status = last.Status;
+            }
+            return last;
+        }, ct);
+
+    public Task<CarSalesContractDto> QuickSaleAsync(QuickSaleRequestDto r, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var created = await CreateAsync(r.Contract, token);
+            var done = await CompleteAsync(created.Id, r.Handover, token);
+            await _audit.LogAsync("QUICK_SALE", nameof(CarSalesContract), created.Id.ToString(), $"بيع سريع: عقد {done.ContractNumber} — VIN {done.Vin}", token);
+            return done;
         }, ct);
 
     public Task<CarSalesContractDto> CancelAsync(Guid id, string? reason, CancellationToken ct = default)
@@ -121,6 +162,7 @@ public class CarSaleService : ICarSaleService
             if (vehicle is { Status: VehicleStatus.Reserved }) vehicle.Status = VehicleStatus.Available; // فك الحجز
             c.Status = SalesContractStatus.Cancelled;
             if (!string.IsNullOrWhiteSpace(reason)) c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? $"سبب الإلغاء: {reason}" : $"{c.Notes}\nسبب الإلغاء: {reason}";
+            await _audit.LogAsync("CONTRACT_CANCELLED", nameof(CarSalesContract), c.Id.ToString(), reason ?? "بدون سبب", token);
             await _db.SaveChangesAsync(token);
             return Mapper.Map<CarSalesContractDto>(c);
         }, ct);

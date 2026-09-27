@@ -25,7 +25,7 @@ public class PosTransactionsController : ErpControllerBase
     public async Task<IActionResult> Void(Guid id, CancellationToken ct) => Success(await _sales.VoidAsync(id, ct), "تم إلغاء المعاملة");
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _sales.DeleteAsync(id, ct); return Success<object?>(null, "تم حذف المعاملة"); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _sales.DeleteAsync(id, ct); return Success("تم حذف المعاملة"); }
 
     [HttpPost("checkout")]
     public async Task<IActionResult> Checkout([FromBody] CheckoutRequestDto dto, CancellationToken ct)

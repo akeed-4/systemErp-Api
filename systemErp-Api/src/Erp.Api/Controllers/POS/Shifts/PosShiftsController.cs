@@ -20,7 +20,7 @@ public class PosShiftsController : ErpControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePosShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.UpdateAsync(id, dto, ct), "تم تحديث الوردية");
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, [FromQuery] bool cascade, CancellationToken ct) { await _shifts.DeleteAsync(id, cascade, ct); return Success<object?>(null, "تم حذف الوردية"); }
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] bool cascade, CancellationToken ct) { await _shifts.DeleteAsync(id, cascade, ct); return Success("تم حذف الوردية"); }
 
     [HttpPost("open")]
     public async Task<IActionResult> Open([FromBody] OpenShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.OpenAsync(dto, ct), "تم فتح الوردية");

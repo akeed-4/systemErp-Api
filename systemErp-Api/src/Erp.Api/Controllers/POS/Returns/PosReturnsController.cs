@@ -19,7 +19,7 @@ public class PosReturnsController : ErpControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePosReturnRequestDto dto, CancellationToken ct) => Success(await _returns.UpdateAsync(id, dto, ct), "تم تحديث المرتجع");
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _returns.DeleteAsync(id, ct); return Success<object?>(null, "تم حذف المرتجع"); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _returns.DeleteAsync(id, ct); return Success("تم حذف المرتجع"); }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePosReturnRequestDto dto, CancellationToken ct) => Success(await _returns.CreateAsync(dto, ct), "تم إنشاء المرتجع");

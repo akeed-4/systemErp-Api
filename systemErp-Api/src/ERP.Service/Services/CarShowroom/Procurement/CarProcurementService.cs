@@ -16,7 +16,7 @@ public class CarProcurementService : ICarProcurementService
 {
     private static readonly string[] PaymentTypes = { "cash", "credit", "bank_lc", "advance_milestone" };
     private static readonly string[] Currencies = { "SAR", "USD", "EUR", "AED" };
-    private static readonly Regex VinPattern = new("^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
+    private static readonly string[] PurchaseCycles = { "individual", "corporate", "bank_lease" };
     private const decimal VatRate = 15m;
 
     private readonly ErpDbContext _db;
@@ -24,15 +24,17 @@ public class CarProcurementService : ICarProcurementService
     private readonly IInvoiceService _invoices;
     private readonly IAccountingPostingService _posting;
     private readonly ITransactionRunner _tx;
+    private readonly IAuditService _audit;
 
-    public CarProcurementService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, IAccountingPostingService posting, ITransactionRunner tx)
+    public CarProcurementService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, IAccountingPostingService posting, ITransactionRunner tx, IAuditService audit)
     {
-        _db = db; _numbers = numbers; _invoices = invoices; _posting = posting; _tx = tx;
+        _db = db; _numbers = numbers; _invoices = invoices; _posting = posting; _tx = tx; _audit = audit;
     }
 
-    public async Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
+    public async Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams p, string? purchaseCycle = null, CancellationToken ct = default)
     {
         var q = _db.Set<CarProcurementOrder>().AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(purchaseCycle)) q = q.Where(o => o.PurchaseCycle == purchaseCycle);
         if (Enum.TryParse<ProcurementStage>(p.Status, true, out var stage)) q = q.Where(o => o.Stage == stage);
         if (p.StartDate.HasValue) q = q.Where(o => o.Date >= p.StartDate);
         if (p.EndDate.HasValue) q = q.Where(o => o.Date <= p.EndDate);
@@ -117,6 +119,7 @@ public class CarProcurementService : ICarProcurementService
             if (r.TargetStage != order.Stage + 1)
                 throw new ConflictException($"المرحلة التالية المسموحة هي: {(order.Stage == ProcurementStage.Invoiced ? "لا يوجد" : (order.Stage + 1).ToString())}.");
 
+            var fromStage = order.Stage;
             switch (r.TargetStage)
             {
                 case ProcurementStage.RequisitionApproved:
@@ -131,6 +134,7 @@ public class CarProcurementService : ICarProcurementService
                 case ProcurementStage.VinReceived:
                     if (!await ReceiveVinsAsync(order, r, token))
                     {
+                        await _audit.LogAsync("PDI_REJECTED", nameof(CarProcurementOrder), order.Id.ToString(), r.RejectionReason ?? "فشل فحص الاستلام (PDI)", token);
                         await _db.SaveChangesAsync(token); // فشل فحص الاستلام: رُفض الأمر
                         return await GetAsync(id, token);
                     }
@@ -140,6 +144,7 @@ public class CarProcurementService : ICarProcurementService
                     break;
             }
             order.Stage = r.TargetStage;
+            await _audit.LogAsync("STAGE_ADVANCED", nameof(CarProcurementOrder), order.Id.ToString(), $"من {fromStage} إلى {r.TargetStage}" + (string.IsNullOrWhiteSpace(r.Notes) ? "" : $" — {r.Notes}"), token);
             await _db.SaveChangesAsync(token);
             return await GetAsync(id, token);
         }, ct);
@@ -151,9 +156,56 @@ public class CarProcurementService : ICarProcurementService
         if (order.Stage >= ProcurementStage.VinReceived || order.Status is ProcurementOrderStatus.Invoiced or ProcurementOrderStatus.Closed)
             throw new ConflictException("لا يمكن رفض أمر استُلمت مركباته أو فُوتر.");
         order.Status = ProcurementOrderStatus.Rejected; order.RejectionReason = r.Reason;
+        await _audit.LogAsync("ORDER_REJECTED", nameof(CarProcurementOrder), order.Id.ToString(), r.Reason, ct);
         await _db.SaveChangesAsync(ct);
         return await GetAsync(id, ct);
     }
+
+    public Task<CarProcurementOrderDto> QuickPurchaseAsync(QuickCarPurchaseRequestDto r, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            if (string.IsNullOrWhiteSpace(r.Vin)) throw new ValidationFailedException("رقم الشاسيه (VIN) مطلوب.");
+            if (r.PurchasePrice <= 0) throw new ValidationFailedException("سعر الشراء يجب أن يكون موجباً.");
+
+            var notes = new List<string> { $"شراء سريع لمركبة (دورة {r.PurchaseCycle}) — VIN {r.Vin.Trim().ToUpperInvariant()}" };
+            if (!string.IsNullOrWhiteSpace(r.FinancingBankName)) notes.Add($"الجهة: {r.FinancingBankName}");
+            if (!string.IsNullOrWhiteSpace(r.BankApprovalNumber)) notes.Add($"رقم موافقة البنك: {r.BankApprovalNumber}");
+            if (!string.IsNullOrWhiteSpace(r.Notes)) notes.Add(r.Notes);
+
+            var created = await CreateAsync(new CreateCarProcurementOrderDto
+            {
+                SupplierId = r.SupplierId, Date = r.Date ?? DateTime.UtcNow, PurchaseCycle = r.PurchaseCycle,
+                PaymentType = r.PaymentType, CreditDays = r.CreditDays, Currency = r.Currency, ExchangeRate = r.ExchangeRate,
+                Notes = string.Join("\n", notes), WarehouseLocation = r.WarehouseLocation,
+                Items = new List<CarProcurementOrderItemDto>
+                {
+                    new()
+                    {
+                        BrandName = r.BrandName, ModelName = r.ModelName, TrimName = r.TrimName, Year = r.Year, Quantity = 1, UnitPrice = r.PurchasePrice,
+                        Color = r.ColorExterior, Transmission = r.Transmission, FuelType = r.FuelType,
+                    },
+                },
+            }, token);
+
+            foreach (var stage in new[] { ProcurementStage.RequisitionApproved, ProcurementStage.Rfq, ProcurementStage.RfqApproved, ProcurementStage.PurchaseOrder })
+                await AdvanceStageAsync(created.Id, new AdvanceProcurementRequestDto { TargetStage = stage }, token);
+
+            await AdvanceStageAsync(created.Id, new AdvanceProcurementRequestDto
+            {
+                TargetStage = ProcurementStage.VinReceived, PdiInspectionPassed = true, WarehouseLocation = r.WarehouseLocation,
+                Vins = new List<ReceiveVinDto>
+                {
+                    new() { Vin = r.Vin, EngineNumber = r.EngineNumber, CustomsCardNumber = r.CustomsCardNumber, ColorExterior = r.ColorExterior, ColorInterior = r.ColorInterior, SellingPrice = r.SellingPrice },
+                },
+            }, token);
+
+            var done = await AdvanceStageAsync(created.Id, new AdvanceProcurementRequestDto
+            {
+                TargetStage = ProcurementStage.Invoiced, SupplierInvoiceNumber = r.SupplierInvoiceNumber, SupplierInvoiceDate = r.SupplierInvoiceDate,
+            }, token);
+            await _audit.LogAsync("QUICK_PURCHASE", nameof(CarProcurementOrder), created.Id.ToString(), $"شراء سريع: أمر {done.OrderNumber} — VIN {r.Vin}", token);
+            return done;
+        }, ct);
 
     public Task DeleteAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -173,6 +225,7 @@ public class CarProcurementService : ICarProcurementService
         var errors = new List<string>();
         if (!PaymentTypes.Contains(r.PaymentType)) errors.Add("نوع الدفع: " + string.Join(" | ", PaymentTypes));
         if (!Currencies.Contains(r.Currency)) errors.Add("العملة: " + string.Join(" | ", Currencies));
+        if (!string.IsNullOrWhiteSpace(r.PurchaseCycle) && !PurchaseCycles.Contains(r.PurchaseCycle)) errors.Add("دورة الشراء: " + string.Join(" | ", PurchaseCycles));
         if (r.ExchangeRate <= 0) errors.Add("سعر الصرف يجب أن يكون موجباً.");
         if (r.Currency == "SAR" && r.ExchangeRate != 1) errors.Add("سعر صرف الريال 1.");
         if (r.PaymentType == "credit" && (r.CreditDays ?? 0) <= 0) errors.Add("الدفع الآجل يتطلب عدد أيام الائتمان.");
@@ -224,7 +277,7 @@ public class CarProcurementService : ICarProcurementService
         if (r.Vins.Count != expected) throw new ValidationFailedException($"عدد الشواسيهات ({r.Vins.Count}) يجب أن يساوي إجمالي الكميات المطلوبة ({expected}).");
 
         var vins = r.Vins.Select(v => v.Vin.Trim().ToUpperInvariant()).ToList();
-        if (vins.Any(v => !VinPattern.IsMatch(v))) throw new ValidationFailedException("رقم شاسيه غير صالح (17 خانة بدون I/O/Q).");
+        if (vins.Any(v => !VehicleService.VinPattern.IsMatch(v))) throw new ValidationFailedException("رقم شاسيه غير صالح (17 خانة بدون I/O/Q).");
         if (vins.Distinct().Count() != vins.Count) throw new ValidationFailedException("أرقام الشواسيه مكررة في الطلب.");
         var existing = await _db.Set<Vehicle>().AsNoTracking().Where(v => vins.Contains(v.ChassisNumber)).Select(v => v.ChassisNumber).ToListAsync(ct);
         if (existing.Count > 0) throw new ConflictException("شواسيهات مسجّلة مسبقاً: " + string.Join(", ", existing));

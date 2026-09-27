@@ -59,4 +59,6 @@ public class Vehicle : BaseEntity
 
     /// <summary>أمر الشراء الذي وردت منه المركبة (إن وُجد).</summary>
     public Guid? ProcurementOrderId { get; set; }
+    /// <summary>فاتورة الشراء متعددة السيارات التي أنشأت هذه المركبة (تمنع حذفها منفردة).</summary>
+    public Guid? PurchaseInvoiceId { get; set; }
 }

@@ -62,4 +62,6 @@ public class Invoice : BaseEntity
 
     public virtual ICollection<InvoiceItem> Items { get; set; } = new List<InvoiceItem>();
     public virtual ICollection<InvoicePaymentSplit> PaymentSplits { get; set; } = new List<InvoicePaymentSplit>();
+    /// <summary>أسطر السيارات (فواتير الشراء/البيع متعددة السيارات). تُشتق منها بنود InvoiceItem.</summary>
+    public virtual ICollection<InvoiceVehicleLine> VehicleLines { get; set; } = new List<InvoiceVehicleLine>();
 }

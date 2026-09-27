@@ -13,6 +13,8 @@ public class CarProcurementOrder : BaseEntity
     public string? SupplierVat { get; set; }
     /// <summary>normal | urgent | custom_order</summary>
     public string? Priority { get; set; } = "normal";
+    /// <summary>دورة الشراء: individual | corporate | bank_lease (اختياري للأوامر القديمة).</summary>
+    public string? PurchaseCycle { get; set; }
     /// <summary>SAR | USD | EUR | AED</summary>
     public string Currency { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1;

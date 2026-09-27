@@ -6,7 +6,8 @@ namespace ERP.Core.Contracts.CarShowroom;
 
 public interface ICarProcurementService
 {
-    Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams query, CancellationToken ct = default);
+    /// <summary>purchaseCycle اختياري: individual | corporate | bank_lease.</summary>
+    Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams query, string? purchaseCycle = null, CancellationToken ct = default);
     Task<CarProcurementOrderDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<CarProcurementOrderDto> CreateAsync(CreateCarProcurementOrderDto request, CancellationToken ct = default);
     /// <summary>تعديل بيانات الأمر غير المرحلية (بنود، شحن، جمارك...) قبل الفوترة.</summary>
@@ -15,4 +16,6 @@ public interface ICarProcurementService
     Task<CarProcurementOrderDto> AdvanceStageAsync(Guid id, AdvanceProcurementRequestDto request, CancellationToken ct = default);
     Task<CarProcurementOrderDto> RejectAsync(Guid id, RejectProcurementRequestDto request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    /// <summary>شراء مركبة واحدة بخطوة واحدة: أمر شراء ببند واحد يمرّ بكل المراحل حتى الفاتورة والقيد، في معاملة واحدة.</summary>
+    Task<CarProcurementOrderDto> QuickPurchaseAsync(QuickCarPurchaseRequestDto request, CancellationToken ct = default);
 }

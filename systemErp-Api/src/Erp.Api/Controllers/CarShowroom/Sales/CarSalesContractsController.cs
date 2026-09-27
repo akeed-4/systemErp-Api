@@ -10,9 +10,26 @@ namespace ERP.Api.Controllers.CarShowroom;
 public class CarSalesContractsController : ErpControllerBase
 {
     private readonly ICarSaleService _service;
-    public CarSalesContractsController(ICarSaleService service) => _service = service;
+    private readonly IPermissionService _permissions;
+    public CarSalesContractsController(ICarSaleService service, IPermissionService permissions)
+    {
+        _service = service; _permissions = permissions;
+    }
 
-    [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _service.ListAsync(q, ct));
+    /// <summary>cycleType اختياري بصيغة snake_case (individual | corporate | bank_lease | installment).</summary>
+    [HttpGet]
+    public async Task<IActionResult> List([FromQuery] PaginationParams q, [FromQuery] string? cycleType, CancellationToken ct)
+    {
+        CarSalesCycleType? cycle = null;
+        if (!string.IsNullOrWhiteSpace(cycleType))
+        {
+            if (!Enum.TryParse<CarSalesCycleType>(cycleType.Replace("_", ""), true, out var parsed))
+                throw new ValidationFailedException("نوع الدورة غير صالح: individual | corporate | bank_lease | installment.");
+            cycle = parsed;
+        }
+        return Success(await _service.ListAsync(q, cycle, ct));
+    }
+
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _service.GetAsync(id, ct));
 
     [HttpPost]
@@ -22,18 +39,46 @@ public class CarSalesContractsController : ErpControllerBase
         return Created($"{Request.Path}/{created.Id}", ApiResponse<CarSalesContractDto>.Ok(created, "تم إنشاء العقد").WithStatus(201));
     }
 
+    /// <summary>بيع سريع: إنشاء العقد ثم اعتماده وتخصيصه وتسليمه وفوترته في معاملة واحدة. يتطلب صلاحية الاعتماد.</summary>
+    [HttpPost("quick-sale")]
+    public async Task<IActionResult> QuickSale([FromBody] QuickSaleRequestDto dto, CancellationToken ct)
+    {
+        await Require(ScreenAction.Approve, ct);
+        var done = await _service.QuickSaleAsync(dto, ct);
+        return Created($"{Request.Path}/{done.Id}", ApiResponse<CarSalesContractDto>.Ok(done, "تم اعتماد العقد وإصدار الفاتورة").WithStatus(201));
+    }
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCarSalesContractDto dto, CancellationToken ct)
         => Success(await _service.UpdateAsync(id, dto, ct), "تم التعديل");
 
     [HttpPost("{id:guid}/advance-status")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceSalesContractRequestDto dto, CancellationToken ct)
-        => Success(await _service.AdvanceStatusAsync(id, dto, ct), "تم نقل العقد للمرحلة التالية");
+    {
+        await Require(dto.TargetStatus == SalesContractStatus.Approved ? ScreenAction.Approve : ScreenAction.Edit, ct);
+        return Success(await _service.AdvanceStatusAsync(id, dto, ct), "تم نقل العقد للمرحلة التالية");
+    }
+
+    /// <summary>يُكمل العقد القائم من مرحلته الحالية حتى الفوترة (بيانات التسليم الفارغة تُملأ من المشتري). يتطلب صلاحية الاعتماد.</summary>
+    [HttpPost("{id:guid}/complete")]
+    public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteSalesContractRequestDto? dto, CancellationToken ct)
+    {
+        await Require(ScreenAction.Approve, ct);
+        return Success(await _service.CompleteAsync(id, dto, ct), "تم إكمال العقد وإصدار الفاتورة");
+    }
 
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] RejectProcurementRequestDto dto, CancellationToken ct)
-        => Success(await _service.CancelAsync(id, dto.Reason, ct), "تم إلغاء العقد");
+    {
+        await Require(ScreenAction.Approve, ct);
+        return Success(await _service.CancelAsync(id, dto.Reason, ct), "تم إلغاء العقد");
+    }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _service.DeleteAsync(id, ct); return Success("تم الحذف"); }
+
+    private async Task Require(ScreenAction action, CancellationToken ct)
+    {
+        if (!await _permissions.HasPermissionAsync("car-showroom", action, ct)) throw new ForbiddenException();
+    }
 }

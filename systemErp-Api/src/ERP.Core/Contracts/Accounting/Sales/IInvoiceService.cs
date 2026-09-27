@@ -6,7 +6,8 @@ namespace ERP.Core.Contracts.Accounting;
 
 public interface IInvoiceService
 {
-    Task<PagedResult<InvoiceDto>> ListAsync(InvoiceKind? kind, PaginationParams query, CancellationToken ct = default);
+    /// <summary>hasVehicleLines: true = فواتير السيارات متعددة الأسطر فقط، false = بدونها، null = الكل.</summary>
+    Task<PagedResult<InvoiceDto>> ListAsync(InvoiceKind? kind, PaginationParams query, bool? hasVehicleLines = null, CancellationToken ct = default);
     Task<InvoiceDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>ينشئ فاتورة (بيع/شراء) ويحسب الضريبة والإجماليات ويرحّل القيد والمخزون ويولّد QR — كلها في معاملة واحدة.</summary>
     Task<InvoiceDto> CreateAsync(CreateInvoiceDto request, CancellationToken ct = default);

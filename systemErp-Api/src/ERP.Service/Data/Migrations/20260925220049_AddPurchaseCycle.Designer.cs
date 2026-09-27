@@ -4,6 +4,7 @@ using ERP.Service.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ERP.Service.Data.Migrations
 {
     [DbContext(typeof(ErpDbContext))]
-    partial class ErpDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260925220049_AddPurchaseCycle")]
+    partial class AddPurchaseCycle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1141,110 +1144,6 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("InvoicePaymentSplit");
-                });
-
-            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceVehicleLine", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("BrandId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("BrandNameAr")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ColorExterior")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ColorInterior")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CustomsCardNumber")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("Discount")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<string>("EngineNumber")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("InvoiceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("LineNo")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("ModelId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ModelNameAr")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TempRef")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("TotalAfterVat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("TotalBeforeVat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid?>("TrimId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("TrimNameAr")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("UnitCost")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("VatAmount")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<string>("VatMode")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("VehicleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Vin")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvoiceId");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("InvoiceVehicleLine");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.JournalEntry", b =>
@@ -2682,9 +2581,6 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid?>("ProcurementOrderId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("PurchaseInvoiceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("PurchasePrice")
@@ -5088,17 +4984,6 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Invoice");
                 });
 
-            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceVehicleLine", b =>
-                {
-                    b.HasOne("ERP.Core.Models.Accounting.Invoice", "Invoice")
-                        .WithMany("VehicleLines")
-                        .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Invoice");
-                });
-
             modelBuilder.Entity("ERP.Core.Models.Accounting.JournalEntryLine", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.JournalEntry", "JournalEntry")
@@ -5540,8 +5425,6 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("PaymentSplits");
-
-                    b.Navigation("VehicleLines");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.JournalEntry", b =>

@@ -130,6 +130,37 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
             return true;
         }, ct);
 
+    /// <summary>
+    /// استيراد جماعي (Excel وغيره): يمرّ على كل صف عبر CreateAsync الحالي (نفس ValidateAsync/OnCreatingAsync)،
+    /// فصف فاشل لا يوقف البقية. الخدمات المتخصصة (Product/Vehicle) تعرّض هذه القدرة عبر واجهاتها فقط.
+    /// </summary>
+    public virtual async Task<ImportResultDto> ImportAsync(List<TCreate> items, CancellationToken ct = default)
+    {
+        var result = new ImportResultDto { TotalRows = items.Count };
+        for (var i = 0; i < items.Count; i++)
+        {
+            var rowNumber = i + 2; // الصف 1 في Excel هو رأس الأعمدة
+            try
+            {
+                var created = await CreateAsync(items[i], ct);
+                var id = created?.GetType().GetProperty("Id")?.GetValue(created) as Guid?;
+                result.Results.Add(new ImportRowResult { RowNumber = rowNumber, Success = true, Id = id });
+                result.SuccessCount++;
+            }
+            catch (Exception ex) when (ex is ValidationFailedException or ConflictException or NotFoundException)
+            {
+                result.Results.Add(new ImportRowResult { RowNumber = rowNumber, Success = false, Error = ex.Message });
+                result.FailedCount++;
+            }
+            catch (Exception)
+            {
+                result.Results.Add(new ImportRowResult { RowNumber = rowNumber, Success = false, Error = $"خطأ غير متوقع أثناء حفظ {Label}." });
+                result.FailedCount++;
+            }
+        }
+        return result;
+    }
+
     protected async Task SaveAsync(CancellationToken ct)
     {
         try

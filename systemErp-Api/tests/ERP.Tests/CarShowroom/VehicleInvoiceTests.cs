@@ -135,4 +135,107 @@ public class VehicleInvoiceTests : TestBase
         Assert.Equal(201, sold.Status);
         Assert.Equal(409, (await api.Delete($"/invoices/{p.Data!["id"].S()}")).Status);
     }
+
+    private static decimal Side(System.Text.Json.Nodes.JsonNode journal, string code, string side)
+        => journal["lines"]!.AsArray().Where(l => l!["accountCode"].S() == code).Sum(l => l![side].D());
+
+    [Fact]
+    public async Task Journal_preview_shows_inventory_and_cost_entries_without_saving_anything()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        var journalsBefore = (await api.Get("/journalentries")).Data!["totalCount"].D();
+
+        // شراء: مسودة بلا شاسيه تكفي للمعاينة — مدين مخزون السيارات والضريبة، دائن المورد
+        var pv = await api.Post("/invoices/preview-journal", Purchase(supplier, "draft", Line(null, 100000, tempRef: "R1")));
+        Assert.Equal(200, pv.Status);
+        Assert.True(pv.Data!["isPreview"]!.GetValue<bool>());
+        Assert.Equal(100000, Side(pv.Data, "1142", "debit"));
+        Assert.Equal(15000, Side(pv.Data, "1131", "debit"));
+        Assert.Equal(115000, pv.Data["totalCredit"].D());
+        Assert.Equal(pv.Data["totalDebit"].D(), pv.Data["totalCredit"].D());
+
+        // لا أثر: لا فواتير ولا مركبات ولا قيود
+        Assert.Equal(0, (await api.Get("/invoices")).Data!["totalCount"].D());
+        Assert.Equal(0, (await api.Get("/vehicles")).Data!["totalCount"].D());
+        Assert.Equal(journalsBefore, (await api.Get("/journalentries")).Data!["totalCount"].D());
+
+        // بيع: المعاينة تُظهر قيد تكلفة الإيرادات (مدين 512 / دائن 1142 بتكلفة السيارة) وتطابق القيد الفعلي
+        Assert.Equal(201, (await api.Post("/invoices", Purchase(supplier, "posted", Line(Client.NewVin('9'), 80000)))).Status);
+        var vid = (await api.Get("/vehicles")).Data!["items"]!.AsArray()[0]!["id"].S();
+        var sale = new
+        {
+            kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",
+            vehicleLines = new[] { new { vehicleId = vid, unitPrice = 100000m, discount = 0m, vatMode = "standard_15" } },
+        };
+        var sp = await api.Post("/invoices/preview-journal", sale);
+        Assert.Equal(200, sp.Status);
+        Assert.Equal(80000, Side(sp.Data!, "512", "debit"));
+        Assert.Equal(80000, Side(sp.Data!, "1142", "credit"));
+        Assert.Equal(100000, Side(sp.Data!, "412", "credit"));
+        Assert.Equal(15000, Side(sp.Data!, "213", "credit"));
+        Assert.Equal(20000, sp.Data!["grossProfit"].D());
+        Assert.Equal("available", (await api.Get($"/vehicles/{vid}")).Data!["status"].S()); // المعاينة لا تبيع المركبة
+
+        var posted = await api.Post("/invoices", sale);
+        Assert.Equal(201, posted.Status);
+        var actual = await api.Get($"/invoices/{posted.Data!["id"].S()}/journal");
+        Assert.Equal(200, actual.Status);
+        Assert.False(actual.Data!["isPreview"]!.GetValue<bool>());
+        foreach (var (code, side) in new[] { ("512", "debit"), ("1142", "credit"), ("412", "credit"), ("213", "credit") })
+            Assert.Equal(Side(sp.Data!, code, side), Side(actual.Data!, code, side));
+    }
+
+    private static async Task<Res> SetVatModeAsync(Client api, string vehicleId, string vatMode)
+    {
+        var body = (await api.Get($"/vehicles/{vehicleId}")).Data!.AsObject();
+        body["vatMode"] = vatMode;
+        return await api.Put($"/vehicles/{vehicleId}", body);
+    }
+
+    [Fact]
+    public async Task Margin_scheme_switch_on_the_vehicle_drives_vat_in_the_sales_invoice()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        // سيارة مستعملة مشتراة بدون ضريبة مدخلات (معفى) ← يُسمح بهامش الربح
+        Assert.Equal(201, (await api.Post("/invoices", Purchase(supplier, "posted", Line(Client.NewVin('5'), 80000, vatMode: "exempt")))).Status);
+        var id = (await api.Get("/vehicles")).Data!["items"]!.AsArray()[0]!["id"].S();
+
+        var upd = await SetVatModeAsync(api, id, "profit_margin_15");
+        Assert.Equal(200, upd.Status);
+        Assert.Equal("profit_margin_15", upd.Data!["vatMode"].S());
+
+        // العميل يرسل قياسي؛ الخادم يعتمد نمط المركبة
+        var s = await api.Post("/invoices", new
+        {
+            kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",
+            revenueAccountCode = "412", cogsAccountCode = "512", inventoryAccountCode = "1142",
+            vehicleLines = new[] { new { vehicleId = id, unitPrice = 100000m, discount = 0m, vatMode = "standard_15" } },
+        });
+        Assert.Equal(201, s.Status);
+        // الهامش 20000 × 15/115 = 2608.70 مضمَّنة: الإيراد 97391.30 والإجمالي = سعر البيع
+        Assert.Equal(2608.70m, s.Data!["vatTotal"].D());
+        Assert.Equal(97391.30m, s.Data["subtotal"].D());
+        Assert.Equal(100000, s.Data["grandTotal"].D());
+        var line = s.Data["vehicleLines"]!.AsArray()[0]!;
+        Assert.Equal("profit_margin_15", line["vatMode"].S());
+        Assert.Equal(100000, line["totalAfterVat"].D());
+        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+
+        // لا يتغير النمط بعد البيع
+        Assert.Equal(409, (await SetVatModeAsync(api, id, "standard_15")).Status);
+    }
+
+    [Fact]
+    public async Task Margin_scheme_is_rejected_for_a_vehicle_bought_with_input_vat()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        Assert.Equal(201, (await api.Post("/invoices", Purchase(supplier, "posted", Line(Client.NewVin('6'), 80000)))).Status); // قياسي 15%
+        var id = (await api.Get("/vehicles")).Data!["items"]!.AsArray()[0]!["id"].S();
+
+        Assert.Equal(400, (await SetVatModeAsync(api, id, "profit_margin_15")).Status);
+        Assert.Equal("standard_15", (await api.Get($"/vehicles/{id}")).Data!["vatMode"].S());
+    }
 }

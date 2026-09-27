@@ -18,10 +18,11 @@ public class PosSaleService : IPosSaleService
     private readonly ICurrentUser _user;
     private readonly IInvoiceService _invoices;
     private readonly ITransactionRunner _tx;
+    private readonly IAccountingPostingService _posting;
 
-    public PosSaleService(ErpDbContext db, ICurrentUser user, IInvoiceService invoices, ITransactionRunner tx)
+    public PosSaleService(ErpDbContext db, ICurrentUser user, IInvoiceService invoices, ITransactionRunner tx, IAccountingPostingService posting)
     {
-        _db = db; _user = user; _invoices = invoices; _tx = tx;
+        _db = db; _user = user; _invoices = invoices; _tx = tx; _posting = posting;
     }
 
     public Task<PosTransactionDto> CheckoutAsync(CheckoutRequestDto r, CancellationToken ct = default)
@@ -32,77 +33,33 @@ public class PosSaleService : IPosSaleService
                 ?? throw new ConflictException("افتح وردية أولاً قبل البيع.");
             var settings = await _db.Set<PosInvoiceSettings>().AsNoTracking().FirstOrDefaultAsync(token) ?? new PosInvoiceSettings();
 
-            // 1) السلة: دمج الأسطر المكررة والتحقق
-            var lines = r.Items.Where(i => i.Quantity != 0 || i.ItemId != Guid.Empty)
-                .GroupBy(i => i.ItemId).Select(g => new CheckoutLineDto
-                {
-                    ItemId = g.Key, Quantity = g.Sum(x => x.Quantity), ManualDiscount = g.Sum(x => x.ManualDiscount),
-                    Note = string.Join(" | ", g.Select(x => x.Note).Where(n => !string.IsNullOrWhiteSpace(n))),
-                }).ToList();
-            if (lines.Count == 0) throw new ValidationFailedException("السلة فارغة.");
-            if (lines.Any(l => l.Quantity <= 0 || l.ManualDiscount < 0)) throw new ValidationFailedException("الكميات موجبة والخصومات غير سالبة.");
-            if (lines.Any(l => l.ManualDiscount > 0) && !ManualDiscountRoles.Contains(_user.RoleId ?? string.Empty))
-                throw new ForbiddenException("الخصم اليدوي على السطر للأدوار الإدارية فقط.");
-
-            var ids = lines.Select(l => l.ItemId).ToList();
-            var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);
-            if (products.Count != ids.Count) throw new ValidationFailedException("صنف غير موجود في السلة.");
-            var categoryCodes = products.Values.Select(p => p.Category).Distinct().ToList();
-            var categoryIds = await _db.Set<ProductCategory>().AsNoTracking().Where(c => categoryCodes.Contains(c.Code)).ToDictionaryAsync(c => c.Code, c => c.Id, token);
-            var offers = await _db.Set<PosOffer>().AsNoTracking().Where(o => o.IsActive).ToListAsync(token);
-
-            // 2) الخصومات على مستوى السطر (عروض الخادم + خصم يدوي إداري)
-            var lineDiscounts = new List<decimal>();
-            foreach (var l in lines)
-            {
-                var p = products[l.ItemId];
-                var offer = PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, p.SellingPrice);
-                var gross = l.Quantity * p.SellingPrice;
-                if (l.ManualDiscount > gross - offer) throw new ValidationFailedException($"الخصم على الصنف {p.NameAr} يتجاوز قيمته.");
-                lineDiscounts.Add(offer + l.ManualDiscount);
-            }
-            var netAfterLines = lines.Select((l, i) => l.Quantity * products[l.ItemId].SellingPrice - lineDiscounts[i]).Sum();
-
-            // 3) الكوبون
-            PosCoupon? coupon = null; decimal couponDiscount = 0;
-            if (!string.IsNullOrWhiteSpace(r.CouponCode))
-            {
-                var code = r.CouponCode.Trim().ToUpperInvariant();
-                coupon = await _db.Set<PosCoupon>().FirstOrDefaultAsync(c => c.Code == code, token);
-                var reason = PosPricing.CouponRejectionReason(coupon, netAfterLines, DateTime.UtcNow);
-                if (reason != null) throw new ValidationFailedException(reason);
-                couponDiscount = PosPricing.CouponDiscount(coupon!, netAfterLines);
-            }
-
-            // 4) الولاء
-            Customer? customer = r.CustomerId.HasValue
-                ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.CustomerId, token) ?? throw new ValidationFailedException("العميل غير موجود.")
-                : null;
-            CustomerLoyalty? loyalty = customer == null ? null : await _db.Set<CustomerLoyalty>().FirstOrDefaultAsync(l => l.CustomerId == customer.Id, token);
-            decimal loyaltyDiscount = 0; var pointsUsed = 0;
-            if (r.LoyaltyPointsToRedeem > 0)
-            {
-                if (loyalty == null) throw new ValidationFailedException("لا يوجد رصيد ولاء لهذا العميل.");
-                if (r.LoyaltyPointsToRedeem > loyalty.PointsBalance) throw new ValidationFailedException("النقاط المطلوبة أكبر من الرصيد.");
-                var maxDiscount = netAfterLines - couponDiscount;
-                loyaltyDiscount = DocumentPricing.Round(Math.Min(r.LoyaltyPointsToRedeem * PosPricing.PointValueSar, maxDiscount));
-                pointsUsed = (int)Math.Ceiling(loyaltyDiscount / PosPricing.PointValueSar);
-            }
-
-            // 5) التسعير النهائي (نفس محرك الفواتير)
-            var priced = DocumentPricing.Price(
-                lines.Select((l, i) => new PricedLineInput(l.Quantity, products[l.ItemId].SellingPrice, lineDiscounts[i], products[l.ItemId].VatRate)).ToList(),
-                couponDiscount + loyaltyDiscount);
+            // 1-5) التسعير: السلة، العروض والخصم اليدوي، الكوبون، الولاء، الضريبة
+            var cart = await PriceCartAsync(r, strict: true, token);
+            var (lines, products, lineDiscounts, coupon, couponDiscount, customer, loyalty, loyaltyDiscount, pointsUsed, priced) =
+                (cart.Lines, cart.Products, cart.LineDiscounts, cart.Coupon, cart.CouponDiscount, cart.Customer, cart.Loyalty, cart.LoyaltyDiscount, cart.PointsUsed, cart.Priced);
             var total = priced.GrandTotal;
 
             // 6) الدفع
             var (cash, card, mada, apple, change) = ResolvePayment(r, total, customer);
 
+            // 6ب) دفع إلكتروني مكتمل عبر Paymob: يطابق الإجمالي ويُستهلك مرة واحدة
+            OnlinePayment? online = null;
+            if (r.OnlinePaymentId.HasValue)
+            {
+                if (r.PaymentMethod is not (PosPaymentMethod.Card or PosPaymentMethod.Mada or PosPaymentMethod.ApplePay))
+                    throw new ValidationFailedException("الدفع الإلكتروني يُسجَّل كبطاقة أو مدى أو Apple Pay.");
+                online = await _db.Set<OnlinePayment>().FirstOrDefaultAsync(p => p.Id == r.OnlinePaymentId, token)
+                    ?? throw new NotFoundException("عملية الدفع الإلكتروني غير موجودة");
+                if (online.Purpose != OnlinePaymentPurpose.PosSale || online.Status != OnlinePaymentStatus.Paid)
+                    throw new ConflictException("لم يكتمل الدفع الإلكتروني بعد.");
+                if (online.ConsumedAt != null) throw new ConflictException("استُخدم هذا الدفع في عملية سابقة.");
+                if (online.Amount != total) throw new ConflictException($"مبلغ الدفع الإلكتروني ({online.Amount:0.00}) لا يطابق إجمالي السلة ({total:0.00}).");
+            }
+
             // 7) الفاتورة (مخزون + قيد + QR) عبر محرك الفوترة المركزي
             var standard = string.Equals(r.InvoiceType ?? settings.DefaultInvoiceType, "standard", StringComparison.OrdinalIgnoreCase);
             var vat = string.IsNullOrWhiteSpace(r.CustomerTaxNumber) ? customer?.VatNumber : r.CustomerTaxNumber;
             if (standard && string.IsNullOrWhiteSpace(vat)) throw new ValidationFailedException("الفاتورة القياسية تتطلب الرقم الضريبي للعميل.");
-
             var invoiceDto = new CreateInvoiceDto
             {
                 Kind = InvoiceKind.Sales, InvoiceType = standard ? InvoiceType.TaxInvoice : InvoiceType.Simplified,
@@ -117,6 +74,7 @@ public class PosSaleService : IPosSaleService
                 }).ToList(),
             };
             ApplyPaymentToInvoice(invoiceDto, r.PaymentMethod, cash, card + mada + apple, total);
+            if (online != null) invoiceDto.SettlementAccountCode = await OnlinePaymentService.SettlementAccountAsync(_db, token);
             var invoice = await _invoices.CreateAsync(invoiceDto, token);
 
             // 8) معاملة نقطة البيع (ما يخص الكاشير)
@@ -147,6 +105,7 @@ public class PosSaleService : IPosSaleService
                 });
             }
             _db.Add(pos);
+            if (online != null) { online.ConsumedAt = DateTime.UtcNow; online.ReferenceId = pos.Id; online.ReferenceNumber = invoice.InvoiceNumber; }
 
             // 9) الوردية والكوبون والولاء
             shift.TotalCashSales += cash; shift.TotalCardSales += card; shift.TotalMadaSales += mada; shift.TotalApplePaySales += apple;
@@ -167,6 +126,115 @@ public class PosSaleService : IPosSaleService
             await _db.SaveChangesAsync(token);
             return Mapper.Map<PosTransactionDto>(pos);
         }, ct);
+
+    private sealed record CartPricing(
+        List<CheckoutLineDto> Lines, Dictionary<Guid, Product> Products, List<decimal> OfferDiscounts, List<decimal> LineDiscounts,
+        PosCoupon? Coupon, decimal CouponDiscount, string? CouponError,
+        Customer? Customer, CustomerLoyalty? Loyalty, decimal LoyaltyDiscount, int PointsUsed, string? LoyaltyError,
+        PricedDocument Priced);
+
+    /// <summary>تسعير السلة من الكتالوج (مشترك بين الإتمام والعرض المسبق). strict=false: الكوبون/الولاء غير الصالح يُتجاهل مع رسالة.</summary>
+    private async Task<CartPricing> PriceCartAsync(CheckoutRequestDto r, bool strict, CancellationToken token)
+    {
+            // 1) السلة: دمج الأسطر المكررة والتحقق
+            var lines = r.Items.Where(i => i.Quantity != 0 || i.ItemId != Guid.Empty)
+                .GroupBy(i => i.ItemId).Select(g => new CheckoutLineDto
+                {
+                    ItemId = g.Key, Quantity = g.Sum(x => x.Quantity), ManualDiscount = g.Sum(x => x.ManualDiscount),
+                    Note = string.Join(" | ", g.Select(x => x.Note).Where(n => !string.IsNullOrWhiteSpace(n))),
+                }).ToList();
+            if (lines.Count == 0) throw new ValidationFailedException("السلة فارغة.");
+            if (lines.Any(l => l.Quantity <= 0 || l.ManualDiscount < 0)) throw new ValidationFailedException("الكميات موجبة والخصومات غير سالبة.");
+            if (lines.Any(l => l.ManualDiscount > 0) && !ManualDiscountRoles.Contains(_user.RoleId ?? string.Empty))
+                throw new ForbiddenException("الخصم اليدوي على السطر للأدوار الإدارية فقط.");
+
+            var ids = lines.Select(l => l.ItemId).ToList();
+            var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);
+            if (products.Count != ids.Count) throw new ValidationFailedException("صنف غير موجود في السلة.");
+            var categoryCodes = products.Values.Select(p => p.Category).Distinct().ToList();
+            var categoryIds = await _db.Set<ProductCategory>().AsNoTracking().Where(c => categoryCodes.Contains(c.Code)).ToDictionaryAsync(c => c.Code, c => c.Id, token);
+            var offers = await _db.Set<PosOffer>().AsNoTracking().Where(o => o.IsActive).ToListAsync(token);
+
+            // 2) الخصومات على مستوى السطر (عروض الخادم + خصم يدوي إداري)
+            var offerDiscounts = new List<decimal>();
+            var lineDiscounts = new List<decimal>();
+            foreach (var l in lines)
+            {
+                var p = products[l.ItemId];
+                var offer = PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, p.SellingPrice);
+                var gross = l.Quantity * p.SellingPrice;
+                if (l.ManualDiscount > gross - offer) throw new ValidationFailedException($"الخصم على الصنف {p.NameAr} يتجاوز قيمته.");
+                offerDiscounts.Add(offer);
+                lineDiscounts.Add(offer + l.ManualDiscount);
+            }
+            var netAfterLines = lines.Select((l, i) => l.Quantity * products[l.ItemId].SellingPrice - lineDiscounts[i]).Sum();
+
+            // 3) الكوبون
+            PosCoupon? coupon = null; decimal couponDiscount = 0; string? couponError = null;
+            if (!string.IsNullOrWhiteSpace(r.CouponCode))
+            {
+                var code = r.CouponCode.Trim().ToUpperInvariant();
+                coupon = await _db.Set<PosCoupon>().FirstOrDefaultAsync(c => c.Code == code, token);
+                couponError = PosPricing.CouponRejectionReason(coupon, netAfterLines, DateTime.UtcNow);
+                if (couponError != null && strict) throw new ValidationFailedException(couponError);
+                if (couponError != null) coupon = null;
+                else couponDiscount = PosPricing.CouponDiscount(coupon!, netAfterLines);
+            }
+
+            // 4) الولاء
+            Customer? customer = r.CustomerId.HasValue
+                ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.CustomerId, token) ?? throw new ValidationFailedException("العميل غير موجود.")
+                : null;
+            CustomerLoyalty? loyalty = customer == null ? null : await _db.Set<CustomerLoyalty>().FirstOrDefaultAsync(l => l.CustomerId == customer.Id, token);
+            decimal loyaltyDiscount = 0; var pointsUsed = 0; string? loyaltyError = null;
+            if (r.LoyaltyPointsToRedeem > 0)
+            {
+                loyaltyError = loyalty == null ? "لا يوجد رصيد ولاء لهذا العميل."
+                    : r.LoyaltyPointsToRedeem > loyalty.PointsBalance ? "النقاط المطلوبة أكبر من الرصيد." : null;
+                if (loyaltyError != null && strict) throw new ValidationFailedException(loyaltyError);
+                if (loyaltyError == null)
+                {
+                    var maxDiscount = netAfterLines - couponDiscount;
+                    loyaltyDiscount = DocumentPricing.Round(Math.Min(r.LoyaltyPointsToRedeem * PosPricing.PointValueSar, maxDiscount));
+                    pointsUsed = (int)Math.Ceiling(loyaltyDiscount / PosPricing.PointValueSar);
+                }
+            }
+
+            // 5) التسعير النهائي (نفس محرك الفواتير)
+            var priced = DocumentPricing.Price(
+                lines.Select((l, i) => new PricedLineInput(l.Quantity, products[l.ItemId].SellingPrice, lineDiscounts[i], products[l.ItemId].VatRate)).ToList(),
+                couponDiscount + loyaltyDiscount);
+            return new CartPricing(lines, products, offerDiscounts, lineDiscounts, coupon, couponDiscount, couponError,
+                customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced);
+    }
+
+    /// <summary>تسعير السلة من الخادم للعرض على شاشة الكاشير قبل الدفع — بلا أي أثر.</summary>
+    public async Task<PosQuoteDto> QuoteAsync(CheckoutRequestDto r, CancellationToken ct = default)
+    {
+        var cart = await PriceCartAsync(r, strict: false, ct);
+        var p = cart.Priced;
+        return new PosQuoteDto
+        {
+            Lines = cart.Lines.Select((l, i) =>
+            {
+                var prod = cart.Products[l.ItemId]; var pl = p.Lines[i];
+                return new PosQuoteLineDto
+                {
+                    ItemId = prod.Id, Sku = prod.Sku, NameAr = prod.NameAr, NameEn = prod.NameEn, Unit = prod.Unit,
+                    Quantity = l.Quantity, UnitPrice = prod.SellingPrice, VatRate = prod.VatRate,
+                    OfferDiscount = cart.OfferDiscounts[i], ManualDiscount = l.ManualDiscount,
+                    Net = pl.Net, VatAmount = pl.VatAmount, Total = pl.Total, StockOnHand = prod.CurrentStock,
+                };
+            }).ToList(),
+            GrossTotal = p.Subtotal, LineDiscounts = cart.LineDiscounts.Sum(),
+            CouponDiscount = cart.CouponDiscount, CouponCode = cart.Coupon?.Code, CouponError = cart.CouponError,
+            LoyaltyDiscount = cart.LoyaltyDiscount, LoyaltyPointsRedeemed = cart.PointsUsed, LoyaltyError = cart.LoyaltyError,
+            LoyaltyPointsBalance = cart.Loyalty?.PointsBalance ?? 0,
+            TotalDiscount = cart.LineDiscounts.Sum() + cart.CouponDiscount + cart.LoyaltyDiscount,
+            NetBeforeVat = p.NetTotal, VatTotal = p.VatTotal, GrandTotal = p.GrandTotal,
+            PointsToEarn = cart.Customer == null ? 0 : (int)Math.Floor(p.GrandTotal / PosPricing.SarPerEarnedPoint),
+        };
+    }
 
     private static CustomerLoyalty NewLoyalty(Customer c) => new() { CustomerId = c.Id, CustomerName = c.NameAr, Phone = c.Phone };
 
@@ -253,7 +321,7 @@ public class PosSaleService : IPosSaleService
             shift.TotalCashSales -= t.PaidCash; shift.TotalCardSales -= t.PaidCard; shift.TotalMadaSales -= t.PaidMada; shift.TotalApplePaySales -= t.PaidApplePay;
             if (t.PaymentMethod == PosPaymentMethod.Credit) shift.TotalCreditSales -= t.GrandTotal;
             shift.TotalDiscount -= t.TotalDiscount; shift.TotalVat -= t.VatAmount; shift.TotalGross -= t.GrandTotal;
-            PosShiftRules.RecomputeVariance(shift);
+            await PosCashDrawer.SyncVarianceAsync(_db, _posting, shift, token);
 
             if (!string.IsNullOrWhiteSpace(t.CouponCode))
             {

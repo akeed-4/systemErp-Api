@@ -49,7 +49,8 @@ public class CarShowroomTests : TestBase
 
     [Theory]
     [InlineData("standard_15", 80000, 100000, 15000, 115000)]
-    [InlineData("profit_margin_15", 80000, 100000, 3000, 103000)]
+    [InlineData("profit_margin_15", 80000, 100000, 2608.70, 100000)] // 20000 × 15/115 مضمَّنة في السعر
+    [InlineData("margin_scheme", 80000, 100000, 2608.70, 100000)]
     [InlineData("exempt", 80000, 100000, 0, 100000)]
     [InlineData("profit_margin_15", 100000, 90000, 0, 90000)] // بيع بخسارة: لا ضريبة على هامش سالب
     public async Task Vat_calculation_matches_the_frontend_rules(string mode, decimal cost, decimal price, decimal vat, decimal total)
@@ -70,7 +71,8 @@ public class CarShowroomTests : TestBase
             purchasePrice = 50000, additionalCosts = 1000, preparationCost = 500, sellingPrice = 60000, vatMode = "profit_margin_15", totalCost = 1, vatAmount = 99999 });
         Assert.Equal(201, v.Status);
         Assert.Equal(51500, v.Data!["totalCost"].D());
-        Assert.Equal(1275, v.Data["vatAmount"].D()); // 15% × (60000 - 51500)
+        Assert.Equal(1108.70m, v.Data["vatAmount"].D()); // (60000 - 51500) × 15/115
+        Assert.Equal(60000, v.Data["priceWithVat"].D());
         Assert.Equal("available", v.Data["status"].S());
         Assert.Equal(409, (await api.Post("/vehicles", new { chassisNumber = vin, brandNameAr = "x", modelNameAr = "y", year = 2024 })).Status);
     }
@@ -190,15 +192,19 @@ public class CarShowroomTests : TestBase
         var car = await api.Post("/vehicles", new { chassisNumber = Client.NewVin('3'), brandNameAr = "هوندا", modelNameAr = "أكورد", year = 2020, condition = "used", mileageKm = 60000,
             purchasePrice = 50000, sellingPrice = 60000, vatMode = "profit_margin_15", fuelType = "petrol", transmission = "automatic", colorExterior = "أسود", colorInterior = "بيج", location = "المعرض" });
         var vid = car.Data!["id"].S();
-        var c = await api.Post("/carsalescontracts", new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "2", buyerPhone = "2", vehicleId = vid, sellingPrice = 60000, vatMode = "profit_margin_15", paymentMethod = "bank_transfer", condition = "used" });
+        // العميل يرسل قياسي لكن نمط المركبة (هامش الربح) هو المعتمد
+        var c = await api.Post("/carsalescontracts", new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "2", buyerPhone = "2", vehicleId = vid, sellingPrice = 60000, vatMode = "standard_15", paymentMethod = "bank_transfer", condition = "used" });
+        Assert.Equal("profit_margin_15", c.Data!["vatMode"].S());
         var id = c.Data!["id"].S();
         foreach (var s in new[] { "approved", "allocated" }) await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = s });
         await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "delivered", handoverProtocolNumber = "H", handoverSignee = "م", handoverSigneeNationalId = "2" });
         var done = await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "invoiced" });
         var inv = (await api.Get($"/invoices/{done.Data!["invoiceId"].S()}")).Data!;
-        Assert.Equal(1500, inv["vatTotal"].D()); Assert.Equal(61500, inv["grandTotal"].D());
+        // الهامش 10000 → الضريبة 10000 × 15/115 = 1304.35 مضمَّنة: الإيراد 58695.65 والعميل يدفع 60000
+        Assert.Equal(1304.35m, inv["vatTotal"].D()); Assert.Equal(58695.65m, inv["subtotal"].D()); Assert.Equal(60000, inv["grandTotal"].D());
         var report = (await api.Get("/reports/car/zatca-margin-tax")).Data!.AsArray();
-        Assert.Single(report); Assert.Equal(1500, report[0]!["vatAmount15Percent"].D());
+        Assert.Single(report); Assert.Equal(1304.35m, report[0]!["vatAmount15Percent"].D()); Assert.Equal(60000, report[0]!["sellingPrice"].D());
+        var (d, cr) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, cr);
     }
 
     [Fact]

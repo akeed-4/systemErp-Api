@@ -21,4 +21,8 @@ public interface IInvoiceService
     /// <summary>حذف فاتورة: المسودة مباشرة، والمرحّلة بعد عكس قيدها ومخزونها (مع بقاء قيد العكس للتدقيق). يُرفض ما أُرسل لهيئة الزكاة أو له مرتجعات.</summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default);
+    /// <summary>معاينة القيد (مخزون/تكلفة إيرادات/ضريبة/دفع) الذي سيُنشأ عند ترحيل هذه الفاتورة — بلا أي أثر محفوظ.</summary>
+    Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto request, CancellationToken ct = default);
+    /// <summary>القيد الفعلي لفاتورة مرحّلة.</summary>
+    Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default);
 }

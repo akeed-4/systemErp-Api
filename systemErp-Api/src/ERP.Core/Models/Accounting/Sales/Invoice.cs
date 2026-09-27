@@ -59,6 +59,8 @@ public class Invoice : BaseEntity
     public string? RevenueAccountCode { get; set; }
     public string? InventoryAccountCode { get; set; }
     public string? CogsAccountCode { get; set; }
+    /// <summary>حساب التحصيل للدفعات غير الآجلة بدل حساب طريقة الدفع (مثل تحصيلات بوابة الدفع 1113).</summary>
+    public string? SettlementAccountCode { get; set; }
 
     public virtual ICollection<InvoiceItem> Items { get; set; } = new List<InvoiceItem>();
     public virtual ICollection<InvoicePaymentSplit> PaymentSplits { get; set; } = new List<InvoicePaymentSplit>();

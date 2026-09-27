@@ -1,3 +1,5 @@
+using ERP.Service.Data;
+
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
@@ -10,6 +12,7 @@ public static class DefaultAccounts
     public const string Cash = "1111";
     public const string Banks = "111";           // الأب: حسابات البنوك الفرعية تحته
     public const string DefaultBank = "1112";
+    public const string PaymentGatewayReceivable = "1113"; // تحصيلات بوابة الدفع الإلكتروني (Paymob) حتى تسويتها للبنك
     public const string Receivables = "112";     // الأب: حسابات العملاء الفرعية تحته
     public const string InputVat = "1131";
     public const string Inventory = "1141";
@@ -22,6 +25,9 @@ public static class DefaultAccounts
     public const string Cogs = "511";
     public const string CarCogs = "512";
     public const string InventoryAdjustment = "513";
+    public const string CashOverage = "421";        // زيادة نقدية الصندوق عند إغلاق الوردية
+    public const string PettyCashExpenses = "521";  // المصروفات النثرية المصروفة من درج الكاشير
+    public const string CashShortage = "522";       // عجز نقدية الصندوق عند إغلاق الوردية
 
     public static readonly (string Code, string Ar, string En, AccountCategory Type, string? Parent)[] Chart =
     {
@@ -30,6 +36,7 @@ public static class DefaultAccounts
         ("111",  "النقدية والبنوك",                 "Cash and Banks",            AccountCategory.Asset,     "11"),
         ("1111", "الصندوق",                         "Cash on Hand",              AccountCategory.Asset,     "111"),
         ("1112", "البنوك (حساب افتراضي)",           "Default Bank Account",      AccountCategory.Asset,     "111"),
+        ("1113", "تحصيلات بوابة الدفع الإلكتروني", "Payment Gateway Receivable", AccountCategory.Asset, "111"),
         ("112",  "العملاء",                         "Accounts Receivable",       AccountCategory.Asset,     "11"),
         ("113",  "ضريبة وأرصدة مدينة",             "Tax and Other Receivables", AccountCategory.Asset,     "11"),
         ("1131", "ضريبة القيمة المضافة - مدخلات",  "Input VAT",                 AccountCategory.Asset,     "113"),
@@ -49,11 +56,45 @@ public static class DefaultAccounts
         ("41",   "إيرادات المبيعات",                "Sales Revenue Group",       AccountCategory.Revenue,   "4"),
         ("411",  "إيرادات المبيعات والعقود",        "Sales and Contract Revenue",AccountCategory.Revenue,   "41"),
         ("412",  "إيرادات بيع السيارات",            "Car Sales Revenue",         AccountCategory.Revenue,   "41"),
+        ("42",   "إيرادات أخرى",                    "Other Revenue",             AccountCategory.Revenue,   "4"),
+        ("421",  "زيادة نقدية الصندوق",             "Cash Overage",              AccountCategory.Revenue,   "42"),
         ("5",    "المصروفات",                       "Expenses",                  AccountCategory.Expense,   null),
         ("51",   "تكلفة المبيعات",                  "Cost of Sales",             AccountCategory.Expense,   "5"),
         ("511",  "تكلفة البضاعة المباعة",           "Cost of Goods Sold",        AccountCategory.Expense,   "51"),
         ("512",  "تكلفة السيارات المباعة",          "Cost of Cars Sold",         AccountCategory.Expense,   "51"),
         ("513",  "فروقات جرد المخزون",              "Inventory Adjustments",     AccountCategory.Expense,   "51"),
         ("52",   "المصروفات التشغيلية",             "Operating Expenses",        AccountCategory.Expense,   "5"),
+        ("521",  "مصروفات نثرية من الصندوق",        "Petty Cash Expenses",       AccountCategory.Expense,   "52"),
+        ("522",  "عجز نقدية الصندوق",               "Cash Shortage",             AccountCategory.Expense,   "52"),
     };
+
+    /// <summary>
+    /// ينشئ حسابات النظام الناقصة (مع آبائها) للمنشأة الحالية: المنشآت القديمة هُيّئت قبل إضافة بعض الحسابات للشجرة.
+    /// </summary>
+    public static async Task EnsureAsync(ErpDbContext db, CancellationToken ct, params string[] codes)
+    {
+        var chart = Chart.ToDictionary(a => a.Code);
+        var needed = new List<string>();
+        foreach (var code in codes)
+            for (var c = code; c != null && chart.ContainsKey(c); c = chart[c].Parent)
+                if (!needed.Contains(c)) needed.Add(c);
+        var existing = await db.Set<Account>().Where(a => needed.Contains(a.Code)).ToDictionaryAsync(a => a.Code, ct);
+        var missing = needed.Where(c => !existing.ContainsKey(c)).ToList();
+        if (missing.Count == 0) return;
+
+        var currency = await db.Set<Currency>().Where(c => c.IsBaseCurrency).Select(c => c.Code).FirstOrDefaultAsync(ct) ?? "SAR";
+        foreach (var code in missing.OrderBy(c => c.Length))
+        {
+            var (_, ar, en, type, parent) = chart[code];
+            var level = parent == null ? 1 : existing[parent].Level + 1; // الآباء أقصر كوداً فأُنشئوا/وُجدوا قبله
+            var account = new Account
+            {
+                Code = code, NameAr = ar, NameEn = en, Type = type, ParentCode = parent, Level = level,
+                IsDebitNature = type is AccountCategory.Asset or AccountCategory.Expense, IsSystem = true, Currency = currency,
+            };
+            db.Add(account);
+            existing[code] = account;
+        }
+        await db.SaveChangesAsync(ct);
+    }
 }

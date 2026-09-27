@@ -27,4 +27,8 @@ public partial class PosShiftDto
     public decimal? ClosingCashActual { get; set; }
     public decimal? CashVariance { get; set; }
     public string? ClosingNotes { get; set; }
+    public decimal TotalCashIn { get; set; }
+    public decimal TotalCashOut { get; set; }
+    public string? ClosingDenominations { get; set; }
+    public Guid? VarianceJournalEntryId { get; set; }
 }

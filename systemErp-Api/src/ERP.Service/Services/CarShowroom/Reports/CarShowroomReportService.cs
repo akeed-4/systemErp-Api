@@ -47,12 +47,13 @@ public class CarShowroomReportService : ICarShowroomReportService
     public async Task<List<CarZatcaMarginTaxRowDto>> GetZatcaMarginTaxAsync(CarReportQueryDto q, CancellationToken ct = default)
     {
         var contracts = await Sold(q).Where(c => c.VatMode == VatMode.ProfitMargin_15 || c.VatMode == VatMode.MarginScheme).OrderBy(c => c.Date).ToListAsync(ct);
+        // في هامش الربح الضريبة مضمَّنة: سعر البيع المتفق عليه = الإجمالي المحصَّل
         var invoiceIds = contracts.Where(c => c.InvoiceId.HasValue).Select(c => c.InvoiceId!.Value).ToList();
         var status = await _db.Set<Invoice>().AsNoTracking().Where(i => invoiceIds.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.ZatcaStatus, ct);
         return contracts.Select(c => new CarZatcaMarginTaxRowDto
         {
             ContractNumber = c.ContractNumber, Date = c.Date, BuyerName = c.BuyerName, Vin = c.Vin, VehicleDescription = c.VehicleDescription,
-            PurchaseCost = c.CostPrice, SellingPrice = c.NetPriceBeforeVat ?? c.SellingPrice, GrossProfitMargin = c.ProfitMargin,
+            PurchaseCost = c.CostPrice, SellingPrice = c.TotalWithVat, GrossProfitMargin = c.ProfitMargin,
             VatAmount15Percent = c.VatAmount, TotalAmountCollected = c.TotalWithVat,
             ZatcaComplianceStatus = c.InvoiceId.HasValue && status.TryGetValue(c.InvoiceId.Value, out var s) ? s : ZatcaSubmissionStatus.NotSubmitted,
         }).ToList();

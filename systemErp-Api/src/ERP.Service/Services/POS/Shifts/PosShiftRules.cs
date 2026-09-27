@@ -16,10 +16,4 @@ internal static class PosShiftRules
         if (shift.Status != PosShiftStatus.Open || shift.CashierId != user.UserId)
             throw new ForbiddenException("تصحيح مستندات وردية مغلقة أو لكاشير آخر للأدوار الإدارية فقط.");
     }
-
-    public static void RecomputeVariance(PosShift shift)
-    {
-        if (shift.Status == PosShiftStatus.Closed && shift.ClosingCashActual.HasValue)
-            shift.CashVariance = shift.ClosingCashActual.Value - (shift.OpeningCash + shift.TotalCashSales - shift.TotalCashRefunds);
-    }
 }

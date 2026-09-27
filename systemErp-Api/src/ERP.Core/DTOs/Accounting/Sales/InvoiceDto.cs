@@ -50,6 +50,7 @@ public partial class InvoiceDto
     public string? RevenueAccountCode { get; set; }
     public string? InventoryAccountCode { get; set; }
     public string? CogsAccountCode { get; set; }
+    public string? SettlementAccountCode { get; set; }
     public List<InvoiceItemDto> Items { get; set; } = new();
     public List<InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
     /// <summary>أسطر السيارات: تُرسل بدل Items في فواتير الشراء/البيع متعددة السيارات.</summary>

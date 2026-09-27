@@ -76,6 +76,19 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
             throw new ValidationFailedException("الفئة (Trim) المختارة لا تنتمي للموديل المحدد.");
         if (existing != null && existing.Status != VehicleStatus.Available && d.VatMode != existing.VatMode)
             throw new ConflictException("لا يمكن تغيير نمط الضريبة لمركبة محجوزة أو مباعة.");
+        if (CarVat.IsMarginScheme(d.VatMode) && (existing == null || !CarVat.IsMarginScheme(existing.VatMode))
+            && await PurchasedWithInputVatAsync(existing, d.ProcurementOrderId, ct))
+            throw new ValidationFailedException("لا يمكن احتساب الضريبة على هامش الربح: المركبة مشتراة بفاتورة عليها ضريبة مدخلات 15%. نظام الهامش للسيارات المشتراة بدون ضريبة مدخلات.");
+    }
+
+    /// <summary>هل خُصمت ضريبة مدخلات عند شراء المركبة (سطر فاتورة شراء قياسي 15% أو أمر توريد عليه ضريبة)؟</summary>
+    private async Task<bool> PurchasedWithInputVatAsync(Vehicle? existing, Guid? procurementOrderId, CancellationToken ct)
+    {
+        if (existing?.PurchaseInvoiceId is Guid invoiceId
+            && await Db.Set<InvoiceVehicleLine>().AnyAsync(l => l.InvoiceId == invoiceId && l.VehicleId == existing.Id && l.VatMode == VatMode.Standard_15, ct))
+            return true;
+        var orderId = existing?.ProcurementOrderId ?? procurementOrderId;
+        return orderId.HasValue && await Db.Set<CarProcurementOrder>().AnyAsync(o => o.Id == orderId && o.VatTotal > 0, ct);
     }
 
     protected override async Task OnCreatingAsync(Vehicle e, CreateVehicleDto d, CancellationToken ct)

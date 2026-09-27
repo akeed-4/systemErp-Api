@@ -4,6 +4,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Data.SqlClient;
 
 namespace ERP.Tests.Infrastructure;
@@ -33,6 +37,14 @@ public class ErpFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:AutoMigrate", "true");
         builder.UseSetting("Jwt:Key", "integration-tests-signing-key-0123456789abcdef");
         builder.UseSetting("Auth:ExposeOtpInResponse", "true");
+        // Paymob: حساب المنصة للاشتراكات + روابط الإشعار؛ العميل الفعلي يُستبدل ببديل لا يتصل بالإنترنت
+        builder.UseSetting("Paymob:SecretKey", "platform-secret");
+        builder.UseSetting("Paymob:PublicKey", "platform-public");
+        builder.UseSetting("Paymob:HmacSecret", FakePaymobClient.PlatformHmac);
+        builder.UseSetting("Paymob:IntegrationIds", "111");
+        builder.UseSetting("Paymob:PublicApiUrl", "https://api.test");
+        builder.UseSetting("Paymob:FrontendUrl", "https://app.test");
+        builder.ConfigureTestServices(services => services.AddScoped<ERP.Core.Contracts.Shared.IPaymobClient, FakePaymobClient>());
     }
 
     protected override void Dispose(bool disposing)

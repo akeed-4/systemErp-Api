@@ -7,7 +7,7 @@ namespace ERP.Core.Models.CarShowroom;
 public enum VatMode
 {
     Standard_15 = 1,      // ضريبة قياسية 15% على كامل القيمة
-    ProfitMargin_15 = 2,  // ضريبة 15% على هامش الربح فقط (سيارات مستعملة)
-    MarginScheme = 3,     // نظام هامش الربح: يُعامَل كما في الواجهة (بدون ضريبة إضافية)
+    ProfitMargin_15 = 2,  // ضريبة هامش الربح (سيارات مستعملة): الهامش × 15/115 مضمَّنة في سعر البيع
+    MarginScheme = 3,     // مرادف لـ ProfitMargin_15 (قيمة قديمة في بعض الشاشات)
     Exempt = 4            // معفى من الضريبة
 }

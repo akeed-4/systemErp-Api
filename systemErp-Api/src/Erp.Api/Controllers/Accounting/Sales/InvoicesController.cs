@@ -81,6 +81,21 @@ public class InvoicesController : ErpControllerBase
         return Success("تم حذف الفاتورة");
     }
 
+    /// <summary>معاينة القيد المحاسبي (مخزون، تكلفة إيرادات، ضريبة، دفع/ذمم) قبل الحفظ أو الترحيل — بلا أي أثر.</summary>
+    [HttpPost("preview-journal")]
+    public async Task<IActionResult> PreviewJournal([FromBody] CreateInvoiceDto dto, CancellationToken ct)
+    {
+        await Require(dto.Kind, ScreenAction.View, ct);
+        return Success(await _invoices.PreviewJournalAsync(dto, ct));
+    }
+
+    [HttpGet("{id:guid}/journal")]
+    public async Task<IActionResult> Journal(Guid id, CancellationToken ct)
+    {
+        await Require((await _invoices.GetAsync(id, ct)).Kind, ScreenAction.View, ct);
+        return Success(await _invoices.GetJournalAsync(id, ct));
+    }
+
     [HttpPost("{id:guid}/submit-zatca")]
     public async Task<IActionResult> SubmitZatca(Guid id, CancellationToken ct)
     {

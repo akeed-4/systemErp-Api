@@ -13,10 +13,12 @@ public class PosSaleReturnService : IPosSaleReturnService
     private readonly IInvoiceService _invoices;
     private readonly INumberSequenceService _numbers;
     private readonly ITransactionRunner _tx;
+    private readonly IAccountingPostingService _posting;
 
-    public PosSaleReturnService(ErpDbContext db, ICurrentUser user, IInvoiceService invoices, INumberSequenceService numbers, ITransactionRunner tx)
+    public PosSaleReturnService(ErpDbContext db, ICurrentUser user, IInvoiceService invoices, INumberSequenceService numbers, ITransactionRunner tx,
+        IAccountingPostingService posting)
     {
-        _db = db; _user = user; _invoices = invoices; _numbers = numbers; _tx = tx;
+        _db = db; _user = user; _invoices = invoices; _numbers = numbers; _tx = tx; _posting = posting;
     }
 
     public Task<PosSalesReturnDto> CreateAsync(CreatePosReturnRequestDto r, CancellationToken ct = default)
@@ -128,7 +130,7 @@ public class PosSaleReturnService : IPosSaleReturnService
 
             shift.TotalReturns -= ret.GrandTotal;
             if (ret.RefundMethod == PosRefundMethod.Cash) shift.TotalCashRefunds -= ret.GrandTotal;
-            PosShiftRules.RecomputeVariance(shift);
+            await PosCashDrawer.SyncVarianceAsync(_db, _posting, shift, token);
 
             var tx = await _db.Set<PosTransaction>().FirstOrDefaultAsync(t => t.Id == ret.OriginalTransactionId, token);
             if (tx != null && tx.Status == PosTransactionStatus.Returned) tx.Status = PosTransactionStatus.Completed;

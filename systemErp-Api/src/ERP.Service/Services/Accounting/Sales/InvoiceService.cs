@@ -228,6 +228,58 @@ public class InvoiceService : IInvoiceService
 
     public Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default) => _zatca.SubmitInvoiceAsync(id, ct);
 
+    // ---------------- القيد المحاسبي للفاتورة ----------------
+    /// <summary>
+    /// يُنفَّذ البناء والترحيل الحقيقيان داخل معاملة تُلغى دائماً، فتطابق المعاينة الترحيل الفعلي حرفياً
+    /// (تكلفة المخزون بالمتوسط، تكلفة المركبات، حسابات الدفع والطرف، الحد الائتماني) دون أي أثر محفوظ أو رقم مستهلك.
+    /// </summary>
+    public async Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto r, CancellationToken ct = default)
+    {
+        if (_db.Database.CurrentTransaction != null) throw new InvalidOperationException("معاينة القيد لا تعمل داخل معاملة قائمة.");
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        try
+        {
+            var invoice = await BuildAsync(r, ct);
+            invoice.Status = "draft";
+            invoice.InvoiceNumber = "PREVIEW-" + invoice.Id.ToString("N")[..8];
+            _db.Add(invoice);
+            await _db.SaveChangesAsync(ct);
+            await FinalizeAsync(invoice, ct, preview: true);
+            var journal = await JournalOfAsync(invoice, ct);
+            journal.IsPreview = true;
+            journal.EntryNumber = null;
+            return journal;
+        }
+        finally
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            _db.ChangeTracker.Clear();
+        }
+    }
+
+    public async Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default)
+    {
+        var invoice = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException("الفاتورة غير موجودة");
+        if (invoice.JournalEntryId == null) throw new ConflictException("الفاتورة غير مرحّلة؛ استخدم معاينة القيد.");
+        return await JournalOfAsync(invoice, ct);
+    }
+
+    private async Task<InvoiceJournalDto> JournalOfAsync(Invoice invoice, CancellationToken ct)
+    {
+        var entry = await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines)
+            .FirstAsync(e => e.Id == invoice.JournalEntryId, ct);
+        return new InvoiceJournalDto
+        {
+            EntryNumber = entry.EntryNumber, Date = entry.Date, Description = entry.Description,
+            Lines = entry.Lines.OrderByDescending(l => l.Debit > 0).ThenBy(l => l.AccountCode)
+                .Select(l => new InvoiceJournalLineDto { AccountCode = l.AccountCode, AccountName = l.AccountName, Debit = l.Debit, Credit = l.Credit, Notes = l.Notes })
+                .ToList(),
+            TotalDebit = entry.TotalDebit, TotalCredit = entry.TotalCredit,
+            Subtotal = invoice.Subtotal, VatTotal = invoice.VatTotal, GrandTotal = invoice.GrandTotal,
+            TotalCost = invoice.TotalCost, GrossProfit = invoice.GrossProfit,
+        };
+    }
+
     // ---------------- البناء والتحقق (بدون أي أثر جانبي) ----------------
     private async Task<Invoice> BuildAsync(CreateInvoiceDto r, CancellationToken ct)
     {
@@ -366,9 +418,10 @@ public class InvoiceService : IInvoiceService
     }
 
     // ---------------- الترحيل: مخزون + قيد + QR ----------------
-    private async Task FinalizeAsync(Invoice invoice, CancellationToken ct)
+    /// <param name="preview">معاينة القيد: يتخطى إنشاء/بيع المركبات و QR (لا أثر لهما على القيد) ليُسمح بمعاينة مسودة ناقصة الشواسيه.</param>
+    private async Task FinalizeAsync(Invoice invoice, CancellationToken ct, bool preview = false)
     {
-        await VehicleInvoiceLines.OnPostingAsync(_db, _vehicles, invoice, ct); // شراء: إنشاء المركبات، بيع: تحويلها Sold
+        if (!preview) await VehicleInvoiceLines.OnPostingAsync(_db, _vehicles, invoice, ct); // شراء: إنشاء المركبات، بيع: تحويلها Sold
         var isSales = invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
         var payments = await ResolvePaymentsAsync(invoice, ct);
@@ -426,7 +479,7 @@ public class InvoiceService : IInvoiceService
             }, ct);
         invoice.JournalEntryId = posted.JournalEntryId;
 
-        if (isSales)
+        if (isSales && !preview)
             invoice.ZatcaQrCode = _zatca.GenerateTlvQr(tenant.NameAr, tenant.VatNumber,
                 invoice.IssueDate.Date.Add(TimeSpan.TryParse(invoice.IssueTime, out var t) ? t : TimeSpan.Zero), invoice.GrandTotal, invoice.VatTotal);
 
@@ -437,6 +490,12 @@ public class InvoiceService : IInvoiceService
     private async Task<List<PaymentPosting>> ResolvePaymentsAsync(Invoice invoice, CancellationToken ct)
     {
         var methods = await _db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct);
+        if (!string.IsNullOrWhiteSpace(invoice.SettlementAccountCode)) // تحصيل عبر بوابة الدفع: كل الجزء غير الآجل لحساب التسوية
+        {
+            var paid = invoice.PaymentSplits.Count > 0 ? invoice.PaymentSplits.Where(s => s.Method != PaymentMethod.Credit).Sum(s => s.Amount)
+                : invoice.PaymentMethod == PaymentMethod.Credit ? 0 : invoice.GrandTotal;
+            return paid > 0 ? new() { new PaymentPosting(invoice.SettlementAccountCode, paid) } : new();
+        }
         if (invoice.PaymentSplits.Count > 0)
             return invoice.PaymentSplits.Where(s => s.Method != PaymentMethod.Credit)
                 .Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods), s.Amount)).ToList();

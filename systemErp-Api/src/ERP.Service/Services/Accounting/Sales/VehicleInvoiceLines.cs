@@ -60,6 +60,7 @@ internal static class VehicleInvoiceLines
                 line.ColorExterior = v.ColorExterior; line.ColorInterior = v.ColorInterior;
                 line.EngineNumber = v.EngineNumber; line.CustomsCardNumber = v.CustomsCardNumber;
                 line.UnitCost = v.TotalCost; line.VehicleId = v.Id;
+                line.VatMode = v.VatMode; // نمط الضريبة من بطاقة المركبة لا من العميل
                 if (v.MinSellingPrice.HasValue && d.UnitPrice - d.Discount < v.MinSellingPrice)
                     errors.Add($"السطر {n}: سعر البيع بعد الخصم أقل من الحد الأدنى للمركبة ({v.MinSellingPrice:0.00}).");
             }
@@ -82,10 +83,17 @@ internal static class VehicleInvoiceLines
             }
 
             var net = DocumentPricing.Round(d.UnitPrice - d.Discount);
-            var vat = isSales
-                ? CarVat.Calculate(line.UnitCost, net, d.VatMode).VatAmount
-                : d.VatMode == VatMode.Standard_15 ? DocumentPricing.Round(net * VatRate / 100m) : 0m;
-            line.TotalBeforeVat = net; line.VatAmount = vat; line.TotalAfterVat = net + vat;
+            if (isSales)
+            {
+                // هامش الربح: الضريبة مضمَّنة في السعر فيصير الإيراد = السعر − الضريبة ويبقى إجمالي العميل = السعر
+                var calc = CarVat.Calculate(line.UnitCost, net, line.VatMode);
+                line.TotalBeforeVat = calc.NetBeforeVat; line.VatAmount = calc.VatAmount; line.TotalAfterVat = calc.PriceWithVat;
+            }
+            else
+            {
+                var vat = d.VatMode == VatMode.Standard_15 ? DocumentPricing.Round(net * VatRate / 100m) : 0m;
+                line.TotalBeforeVat = net; line.VatAmount = vat; line.TotalAfterVat = net + vat;
+            }
             lines.Add(line);
         }
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
@@ -105,7 +113,8 @@ internal static class VehicleInvoiceLines
         {
             ItemId = Guid.Empty,
             ItemName = Describe(l),
-            Unit = "سيارة", Quantity = 1, UnitPrice = l.UnitPrice, Discount = l.Discount,
+            // سعر البند = صافي السطر قبل الضريبة + الخصم (يساوي سعر السطر إلا في هامش الربح حيث تُطرح الضريبة المضمَّنة)
+            Unit = "سيارة", Quantity = 1, UnitPrice = l.TotalBeforeVat + l.Discount, Discount = l.Discount,
             VatRate = l.VatMode == VatMode.Standard_15 ? VatRate : 0,
             VatAmountOverride = isSales ? l.VatAmount : null,
             UnitCost = isSales ? l.UnitCost : 0,

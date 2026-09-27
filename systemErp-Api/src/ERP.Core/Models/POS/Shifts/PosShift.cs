@@ -25,7 +25,15 @@ public class PosShift : BaseEntity
     public decimal TotalVat { get; set; }
     public decimal TotalGross { get; set; }
 
+    /// <summary>إيداعات وصرفيات نقدية على الدرج خارج البيع (PosCashMovement).</summary>
+    public decimal TotalCashIn { get; set; }
+    public decimal TotalCashOut { get; set; }
+
     public decimal? ClosingCashActual { get; set; }
     public decimal? CashVariance { get; set; }
     public string? ClosingNotes { get; set; }
+    /// <summary>جرد الإغلاق بالفئات (JSON: [{value,count}]).</summary>
+    public string? ClosingDenominations { get; set; }
+    /// <summary>قيد عجز/زيادة الصندوق عند الإغلاق.</summary>
+    public Guid? VarianceJournalEntryId { get; set; }
 }

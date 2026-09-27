@@ -1,6 +1,7 @@
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,9 @@ public static class ServiceCollectionExtensions
         });
 
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
+        services.Configure<PaymobOptions>(config.GetSection(PaymobOptions.Section));
+        services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.AddDataProtection();
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();

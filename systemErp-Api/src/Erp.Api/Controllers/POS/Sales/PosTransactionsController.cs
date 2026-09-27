@@ -34,6 +34,10 @@ public class PosTransactionsController : ErpControllerBase
         return Created($"{Request.Path}/{created.Id}", ApiResponse<PosTransactionDto>.Ok(created, "تمت عملية البيع").WithStatus(201));
     }
 
+    /// <summary>تسعير السلة من الخادم قبل الدفع (عروض/كوبون/ولاء/ضريبة) — بلا أي أثر.</summary>
+    [HttpPost("quote")]
+    public async Task<IActionResult> Quote([FromBody] CheckoutRequestDto dto, CancellationToken ct) => Success(await _sales.QuoteAsync(dto, ct));
+
     [HttpPost("{id:guid}/submit-zatca")]
     public async Task<IActionResult> SubmitZatca(Guid id, CancellationToken ct) => Success(await _sales.SubmitToZatcaAsync(id, ct));
 }

@@ -20,4 +20,6 @@ public class CheckoutRequestDto
     public decimal PaidCard { get; set; }
     public decimal PaidMada { get; set; }
     public decimal PaidApplePay { get; set; }
+    /// <summary>دفع إلكتروني مكتمل عبر Paymob (بطاقة/مدى/Apple Pay) يُستهلك في هذه العملية.</summary>
+    public Guid? OnlinePaymentId { get; set; }
 }

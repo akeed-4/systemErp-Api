@@ -335,8 +335,9 @@ public class CarSaleService : ICarSaleService
             throw new ValidationFailedException($"سعر البيع بعد الخصم ({net:0.00}) أقل من الحد الأدنى للمركبة ({v.MinSellingPrice:0.00}).");
 
         c.CostPrice = v.TotalCost;
+        c.VatMode = v.VatMode; // نمط الضريبة من بطاقة المركبة لا من العميل
         var vat = CarVat.Calculate(c.CostPrice, net, c.VatMode);
-        c.NetPriceBeforeVat = net; c.ProfitMargin = vat.ProfitMargin; c.ProfitMarginVat = vat.ProfitMarginVat;
+        c.NetPriceBeforeVat = vat.NetBeforeVat; c.ProfitMargin = vat.ProfitMargin; c.ProfitMarginVat = vat.ProfitMarginVat;
         c.VatAmount = vat.VatAmount; c.TotalWithVat = vat.PriceWithVat;
         if ((c.DownPaymentAmount ?? 0) > c.TotalWithVat) throw new ValidationFailedException("الدفعة المقدمة تتجاوز إجمالي العقد.");
     }

@@ -18,6 +18,10 @@ public class ContractMilestone : BaseEntity
     public Guid? InvoiceId { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? Notes { get; set; }
+    public string? DeliverableDescription { get; set; }
+    public decimal RetentionDeductionPercent { get; set; }
+    public decimal RetentionDeductionAmount { get; set; }
+    public decimal NetPayableAmount { get; set; }
 
     public virtual CommercialContract Contract { get; set; } = null!;
 }

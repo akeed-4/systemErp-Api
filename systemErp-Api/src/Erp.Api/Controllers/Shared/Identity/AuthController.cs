@@ -21,19 +21,19 @@ public class AuthController : ErpControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request, CancellationToken ct)
         => Ok(await _auth.LoginAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("register-company")]
+    [AllowAnonymous, HttpPost("RegisterCompany")]
     public async Task<IActionResult> RegisterCompany([FromBody] CompanyRegistrationRequestDto request, CancellationToken ct)
         => Ok(await _auth.RegisterCompanyAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("forgot-password/request")]
+    [AllowAnonymous, HttpPost("ForgotPassword/Request")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request, CancellationToken ct)
         => Ok(await _auth.RequestPasswordResetAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("forgot-password/verify-otp")]
+    [AllowAnonymous, HttpPost("ForgotPassword/VerifyOtp")]
     public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequestDto request, CancellationToken ct)
         => Ok(await _auth.VerifyResetOtpAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("forgot-password/reset")]
+    [AllowAnonymous, HttpPost("ForgotPassword/Reset")]
     public async Task<IActionResult> Reset([FromBody] ResetPasswordRequestDto request, CancellationToken ct)
         => Ok(await _auth.ResetPasswordAsync(request, ct));
 
@@ -47,4 +47,8 @@ public class AuthController : ErpControllerBase
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request, CancellationToken ct)
         => Success(await _users.UpdateProfileAsync(request, ct), "تم تحديث بيانات الملف الشخصي بنجاح");
+
+    [HttpPost("ChangePassword")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request, CancellationToken ct)
+        => Success(await _users.ChangePasswordAsync(request, ct));
 }

@@ -29,13 +29,13 @@ public class PosShiftsController : ErpControllerBase
     public async Task<IActionResult> Close([FromBody] CloseShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.CloseAsync(dto, ct), "تم إغلاق الوردية");
 
     // ---------- الدرج: إيداع/صرف نقدي ----------
-    [HttpPost("cash-movements")]
+    [HttpPost("CashMovements")]
     public async Task<IActionResult> AddCashMovement([FromBody] CashMovementRequestDto dto, CancellationToken ct) => Success(await _shifts.AddCashMovementAsync(dto, ct), "تم تسجيل الحركة النقدية");
 
-    [HttpGet("{id:guid}/cash-movements")]
+    [HttpGet("{id:guid}/CashMovements")]
     public async Task<IActionResult> CashMovements(Guid id, CancellationToken ct) => Success(await _shifts.ListCashMovementsAsync(id, ct));
 
-    [HttpDelete("cash-movements/{id:guid}")]
+    [HttpDelete("CashMovements/{id:guid}")]
     public async Task<IActionResult> DeleteCashMovement(Guid id, CancellationToken ct) { await _shifts.DeleteCashMovementAsync(id, ct); return Success("تم إلغاء الحركة النقدية"); }
 
     // ---------- تقارير X / Z ----------

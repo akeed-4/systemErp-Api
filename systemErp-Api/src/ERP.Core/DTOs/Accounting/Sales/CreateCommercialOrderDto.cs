@@ -18,5 +18,7 @@ public partial class CreateCommercialOrderDto
     public string Status { get; set; } = "draft";
     public Guid? ConvertedInvoiceId { get; set; }
     public string? Notes { get; set; }
+    public Guid? AgreementId { get; set; }
+    public string? AgreementNumber { get; set; }
     public List<CommercialOrderItemDto> Items { get; set; } = new();
 }

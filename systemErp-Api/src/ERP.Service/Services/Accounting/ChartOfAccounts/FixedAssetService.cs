@@ -24,6 +24,16 @@ public class FixedAssetService : CrudService<FixedAsset, FixedAssetDto, CreateFi
         if (dto.CurrentBookValue < 0 || dto.CurrentBookValue > dto.PurchaseCost) errors.Add("القيمة الدفترية بين صفر وتكلفة الشراء.");
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
+        // بلا حسابات محددة: حساب الأصول الثابتة المادية ومجمع الإهلاك الافتراضيان في الشجرة.
+        if (dto.AssetAccountId == Guid.Empty || dto.AccumulatedDepreciationAccountId == Guid.Empty)
+        {
+            await DefaultAccounts.EnsureAsync(Db, ct, DefaultAccounts.FixedAssets, DefaultAccounts.AccumulatedDepreciation);
+            var ids = await Db.Set<Account>().Where(a => a.Code == DefaultAccounts.FixedAssets || a.Code == DefaultAccounts.AccumulatedDepreciation)
+                .ToDictionaryAsync(a => a.Code, a => a.Id, ct);
+            if (dto.AssetAccountId == Guid.Empty) dto.AssetAccountId = ids[DefaultAccounts.FixedAssets];
+            if (dto.AccumulatedDepreciationAccountId == Guid.Empty) dto.AccumulatedDepreciationAccountId = ids[DefaultAccounts.AccumulatedDepreciation];
+        }
+
         if (!await Db.Set<Account>().AnyAsync(a => a.Id == dto.AssetAccountId, ct))
             throw new ValidationFailedException("حساب الأصل غير موجود.");
         if (!await Db.Set<Account>().AnyAsync(a => a.Id == dto.AccumulatedDepreciationAccountId, ct))

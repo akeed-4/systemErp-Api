@@ -17,6 +17,8 @@ public static class DefaultAccounts
     public const string InputVat = "1131";
     public const string Inventory = "1141";
     public const string VehicleInventory = "1142";
+    public const string FixedAssets = "121";          // الأصول الثابتة المادية (الحساب الافتراضي لأصل جديد)
+    public const string AccumulatedDepreciation = "122"; // مجمع الإهلاك
     public const string Payables = "211";        // الأب: حسابات الموردين الفرعية تحته
     public const string AccruedLandedCosts = "212"; // مستحقات جمارك وموانئ (تكاليف محمّلة على المركبات)
     public const string OutputVat = "213";
@@ -44,6 +46,8 @@ public static class DefaultAccounts
         ("1141", "مخزون البضاعة",                   "Merchandise Inventory",     AccountCategory.Asset,     "114"),
         ("1142", "مخزون السيارات",                  "Vehicle Inventory",         AccountCategory.Asset,     "114"),
         ("12",   "الأصول الثابتة",                  "Fixed Assets",              AccountCategory.Asset,     "1"),
+        ("121",  "الأصول الثابتة المادية",          "Tangible Fixed Assets",     AccountCategory.Asset,     "12"),
+        ("122",  "مجمع الإهلاك",                    "Accumulated Depreciation",  AccountCategory.Asset,     "12"),
         ("2",    "الخصوم",                          "Liabilities",               AccountCategory.Liability, null),
         ("21",   "الخصوم المتداولة",                "Current Liabilities",       AccountCategory.Liability, "2"),
         ("211",  "الموردون",                        "Accounts Payable",          AccountCategory.Liability, "21"),
@@ -68,6 +72,10 @@ public static class DefaultAccounts
         ("522",  "عجز نقدية الصندوق",               "Cash Shortage",             AccountCategory.Expense,   "52"),
     };
 
+    /// <summary>طبيعة الحساب: الأصول والمصروفات مدينة، عدا مجمع الإهلاك (حساب مقابل للأصل) فطبيعته دائنة.</summary>
+    public static bool IsDebitNature(string code, AccountCategory type)
+        => code != AccumulatedDepreciation && type is AccountCategory.Asset or AccountCategory.Expense;
+
     /// <summary>
     /// ينشئ حسابات النظام الناقصة (مع آبائها) للمنشأة الحالية: المنشآت القديمة هُيّئت قبل إضافة بعض الحسابات للشجرة.
     /// </summary>
@@ -90,7 +98,7 @@ public static class DefaultAccounts
             var account = new Account
             {
                 Code = code, NameAr = ar, NameEn = en, Type = type, ParentCode = parent, Level = level,
-                IsDebitNature = type is AccountCategory.Asset or AccountCategory.Expense, IsSystem = true, Currency = currency,
+                IsDebitNature = IsDebitNature(code, type), IsSystem = true, Currency = currency,
             };
             db.Add(account);
             existing[code] = account;

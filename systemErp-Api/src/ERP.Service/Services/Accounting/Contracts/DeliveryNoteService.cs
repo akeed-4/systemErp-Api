@@ -9,11 +9,12 @@ public class DeliveryNoteService : IDeliveryNoteService
     private readonly ErpDbContext _db;
     private readonly INumberSequenceService _numbers;
     private readonly ICommercialContractService _contracts;
+    private readonly IInvoiceService _invoices;
     private readonly ITransactionRunner _tx;
 
-    public DeliveryNoteService(ErpDbContext db, INumberSequenceService numbers, ICommercialContractService contracts, ITransactionRunner tx)
+    public DeliveryNoteService(ErpDbContext db, INumberSequenceService numbers, ICommercialContractService contracts, IInvoiceService invoices, ITransactionRunner tx)
     {
-        _db = db; _numbers = numbers; _contracts = contracts; _tx = tx;
+        _db = db; _numbers = numbers; _contracts = contracts; _invoices = invoices; _tx = tx;
     }
 
     public async Task<PagedResult<DeliveryNoteDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
@@ -46,6 +47,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (r.Type is not ("sales_delivery" or "purchase_delivery")) errors.Add("النوع: sales_delivery | purchase_delivery.");
             if (r.Items.Count == 0) errors.Add("يجب إدخال بند واحد على الأقل.");
             if (r.Items.Any(i => i.DeliveredQty < 0 || i.ContractQty < 0)) errors.Add("الكميات لا تكون سالبة.");
+            ValidatePricing(r.Items, errors);
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
             CommercialContract? contract = null;
@@ -60,6 +62,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             note.Status = DeliveryNoteStatus.Delivered;
             note.InvoiceId = null; note.InvoiceNumber = null;
             foreach (var i in note.Items) i.ReturnedQty = 0;
+            Price(note);
             _db.Add(note);
             await _db.SaveChangesAsync(token);
             return await GetAsync(note.Id, token);
@@ -78,6 +81,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             TradeHelper.RequireParty(r.PartyName, errors);
             if (r.Items.Count == 0) errors.Add("يجب إدخال بند واحد على الأقل.");
             if (r.Items.Any(i => i.DeliveredQty < 0 || i.ContractQty < 0)) errors.Add("الكميات لا تكون سالبة.");
+            ValidatePricing(r.Items, errors);
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
             var keep = (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber);
@@ -85,9 +89,29 @@ public class DeliveryNoteService : IDeliveryNoteService
             (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber) = keep;
             foreach (var removed in Mapper.SyncCollections(r, note, added => _db.Add(added))) _db.Remove(removed);
             foreach (var i in note.Items) i.ReturnedQty = 0;
+            Price(note);
             await _db.SaveChangesAsync(token);
             return await GetAsync(id, token);
         }, ct);
+
+    private static void ValidatePricing(IEnumerable<DeliveryNoteItemDto> items, List<string> errors)
+    {
+        if (items.Any(i => i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add("السعر غير سالب ونسبة الضريبة بين 0 و100.");
+    }
+
+    /// <summary>قيمة البيان تُحتسب في الخادم: الكمية المسلّمة × السعر، والضريبة لكل سطر.</summary>
+    private static void Price(DeliveryNote note)
+    {
+        foreach (var i in note.Items)
+        {
+            i.TotalBeforeVat = DocumentPricing.Round(i.DeliveredQty * i.UnitPrice);
+            i.VatAmount = DocumentPricing.Round(i.TotalBeforeVat * i.VatRate / 100m);
+            i.TotalAfterVat = i.TotalBeforeVat + i.VatAmount;
+        }
+        note.Subtotal = note.Items.Sum(i => i.TotalBeforeVat);
+        note.VatTotal = note.Items.Sum(i => i.VatAmount);
+        note.GrandTotal = note.Subtotal + note.VatTotal;
+    }
 
     public Task DeleteAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -169,13 +193,57 @@ public class DeliveryNoteService : IDeliveryNoteService
             var ret = Mapper.Map<DeliveryReturnNote>(r);
             ret.ReturnNumber = await _numbers.NextAsync("delivery_return", "DR-", token);
             ret.DeliveryNumber = note.DeliveryNumber;
+            ret.ContractId = note.ContractId; ret.ContractNumber = note.ContractNumber; ret.PartyName = note.PartyName;
             ret.Date = r.Date == default ? DateTime.UtcNow : r.Date;
             ret.Status = "completed";
             foreach (var i in ret.Items)
-                i.ItemName = note.Items.First(x => x.ItemId == i.ItemId).ItemName;
+            {
+                // سعر وضريبة المرتجع من سطر التسليم الأصلي، لا مما يرسله العميل.
+                var src = note.Items.First(x => x.ItemId == i.ItemId);
+                i.ItemName = src.ItemName; i.Unit = src.Unit; i.UnitPrice = src.UnitPrice; i.VatRate = src.VatRate;
+                var net = DocumentPricing.Round(i.Quantity * i.UnitPrice);
+                i.VatAmount = DocumentPricing.Round(net * i.VatRate / 100m);
+                i.TotalAfterVat = net + i.VatAmount;
+            }
+            ret.Subtotal = ret.Items.Sum(i => i.TotalAfterVat - i.VatAmount);
+            ret.VatTotal = ret.Items.Sum(i => i.VatAmount);
+            ret.GrandTotal = ret.Subtotal + ret.VatTotal;
             _db.Add(ret);
             await _db.SaveChangesAsync(token);
             return Mapper.Map<DeliveryReturnNoteDto>(await _db.Set<DeliveryReturnNote>().AsNoTracking().Include(n => n.Items).FirstAsync(n => n.Id == ret.Id, token));
+        }, ct);
+
+    public Task<InvoiceDto> CreateInvoiceAsync(Guid deliveryNoteId, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
+                ?? throw new NotFoundException("بيان التسليم غير موجود");
+            if (note.InvoiceId != null) throw new ConflictException("تمت فوترة هذا البيان مسبقاً.");
+            var lines = note.Items.Select(i => (Item: i, Qty: i.DeliveredQty - i.ReturnedQty)).Where(x => x.Qty > 0).ToList();
+            if (lines.Count == 0) throw new ConflictException("لا توجد كميات صافية لفوترتها (البيان مُرتجع بالكامل).");
+
+            // الأصناف المخزنية تُفوتر كأصناف، وغيرها (بنود العقد الوصفية) كبنود خدمة.
+            var ids = lines.Select(x => x.Item.ItemId).Distinct().ToList();
+            var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync(token);
+            var sales = note.Type == "sales_delivery";
+            var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
+            {
+                Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
+                InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,
+                PartyId = note.PartyId, PartyName = note.PartyName, PartyVatNumber = note.PartyTaxNumber, PartyPhone = note.PartyPhone,
+                PaymentMethod = note.PartyId.HasValue ? PaymentMethod.Credit : PaymentMethod.Cash, Status = "posted",
+                Notes = $"فاتورة من بيان التسليم {note.DeliveryNumber}" + (note.ContractNumber != null ? $" - عقد {note.ContractNumber}" : ""),
+                ReferenceType = "delivery_note", ReferenceId = note.Id, ReferenceNumber = note.DeliveryNumber,
+                Items = lines.Select(x => new InvoiceItemDto
+                {
+                    ItemId = products.Contains(x.Item.ItemId) ? x.Item.ItemId : Guid.Empty,
+                    ItemName = x.Item.ItemName, Sku = x.Item.Sku ?? string.Empty, Unit = x.Item.Unit ?? string.Empty,
+                    Quantity = x.Qty, UnitPrice = x.Item.UnitPrice, VatRate = x.Item.VatRate,
+                }).ToList(),
+            }, token);
+            note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced;
+            await _db.SaveChangesAsync(token);
+            return invoice;
         }, ct);
 
     public Task<InvoiceDto> CreateMilestoneInvoiceAsync(Guid deliveryNoteId, Guid milestoneId, CancellationToken ct = default)

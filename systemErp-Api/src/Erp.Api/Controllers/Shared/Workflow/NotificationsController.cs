@@ -25,7 +25,7 @@ public class NotificationsController : ErpControllerBase
     [HttpPost("{id:guid}/read")]
     public async Task<IActionResult> Read(Guid id, CancellationToken ct) { await _notifications.MarkAsReadAsync(id, ct); return Success("تم"); }
 
-    [HttpPost("read-all")]
+    [HttpPost("ReadAll")]
     public async Task<IActionResult> ReadAll(CancellationToken ct) { await _notifications.MarkAllAsReadAsync(ct); return Success("تم"); }
 
     [HttpDelete]

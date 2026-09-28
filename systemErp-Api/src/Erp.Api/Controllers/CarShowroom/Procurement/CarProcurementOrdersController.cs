@@ -35,7 +35,7 @@ public class CarProcurementOrdersController : ErpControllerBase
     }
 
     /// <summary>شراء مركبة واحدة بخطوة واحدة (أمر ببند واحد يمرّ بكل المراحل حتى الفاتورة والقيد). يتطلب صلاحية الاعتماد.</summary>
-    [HttpPost("quick-purchase")]
+    [HttpPost("QuickPurchase")]
     public async Task<IActionResult> QuickPurchase([FromBody] QuickCarPurchaseRequestDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Approve, ct);
@@ -47,7 +47,7 @@ public class CarProcurementOrdersController : ErpControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCarProcurementOrderDto dto, CancellationToken ct)
         => Success(await _service.UpdateAsync(id, dto, ct), "تم التعديل");
 
-    [HttpPost("{id:guid}/advance-stage")]
+    [HttpPost("{id:guid}/AdvanceStage")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceProcurementRequestDto dto, CancellationToken ct)
     {
         var isApprovalStage = dto.TargetStage is ProcurementStage.RequisitionApproved or ProcurementStage.RfqApproved;

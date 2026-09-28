@@ -16,10 +16,10 @@ public class CompanyController : ErpControllerBase
     public async Task<IActionResult> Update([FromBody] UpdateTenantDto request, CancellationToken ct)
         => Success(await _company.UpdateAsync(request, ct), "تم تحديث بيانات المنشأة");
 
-    [HttpPut("zatca-config"), RequireScreen("zatca")]
+    [HttpPut("ZatcaConfig"), RequireScreen("zatca")]
     public async Task<IActionResult> UpdateZatca([FromBody] UpdateZatcaConfigDto request, CancellationToken ct)
         => Success(await _company.UpdateZatcaConfigAsync(request, ct), "تم حفظ إعدادات الربط");
 
-    [HttpPost("zatca-test"), RequireScreen("zatca", ScreenAction.Edit)]
+    [HttpPost("ZatcaTest"), RequireScreen("zatca", ScreenAction.Edit)]
     public async Task<IActionResult> TestZatca(CancellationToken ct) => Success(await _company.TestZatcaConnectionAsync(ct));
 }

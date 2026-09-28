@@ -28,7 +28,9 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
     protected virtual Task OnCreatingAsync(TEntity entity, TCreate dto, CancellationToken ct) => Task.CompletedTask;
     protected virtual Task OnUpdatingAsync(TEntity entity, TUpdate dto, CancellationToken ct) => Task.CompletedTask;
     protected virtual Task OnCreatedAsync(TEntity entity, CancellationToken ct) => Task.CompletedTask;
+    protected virtual Task OnUpdatedAsync(TEntity entity, CancellationToken ct) => Task.CompletedTask;
     protected virtual Task OnDeletingAsync(TEntity entity, CancellationToken ct) => Task.CompletedTask;
+    protected virtual Task OnDeletedAsync(TEntity entity, CancellationToken ct) => Task.CompletedTask;
     protected virtual TDto ToDto(TEntity entity) => Mapper.Map<TDto>(entity);
 
     /// <summary>تُفعَّل للكيانات التي تنشئ سجلات مرتبطة (مثل حساب العميل) لتكون العملية ذرّية.</summary>
@@ -116,6 +118,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
     
             await OnUpdatingAsync(entity, dto, token);
             await SaveAsync(token);
+            await OnUpdatedAsync(entity, token);
             return ToDto(entity);
         }, ct);
 
@@ -127,6 +130,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
             await OnDeletingAsync(entity, token);
             Db.Remove(entity);
             await SaveAsync(token);
+            await OnDeletedAsync(entity, token);
             return true;
         }, ct);
 

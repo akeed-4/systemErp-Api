@@ -18,9 +18,9 @@ public class CarShowroomTests : TestBase
         Assert.Equal(201, order.Status);
         var id = order.Data!["id"].S();
         foreach (var stage in new[] { "requisition_approved", "rfq", "rfq_approved", "purchase_order" })
-            Assert.Equal(200, (await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = stage })).Status);
+            Assert.Equal(200, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = stage })).Status);
         vins ??= Enumerable.Range(0, qty).Select(_ => Client.NewVin('1')).ToArray();
-        var rec = await api.Post($"/carprocurementorders/{id}/advance-stage", new
+        var rec = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new
         {
             targetStage = "vin_received", pdiInspectionPassed = true, warehouseLocation = "المعرض",
             vins = vins.Select(v => new { vin = v, engineNumber = "E-" + v[^4..] }).ToArray(),
@@ -56,7 +56,7 @@ public class CarShowroomTests : TestBase
     public async Task Vat_calculation_matches_the_frontend_rules(string mode, decimal cost, decimal price, decimal vat, decimal total)
     {
         var api = await NewTenantAsync();
-        var r = await api.Post("/vehicles/calculate-vat", new { costPrice = cost, sellingPrice = price, mode });
+        var r = await api.Post("/vehicles/CalculateVat", new { costPrice = cost, sellingPrice = price, mode });
         Assert.Equal(vat, r.Data!["vatAmount"].D()); Assert.Equal(total, r.Data["priceWithVat"].D());
     }
 
@@ -92,35 +92,35 @@ public class CarShowroomTests : TestBase
         Assert.Equal("requisition", order.Data["stage"].S());
 
         // لا تخطي للمراحل
-        Assert.Equal(409, (await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "purchase_order" })).Status);
+        Assert.Equal(409, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "purchase_order" })).Status);
         foreach (var s in new[] { "requisition_approved", "rfq", "rfq_approved", "purchase_order" })
-            Assert.Equal(s, (await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = s })).Data!["stage"].S());
+            Assert.Equal(s, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = s })).Data!["stage"].S());
 
         // استلام: عدد وصيغة الشواسيهات ملزمان
-        var bad = await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "vin_received", pdiInspectionPassed = true, vins = new[] { new { vin = "BAD" }, new { vin = "BAD2" } } });
+        var bad = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = true, vins = new[] { new { vin = "BAD" }, new { vin = "BAD2" } } });
         Assert.Equal(400, bad.Status);
-        var one = await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "vin_received", pdiInspectionPassed = true, vins = new[] { new { vin = Client.NewVin('1') } } });
+        var one = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = true, vins = new[] { new { vin = Client.NewVin('1') } } });
         Assert.Equal(400, one.Status); // ناقص
-        var notPassed = await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "vin_received", vins = new[] { new { vin = Client.NewVin('1') }, new { vin = Client.NewVin('2') } } });
+        var notPassed = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", vins = new[] { new { vin = Client.NewVin('1') }, new { vin = Client.NewVin('2') } } });
         Assert.Equal(400, notPassed.Status); // يلزم تأكيد PDI
 
         var v1 = Client.NewVin('1'); var v2 = Client.NewVin('2');
-        var rec = await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "vin_received", pdiInspectionPassed = true, warehouseLocation = "المعرض", vins = new[] { new { vin = v1 }, new { vin = v2 } } });
+        var rec = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = true, warehouseLocation = "المعرض", vins = new[] { new { vin = v1 }, new { vin = v2 } } });
         Assert.Equal("received", rec.Data!["status"].S());
         Assert.Equal(2, rec.Data["receivedVinList"]!.AsArray().Count);
         var vehicles = (await api.Get("/vehicles")).Data!["items"]!.AsArray();
         Assert.Equal(2, vehicles.Count);
         Assert.All(vehicles, v => { Assert.Equal("available", v!["status"].S()); Assert.Equal(81500, v["totalCost"].D()); }); // 80000 + (2000+1000)/2
 
-        var inv = await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "invoiced", supplierInvoiceNumber = "S-100" });
+        var inv = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "invoiced", supplierInvoiceNumber = "S-100" });
         Assert.Equal(200, inv.Status);
         Assert.Equal("invoiced", inv.Data!["status"].S()); Assert.Equal("S-100", inv.Data["matchedInvoiceNumber"].S());
-        Assert.Equal(163000, (await api.Get("/accounts/by-code/1142")).Data!["balance"].D());  // مخزون السيارات: 160000 + 3000 تكاليف محمّلة
-        Assert.Equal(3000, (await api.Get("/accounts/by-code/212")).Data!["balance"].D());     // مستحقات جمارك وموانئ
+        Assert.Equal(163000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());  // مخزون السيارات: 160000 + 3000 تكاليف محمّلة
+        Assert.Equal(3000, (await api.Get("/accounts/ByCode/212")).Data!["balance"].D());     // مستحقات جمارك وموانئ
         Assert.Equal(184000, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
-        Assert.Equal(409, (await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "invoiced" })).Status);
+        Assert.Equal(409, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "invoiced" })).Status);
         Assert.Equal(409, (await api.Delete($"/carprocurementorders/{id}")).Status);
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public class CarShowroomTests : TestBase
         var order = await api.Post("/carprocurementorders", new { supplierId = supplier, paymentType = "cash", currency = "SAR", exchangeRate = 1, date = DateTime.UtcNow,
             items = new[] { new { brandName = "تويوتا", modelName = "كامري", year = 2025, quantity = 1, unitPrice = 80000 } } });
         var id = order.Data!["id"].S();
-        foreach (var s in new[] { "requisition_approved", "rfq", "rfq_approved", "purchase_order" }) await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = s });
-        var r = await api.Post($"/carprocurementorders/{id}/advance-stage", new { targetStage = "vin_received", pdiInspectionPassed = false, rejectionReason = "ضرر في الهيكل", vins = Array.Empty<object>() });
+        foreach (var s in new[] { "requisition_approved", "rfq", "rfq_approved", "purchase_order" }) await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = s });
+        var r = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = false, rejectionReason = "ضرر في الهيكل", vins = Array.Empty<object>() });
         Assert.Equal("rejected", r.Data!["status"].S());
         Assert.Equal(0, (await api.Get("/vehicles")).Data!["totalCount"].D());
     }
@@ -144,7 +144,7 @@ public class CarShowroomTests : TestBase
         var (supplier, _) = await SeedSupplierAsync(api);
         await ReceivedOrderAsync(api, supplier, qty: 1);
         var invoicedOrder = (await api.Get("/carprocurementorders")).Data!["items"]![0]!["id"].S();
-        await api.Post($"/carprocurementorders/{invoicedOrder}/advance-stage", new { targetStage = "invoiced" });
+        await api.Post($"/carprocurementorders/{invoicedOrder}/AdvanceStage", new { targetStage = "invoiced" });
 
         var vehicle = (await api.Get("/vehicles")).Data!["items"]![0]!;
         var vid = vehicle["id"].S();
@@ -159,17 +159,17 @@ public class CarShowroomTests : TestBase
 
         Assert.Equal(400, (await api.Post("/carsalescontracts", new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "1", buyerPhone = "1", vehicleId = vid, sellingPrice = 100000, discountAmount = 20000,
             vatMode = "standard_15", paymentMethod = "cash", condition = "new" })).Status); // أقل من الحد الأدنى
-        Assert.Equal(409, (await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "invoiced" })).Status);
+        Assert.Equal(409, (await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "invoiced" })).Status);
 
-        Assert.Equal("approved", (await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "approved" })).Data!["status"].S());
+        Assert.Equal("approved", (await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "approved" })).Data!["status"].S());
         Assert.Equal("reserved", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
         // مركبة محجوزة لا تُباع في عقد ثانٍ
         Assert.Equal(409, (await api.Post("/carsalescontracts", new { cycleType = "individual", buyerName = "آخر", buyerNationalIdOrCr = "2", buyerPhone = "2", vehicleId = vid, sellingPrice = 100000, vatMode = "standard_15", paymentMethod = "cash", condition = "new" })).Status);
-        Assert.Equal("allocated", (await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "allocated" })).Data!["status"].S());
-        Assert.Equal(400, (await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "delivered" })).Status); // بلا محضر
-        Assert.Equal(200, (await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "delivered", handoverProtocolNumber = "H-1", handoverSignee = "مشتري", handoverSigneeNationalId = "1010101010" })).Status);
+        Assert.Equal("allocated", (await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "allocated" })).Data!["status"].S());
+        Assert.Equal(400, (await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "delivered" })).Status); // بلا محضر
+        Assert.Equal(200, (await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "delivered", handoverProtocolNumber = "H-1", handoverSignee = "مشتري", handoverSigneeNationalId = "1010101010" })).Status);
 
-        var done = await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "invoiced" });
+        var done = await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "invoiced" });
         Assert.Equal(200, done.Status);
         Assert.Equal("sold", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
         var invoice = (await api.Get($"/invoices/{done.Data!["invoiceId"].S()}")).Data!;
@@ -179,10 +179,10 @@ public class CarShowroomTests : TestBase
         decimal Bal(string code) => accounts.First(a => a!["code"].S() == code)!["balance"].D();
         Assert.Equal(100000, Bal("412")); Assert.Equal(83000, Bal("512")); Assert.Equal(0, Bal("1142"));
 
-        var pl = (await api.Get("/reports/car/profit-loss")).Data!.AsArray();
+        var pl = (await api.Get("/reports/car/ProfitLoss")).Data!.AsArray();
         Assert.Single(pl); Assert.Equal(17000, pl[0]!["profitAmount"].D());
         Assert.Equal(409, (await api.Post($"/carsalescontracts/{id}/cancel", new { reason = "x" })).Status);
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
@@ -196,15 +196,15 @@ public class CarShowroomTests : TestBase
         var c = await api.Post("/carsalescontracts", new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "2", buyerPhone = "2", vehicleId = vid, sellingPrice = 60000, vatMode = "standard_15", paymentMethod = "bank_transfer", condition = "used" });
         Assert.Equal("profit_margin_15", c.Data!["vatMode"].S());
         var id = c.Data!["id"].S();
-        foreach (var s in new[] { "approved", "allocated" }) await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = s });
-        await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "delivered", handoverProtocolNumber = "H", handoverSignee = "م", handoverSigneeNationalId = "2" });
-        var done = await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "invoiced" });
+        foreach (var s in new[] { "approved", "allocated" }) await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = s });
+        await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "delivered", handoverProtocolNumber = "H", handoverSignee = "م", handoverSigneeNationalId = "2" });
+        var done = await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "invoiced" });
         var inv = (await api.Get($"/invoices/{done.Data!["invoiceId"].S()}")).Data!;
         // الهامش 10000 → الضريبة 10000 × 15/115 = 1304.35 مضمَّنة: الإيراد 58695.65 والعميل يدفع 60000
         Assert.Equal(1304.35m, inv["vatTotal"].D()); Assert.Equal(58695.65m, inv["subtotal"].D()); Assert.Equal(60000, inv["grandTotal"].D());
-        var report = (await api.Get("/reports/car/zatca-margin-tax")).Data!.AsArray();
+        var report = (await api.Get("/reports/car/ZatcaMarginTax")).Data!.AsArray();
         Assert.Single(report); Assert.Equal(1304.35m, report[0]!["vatAmount15Percent"].D()); Assert.Equal(60000, report[0]!["sellingPrice"].D());
-        var (d, cr) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, cr);
+        var (d, cr) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, cr);
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public class CarShowroomTests : TestBase
         var vid = car.Data!["id"].S();
         var c = await api.Post("/carsalescontracts", new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "1", buyerPhone = "1", vehicleId = vid, sellingPrice = 50000, vatMode = "standard_15", paymentMethod = "cash", condition = "new" });
         var id = c.Data!["id"].S();
-        await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "approved" });
+        await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "approved" });
         Assert.Equal("reserved", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
         Assert.Equal(200, (await api.Post($"/carsalescontracts/{id}/cancel", new { reason = "تراجع العميل" })).Status);
         Assert.Equal("available", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
@@ -235,11 +235,11 @@ public class CarShowroomTests : TestBase
             paymentMethod = "bank_finance", condition = "new", downPaymentAmount = 50000, financingBankName = "بنك", financedAmount = 237500 });
         var id = c.Data!["id"].S();
         Assert.Equal(287500, c.Data["totalWithVat"].D());
-        foreach (var s in new[] { "approved", "allocated" }) Assert.Equal(200, (await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = s })).Status);
-        await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "delivered", handoverProtocolNumber = "H", handoverSignee = "م", handoverSigneeNationalId = "1" });
-        Assert.Equal(200, (await api.Post($"/carsalescontracts/{id}/advance-status", new { targetStatus = "invoiced" })).Status);
+        foreach (var s in new[] { "approved", "allocated" }) Assert.Equal(200, (await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = s })).Status);
+        await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "delivered", handoverProtocolNumber = "H", handoverSignee = "م", handoverSigneeNationalId = "1" });
+        Assert.Equal(200, (await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "invoiced" })).Status);
         Assert.Equal(237500, (await api.Get($"/customers/{customer}")).Data!["currentBalance"].D()); // المتبقي بعد الدفعة المقدمة
-        var installments = (await api.Get("/reports/car/installments-receivable")).Data!.AsArray();
+        var installments = (await api.Get("/reports/car/InstallmentsReceivable")).Data!.AsArray();
         Assert.Single(installments);
     }
 
@@ -256,7 +256,7 @@ public class CarShowroomTests : TestBase
     {
         var api = await NewTenantAsync();
         var vid = await SeedCarAsync(api, '6');
-        var r = await api.Post("/carsalescontracts/quick-sale", new { contract = new { cycleType = "corporate", buyerName = "شركة النور", buyerNationalIdOrCr = "7001234567", buyerPhone = "0550000000",
+        var r = await api.Post("/carsalescontracts/QuickSale", new { contract = new { cycleType = "corporate", buyerName = "شركة النور", buyerNationalIdOrCr = "7001234567", buyerPhone = "0550000000",
             vehicleId = vid, sellingPrice = 50000, vatMode = "standard_15", paymentMethod = "bank_transfer", condition = "new" } });
         Assert.Equal(201, r.Status);
         Assert.Equal("invoiced", r.Data!["status"].S());
@@ -268,7 +268,7 @@ public class CarShowroomTests : TestBase
         Assert.Equal(1, (await api.Get("/carsalescontracts?cycleType=corporate")).Data!["totalCount"].D());
         Assert.Equal(0, (await api.Get("/carsalescontracts?cycleType=individual")).Data!["totalCount"].D());
         Assert.Equal(400, (await api.Get("/carsalescontracts?cycleType=bogus")).Status);
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
@@ -277,7 +277,7 @@ public class CarShowroomTests : TestBase
         var api = await NewTenantAsync();
         var vid = await SeedCarAsync(api, '7');
         // البيع الآجل بلا عميل يفشل عند مرحلة الاعتماد — لا يبقى عقد ولا حجز
-        var r = await api.Post("/carsalescontracts/quick-sale", new { contract = new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "1010101010", buyerPhone = "0550000000",
+        var r = await api.Post("/carsalescontracts/QuickSale", new { contract = new { cycleType = "individual", buyerName = "م", buyerNationalIdOrCr = "1010101010", buyerPhone = "0550000000",
             vehicleId = vid, sellingPrice = 50000, vatMode = "standard_15", paymentMethod = "credit", condition = "new" } });
         Assert.Equal(400, r.Status);
         Assert.Equal(0, (await api.Get("/carsalescontracts")).Data!["totalCount"].D());
@@ -310,7 +310,7 @@ public class CarShowroomTests : TestBase
             purchaseCycle = cycle, supplierId = supplier, paymentType = "credit", creditDays = 30, brandName = "تويوتا", modelName = "كامري", trimName = "GLE", year = 2025,
             colorExterior = "أبيض", colorInterior = "بيج", vin = v, engineNumber = "E-9", purchasePrice = 80000, sellingPrice = 100000, warehouseLocation = "المعرض",
         };
-        var r = await api.Post("/carprocurementorders/quick-purchase", Body(vin));
+        var r = await api.Post("/carprocurementorders/QuickPurchase", Body(vin));
         Assert.Equal(201, r.Status);
         Assert.Equal("invoiced", r.Data!["stage"].S());
         Assert.Equal("corporate", r.Data["purchaseCycle"].S());
@@ -323,9 +323,9 @@ public class CarShowroomTests : TestBase
 
         Assert.Equal(1, (await api.Get("/carprocurementorders?purchaseCycle=corporate")).Data!["totalCount"].D());
         Assert.Equal(0, (await api.Get("/carprocurementorders?purchaseCycle=individual")).Data!["totalCount"].D());
-        Assert.Equal(400, (await api.Post("/carprocurementorders/quick-purchase", Body(Client.NewVin('9'), "bogus"))).Status);
-        Assert.Equal(409, (await api.Post("/carprocurementorders/quick-purchase", Body(vin))).Status); // VIN مكرر
+        Assert.Equal(400, (await api.Post("/carprocurementorders/QuickPurchase", Body(Client.NewVin('9'), "bogus"))).Status);
+        Assert.Equal(409, (await api.Post("/carprocurementorders/QuickPurchase", Body(vin))).Status); // VIN مكرر
         Assert.Equal(1, (await api.Get("/carprocurementorders")).Data!["totalCount"].D());             // المحاولة المرفوضة لم تترك أمرًا
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 }

@@ -14,35 +14,35 @@ public class CarShowroomReportsController : ErpControllerBase
     private readonly ICarShowroomReportService _reports;
     public CarShowroomReportsController(ICarShowroomReportService reports) => _reports = reports;
 
-    [HttpGet("sales-performance")]
+    [HttpGet("SalesPerformance")]
     public async Task<IActionResult> SalesPerformance([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadSalesPerformanceAsync(q, loadOptions, ct));
 
-    [HttpGet("vin-inventory")]
+    [HttpGet("VinInventory")]
     public async Task<IActionResult> VinInventory(DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadVinInventoryAsync(loadOptions, ct));
 
-    [HttpGet("zatca-margin-tax")]
+    [HttpGet("ZatcaMarginTax")]
     public async Task<IActionResult> ZatcaMargin([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadZatcaMarginTaxAsync(q, loadOptions, ct));
 
-    [HttpGet("procurement-tracking")]
+    [HttpGet("ProcurementTracking")]
     public async Task<IActionResult> Procurement([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadProcurementTrackingAsync(q, loadOptions, ct));
 
-    [HttpGet("profit-loss")]
+    [HttpGet("ProfitLoss")]
     public async Task<IActionResult> ProfitLoss([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadProfitLossAsync(q, loadOptions, ct));
 
-    [HttpGet("installments-receivable")]
+    [HttpGet("InstallmentsReceivable")]
     public async Task<IActionResult> Installments(DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadInstallmentsReceivableAsync(loadOptions, ct));
 
-    [HttpGet("suppliers-procurement")]
+    [HttpGet("SuppliersProcurement")]
     public async Task<IActionResult> Suppliers([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadSuppliersProcurementAsync(q, loadOptions, ct));
 
-    [HttpGet("daily-monthly-sales")]
+    [HttpGet("DailyMonthlySales")]
     public async Task<IActionResult> DailyMonthly([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _reports.LoadDailyMonthlySalesAsync(q, loadOptions, ct));
 }

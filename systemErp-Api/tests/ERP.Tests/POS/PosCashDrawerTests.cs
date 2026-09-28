@@ -14,7 +14,7 @@ public class PosCashDrawerTests : TestBase
     private static object Cart(Guid product, decimal qty, decimal paid = 0, string? coupon = null)
         => new { items = new[] { new { itemId = product, quantity = qty } }, paymentMethod = "cash", paidCash = paid, couponCode = coupon };
 
-    private static async Task<decimal> BalanceAsync(Client api, string code) => (await api.Get($"/accounts/by-code/{code}")).Data!["balance"].D();
+    private static async Task<decimal> BalanceAsync(Client api, string code) => (await api.Get($"/accounts/ByCode/{code}")).Data!["balance"].D();
 
     [Fact]
     public async Task Quote_prices_the_cart_like_checkout_without_side_effects()
@@ -43,16 +43,16 @@ public class PosCashDrawerTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
-        Assert.Equal(409, (await api.Post("/pos/shifts/cash-movements", new { type = "paid_out", amount = 10, reason = "x" })).Status); // بلا وردية
+        Assert.Equal(409, (await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 10, reason = "x" })).Status); // بلا وردية
         await OpenShiftAsync(api);
         Assert.Equal(201, (await api.Post("/pos/transactions/checkout", Cart(product, 2, paid: 230))).Status);
 
-        var pin = await api.Post("/pos/shifts/cash-movements", new { type = "paid_in", amount = 200, reason = "فكّة من البنك" });
+        var pin = await api.Post("/pos/shifts/CashMovements", new { type = "paid_in", amount = 200, reason = "فكّة من البنك" });
         Assert.Equal(200, pin.Status);
-        var pout = await api.Post("/pos/shifts/cash-movements", new { type = "paid_out", amount = 50, reason = "ضيافة" });
+        var pout = await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 50, reason = "ضيافة" });
         Assert.Equal(200, pout.Status);
-        Assert.Equal(409, (await api.Post("/pos/shifts/cash-movements", new { type = "paid_out", amount = 100000, reason = "أكبر من الدرج" })).Status);
-        Assert.Equal(400, (await api.Post("/pos/shifts/cash-movements", new { type = "paid_out", amount = 5, reason = "" })).Status);
+        Assert.Equal(409, (await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 100000, reason = "أكبر من الدرج" })).Status);
+        Assert.Equal(400, (await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 5, reason = "" })).Status);
 
         // الصندوق: بيع 230 + إيداع 200 − صرف 50 ؛ المصروف النثري 50 ؛ البنك دائن 200
         Assert.Equal(380, await BalanceAsync(api, "1111"));
@@ -65,10 +65,10 @@ public class PosCashDrawerTests : TestBase
         Assert.Equal(2, x["topItems"]!.AsArray()[0]!["quantity"].D());
         Assert.Equal(2, x["cashMovements"]!.AsArray().Count);
 
-        Assert.Equal(200, (await api.Delete($"/pos/shifts/cash-movements/{pout.Data!["id"].S()}")).Status);
+        Assert.Equal(200, (await api.Delete($"/pos/shifts/CashMovements/{pout.Data!["id"].S()}")).Status);
         Assert.Equal(0, await BalanceAsync(api, "521"));
         Assert.Equal(930, (await api.Get("/pos/shifts/active/report")).Data!["expectedCash"].D());
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
@@ -97,6 +97,6 @@ public class PosCashDrawerTests : TestBase
         Assert.Equal(5, over.Data!["cashVariance"].D());
         Assert.Equal(5, Math.Abs(await BalanceAsync(api, "421"))); // زيادة
         Assert.Equal(120, await BalanceAsync(api, "1111"));
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 }

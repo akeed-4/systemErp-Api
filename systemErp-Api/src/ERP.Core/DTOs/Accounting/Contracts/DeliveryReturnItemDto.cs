@@ -6,4 +6,9 @@ public partial class DeliveryReturnItemDto
     public Guid ItemId { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    public string? Unit { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal VatRate { get; set; } = 15m;
+    public decimal VatAmount { get; set; }
+    public decimal TotalAfterVat { get; set; }
 }

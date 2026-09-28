@@ -8,5 +8,13 @@ public partial class CreateDeliveryReturnNoteDto
     public string DeliveryNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public string Status { get; set; } = "draft";
+    public Guid? ContractId { get; set; }
+    public string? ContractNumber { get; set; }
+    public string PartyName { get; set; } = string.Empty;
+    public string? ReturnReason { get; set; }
+    public string? Notes { get; set; }
+    public decimal Subtotal { get; set; }
+    public decimal VatTotal { get; set; }
+    public decimal GrandTotal { get; set; }
     public List<DeliveryReturnItemDto> Items { get; set; } = new();
 }

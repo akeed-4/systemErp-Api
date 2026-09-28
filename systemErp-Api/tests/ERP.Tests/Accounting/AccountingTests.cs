@@ -19,7 +19,7 @@ public class AccountingTests : TestBase
         var (_, sAcc) = await SeedSupplierAsync(api);
         var bank = await api.Post("/banks", new { nameAr = "بنك", accountNumber = "1", iban = "SA0380000000608010167519", status = "active" });
         Assert.StartsWith("112", cAcc); Assert.StartsWith("211", sAcc); Assert.StartsWith("111", bank.Data!["accountCode"].S());
-        Assert.Equal(409, (await api.Delete($"/accounts/{(await api.Get($"/accounts/by-code/{cAcc}")).Data!["id"].S()}")).Status); // مرتبط بعميل
+        Assert.Equal(409, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{cAcc}")).Data!["id"].S()}")).Status); // مرتبط بعميل
     }
 
     [Fact]
@@ -49,10 +49,10 @@ public class AccountingTests : TestBase
         var edited = await api.Put($"/journalentries/{id}", Lines(700));
         Assert.Equal(200, edited.Status);
         Assert.Equal(je.Data["entryNumber"].S(), edited.Data!["entryNumber"].S()); // نفس الرقم
-        Assert.Equal(700, (await api.Get("/accounts/by-code/1111")).Data!["balance"].D());
+        Assert.Equal(700, (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D());
 
         Assert.Equal(200, (await api.Post($"/journalentries/{id}/reverse")).Status);
-        Assert.Equal(0, (await api.Get("/accounts/by-code/1111")).Data!["balance"].D());
+        Assert.Equal(0, (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D());
         Assert.Equal(409, (await api.Post($"/journalentries/{id}/reverse")).Status);   // لا يُعكس مرتين
         Assert.Equal(409, (await api.Delete($"/journalentries/{id}")).Status);          // المعكوس مقفل
     }
@@ -69,7 +69,7 @@ public class AccountingTests : TestBase
         var inv2 = await api.Post("/invoices", Sale(product, 1, "cash"));
         Assert.Equal(200, (await api.Delete($"/journalentries/{inv2.Data!["journalEntryId"].S()}")).Status);
         Assert.Null((await api.Get($"/invoices/{inv2.Data["id"].S()}")).Data!["journalEntryId"]);
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     // ---------- الفواتير والمخزون والترحيل ----------
@@ -186,7 +186,7 @@ public class AccountingTests : TestBase
         var after = (await api.Get($"/products/{product}")).Data!;
         Assert.Equal(8, after["currentStock"].D()); Assert.Equal(60, after["averageCost"].D()); // باقي الدفعة الثانية فقط
 
-        var re = await api.Post("/costing/recalculate-all");
+        var re = await api.Post("/costing/RecalculateAll");
         Assert.Equal(1, re.Data!["productsUpdated"].D());
         Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
     }
@@ -228,9 +228,9 @@ public class AccountingTests : TestBase
         var q = await api.Post("/quotations", new { type = "sales_quotation", partyName = "عميل", date = DateTime.UtcNow, validUntil = DateTime.UtcNow.AddDays(10), status = "draft",
             items = new[] { new { itemId = product, itemName = "منتج", sku = "P1", unit = "PCS", quantity = 1, unitPrice = 100, vatRate = 15, discount = 0 } } });
         Assert.Equal(115, q.Data!["grandTotal"].D());
-        var conv = await api.Post($"/quotations/{q.Data["id"].S()}/convert-to-invoice");
+        var conv = await api.Post($"/quotations/{q.Data["id"].S()}/ConvertToInvoice");
         Assert.Equal(200, conv.Status); Assert.Equal("draft", conv.Data!["status"].S());
-        Assert.Equal(409, (await api.Post($"/quotations/{q.Data["id"].S()}/convert-to-invoice")).Status);
+        Assert.Equal(409, (await api.Post($"/quotations/{q.Data["id"].S()}/ConvertToInvoice")).Status);
         Assert.Equal("posted", (await api.Post($"/invoices/{conv.Data["id"].S()}/post")).Data!["status"].S());
     }
 
@@ -243,9 +243,9 @@ public class AccountingTests : TestBase
         var req = await api.Post("/materialrequisitions", new { requestDate = DateTime.UtcNow, requiredDate = DateTime.UtcNow.AddDays(5), department = "المشتريات", requestedBy = "أحمد", priority = "high", supplierId = supplier, supplierName = "مورد", status = "draft",
             items = new[] { new { itemId = product, itemName = "منتج", sku = "P1", unit = "PCS", requestedQuantity = 5, estimatedCost = 30 } } });
         var id = req.Data!["id"].S();
-        Assert.Equal(409, (await api.Post($"/materialrequisitions/{id}/convert-to-invoice")).Status);
+        Assert.Equal(409, (await api.Post($"/materialrequisitions/{id}/ConvertToInvoice")).Status);
         Assert.Equal(200, (await api.Post($"/materialrequisitions/{id}/approve")).Status);
-        var conv = await api.Post($"/materialrequisitions/{id}/convert-to-invoice");
+        var conv = await api.Post($"/materialrequisitions/{id}/ConvertToInvoice");
         Assert.Equal(200, conv.Status); Assert.Equal("draft", conv.Data!["status"].S());
         Assert.Equal(150, conv.Data["subtotal"].D());
     }
@@ -262,9 +262,9 @@ public class AccountingTests : TestBase
         Assert.Equal(500, ct.Data["milestones"]![0]!["amount"].D());
 
         Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill")).Status); // قبل التنفيذ
-        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/advance-stage", new { stage = "final_closed" })).Status); // تخطي مراحل
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "final_closed" })).Status); // تخطي مراحل
         foreach (var s in new[] { "legal_review", "approved_signed", "active_execution" })
-            Assert.Equal(200, (await api.Post($"/commercialcontracts/{id}/advance-stage", new { stage = s })).Status);
+            Assert.Equal(200, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = s })).Status);
 
         var bill = await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill");
         Assert.Equal(200, bill.Status); Assert.Equal(575, bill.Data!["grandTotal"].D());
@@ -273,9 +273,9 @@ public class AccountingTests : TestBase
         Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill")).Status);
         Assert.Equal(575, (await api.Get($"/customers/{customer}")).Data!["currentBalance"].D());
         // إغلاق العقد ممنوع وفيه مستخلص غير مفوتر
-        await api.Post($"/commercialcontracts/{id}/advance-stage", new { stage = "milestone_billing" });
-        await api.Post($"/commercialcontracts/{id}/advance-stage", new { stage = "initial_inspection" });
-        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/advance-stage", new { stage = "final_closed" })).Status);
+        await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "milestone_billing" });
+        await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "initial_inspection" });
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "final_closed" })).Status);
     }
 
     [Fact]
@@ -304,17 +304,17 @@ public class AccountingTests : TestBase
         await api.Post("/vouchers", new { type = "receipt", amount = 100, partyName = "عميل", partyAccountCode = account, treasuryAccountCode = "1111", paymentMethod = "cash" });
         await api.Post("/invoices", new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, items = new[] { new { itemId = product, quantity = 4, unitPrice = 50, vatRate = 15 } } });
 
-        var (d, c) = Totals(await api.Get("/reports/trial-balance"));
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance"));
         Assert.True(d > 0); Assert.Equal(d, c);
-        Assert.True((await api.Get("/reports/financial-summary")).Data!["isBalanceSheetBalanced"]!.GetValue<bool>());
+        Assert.True((await api.Get("/reports/FinancialSummary")).Data!["isBalanceSheetBalanced"]!.GetValue<bool>());
 
-        var stats = (await api.Get("/reports/financial-stats")).Data!;
+        var stats = (await api.Get("/reports/FinancialStats")).Data!;
         Assert.Equal(500, stats["totalSales"].D()); Assert.Equal(200, stats["totalPurchases"].D()); Assert.Equal(100, stats["totalReceipts"].D());
-        var vat = (await api.Get("/reports/vat-return?from=2000-01-01&to=2100-01-01")).Data!;
+        var vat = (await api.Get("/reports/VatReturn?from=2000-01-01&to=2100-01-01")).Data!;
         Assert.Equal(75, vat["outputVat"].D()); Assert.Equal(30, vat["inputVat"].D()); Assert.Equal(45, vat["netVatPayable"].D());
-        var st = (await api.Get($"/reports/account-statement/{account}")).Data!;
+        var st = (await api.Get($"/reports/AccountStatement/{account}")).Data!;
         Assert.Equal(245, st["closingBalance"].D()); Assert.Equal(2, st["entries"]!.AsArray().Count);
-        var ledger = (await api.Get($"/reports/item-ledger?itemId={product}")).Data!.AsArray();
+        var ledger = (await api.Get($"/reports/ItemLedger?itemId={product}")).Data!.AsArray();
         Assert.Equal(10 - 2 - 3 + 4, ledger[^1]!["runningStockBalance"].D());
     }
 }

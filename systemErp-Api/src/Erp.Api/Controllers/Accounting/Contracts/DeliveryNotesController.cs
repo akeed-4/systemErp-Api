@@ -37,7 +37,11 @@ public class DeliveryNotesController : ErpControllerBase
     public async Task<IActionResult> CreateReturn([FromBody] CreateDeliveryReturnNoteDto dto, CancellationToken ct)
         => Success(await _notes.CreateReturnAsync(dto, ct), "تم إنشاء مرتجع التسليم");
 
-    [HttpPost("{id:guid}/milestone-invoice")]
+    [HttpPost("{id:guid}/MilestoneInvoice")]
     public async Task<IActionResult> MilestoneInvoice(Guid id, [FromBody] CreateDeliveryInvoiceRequestDto dto, CancellationToken ct)
         => Success(await _notes.CreateMilestoneInvoiceAsync(id, dto.MilestoneId, ct), "تمت الفوترة");
+
+    [HttpPost("{id:guid}/Invoice")]
+    public async Task<IActionResult> Invoice(Guid id, CancellationToken ct)
+        => Success(await _notes.CreateInvoiceAsync(id, ct), "تم إصدار الفاتورة");
 }

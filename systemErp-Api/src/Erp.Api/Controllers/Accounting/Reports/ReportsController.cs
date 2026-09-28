@@ -23,43 +23,43 @@ public class ReportsController : ErpControllerBase
 
     // ---------- تقارير مفردة (KPIs) ----------
     /// <summary>مؤشرات لوحة القيادة (FinancialStats).</summary>
-    [HttpGet("financial-stats"), RequireScreen("dashboard")]
+    [HttpGet("FinancialStats"), RequireScreen("dashboard")]
     public async Task<IActionResult> Stats(CancellationToken ct) => Success(await _accounting.GetFinancialStatsAsync(ct));
 
-    [HttpGet("financial-summary"), RequireScreen("reports")]
+    [HttpGet("FinancialSummary"), RequireScreen("reports")]
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _accounting.GetFinancialSummaryAsync(ct));
 
-    [HttpGet("vat-return"), RequireScreen("reports")]
+    [HttpGet("VatReturn"), RequireScreen("reports")]
     public async Task<IActionResult> Vat([FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
         => Success(await _accounting.GetVatReturnAsync(from, to, ct));
 
     /// <summary>رأس كشف الحساب (الرصيد الافتتاحي والختامي) مع الحركات كاملة.</summary>
-    [HttpGet("account-statement/{code}"), RequireScreen("reports")]
+    [HttpGet("AccountStatement/{code}"), RequireScreen("reports")]
     public async Task<IActionResult> Statement(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
         => Success(await _accounting.GetAccountStatementAsync(code, from, to, ct));
 
     // ---------- تقارير قائمية (DevExtreme loadOptions) ----------
-    [HttpGet("trial-balance"), RequireScreen("reports")]
+    [HttpGet("TrialBalance"), RequireScreen("reports")]
     public async Task<IActionResult> TrialBalance([FromQuery] DateTime? from, [FromQuery] DateTime? to, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _accounting.LoadTrialBalanceAsync(from, to, loadOptions, ct));
 
-    [HttpGet("account-statement/{code}/entries"), RequireScreen("reports")]
+    [HttpGet("AccountStatement/{code}/Entries"), RequireScreen("reports")]
     public async Task<IActionResult> StatementEntries(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _accounting.LoadAccountStatementEntriesAsync(code, from, to, loadOptions, ct));
 
-    [HttpGet("inventory-audit"), RequireScreen("reports")]
+    [HttpGet("InventoryAudit"), RequireScreen("reports")]
     public async Task<IActionResult> Audit([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadInventoryAuditAsync(q, loadOptions, ct));
 
-    [HttpGet("item-movements"), RequireScreen("reports")]
+    [HttpGet("ItemMovements"), RequireScreen("reports")]
     public async Task<IActionResult> Movements([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadItemMovementsAsync(q, loadOptions, ct));
 
-    [HttpGet("item-ledger"), RequireScreen("reports")]
+    [HttpGet("ItemLedger"), RequireScreen("reports")]
     public async Task<IActionResult> Ledger([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadItemLedgerAsync(q, loadOptions, ct));
 
-    [HttpGet("trade-commercial"), RequireScreen("reports")]
+    [HttpGet("TradeCommercial"), RequireScreen("reports")]
     public async Task<IActionResult> Trade([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadCommercialTradeAsync(q, loadOptions, ct));
 }

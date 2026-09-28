@@ -21,4 +21,6 @@ public interface IDeliveryNoteService
     Task<DeliveryReturnNoteDto> CreateReturnAsync(CreateDeliveryReturnNoteDto request, CancellationToken ct = default);
     /// <summary>فاتورة مرحلية من بيان تسليم: تفوتر مستخلص العقد المحدد وتربط الفاتورة بالبيان.</summary>
     Task<InvoiceDto> CreateMilestoneInvoiceAsync(Guid deliveryNoteId, Guid milestoneId, CancellationToken ct = default);
+    /// <summary>فاتورة بيع/شراء مرحّلة من صافي الكميات المسلّمة (بعد المرتجعات) وتربط الفاتورة بالبيان.</summary>
+    Task<InvoiceDto> CreateInvoiceAsync(Guid deliveryNoteId, CancellationToken ct = default);
 }

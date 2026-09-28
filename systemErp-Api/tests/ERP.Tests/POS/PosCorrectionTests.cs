@@ -31,7 +31,7 @@ public class PosCorrectionTests : TestBase
         var shift = (await api.Get("/pos/shifts/active")).Data!;
         Assert.Equal(0, shift["totalCashSales"].D()); Assert.Equal(0, shift["totalGross"].D());
         Assert.Equal(409, (await api.Post($"/pos/transactions/{id}/void")).Status);
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
         Assert.Equal(200, (await api.Delete($"/pos/transactions/{id}")).Status);
         Assert.Equal(404, (await api.Get($"/pos/transactions/{id}")).Status);
     }
@@ -74,7 +74,7 @@ public class PosCorrectionTests : TestBase
         Assert.Equal(0, shift["totalReturns"].D()); Assert.Equal(0, shift["totalCashRefunds"].D());
         Assert.Equal(200, (await api.Post($"/pos/transactions/{id}/void")).Status);
         Assert.Equal(10, await StockAsync(api, product));
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class PosCorrectionTests : TestBase
         Assert.Equal(200, (await api.Delete($"/pos/shifts/{shiftId}?cascade=true")).Status);
         Assert.Equal(404, (await api.Get($"/pos/shifts/{shiftId}")).Status);
         Assert.Equal(10, await StockAsync(api, product));
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]

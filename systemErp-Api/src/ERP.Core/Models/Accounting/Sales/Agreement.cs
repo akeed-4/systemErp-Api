@@ -15,6 +15,9 @@ public class Agreement : BaseEntity
     public DateTime? EndDate { get; set; }
     public string Status { get; set; } = "active"; // active | expired | cancelled
     public string? Notes { get; set; }
+    public string? ReferenceNo { get; set; }
+    public string? PartyNameEn { get; set; }
+    public string Currency { get; set; } = "SAR";
 
     public virtual ICollection<AgreementItem> Items { get; set; } = new List<AgreementItem>();
 }

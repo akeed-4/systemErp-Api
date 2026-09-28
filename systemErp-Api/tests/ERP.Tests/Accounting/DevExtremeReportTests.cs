@@ -27,7 +27,7 @@ public class DevExtremeReportTests : TestBase
     public async Task Response_is_a_raw_LoadResult_not_wrapped_in_ApiResponse()
     {
         var api = await SeededAsync();
-        var r = await api.Get("/reports/trial-balance" + Q(("requireTotalCount", "true")));
+        var r = await api.Get("/reports/TrialBalance" + Q(("requireTotalCount", "true")));
         Assert.Equal(200, r.Status);
         Assert.Null(r.Body!["success"]);
         Assert.NotNull(r.Body["data"]); Assert.True(r.Body["totalCount"]!.GetValue<int>() > 3);
@@ -37,22 +37,22 @@ public class DevExtremeReportTests : TestBase
     public async Task Filter_sort_and_paging_are_applied()
     {
         var api = await SeededAsync();
-        var all = (await api.Get("/reports/trial-balance" + Q(("requireTotalCount", "true")))).Body!;
+        var all = (await api.Get("/reports/TrialBalance" + Q(("requireTotalCount", "true")))).Body!;
         var total = all["totalCount"]!.GetValue<int>();
 
-        var filtered = await api.Get("/reports/trial-balance" + Q(("filter", "[\"periodDebit\",\">\",0]"), ("sort", "[{\"selector\":\"periodDebit\",\"desc\":true}]"), ("requireTotalCount", "true")));
+        var filtered = await api.Get("/reports/TrialBalance" + Q(("filter", "[\"periodDebit\",\">\",0]"), ("sort", "[{\"selector\":\"periodDebit\",\"desc\":true}]"), ("requireTotalCount", "true")));
         var rows = filtered.Body!["data"]!.AsArray();
         Assert.All(rows, r => Assert.True(r!["periodDebit"].D() > 0));
         Assert.True(filtered.Body["totalCount"]!.GetValue<int>() < total);
         var debits = rows.Select(r => r!["periodDebit"].D()).ToList();
         Assert.Equal(debits.OrderByDescending(x => x), debits);
 
-        var page = await api.Get("/reports/trial-balance" + Q(("sort", "[{\"selector\":\"accountCode\"}]"), ("skip", "1"), ("take", "2"), ("requireTotalCount", "true")));
+        var page = await api.Get("/reports/TrialBalance" + Q(("sort", "[{\"selector\":\"accountCode\"}]"), ("skip", "1"), ("take", "2"), ("requireTotalCount", "true")));
         Assert.Equal(2, page.Body!["data"]!.AsArray().Count); Assert.Equal(total, page.Body["totalCount"]!.GetValue<int>());
         var codes = all["data"]!.AsArray().Select(r => r!["accountCode"].S()).OrderBy(x => x, StringComparer.Ordinal).ToList();
         Assert.Equal(codes[1], page.Body["data"]![0]!["accountCode"].S());
 
-        var search = await api.Get("/reports/trial-balance" + Q(("filter", "[\"accountCode\",\"startswith\",\"112\"]")));
+        var search = await api.Get("/reports/TrialBalance" + Q(("filter", "[\"accountCode\",\"startswith\",\"112\"]")));
         Assert.All(search.Body!["data"]!.AsArray(), r => Assert.StartsWith("112", r!["accountCode"].S()));
     }
 
@@ -60,11 +60,11 @@ public class DevExtremeReportTests : TestBase
     public async Task Total_summary_and_grouping_with_group_summary()
     {
         var api = await SeededAsync();
-        var sum = await api.Get("/reports/trial-balance" + Q(("totalSummary", "[{\"selector\":\"periodDebit\",\"summaryType\":\"sum\"},{\"selector\":\"periodCredit\",\"summaryType\":\"sum\"}]"), ("take", "1")));
+        var sum = await api.Get("/reports/TrialBalance" + Q(("totalSummary", "[{\"selector\":\"periodDebit\",\"summaryType\":\"sum\"},{\"selector\":\"periodCredit\",\"summaryType\":\"sum\"}]"), ("take", "1")));
         var summary = sum.Body!["summary"]!.AsArray();
         Assert.Equal(summary[0].D(), summary[1].D()); // المدين = الدائن حتى عبر ملخص DevExtreme
 
-        var grouped = await api.Get("/reports/trial-balance" + Q(("group", "[{\"selector\":\"accountNameAr\",\"isExpanded\":false}]"),
+        var grouped = await api.Get("/reports/TrialBalance" + Q(("group", "[{\"selector\":\"accountNameAr\",\"isExpanded\":false}]"),
             ("groupSummary", "[{\"selector\":\"periodDebit\",\"summaryType\":\"sum\"}]"), ("requireGroupCount", "true")));
         var groups = grouped.Body!["data"]!.AsArray();
         Assert.NotEmpty(groups);
@@ -77,15 +77,15 @@ public class DevExtremeReportTests : TestBase
     {
         var api = await SeededAsync();
         var product = (await api.Get("/products")).Data!["items"]![0]!["id"].S();
-        var ledger = await api.Get($"/reports/item-ledger?itemId={product}&" + Q(("filter", "[\"quantityOut\",\">\",0]"), ("requireTotalCount", "true")).TrimStart('?'));
+        var ledger = await api.Get($"/reports/ItemLedger?itemId={product}&" + Q(("filter", "[\"quantityOut\",\">\",0]"), ("requireTotalCount", "true")).TrimStart('?'));
         Assert.Equal(3, ledger.Body!["totalCount"]!.GetValue<int>()); // ثلاث حركات صرف
         Assert.All(ledger.Body["data"]!.AsArray(), r => Assert.True(r!["quantityOut"].D() > 0));
 
-        var audit = await api.Get("/reports/inventory-audit" + Q(("filter", "[\"systemQuantity\",\">\",0]"), ("select", "[\"sku\",\"systemQuantity\"]")));
+        var audit = await api.Get("/reports/InventoryAudit" + Q(("filter", "[\"systemQuantity\",\">\",0]"), ("select", "[\"sku\",\"systemQuantity\"]")));
         Assert.Single(audit.Body!["data"]!.AsArray());
-        var trade = await api.Get("/reports/trade-commercial" + Q(("sort", "[{\"selector\":\"grandTotal\",\"desc\":true}]"), ("take", "1")));
+        var trade = await api.Get("/reports/TradeCommercial" + Q(("sort", "[{\"selector\":\"grandTotal\",\"desc\":true}]"), ("take", "1")));
         Assert.Equal(345, trade.Body!["data"]![0]!["grandTotal"].D());
-        var statement = await api.Get("/reports/account-statement/1111/entries" + Q(("requireTotalCount", "true")));
+        var statement = await api.Get("/reports/AccountStatement/1111/Entries" + Q(("requireTotalCount", "true")));
         Assert.Equal(200, statement.Status);
     }
 
@@ -93,7 +93,7 @@ public class DevExtremeReportTests : TestBase
     public async Task Car_reports_accept_devextreme_options()
     {
         var api = await NewTenantAsync();
-        foreach (var path in new[] { "sales-performance", "vin-inventory", "zatca-margin-tax", "procurement-tracking", "profit-loss", "installments-receivable", "suppliers-procurement", "daily-monthly-sales" })
+        foreach (var path in new[] { "SalesPerformance", "VinInventory", "ZatcaMarginTax", "ProcurementTracking", "ProfitLoss", "InstallmentsReceivable", "SuppliersProcurement", "DailyMonthlySales" })
         {
             var r = await api.Get($"/reports/car/{path}" + Q(("requireTotalCount", "true"), ("skip", "0"), ("take", "10")));
             Assert.True(r.Status == 200, path);
@@ -105,8 +105,8 @@ public class DevExtremeReportTests : TestBase
     public async Task Invalid_options_return_400_and_reports_still_require_permission()
     {
         var api = await SeededAsync();
-        var bad = await api.Get("/reports/trial-balance" + Q(("filter", "[\"noSuchField\",\"=\",1]")));
+        var bad = await api.Get("/reports/TrialBalance" + Q(("filter", "[\"noSuchField\",\"=\",1]")));
         Assert.Equal(400, bad.Status);
-        Assert.Equal(401, (await new Client(NewHttp()).Get("/reports/trial-balance")).Status);
+        Assert.Equal(401, (await new Client(NewHttp()).Get("/reports/TrialBalance")).Status);
     }
 }

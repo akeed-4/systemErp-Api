@@ -23,7 +23,10 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
     protected override IQueryable<CommercialOrder> ApplyFilters(IQueryable<CommercialOrder> q, PaginationParams p)
         => string.IsNullOrWhiteSpace(p.Status) ? q : q.Where(x => x.Status == p.Status);
 
-    protected override Task ValidateAsync(CreateCommercialOrderDto d, CommercialOrder? existing, CancellationToken ct)
+    /// <summary>الاتفاقيات التي تغيّر استهلاكها بهذا الطلب (القديمة والجديدة) ليُعاد احتسابها بعد الحفظ.</summary>
+    private readonly HashSet<Guid> _touchedAgreements = new();
+
+    protected override async Task ValidateAsync(CreateCommercialOrderDto d, CommercialOrder? existing, CancellationToken ct)
     {
         var errors = new List<string>();
         TradeHelper.RequireParty(d.PartyName, errors);
@@ -32,26 +35,74 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         if (d.ExpectedDeliveryDate < d.OrderDate) errors.Add("تاريخ التسليم المتوقع قبل تاريخ الأمر.");
         if (d.Items.Count == 0) errors.Add("يجب إدخال صنف واحد على الأقل.");
         if (existing?.ConvertedInvoiceId != null) errors.Add("لا يمكن تعديل أمر تم تحويله لفاتورة.");
+        if (errors.Count == 0 && d.AgreementId.HasValue) await ValidateAgainstAgreementAsync(d, existing?.Id, errors, ct);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
-        return Task.CompletedTask;
+    }
+
+    /// <summary>بنود الأمر ضمن بنود الاتفاقية وحدودها، ولا تتجاوز الرصيد المتبقي عند الاعتماد.</summary>
+    private async Task ValidateAgainstAgreementAsync(CreateCommercialOrderDto d, Guid? orderId, List<string> errors, CancellationToken ct)
+    {
+        var agreement = await Db.Set<Agreement>().AsNoTracking().Include(a => a.Items).FirstOrDefaultAsync(a => a.Id == d.AgreementId, ct);
+        if (agreement == null) { errors.Add("الاتفاقية المحددة غير موجودة."); return; }
+        if (agreement.Status != "active") errors.Add("الاتفاقية غير فعالة حالياً.");
+        if ((d.Type == "sales_order") != (agreement.Type == "sales")) errors.Add("نوع الأمر لا يطابق نوع الاتفاقية (بيع/شراء).");
+        var used = AgreementUsage.IsConsuming(d.Status)
+            ? await AgreementUsage.UsedByItemAsync(Db, agreement.Id, orderId, ct)
+            : new Dictionary<Guid, decimal>();
+        foreach (var line in d.Items.GroupBy(i => i.ItemId))
+        {
+            var term = agreement.Items.FirstOrDefault(i => i.ItemId == line.Key && i.Status == "active");
+            var name = line.First().ItemName;
+            if (term == null) { errors.Add($"الصنف {name} غير موجود في بنود الاتفاقية."); continue; }
+            var qty = line.Sum(i => i.Quantity);
+            if (qty < term.MinQuantity || (term.MaxQuantity > 0 && qty > term.MaxQuantity))
+                errors.Add($"الكمية للصنف {name} خارج الحدود المسموحة (الحد الأدنى: {term.MinQuantity:0.####}، الحد الأقصى: {(term.MaxQuantity > 0 ? term.MaxQuantity.ToString("0.####") : "بلا حد")}).");
+            var remaining = term.Quantity - used.GetValueOrDefault(line.Key);
+            if (AgreementUsage.IsConsuming(d.Status) && qty > remaining)
+                errors.Add($"الكمية المطلوبة للصنف {name} تتجاوز الكمية المتبقية في الاتفاقية ({remaining:0.####}).");
+        }
     }
 
     protected override async Task OnCreatingAsync(CommercialOrder e, CreateCommercialOrderDto d, CancellationToken ct)
     {
         e.OrderNumber = await _numbers.NextAsync(e.Type, e.Type == "sales_order" ? "SO-" : "PO-", ct);
+        await StampAgreementAsync(e, ct);
         Recalculate(e);
     }
 
-    protected override Task OnUpdatingAsync(CommercialOrder e, UpdateCommercialOrderDto d, CancellationToken ct)
+    protected override async Task OnUpdatingAsync(CommercialOrder e, UpdateCommercialOrderDto d, CancellationToken ct)
     {
         e.OrderNumber = Db.Entry(e).OriginalValues.GetValue<string>(nameof(CommercialOrder.OrderNumber));
         e.ConvertedInvoiceId = Db.Entry(e).OriginalValues.GetValue<Guid?>(nameof(CommercialOrder.ConvertedInvoiceId));
+        if (Db.Entry(e).OriginalValues.GetValue<Guid?>(nameof(CommercialOrder.AgreementId)) is { } previous) _touchedAgreements.Add(previous);
+        await StampAgreementAsync(e, ct);
         Recalculate(e);
-        return Task.CompletedTask;
+    }
+
+    private async Task StampAgreementAsync(CommercialOrder e, CancellationToken ct)
+    {
+        e.AgreementNumber = e.AgreementId.HasValue
+            ? await Db.Set<Agreement>().Where(a => a.Id == e.AgreementId).Select(a => a.AgreementNumber).FirstOrDefaultAsync(ct)
+            : null;
+        if (e.AgreementId is { } id) _touchedAgreements.Add(id);
     }
 
     protected override Task OnDeletingAsync(CommercialOrder e, CancellationToken ct)
-        => e.ConvertedInvoiceId != null ? throw new ConflictException("لا يمكن حذف أمر تم تحويله لفاتورة.") : Task.CompletedTask;
+    {
+        if (e.ConvertedInvoiceId != null) throw new ConflictException("لا يمكن حذف أمر تم تحويله لفاتورة.");
+        if (e.AgreementId is { } id) _touchedAgreements.Add(id);
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnCreatedAsync(CommercialOrder e, CancellationToken ct) => RefreshTouchedAgreementsAsync(ct);
+    protected override Task OnUpdatedAsync(CommercialOrder e, CancellationToken ct) => RefreshTouchedAgreementsAsync(ct);
+    protected override Task OnDeletedAsync(CommercialOrder e, CancellationToken ct) => RefreshTouchedAgreementsAsync(ct);
+
+    private async Task RefreshTouchedAgreementsAsync(CancellationToken ct)
+    {
+        foreach (var id in _touchedAgreements) await AgreementUsage.RefreshAsync(Db, id, ct);
+        _touchedAgreements.Clear();
+    }
 
     private static void Recalculate(CommercialOrder o)
     {

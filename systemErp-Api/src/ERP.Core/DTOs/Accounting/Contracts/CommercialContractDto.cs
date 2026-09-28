@@ -29,6 +29,25 @@ public partial class CommercialContractDto
     public string? RevenueAccountCode { get; set; }
     public string? ReceivableAccountCode { get; set; }
     public string? Notes { get; set; }
+    public string? TitleEn { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public string? PartyCrNumber { get; set; }
+    public string? RepresentativeName { get; set; }
+    public int? DurationMonths { get; set; }
+    public bool AutoRenew { get; set; }
+    public string Currency { get; set; } = "SAR";
+    public Guid? CostCenterId { get; set; }
+    public decimal RetentionPercent { get; set; }
+    public decimal RetentionAmount { get; set; }
+    public DateTime? RetentionReleaseDate { get; set; }
+    public decimal LatePenaltyPerDay { get; set; }
+    public decimal MaxPenaltyPercent { get; set; }
+    public string? ScopeOfWork { get; set; }
+    public string? TermsAndConditions { get; set; }
+    public string? SignedByCompany { get; set; }
+    public string? SignedByParty { get; set; }
+    public DateTime? SignedDate { get; set; }
     public List<ContractMilestoneDto> Milestones { get; set; } = new();
     public List<ContractClauseDto> Clauses { get; set; } = new();
+    public List<ContractItemDto> Items { get; set; } = new();
 }

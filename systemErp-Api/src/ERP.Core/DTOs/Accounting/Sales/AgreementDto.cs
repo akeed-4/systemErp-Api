@@ -15,5 +15,8 @@ public partial class AgreementDto
     public DateTime? EndDate { get; set; }
     public string Status { get; set; } = "active";
     public string? Notes { get; set; }
+    public string? ReferenceNo { get; set; }
+    public string? PartyNameEn { get; set; }
+    public string Currency { get; set; } = "SAR";
     public List<AgreementItemDto> Items { get; set; } = new();
 }

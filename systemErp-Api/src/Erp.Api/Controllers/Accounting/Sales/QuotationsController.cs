@@ -11,9 +11,9 @@ public class QuotationsController : CrudController<QuotationDto, CreateQuotation
     private readonly IQuotationService _quotations;
     public QuotationsController(IQuotationService s) : base(s) => _quotations = s;
 
-    [HttpPost("{id:guid}/convert-to-invoice")]
+    [HttpPost("{id:guid}/ConvertToInvoice")]
     public async Task<IActionResult> ToInvoice(Guid id, CancellationToken ct) => Success(await _quotations.ConvertToInvoiceAsync(id, ct), "تم إنشاء فاتورة مسودة");
 
-    [HttpPost("{id:guid}/convert-to-order")]
+    [HttpPost("{id:guid}/ConvertToOrder")]
     public async Task<IActionResult> ToOrder(Guid id, CancellationToken ct) => Success(await _quotations.ConvertToOrderAsync(id, ct), "تم إنشاء الأمر");
 }

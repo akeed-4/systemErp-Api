@@ -40,7 +40,7 @@ public class CarSalesContractsController : ErpControllerBase
     }
 
     /// <summary>بيع سريع: إنشاء العقد ثم اعتماده وتخصيصه وتسليمه وفوترته في معاملة واحدة. يتطلب صلاحية الاعتماد.</summary>
-    [HttpPost("quick-sale")]
+    [HttpPost("QuickSale")]
     public async Task<IActionResult> QuickSale([FromBody] QuickSaleRequestDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Approve, ct);
@@ -52,7 +52,7 @@ public class CarSalesContractsController : ErpControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCarSalesContractDto dto, CancellationToken ct)
         => Success(await _service.UpdateAsync(id, dto, ct), "تم التعديل");
 
-    [HttpPost("{id:guid}/advance-status")]
+    [HttpPost("{id:guid}/AdvanceStatus")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceSalesContractRequestDto dto, CancellationToken ct)
     {
         await Require(dto.TargetStatus == SalesContractStatus.Approved ? ScreenAction.Approve : ScreenAction.Edit, ct);

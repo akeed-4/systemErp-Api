@@ -104,6 +104,11 @@ public class InvoiceService : IInvoiceService
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException("الفاتورة غير موجودة");
             if (invoice.Status != "draft") throw new ConflictException("الفاتورة مرحّلة مسبقاً أو ملغاة.");
+            // سير الموافقات: المسودة المعلّقة أو المرفوضة لا تُرحَّل (آخر طلب على المستند هو المرجع)
+            var approval = await _db.Set<ApprovalRequest>().Where(r => r.DocumentId == id)
+                .OrderByDescending(r => r.CreatedAt).Select(r => r.Status).FirstOrDefaultAsync(token);
+            if (approval == "pending") throw new ConflictException("الفاتورة بانتظار الاعتماد ولا تُرحَّل قبل اكتمال الموافقة.");
+            if (approval == "rejected") throw new ConflictException("تم رفض اعتماد الفاتورة فلا يمكن ترحيلها.");
             await FinalizeAsync(invoice, token);
             return await GetAsync(id, token);
         }, ct);

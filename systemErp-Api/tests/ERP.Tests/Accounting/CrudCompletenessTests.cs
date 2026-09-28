@@ -24,7 +24,7 @@ public class CrudCompletenessTests : TestBase
         Assert.Equal(300, upd.Data["amount"].D());
         Assert.Equal(575 - 300, (await api.Get($"/customers/{customer}")).Data!["currentBalance"].D());
         Assert.Equal(409, (await api.Put($"/vouchers/{id}", new { type = "payment", amount = 10, partyName = "x", partyAccountCode = account, treasuryAccountCode = "1111", paymentMethod = "cash" })).Status);
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class CrudCompletenessTests : TestBase
     public async Task Pending_approval_request_can_be_withdrawn_by_its_requester()
     {
         var api = await NewTenantAsync();
-        var policy = await api.Post("/approval-policies", new { nameAr = "اعتماد المبالغ الكبيرة", documentType = "sales", actionType = "create", minAmountTrigger = 1000, isActive = true,
+        var policy = await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبالغ الكبيرة", documentType = "sales", actionType = "create", minAmountTrigger = 1000, isActive = true,
             steps = new[] { new { level = 1, approverRole = "general_manager", titleAr = "المدير العام" } } });
         Assert.Equal(201, policy.Status);
         var check = await api.Post("/approvals/check", new { documentType = "sales", actionType = "create", documentId = Guid.NewGuid(), documentNumber = "S-1", documentAmount = 5000 });
@@ -100,6 +100,24 @@ public class CrudCompletenessTests : TestBase
         var cancelled = await api.Delete($"/approvals/{id}");
         Assert.Equal(200, cancelled.Status); Assert.Equal("cancelled", cancelled.Data!["status"].S());
         Assert.Equal(409, (await api.Delete($"/approvals/{id}")).Status);
+    }
+
+    [Fact]
+    public async Task Draft_invoice_waiting_for_approval_cannot_be_posted_until_approved()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentType = "sales", actionType = "create", minAmountTrigger = 1, isActive = true,
+            steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } });
+        var draft = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        var id = draft.Data!["id"].S();
+        var check = await api.Post("/approvals/check", new { documentType = "sales", actionType = "create", documentId = id, documentNumber = draft.Data["invoiceNumber"].S(), documentAmount = 115 });
+        Assert.True(check.Data!["approvalRequired"]!.GetValue<bool>());
+
+        Assert.Equal(409, (await api.Post($"/invoices/{id}/post")).Status);
+        Assert.Equal(200, (await api.Post($"/approvals/{check.Data["request"]!["id"].S()}/approve", new { comment = "ok" })).Status);
+        Assert.Equal("posted", (await api.Post($"/invoices/{id}/post")).Data!["status"].S());
     }
 
     [Fact]

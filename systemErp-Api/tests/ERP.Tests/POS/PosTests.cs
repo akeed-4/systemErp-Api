@@ -133,7 +133,7 @@ public class PosTests : TestBase
         var accounts = (await api.Get("/accounts?pageSize=500")).Data!["items"]!.AsArray();
         decimal Bal(string code) => accounts.First(a => a!["code"].S() == code)!["balance"].D();
         Assert.Equal(230, Bal("1111")); Assert.Equal(200, Bal("411")); Assert.Equal(30, Bal("213")); Assert.Equal(80, Bal("511"));
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     // ---------- الولاء ----------
@@ -179,8 +179,8 @@ public class PosTests : TestBase
         Assert.Equal("returned", (await api.Get($"/pos/transactions/{id}")).Data!["status"].S());
         Assert.Equal(409, (await api.Post("/pos/returns", new { originalTransactionId = id, returnReason = "x", refundMethod = "cash" })).Status);
         Assert.Equal(10, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
-        Assert.Equal(0, (await api.Get("/accounts/by-code/411")).Data!["balance"].D()); // الإيراد مُلغى بالكامل
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+        Assert.Equal(0, (await api.Get("/accounts/ByCode/411")).Data!["balance"].D()); // الإيراد مُلغى بالكامل
     }
 
     [Fact]
@@ -210,11 +210,11 @@ public class PosTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
-        var cart = await api.Post("/pos/held-carts", new { customerName = "زبون", items = new[] { new { itemId = product, itemCode = "P1", nameAr = "منتج", quantity = 2, unitPrice = 100, vatRate = 15, discount = 0 } } });
+        var cart = await api.Post("/pos/HeldCarts", new { customerName = "زبون", items = new[] { new { itemId = product, itemCode = "P1", nameAr = "منتج", quantity = 2, unitPrice = 100, vatRate = 15, discount = 0 } } });
         Assert.Equal(201, cart.Status); Assert.StartsWith("HOLD-", cart.Data!["cartReference"].S());
-        Assert.Equal(400, (await api.Post("/pos/held-carts", new { customerName = "x", items = Array.Empty<object>() })).Status);
-        Assert.Equal(1, (await api.Get("/pos/held-carts")).Data!["totalCount"].D());
-        Assert.Equal(200, (await api.Delete($"/pos/held-carts/{cart.Data["id"].S()}")).Status);
+        Assert.Equal(400, (await api.Post("/pos/HeldCarts", new { customerName = "x", items = Array.Empty<object>() })).Status);
+        Assert.Equal(1, (await api.Get("/pos/HeldCarts")).Data!["totalCount"].D());
+        Assert.Equal(200, (await api.Delete($"/pos/HeldCarts/{cart.Data["id"].S()}")).Status);
 
         Assert.Equal("80mm", (await api.Get("/pos/settings")).Data!["paperSize"].S());
         Assert.Equal(400, (await api.Put("/pos/settings", new { defaultInvoiceType = "x", paperSize = "80mm" })).Status);

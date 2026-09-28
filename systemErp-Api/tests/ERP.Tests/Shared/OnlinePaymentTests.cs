@@ -28,7 +28,7 @@ public class OnlinePaymentTests : TestBase
 
     private static async Task EnableGatewayAsync(Client api)
     {
-        var r = await api.Put("/payments/gateway-settings", new
+        var r = await api.Put("/payments/GatewaySettings", new
         {
             isEnabled = true, baseUrl = "https://ksa.paymob.com", publicKey = "pk_test", secretKey = "sk_test", hmacSecret = TenantHmac,
             integrationIds = "123, 456", settlementAccountCode = "1113",
@@ -71,10 +71,10 @@ public class OnlinePaymentTests : TestBase
         });
         Assert.Equal(201, inv.Status);
         var invoiceId = inv.Data!["id"].S();
-        Assert.Equal(409, (await api.Post("/payments/invoice-link", new { invoiceId })).Status); // البوابة غير مفعّلة
+        Assert.Equal(409, (await api.Post("/payments/InvoiceLink", new { invoiceId })).Status); // البوابة غير مفعّلة
         await EnableGatewayAsync(api);
 
-        var link = await api.Post("/payments/invoice-link", new { invoiceId });
+        var link = await api.Post("/payments/InvoiceLink", new { invoiceId });
         Assert.Equal(200, link.Status);
         Assert.Equal("pending", link.Data!["status"].S());
         Assert.Equal(230, link.Data["amount"].D());
@@ -95,14 +95,14 @@ public class OnlinePaymentTests : TestBase
         Assert.NotNull(paid["voucherId"]);
 
         // سند قبض: دائن العميل، مدين تحصيلات البوابة 1113
-        Assert.Equal(0, (await api.Get($"/accounts/by-code/{account}")).Data!["balance"].D());
-        Assert.Equal(230, (await api.Get("/accounts/by-code/1113")).Data!["balance"].D());
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        Assert.Equal(0, (await api.Get($"/accounts/ByCode/{account}")).Data!["balance"].D());
+        Assert.Equal(230, (await api.Get("/accounts/ByCode/1113")).Data!["balance"].D());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
         // إشعار مكرر: لا سند ثانٍ
         Assert.Equal(200, (await api.SendAsync(HttpMethod.Post, $"/payments/paymob/webhook?hmac={hmac}", body, anonymous: true)).Status);
-        Assert.Equal(230, (await api.Get("/accounts/by-code/1113")).Data!["balance"].D());
-        Assert.Equal(409, (await api.Post("/payments/invoice-link", new { invoiceId })).Status); // مسددة بالكامل
+        Assert.Equal(230, (await api.Get("/accounts/ByCode/1113")).Data!["balance"].D());
+        Assert.Equal(409, (await api.Post("/payments/InvoiceLink", new { invoiceId })).Status); // مسددة بالكامل
 
         // صفحة العميل العامة
         var pub = await api.SendAsync(HttpMethod.Get, $"/payments/{paymentId}/public", anonymous: true);
@@ -129,7 +129,7 @@ public class OnlinePaymentTests : TestBase
 
         var sale = await api.Post("/pos/transactions/checkout", Checkout());
         Assert.Equal(201, sale.Status);
-        Assert.Equal(115, (await api.Get("/accounts/by-code/1113")).Data!["balance"].D()); // التحصيل على حساب البوابة لا البنك
+        Assert.Equal(115, (await api.Get("/accounts/ByCode/1113")).Data!["balance"].D()); // التحصيل على حساب البوابة لا البنك
         Assert.NotNull((await api.Get($"/payments/{paymentId}")).Data!["consumedAt"]);
         Assert.Equal(409, (await api.Post("/pos/transactions/checkout", Checkout())).Status); // لا يُستخدم مرتين
 

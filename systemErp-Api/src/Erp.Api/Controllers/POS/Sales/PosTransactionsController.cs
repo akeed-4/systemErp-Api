@@ -15,7 +15,7 @@ public class PosTransactionsController : ErpControllerBase
     [HttpGet] public async Task<IActionResult> List([FromQuery] Guid? shiftId, [FromQuery] PaginationParams q, CancellationToken ct) => Success(await _sales.ListAsync(shiftId, q, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _sales.GetAsync(id, ct));
 
-    [HttpGet("by-invoice/{invoiceNumber}")]
+    [HttpGet("ByInvoice/{invoiceNumber}")]
     public async Task<IActionResult> ByInvoice(string invoiceNumber, CancellationToken ct) => Success(await _sales.GetByInvoiceNumberAsync(invoiceNumber, ct));
 
     [HttpPut("{id:guid}")]
@@ -38,6 +38,6 @@ public class PosTransactionsController : ErpControllerBase
     [HttpPost("quote")]
     public async Task<IActionResult> Quote([FromBody] CheckoutRequestDto dto, CancellationToken ct) => Success(await _sales.QuoteAsync(dto, ct));
 
-    [HttpPost("{id:guid}/submit-zatca")]
+    [HttpPost("{id:guid}/SubmitZatca")]
     public async Task<IActionResult> SubmitZatca(Guid id, CancellationToken ct) => Success(await _sales.SubmitToZatcaAsync(id, ct));
 }

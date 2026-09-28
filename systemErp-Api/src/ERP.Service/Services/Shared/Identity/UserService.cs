@@ -92,6 +92,21 @@ public class UserService : IUserService
         return Mapper.Map<UserDto>(user);
     }
 
+    public async Task<OperationResultDto> ChangePasswordAsync(ChangePasswordRequestDto r, CancellationToken ct = default)
+    {
+        var id = _current.UserId ?? throw new UnauthorizedAppException();
+        var user = await _db.Set<User>().FirstAsync(u => u.Id == id, ct);
+        if (user.PasswordHash == null || string.IsNullOrEmpty(r.CurrentPassword)
+            || _hasher.VerifyHashedPassword(user, user.PasswordHash, r.CurrentPassword) == PasswordVerificationResult.Failed)
+            throw new ValidationFailedException("كلمة المرور الحالية غير صحيحة.");
+        var next = r.NewPassword?.Trim() ?? string.Empty;
+        if (next.Length < 8) throw new ValidationFailedException("كلمة المرور الجديدة 8 أحرف على الأقل.");
+        if (next == r.CurrentPassword) throw new ValidationFailedException("كلمة المرور الجديدة يجب أن تختلف عن الحالية.");
+        user.PasswordHash = _hasher.HashPassword(user, next);
+        await _db.SaveChangesAsync(ct);
+        return new OperationResultDto { Message = "تم تغيير كلمة المرور بنجاح." };
+    }
+
     public async Task DeactivateAsync(Guid id, CancellationToken ct = default)
     {
         if (id == _current.UserId) throw new ConflictException("لا يمكنك تعطيل حسابك الحالي.");

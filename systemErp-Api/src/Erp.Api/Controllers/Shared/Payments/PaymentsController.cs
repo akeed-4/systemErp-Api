@@ -14,7 +14,7 @@ public class PaymentsController : ErpControllerBase
     private readonly IOnlinePaymentService _payments;
     public PaymentsController(IOnlinePaymentService payments) => _payments = payments;
 
-    [HttpPost("invoice-link"), RequireScreen("sales", ScreenAction.Create)]
+    [HttpPost("InvoiceLink"), RequireScreen("sales", ScreenAction.Create)]
     public async Task<IActionResult> InvoiceLink([FromBody] CreateInvoicePaymentLinkDto dto, CancellationToken ct)
         => Success(await _payments.CreateInvoicePaymentLinkAsync(dto, ct), "تم إنشاء رابط الدفع");
 
@@ -45,10 +45,10 @@ public class PaymentsController : ErpControllerBase
         => await _payments.HandleWebhookAsync(payload, hmac, ct) ? Ok() : Unauthorized();
 
     // ---------- إعدادات حساب Paymob للمنشأة ----------
-    [HttpGet("gateway-settings"), RequireScreen("user-permissions")]
+    [HttpGet("GatewaySettings"), RequireScreen("user-permissions")]
     public async Task<IActionResult> Settings(CancellationToken ct) => Success(await _payments.GetSettingsAsync(ct));
 
-    [HttpPut("gateway-settings"), RequireScreen("user-permissions", ScreenAction.Edit)]
+    [HttpPut("GatewaySettings"), RequireScreen("user-permissions", ScreenAction.Edit)]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdatePaymentGatewaySettingsDto dto, CancellationToken ct)
         => Success(await _payments.UpdateSettingsAsync(dto, ct), "تم حفظ إعدادات بوابة الدفع");
 }

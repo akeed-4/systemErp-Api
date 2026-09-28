@@ -41,6 +41,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (!string.IsNullOrWhiteSpace(d.PartyVatNumber) && !SaudiVat.IsValid(d.PartyVatNumber)) errors.Add("الرقم الضريبي للطرف غير صالح.");
         if (d.Milestones.Sum(m => m.Percentage) > 100.0001m) errors.Add("مجموع نسب المستخلصات يتجاوز 100%.");
         if (d.Milestones.Any(m => m.Percentage < 0 || m.Amount < 0)) errors.Add("نسب/مبالغ المستخلصات لا تكون سالبة.");
+        if (d.Milestones.Any(m => m.RetentionDeductionPercent is < 0 or > 100)) errors.Add("نسبة استقطاع الضمان من المستخلص بين 0 و100.");
+        if (d.RetentionPercent is < 0 or > 100) errors.Add("نسبة ضمان حسن التنفيذ بين 0 و100.");
+        if (d.MaxPenaltyPercent is < 0 or > 100) errors.Add("الحد الأقصى للغرامة بين 0 و100.");
+        if (d.LatePenaltyPerDay < 0) errors.Add("غرامة التأخير اليومية لا تكون سالبة.");
+        if (d.DurationMonths is < 1) errors.Add("مدة العقد شهر واحد على الأقل.");
+        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add("بنود العقد: الكمية موجبة والسعر غير سالب والضريبة بين 0 و100.");
         if (existing != null && existing.Stage == "final_closed") errors.Add("لا يمكن تعديل عقد مغلق.");
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
@@ -89,6 +95,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     {
         c.VatAmount = DocumentPricing.Round(c.ContractValue * c.VatRate / 100m);
         c.TotalValueWithVat = c.ContractValue + c.VatAmount;
+        c.RetentionAmount = DocumentPricing.Round(c.ContractValue * c.RetentionPercent / 100m);
+        foreach (var i in c.Items)
+            i.TotalWithVat = DocumentPricing.Round(i.Quantity * i.UnitPrice * (1 + i.VatRate / 100m));
         var n = 1;
         foreach (var m in c.Milestones.OrderBy(m => m.MilestoneNumber == 0 ? int.MaxValue : m.MilestoneNumber))
         {
@@ -98,6 +107,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             if (m.Amount == 0 && m.Percentage > 0) m.Amount = DocumentPricing.Round(c.ContractValue * m.Percentage / 100m);
             m.VatAmount = DocumentPricing.Round(m.Amount * c.VatRate / 100m);
             m.TotalWithVat = m.Amount + m.VatAmount;
+            m.RetentionDeductionAmount = DocumentPricing.Round(m.Amount * m.RetentionDeductionPercent / 100m);
+            m.NetPayableAmount = m.TotalWithVat - m.RetentionDeductionAmount;
         }
         c.RemainingBalance = c.TotalValueWithVat - c.TotalInvoiced;
     }

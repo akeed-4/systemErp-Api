@@ -43,15 +43,15 @@ public class VehicleInvoiceTests : TestBase
         Assert.All(vehicles, v => { Assert.Equal("available", v!["status"].S()); Assert.Equal(r.Data["id"].S(), v["purchaseInvoiceId"].S()); });
         Assert.Contains(vehicles, v => v!["chassisNumber"].S() == v2 && v["totalCost"].D() == 85000);
 
-        Assert.Equal(265000, (await api.Get("/accounts/by-code/1142")).Data!["balance"].D());
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        Assert.Equal(265000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
         // مركبة واردة من فاتورة لا تُحذف منفردة
         Assert.Equal(409, (await api.Delete($"/vehicles/{vehicles[0]!["id"].S()}")).Status);
         // حذف الفاتورة يعكس الأثر ويحذف المركبات
         Assert.Equal(200, (await api.Delete($"/invoices/{r.Data["id"].S()}")).Status);
         Assert.Equal(0, (await api.Get("/vehicles")).Data!["totalCount"].D());
-        Assert.Equal(0, (await api.Get("/accounts/by-code/1142")).Data!["balance"].D());
+        Assert.Equal(0, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class VehicleInvoiceTests : TestBase
         Assert.All((await api.Get("/vehicles")).Data!["items"]!.AsArray(), v => Assert.Equal("sold", v!["status"].S()));
         // المركبة المباعة لا تُباع مرة ثانية
         Assert.Equal(400, (await api.Post("/invoices", Sale("posted", SaleLine(ids[0], 100000)))).Status);
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
         // إلغاء الترحيل عبر الحذف يعيد المركبات متاحة
         Assert.Equal(200, (await api.Delete($"/invoices/{s.Data["id"].S()}")).Status);
@@ -147,7 +147,7 @@ public class VehicleInvoiceTests : TestBase
         var journalsBefore = (await api.Get("/journalentries")).Data!["totalCount"].D();
 
         // شراء: مسودة بلا شاسيه تكفي للمعاينة — مدين مخزون السيارات والضريبة، دائن المورد
-        var pv = await api.Post("/invoices/preview-journal", Purchase(supplier, "draft", Line(null, 100000, tempRef: "R1")));
+        var pv = await api.Post("/invoices/PreviewJournal", Purchase(supplier, "draft", Line(null, 100000, tempRef: "R1")));
         Assert.Equal(200, pv.Status);
         Assert.True(pv.Data!["isPreview"]!.GetValue<bool>());
         Assert.Equal(100000, Side(pv.Data, "1142", "debit"));
@@ -168,7 +168,7 @@ public class VehicleInvoiceTests : TestBase
             kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",
             vehicleLines = new[] { new { vehicleId = vid, unitPrice = 100000m, discount = 0m, vatMode = "standard_15" } },
         };
-        var sp = await api.Post("/invoices/preview-journal", sale);
+        var sp = await api.Post("/invoices/PreviewJournal", sale);
         Assert.Equal(200, sp.Status);
         Assert.Equal(80000, Side(sp.Data!, "512", "debit"));
         Assert.Equal(80000, Side(sp.Data!, "1142", "credit"));
@@ -221,7 +221,7 @@ public class VehicleInvoiceTests : TestBase
         var line = s.Data["vehicleLines"]!.AsArray()[0]!;
         Assert.Equal("profit_margin_15", line["vatMode"].S());
         Assert.Equal(100000, line["totalAfterVat"].D());
-        var (d, c) = Totals(await api.Get("/reports/trial-balance")); Assert.Equal(d, c);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
         // لا يتغير النمط بعد البيع
         Assert.Equal(409, (await SetVatModeAsync(api, id, "standard_15")).Status);

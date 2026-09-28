@@ -22,7 +22,7 @@ public class TenantProvisioningService : ITenantProvisioningService
                 TenantId = tenantId,
                 Code = code, NameAr = ar, NameEn = en, Type = type,
                 ParentCode = parent, Level = level,
-                IsDebitNature = type is AccountCategory.Asset or AccountCategory.Expense,
+                IsDebitNature = DefaultAccounts.IsDebitNature(code, type),
                 IsSystem = true,
                 Currency = baseCurrencyCode,
             });

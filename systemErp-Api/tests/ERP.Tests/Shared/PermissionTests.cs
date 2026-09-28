@@ -27,9 +27,9 @@ public class PermissionTests : TestBase
         Assert.Equal(200, (await rep.Get("/customers")).Status);              // master-data: view
         Assert.Equal(403, (await rep.Delete($"/customers/{customerId}")).Status); // لا حذف
         Assert.Equal(403, (await rep.Get("/accounts")).Status);               // accounts محجوبة
-        Assert.Equal(403, (await rep.Get("/reports/trial-balance")).Status);  // reports محجوبة
+        Assert.Equal(403, (await rep.Get("/reports/TrialBalance")).Status);  // reports محجوبة
         Assert.Equal(403, (await rep.Get("/permissions?roleId=owner")).Status);
-        Assert.Equal(403, (await rep.Get("/approval-policies")).Status);
+        Assert.Equal(403, (await rep.Get("/ApprovalPolicies")).Status);
     }
 
     [Fact]

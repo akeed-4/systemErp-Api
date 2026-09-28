@@ -16,6 +16,15 @@ public class DeliveryNote : BaseEntity
     public DeliveryNoteStatus Status { get; set; } = DeliveryNoteStatus.Draft;
     public Guid? InvoiceId { get; set; }
     public string? InvoiceNumber { get; set; }
+    public string? PartyTaxNumber { get; set; }
+    public string? PartyPhone { get; set; }
+    public string? WarehouseLocation { get; set; }
+    public string? DriverName { get; set; }
+    public string? VehiclePlate { get; set; }
+    public string? Notes { get; set; }
+    public decimal Subtotal { get; set; }
+    public decimal VatTotal { get; set; }
+    public decimal GrandTotal { get; set; }
 
     public virtual ICollection<DeliveryNoteItem> Items { get; set; } = new List<DeliveryNoteItem>();
 }

@@ -36,7 +36,7 @@ public class AuthTests : TestBase
     [InlineData("3abcdefghijklm3")]
     public async Task Register_rejects_invalid_saudi_vat_number(string vat)
     {
-        var r = await new Client(NewHttp()).SendAsync(HttpMethod.Post, "/auth/register-company", new
+        var r = await new Client(NewHttp()).SendAsync(HttpMethod.Post, "/auth/RegisterCompany", new
         {
             companyNameAr = "x", vatNumber = vat, adminName = "a", adminEmail = $"{Guid.NewGuid():N}@x.com", password = "Passw0rd!", planId = "starter", billingCycle = "monthly",
         }, anonymous: true);
@@ -49,8 +49,8 @@ public class AuthTests : TestBase
         var vat = Client.NewVat();
         object Body(string mail) => new { companyNameAr = "x", vatNumber = vat, adminName = "a", adminEmail = mail, password = "Passw0rd!", planId = "starter", billingCycle = "monthly" };
         var api = new Client(NewHttp());
-        Assert.Equal(200, (await api.SendAsync(HttpMethod.Post, "/auth/register-company", Body($"{Guid.NewGuid():N}@x.com"), true)).Status);
-        Assert.Equal(409, (await api.SendAsync(HttpMethod.Post, "/auth/register-company", Body($"{Guid.NewGuid():N}@x.com"), true)).Status);
+        Assert.Equal(200, (await api.SendAsync(HttpMethod.Post, "/auth/RegisterCompany", Body($"{Guid.NewGuid():N}@x.com"), true)).Status);
+        Assert.Equal(409, (await api.SendAsync(HttpMethod.Post, "/auth/RegisterCompany", Body($"{Guid.NewGuid():N}@x.com"), true)).Status);
     }
 
     [Fact]
@@ -66,29 +66,41 @@ public class AuthTests : TestBase
     }
 
     [Fact]
+    public async Task Signed_in_user_changes_password_only_with_the_current_one()
+    {
+        var api = await NewTenantAsync();
+        Assert.Equal(400, (await api.Post("/auth/ChangePassword", new { currentPassword = "wrong", newPassword = "NewPassw0rd!" })).Status);
+        Assert.Equal(400, (await api.Post("/auth/ChangePassword", new { currentPassword = "Passw0rd!", newPassword = "short" })).Status);
+        Assert.Equal(200, (await api.Post("/auth/ChangePassword", new { currentPassword = "Passw0rd!", newPassword = "NewPassw0rd!" })).Status);
+        var anon = new Client(NewHttp());
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = api.Email, password = "Passw0rd!" }, true)).Status);
+        Assert.Equal(200, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = api.Email, password = "NewPassw0rd!" }, true)).Status);
+    }
+
+    [Fact]
     public async Task Forgot_password_flow_with_otp_resets_the_password()
     {
         var api = await NewTenantAsync();
         var anon = new Client(NewHttp());
-        var req = await anon.SendAsync(HttpMethod.Post, "/auth/forgot-password/request", new { identifier = api.Email }, true);
+        var req = await anon.SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = api.Email }, true);
         var userId = req.Body!["userId"].S(); var otp = req.Body["otpCode"].S();
         Assert.Equal(6, otp.Length);
 
-        var wrong = await anon.SendAsync(HttpMethod.Post, "/auth/forgot-password/verify-otp", new { userId, otp = "000000" == otp ? "111111" : "000000" }, true);
+        var wrong = await anon.SendAsync(HttpMethod.Post, "/auth/ForgotPassword/VerifyOtp", new { userId, otp = "000000" == otp ? "111111" : "000000" }, true);
         Assert.Equal(400, wrong.Status);
-        var verify = await anon.SendAsync(HttpMethod.Post, "/auth/forgot-password/verify-otp", new { userId, otp }, true);
+        var verify = await anon.SendAsync(HttpMethod.Post, "/auth/ForgotPassword/VerifyOtp", new { userId, otp }, true);
         Assert.True(verify.Body!["success"]!.GetValue<bool>());
-        var reset = await anon.SendAsync(HttpMethod.Post, "/auth/forgot-password/reset", new { userId, otp, newPassword = "NewPassw0rd!" }, true);
+        var reset = await anon.SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Reset", new { userId, otp, newPassword = "NewPassw0rd!" }, true);
         Assert.Equal(200, reset.Status);
         // الرمز يُستخدم مرة واحدة
-        Assert.Equal(400, (await anon.SendAsync(HttpMethod.Post, "/auth/forgot-password/reset", new { userId, otp, newPassword = "Another123!" }, true)).Status);
+        Assert.Equal(400, (await anon.SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Reset", new { userId, otp, newPassword = "Another123!" }, true)).Status);
         Assert.Equal(200, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = api.Email, password = "NewPassw0rd!" }, true)).Status);
     }
 
     [Fact]
     public async Task Unknown_account_does_not_reveal_existence_on_forgot_password()
     {
-        var r = await new Client(NewHttp()).SendAsync(HttpMethod.Post, "/auth/forgot-password/request", new { identifier = "nobody@nowhere.com" }, true);
+        var r = await new Client(NewHttp()).SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = "nobody@nowhere.com" }, true);
         Assert.Equal(200, r.Status);
         Assert.Null(r.Body!["otpCode"]);
     }

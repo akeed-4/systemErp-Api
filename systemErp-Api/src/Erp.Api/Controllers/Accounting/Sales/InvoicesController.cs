@@ -82,7 +82,7 @@ public class InvoicesController : ErpControllerBase
     }
 
     /// <summary>معاينة القيد المحاسبي (مخزون، تكلفة إيرادات، ضريبة، دفع/ذمم) قبل الحفظ أو الترحيل — بلا أي أثر.</summary>
-    [HttpPost("preview-journal")]
+    [HttpPost("PreviewJournal")]
     public async Task<IActionResult> PreviewJournal([FromBody] CreateInvoiceDto dto, CancellationToken ct)
     {
         await Require(dto.Kind, ScreenAction.View, ct);
@@ -96,7 +96,7 @@ public class InvoicesController : ErpControllerBase
         return Success(await _invoices.GetJournalAsync(id, ct));
     }
 
-    [HttpPost("{id:guid}/submit-zatca")]
+    [HttpPost("{id:guid}/SubmitZatca")]
     public async Task<IActionResult> SubmitZatca(Guid id, CancellationToken ct)
     {
         if (!await _permissions.HasPermissionAsync("zatca", ScreenAction.Edit, ct)) throw new ForbiddenException();

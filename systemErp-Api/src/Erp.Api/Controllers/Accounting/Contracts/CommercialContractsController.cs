@@ -11,7 +11,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     private readonly ICommercialContractService _contracts;
     public CommercialContractsController(ICommercialContractService s) : base(s) => _contracts = s;
 
-    [HttpPost("{id:guid}/advance-stage")]
+    [HttpPost("{id:guid}/AdvanceStage")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceStageRequestDto dto, CancellationToken ct)
         => Success(await _contracts.AdvanceStageAsync(id, dto, ct), "تم نقل العقد للمرحلة التالية");
 

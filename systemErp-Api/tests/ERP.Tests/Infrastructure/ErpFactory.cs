@@ -89,7 +89,7 @@ public class Client
     public async Task<Client> RegisterAsync(string name = "شركة اختبار")
     {
         Email = $"o{Guid.NewGuid():N}@test.com";
-        var r = await SendAsync(HttpMethod.Post, "/auth/register-company", new
+        var r = await SendAsync(HttpMethod.Post, "/auth/RegisterCompany", new
         {
             companyNameAr = name, companyNameEn = name, vatNumber = NewVat(), crNumber = "1010", city = "الرياض", address = "x",
             phone = "050", email = Email, industry = "x", planId = "professional", billingCycle = "yearly", paymentMethod = "mada",

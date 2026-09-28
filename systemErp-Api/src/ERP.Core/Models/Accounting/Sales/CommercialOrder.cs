@@ -23,6 +23,8 @@ public class CommercialOrder : BaseEntity
     public string Status { get; set; } = "draft";
     public Guid? ConvertedInvoiceId { get; set; }
     public string? Notes { get; set; }
+    public Guid? AgreementId { get; set; }
+    public string? AgreementNumber { get; set; }
 
     public virtual ICollection<CommercialOrderItem> Items { get; set; } = new List<CommercialOrderItem>();
 }

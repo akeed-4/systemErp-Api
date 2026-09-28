@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Shared;
 
-[Route("api/v1/approval-policies")]
+[Route("api/v1/ApprovalPolicies")]
 [RequireScreen("approval-policies")]
 public class ApprovalPoliciesController : CrudController<ApprovalPolicyDto, CreateApprovalPolicyDto, UpdateApprovalPolicyDto>
 {

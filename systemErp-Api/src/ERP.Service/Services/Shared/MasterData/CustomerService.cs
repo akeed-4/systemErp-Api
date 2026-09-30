@@ -13,7 +13,7 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
         _accounts = accounts; _numbers = numbers;
     }
 
-    protected override string Label => "العميل";
+    protected override string Label => Messages.PartyCustomer;
     protected override bool Transactional => true;
 
     protected override IQueryable<Customer> ApplySearch(IQueryable<Customer> q, string t)
@@ -25,12 +25,12 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
     protected override async Task ValidateAsync(CreateCustomerDto d, Customer? existing, CancellationToken ct)
     {
         var extra = new List<string>();
-        if (d.CreditLimit < 0) extra.Add("الحد الائتماني لا يكون سالباً.");
-        if (d.CreditPeriodDays < 0) extra.Add("مدة الائتمان لا تكون سالبة.");
+        if (d.CreditLimit < 0) extra.Add(Messages.CreditLimitCannotBeNegative);
+        if (d.CreditPeriodDays < 0) extra.Add(Messages.CreditPeriodCannotBeNegative);
         PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<Customer>().AnyAsync(c => c.Code == d.Code && (existing == null || c.Id != existing.Id), ct))
-            throw new ConflictException("كود العميل مستخدم مسبقاً.");
+            throw new ConflictException(Messages.CustomerCodeInUse);
     }
 
     protected override async Task OnCreatingAsync(Customer e, CreateCustomerDto d, CancellationToken ct)
@@ -59,12 +59,12 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
     protected override async Task OnDeletingAsync(Customer e, CancellationToken ct)
     {
         if (await Db.Set<Invoice>().AnyAsync(i => i.PartyId == e.Id, ct))
-            throw new ConflictException("لا يمكن حذف عميل له فواتير.");
+            throw new ConflictException(Messages.CannotDeleteCustomerWithInvoices);
         var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
         if (acc != null)
         {
             if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == acc.Code, ct))
-                throw new ConflictException("لا يمكن حذف عميل عليه حركات محاسبية.");
+                throw new ConflictException(Messages.CannotDeleteCustomerWithEntries);
             Db.Remove(acc);
         }
     }

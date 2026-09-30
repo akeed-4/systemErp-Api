@@ -13,7 +13,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         _accounts = accounts; _numbers = numbers;
     }
 
-    protected override string Label => "البنك";
+    protected override string Label => Messages.LabelBank;
     protected override bool Transactional => true;
 
     protected override IQueryable<BankEntity> ApplySearch(IQueryable<BankEntity> q, string t)
@@ -23,11 +23,11 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
     {
         var extra = new List<string>();
         if (!string.IsNullOrWhiteSpace(d.Iban) && !(d.Iban.Length is >= 15 and <= 34 && d.Iban.All(char.IsLetterOrDigit)))
-            extra.Add("رقم الآيبان غير صالح.");
+            extra.Add(Messages.IbanInvalid);
         PartyValidation.Validate(d.NameAr, null, null, d.OpeningBalance, extra);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<BankEntity>().AnyAsync(b => b.Code == d.Code && (existing == null || b.Id != existing.Id), ct))
-            throw new ConflictException("كود البنك مستخدم مسبقاً.");
+            throw new ConflictException(Messages.BankCodeInUse);
     }
 
     protected override async Task OnCreatingAsync(BankEntity e, CreateBankEntityDto d, CancellationToken ct)
@@ -53,7 +53,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         if (acc != null)
         {
             if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == acc.Code, ct))
-                throw new ConflictException("لا يمكن حذف بنك عليه حركات محاسبية.");
+                throw new ConflictException(Messages.CannotDeleteBankWithEntries);
             Db.Remove(acc);
         }
     }

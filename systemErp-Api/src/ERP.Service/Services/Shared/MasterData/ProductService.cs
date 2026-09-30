@@ -6,7 +6,7 @@ namespace ERP.Service.Services.Shared;
 public class ProductService : CrudService<Product, ProductDto, CreateProductDto, UpdateProductDto>, IProductService
 {
     public ProductService(ErpDbContext db) : base(db) { }
-    protected override string Label => "الصنف";
+    protected override string Label => Messages.LabelProduct;
     protected override bool Transactional => true;
 
     protected override IQueryable<Product> ApplySearch(IQueryable<Product> q, string t)
@@ -18,21 +18,21 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
     protected override async Task ValidateAsync(CreateProductDto d, Product? existing, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(d.Sku)) errors.Add("رمز الصنف (SKU) مطلوب.");
-        if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add("اسم الصنف بالعربية مطلوب.");
-        if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0) errors.Add("الأسعار وحد الطلب لا تكون سالبة.");
-        if (d.VatRate is < 0 or > 100) errors.Add("نسبة الضريبة بين 0 و100.");
+        if (string.IsNullOrWhiteSpace(d.Sku)) errors.Add(Messages.SkuRequired);
+        if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ProductArabicNameRequired);
+        if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
+        if (d.VatRate is < 0 or > 100) errors.Add(Messages.VatRateRange);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<Product>().AnyAsync(p => p.Sku == d.Sku && (existing == null || p.Id != existing.Id), ct))
-            throw new ConflictException("رمز الصنف (SKU) مستخدم مسبقاً.");
+            throw new ConflictException(Messages.SkuInUse);
         if (!string.IsNullOrWhiteSpace(d.Barcode)
             && await Db.Set<Product>().AnyAsync(p => p.Barcode == d.Barcode && (existing == null || p.Id != existing.Id), ct))
-            throw new ConflictException("الباركود مستخدم مسبقاً.");
+            throw new ConflictException(Messages.BarcodeInUse);
         if (!string.IsNullOrWhiteSpace(d.Category) && !await Db.Set<ProductCategory>().AnyAsync(c => c.Code == d.Category, ct))
-            throw new ValidationFailedException("تصنيف الصنف غير موجود.");
+            throw new ValidationFailedException(Messages.ProductCategoryNotFound);
         if (!string.IsNullOrWhiteSpace(d.Unit) && !await Db.Set<UnitOfMeasure>().AnyAsync(u => u.Code == d.Unit, ct))
-            throw new ValidationFailedException("وحدة القياس غير موجودة.");
+            throw new ValidationFailedException(Messages.UnitOfMeasureNotFound);
     }
 
     protected override Task OnCreatingAsync(Product e, CreateProductDto d, CancellationToken ct)
@@ -56,9 +56,9 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
     protected override async Task OnDeletingAsync(Product e, CancellationToken ct)
     {
         if (await Db.Set<StockMovement>().AnyAsync(m => m.ItemId == e.Id, ct))
-            throw new ConflictException("لا يمكن حذف صنف له حركات مخزون.");
+            throw new ConflictException(Messages.CannotDeleteProductWithMovements);
         if (await Db.Set<InvoiceItem>().AnyAsync(i => i.ItemId == e.Id, ct))
-            throw new ConflictException("لا يمكن حذف صنف مستخدم في فواتير.");
+            throw new ConflictException(Messages.CannotDeleteProductUsedInInvoices);
     }
 
     public override async Task<ProductDto> UpdateAsync(Guid id, UpdateProductDto dto, CancellationToken ct = default)

@@ -20,7 +20,7 @@ public static class ReportLoader
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException or InvalidCastException)
         {
             // فلتر/فرز على حقل غير موجود أو بقيمة غير صالحة → خطأ طلب (400) بدل 500
-            throw new ValidationFailedException($"خيارات التحميل غير صالحة: {ex.Message}");
+            throw new ValidationFailedException(string.Format(Messages.InvalidLoadOptions, ex.Message));
         }
     }
 }

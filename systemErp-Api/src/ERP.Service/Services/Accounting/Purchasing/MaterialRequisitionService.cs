@@ -15,7 +15,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
         _numbers = numbers; _invoices = invoices; _user = user;
     }
 
-    protected override string Label => "طلب الشراء";
+    protected override string Label => Messages.LabelPurchaseRequisition;
     protected override bool Transactional => true;
 
     protected override IQueryable<MaterialRequisition> ApplySearch(IQueryable<MaterialRequisition> q, string t)
@@ -27,20 +27,20 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     protected override async Task ValidateAsync(CreateMaterialRequisitionDto d, MaterialRequisition? existing, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (!TradeHelper.RequisitionStatuses.Contains(d.Status)) errors.Add("حالة غير صالحة.");
-        if (d.Priority is not ("low" or "medium" or "high" or "urgent")) errors.Add("الأولوية: low | medium | high | urgent.");
-        if (d.RequiredDate < d.RequestDate) errors.Add("تاريخ الاحتياج قبل تاريخ الطلب.");
-        if (d.Items.Count == 0) errors.Add("يجب إدخال صنف واحد على الأقل.");
-        if (d.Items.Any(i => i.RequestedQuantity <= 0)) errors.Add("الكميات المطلوبة يجب أن تكون موجبة.");
+        if (!TradeHelper.RequisitionStatuses.Contains(d.Status)) errors.Add(Messages.InvalidStatus);
+        if (d.Priority is not ("low" or "medium" or "high" or "urgent")) errors.Add(Messages.PriorityValues);
+        if (d.RequiredDate < d.RequestDate) errors.Add(Messages.RequiredDateBeforeRequestDate);
+        if (d.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
+        if (d.Items.Any(i => i.RequestedQuantity <= 0)) errors.Add(Messages.RequestedQuantitiesMustBePositive);
         var protectedStates = new[] { "approved", "converted_to_po", "converted_to_invoice" };
         if (protectedStates.Contains(d.Status) && d.Status != existing?.Status)
-            errors.Add("الاعتماد والتحويل يتمان بعملياتهما المخصّصة فقط.");
-        if (existing != null && existing.Status is "converted_to_po" or "converted_to_invoice") errors.Add("لا يمكن تعديل طلب تم تحويله.");
+            errors.Add(Messages.ApprovalAndConversionUseDedicatedActions);
+        if (existing != null && existing.Status is "converted_to_po" or "converted_to_invoice") errors.Add(Messages.CannotEditConvertedRequisition);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         if (d.SupplierId.HasValue && !await Db.Set<Supplier>().AnyAsync(s => s.Id == d.SupplierId, ct))
-            throw new ValidationFailedException("المورد غير موجود.");
+            throw new ValidationFailedException(Messages.SupplierNotFound);
         if (d.WarehouseId.HasValue && !await Db.Set<Warehouse>().AnyAsync(w => w.Id == d.WarehouseId, ct))
-            throw new ValidationFailedException("المستودع غير موجود.");
+            throw new ValidationFailedException(Messages.WarehouseNotFound);
     }
 
     protected override async Task OnCreatingAsync(MaterialRequisition e, CreateMaterialRequisitionDto d, CancellationToken ct)
@@ -61,13 +61,13 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     }
 
     protected override Task OnDeletingAsync(MaterialRequisition e, CancellationToken ct)
-        => e.Status is "converted_to_po" or "converted_to_invoice" ? throw new ConflictException("لا يمكن حذف طلب تم تحويله.") : Task.CompletedTask;
+        => e.Status is "converted_to_po" or "converted_to_invoice" ? throw new ConflictException(Messages.CannotDeleteConvertedRequisition) : Task.CompletedTask;
 
     public async Task<MaterialRequisitionDto> ApproveAsync(Guid id, CancellationToken ct = default)
     {
         var r = await Db.Set<MaterialRequisition>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException("طلب الشراء غير موجود");
-        if (r.Status is not ("draft" or "pending_approval")) throw new ConflictException("لا يمكن اعتماد الطلب في حالته الحالية.");
+            ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
+        if (r.Status is not ("draft" or "pending_approval")) throw new ConflictException(Messages.CannotApproveRequisitionInCurrentState);
         foreach (var i in r.Items) i.ApprovedQuantity ??= i.RequestedQuantity;
         r.Status = "approved"; r.ApprovedBy = _user.Name; r.ApprovalDate = DateTime.UtcNow;
         await Db.SaveChangesAsync(ct);
@@ -78,9 +78,9 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
         => await new TransactionRunner(Db).RunAsync(async token =>
         {
             var r = await Db.Set<MaterialRequisition>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token)
-                ?? throw new NotFoundException("طلب الشراء غير موجود");
-            if (r.Status != "approved") throw new ConflictException("يجب اعتماد الطلب قبل تحويله لفاتورة شراء.");
-            if (r.SupplierId == null) throw new ValidationFailedException("حدّد المورد في الطلب قبل التحويل.");
+                ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
+            if (r.Status != "approved") throw new ConflictException(Messages.ApproveRequisitionBeforeConversion);
+            if (r.SupplierId == null) throw new ValidationFailedException(Messages.SetSupplierBeforeConversion);
 
             var ids = r.Items.Select(i => i.ItemId).ToList();
             var products = await Db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);

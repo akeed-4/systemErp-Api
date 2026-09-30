@@ -73,9 +73,9 @@ public class AccountingPostingService : IAccountingPostingService
     private async Task<JournalEntry> LoadManualAsync(Guid id, CancellationToken ct)
     {
         var entry = await _db.Set<JournalEntry>().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, ct)
-            ?? throw new NotFoundException("القيد غير موجود");
-        if (entry.Status == JournalEntryStatus.Reversed) throw new ConflictException("القيد المعكوس لا يُعدَّل.");
-        if (entry.SourceType == "reversal") throw new ConflictException("قيد العكس لا يُعدَّل ولا يُحذف؛ هو أثر تدقيق.");
+            ?? throw new NotFoundException(Messages.JournalEntryNotFound);
+        if (entry.Status == JournalEntryStatus.Reversed) throw new ConflictException(Messages.ReversedEntryCannotBeEdited);
+        if (entry.SourceType == "reversal") throw new ConflictException(Messages.ReversalEntryIsAuditTrail);
         return entry;
     }
 
@@ -84,24 +84,24 @@ public class AccountingPostingService : IAccountingPostingService
     private async Task<Prepared> PrepareAsync(GenericPostingRequest request, CancellationToken ct)
     {
         var lines = request.Lines.Where(l => l.Debit != 0 || l.Credit != 0).ToList();
-        if (lines.Count < 2) throw new ValidationFailedException("القيد يحتاج سطرين على الأقل.");
+        if (lines.Count < 2) throw new ValidationFailedException(Messages.JournalEntryNeedsTwoLines);
         if (lines.Any(l => l.Debit < 0 || l.Credit < 0 || (l.Debit > 0 && l.Credit > 0)))
-            throw new ValidationFailedException("كل سطر إما مدين أو دائن بمبلغ موجب.");
+            throw new ValidationFailedException(Messages.LineMustBeDebitOrCredit);
 
         var totalDebit = lines.Sum(l => l.Debit);
         var totalCredit = lines.Sum(l => l.Credit);
         if (Math.Abs(totalDebit - totalCredit) > Tolerance)
-            throw new ValidationFailedException($"القيد غير متوازن: مدين {totalDebit:0.00} ≠ دائن {totalCredit:0.00}.");
+            throw new ValidationFailedException(string.Format(Messages.JournalEntryUnbalanced, totalDebit, totalCredit));
 
         var codes = lines.Select(l => l.AccountCode).Distinct().ToList();
         var accounts = await _db.Set<Account>().Where(a => codes.Contains(a.Code)).ToListAsync(ct);
         var missing = codes.Except(accounts.Select(a => a.Code)).ToList();
-        if (missing.Count > 0) throw new ValidationFailedException("حسابات غير موجودة: " + string.Join(", ", missing));
+        if (missing.Count > 0) throw new ValidationFailedException(Messages.AccountsNotFoundPrefix + string.Join(", ", missing));
 
         var parents = await _db.Set<Account>().Where(a => a.ParentCode != null && codes.Contains(a.ParentCode))
             .Select(a => a.ParentCode!).Distinct().ToListAsync(ct);
         if (parents.Count > 0)
-            throw new ValidationFailedException("لا يمكن الترحيل على حساب رئيسي، اختر حساباً فرعياً: " + string.Join(", ", parents));
+            throw new ValidationFailedException(Messages.CannotPostToParentAccountPrefix + string.Join(", ", parents));
 
         return new Prepared(lines, accounts, accounts.ToDictionary(a => a.Code), totalDebit, totalCredit);
     }
@@ -130,7 +130,7 @@ public class AccountingPostingService : IAccountingPostingService
         var lines = new List<PostingLine>();
         foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, p.Amount, 0));
         if (receivable > Tolerance)
-            lines.Add(new(RequireParty(r.PartyAccountCode, "العميل"), receivable, 0));
+            lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
         lines.Add(new(r.RevenueAccountCode ?? DefaultAccounts.Revenue, 0, r.NetAmount, null, r.CostCenterId));
         if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.OutputVat, 0, r.VatAmount));
         if (r.CostAmount > 0)
@@ -151,16 +151,16 @@ public class AccountingPostingService : IAccountingPostingService
         if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, r.VatAmount, 0));
         foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, 0, p.Amount));
         if (payable > Tolerance)
-            lines.Add(new(RequireParty(r.PartyAccountCode, "المورد"), 0, payable));
+            lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartySupplier), 0, payable));
         return PostAsync(Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn), ct);
     }
 
     public Task<PostingResult> PostVoucherAsync(VoucherPostingRequest r, CancellationToken ct = default)
     {
         if (r.Treasury.Count == 0 || r.Treasury.Any(t => t.Amount <= 0))
-            throw new ValidationFailedException("حدّد حساب الخزينة/البنك ومبلغاً موجباً.");
+            throw new ValidationFailedException(Messages.TreasuryAccountAndPositiveAmountRequired);
         var total = r.Treasury.Sum(t => t.Amount);
-        var party = RequireParty(r.PartyAccountCode, "الطرف");
+        var party = RequireParty(r.PartyAccountCode, Messages.PartyGeneric);
 
         var lines = new List<PostingLine>();
         if (r.Type == VoucherType.Receipt)
@@ -183,9 +183,9 @@ public class AccountingPostingService : IAccountingPostingService
     public async Task<PostingResult> ReverseAsync(Guid journalEntryId, string? reason = null, CancellationToken ct = default)
     {
         var original = await _db.Set<JournalEntry>().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == journalEntryId, ct)
-            ?? throw new NotFoundException("القيد غير موجود");
-        if (original.Status == JournalEntryStatus.Reversed) throw new ConflictException("القيد معكوس مسبقاً.");
-        if (original.SourceType == "reversal") throw new ConflictException("لا يمكن عكس قيد عكسي.");
+            ?? throw new NotFoundException(Messages.JournalEntryNotFound);
+        if (original.Status == JournalEntryStatus.Reversed) throw new ConflictException(Messages.JournalEntryAlreadyReversed);
+        if (original.SourceType == "reversal") throw new ConflictException(Messages.CannotReverseReversalEntry);
 
         var lines = original.Lines.Select(l => new PostingLine(l.AccountCode, l.Credit, l.Debit, l.Notes, l.CostCenterId)).ToList();
         var result = await PostAsync(new GenericPostingRequest
@@ -213,16 +213,16 @@ public class AccountingPostingService : IAccountingPostingService
 
     private static List<PaymentPosting> ValidatePayments(List<PaymentPosting> payments, decimal total)
     {
-        if (total < 0) throw new ValidationFailedException("إجمالي المستند لا يكون سالباً.");
+        if (total < 0) throw new ValidationFailedException(Messages.DocumentTotalCannotBeNegative);
         if (payments.Any(p => p.Amount <= 0 || string.IsNullOrWhiteSpace(p.TreasuryAccountCode)))
-            throw new ValidationFailedException("مبالغ الدفع يجب أن تكون موجبة ومرتبطة بحساب.");
+            throw new ValidationFailedException(Messages.PaymentAmountsMustBePositiveWithAccount);
         if (payments.Sum(p => p.Amount) - total > Tolerance)
-            throw new ValidationFailedException("المدفوع أكبر من إجمالي المستند.");
+            throw new ValidationFailedException(Messages.PaidExceedsDocumentTotal);
         return payments;
     }
 
     private static string RequireParty(string? code, string who)
-        => string.IsNullOrWhiteSpace(code) ? throw new ValidationFailedException($"يلزم تحديد حساب {who} للمبلغ الآجل.") : code;
+        => string.IsNullOrWhiteSpace(code) ? throw new ValidationFailedException(string.Format(Messages.PartyAccountRequiredForCredit, who)) : code;
 
     private static decimal Round(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
 

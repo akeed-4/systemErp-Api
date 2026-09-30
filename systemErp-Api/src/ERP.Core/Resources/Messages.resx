@@ -1,0 +1,681 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AccountArabicNameRequired" xml:space="preserve"><value>اسم الحساب بالعربية مطلوب.</value></data>
+  <data name="AccountCannotBeOwnParent" xml:space="preserve"><value>لا يمكن أن يكون الحساب أباً لنفسه.</value></data>
+  <data name="AccountCodeDigitsOnly" xml:space="preserve"><value>كود الحساب أرقام فقط.</value></data>
+  <data name="AccountCodeInUse" xml:space="preserve"><value>كود الحساب مستخدم مسبقاً.</value></data>
+  <data name="AccountCodeRequired" xml:space="preserve"><value>كود الحساب مطلوب.</value></data>
+  <data name="AccountLinkedToEntity" xml:space="preserve"><value>الحساب مرتبط بعميل/مورد/بنك؛ احذف الكيان المرتبط أولاً.</value></data>
+  <data name="AccountNotFound" xml:space="preserve"><value>الحساب غير موجود</value></data>
+  <data name="AccountsNotFoundPrefix" xml:space="preserve"><value>حسابات غير موجودة: </value></data>
+  <data name="AccountTypeMustMatchParent" xml:space="preserve"><value>نوع الحساب يجب أن يطابق نوع الحساب الأب.</value></data>
+  <data name="AccumulatedDepreciationAccountNotFound" xml:space="preserve"><value>حساب مجمع الإهلاك غير موجود.</value></data>
+  <data name="ActualCashCannotBeNegative" xml:space="preserve"><value>النقد الفعلي لا يكون سالباً.</value></data>
+  <data name="AdjustmentDeletedAndStockRecalculated" xml:space="preserve"><value>تم حذف التسوية وإعادة احتساب الرصيد</value></data>
+  <data name="AdjustmentRecorded" xml:space="preserve"><value>تم تسجيل التسوية</value></data>
+  <data name="AdjustmentUpdated" xml:space="preserve"><value>تم تعديل التسوية</value></data>
+  <data name="AdminEmailInvalid" xml:space="preserve"><value>بريد المدير غير صالح.</value></data>
+  <data name="AdminNameRequired" xml:space="preserve"><value>اسم المدير مطلوب.</value></data>
+  <data name="AgentArabicNameRequired" xml:space="preserve"><value>اسم الوكيل بالعربية مطلوب.</value></data>
+  <data name="AgentLinkedToModels" xml:space="preserve"><value>الوكيل مرتبط بموديلات.</value></data>
+  <data name="AgentLinkedToVehicles" xml:space="preserve"><value>الوكيل مرتبط بمركبات.</value></data>
+  <data name="AgentNotFound" xml:space="preserve"><value>الوكيل غير موجود.</value></data>
+  <data name="AgreedQtyBelowConsumed" xml:space="preserve"><value>الكمية المتفق عليها للصنف {0} أقل من المستهلك فعلاً ({1:0.####}).</value></data>
+  <data name="AgreementNotActive" xml:space="preserve"><value>الاتفاقية غير فعالة حالياً.</value></data>
+  <data name="AgreementNotFound" xml:space="preserve"><value>الاتفاقية المحددة غير موجودة.</value></data>
+  <data name="AgreementQuantitiesAndPricesInvalid" xml:space="preserve"><value>كميات الاتفاقية موجبة والأسعار غير سالبة.</value></data>
+  <data name="AgreementStatusValues" xml:space="preserve"><value>الحالة: draft | active | expired | cancelled | terminated.</value></data>
+  <data name="AgreementTypeValues" xml:space="preserve"><value>النوع: purchase | sales.</value></data>
+  <data name="AmountExceedsExpectedCash" xml:space="preserve"><value>المبلغ أكبر من النقد المتوقع في الدرج ({0:0.00}).</value></data>
+  <data name="AmountMustBePositive" xml:space="preserve"><value>المبلغ يجب أن يكون موجباً.</value></data>
+  <data name="AmountRange" xml:space="preserve"><value>المبلغ يجب أن يكون بين 0 و {0:0.00}.</value></data>
+  <data name="AmountsCannotBeNegative" xml:space="preserve"><value>المبالغ لا تكون سالبة.</value></data>
+  <data name="AmountThresholdCannotBeNegative" xml:space="preserve"><value>حد المبلغ لا يكون سالباً.</value></data>
+  <data name="ApprovalAlreadyDecided" xml:space="preserve"><value>تم البت في مستند الاعتماد مسبقاً.</value></data>
+  <data name="ApprovalAndConversionUseDedicatedActions" xml:space="preserve"><value>الاعتماد والتحويل يتمان بعملياتهما المخصّصة فقط.</value></data>
+  <data name="ApprovalLevelsMustBeSequential" xml:space="preserve"><value>مستويات الاعتماد يجب أن تكون متسلسلة تبدأ من 1.</value></data>
+  <data name="ApprovalRequestNotFound" xml:space="preserve"><value>طلب الاعتماد غير موجود</value></data>
+  <data name="ApproveRequisitionBeforeConversion" xml:space="preserve"><value>يجب اعتماد الطلب قبل تحويله لفاتورة شراء.</value></data>
+  <data name="ApproverNotFound" xml:space="preserve"><value>أحد المعتمدين غير موجود.</value></data>
+  <data name="ArabicNameRequired" xml:space="preserve"><value>الاسم بالعربية مطلوب.</value></data>
+  <data name="AssetAccountNotFound" xml:space="preserve"><value>حساب الأصل غير موجود.</value></data>
+  <data name="AssetArabicNameRequired" xml:space="preserve"><value>اسم الأصل بالعربية مطلوب.</value></data>
+  <data name="AssetCodeInUse" xml:space="preserve"><value>كود الأصل مستخدم مسبقاً.</value></data>
+  <data name="AssetCodeRequired" xml:space="preserve"><value>كود الأصل مطلوب.</value></data>
+  <data name="AtLeastOneCountLineRequired" xml:space="preserve"><value>يجب إدخال سطر جرد واحد على الأقل.</value></data>
+  <data name="AtLeastOneItemRequired" xml:space="preserve"><value>يجب إدخال صنف واحد على الأقل.</value></data>
+  <data name="AtLeastOneLineRequired" xml:space="preserve"><value>يجب إدخال بند واحد على الأقل.</value></data>
+  <data name="AtLeastOneLineRequiredDocument" xml:space="preserve"><value>يجب إدخال سطر واحد على الأقل.</value></data>
+  <data name="BankCodeInUse" xml:space="preserve"><value>كود البنك مستخدم مسبقاً.</value></data>
+  <data name="BankLeaseRequiresBankName" xml:space="preserve"><value>دورة التمويل البنكي تتطلب اسم البنك.</value></data>
+  <data name="BarcodeInUse" xml:space="preserve"><value>الباركود مستخدم مسبقاً.</value></data>
+  <data name="BaseUnitNotFound" xml:space="preserve"><value>وحدة الأساس غير موجودة.</value></data>
+  <data name="BookValueRange" xml:space="preserve"><value>القيمة الدفترية بين صفر وتكلفة الشراء.</value></data>
+  <data name="BrandAlreadyExists" xml:space="preserve"><value>الماركة مسجّلة مسبقاً.</value></data>
+  <data name="BrandAndModelRequiredChooseOrType" xml:space="preserve"><value>الماركة والموديل مطلوبان (اختر من القوائم أو اكتب الاسم).</value></data>
+  <data name="BrandAndModelRequiredPerLine" xml:space="preserve"><value>الماركة والموديل مطلوبان لكل بند.</value></data>
+  <data name="BrandArabicNameRequired" xml:space="preserve"><value>اسم الماركة بالعربية مطلوب.</value></data>
+  <data name="BrandNotFound" xml:space="preserve"><value>الماركة غير موجودة.</value></data>
+  <data name="BuyAndGiftQtyMustBePositive" xml:space="preserve"><value>كميتا الشراء والهدية يجب أن تكونا موجبتين.</value></data>
+  <data name="BuyerIdRequired" xml:space="preserve"><value>هوية/سجل المشتري مطلوب.</value></data>
+  <data name="BuyerMobileRequired" xml:space="preserve"><value>جوال المشتري مطلوب.</value></data>
+  <data name="BuyerNameRequired" xml:space="preserve"><value>اسم المشتري مطلوب.</value></data>
+  <data name="CannotApproveOwnRequest" xml:space="preserve"><value>لا يمكنك اعتماد طلبك بنفسك.</value></data>
+  <data name="CannotApproveRequisitionInCurrentState" xml:space="preserve"><value>لا يمكن اعتماد الطلب في حالته الحالية.</value></data>
+  <data name="CannotAssignOwnerRole" xml:space="preserve"><value>لا يمكن إسناد دور المالك لمستخدم آخر.</value></data>
+  <data name="CannotCancelInvoicedContract" xml:space="preserve"><value>لا يُلغى عقد فُوتر؛ أنشئ مرتجع مبيعات.</value></data>
+  <data name="CannotChangeCodeOfAccountWithEntries" xml:space="preserve"><value>لا يمكن تغيير كود حساب عليه حركات.</value></data>
+  <data name="CannotChangeCountScope" xml:space="preserve"><value>لا يمكن تغيير نطاق الجرد بعد إنشائه.</value></data>
+  <data name="CannotChangeDocumentType" xml:space="preserve"><value>لا يمكن تغيير نوع المستند.</value></data>
+  <data name="CannotChangeMovementItem" xml:space="preserve"><value>لا يمكن تغيير الصنف؛ احذف الحركة وأنشئ أخرى.</value></data>
+  <data name="CannotChangeOrDeactivateOwner" xml:space="preserve"><value>لا يمكن تغيير دور مالك المنشأة أو تعطيله.</value></data>
+  <data name="CannotChangeQtyAfterVinsReceived" xml:space="preserve"><value>لا تغيّر كميات أمر استُلمت شواسيهه.</value></data>
+  <data name="CannotChangeVatModeReservedOrSold" xml:space="preserve"><value>لا يمكن تغيير نمط الضريبة لمركبة محجوزة أو مباعة.</value></data>
+  <data name="CannotChangeVoucherType" xml:space="preserve"><value>لا يمكن تغيير نوع السند (قبض/صرف).</value></data>
+  <data name="CannotCloseContractWithUnbilledMilestones" xml:space="preserve"><value>لا يمكن إغلاق العقد وفيه مستخلصات غير مفوترة.</value></data>
+  <data name="CannotConvertRejectedQuotation" xml:space="preserve"><value>لا يمكن تحويل عرض مرفوض.</value></data>
+  <data name="CannotCreateSecondOwner" xml:space="preserve"><value>لا يمكن إنشاء مالك ثانٍ للمنشأة.</value></data>
+  <data name="CannotDeactivateOwner" xml:space="preserve"><value>لا يمكن تعطيل مالك المنشأة.</value></data>
+  <data name="CannotDeactivateSelf" xml:space="preserve"><value>لا يمكنك تعطيل حسابك الحالي.</value></data>
+  <data name="CannotDecideOwnCount" xml:space="preserve"><value>لا يمكنك البت في جرد أرسلته بنفسك.</value></data>
+  <data name="CannotDeleteAccountWithChildren" xml:space="preserve"><value>لا يمكن حذف حساب له حسابات فرعية.</value></data>
+  <data name="CannotDeleteAccountWithEntries" xml:space="preserve"><value>لا يمكن حذف حساب عليه حركات.</value></data>
+  <data name="CannotDeleteAgreementWithOrders" xml:space="preserve"><value>لا يمكن حذف اتفاقية مرتبطة بأوامر.</value></data>
+  <data name="CannotDeleteBankWithEntries" xml:space="preserve"><value>لا يمكن حذف بنك عليه حركات محاسبية.</value></data>
+  <data name="CannotDeleteBaseCurrency" xml:space="preserve"><value>لا يمكن حذف العملة الأساسية.</value></data>
+  <data name="CannotDeleteBilledMilestone" xml:space="preserve"><value>لا يمكن حذف مستخلص تمت فوترته.</value></data>
+  <data name="CannotDeleteBilledNote" xml:space="preserve"><value>لا يُحذف بيان فُوتر.</value></data>
+  <data name="CannotDeleteBrandWithModels" xml:space="preserve"><value>لا يمكن حذف ماركة لها موديلات.</value></data>
+  <data name="CannotDeleteBrandWithVehicles" xml:space="preserve"><value>لا يمكن حذف ماركة عليها مركبات.</value></data>
+  <data name="CannotDeleteContractWithBilledMilestones" xml:space="preserve"><value>لا يمكن حذف عقد له مستخلصات مفوترة.</value></data>
+  <data name="CannotDeleteContractWithDeliveryNotes" xml:space="preserve"><value>لا يمكن حذف عقد له بيانات تسليم.</value></data>
+  <data name="CannotDeleteConvertedQuotation" xml:space="preserve"><value>لا يمكن حذف عرض تم تحويله.</value></data>
+  <data name="CannotDeleteConvertedRequisition" xml:space="preserve"><value>لا يمكن حذف طلب تم تحويله.</value></data>
+  <data name="CannotDeleteCostCenterWithEntries" xml:space="preserve"><value>لا يمكن حذف مركز تكلفة عليه حركات.</value></data>
+  <data name="CannotDeleteCustomerWithEntries" xml:space="preserve"><value>لا يمكن حذف عميل عليه حركات محاسبية.</value></data>
+  <data name="CannotDeleteCustomerWithInvoices" xml:space="preserve"><value>لا يمكن حذف عميل له فواتير.</value></data>
+  <data name="CannotDeleteDefaultWarehouse" xml:space="preserve"><value>لا يمكن حذف المستودع الافتراضي.</value></data>
+  <data name="CannotDeleteInvoicedOrder" xml:space="preserve"><value>لا يمكن حذف أمر تم تحويله لفاتورة.</value></data>
+  <data name="CannotDeleteModelWithTrims" xml:space="preserve"><value>لا يمكن حذف موديل له فئات.</value></data>
+  <data name="CannotDeleteModelWithVehicles" xml:space="preserve"><value>لا يمكن حذف موديل عليه مركبات.</value></data>
+  <data name="CannotDeleteProductUsedInInvoices" xml:space="preserve"><value>لا يمكن حذف صنف مستخدم في فواتير.</value></data>
+  <data name="CannotDeleteProductWithMovements" xml:space="preserve"><value>لا يمكن حذف صنف له حركات مخزون.</value></data>
+  <data name="CannotDeleteReservedOrSoldVehicle" xml:space="preserve"><value>لا يمكن حذف مركبة محجوزة أو مباعة.</value></data>
+  <data name="CannotDeleteSupplierWithEntries" xml:space="preserve"><value>لا يمكن حذف مورد عليه حركات محاسبية.</value></data>
+  <data name="CannotDeleteSupplierWithRequisitions" xml:space="preserve"><value>لا يمكن حذف مورد له طلبات شراء.</value></data>
+  <data name="CannotDeleteSystemAccount" xml:space="preserve"><value>لا يمكن حذف حساب نظامي.</value></data>
+  <data name="CannotDeleteTrimWithVehicles" xml:space="preserve"><value>لا يمكن حذف فئة عليها مركبات.</value></data>
+  <data name="CannotDeleteTrimWithYears" xml:space="preserve"><value>لا يمكن حذف فئة لها سنوات صنع.</value></data>
+  <data name="CannotDeleteYearWithVehicles" xml:space="preserve"><value>لا يمكن حذف سنة عليها مركبات.</value></data>
+  <data name="CannotEditBilledOrReturnedNote" xml:space="preserve"><value>لا يُعدَّل بيان فُوتر أو عليه مرتجعات.</value></data>
+  <data name="CannotEditCancelledInvoice" xml:space="preserve"><value>لا تُعدَّل فاتورة ملغاة.</value></data>
+  <data name="CannotEditClosedContract" xml:space="preserve"><value>لا يمكن تعديل عقد مغلق.</value></data>
+  <data name="CannotEditConvertedQuotation" xml:space="preserve"><value>لا يمكن تعديل عرض تم تحويله.</value></data>
+  <data name="CannotEditConvertedRequisition" xml:space="preserve"><value>لا يمكن تعديل طلب تم تحويله.</value></data>
+  <data name="CannotEditDeliveredInvoicedCancelledContract" xml:space="preserve"><value>لا يمكن تعديل عقد سُلّم أو فُوتر أو أُلغي.</value></data>
+  <data name="CannotEditInvoicedOrder" xml:space="preserve"><value>لا يمكن تعديل أمر تم تحويله لفاتورة.</value></data>
+  <data name="CannotEditInvoicedOrderProcurement" xml:space="preserve"><value>لا يمكن تعديل أمر تمت فوترته.</value></data>
+  <data name="CannotEditRejectedOrder" xml:space="preserve"><value>لا يمكن تعديل أمر مرفوض.</value></data>
+  <data name="CannotEditSoldVehicle" xml:space="preserve"><value>لا يمكن تعديل مركبة مباعة.</value></data>
+  <data name="CannotEditSystemAccountCodeOrType" xml:space="preserve"><value>لا يمكن تعديل كود أو نوع حساب نظامي.</value></data>
+  <data name="CannotEditTicketInProgress" xml:space="preserve"><value>لا تُعدَّل تذكرة بدأت معالجتها أو أُغلقت.</value></data>
+  <data name="CannotGoBackOrRepeatStage" xml:space="preserve"><value>لا يمكن الرجوع إلى مرحلة سابقة أو تكرار المرحلة الحالية.</value></data>
+  <data name="CannotInvoiceBeforeVinsReceived" xml:space="preserve"><value>لا تُفوتر الدورة قبل استلام الشواسيهات.</value></data>
+  <data name="CannotPostToParentAccountPrefix" xml:space="preserve"><value>لا يمكن الترحيل على حساب رئيسي، اختر حساباً فرعياً: </value></data>
+  <data name="CannotRejectReceivedOrInvoicedOrder" xml:space="preserve"><value>لا يمكن رفض أمر استُلمت مركباته أو فُوتر.</value></data>
+  <data name="CannotRemoveItemWithApprovedOrders" xml:space="preserve"><value>لا يمكن حذف الصنف {0}: عليه أوامر معتمدة.</value></data>
+  <data name="CannotReturnBilledNote" xml:space="preserve"><value>لا يمكن إرجاع بيان تمت فوترته.</value></data>
+  <data name="CannotReverseReversalEntry" xml:space="preserve"><value>لا يمكن عكس قيد عكسي.</value></data>
+  <data name="CannotSaveOtherTenantRecord" xml:space="preserve"><value>لا يمكن حفظ سجل ينتمي إلى منشأة أخرى.</value></data>
+  <data name="CannotSaveRecordWithoutTenant" xml:space="preserve"><value>لا يمكن حفظ سجل بدون منشأة (tenant).</value></data>
+  <data name="CannotSkipStages" xml:space="preserve"><value>لا يمكن تخطي مراحل الدورة؛ انتقل إلى المرحلة التالية مباشرة.</value></data>
+  <data name="CannotUnpostVehicleUnavailable" xml:space="preserve"><value>لا يمكن إلغاء ترحيل الفاتورة: المركبة {0} لم تعد متاحة (محجوزة أو مباعة أو مرتبطة بمستند).</value></data>
+  <data name="CannotUnsetBaseCurrency" xml:space="preserve"><value>لا يمكن إلغاء العملة الأساسية؛ عيّن عملة أخرى كأساسية أولاً.</value></data>
+  <data name="CartEmpty" xml:space="preserve"><value>السلة فارغة.</value></data>
+  <data name="CartQuantitiesPricesInvalid" xml:space="preserve"><value>كميات وأسعار السلة غير صالحة.</value></data>
+  <data name="CashMovementCancelled" xml:space="preserve"><value>تم إلغاء الحركة النقدية</value></data>
+  <data name="CashMovementRecorded" xml:space="preserve"><value>تم تسجيل الحركة النقدية</value></data>
+  <data name="CashPaidBelowTotal" xml:space="preserve"><value>المبلغ النقدي المدفوع أقل من الإجمالي.</value></data>
+  <data name="CategoryCodeInUse" xml:space="preserve"><value>كود التصنيف مستخدم مسبقاً.</value></data>
+  <data name="CategoryNotFound" xml:space="preserve"><value>التصنيف غير موجود.</value></data>
+  <data name="CategoryOfferRequiresCategory" xml:space="preserve"><value>عرض التصنيف يتطلب تحديد التصنيف.</value></data>
+  <data name="CategoryUsedByItems" xml:space="preserve"><value>التصنيف مستخدم في أصناف.</value></data>
+  <data name="ChangeFromCashOnly" xml:space="preserve"><value>الباقي يُرد من النقد فقط.</value></data>
+  <data name="ClosedOrOtherShiftCorrectionAdminOnly" xml:space="preserve"><value>تصحيح مستندات وردية مغلقة أو لكاشير آخر للأدوار الإدارية فقط.</value></data>
+  <data name="CodeAndArabicNameRequired" xml:space="preserve"><value>الكود والاسم بالعربية مطلوبان.</value></data>
+  <data name="CodeRequired" xml:space="preserve"><value>الكود مطلوب.</value></data>
+  <data name="ColorAlreadyExists" xml:space="preserve"><value>اللون مسجّل مسبقاً.</value></data>
+  <data name="ColorNameRequired" xml:space="preserve"><value>اسم اللون مطلوب.</value></data>
+  <data name="ColorValueFormat" xml:space="preserve"><value>قيمة اللون يجب أن تكون بصيغة #RRGGBB.</value></data>
+  <data name="CommissionRateRange" xml:space="preserve"><value>نسبة العمولة بين 0 و100.</value></data>
+  <data name="CompanyArabicNameRequired" xml:space="preserve"><value>اسم المنشأة بالعربية مطلوب.</value></data>
+  <data name="CompanyInactive" xml:space="preserve"><value>المنشأة غير مفعّلة.</value></data>
+  <data name="CompanyNotFound" xml:space="preserve"><value>المنشأة غير موجودة</value></data>
+  <data name="CompanyRegistered" xml:space="preserve"><value>تم تسجيل منشأة '{0}' وتفعيل الاشتراك بنجاح!</value></data>
+  <data name="CompanyUpdated" xml:space="preserve"><value>تم تحديث بيانات المنشأة</value></data>
+  <data name="ConfigurePaymobUrls" xml:space="preserve"><value>اضبط Paymob:PublicApiUrl و Paymob:FrontendUrl في إعدادات الخادم أولاً.</value></data>
+  <data name="ConfirmOrderFirst" xml:space="preserve"><value>أكّد الأمر أولاً؛ الأمر الملغى لا يُحوَّل.</value></data>
+  <data name="ContractAdvanced" xml:space="preserve"><value>تم نقل العقد للمرحلة التالية</value></data>
+  <data name="ContractAlreadyCancelled" xml:space="preserve"><value>العقد ملغى مسبقاً.</value></data>
+  <data name="ContractAlreadyInvoiced" xml:space="preserve"><value>العقد فُوتر مسبقاً.</value></data>
+  <data name="ContractApprovedAndInvoiced" xml:space="preserve"><value>تم اعتماد العقد وإصدار الفاتورة</value></data>
+  <data name="ContractCancelled" xml:space="preserve"><value>تم إلغاء العقد</value></data>
+  <data name="ContractCompletedAndInvoiced" xml:space="preserve"><value>تم إكمال العقد وإصدار الفاتورة</value></data>
+  <data name="ContractCreated" xml:space="preserve"><value>تم إنشاء العقد</value></data>
+  <data name="ContractFinished" xml:space="preserve"><value>العقد منتهٍ (مفوتر أو ملغى).</value></data>
+  <data name="ContractItemsInvalid" xml:space="preserve"><value>بنود العقد: الكمية موجبة والسعر غير سالب والضريبة بين 0 و100.</value></data>
+  <data name="ContractMinimumOneMonth" xml:space="preserve"><value>مدة العقد شهر واحد على الأقل.</value></data>
+  <data name="ContractNotFound" xml:space="preserve"><value>العقد غير موجود</value></data>
+  <data name="ContractNotFoundDot" xml:space="preserve"><value>العقد غير موجود.</value></data>
+  <data name="ContractTitleRequired" xml:space="preserve"><value>عنوان العقد مطلوب.</value></data>
+  <data name="ContractValueCannotBeNegative" xml:space="preserve"><value>قيمة العقد لا تكون سالبة.</value></data>
+  <data name="ConversionFactorMustBePositive" xml:space="preserve"><value>معامل التحويل يجب أن يكون موجباً.</value></data>
+  <data name="ConvertedStatusSetByConversionOnly" xml:space="preserve"><value>حالة التحويل تُضبط بعملية التحويل فقط.</value></data>
+  <data name="CostCenterCodeInUse" xml:space="preserve"><value>كود مركز التكلفة مستخدم مسبقاً.</value></data>
+  <data name="CostingPolicySaved" xml:space="preserve"><value>تم حفظ سياسة التكلفة</value></data>
+  <data name="CountDateInFuture" xml:space="preserve"><value>تاريخ الجرد لا يكون في المستقبل.</value></data>
+  <data name="CountedQtyCannotBeNegative" xml:space="preserve"><value>الكمية المعدودة لا تكون سالبة.</value></data>
+  <data name="CounterAccountCannotBeCash" xml:space="preserve"><value>الحساب المقابل لا يكون حساب الصندوق نفسه.</value></data>
+  <data name="CountNotPendingApproval" xml:space="preserve"><value>الجرد ليس بانتظار الاعتماد.</value></data>
+  <data name="CountScopeValues" xml:space="preserve"><value>نطاق الجرد: items | vehicles.</value></data>
+  <data name="CountTypeValues" xml:space="preserve"><value>نوع الجرد: full | cycle | periodic.</value></data>
+  <data name="CountVehicleNoLongerAvailable" xml:space="preserve"><value>المركبة {0} لم تعد متاحة (حُجزت أو بيعت بعد الجرد)؛ ارفض الجرد وأعد العدّ.</value></data>
+  <data name="CountVehicleStatusChanged" xml:space="preserve"><value>حالة المركبة {0} تغيّرت بعد الجرد؛ ارفض الجرد وأعد العدّ.</value></data>
+  <data name="CouponCodeInUse" xml:space="preserve"><value>كود الكوبون مستخدم مسبقاً.</value></data>
+  <data name="CouponCodeRequired" xml:space="preserve"><value>كود الكوبون مطلوب.</value></data>
+  <data name="CouponTitleRequired" xml:space="preserve"><value>عنوان الكوبون مطلوب.</value></data>
+  <data name="CreatedSuccessfully" xml:space="preserve"><value>تم الإنشاء بنجاح</value></data>
+  <data name="CreditLimitCannotBeNegative" xml:space="preserve"><value>الحد الائتماني لا يكون سالباً.</value></data>
+  <data name="CreditLimitExceeded" xml:space="preserve"><value>تجاوز الحد الائتماني للعميل ({0:0.00}). الرصيد الحالي {1:0.00}.</value></data>
+  <data name="CreditPaymentRequiresDays" xml:space="preserve"><value>الدفع الآجل يتطلب عدد أيام الائتمان.</value></data>
+  <data name="CreditPeriodCannotBeNegative" xml:space="preserve"><value>مدة الائتمان لا تكون سالبة.</value></data>
+  <data name="CreditPurchaseRequiresSupplier" xml:space="preserve"><value>الشراء الآجل يتطلب تحديد المورد.</value></data>
+  <data name="CreditSaleRequiresCustomer" xml:space="preserve"><value>البيع الآجل يتطلب تحديد العميل.</value></data>
+  <data name="CreditSaleRequiresCustomerLink" xml:space="preserve"><value>البيع الآجل/التمويل يتطلب ربط العقد بعميل.</value></data>
+  <data name="CurrencyCodeAlreadyExists" xml:space="preserve"><value>رمز العملة مسجّل مسبقاً.</value></data>
+  <data name="CurrencyCodeIso3" xml:space="preserve"><value>رمز العملة ISO من 3 أحرف.</value></data>
+  <data name="CurrencyPrefix" xml:space="preserve"><value>العملة: </value></data>
+  <data name="CurrentPasswordIncorrect" xml:space="preserve"><value>كلمة المرور الحالية غير صحيحة.</value></data>
+  <data name="CustomerCodeInUse" xml:space="preserve"><value>كود العميل مستخدم مسبقاً.</value></data>
+  <data name="CustomerNameRequired" xml:space="preserve"><value>اسم العميل مطلوب.</value></data>
+  <data name="CustomerNotFound" xml:space="preserve"><value>العميل غير موجود.</value></data>
+  <data name="CustomerNotLinkedToAccount" xml:space="preserve"><value>العميل غير مربوط بحساب في شجرة الحسابات.</value></data>
+  <data name="DailyPenaltyCannotBeNegative" xml:space="preserve"><value>غرامة التأخير اليومية لا تكون سالبة.</value></data>
+  <data name="DecimalPlacesRange" xml:space="preserve"><value>خانات الكسور بين 0 و4.</value></data>
+  <data name="Deleted" xml:space="preserve"><value>تم الحذف</value></data>
+  <data name="DeletedSuccessfully" xml:space="preserve"><value>تم الحذف بنجاح</value></data>
+  <data name="DeleteReturnsFirst" xml:space="preserve"><value>احذف مرتجعاته أولاً.</value></data>
+  <data name="DeleteShiftWithContentAdminOnly" xml:space="preserve"><value>حذف وردية بمحتوياتها للأدوار الإدارية فقط.</value></data>
+  <data name="DeliveryNoteAlreadyBilled" xml:space="preserve"><value>تمت فوترة هذا البيان مسبقاً.</value></data>
+  <data name="DeliveryNoteCreated" xml:space="preserve"><value>تم إنشاء بيان التسليم</value></data>
+  <data name="DeliveryNoteDeleted" xml:space="preserve"><value>تم حذف بيان التسليم</value></data>
+  <data name="DeliveryNoteFullyReturned" xml:space="preserve"><value>البيان مُرتجع بالكامل.</value></data>
+  <data name="DeliveryNoteNotFound" xml:space="preserve"><value>بيان التسليم غير موجود</value></data>
+  <data name="DeliveryNoteNotLinkedToContract" xml:space="preserve"><value>البيان غير مرتبط بعقد.</value></data>
+  <data name="DeliveryNoteTypeInvalid" xml:space="preserve"><value>النوع: sales_delivery | purchase_delivery.</value></data>
+  <data name="DeliveryNoteUpdated" xml:space="preserve"><value>تم تعديل بيان التسليم</value></data>
+  <data name="DeliveryReportNumberRequired" xml:space="preserve"><value>رقم محضر التسليم مطلوب.</value></data>
+  <data name="DeliveryReturnCreated" xml:space="preserve"><value>تم إنشاء مرتجع التسليم</value></data>
+  <data name="DeliveryReturnDeleted" xml:space="preserve"><value>تم حذف مرتجع التسليم</value></data>
+  <data name="DeliveryReturnNotFound" xml:space="preserve"><value>مرتجع التسليم غير موجود</value></data>
+  <data name="DenominationsInvalid" xml:space="preserve"><value>الفئات موجبة والأعداد غير سالبة.</value></data>
+  <data name="DenominationsMismatchCash" xml:space="preserve"><value>مجموع الفئات ({0:0.00}) لا يطابق النقد الفعلي المُدخل ({1:0.00}).</value></data>
+  <data name="DepartmentPrefix" xml:space="preserve"><value>القسم: </value></data>
+  <data name="DepreciationRateRange" xml:space="preserve"><value>نسبة الإهلاك بين 0 و100.</value></data>
+  <data name="DiscountAmountMustBePositive" xml:space="preserve"><value>مبلغ الخصم يجب أن يكون موجباً.</value></data>
+  <data name="DiscountAndVatInvalid" xml:space="preserve"><value>الخصم غير سالب ونسبة الضريبة بين 0 و100.</value></data>
+  <data name="DiscountPercentMax100" xml:space="preserve"><value>نسبة الخصم لا تتجاوز 100%.</value></data>
+  <data name="DiscountPercentRange" xml:space="preserve"><value>نسبة الخصم بين 0 و100.</value></data>
+  <data name="DiscountValueMustBePositive" xml:space="preserve"><value>قيمة الخصم يجب أن تكون موجبة.</value></data>
+  <data name="DocumentNumberGenerationFailed" xml:space="preserve"><value>تعذّر توليد رقم المستند، أعد المحاولة.</value></data>
+  <data name="DocumentTotalCannotBeNegative" xml:space="preserve"><value>إجمالي المستند لا يكون سالباً.</value></data>
+  <data name="DocumentTypeAndActionRequired" xml:space="preserve"><value>نوع المستند والإجراء مطلوبان.</value></data>
+  <data name="Done" xml:space="preserve"><value>تم</value></data>
+  <data name="DoNotMixItemAndVehicleLines" xml:space="preserve"><value>لا تخلط بنود الأصناف مع أسطر السيارات في فاتورة واحدة.</value></data>
+  <data name="DownPaymentCannotBeNegative" xml:space="preserve"><value>الدفعة المقدمة لا تكون سالبة.</value></data>
+  <data name="DownPaymentExceedsTotal" xml:space="preserve"><value>الدفعة المقدمة تتجاوز إجمالي العقد.</value></data>
+  <data name="DraftInvoiceCreated" xml:space="preserve"><value>تم إنشاء فاتورة مسودة</value></data>
+  <data name="DraftPurchaseInvoiceCreated" xml:space="preserve"><value>تم إنشاء فاتورة شراء مسودة</value></data>
+  <data name="DuplicateItemInAgreement" xml:space="preserve"><value>الصنف مكرر في بنود الاتفاقية.</value></data>
+  <data name="DuplicateItemInCount" xml:space="preserve"><value>الصنف مكرر في أسطر الجرد.</value></data>
+  <data name="DuplicateVinInCount" xml:space="preserve"><value>رقم الهيكل مكرر في أسطر الجرد.</value></data>
+  <data name="DuplicateVinsInRequest" xml:space="preserve"><value>أرقام الشواسيه مكررة في الطلب.</value></data>
+  <data name="EmailAlreadyRegistered" xml:space="preserve"><value>هذا البريد الإلكتروني مسجّل مسبقاً.</value></data>
+  <data name="EmailAndPasswordRequired" xml:space="preserve"><value>البريد الإلكتروني وكلمة المرور مطلوبان.</value></data>
+  <data name="EmailInvalid" xml:space="preserve"><value>البريد الإلكتروني غير صالح.</value></data>
+  <data name="EndDateBeforeStart" xml:space="preserve"><value>تاريخ النهاية قبل البداية.</value></data>
+  <data name="EnterEmailOrMobile" xml:space="preserve"><value>أدخل البريد الإلكتروني أو رقم الجوال.</value></data>
+  <data name="EntityNotFound" xml:space="preserve"><value>{0} غير موجود</value></data>
+  <data name="EntityNotFoundFeminine" xml:space="preserve"><value>{0} غير موجودة</value></data>
+  <data name="EntityTypeNotSupportedForAutoAccount" xml:space="preserve"><value>نوع الكيان غير مدعوم لإنشاء حساب تلقائي.</value></data>
+  <data name="ExchangeRateMustBePositive" xml:space="preserve"><value>سعر الصرف يجب أن يكون موجباً.</value></data>
+  <data name="ExpectedDeliveryBeforeOrderDate" xml:space="preserve"><value>تاريخ التسليم المتوقع قبل تاريخ الأمر.</value></data>
+  <data name="FeesCannotBeNegative" xml:space="preserve"><value>الرسوم لا تكون سالبة.</value></data>
+  <data name="FinancingAmountRequired" xml:space="preserve"><value>مبلغ التمويل مطلوب.</value></data>
+  <data name="FinancingBankNotFound" xml:space="preserve"><value>البنك المموِّل غير موجود.</value></data>
+  <data name="Forbidden" xml:space="preserve"><value>ليس لديك صلاحية لتنفيذ هذه العملية</value></data>
+  <data name="HasReturns" xml:space="preserve"><value>عليه مرتجعات.</value></data>
+  <data name="IbanInvalid" xml:space="preserve"><value>رقم الآيبان غير صالح.</value></data>
+  <data name="InspectionRejectionReasonRequired" xml:space="preserve"><value>سبب رفض الفحص مطلوب.</value></data>
+  <data name="InstallmentDetailsRequired" xml:space="preserve"><value>القسط الشهري ومدة التقسيط مطلوبان.</value></data>
+  <data name="InsufficientStock" xml:space="preserve"><value>الرصيد غير كافٍ للصنف {0}: المتاح {1:0.####} والمطلوب {2:0.####}.</value></data>
+  <data name="IntegrationSettingsSaved" xml:space="preserve"><value>تم حفظ إعدادات الربط</value></data>
+  <data name="InvalidCostingMethod" xml:space="preserve"><value>طريقة التكلفة غير صالحة.</value></data>
+  <data name="InvalidCredentials" xml:space="preserve"><value>بيانات الدخول غير صحيحة</value></data>
+  <data name="InvalidDocumentType" xml:space="preserve"><value>نوع المستند غير صالح.</value></data>
+  <data name="InvalidFieldValue" xml:space="preserve"><value>قيمة غير صالحة في الحقل {0}</value></data>
+  <data name="InvalidIntegrationId" xml:space="preserve"><value>رقم تكامل غير صالح: {0}</value></data>
+  <data name="InvalidInvoiceType" xml:space="preserve"><value>نوع الفاتورة غير صالح.</value></data>
+  <data name="InvalidLoadOptions" xml:space="preserve"><value>خيارات التحميل غير صالحة: {0}</value></data>
+  <data name="InvalidPaymentMethod" xml:space="preserve"><value>طريقة دفع غير صالحة.</value></data>
+  <data name="InvalidPlan" xml:space="preserve"><value>الباقة غير صالحة.</value></data>
+  <data name="InvalidPlanOrBillingCycle" xml:space="preserve"><value>الباقة أو دورة الفوترة غير صالحة.</value></data>
+  <data name="InvalidRequestData" xml:space="preserve"><value>بيانات الطلب غير صالحة.</value></data>
+  <data name="InvalidSalesCycleType" xml:space="preserve"><value>نوع الدورة غير صالح: individual | corporate | bank_lease | installment.</value></data>
+  <data name="InvalidStage" xml:space="preserve"><value>مرحلة غير صالحة.</value></data>
+  <data name="InvalidStageForContractType" xml:space="preserve"><value>مرحلة غير صالحة لهذا النوع من العقود: {0}</value></data>
+  <data name="InvalidStatus" xml:space="preserve"><value>حالة غير صالحة.</value></data>
+  <data name="InvalidType" xml:space="preserve"><value>النوع غير صالح.</value></data>
+  <data name="InventoryCountApprovalNotFound" xml:space="preserve"><value>مستند اعتماد الجرد غير موجود</value></data>
+  <data name="InventoryCountApproved" xml:space="preserve"><value>تم اعتماد الجرد</value></data>
+  <data name="InventoryCountCancelled" xml:space="preserve"><value>تم إلغاء الجرد</value></data>
+  <data name="InventoryCountRejected" xml:space="preserve"><value>تم رفض الجرد</value></data>
+  <data name="InventoryCountSubmitted" xml:space="preserve"><value>تم إرسال الجرد للاعتماد</value></data>
+  <data name="InventoryCountWithdrawn" xml:space="preserve"><value>تم سحب الإرسال وإعادة الجرد مسودة</value></data>
+  <data name="InvoiceAlreadyPostedOrCancelled" xml:space="preserve"><value>الفاتورة مرحّلة مسبقاً أو ملغاة.</value></data>
+  <data name="InvoiceApprovalRejected" xml:space="preserve"><value>تم رفض اعتماد الفاتورة فلا يمكن ترحيلها.</value></data>
+  <data name="InvoiceCreated" xml:space="preserve"><value>تم إنشاء الفاتورة</value></data>
+  <data name="Invoiced" xml:space="preserve"><value>تمت الفوترة</value></data>
+  <data name="InvoiceDeleted" xml:space="preserve"><value>تم حذف الفاتورة</value></data>
+  <data name="InvoiceDiscountCannotBeNegative" xml:space="preserve"><value>خصم الفاتورة لا يكون سالباً.</value></data>
+  <data name="InvoiceDiscountNotSupportedWithVehicles" xml:space="preserve"><value>خصم الفاتورة غير مدعوم مع أسطر السيارات؛ استخدم خصم السطر.</value></data>
+  <data name="InvoiceDiscountRange" xml:space="preserve"><value>خصم الفاتورة يجب أن يكون بين صفر وإجمالي الأسطر.</value></data>
+  <data name="InvoiceFromSourceDocument" xml:space="preserve"><value>الفاتورة ناتجة عن مستند مصدر (نقطة بيع/عقد/أمر شراء)؛ عدّلها أو أعكسها من ذلك المستند.</value></data>
+  <data name="InvoiceFullyPaid" xml:space="preserve"><value>الفاتورة مسددة بالكامل.</value></data>
+  <data name="InvoiceHasPostedReturns" xml:space="preserve"><value>للفاتورة مرتجعات مرحّلة؛ احذفها أولاً.</value></data>
+  <data name="InvoiceIssued" xml:space="preserve"><value>تم إصدار الفاتورة</value></data>
+  <data name="InvoiceNotFound" xml:space="preserve"><value>الفاتورة غير موجودة</value></data>
+  <data name="InvoiceNotPostedUsePreview" xml:space="preserve"><value>الفاتورة غير مرحّلة؛ استخدم معاينة القيد.</value></data>
+  <data name="InvoicePendingApproval" xml:space="preserve"><value>الفاتورة بانتظار الاعتماد ولا تُرحَّل قبل اكتمال الموافقة.</value></data>
+  <data name="InvoicePosted" xml:space="preserve"><value>تم ترحيل الفاتورة</value></data>
+  <data name="InvoiceSettingsSaved" xml:space="preserve"><value>تم حفظ إعدادات الفاتورة</value></data>
+  <data name="InvoiceSubmittedToZatcaLocked" xml:space="preserve"><value>الفاتورة أُرسلت لهيئة الزكاة ولا يجوز تعديلها أو حذفها؛ أصدر إشعاراً دائناً.</value></data>
+  <data name="InvoiceTypeValues" xml:space="preserve"><value>نوع الفاتورة: simplified | standard.</value></data>
+  <data name="InvoiceUpdated" xml:space="preserve"><value>تم تعديل الفاتورة</value></data>
+  <data name="InvoiceWithoutRegisteredCustomer" xml:space="preserve"><value>الفاتورة بلا عميل مسجّل؛ لا يمكن ترحيل التحصيل على حسابه.</value></data>
+  <data name="ItemCountLineRequiresItem" xml:space="preserve"><value>كل سطر في جرد الأصناف يتطلب الصنف.</value></data>
+  <data name="ItemCountNoVins" xml:space="preserve"><value>جرد الأصناف لا يقبل أرقام هياكل؛ استخدم جرد المركبات.</value></data>
+  <data name="ItemDiscountExceedsValue" xml:space="preserve"><value>الخصم على الصنف {0} يتجاوز قيمته.</value></data>
+  <data name="ItemNotFound" xml:space="preserve"><value>العنصر المطلوب غير موجود</value></data>
+  <data name="ItemNotFoundDot" xml:space="preserve"><value>الصنف غير موجود.</value></data>
+  <data name="ItemNotFoundInCountLines" xml:space="preserve"><value>صنف غير موجود في أسطر الجرد.</value></data>
+  <data name="ItemNotInAgreement" xml:space="preserve"><value>الصنف {0} غير موجود في بنود الاتفاقية.</value></data>
+  <data name="ItemNotInCart" xml:space="preserve"><value>صنف غير موجود في السلة.</value></data>
+  <data name="ItemNotInDeliveryNote" xml:space="preserve"><value>صنف غير موجود في بيان التسليم.</value></data>
+  <data name="ItemNotInOriginalInvoice" xml:space="preserve"><value>صنف غير موجود في الفاتورة الأصلية.</value></data>
+  <data name="ItemNotInTransaction" xml:space="preserve"><value>صنف غير موجود في المعاملة.</value></data>
+  <data name="ItemsNotFoundInInvoice" xml:space="preserve"><value>أصناف غير موجودة في الفاتورة.</value></data>
+  <data name="JournalEntryAlreadyReversed" xml:space="preserve"><value>القيد معكوس مسبقاً.</value></data>
+  <data name="JournalEntryDeleted" xml:space="preserve"><value>تم حذف القيد</value></data>
+  <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>القيد يحتاج سطرين على الأقل.</value></data>
+  <data name="JournalEntryNotFound" xml:space="preserve"><value>القيد غير موجود</value></data>
+  <data name="JournalEntryPosted" xml:space="preserve"><value>تم ترحيل القيد</value></data>
+  <data name="JournalEntryReversed" xml:space="preserve"><value>تم عكس القيد</value></data>
+  <data name="JournalEntryUnbalanced" xml:space="preserve"><value>القيد غير متوازن: مدين {0:0.00} ≠ دائن {1:0.00}.</value></data>
+  <data name="JournalEntryUpdated" xml:space="preserve"><value>تم تعديل القيد</value></data>
+  <data name="JournalPreviewInsideTransaction" xml:space="preserve"><value>معاينة القيد لا تعمل داخل معاملة قائمة.</value></data>
+  <data name="JwtKeyNotConfigured" xml:space="preserve"><value>Jwt:Key غير مضبوط (32 حرفاً على الأقل). استخدم user-secrets أو متغير البيئة Jwt__Key.</value></data>
+  <data name="LabelAccount" xml:space="preserve"><value>الحساب</value></data>
+  <data name="LabelAgent" xml:space="preserve"><value>الوكيل</value></data>
+  <data name="LabelAgreement" xml:space="preserve"><value>الاتفاقية</value></data>
+  <data name="LabelApprovalPolicy" xml:space="preserve"><value>سياسة الاعتماد</value></data>
+  <data name="LabelAuditLog" xml:space="preserve"><value>سجل التدقيق</value></data>
+  <data name="LabelBank" xml:space="preserve"><value>البنك</value></data>
+  <data name="LabelBrand" xml:space="preserve"><value>الماركة</value></data>
+  <data name="LabelCategory" xml:space="preserve"><value>التصنيف</value></data>
+  <data name="LabelColor" xml:space="preserve"><value>اللون</value></data>
+  <data name="LabelContract" xml:space="preserve"><value>العقد</value></data>
+  <data name="LabelCostCenter" xml:space="preserve"><value>مركز التكلفة</value></data>
+  <data name="LabelCoupon" xml:space="preserve"><value>الكوبون</value></data>
+  <data name="LabelCurrency" xml:space="preserve"><value>العملة</value></data>
+  <data name="LabelFixedAsset" xml:space="preserve"><value>الأصل الثابت</value></data>
+  <data name="LabelHeldCart" xml:space="preserve"><value>السلة المعلّقة</value></data>
+  <data name="LabelInventoryCount" xml:space="preserve"><value>مستند الجرد</value></data>
+  <data name="LabelModel" xml:space="preserve"><value>الموديل</value></data>
+  <data name="LabelModelYear" xml:space="preserve"><value>سنة الصنع</value></data>
+  <data name="LabelOffer" xml:space="preserve"><value>العرض</value></data>
+  <data name="LabelOrder" xml:space="preserve"><value>الأمر</value></data>
+  <data name="LabelPaymentMethod" xml:space="preserve"><value>طريقة الدفع</value></data>
+  <data name="LabelProduct" xml:space="preserve"><value>الصنف</value></data>
+  <data name="LabelPurchaseRequisition" xml:space="preserve"><value>طلب الشراء</value></data>
+  <data name="LabelQuotation" xml:space="preserve"><value>عرض السعر</value></data>
+  <data name="LabelRecord" xml:space="preserve"><value>السجل</value></data>
+  <data name="LabelSupportTicket" xml:space="preserve"><value>تذكرة الدعم</value></data>
+  <data name="LabelTrim" xml:space="preserve"><value>الفئة</value></data>
+  <data name="LabelUnit" xml:space="preserve"><value>الوحدة</value></data>
+  <data name="LabelVehicle" xml:space="preserve"><value>المركبة</value></data>
+  <data name="LabelWarehouse" xml:space="preserve"><value>المستودع</value></data>
+  <data name="LevelNeedsApprover" xml:space="preserve"><value>كل مستوى يحتاج دور معتمد أو مستخدماً معتمداً.</value></data>
+  <data name="LimitsCannotBeNegative" xml:space="preserve"><value>الحدود لا تكون سالبة.</value></data>
+  <data name="LineBrandAndModelRequired" xml:space="preserve"><value>السطر {0}: الماركة والموديل مطلوبان.</value></data>
+  <data name="LineMessage" xml:space="preserve"><value>السطر {0}: {1}</value></data>
+  <data name="LineModelYearInvalid" xml:space="preserve"><value>سنة صنع البند غير صالحة.</value></data>
+  <data name="LineMustBeDebitOrCredit" xml:space="preserve"><value>كل سطر إما مدين أو دائن بمبلغ موجب.</value></data>
+  <data name="LineNotInOrder" xml:space="preserve"><value>بند غير موجود في الأمر.</value></data>
+  <data name="LinePriceBelowMinimum" xml:space="preserve"><value>السطر {0}: سعر البيع بعد الخصم أقل من الحد الأدنى للمركبة ({1:0.00}).</value></data>
+  <data name="LinePriceOrDiscountInvalid" xml:space="preserve"><value>السطر {0}: السعر والخصم غير صالحين.</value></data>
+  <data name="LinePurchaseVatModeInvalid" xml:space="preserve"><value>السطر {0}: نمط ضريبة الشراء قياسي 15% أو معفى فقط.</value></data>
+  <data name="LineSelectAvailableVehicle" xml:space="preserve"><value>السطر {0}: اختر مركبة من المخزون المتاح.</value></data>
+  <data name="LineVehicleDuplicated" xml:space="preserve"><value>السطر {0}: المركبة مكررة في نفس الفاتورة.</value></data>
+  <data name="LineVehicleNoLongerAvailable" xml:space="preserve"><value>السطر {0}: المركبة {1} لم تعد متاحة للبيع.</value></data>
+  <data name="LineVehicleNotAvailable" xml:space="preserve"><value>السطر {0}: المركبة {1} غير متاحة للبيع.</value></data>
+  <data name="LineVehicleNotFound" xml:space="preserve"><value>السطر {0}: المركبة غير موجودة.</value></data>
+  <data name="LineVinDuplicated" xml:space="preserve"><value>السطر {0}: رقم الشاسيه {1} مكرر في نفس الفاتورة.</value></data>
+  <data name="LineVinFormatInvalid" xml:space="preserve"><value>السطر {0}: رقم الشاسيه يجب أن يتكون من 17 خانة (أحرف وأرقام بدون I/O/Q).</value></data>
+  <data name="LineVinRequiredForPosting" xml:space="preserve"><value>السطر {0}: رقم الشاسيه مطلوب للترحيل.</value></data>
+  <data name="LineYearInvalid" xml:space="preserve"><value>السطر {0}: سنة الصنع غير صالحة.</value></data>
+  <data name="LinkContractToCustomerBeforeBilling" xml:space="preserve"><value>اربط العقد بعميل قبل الفوترة (يلزم حساب الذمم).</value></data>
+  <data name="LinkedAccountNotInChart" xml:space="preserve"><value>الحساب المرتبط غير موجود في شجرة الحسابات.</value></data>
+  <data name="LinkedApprovalRequestClosed" xml:space="preserve"><value>طلب الاعتماد المرتبط رُفض أو سُحب من شاشة الموافقات؛ ارفض المستند هنا أو أعد الإرسال.</value></data>
+  <data name="LinkedTreasuryAccountRequired" xml:space="preserve"><value>حساب الخزينة/البنك المرتبط مطلوب.</value></data>
+  <data name="ListSeparator" xml:space="preserve"><value>، </value></data>
+  <data name="LoginRequired" xml:space="preserve"><value>يلزم تسجيل الدخول.</value></data>
+  <data name="LoginSucceeded" xml:space="preserve"><value>تم تسجيل الدخول بنجاح</value></data>
+  <data name="LoyaltyBalanceNotFound" xml:space="preserve"><value>رصيد الولاء غير موجود</value></data>
+  <data name="ManualAdjustmentTypeOnly" xml:space="preserve"><value>التسوية اليدوية: adjustment_in أو adjustment_out فقط.</value></data>
+  <data name="ManualLineDiscountAdminOnly" xml:space="preserve"><value>الخصم اليدوي على السطر للأدوار الإدارية فقط.</value></data>
+  <data name="MarginSchemeNotAllowedWithInputVat" xml:space="preserve"><value>لا يمكن احتساب الضريبة على هامش الربح: المركبة مشتراة بفاتورة عليها ضريبة مدخلات 15%. نظام الهامش للسيارات المشتراة بدون ضريبة مدخلات.</value></data>
+  <data name="MaxPenaltyRange" xml:space="preserve"><value>الحد الأقصى للغرامة بين 0 و100.</value></data>
+  <data name="MilestoneAlreadyBilled" xml:space="preserve"><value>تمت فوترة هذا المستخلص مسبقاً.</value></data>
+  <data name="MilestoneAmountMustBePositive" xml:space="preserve"><value>مبلغ المستخلص يجب أن يكون موجباً.</value></data>
+  <data name="MilestoneAmountsCannotBeNegative" xml:space="preserve"><value>نسب/مبالغ المستخلصات لا تكون سالبة.</value></data>
+  <data name="MilestoneBilled" xml:space="preserve"><value>تمت فوترة المستخلص</value></data>
+  <data name="MilestoneBillingSalesOnly" xml:space="preserve"><value>الفوترة المرحلية لبيانات التسليم البيعية فقط.</value></data>
+  <data name="MilestoneNotFound" xml:space="preserve"><value>المستخلص غير موجود</value></data>
+  <data name="MilestonePercentagesExceed100" xml:space="preserve"><value>مجموع نسب المستخلصات يتجاوز 100%.</value></data>
+  <data name="MilestonesBilledOnlyWhenActive" xml:space="preserve"><value>لا تُفوتر المستخلصات قبل أن يصبح العقد ساري التنفيذ.</value></data>
+  <data name="MinPriceAboveSellingPrice" xml:space="preserve"><value>الحد الأدنى للسعر أعلى من سعر البيع.</value></data>
+  <data name="MissingVehiclesReserved" xml:space="preserve"><value>المركبات المفقودة التالية محجوزة بعقود بيع؛ عالج العقد أو أعد العدّ: {0}</value></data>
+  <data name="ModelAlreadyExistsForBrand" xml:space="preserve"><value>الموديل مسجّل مسبقاً لهذه الماركة.</value></data>
+  <data name="ModelArabicNameRequired" xml:space="preserve"><value>اسم الموديل بالعربية مطلوب.</value></data>
+  <data name="ModelNotFound" xml:space="preserve"><value>الموديل غير موجود.</value></data>
+  <data name="ModelNotInBrand" xml:space="preserve"><value>الموديل المختار لا ينتمي للماركة المحددة.</value></data>
+  <data name="ModelYearInvalid" xml:space="preserve"><value>سنة الصنع غير صالحة.</value></data>
+  <data name="MovementNotFound" xml:space="preserve"><value>الحركة غير موجودة</value></data>
+  <data name="MovementReasonRequired" xml:space="preserve"><value>سبب الحركة مطلوب.</value></data>
+  <data name="MovementTypeValues" xml:space="preserve"><value>نوع الحركة إيداع أو صرف.</value></data>
+  <data name="MultiVehicleReturnNotSupported" xml:space="preserve"><value>مرتجع فواتير السيارات متعددة الأسطر غير مدعوم بعد.</value></data>
+  <data name="NameRequired" xml:space="preserve"><value>الاسم مطلوب.</value></data>
+  <data name="NegativeInventoryPolicyValues" xml:space="preserve"><value>سياسة المخزون السالب: prohibit | allow_with_last_cost.</value></data>
+  <data name="NewCarMileageLimit" xml:space="preserve"><value>السيارة الجديدة لا يتجاوز عدّادها 500 كم.</value></data>
+  <data name="NewPasswordMin8" xml:space="preserve"><value>كلمة المرور الجديدة 8 أحرف على الأقل.</value></data>
+  <data name="NewPasswordMustDiffer" xml:space="preserve"><value>كلمة المرور الجديدة يجب أن تختلف عن الحالية.</value></data>
+  <data name="NextAllowedStage" xml:space="preserve"><value>المرحلة التالية المسموحة: {0}.</value></data>
+  <data name="NextAllowedStageIs" xml:space="preserve"><value>المرحلة التالية المسموحة هي: {0}.</value></data>
+  <data name="NoCountLines" xml:space="preserve"><value>لا توجد أسطر جرد.</value></data>
+  <data name="NoInvoiceLinkedToTransaction" xml:space="preserve"><value>لا توجد فاتورة مرتبطة بالمعاملة.</value></data>
+  <data name="NoLimit" xml:space="preserve"><value>بلا حد</value></data>
+  <data name="NoLinkedInvoice" xml:space="preserve"><value>لا توجد فاتورة مرتبطة.</value></data>
+  <data name="NoLoyaltyBalanceForCustomer" xml:space="preserve"><value>لا يوجد رصيد ولاء لهذا العميل.</value></data>
+  <data name="NonBaseUnitNeedsBaseUnit" xml:space="preserve"><value>الوحدة غير الأساسية تحتاج وحدة أساس.</value></data>
+  <data name="NoNetQuantitiesToBill" xml:space="preserve"><value>لا توجد كميات صافية لفوترتها (البيان مُرتجع بالكامل).</value></data>
+  <data name="NoneValue" xml:space="preserve"><value>لا يوجد</value></data>
+  <data name="NoOpenShift" xml:space="preserve"><value>لا توجد وردية مفتوحة.</value></data>
+  <data name="NoOpenShiftToClose" xml:space="preserve"><value>لا توجد وردية مفتوحة لإغلاقها.</value></data>
+  <data name="NoPendingSubmission" xml:space="preserve"><value>لا يوجد إرسال معلّق لهذا الجرد.</value></data>
+  <data name="NoRemainingQtyToReturn" xml:space="preserve"><value>لا توجد كميات متبقية للإرجاع.</value></data>
+  <data name="NotificationNotFound" xml:space="preserve"><value>الإشعار غير موجود</value></data>
+  <data name="NotificationTitleRequired" xml:space="preserve"><value>عنوان الإشعار مطلوب.</value></data>
+  <data name="NoTransactionWithNumber" xml:space="preserve"><value>لا توجد معاملة بهذا الرقم</value></data>
+  <data name="NotRequiredApproverAtLevel" xml:space="preserve"><value>لست المعتمد المطلوب في هذا المستوى.</value></data>
+  <data name="OfferTitleRequired" xml:space="preserve"><value>عنوان العرض مطلوب.</value></data>
+  <data name="OnlinePaymentAmountMismatch" xml:space="preserve"><value>مبلغ الدفع الإلكتروني ({0:0.00}) لا يطابق إجمالي السلة ({1:0.00}).</value></data>
+  <data name="OnlinePaymentMethodValues" xml:space="preserve"><value>الدفع الإلكتروني يُسجَّل كبطاقة أو مدى أو Apple Pay.</value></data>
+  <data name="OnlinePaymentNotCompleted" xml:space="preserve"><value>لم يكتمل الدفع الإلكتروني بعد.</value></data>
+  <data name="OnlinePaymentNotFound" xml:space="preserve"><value>عملية الدفع الإلكتروني غير موجودة</value></data>
+  <data name="OnlyDraftOrCancelledContractDeleted" xml:space="preserve"><value>يُحذف العقد المسودة أو الملغى فقط.</value></data>
+  <data name="OnlyDraftOrRejectedCountCancellable" xml:space="preserve"><value>لا يُلغى إلا الجرد المسودة أو المرفوض.</value></data>
+  <data name="OnlyDraftOrRejectedCountEditable" xml:space="preserve"><value>لا يُعدَّل إلا الجرد المسودة أو المرفوض؛ اسحب الإرسال أولاً.</value></data>
+  <data name="OnlyDraftOrRejectedCountSubmittable" xml:space="preserve"><value>لا يُرسل للاعتماد إلا الجرد المسودة أو المرفوض.</value></data>
+  <data name="OnlyEarlyOrdersCanBeDeleted" xml:space="preserve"><value>لا يُحذف إلا أمر لم يصل لمرحلة أمر الشراء (أو مرفوض) ولم تُستلم مركباته.</value></data>
+  <data name="OnlyOpenUnprocessedTicketDeletable" xml:space="preserve"><value>لا تُحذف إلا التذكرة المفتوحة التي لم تبدأ معالجتها.</value></data>
+  <data name="OnlyPendingPaymentsCancellable" xml:space="preserve"><value>تُلغى عمليات الدفع المعلّقة فقط.</value></data>
+  <data name="OnlyPendingRequestWithdrawable" xml:space="preserve"><value>لا يُسحب إلا الطلب المعلّق.</value></data>
+  <data name="OnlyPostedInvoicesSubmitted" xml:space="preserve"><value>تُرسل الفواتير المرحّلة فقط.</value></data>
+  <data name="OnlyPostedOriginalInvoiceCanBeReturned" xml:space="preserve"><value>يمكن إرجاع فاتورة مرحّلة أصلية فقط.</value></data>
+  <data name="OnlyRequesterOrAdminCanWithdraw" xml:space="preserve"><value>لا يسحب الطلب إلا مقدّمه أو المالك/المدير.</value></data>
+  <data name="OnlySubmitterOrAdminCanWithdraw" xml:space="preserve"><value>لا يسحب الإرسال إلا مقدّمه أو المالك/المدير.</value></data>
+  <data name="OnlyUnsubmittedDraftCountDeletable" xml:space="preserve"><value>لا يُحذف إلا جرد مسودة لم يُرسل للاعتماد؛ ألغِه بدلاً من ذلك ليبقى في السجل.</value></data>
+  <data name="OpeningCashCannotBeNegative" xml:space="preserve"><value>الرصيد الافتتاحي لا يكون سالباً.</value></data>
+  <data name="OpenShiftBeforeSale" xml:space="preserve"><value>افتح وردية أولاً قبل البيع.</value></data>
+  <data name="OpenShiftFirst" xml:space="preserve"><value>افتح وردية أولاً.</value></data>
+  <data name="OpenShiftToProcessReturn" xml:space="preserve"><value>افتح وردية أولاً لمعالجة المرتجع.</value></data>
+  <data name="OperationMakesStockNegativeLater" xml:space="preserve"><value>العملية تجعل رصيد الصنف {0} سالباً في تاريخ لاحق.</value></data>
+  <data name="OrderAdvanced" xml:space="preserve"><value>تم نقل الأمر للمرحلة التالية</value></data>
+  <data name="OrderAlreadyConverted" xml:space="preserve"><value>تم تحويل هذا الأمر مسبقاً.</value></data>
+  <data name="OrderAlreadyInvoiced" xml:space="preserve"><value>الأمر فُوتر مسبقاً.</value></data>
+  <data name="OrderCreated" xml:space="preserve"><value>تم إنشاء الأمر</value></data>
+  <data name="OrderMinMaxInvalid" xml:space="preserve"><value>الحد الأدنى والأقصى للأمر غير سالبين، والأقصى (إن حُدِّد) لا يقل عن الأدنى.</value></data>
+  <data name="OrderNotFound" xml:space="preserve"><value>الأمر غير موجود</value></data>
+  <data name="OrderRejected" xml:space="preserve"><value>تم رفض الأمر</value></data>
+  <data name="OrderRejectedOrClosed" xml:space="preserve"><value>الأمر مرفوض أو مغلق ولا يتقدم في الدورة.</value></data>
+  <data name="OrderTypeMismatchAgreement" xml:space="preserve"><value>نوع الأمر لا يطابق نوع الاتفاقية (بيع/شراء).</value></data>
+  <data name="OrderTypeValues" xml:space="preserve"><value>النوع: sales_order | purchase_order.</value></data>
+  <data name="OriginalInvoiceNotFound" xml:space="preserve"><value>الفاتورة الأصلية غير موجودة</value></data>
+  <data name="OriginalInvoiceNotFoundDot" xml:space="preserve"><value>الفاتورة الأصلية غير موجودة.</value></data>
+  <data name="OriginalInvoiceNotReturnable" xml:space="preserve"><value>الفاتورة الأصلية غير صالحة للإرجاع.</value></data>
+  <data name="OriginalNoteBilled" xml:space="preserve"><value>البيان الأصلي فُوتر.</value></data>
+  <data name="OriginalTransactionNotFound" xml:space="preserve"><value>المعاملة الأصلية غير موجودة</value></data>
+  <data name="OtherCashierShiftReportsAdminOnly" xml:space="preserve"><value>تقارير ورديات الكاشيرين الآخرين للأدوار الإدارية فقط.</value></data>
+  <data name="OtpIncorrect" xml:space="preserve"><value>رمز التحقق غير صحيح.</value></data>
+  <data name="OtpInvalidOrExpired" xml:space="preserve"><value>رمز التحقق غير صالح أو منتهي.</value></data>
+  <data name="PaidAmountsCannotBeNegative" xml:space="preserve"><value>المبالغ المدفوعة لا تكون سالبة.</value></data>
+  <data name="PaidExceedsDocumentTotal" xml:space="preserve"><value>المدفوع أكبر من إجمالي المستند.</value></data>
+  <data name="PaperSizePrefix" xml:space="preserve"><value>مقاس الورق: </value></data>
+  <data name="ParentAccountMissingInChart" xml:space="preserve"><value>الحساب الأب {0} غير موجود في شجرة الحسابات.</value></data>
+  <data name="ParentAccountNotFound" xml:space="preserve"><value>الحساب الأب غير موجود.</value></data>
+  <data name="PartyAccountRequired" xml:space="preserve"><value>حساب الطرف مطلوب.</value></data>
+  <data name="PartyAccountRequiredForCredit" xml:space="preserve"><value>يلزم تحديد حساب {0} للمبلغ الآجل.</value></data>
+  <data name="PartyCustomer" xml:space="preserve"><value>العميل</value></data>
+  <data name="PartyGeneric" xml:space="preserve"><value>الطرف</value></data>
+  <data name="PartyNameRequired" xml:space="preserve"><value>اسم الطرف مطلوب.</value></data>
+  <data name="PartySupplier" xml:space="preserve"><value>المورد</value></data>
+  <data name="PartyVatNumberInvalid" xml:space="preserve"><value>الرقم الضريبي للطرف غير صالح.</value></data>
+  <data name="PasswordMin8" xml:space="preserve"><value>كلمة المرور 8 أحرف على الأقل.</value></data>
+  <data name="PasswordMinLength" xml:space="preserve"><value>كلمة المرور {0} أحرف على الأقل.</value></data>
+  <data name="PaymentAlreadyUsed" xml:space="preserve"><value>استُخدم هذا الدفع في عملية سابقة.</value></data>
+  <data name="PaymentAmountsMustBePositiveWithAccount" xml:space="preserve"><value>مبالغ الدفع يجب أن تكون موجبة ومرتبطة بحساب.</value></data>
+  <data name="PaymentCancelled" xml:space="preserve"><value>تم إلغاء عملية الدفع</value></data>
+  <data name="PaymentGatewaySettingsSaved" xml:space="preserve"><value>تم حفظ إعدادات بوابة الدفع</value></data>
+  <data name="PaymentLinkCreated" xml:space="preserve"><value>تم إنشاء رابط الدفع</value></data>
+  <data name="PaymentLinkPostedSalesOnly" xml:space="preserve"><value>رابط الدفع لفاتورة مبيعات مرحّلة فقط.</value></data>
+  <data name="PaymentMethodCodeInUse" xml:space="preserve"><value>كود طريقة الدفع مستخدم مسبقاً.</value></data>
+  <data name="PaymentMethodPrefix" xml:space="preserve"><value>طريقة الدفع: </value></data>
+  <data name="PaymentMethodTypePrefix" xml:space="preserve"><value>نوع طريقة الدفع: </value></data>
+  <data name="PaymentNotFound" xml:space="preserve"><value>عملية الدفع غير موجودة</value></data>
+  <data name="PaymentsBelowTotal" xml:space="preserve"><value>مجموع المدفوعات أقل من الإجمالي.</value></data>
+  <data name="PaymentTermsCannotBeNegative" xml:space="preserve"><value>مدة السداد لا تكون سالبة.</value></data>
+  <data name="PaymentTypePrefix" xml:space="preserve"><value>نوع الدفع: </value></data>
+  <data name="PaymobActivationRequirements" xml:space="preserve"><value>للتفعيل: المفتاح العام والسري ومفتاح HMAC ورقم تكامل واحد على الأقل.</value></data>
+  <data name="PaymobNoClientSecret" xml:space="preserve"><value>رد Paymob بلا client_secret.</value></data>
+  <data name="PaymobNotEnabled" xml:space="preserve"><value>بوابة الدفع Paymob غير مفعّلة للمنشأة؛ اضبطها من إعدادات الدفع الإلكتروني.</value></data>
+  <data name="PaymobRejectedPayment" xml:space="preserve"><value>رفضت Paymob إنشاء عملية الدفع ({0}): {1}</value></data>
+  <data name="PaymobUrlMustBeHttps" xml:space="preserve"><value>عنوان Paymob يجب أن يكون https (مثل https://ksa.paymob.com).</value></data>
+  <data name="PdiConfirmationRequired" xml:space="preserve"><value>يلزم تأكيد اجتياز فحص الاستلام (PDI).</value></data>
+  <data name="PerformanceBondRateRange" xml:space="preserve"><value>نسبة ضمان حسن التنفيذ بين 0 و100.</value></data>
+  <data name="PeriodEndBeforeStart" xml:space="preserve"><value>نهاية الفترة قبل بدايتها.</value></data>
+  <data name="PermissionsSaved" xml:space="preserve"><value>تم حفظ تحديثات الصلاحيات بنجاح</value></data>
+  <data name="PlanActivated" xml:space="preserve"><value>تم تفعيل الباقة</value></data>
+  <data name="PointsExceedBalance" xml:space="preserve"><value>النقاط المطلوبة أكبر من الرصيد.</value></data>
+  <data name="PolicyArabicNameRequired" xml:space="preserve"><value>اسم السياسة بالعربية مطلوب.</value></data>
+  <data name="PolicyLinkedToRequests" xml:space="preserve"><value>السياسة مرتبطة بطلبات اعتماد؛ عطّلها بدل حذفها.</value></data>
+  <data name="PolicyNeedsOneLevel" xml:space="preserve"><value>السياسة تحتاج مستوى اعتماد واحداً على الأقل.</value></data>
+  <data name="PolicyNotFound" xml:space="preserve"><value>السياسة غير موجودة</value></data>
+  <data name="PriceAndDiscountInvalid" xml:space="preserve"><value>السعر والخصم غير صالحين.</value></data>
+  <data name="PriceAndVatInvalid" xml:space="preserve"><value>السعر غير سالب ونسبة الضريبة بين 0 و100.</value></data>
+  <data name="PricesAndCostsCannotBeNegative" xml:space="preserve"><value>الأسعار والتكاليف لا تكون سالبة.</value></data>
+  <data name="PricesAndReorderCannotBeNegative" xml:space="preserve"><value>الأسعار وحد الطلب لا تكون سالبة.</value></data>
+  <data name="PriorityPrefix" xml:space="preserve"><value>الأولوية: </value></data>
+  <data name="PriorityValues" xml:space="preserve"><value>الأولوية: low | medium | high | urgent.</value></data>
+  <data name="ProcurementOrderNotFound" xml:space="preserve"><value>أمر الشراء غير موجود</value></data>
+  <data name="ProductArabicNameRequired" xml:space="preserve"><value>اسم الصنف بالعربية مطلوب.</value></data>
+  <data name="ProductCategoryNotFound" xml:space="preserve"><value>تصنيف الصنف غير موجود.</value></data>
+  <data name="ProductNotFound" xml:space="preserve"><value>الصنف غير موجود</value></data>
+  <data name="ProfileUpdated" xml:space="preserve"><value>تم تحديث بيانات الملف الشخصي بنجاح</value></data>
+  <data name="PurchaseCostCannotBeNegative" xml:space="preserve"><value>تكلفة الشراء لا تكون سالبة.</value></data>
+  <data name="PurchaseCyclePrefix" xml:space="preserve"><value>دورة الشراء: </value></data>
+  <data name="PurchaseInvoicesNotSubmittedToZatca" xml:space="preserve"><value>فواتير المشتريات لا تُرسل لهيئة الزكاة.</value></data>
+  <data name="PurchaseOrderCreated" xml:space="preserve"><value>تم إنشاء طلب الشراء</value></data>
+  <data name="PurchasePriceMustBePositive" xml:space="preserve"><value>سعر الشراء يجب أن يكون موجباً.</value></data>
+  <data name="PurchaseRequisitionNotFound" xml:space="preserve"><value>طلب الشراء غير موجود</value></data>
+  <data name="QtyExceedsAgreementRemaining" xml:space="preserve"><value>الكمية المطلوبة للصنف {0} تتجاوز الكمية المتبقية في الاتفاقية ({1:0.####}).</value></data>
+  <data name="QtyOutsideAgreementLimits" xml:space="preserve"><value>الكمية للصنف {0} خارج الحدود المسموحة (الحد الأدنى: {1:0.####}، الحد الأقصى: {2}).</value></data>
+  <data name="QtyPositiveDiscountsNonNegative" xml:space="preserve"><value>الكميات موجبة والخصومات غير سالبة.</value></data>
+  <data name="QtyPositivePriceNonNegative" xml:space="preserve"><value>الكمية موجبة والسعر غير سالب.</value></data>
+  <data name="QuantitiesCannotBeNegative" xml:space="preserve"><value>الكميات لا تكون سالبة.</value></data>
+  <data name="QuantityMustBePositive" xml:space="preserve"><value>الكمية يجب أن تكون أكبر من صفر.</value></data>
+  <data name="QuotationAlreadyConverted" xml:space="preserve"><value>تم تحويل هذا العرض مسبقاً.</value></data>
+  <data name="QuotationNotFound" xml:space="preserve"><value>عرض السعر غير موجود</value></data>
+  <data name="QuotationTypeValues" xml:space="preserve"><value>النوع: sales_quotation | purchase_quotation.</value></data>
+  <data name="RecipientIdRequired" xml:space="preserve"><value>هوية المستلم مطلوبة.</value></data>
+  <data name="RecipientNameRequired" xml:space="preserve"><value>اسم المستلم (الموقّع) مطلوب.</value></data>
+  <data name="RecipientNotFound" xml:space="preserve"><value>المستلم غير موجود</value></data>
+  <data name="RecordModifiedByAnotherUser" xml:space="preserve"><value>تم تعديل السجل من مستخدم آخر، أعد التحميل وحاول مجدداً.</value></data>
+  <data name="RegularInvoiceTypeInvalid" xml:space="preserve"><value>الفاتورة الاعتيادية ضريبية أو مبسطة؛ الإشعارات للمرتجعات.</value></data>
+  <data name="RejectionReasonRequired" xml:space="preserve"><value>سبب الرفض مطلوب.</value></data>
+  <data name="ReplySent" xml:space="preserve"><value>تم إرسال الرد</value></data>
+  <data name="ReplyTextRequired" xml:space="preserve"><value>نص الرد مطلوب.</value></data>
+  <data name="RequestAlreadyDecided" xml:space="preserve"><value>الطلب تم البت فيه مسبقاً.</value></data>
+  <data name="RequestApproved" xml:space="preserve"><value>تم اعتماد الطلب</value></data>
+  <data name="RequestedQuantitiesMustBePositive" xml:space="preserve"><value>الكميات المطلوبة يجب أن تكون موجبة.</value></data>
+  <data name="RequestWithdrawn" xml:space="preserve"><value>تم سحب الطلب</value></data>
+  <data name="RequiredDateBeforeRequestDate" xml:space="preserve"><value>تاريخ الاحتياج قبل تاريخ الطلب.</value></data>
+  <data name="RetentionRateRange" xml:space="preserve"><value>نسبة استقطاع الضمان من المستخلص بين 0 و100.</value></data>
+  <data name="ReturnCreated" xml:space="preserve"><value>تم إنشاء المرتجع</value></data>
+  <data name="ReturnDeleted" xml:space="preserve"><value>تم حذف المرتجع</value></data>
+  <data name="ReturnedQuantitiesMustBePositive" xml:space="preserve"><value>الكميات المرتجعة يجب أن تكون موجبة.</value></data>
+  <data name="ReturnNeedsOriginalInvoice" xml:space="preserve"><value>المرتجع يحتاج فاتورة أصلية.</value></data>
+  <data name="ReturnNotFound" xml:space="preserve"><value>المرتجع غير موجود</value></data>
+  <data name="ReturnQtyExceedsAvailable" xml:space="preserve"><value>كمية المرتجع للصنف {0} تتجاوز المتاح ({1:0.####}).</value></data>
+  <data name="ReturnQtyRange" xml:space="preserve"><value>كمية الإرجاع للصنف {0} يجب أن تكون بين 0 و{1:0.####}.</value></data>
+  <data name="ReturnReasonRequired" xml:space="preserve"><value>سبب الإرجاع مطلوب.</value></data>
+  <data name="ReturnUpdated" xml:space="preserve"><value>تم تحديث المرتجع</value></data>
+  <data name="ReversalEntryIsAuditTrail" xml:space="preserve"><value>قيد العكس لا يُعدَّل ولا يُحذف؛ هو أثر تدقيق.</value></data>
+  <data name="ReversedEntryCannotBeEdited" xml:space="preserve"><value>القيد المعكوس لا يُعدَّل.</value></data>
+  <data name="SaleCompleted" xml:space="preserve"><value>تمت عملية البيع</value></data>
+  <data name="SalesContractNotFound" xml:space="preserve"><value>عقد البيع غير موجود</value></data>
+  <data name="SarExchangeRateIsOne" xml:space="preserve"><value>سعر صرف الريال 1.</value></data>
+  <data name="SaudiVatNumberFormat" xml:space="preserve"><value>الرقم الضريبي السعودي يجب أن يتكون من 15 خانة ويبدأ وينتهي بالرقم 3.</value></data>
+  <data name="SaveConstraintViolation" xml:space="preserve"><value>تعذّر الحفظ: {0} مرتبط بسجلات أخرى أو يخالف قيد تفرّد.</value></data>
+  <data name="SelectItemForItemCard" xml:space="preserve"><value>حدّد الصنف لعرض كارت الصنف.</value></data>
+  <data name="SellingPriceBelowMinimum" xml:space="preserve"><value>سعر البيع بعد الخصم ({0:0.00}) أقل من الحد الأدنى للمركبة ({1:0.00}).</value></data>
+  <data name="ServiceLineNeedsDescription" xml:space="preserve"><value>بند الخدمة (بدون صنف) يحتاج وصفاً.</value></data>
+  <data name="SetAnotherDefaultWarehouse" xml:space="preserve"><value>عيّن مستودعاً آخر كافتراضي بدلاً من إلغاء الافتراضي.</value></data>
+  <data name="SetSupplierBeforeConversion" xml:space="preserve"><value>حدّد المورد في الطلب قبل التحويل.</value></data>
+  <data name="ShiftAlreadyOpen" xml:space="preserve"><value>لديك وردية مفتوحة بالفعل؛ أغلقها أولاً.</value></data>
+  <data name="ShiftClosed" xml:space="preserve"><value>تم إغلاق الوردية</value></data>
+  <data name="ShiftDeleted" xml:space="preserve"><value>تم حذف الوردية</value></data>
+  <data name="ShiftHasContentUseCascade" xml:space="preserve"><value>للوردية معاملات أو مرتجعات أو حركات نقدية؛ استخدم cascade=true لحذفها كلها بعكس أثرها.</value></data>
+  <data name="ShiftNotFound" xml:space="preserve"><value>الوردية غير موجودة</value></data>
+  <data name="ShiftOpened" xml:space="preserve"><value>تم فتح الوردية</value></data>
+  <data name="ShiftUpdated" xml:space="preserve"><value>تم تحديث الوردية</value></data>
+  <data name="SkuInUse" xml:space="preserve"><value>رمز الصنف (SKU) مستخدم مسبقاً.</value></data>
+  <data name="SkuRequired" xml:space="preserve"><value>رمز الصنف (SKU) مطلوب.</value></data>
+  <data name="SomeDocumentLinesInvalid" xml:space="preserve"><value>بعض أسطر المستند غير صحيحة.</value></data>
+  <data name="SpecifyUserOrRole" xml:space="preserve"><value>حدّد المستخدم أو الدور.</value></data>
+  <data name="SplitPaymentsMustEqualInvoiceTotal" xml:space="preserve"><value>مجموع الدفعات المقسّمة يجب أن يساوي إجمالي الفاتورة.</value></data>
+  <data name="SplitPaymentsMustEqualVoucherAmount" xml:space="preserve"><value>مجموع الدفعات المقسّمة يجب أن يساوي مبلغ السند.</value></data>
+  <data name="SplitPaymentsNeedPositiveAmounts" xml:space="preserve"><value>الدفعات المقسّمة تحتاج مبالغ موجبة.</value></data>
+  <data name="StandardCostVarianceAccountNotFound" xml:space="preserve"><value>حساب فروقات التكلفة المعيارية غير موجود.</value></data>
+  <data name="StandardInvoiceRequiresCustomerVat" xml:space="preserve"><value>الفاتورة القياسية تتطلب الرقم الضريبي للعميل.</value></data>
+  <data name="StatusPrefix" xml:space="preserve"><value>الحالة: </value></data>
+  <data name="StockMovementNotFound" xml:space="preserve"><value>حركة المخزون غير موجودة</value></data>
+  <data name="StoreCreditRequiresCustomer" xml:space="preserve"><value>الرصيد الدائن يتطلب عميلاً مسجّلاً.</value></data>
+  <data name="SubAccountCodesExhausted" xml:space="preserve"><value>تم استهلاك جميع الأكواد الفرعية المتاحة تحت هذا الحساب.</value></data>
+  <data name="SubscriptionPaymentsNotConfigured" xml:space="preserve"><value>دفع الاشتراكات غير مهيأ على المنصة (Paymob:SecretKey/PublicKey/IntegrationIds).</value></data>
+  <data name="SupplierCodeInUse" xml:space="preserve"><value>كود المورد مستخدم مسبقاً.</value></data>
+  <data name="SupplierNotFound" xml:space="preserve"><value>المورد غير موجود.</value></data>
+  <data name="SystemMovementFromDocument" xml:space="preserve"><value>هذه حركة نظامية ناتجة عن مستند؛ عدّل المستند نفسه (أو أنشئ تسوية جديدة).</value></data>
+  <data name="TaxInvoiceRequiresBuyerVat" xml:space="preserve"><value>الفاتورة الضريبية (B2B) تتطلب الرقم الضريبي للمشتري.</value></data>
+  <data name="TerminalHasOpenShift" xml:space="preserve"><value>هذا الجهاز عليه وردية مفتوحة لكاشير آخر.</value></data>
+  <data name="TerminalNameRequired" xml:space="preserve"><value>اسم الجهاز/الكاشير مطلوب.</value></data>
+  <data name="TicketClosedNoReplies" xml:space="preserve"><value>التذكرة مغلقة ولا تقبل ردوداً؛ افتح تذكرة جديدة.</value></data>
+  <data name="TicketDescriptionRequired" xml:space="preserve"><value>تفاصيل التذكرة مطلوبة (10 أحرف على الأقل).</value></data>
+  <data name="TicketStatusUpdated" xml:space="preserve"><value>تم تحديث حالة التذكرة</value></data>
+  <data name="TicketTitleRequired" xml:space="preserve"><value>عنوان التذكرة مطلوب (5 أحرف على الأقل).</value></data>
+  <data name="TransactionAlreadyVoided" xml:space="preserve"><value>المعاملة ملغاة مسبقاً.</value></data>
+  <data name="TransactionDeleted" xml:space="preserve"><value>تم حذف المعاملة</value></data>
+  <data name="TransactionHasReturns" xml:space="preserve"><value>للمعاملة مرتجعات؛ احذفها أولاً.</value></data>
+  <data name="TransactionNotFound" xml:space="preserve"><value>المعاملة غير موجودة</value></data>
+  <data name="TransactionUpdated" xml:space="preserve"><value>تم تحديث المعاملة</value></data>
+  <data name="TransactionVoided" xml:space="preserve"><value>تم إلغاء المعاملة</value></data>
+  <data name="TransactionVoidedState" xml:space="preserve"><value>المعاملة ملغاة.</value></data>
+  <data name="TreasuryAccountAndPositiveAmountRequired" xml:space="preserve"><value>حدّد حساب الخزينة/البنك ومبلغاً موجباً.</value></data>
+  <data name="TreasuryAccountRequired" xml:space="preserve"><value>حساب الخزينة/البنك مطلوب.</value></data>
+  <data name="TrimAlreadyExistsForModel" xml:space="preserve"><value>الفئة مسجّلة مسبقاً لهذا الموديل.</value></data>
+  <data name="TrimArabicNameRequired" xml:space="preserve"><value>اسم الفئة بالعربية مطلوب.</value></data>
+  <data name="TrimNotFound" xml:space="preserve"><value>الفئة غير موجودة.</value></data>
+  <data name="TrimNotInModel" xml:space="preserve"><value>الفئة (Trim) المختارة لا تنتمي للموديل المحدد.</value></data>
+  <data name="UncountedLinesRemain" xml:space="preserve"><value>يوجد {0} سطر لم يُعدّ بعد؛ أدخل الكمية المعدودة لكل سطر.</value></data>
+  <data name="UnexpectedError" xml:space="preserve"><value>حدث خطأ غير متوقع.</value></data>
+  <data name="UnitCodeInUse" xml:space="preserve"><value>كود الوحدة مستخدم مسبقاً.</value></data>
+  <data name="UnitCostCannotBeNegative" xml:space="preserve"><value>تكلفة الوحدة لا تكون سالبة.</value></data>
+  <data name="UnitIsBaseForOthers" xml:space="preserve"><value>الوحدة هي وحدة أساس لوحدات أخرى.</value></data>
+  <data name="UnitOfMeasureNotFound" xml:space="preserve"><value>وحدة القياس غير موجودة.</value></data>
+  <data name="UnitUsedByItems" xml:space="preserve"><value>الوحدة مستخدمة في أصناف.</value></data>
+  <data name="UnknownScreensPrefix" xml:space="preserve"><value>شاشات غير معروفة: </value></data>
+  <data name="Updated" xml:space="preserve"><value>تم التعديل</value></data>
+  <data name="UpdatedSuccessfully" xml:space="preserve"><value>تم التعديل بنجاح</value></data>
+  <data name="UsageLimitMustBePositive" xml:space="preserve"><value>حد الاستخدام يجب أن يكون موجباً.</value></data>
+  <data name="UseCancelEndpoint" xml:space="preserve"><value>للإلغاء استخدم نقطة الإلغاء.</value></data>
+  <data name="UserCreated" xml:space="preserve"><value>تم إنشاء المستخدم</value></data>
+  <data name="UserDeactivated" xml:space="preserve"><value>تم تعطيل المستخدم</value></data>
+  <data name="UserLimitReached" xml:space="preserve"><value>تم بلوغ الحد الأقصى للمستخدمين في باقتك الحالية.</value></data>
+  <data name="UserNotFound" xml:space="preserve"><value>المستخدم غير موجود</value></data>
+  <data name="UserUpdated" xml:space="preserve"><value>تم تعديل المستخدم</value></data>
+  <data name="ValidityEndBeforeStart" xml:space="preserve"><value>نهاية الصلاحية قبل بدايتها.</value></data>
+  <data name="ValidUntilBeforeQuotationDate" xml:space="preserve"><value>تاريخ الصلاحية قبل تاريخ العرض.</value></data>
+  <data name="VatNumberAlreadyRegistered" xml:space="preserve"><value>هذا الرقم الضريبي مسجّل مسبقاً.</value></data>
+  <data name="VatNumberFormat" xml:space="preserve"><value>الرقم الضريبي يجب أن يتكون من 15 خانة ويبدأ وينتهي بالرقم 3.</value></data>
+  <data name="VatNumberInvalid" xml:space="preserve"><value>الرقم الضريبي غير صالح.</value></data>
+  <data name="VatRateRange" xml:space="preserve"><value>نسبة الضريبة بين 0 و100.</value></data>
+  <data name="VehicleChangeViaAllocation" xml:space="preserve"><value>تغيير المركبة يتم بالتخصيص بعد الاعتماد أو قبله في المسودة.</value></data>
+  <data name="VehicleCountLineRequiresVin" xml:space="preserve"><value>كل سطر في جرد المركبات يتطلب رقم الهيكل (VIN).</value></data>
+  <data name="VehicleCountNoItems" xml:space="preserve"><value>جرد المركبات لا يقبل أصنافاً؛ استخدم جرد الأصناف.</value></data>
+  <data name="VehicleCountQtyValues" xml:space="preserve"><value>المركبة إما موجودة (1) أو مفقودة (0).</value></data>
+  <data name="VehicleFromPurchaseInvoice" xml:space="preserve"><value>المركبة واردة من فاتورة شراء؛ تُحذف بحذف الفاتورة أو إلغاء ترحيلها.</value></data>
+  <data name="VehicleFromPurchaseOrder" xml:space="preserve"><value>المركبة واردة من أمر شراء ولا تُحذف.</value></data>
+  <data name="VehicleLinesOnlyForPurchaseAndSales" xml:space="preserve"><value>أسطر السيارات مدعومة لفواتير الشراء والبيع فقط.</value></data>
+  <data name="VehicleLinkedToSalesContract" xml:space="preserve"><value>المركبة مرتبطة بعقد بيع.</value></data>
+  <data name="VehicleNotFound" xml:space="preserve"><value>المركبة غير موجودة.</value></data>
+  <data name="VehiclePurchaseInvoiceRecorded" xml:space="preserve"><value>تم تسجيل فاتورة شراء المركبة</value></data>
+  <data name="VehicleReservedForAnotherContract" xml:space="preserve"><value>المركبة محجوزة لعقد آخر.</value></data>
+  <data name="VehicleSold" xml:space="preserve"><value>المركبة مباعة.</value></data>
+  <data name="VehicleWrittenOffNotSellable" xml:space="preserve"><value>المركبة مشطوبة بجرد معتمد ولا تُباع.</value></data>
+  <data name="VehicleWrittenOffRestoreByCount" xml:space="preserve"><value>المركبة مشطوبة بجرد معتمد؛ تُستعاد بجرد يعثر عليها.</value></data>
+  <data name="VinAlreadyRegistered" xml:space="preserve"><value>رقم الشاسيه مسجّل مسبقاً.</value></data>
+  <data name="VinCountExceedsLineQty" xml:space="preserve"><value>عدد الشواسيهات لبند يتجاوز كميته.</value></data>
+  <data name="VinCountMustMatchQuantities" xml:space="preserve"><value>عدد الشواسيهات ({0}) يجب أن يساوي إجمالي الكميات المطلوبة ({1}).</value></data>
+  <data name="VinFormatInvalid" xml:space="preserve"><value>رقم الشاسيه (VIN) يجب أن يتكون من 17 خانة (أحرف وأرقام بدون I/O/Q).</value></data>
+  <data name="VinInvalid" xml:space="preserve"><value>رقم شاسيه غير صالح (17 خانة بدون I/O/Q).</value></data>
+  <data name="VinRequired" xml:space="preserve"><value>رقم الشاسيه (VIN) مطلوب.</value></data>
+  <data name="VinsAlreadyRegisteredPrefix" xml:space="preserve"><value>شواسيهات مسجّلة مسبقاً: </value></data>
+  <data name="VoidedTransactionNotEditable" xml:space="preserve"><value>المعاملة ملغاة ولا تُعدَّل.</value></data>
+  <data name="VoucherAmountMustBePositive" xml:space="preserve"><value>مبلغ السند يجب أن يكون أكبر من صفر.</value></data>
+  <data name="VoucherCreatedAndPosted" xml:space="preserve"><value>تم إنشاء السند وترحيله</value></data>
+  <data name="VoucherDeletedAndReversed" xml:space="preserve"><value>تم حذف السند وعكس قيده</value></data>
+  <data name="VoucherNotFound" xml:space="preserve"><value>السند غير موجود</value></data>
+  <data name="VoucherUpdatedAndReposted" xml:space="preserve"><value>تم تعديل السند وإعادة ترحيله</value></data>
+  <data name="WarehouseCodeInUse" xml:space="preserve"><value>كود المستودع مستخدم مسبقاً.</value></data>
+  <data name="WarehouseHasMovements" xml:space="preserve"><value>المستودع عليه حركات مخزون.</value></data>
+  <data name="WarehouseNotFound" xml:space="preserve"><value>المستودع غير موجود.</value></data>
+  <data name="YearAlreadyExistsForTrim" xml:space="preserve"><value>السنة مسجّلة مسبقاً لهذه الفئة.</value></data>
+  <data name="ZatcaNotEnabled" xml:space="preserve"><value>الربط مع هيئة الزكاة غير مُفعَّل في إعدادات المنشأة.</value></data>
+  <data name="ZatcaSubmissionNotImplemented" xml:space="preserve"><value>الإرسال الفعلي لهيئة الزكاة غير مُنفَّذ في هذه النسخة (يتطلب شهادة CSID حقيقية).</value></data>
+  <data name="ZatcaTestCompleteNotConnected" xml:space="preserve"><value>بيانات الربط مكتملة، لكن الاتصال الفعلي بهيئة الزكاة غير مُفعَّل في هذه النسخة.</value></data>
+  <data name="ZatcaTestMissingPrefix" xml:space="preserve"><value>بيانات الربط ناقصة: </value></data>
+</root>

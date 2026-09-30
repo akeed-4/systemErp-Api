@@ -12,7 +12,7 @@ internal static class TradeHelper
 
     public static void RequireParty(string partyName, List<string> errors)
     {
-        if (string.IsNullOrWhiteSpace(partyName)) errors.Add("اسم الطرف مطلوب.");
+        if (string.IsNullOrWhiteSpace(partyName)) errors.Add(Messages.PartyNameRequired);
     }
 
     public static InvoiceType InvoiceTypeFor(string? partyVat) => string.IsNullOrWhiteSpace(partyVat) ? InvoiceType.Simplified : InvoiceType.TaxInvoice;

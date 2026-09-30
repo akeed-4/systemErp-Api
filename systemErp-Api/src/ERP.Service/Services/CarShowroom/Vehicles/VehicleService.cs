@@ -12,7 +12,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     internal static readonly Regex VinPattern = new("^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
 
     public VehicleService(ErpDbContext db) : base(db) { }
-    protected override string Label => "المركبة";
+    protected override string Label => Messages.LabelVehicle;
 
     public CarVatResult CalculateVat(CalculateCarVatRequestDto r) => CarVat.Calculate(r.CostPrice, r.SellingPrice, r.Mode);
 
@@ -56,29 +56,29 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     {
         var errors = new List<string>();
         d.ChassisNumber = (d.ChassisNumber ?? string.Empty).Trim().ToUpperInvariant();
-        if (!VinPattern.IsMatch(d.ChassisNumber)) errors.Add("رقم الشاسيه (VIN) يجب أن يتكون من 17 خانة (أحرف وأرقام بدون I/O/Q).");
-        if (d.Year is < 1980 or > 2100) errors.Add("سنة الصنع غير صالحة.");
+        if (!VinPattern.IsMatch(d.ChassisNumber)) errors.Add(Messages.VinFormatInvalid);
+        if (d.Year is < 1980 or > 2100) errors.Add(Messages.ModelYearInvalid);
         if (d.SellingPrice < 0 || d.PurchasePrice < 0 || d.AdditionalCosts < 0 || d.PreparationCost < 0 || d.MinSellingPrice < 0)
-            errors.Add("الأسعار والتكاليف لا تكون سالبة.");
-        if (d.MinSellingPrice > d.SellingPrice) errors.Add("الحد الأدنى للسعر أعلى من سعر البيع.");
-        if (d.Condition == VehicleCondition.New && d.MileageKm is > 500) errors.Add("السيارة الجديدة لا يتجاوز عدّادها 500 كم.");
+            errors.Add(Messages.PricesAndCostsCannotBeNegative);
+        if (d.MinSellingPrice > d.SellingPrice) errors.Add(Messages.MinPriceAboveSellingPrice);
+        if (d.Condition == VehicleCondition.New && d.MileageKm is > 500) errors.Add(Messages.NewCarMileageLimit);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<Vehicle>().AnyAsync(v => v.ChassisNumber == d.ChassisNumber && (existing == null || v.Id != existing.Id), ct))
-            throw new ConflictException("رقم الشاسيه مسجّل مسبقاً.");
+            throw new ConflictException(Messages.VinAlreadyRegistered);
 
-        if (d.BrandId.HasValue && !await Db.Set<CarBrand>().AnyAsync(b => b.Id == d.BrandId, ct)) throw new ValidationFailedException("الماركة غير موجودة.");
-        if (d.ModelId.HasValue && !await Db.Set<CarModel>().AnyAsync(m => m.Id == d.ModelId, ct)) throw new ValidationFailedException("الموديل غير موجود.");
-        if (d.TrimId.HasValue && !await Db.Set<CarTrim>().AnyAsync(t => t.Id == d.TrimId, ct)) throw new ValidationFailedException("الفئة غير موجودة.");
+        if (d.BrandId.HasValue && !await Db.Set<CarBrand>().AnyAsync(b => b.Id == d.BrandId, ct)) throw new ValidationFailedException(Messages.BrandNotFound);
+        if (d.ModelId.HasValue && !await Db.Set<CarModel>().AnyAsync(m => m.Id == d.ModelId, ct)) throw new ValidationFailedException(Messages.ModelNotFound);
+        if (d.TrimId.HasValue && !await Db.Set<CarTrim>().AnyAsync(t => t.Id == d.TrimId, ct)) throw new ValidationFailedException(Messages.TrimNotFound);
         if (d.ModelId.HasValue && d.BrandId.HasValue && !await Db.Set<CarModel>().AnyAsync(m => m.Id == d.ModelId && m.BrandId == d.BrandId, ct))
-            throw new ValidationFailedException("الموديل المختار لا ينتمي للماركة المحددة.");
+            throw new ValidationFailedException(Messages.ModelNotInBrand);
         if (d.TrimId.HasValue && d.ModelId.HasValue && !await Db.Set<CarTrim>().AnyAsync(t => t.Id == d.TrimId && t.ModelId == d.ModelId, ct))
-            throw new ValidationFailedException("الفئة (Trim) المختارة لا تنتمي للموديل المحدد.");
+            throw new ValidationFailedException(Messages.TrimNotInModel);
         if (existing != null && existing.Status != VehicleStatus.Available && d.VatMode != existing.VatMode)
-            throw new ConflictException("لا يمكن تغيير نمط الضريبة لمركبة محجوزة أو مباعة.");
+            throw new ConflictException(Messages.CannotChangeVatModeReservedOrSold);
         if (CarVat.IsMarginScheme(d.VatMode) && (existing == null || !CarVat.IsMarginScheme(existing.VatMode))
             && await PurchasedWithInputVatAsync(existing, d.ProcurementOrderId, ct))
-            throw new ValidationFailedException("لا يمكن احتساب الضريبة على هامش الربح: المركبة مشتراة بفاتورة عليها ضريبة مدخلات 15%. نظام الهامش للسيارات المشتراة بدون ضريبة مدخلات.");
+            throw new ValidationFailedException(Messages.MarginSchemeNotAllowedWithInputVat);
     }
 
     /// <summary>هل خُصمت ضريبة مدخلات عند شراء المركبة (سطر فاتورة شراء قياسي 15% أو أمر توريد عليه ضريبة)؟</summary>
@@ -104,17 +104,18 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         e.Status = o.GetValue<VehicleStatus>(nameof(Vehicle.Status)); // الحالة تتغير بدورة البيع فقط
         e.ProcurementOrderId = o.GetValue<Guid?>(nameof(Vehicle.ProcurementOrderId));
         e.PurchaseInvoiceId = o.GetValue<Guid?>(nameof(Vehicle.PurchaseInvoiceId));
-        if (e.Status == VehicleStatus.Sold) throw new ConflictException("لا يمكن تعديل مركبة مباعة.");
+        if (e.Status == VehicleStatus.Sold) throw new ConflictException(Messages.CannotEditSoldVehicle);
+        if (e.Status == VehicleStatus.WrittenOff) throw new ConflictException(Messages.VehicleWrittenOffRestoreByCount);
         await FillDenormalizedAsync(e, ct);
         Recalculate(e);
     }
 
     protected override async Task OnDeletingAsync(Vehicle e, CancellationToken ct)
     {
-        if (e.Status != VehicleStatus.Available) throw new ConflictException("لا يمكن حذف مركبة محجوزة أو مباعة.");
-        if (e.PurchaseInvoiceId != null) throw new ConflictException("المركبة واردة من فاتورة شراء؛ تُحذف بحذف الفاتورة أو إلغاء ترحيلها.");
-        if (await Db.Set<CarSalesContract>().AnyAsync(c => c.VehicleId == e.Id, ct)) throw new ConflictException("المركبة مرتبطة بعقد بيع.");
-        if (await Db.Set<CarProcurementOrderVin>().AnyAsync(v => v.VehicleId == e.Id, ct)) throw new ConflictException("المركبة واردة من أمر شراء ولا تُحذف.");
+        if (e.Status != VehicleStatus.Available) throw new ConflictException(Messages.CannotDeleteReservedOrSoldVehicle);
+        if (e.PurchaseInvoiceId != null) throw new ConflictException(Messages.VehicleFromPurchaseInvoice);
+        if (await Db.Set<CarSalesContract>().AnyAsync(c => c.VehicleId == e.Id, ct)) throw new ConflictException(Messages.VehicleLinkedToSalesContract);
+        if (await Db.Set<CarProcurementOrderVin>().AnyAsync(v => v.VehicleId == e.Id, ct)) throw new ConflictException(Messages.VehicleFromPurchaseOrder);
     }
 
     private async Task FillDenormalizedAsync(Vehicle e, CancellationToken ct)
@@ -128,7 +129,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         if (e.AgentId.HasValue && string.IsNullOrWhiteSpace(e.AgentNameAr))
             e.AgentNameAr = await Db.Set<CarAgent>().Where(a => a.Id == e.AgentId).Select(a => a.NameAr).FirstAsync(ct);
         if (string.IsNullOrWhiteSpace(e.BrandNameAr) || string.IsNullOrWhiteSpace(e.ModelNameAr))
-            throw new ValidationFailedException("الماركة والموديل مطلوبان (اختر من القوائم أو اكتب الاسم).");
+            throw new ValidationFailedException(Messages.BrandAndModelRequiredChooseOrType);
     }
 
     /// <summary>التكلفة الإجمالية والضريبة تُحسب في الخادم دائماً.</summary>

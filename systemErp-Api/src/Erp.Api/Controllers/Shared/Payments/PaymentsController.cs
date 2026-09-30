@@ -16,7 +16,7 @@ public class PaymentsController : ErpControllerBase
 
     [HttpPost("InvoiceLink"), RequireScreen("sales", ScreenAction.Create)]
     public async Task<IActionResult> InvoiceLink([FromBody] CreateInvoicePaymentLinkDto dto, CancellationToken ct)
-        => Success(await _payments.CreateInvoicePaymentLinkAsync(dto, ct), "تم إنشاء رابط الدفع");
+        => Success(await _payments.CreateInvoicePaymentLinkAsync(dto, ct), Messages.PaymentLinkCreated);
 
     [HttpPost("pos"), RequireScreen("sales", ScreenAction.Create)]
     public async Task<IActionResult> Pos([FromBody] CreatePosPaymentDto dto, CancellationToken ct)
@@ -33,7 +33,7 @@ public class PaymentsController : ErpControllerBase
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _payments.GetAsync(id, ct));
 
     [HttpPost("{id:guid}/cancel"), RequireScreen("sales", ScreenAction.Edit)]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _payments.CancelAsync(id, ct), "تم إلغاء عملية الدفع");
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _payments.CancelAsync(id, ct), Messages.PaymentCancelled);
 
     /// <summary>صفحة نتيجة الدفع للعميل بعد العودة من Paymob (بلا دخول).</summary>
     [HttpGet("{id:guid}/public"), AllowAnonymous]
@@ -50,5 +50,5 @@ public class PaymentsController : ErpControllerBase
 
     [HttpPut("GatewaySettings"), RequireScreen("user-permissions", ScreenAction.Edit)]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdatePaymentGatewaySettingsDto dto, CancellationToken ct)
-        => Success(await _payments.UpdateSettingsAsync(dto, ct), "تم حفظ إعدادات بوابة الدفع");
+        => Success(await _payments.UpdateSettingsAsync(dto, ct), Messages.PaymentGatewaySettingsSaved);
 }

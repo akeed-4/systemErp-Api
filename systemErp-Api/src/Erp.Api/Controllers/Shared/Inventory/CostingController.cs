@@ -14,7 +14,7 @@ public class CostingController : ErpControllerBase
 
     [HttpPut("policy")]
     public async Task<IActionResult> Set([FromBody] CreateCostingPolicyDto policy, CancellationToken ct)
-        => Success(await _costing.SetPolicyAsync(policy, ct), "تم حفظ سياسة التكلفة");
+        => Success(await _costing.SetPolicyAsync(policy, ct), Messages.CostingPolicySaved);
 
     [HttpPost("RecalculateAll")]
     public async Task<IActionResult> Recalculate(CancellationToken ct) => Success(await _costing.RecalculateAllAsync(ct));

@@ -39,7 +39,7 @@ public class AuthService : IAuthService
     public async Task<AuthResultDto> LoginAsync(LoginRequestDto request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
-            throw new ValidationFailedException("البريد الإلكتروني وكلمة المرور مطلوبان.");
+            throw new ValidationFailedException(Messages.EmailAndPasswordRequired);
 
         var email = request.Email.Trim().ToLower();
 
@@ -61,12 +61,12 @@ public class AuthService : IAuthService
 
         _tenant.SetTenant(user.TenantId);
         var tenant = await _db.Set<Tenant>().FirstOrDefaultAsync(t => t.Id == user.TenantId, ct);
-        if (tenant is not { IsActive: true }) throw new ForbiddenException("المنشأة غير مفعّلة.");
+        if (tenant is not { IsActive: true }) throw new ForbiddenException(Messages.CompanyInactive);
 
         user.LastLoginAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        return Build(user, tenant, "تم تسجيل الدخول بنجاح");
+        return Build(user, tenant, Messages.LoginSucceeded);
     }
 
     public Task<AuthResultDto> RegisterCompanyAsync(CompanyRegistrationRequestDto r, CancellationToken ct = default)
@@ -76,9 +76,9 @@ public class AuthService : IAuthService
             var email = r.AdminEmail.Trim().ToLower();
 
             if (await _db.Set<Tenant>().IgnoreQueryFilters().AnyAsync(t => t.VatNumber == r.VatNumber, token))
-                throw new ConflictException("هذا الرقم الضريبي مسجّل مسبقاً.");
+                throw new ConflictException(Messages.VatNumberAlreadyRegistered);
             if (await _db.Set<User>().IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email, token))
-                throw new ConflictException("هذا البريد الإلكتروني مسجّل مسبقاً.");
+                throw new ConflictException(Messages.EmailAlreadyRegistered);
 
             var tenant = new Tenant
             {
@@ -115,18 +115,18 @@ public class AuthService : IAuthService
             await _db.SaveChangesAsync(token);
             await _provisioning.SeedAsync(tenant.Id, tenant.Currency, token);
 
-            return Build(admin, tenant, $"تم تسجيل منشأة '{tenant.NameAr}' وتفعيل الاشتراك بنجاح!");
+            return Build(admin, tenant, string.Format(Messages.CompanyRegistered, tenant.NameAr));
         }, ct);
 
     private static void ValidateRegistration(CompanyRegistrationRequestDto r)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(r.CompanyNameAr)) errors.Add("اسم المنشأة بالعربية مطلوب.");
+        if (string.IsNullOrWhiteSpace(r.CompanyNameAr)) errors.Add(Messages.CompanyArabicNameRequired);
         if (!SaudiVat.IsValid(r.VatNumber))
-            errors.Add("الرقم الضريبي السعودي يجب أن يتكون من 15 خانة ويبدأ وينتهي بالرقم 3.");
-        if (string.IsNullOrWhiteSpace(r.AdminName)) errors.Add("اسم المدير مطلوب.");
-        if (string.IsNullOrWhiteSpace(r.AdminEmail) || !r.AdminEmail.Contains('@')) errors.Add("بريد المدير غير صالح.");
-        if (r.Password is null || r.Password.Length < MinPasswordLength) errors.Add($"كلمة المرور {MinPasswordLength} أحرف على الأقل.");
+            errors.Add(Messages.SaudiVatNumberFormat);
+        if (string.IsNullOrWhiteSpace(r.AdminName)) errors.Add(Messages.AdminNameRequired);
+        if (string.IsNullOrWhiteSpace(r.AdminEmail) || !r.AdminEmail.Contains('@')) errors.Add(Messages.AdminEmailInvalid);
+        if (r.Password is null || r.Password.Length < MinPasswordLength) errors.Add(string.Format(Messages.PasswordMinLength, MinPasswordLength));
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
     }
 
@@ -149,7 +149,7 @@ public class AuthService : IAuthService
     public async Task<ForgotPasswordResultDto> RequestPasswordResetAsync(ForgotPasswordRequestDto request, CancellationToken ct = default)
     {
         var id = request.Identifier?.Trim().ToLower() ?? string.Empty;
-        if (id.Length == 0) throw new ValidationFailedException("أدخل البريد الإلكتروني أو رقم الجوال.");
+        if (id.Length == 0) throw new ValidationFailedException(Messages.EnterEmailOrMobile);
 
         var user = await _db.Set<User>().IgnoreQueryFilters()
             .Where(u => u.IsActive && (u.Email.ToLower() == id || u.Phone == id)).FirstOrDefaultAsync(ct);
@@ -197,7 +197,7 @@ public class AuthService : IAuthService
     public async Task<OperationResultDto> ResetPasswordAsync(ResetPasswordRequestDto request, CancellationToken ct = default)
     {
         if (request.NewPassword is null || request.NewPassword.Trim().Length < MinPasswordLength)
-            throw new ValidationFailedException($"كلمة المرور {MinPasswordLength} أحرف على الأقل.");
+            throw new ValidationFailedException(string.Format(Messages.PasswordMinLength, MinPasswordLength));
 
         var otp = await FindValidOtpAsync(request.UserId, request.Otp, markAttempt: true, ct);
         var user = await _db.Set<User>().FirstAsync(u => u.Id == request.UserId, ct);
@@ -211,20 +211,20 @@ public class AuthService : IAuthService
     private async Task<PasswordResetOtp> FindValidOtpAsync(Guid userId, string code, bool markAttempt, CancellationToken ct)
     {
         var user = await _db.Set<User>().IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct)
-            ?? throw new ValidationFailedException("رمز التحقق غير صالح أو منتهي.");
+            ?? throw new ValidationFailedException(Messages.OtpInvalidOrExpired);
         _tenant.SetTenant(user.TenantId);
 
         var otp = await _db.Set<PasswordResetOtp>().Where(o => o.UserId == userId && o.UsedAt == null)
             .OrderByDescending(o => o.CreatedAt).FirstOrDefaultAsync(ct);
         if (otp == null || otp.ExpiresAt < DateTime.UtcNow || otp.Attempts >= MaxOtpAttempts)
-            throw new ValidationFailedException("رمز التحقق غير صالح أو منتهي.");
+            throw new ValidationFailedException(Messages.OtpInvalidOrExpired);
 
         if (markAttempt) otp.Attempts++;
         if (!CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(otp.CodeHash), Encoding.UTF8.GetBytes(HashOtp(userId, code?.Trim() ?? string.Empty))))
         {
             await _db.SaveChangesAsync(ct);
-            throw new ValidationFailedException("رمز التحقق غير صحيح.");
+            throw new ValidationFailedException(Messages.OtpIncorrect);
         }
         return otp;
     }

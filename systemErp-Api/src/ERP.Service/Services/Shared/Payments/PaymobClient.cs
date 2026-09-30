@@ -60,11 +60,11 @@ public class PaymobClient : IPaymobClient
         using var res = await client.SendAsync(req, ct);
         var body = await res.Content.ReadAsStringAsync(ct);
         if (!res.IsSuccessStatusCode)
-            throw new ConflictException($"رفضت Paymob إنشاء عملية الدفع ({(int)res.StatusCode}): {Truncate(body, 300)}");
+            throw new ConflictException(string.Format(Messages.PaymobRejectedPayment, (int)res.StatusCode, Truncate(body, 300)));
 
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
-        var clientSecret = root.GetProperty("client_secret").GetString() ?? throw new ConflictException("رد Paymob بلا client_secret.");
+        var clientSecret = root.GetProperty("client_secret").GetString() ?? throw new ConflictException(Messages.PaymobNoClientSecret);
         var id = root.TryGetProperty("id", out var idEl) ? idEl.ToString() : string.Empty;
         long? orderId = root.TryGetProperty("intention_order_id", out var o) && o.ValueKind == JsonValueKind.Number ? o.GetInt64() : null;
         var checkout = $"{baseUrl}/unifiedcheckout/?publicKey={Uri.EscapeDataString(c.PublicKey)}&clientSecret={Uri.EscapeDataString(clientSecret)}";

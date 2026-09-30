@@ -22,7 +22,7 @@ public class ApprovalsController : ErpControllerBase
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _approvals.GetAsync(id, ct));
 
     [HttpDelete("{id:guid}"), RequireScreen("dashboard", ScreenAction.View)]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _approvals.CancelAsync(id, ct), "تم سحب الطلب");
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _approvals.CancelAsync(id, ct), Messages.RequestWithdrawn);
 
     [HttpPost("{id:guid}/approve"), RequireScreen("approval-policies", ScreenAction.Approve)]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)

@@ -35,6 +35,6 @@ public class NumberSequenceService : INumberSequenceService
                 _db.Entry(seq).State = EntityState.Detached; // سباق إنشاء العدّاد لأول مرة
             }
         }
-        throw new ConflictException("تعذّر توليد رقم المستند، أعد المحاولة.");
+        throw new ConflictException(Messages.DocumentNumberGenerationFailed);
     }
 }

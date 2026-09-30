@@ -11,7 +11,7 @@ public class AuditService : CrudService<AuditLog, AuditLogDto, CreateAuditLogDto
 {
     private readonly ICurrentUser _user;
     public AuditService(ErpDbContext db, ICurrentUser user) : base(db) => _user = user;
-    protected override string Label => "سجل التدقيق";
+    protected override string Label => Messages.LabelAuditLog;
 
     protected override IQueryable<AuditLog> ApplyFilters(IQueryable<AuditLog> q, PaginationParams p)
         => string.IsNullOrWhiteSpace(p.Status) ? q : q.Where(a => a.EntityName == p.Status);

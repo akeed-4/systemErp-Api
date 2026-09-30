@@ -23,8 +23,8 @@ builder.Services.AddControllers(o =>
         o.InvalidModelStateResponseFactory = ctx =>
         {
             var errors = ctx.ModelState.Where(e => e.Value?.Errors.Count > 0)
-                .SelectMany(e => e.Value!.Errors.Select(x => string.IsNullOrEmpty(x.ErrorMessage) ? $"قيمة غير صالحة في الحقل {e.Key}" : x.ErrorMessage)).ToList();
-            return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(ApiResponse<object>.Fail(400, "بيانات الطلب غير صالحة.", errors));
+                .SelectMany(e => e.Value!.Errors.Select(x => string.IsNullOrEmpty(x.ErrorMessage) ? string.Format(Messages.InvalidFieldValue, e.Key) : x.ErrorMessage)).ToList();
+            return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(ApiResponse<object>.Fail(400, Messages.InvalidRequestData, errors));
         });
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(o => JsonConfiguration.Apply(o.SerializerOptions));
 
@@ -50,7 +50,7 @@ builder.Services.AddErpServices(builder.Configuration);
 // JWT
 var jwt = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>() ?? new JwtOptions();
 if (string.IsNullOrWhiteSpace(jwt.Key) || jwt.Key.Length < 32)
-    throw new InvalidOperationException("Jwt:Key غير مضبوط (32 حرفاً على الأقل). استخدم user-secrets أو متغير البيئة Jwt__Key.");
+    throw new InvalidOperationException(Messages.JwtKeyNotConfigured);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
@@ -71,7 +71,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 ctx.HandleResponse();
                 ctx.Response.StatusCode = 401;
                 ctx.Response.ContentType = "application/json; charset=utf-8";
-                await ctx.Response.WriteAsJsonAsync(ApiResponse<object>.Fail(401, "يلزم تسجيل الدخول."));
+                await ctx.Response.WriteAsJsonAsync(ApiResponse<object>.Fail(401, Messages.LoginRequired));
             },
         };
     });
@@ -86,6 +86,16 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 
 var app = builder.Build();
 
+// لغة الرسائل من Accept-Language (ar افتراضياً | en). تُضبط لغة الواجهة فقط (UICulture)، وتنسيق الأرقام والتواريخ
+// يبقى على ثقافة الخادم كما كان. تسبق معالج الأخطاء لأن الثقافة المضبوطة داخل middleware لاحق لا تعود إليه.
+app.UseRequestLocalization(o =>
+{
+    var server = System.Globalization.CultureInfo.CurrentCulture;
+    o.DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(server, new System.Globalization.CultureInfo("ar"));
+    o.SupportedCultures = new[] { server };
+    o.SupportedUICultures = new[] { new System.Globalization.CultureInfo("ar"), new System.Globalization.CultureInfo("en") };
+    o.RequestCultureProviders = new[] { new Microsoft.AspNetCore.Localization.AcceptLanguageHeaderRequestCultureProvider() };
+});
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 if (app.Environment.IsDevelopment())
 {

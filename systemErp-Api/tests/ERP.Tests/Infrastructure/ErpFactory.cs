@@ -80,6 +80,8 @@ public class Client
     public string? Token { get; private set; }
     public string Email { get; private set; } = string.Empty;
     public Guid TenantId { get; private set; }
+    /// <summary>قيمة Accept-Language لطلبات هذا العميل (null = بدون ترويسة، فتُستخدم العربية الافتراضية).</summary>
+    public string? Language { get; set; }
 
     public Client(HttpClient http) => _http = http;
 
@@ -110,6 +112,7 @@ public class Client
         var req = new HttpRequestMessage(method, "/api/v1" + path);
         if (body != null && method != HttpMethod.Get) req.Content = JsonContent.Create(body);
         if (!anonymous && Token != null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+        if (Language != null) req.Headers.TryAddWithoutValidation("Accept-Language", Language);
         var resp = await _http.SendAsync(req);
         var text = await resp.Content.ReadAsStringAsync();
         JsonNode? node = null;

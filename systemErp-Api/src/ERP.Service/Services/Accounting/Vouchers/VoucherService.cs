@@ -40,7 +40,7 @@ public class VoucherService : IVoucherService
 
     public async Task<VoucherDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<VoucherDto>(await _db.Set<Voucher>().AsNoTracking().Include(v => v.PaymentSplits).FirstOrDefaultAsync(v => v.Id == id, ct)
-            ?? throw new NotFoundException("السند غير موجود"));
+            ?? throw new NotFoundException(Messages.VoucherNotFound));
 
     public Task<VoucherDto> CreateAsync(CreateVoucherDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -62,8 +62,8 @@ public class VoucherService : IVoucherService
         => _tx.RunAsync(async token =>
         {
             var voucher = await _db.Set<Voucher>().Include(v => v.PaymentSplits).FirstOrDefaultAsync(v => v.Id == id, token)
-                ?? throw new NotFoundException("السند غير موجود");
-            if (r.Type != voucher.Type) throw new ConflictException("لا يمكن تغيير نوع السند (قبض/صرف).");
+                ?? throw new NotFoundException(Messages.VoucherNotFound);
+            if (r.Type != voucher.Type) throw new ConflictException(Messages.CannotChangeVoucherType);
             Validate(r);
 
             if (voucher.JournalEntryId.HasValue)
@@ -88,12 +88,12 @@ public class VoucherService : IVoucherService
     private static void Validate(CreateVoucherDto r)
     {
         var errors = new List<string>();
-        if (r.Amount <= 0) errors.Add("مبلغ السند يجب أن يكون أكبر من صفر.");
-        if (string.IsNullOrWhiteSpace(r.PartyName)) errors.Add("اسم الطرف مطلوب.");
-        if (string.IsNullOrWhiteSpace(r.PartyAccountCode)) errors.Add("حساب الطرف مطلوب.");
-        if (!r.IsSplitPayment && string.IsNullOrWhiteSpace(r.TreasuryAccountCode)) errors.Add("حساب الخزينة/البنك مطلوب.");
+        if (r.Amount <= 0) errors.Add(Messages.VoucherAmountMustBePositive);
+        if (string.IsNullOrWhiteSpace(r.PartyName)) errors.Add(Messages.PartyNameRequired);
+        if (string.IsNullOrWhiteSpace(r.PartyAccountCode)) errors.Add(Messages.PartyAccountRequired);
+        if (!r.IsSplitPayment && string.IsNullOrWhiteSpace(r.TreasuryAccountCode)) errors.Add(Messages.TreasuryAccountRequired);
         if (r.IsSplitPayment && Math.Abs(r.PaymentSplits.Sum(s => s.Amount) - r.Amount) > 0.005m)
-            errors.Add("مجموع الدفعات المقسّمة يجب أن يساوي مبلغ السند.");
+            errors.Add(Messages.SplitPaymentsMustEqualVoucherAmount);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
     }
 
@@ -125,7 +125,7 @@ public class VoucherService : IVoucherService
         => _tx.RunAsync(async token =>
         {
             var voucher = await _db.Set<Voucher>().Include(v => v.PaymentSplits).FirstOrDefaultAsync(v => v.Id == id, token)
-                ?? throw new NotFoundException("السند غير موجود");
+                ?? throw new NotFoundException(Messages.VoucherNotFound);
             // السند المرحَّل لا يُحذف فيزيائياً: يُعكس قيده ثم يُزال السند (مطابقاً لسلوك deleteVoucher في الواجهة).
             if (voucher.JournalEntryId.HasValue) await _posting.ReverseAsync(voucher.JournalEntryId.Value, $"حذف السند {voucher.VoucherNumber}", token);
             _db.RemoveRange(voucher.PaymentSplits);

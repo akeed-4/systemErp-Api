@@ -6,7 +6,7 @@ namespace ERP.Service.Services.Shared;
 public class ProductCategoryService : CrudService<ProductCategory, ProductCategoryDto, CreateProductCategoryDto, UpdateProductCategoryDto>, IProductCategoryService
 {
     public ProductCategoryService(ErpDbContext db) : base(db) { }
-    protected override string Label => "التصنيف";
+    protected override string Label => Messages.LabelCategory;
 
     protected override IQueryable<ProductCategory> ApplySearch(IQueryable<ProductCategory> q, string t)
         => q.Where(c => c.Code.Contains(t) || c.NameAr.Contains(t) || c.NameEn.Contains(t));
@@ -14,9 +14,9 @@ public class ProductCategoryService : CrudService<ProductCategory, ProductCatego
     protected override async Task ValidateAsync(CreateProductCategoryDto d, ProductCategory? existing, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(d.Code) || string.IsNullOrWhiteSpace(d.NameAr))
-            throw new ValidationFailedException("الكود والاسم بالعربية مطلوبان.");
+            throw new ValidationFailedException(Messages.CodeAndArabicNameRequired);
         if (await Db.Set<ProductCategory>().AnyAsync(c => c.Code == d.Code && (existing == null || c.Id != existing.Id), ct))
-            throw new ConflictException("كود التصنيف مستخدم مسبقاً.");
+            throw new ConflictException(Messages.CategoryCodeInUse);
     }
 
     protected override async Task OnUpdatingAsync(ProductCategory e, UpdateProductCategoryDto d, CancellationToken ct)
@@ -25,6 +25,6 @@ public class ProductCategoryService : CrudService<ProductCategory, ProductCatego
     protected override async Task OnDeletingAsync(ProductCategory e, CancellationToken ct)
     {
         if (await Db.Set<Product>().AnyAsync(p => p.Category == e.Code, ct))
-            throw new ConflictException("التصنيف مستخدم في أصناف.");
+            throw new ConflictException(Messages.CategoryUsedByItems);
     }
 }

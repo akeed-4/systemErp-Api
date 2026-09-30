@@ -28,6 +28,6 @@ public class PermissionsController : ErpControllerBase
     public async Task<IActionResult> Save([FromBody] SavePermissionsRequestDto request, CancellationToken ct)
     {
         await _permissions.SaveAsync(request, ct);
-        return Success("تم حفظ تحديثات الصلاحيات بنجاح");
+        return Success(Messages.PermissionsSaved);
     }
 }

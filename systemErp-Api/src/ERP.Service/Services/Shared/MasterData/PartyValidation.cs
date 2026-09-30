@@ -8,10 +8,10 @@ internal static class PartyValidation
     public static void Validate(string nameAr, string? vat, string? email, decimal opening, List<string> extra)
     {
         var errors = new List<string>(extra);
-        if (string.IsNullOrWhiteSpace(nameAr)) errors.Add("الاسم بالعربية مطلوب.");
+        if (string.IsNullOrWhiteSpace(nameAr)) errors.Add(Messages.ArabicNameRequired);
         if (!string.IsNullOrWhiteSpace(vat) && !SaudiVat.IsValid(vat))
-            errors.Add("الرقم الضريبي يجب أن يتكون من 15 خانة ويبدأ وينتهي بالرقم 3.");
-        if (!string.IsNullOrWhiteSpace(email) && !email.Contains('@')) errors.Add("البريد الإلكتروني غير صالح.");
+            errors.Add(Messages.VatNumberFormat);
+        if (!string.IsNullOrWhiteSpace(email) && !email.Contains('@')) errors.Add(Messages.EmailInvalid);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
     }
 }

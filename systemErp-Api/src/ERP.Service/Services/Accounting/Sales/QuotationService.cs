@@ -15,7 +15,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
         _numbers = numbers; _invoices = invoices; _orders = orders;
     }
 
-    protected override string Label => "عرض السعر";
+    protected override string Label => Messages.LabelQuotation;
     protected override bool Transactional => true;
 
     protected override IQueryable<Quotation> ApplySearch(IQueryable<Quotation> q, string t)
@@ -28,12 +28,12 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
     {
         var errors = new List<string>();
         TradeHelper.RequireParty(d.PartyName, errors);
-        if (d.Type is not ("sales_quotation" or "purchase_quotation")) errors.Add("النوع: sales_quotation | purchase_quotation.");
-        if (!TradeHelper.QuotationStatuses.Contains(d.Status)) errors.Add("حالة غير صالحة.");
-        if (d.ValidUntil < d.Date) errors.Add("تاريخ الصلاحية قبل تاريخ العرض.");
-        if (d.Items.Count == 0) errors.Add("يجب إدخال صنف واحد على الأقل.");
-        if (d.Status.StartsWith("converted")) errors.Add("حالة التحويل تُضبط بعملية التحويل فقط.");
-        if (existing != null && existing.Status.StartsWith("converted")) errors.Add("لا يمكن تعديل عرض تم تحويله.");
+        if (d.Type is not ("sales_quotation" or "purchase_quotation")) errors.Add(Messages.QuotationTypeValues);
+        if (!TradeHelper.QuotationStatuses.Contains(d.Status)) errors.Add(Messages.InvalidStatus);
+        if (d.ValidUntil < d.Date) errors.Add(Messages.ValidUntilBeforeQuotationDate);
+        if (d.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
+        if (d.Status.StartsWith("converted")) errors.Add(Messages.ConvertedStatusSetByConversionOnly);
+        if (existing != null && existing.Status.StartsWith("converted")) errors.Add(Messages.CannotEditConvertedQuotation);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
     }
@@ -54,7 +54,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
     }
 
     protected override Task OnDeletingAsync(Quotation e, CancellationToken ct)
-        => e.Status.StartsWith("converted") ? throw new ConflictException("لا يمكن حذف عرض تم تحويله.") : Task.CompletedTask;
+        => e.Status.StartsWith("converted") ? throw new ConflictException(Messages.CannotDeleteConvertedQuotation) : Task.CompletedTask;
 
     private static void Recalculate(Quotation q)
     {
@@ -72,9 +72,9 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
         => await new TransactionRunner(Db).RunAsync(async token =>
         {
             var q = await Db.Set<Quotation>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token)
-                ?? throw new NotFoundException("عرض السعر غير موجود");
-            if (q.Status.StartsWith("converted")) throw new ConflictException("تم تحويل هذا العرض مسبقاً.");
-            if (q.Status == "rejected") throw new ConflictException("لا يمكن تحويل عرض مرفوض.");
+                ?? throw new NotFoundException(Messages.QuotationNotFound);
+            if (q.Status.StartsWith("converted")) throw new ConflictException(Messages.QuotationAlreadyConverted);
+            if (q.Status == "rejected") throw new ConflictException(Messages.CannotConvertRejectedQuotation);
 
             var sales = q.Type == "sales_quotation";
             var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
@@ -102,9 +102,9 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
         => await new TransactionRunner(Db).RunAsync(async token =>
         {
             var q = await Db.Set<Quotation>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token)
-                ?? throw new NotFoundException("عرض السعر غير موجود");
-            if (q.Status.StartsWith("converted")) throw new ConflictException("تم تحويل هذا العرض مسبقاً.");
-            if (q.Status == "rejected") throw new ConflictException("لا يمكن تحويل عرض مرفوض.");
+                ?? throw new NotFoundException(Messages.QuotationNotFound);
+            if (q.Status.StartsWith("converted")) throw new ConflictException(Messages.QuotationAlreadyConverted);
+            if (q.Status == "rejected") throw new ConflictException(Messages.CannotConvertRejectedQuotation);
 
             var order = await _orders.CreateAsync(new CreateCommercialOrderDto
             {

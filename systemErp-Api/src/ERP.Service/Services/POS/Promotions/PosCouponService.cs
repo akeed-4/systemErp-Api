@@ -8,7 +8,7 @@ namespace ERP.Service.Services.POS;
 public class PosCouponService : CrudService<PosCoupon, PosCouponDto, CreatePosCouponDto, UpdatePosCouponDto>, IPosCouponService
 {
     public PosCouponService(ErpDbContext db) : base(db) { }
-    protected override string Label => "الكوبون";
+    protected override string Label => Messages.LabelCoupon;
 
     protected override IQueryable<PosCoupon> ApplySearch(IQueryable<PosCoupon> q, string t)
         => q.Where(c => c.Code.Contains(t) || c.TitleAr.Contains(t));
@@ -17,16 +17,16 @@ public class PosCouponService : CrudService<PosCoupon, PosCouponDto, CreatePosCo
     {
         var errors = new List<string>();
         d.Code = (d.Code ?? string.Empty).Trim().ToUpperInvariant();
-        if (d.Code.Length == 0) errors.Add("كود الكوبون مطلوب.");
-        if (string.IsNullOrWhiteSpace(d.TitleAr)) errors.Add("عنوان الكوبون مطلوب.");
-        if (d.DiscountValue <= 0) errors.Add("قيمة الخصم يجب أن تكون موجبة.");
-        if (d.DiscountType == PosDiscountType.Percent && d.DiscountValue > 100) errors.Add("نسبة الخصم لا تتجاوز 100%.");
-        if (d.MinCartAmount < 0 || d.MaxDiscountAmount < 0) errors.Add("الحدود لا تكون سالبة.");
-        if (d.ValidTo < d.ValidFrom) errors.Add("نهاية الصلاحية قبل بدايتها.");
-        if (d.UsageLimit is <= 0) errors.Add("حد الاستخدام يجب أن يكون موجباً.");
+        if (d.Code.Length == 0) errors.Add(Messages.CouponCodeRequired);
+        if (string.IsNullOrWhiteSpace(d.TitleAr)) errors.Add(Messages.CouponTitleRequired);
+        if (d.DiscountValue <= 0) errors.Add(Messages.DiscountValueMustBePositive);
+        if (d.DiscountType == PosDiscountType.Percent && d.DiscountValue > 100) errors.Add(Messages.DiscountPercentMax100);
+        if (d.MinCartAmount < 0 || d.MaxDiscountAmount < 0) errors.Add(Messages.LimitsCannotBeNegative);
+        if (d.ValidTo < d.ValidFrom) errors.Add(Messages.ValidityEndBeforeStart);
+        if (d.UsageLimit is <= 0) errors.Add(Messages.UsageLimitMustBePositive);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         if (await Db.Set<PosCoupon>().AnyAsync(c => c.Code == d.Code && (existing == null || c.Id != existing.Id), ct))
-            throw new ConflictException("كود الكوبون مستخدم مسبقاً.");
+            throw new ConflictException(Messages.CouponCodeInUse);
     }
 
     protected override Task OnCreatingAsync(PosCoupon e, CreatePosCouponDto d, CancellationToken ct) { e.UsageCount = 0; return Task.CompletedTask; }

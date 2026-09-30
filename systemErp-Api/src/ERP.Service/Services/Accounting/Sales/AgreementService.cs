@@ -9,7 +9,7 @@ public class AgreementService : CrudService<Agreement, AgreementDto, CreateAgree
     private readonly INumberSequenceService _numbers;
     public AgreementService(ErpDbContext db, INumberSequenceService numbers) : base(db) => _numbers = numbers;
 
-    protected override string Label => "الاتفاقية";
+    protected override string Label => Messages.LabelAgreement;
     protected override bool Transactional => true;
 
     protected override IQueryable<Agreement> ApplySearch(IQueryable<Agreement> q, string t)
@@ -19,14 +19,14 @@ public class AgreementService : CrudService<Agreement, AgreementDto, CreateAgree
     {
         var errors = new List<string>();
         TradeHelper.RequireParty(d.PartyName, errors);
-        if (d.Type is not ("purchase" or "sales")) errors.Add("النوع: purchase | sales.");
-        if (d.Status is not ("draft" or "active" or "expired" or "cancelled" or "terminated")) errors.Add("الحالة: draft | active | expired | cancelled | terminated.");
-        if (d.EndDate.HasValue && d.EndDate < d.StartDate) errors.Add("تاريخ النهاية قبل البداية.");
-        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0)) errors.Add("كميات الاتفاقية موجبة والأسعار غير سالبة.");
-        if (d.Items.Any(i => i.Discount < 0 || i.VatRate is < 0 or > 100)) errors.Add("الخصم غير سالب ونسبة الضريبة بين 0 و100.");
+        if (d.Type is not ("purchase" or "sales")) errors.Add(Messages.AgreementTypeValues);
+        if (d.Status is not ("draft" or "active" or "expired" or "cancelled" or "terminated")) errors.Add(Messages.AgreementStatusValues);
+        if (d.EndDate.HasValue && d.EndDate < d.StartDate) errors.Add(Messages.EndDateBeforeStart);
+        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0)) errors.Add(Messages.AgreementQuantitiesAndPricesInvalid);
+        if (d.Items.Any(i => i.Discount < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.DiscountAndVatInvalid);
         if (d.Items.Any(i => i.MinQuantity < 0 || i.MaxQuantity < 0 || (i.MaxQuantity > 0 && i.MaxQuantity < i.MinQuantity)))
-            errors.Add("الحد الأدنى والأقصى للأمر غير سالبين، والأقصى (إن حُدِّد) لا يقل عن الأدنى.");
-        if (d.Items.GroupBy(i => i.ItemId).Any(g => g.Count() > 1)) errors.Add("الصنف مكرر في بنود الاتفاقية.");
+            errors.Add(Messages.OrderMinMaxInvalid);
+        if (d.Items.GroupBy(i => i.ItemId).Any(g => g.Count() > 1)) errors.Add(Messages.DuplicateItemInAgreement);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
     }
@@ -44,18 +44,18 @@ public class AgreementService : CrudService<Agreement, AgreementDto, CreateAgree
         var used = await AgreementUsage.UsedByItemAsync(Db, e.Id, null, ct);
         foreach (var removed in Db.ChangeTracker.Entries<AgreementItem>().Where(x => x.State == EntityState.Deleted))
             if (used.GetValueOrDefault(removed.Entity.ItemId) > 0)
-                throw new ConflictException($"لا يمكن حذف الصنف {removed.Entity.ItemName}: عليه أوامر معتمدة.");
+                throw new ConflictException(string.Format(Messages.CannotRemoveItemWithApprovedOrders, removed.Entity.ItemName));
         foreach (var i in e.Items)
         {
             i.UsedQuantity = used.GetValueOrDefault(i.ItemId);
             if (i.Quantity < i.UsedQuantity)
-                throw new ValidationFailedException($"الكمية المتفق عليها للصنف {i.ItemName} أقل من المستهلك فعلاً ({i.UsedQuantity:0.####}).");
+                throw new ValidationFailedException(string.Format(Messages.AgreedQtyBelowConsumed, i.ItemName, i.UsedQuantity));
         }
     }
 
     protected override async Task OnDeletingAsync(Agreement e, CancellationToken ct)
     {
         if (await Db.Set<CommercialOrder>().AnyAsync(o => o.AgreementId == e.Id, ct))
-            throw new ConflictException("لا يمكن حذف اتفاقية مرتبطة بأوامر.");
+            throw new ConflictException(Messages.CannotDeleteAgreementWithOrders);
     }
 }

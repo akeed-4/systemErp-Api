@@ -49,7 +49,7 @@ public class InvoiceService : IInvoiceService
 
     public async Task<InvoiceDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<InvoiceDto>(await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
-            .FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException("الفاتورة غير موجودة"));
+            .FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound));
 
     // ---------------- الإنشاء ----------------
     public Task<InvoiceDto> CreateAsync(CreateInvoiceDto r, CancellationToken ct = default)
@@ -71,11 +71,11 @@ public class InvoiceService : IInvoiceService
         => _tx.RunAsync(async token =>
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
-                .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException("الفاتورة غير موجودة");
-            if (r.Kind != invoice.Kind) throw new ConflictException("لا يمكن تغيير نوع المستند.");
+                .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            if (r.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
             // فاتورة مرحّلة: يُعكس أثرها المحاسبي والمخزني ثم تُعاد كمسودة وتُرحَّل من جديد بالقيم المعدّلة (نفس الرقم).
             if (invoice.Status == "posted") await UnpostAsync(invoice, bypassSourceGuard: false, token);
-            else if (invoice.Status != "draft") throw new ConflictException("لا تُعدَّل فاتورة ملغاة.");
+            else if (invoice.Status != "draft") throw new ConflictException(Messages.CannotEditCancelledInvoice);
 
             var fresh = await BuildAsync(r, token); // نفس تحقق الإنشاء وحساب الأرقام في الخادم
             var (keepId, keepTenant, keepCreated, keepNumber, keepUuid) = (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, invoice.Uuid);
@@ -102,13 +102,13 @@ public class InvoiceService : IInvoiceService
         => _tx.RunAsync(async token =>
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
-                .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException("الفاتورة غير موجودة");
-            if (invoice.Status != "draft") throw new ConflictException("الفاتورة مرحّلة مسبقاً أو ملغاة.");
+                .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            if (invoice.Status != "draft") throw new ConflictException(Messages.InvoiceAlreadyPostedOrCancelled);
             // سير الموافقات: المسودة المعلّقة أو المرفوضة لا تُرحَّل (آخر طلب على المستند هو المرجع)
             var approval = await _db.Set<ApprovalRequest>().Where(r => r.DocumentId == id)
                 .OrderByDescending(r => r.CreatedAt).Select(r => r.Status).FirstOrDefaultAsync(token);
-            if (approval == "pending") throw new ConflictException("الفاتورة بانتظار الاعتماد ولا تُرحَّل قبل اكتمال الموافقة.");
-            if (approval == "rejected") throw new ConflictException("تم رفض اعتماد الفاتورة فلا يمكن ترحيلها.");
+            if (approval == "pending") throw new ConflictException(Messages.InvoicePendingApproval);
+            if (approval == "rejected") throw new ConflictException(Messages.InvoiceApprovalRejected);
             await FinalizeAsync(invoice, token);
             return await GetAsync(id, token);
         }, ct);
@@ -117,11 +117,11 @@ public class InvoiceService : IInvoiceService
         => _tx.RunAsync(async token =>
         {
             var original = await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).Include(i => i.PaymentSplits).AsSplitQuery()
-                .FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, token) ?? throw new NotFoundException("الفاتورة الأصلية غير موجودة");
-            if (original.Status != "posted" || original.IsReturn) throw new ConflictException("يمكن إرجاع فاتورة مرحّلة أصلية فقط.");
+                .FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, token) ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
+            if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
             if (await _db.Set<InvoiceVehicleLine>().AnyAsync(l => l.InvoiceId == original.Id, token))
-                throw new ConflictException("مرتجع فواتير السيارات متعددة الأسطر غير مدعوم بعد.");
-            if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException("سبب الإرجاع مطلوب.");
+                throw new ConflictException(Messages.MultiVehicleReturnNotSupported);
+            if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
 
             var previouslyReturned = (await _db.Set<InvoiceItem>().AsNoTracking()
                     .Where(i => _db.Set<Invoice>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"))
@@ -131,7 +131,7 @@ public class InvoiceService : IInvoiceService
             var lines = r.Lines.Count > 0
                 ? r.Lines
                 : original.Items.Select(i => new ReturnLineDto { ItemId = i.ItemId, Quantity = i.Quantity - previouslyReturned.GetValueOrDefault(i.ItemId) }).Where(l => l.Quantity > 0).ToList();
-            if (lines.Count == 0) throw new ConflictException("لا توجد كميات متبقية للإرجاع.");
+            if (lines.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
 
             var dto = new CreateInvoiceDto
             {
@@ -146,10 +146,10 @@ public class InvoiceService : IInvoiceService
             };
             foreach (var l in lines)
             {
-                var src = original.Items.FirstOrDefault(i => i.ItemId == l.ItemId) ?? throw new ValidationFailedException("صنف غير موجود في الفاتورة الأصلية.");
+                var src = original.Items.FirstOrDefault(i => i.ItemId == l.ItemId) ?? throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
                 var remaining = src.Quantity - previouslyReturned.GetValueOrDefault(l.ItemId);
                 if (l.Quantity <= 0 || l.Quantity > remaining)
-                    throw new ValidationFailedException($"كمية الإرجاع للصنف {src.ItemName} يجب أن تكون بين 0 و{remaining:0.####}.");
+                    throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.ItemName, remaining));
                 dto.Items.Add(new InvoiceItemDto
                 {
                     ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = l.Quantity,
@@ -176,7 +176,7 @@ public class InvoiceService : IInvoiceService
         => _tx.RunAsync(async token =>
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
-                .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException("الفاتورة غير موجودة");
+                .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
             if (invoice.Status == "posted") await UnpostAsync(invoice, bypassSourceGuard, token);
             await ReleaseSourceAsync(invoice, token);
             _db.RemoveRange(invoice.Items);
@@ -192,11 +192,11 @@ public class InvoiceService : IInvoiceService
     private async Task UnpostAsync(Invoice invoice, bool bypassSourceGuard, CancellationToken ct)
     {
         if (invoice.ZatcaStatus is ZatcaSubmissionStatus.Cleared or ZatcaSubmissionStatus.Reported)
-            throw new ConflictException("الفاتورة أُرسلت لهيئة الزكاة ولا يجوز تعديلها أو حذفها؛ أصدر إشعاراً دائناً.");
+            throw new ConflictException(Messages.InvoiceSubmittedToZatcaLocked);
         if (!bypassSourceGuard && invoice.ReferenceType != null && OwnedByOtherModules.Contains(invoice.ReferenceType))
-            throw new ConflictException("الفاتورة ناتجة عن مستند مصدر (نقطة بيع/عقد/أمر شراء)؛ عدّلها أو أعكسها من ذلك المستند.");
+            throw new ConflictException(Messages.InvoiceFromSourceDocument);
         if (await _db.Set<Invoice>().AnyAsync(i => i.OriginalInvoiceId == invoice.Id && i.Status == "posted", ct))
-            throw new ConflictException("للفاتورة مرتجعات مرحّلة؛ احذفها أولاً.");
+            throw new ConflictException(Messages.InvoiceHasPostedReturns);
 
         if (invoice.JournalEntryId.HasValue)
             await _posting.ReverseAsync(invoice.JournalEntryId.Value, $"إلغاء ترحيل الفاتورة {invoice.InvoiceNumber}", ct);
@@ -240,7 +240,7 @@ public class InvoiceService : IInvoiceService
     /// </summary>
     public async Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto r, CancellationToken ct = default)
     {
-        if (_db.Database.CurrentTransaction != null) throw new InvalidOperationException("معاينة القيد لا تعمل داخل معاملة قائمة.");
+        if (_db.Database.CurrentTransaction != null) throw new InvalidOperationException(Messages.JournalPreviewInsideTransaction);
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {
@@ -264,8 +264,8 @@ public class InvoiceService : IInvoiceService
 
     public async Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default)
     {
-        var invoice = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException("الفاتورة غير موجودة");
-        if (invoice.JournalEntryId == null) throw new ConflictException("الفاتورة غير مرحّلة؛ استخدم معاينة القيد.");
+        var invoice = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        if (invoice.JournalEntryId == null) throw new ConflictException(Messages.InvoiceNotPostedUsePreview);
         return await JournalOfAsync(invoice, ct);
     }
 
@@ -290,28 +290,28 @@ public class InvoiceService : IInvoiceService
     {
         var vehicleLines = r.VehicleLines.Count > 0 ? await VehicleInvoiceLines.ResolveAsync(_db, r, ct) : null; // يشتق r.Items ويتحقق من الأسطر
         var errors = new List<string>();
-        if (!Enum.IsDefined(r.Kind)) errors.Add("نوع المستند غير صالح.");
-        if (!Enum.IsDefined(r.InvoiceType)) errors.Add("نوع الفاتورة غير صالح.");
-        if (r.Items.Count == 0) errors.Add("يجب إدخال صنف واحد على الأقل.");
-        if (r.InvoiceDiscount < 0) errors.Add("خصم الفاتورة لا يكون سالباً.");
-        if (r.ExchangeRate <= 0) errors.Add("سعر الصرف يجب أن يكون موجباً.");
+        if (!Enum.IsDefined(r.Kind)) errors.Add(Messages.InvalidDocumentType);
+        if (!Enum.IsDefined(r.InvoiceType)) errors.Add(Messages.InvalidInvoiceType);
+        if (r.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
+        if (r.InvoiceDiscount < 0) errors.Add(Messages.InvoiceDiscountCannotBeNegative);
+        if (r.ExchangeRate <= 0) errors.Add(Messages.ExchangeRateMustBePositive);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         var isSales = r.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
         var isReturn = r.Kind is InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn;
-        if (isReturn && r.OriginalInvoiceId == null) throw new ValidationFailedException("المرتجع يحتاج فاتورة أصلية.");
+        if (isReturn && r.OriginalInvoiceId == null) throw new ValidationFailedException(Messages.ReturnNeedsOriginalInvoice);
         if (isSales && r.Kind == InvoiceKind.Sales && r.InvoiceType is InvoiceType.CreditNote or InvoiceType.DebitNote)
-            throw new ValidationFailedException("الفاتورة الاعتيادية ضريبية أو مبسطة؛ الإشعارات للمرتجعات.");
+            throw new ValidationFailedException(Messages.RegularInvoiceTypeInvalid);
 
         var priced = DocumentPricing.Price(
             r.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride)).ToList(), r.InvoiceDiscount);
 
         var productIds = r.Items.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct().ToList();
         if (r.Items.Any(i => i.ItemId == Guid.Empty && string.IsNullOrWhiteSpace(i.ItemName)))
-            throw new ValidationFailedException("بند الخدمة (بدون صنف) يحتاج وصفاً.");
+            throw new ValidationFailedException(Messages.ServiceLineNeedsDescription);
         var products = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var missing = productIds.Where(id => !products.ContainsKey(id)).ToList();
-        if (missing.Count > 0) throw new ValidationFailedException("أصناف غير موجودة في الفاتورة.");
+        if (missing.Count > 0) throw new ValidationFailedException(Messages.ItemsNotFoundInInvoice);
 
         var invoice = Mapper.Map<Invoice>(r);
         invoice.Id = Guid.NewGuid();
@@ -366,7 +366,7 @@ public class InvoiceService : IInvoiceService
             if (isSales)
             {
                 var c = await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == r.PartyId, ct)
-                    ?? throw new ValidationFailedException("العميل غير موجود.");
+                    ?? throw new ValidationFailedException(Messages.CustomerNotFound);
                 if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = c.NameAr;
                 invoice.PartyVatNumber ??= c.VatNumber; invoice.PartyCrNumber ??= c.CrNumber;
                 invoice.PartyPhone ??= c.Phone; invoice.PartyEmail ??= c.Email;
@@ -374,7 +374,7 @@ public class InvoiceService : IInvoiceService
             else
             {
                 var s = await _db.Set<Supplier>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == r.PartyId, ct)
-                    ?? throw new ValidationFailedException("المورد غير موجود.");
+                    ?? throw new ValidationFailedException(Messages.SupplierNotFound);
                 if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = s.NameAr;
                 invoice.PartyVatNumber ??= s.VatNumber; invoice.PartyCrNumber ??= s.CrNumber;
                 invoice.PartyPhone ??= s.Phone; invoice.PartyEmail ??= s.Email;
@@ -382,24 +382,24 @@ public class InvoiceService : IInvoiceService
         }
         if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = isSales ? "عميل نقدي" : "مورد نقدي";
         if (!string.IsNullOrWhiteSpace(invoice.PartyVatNumber) && !SaudiVat.IsValid(invoice.PartyVatNumber))
-            throw new ValidationFailedException("الرقم الضريبي للطرف غير صالح.");
+            throw new ValidationFailedException(Messages.PartyVatNumberInvalid);
         if (r.Kind == InvoiceKind.Sales && r.InvoiceType == InvoiceType.TaxInvoice && string.IsNullOrWhiteSpace(invoice.PartyVatNumber))
-            throw new ValidationFailedException("الفاتورة الضريبية (B2B) تتطلب الرقم الضريبي للمشتري.");
+            throw new ValidationFailedException(Messages.TaxInvoiceRequiresBuyerVat);
 
         // الدفع
         invoice.PaymentSplits.Clear();
         if (r.IsSplitPayment)
         {
             if (r.PaymentSplits.Count == 0 || r.PaymentSplits.Any(s => s.Amount <= 0))
-                throw new ValidationFailedException("الدفعات المقسّمة تحتاج مبالغ موجبة.");
+                throw new ValidationFailedException(Messages.SplitPaymentsNeedPositiveAmounts);
             if (Math.Abs(r.PaymentSplits.Sum(s => s.Amount) - invoice.GrandTotal) > 0.005m)
-                throw new ValidationFailedException("مجموع الدفعات المقسّمة يجب أن يساوي إجمالي الفاتورة.");
+                throw new ValidationFailedException(Messages.SplitPaymentsMustEqualInvoiceTotal);
             foreach (var s in r.PaymentSplits)
                 invoice.PaymentSplits.Add(new InvoicePaymentSplit { Method = s.Method, Amount = s.Amount, Reference = s.Reference });
         }
         var hasCredit = invoice.PaymentMethod == PaymentMethod.Credit || invoice.PaymentSplits.Any(s => s.Method == PaymentMethod.Credit);
         if (hasCredit && !r.PartyId.HasValue)
-            throw new ValidationFailedException(isSales ? "البيع الآجل يتطلب تحديد العميل." : "الشراء الآجل يتطلب تحديد المورد.");
+            throw new ValidationFailedException(isSales ? Messages.CreditSaleRequiresCustomer : Messages.CreditPurchaseRequiresSupplier);
 
         if (hasCredit && r.Kind == InvoiceKind.Sales)
         {
@@ -407,16 +407,16 @@ public class InvoiceService : IInvoiceService
             var creditPart = invoice.PaymentMethod == PaymentMethod.Credit && !r.IsSplitPayment
                 ? invoice.GrandTotal : invoice.PaymentSplits.Where(s => s.Method == PaymentMethod.Credit).Sum(s => s.Amount);
             if (customer.CreditLimit > 0 && customer.CurrentBalance + creditPart > customer.CreditLimit)
-                throw new ConflictException($"تجاوز الحد الائتماني للعميل ({customer.CreditLimit:0.00}). الرصيد الحالي {customer.CurrentBalance:0.00}.");
+                throw new ConflictException(string.Format(Messages.CreditLimitExceeded, customer.CreditLimit, customer.CurrentBalance));
         }
 
         // المرتجع: تحقّق من الفاتورة الأصلية
         if (isReturn)
         {
             var orig = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, ct)
-                ?? throw new ValidationFailedException("الفاتورة الأصلية غير موجودة.");
+                ?? throw new ValidationFailedException(Messages.OriginalInvoiceNotFoundDot);
             var expected = r.Kind == InvoiceKind.SalesReturn ? InvoiceKind.Sales : InvoiceKind.Purchase;
-            if (orig.Kind != expected || orig.Status != "posted") throw new ConflictException("الفاتورة الأصلية غير صالحة للإرجاع.");
+            if (orig.Kind != expected || orig.Status != "posted") throw new ConflictException(Messages.OriginalInvoiceNotReturnable);
             invoice.OriginalInvoiceNumber = orig.InvoiceNumber;
         }
         return invoice;

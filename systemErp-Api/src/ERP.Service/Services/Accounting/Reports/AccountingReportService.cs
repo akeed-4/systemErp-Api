@@ -42,7 +42,7 @@ public class AccountingReportService : IAccountingReportService
     public async Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         var account = await _db.Set<Account>().AsNoTracking().FirstOrDefaultAsync(a => a.Code == accountCode, ct)
-            ?? throw new NotFoundException("الحساب غير موجود");
+            ?? throw new NotFoundException(Messages.AccountNotFound);
 
         var q = from l in _db.Set<JournalEntryLine>().AsNoTracking()
                 join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
@@ -117,7 +117,7 @@ public class AccountingReportService : IAccountingReportService
 
     public async Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, CancellationToken ct = default)
     {
-        if (to < from) throw new ValidationFailedException("نهاية الفترة قبل بدايتها.");
+        if (to < from) throw new ValidationFailedException(Messages.PeriodEndBeforeStart);
         var inv = await _db.Set<Invoice>().AsNoTracking()
             .Where(i => i.Status == "posted" && i.IssueDate >= from && i.IssueDate <= to)
             .Select(i => new { i.Kind, i.Subtotal, i.VatTotal }).ToListAsync(ct);

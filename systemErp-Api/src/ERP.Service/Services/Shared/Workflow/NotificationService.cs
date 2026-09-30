@@ -14,9 +14,9 @@ public class NotificationService : INotificationService
 
     public async Task<AppNotificationDto> NotifyAsync(NotifyRequestDto r, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(r.Title)) throw new ValidationFailedException("عنوان الإشعار مطلوب.");
+        if (string.IsNullOrWhiteSpace(r.Title)) throw new ValidationFailedException(Messages.NotificationTitleRequired);
         if (!await _db.Set<User>().AnyAsync(u => u.Id == r.RecipientUserId, ct))
-            throw new NotFoundException("المستلم غير موجود");
+            throw new NotFoundException(Messages.RecipientNotFound);
 
         var n = new AppNotification
         {
@@ -40,14 +40,14 @@ public class NotificationService : INotificationService
     {
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         return Mapper.Map<AppNotificationDto>(await _db.Set<AppNotification>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && x.RecipientUserId == me, ct)
-            ?? throw new NotFoundException("الإشعار غير موجود"));
+            ?? throw new NotFoundException(Messages.NotificationNotFound));
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         var n = await _db.Set<AppNotification>().FirstOrDefaultAsync(x => x.Id == id && x.RecipientUserId == me, ct)
-            ?? throw new NotFoundException("الإشعار غير موجود");
+            ?? throw new NotFoundException(Messages.NotificationNotFound);
         _db.Remove(n);
         await _db.SaveChangesAsync(ct);
     }
@@ -56,7 +56,7 @@ public class NotificationService : INotificationService
     {
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         var n = await _db.Set<AppNotification>().FirstOrDefaultAsync(x => x.Id == id && x.RecipientUserId == me, ct)
-            ?? throw new NotFoundException("الإشعار غير موجود");
+            ?? throw new NotFoundException(Messages.NotificationNotFound);
         n.IsRead = true;
         await _db.SaveChangesAsync(ct);
     }

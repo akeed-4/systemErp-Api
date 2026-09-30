@@ -17,26 +17,26 @@ public class PosShiftsController : ErpControllerBase
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _shifts.GetAsync(id, ct));
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePosShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.UpdateAsync(id, dto, ct), "تم تحديث الوردية");
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePosShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.UpdateAsync(id, dto, ct), Messages.ShiftUpdated);
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, [FromQuery] bool cascade, CancellationToken ct) { await _shifts.DeleteAsync(id, cascade, ct); return Success("تم حذف الوردية"); }
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] bool cascade, CancellationToken ct) { await _shifts.DeleteAsync(id, cascade, ct); return Success(Messages.ShiftDeleted); }
 
     [HttpPost("open")]
-    public async Task<IActionResult> Open([FromBody] OpenShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.OpenAsync(dto, ct), "تم فتح الوردية");
+    public async Task<IActionResult> Open([FromBody] OpenShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.OpenAsync(dto, ct), Messages.ShiftOpened);
 
     [HttpPost("close")]
-    public async Task<IActionResult> Close([FromBody] CloseShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.CloseAsync(dto, ct), "تم إغلاق الوردية");
+    public async Task<IActionResult> Close([FromBody] CloseShiftRequestDto dto, CancellationToken ct) => Success(await _shifts.CloseAsync(dto, ct), Messages.ShiftClosed);
 
     // ---------- الدرج: إيداع/صرف نقدي ----------
     [HttpPost("CashMovements")]
-    public async Task<IActionResult> AddCashMovement([FromBody] CashMovementRequestDto dto, CancellationToken ct) => Success(await _shifts.AddCashMovementAsync(dto, ct), "تم تسجيل الحركة النقدية");
+    public async Task<IActionResult> AddCashMovement([FromBody] CashMovementRequestDto dto, CancellationToken ct) => Success(await _shifts.AddCashMovementAsync(dto, ct), Messages.CashMovementRecorded);
 
     [HttpGet("{id:guid}/CashMovements")]
     public async Task<IActionResult> CashMovements(Guid id, CancellationToken ct) => Success(await _shifts.ListCashMovementsAsync(id, ct));
 
     [HttpDelete("CashMovements/{id:guid}")]
-    public async Task<IActionResult> DeleteCashMovement(Guid id, CancellationToken ct) { await _shifts.DeleteCashMovementAsync(id, ct); return Success("تم إلغاء الحركة النقدية"); }
+    public async Task<IActionResult> DeleteCashMovement(Guid id, CancellationToken ct) { await _shifts.DeleteCashMovementAsync(id, ct); return Success(Messages.CashMovementCancelled); }
 
     // ---------- تقارير X / Z ----------
     [HttpGet("active/report")] public async Task<IActionResult> ActiveReport(CancellationToken ct) => Success(await _shifts.GetReportAsync(null, ct));

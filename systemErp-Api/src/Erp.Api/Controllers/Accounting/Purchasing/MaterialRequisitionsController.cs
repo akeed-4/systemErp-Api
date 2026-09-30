@@ -12,8 +12,8 @@ public class MaterialRequisitionsController : CrudController<MaterialRequisition
     public MaterialRequisitionsController(IMaterialRequisitionService s) : base(s) => _requisitions = s;
 
     [HttpPost("{id:guid}/approve"), RequireScreen("purchases", ScreenAction.Approve)]
-    public async Task<IActionResult> Approve(Guid id, CancellationToken ct) => Success(await _requisitions.ApproveAsync(id, ct), "تم اعتماد الطلب");
+    public async Task<IActionResult> Approve(Guid id, CancellationToken ct) => Success(await _requisitions.ApproveAsync(id, ct), Messages.RequestApproved);
 
     [HttpPost("{id:guid}/ConvertToInvoice")]
-    public async Task<IActionResult> ToInvoice(Guid id, CancellationToken ct) => Success(await _requisitions.ConvertToPurchaseInvoiceAsync(id, ct), "تم إنشاء فاتورة شراء مسودة");
+    public async Task<IActionResult> ToInvoice(Guid id, CancellationToken ct) => Success(await _requisitions.ConvertToPurchaseInvoiceAsync(id, ct), Messages.DraftPurchaseInvoiceCreated);
 }

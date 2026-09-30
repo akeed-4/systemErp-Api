@@ -13,7 +13,7 @@ public static class DocumentPricing
     {
         if (lines.Count == 0)
         {
-            throw new ValidationFailedException("يجب إدخال سطر واحد على الأقل.");
+            throw new ValidationFailedException(Messages.AtLeastOneLineRequiredDocument);
         }
 
         var errors = new Dictionary<string, string[]>();
@@ -28,14 +28,14 @@ public static class DocumentPricing
 
         if (errors.Count > 0)
         {
-            throw new ValidationFailedException("بعض أسطر المستند غير صحيحة.", errors.Values.SelectMany(v => v));
+            throw new ValidationFailedException(Messages.SomeDocumentLinesInvalid, errors.Values.SelectMany(v => v));
         }
 
         var nets = lines.Select(l => Round((l.Quantity * l.UnitPrice) - l.Discount)).ToList();
         var netBeforeInvoiceDiscount = nets.Sum();
         if (invoiceDiscount < 0 || invoiceDiscount > netBeforeInvoiceDiscount)
         {
-            throw new ValidationFailedException("خصم الفاتورة يجب أن يكون بين صفر وإجمالي الأسطر.");
+            throw new ValidationFailedException(Messages.InvoiceDiscountRange);
         }
 
         var priced = new List<PricedLine>(lines.Count);

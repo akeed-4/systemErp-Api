@@ -56,7 +56,7 @@ public class InventoryReportService : IInventoryReportService
 
     public async Task<List<DetailedItemLedgerEntryDto>> GetItemLedgerAsync(ReportQueryDto q, CancellationToken ct = default)
     {
-        if (!q.ItemId.HasValue) throw new ValidationFailedException("حدّد الصنف لعرض كارت الصنف.");
+        if (!q.ItemId.HasValue) throw new ValidationFailedException(Messages.SelectItemForItemCard);
         var all = await _db.Set<StockMovement>().AsNoTracking().Where(m => m.ItemId == q.ItemId)
             .OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToListAsync(ct);
 

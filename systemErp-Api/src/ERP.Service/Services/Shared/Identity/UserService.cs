@@ -33,24 +33,24 @@ public class UserService : IUserService
 
     public async Task<UserDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<UserDto>(await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct)
-            ?? throw new NotFoundException("المستخدم غير موجود"));
+            ?? throw new NotFoundException(Messages.UserNotFound));
 
     public async Task<UserDto> CreateAsync(CreateUserRequestDto r, CancellationToken ct = default)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(r.Name)) errors.Add("الاسم مطلوب.");
-        if (string.IsNullOrWhiteSpace(r.Email) || !r.Email.Contains('@')) errors.Add("البريد الإلكتروني غير صالح.");
-        if (r.Password is null || r.Password.Length < 8) errors.Add("كلمة المرور 8 أحرف على الأقل.");
-        if (r.Role == UserRole.Owner) errors.Add("لا يمكن إنشاء مالك ثانٍ للمنشأة.");
+        if (string.IsNullOrWhiteSpace(r.Name)) errors.Add(Messages.NameRequired);
+        if (string.IsNullOrWhiteSpace(r.Email) || !r.Email.Contains('@')) errors.Add(Messages.EmailInvalid);
+        if (r.Password is null || r.Password.Length < 8) errors.Add(Messages.PasswordMin8);
+        if (r.Role == UserRole.Owner) errors.Add(Messages.CannotCreateSecondOwner);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         var email = r.Email.Trim().ToLower();
         if (await _db.Set<User>().IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email, ct))
-            throw new ConflictException("هذا البريد الإلكتروني مسجّل مسبقاً.");
+            throw new ConflictException(Messages.EmailAlreadyRegistered);
 
         var sub = await _db.Set<Subscription>().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);
         if (sub != null && await _db.Set<User>().CountAsync(u => u.IsActive, ct) >= sub.MaxUsers)
-            throw new ConflictException("تم بلوغ الحد الأقصى للمستخدمين في باقتك الحالية.");
+            throw new ConflictException(Messages.UserLimitReached);
 
         var user = new User
         {
@@ -65,12 +65,12 @@ public class UserService : IUserService
 
     public async Task<UserDto> UpdateAsync(Guid id, UpdateUserRequestDto r, CancellationToken ct = default)
     {
-        var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException("المستخدم غير موجود");
+        var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException(Messages.UserNotFound);
         if (user.Role == UserRole.Owner && (r.Role != UserRole.Owner || !r.IsActive))
-            throw new ConflictException("لا يمكن تغيير دور مالك المنشأة أو تعطيله.");
+            throw new ConflictException(Messages.CannotChangeOrDeactivateOwner);
         if (r.Role == UserRole.Owner && user.Role != UserRole.Owner)
-            throw new ConflictException("لا يمكن إسناد دور المالك لمستخدم آخر.");
-        if (string.IsNullOrWhiteSpace(r.Name)) throw new ValidationFailedException("الاسم مطلوب.");
+            throw new ConflictException(Messages.CannotAssignOwnerRole);
+        if (string.IsNullOrWhiteSpace(r.Name)) throw new ValidationFailedException(Messages.NameRequired);
 
         user.Name = r.Name.Trim(); user.Phone = r.Phone; user.Role = r.Role;
         user.JobTitle = r.JobTitle; user.Department = r.Department; user.IsActive = r.IsActive;
@@ -98,10 +98,10 @@ public class UserService : IUserService
         var user = await _db.Set<User>().FirstAsync(u => u.Id == id, ct);
         if (user.PasswordHash == null || string.IsNullOrEmpty(r.CurrentPassword)
             || _hasher.VerifyHashedPassword(user, user.PasswordHash, r.CurrentPassword) == PasswordVerificationResult.Failed)
-            throw new ValidationFailedException("كلمة المرور الحالية غير صحيحة.");
+            throw new ValidationFailedException(Messages.CurrentPasswordIncorrect);
         var next = r.NewPassword?.Trim() ?? string.Empty;
-        if (next.Length < 8) throw new ValidationFailedException("كلمة المرور الجديدة 8 أحرف على الأقل.");
-        if (next == r.CurrentPassword) throw new ValidationFailedException("كلمة المرور الجديدة يجب أن تختلف عن الحالية.");
+        if (next.Length < 8) throw new ValidationFailedException(Messages.NewPasswordMin8);
+        if (next == r.CurrentPassword) throw new ValidationFailedException(Messages.NewPasswordMustDiffer);
         user.PasswordHash = _hasher.HashPassword(user, next);
         await _db.SaveChangesAsync(ct);
         return new OperationResultDto { Message = "تم تغيير كلمة المرور بنجاح." };
@@ -109,9 +109,9 @@ public class UserService : IUserService
 
     public async Task DeactivateAsync(Guid id, CancellationToken ct = default)
     {
-        if (id == _current.UserId) throw new ConflictException("لا يمكنك تعطيل حسابك الحالي.");
-        var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException("المستخدم غير موجود");
-        if (user.Role == UserRole.Owner) throw new ConflictException("لا يمكن تعطيل مالك المنشأة.");
+        if (id == _current.UserId) throw new ConflictException(Messages.CannotDeactivateSelf);
+        var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException(Messages.UserNotFound);
+        if (user.Role == UserRole.Owner) throw new ConflictException(Messages.CannotDeactivateOwner);
         user.IsActive = false;
         await _db.SaveChangesAsync(ct);
     }

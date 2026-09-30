@@ -35,7 +35,7 @@ public class ExceptionHandlingMiddleware
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
         {
-            await Write(context, 409, "تم تعديل السجل من مستخدم آخر، أعد التحميل وحاول مجدداً.");
+            await Write(context, 409, Messages.RecordModifiedByAnotherUser);
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
@@ -44,7 +44,7 @@ public class ExceptionHandlingMiddleware
         catch (Exception ex)
         {
             _log.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
-            await Write(context, 500, "حدث خطأ غير متوقع.", _env.IsDevelopment() ? new List<string> { ex.Message } : null);
+            await Write(context, 500, Messages.UnexpectedError, _env.IsDevelopment() ? new List<string> { ex.Message } : null);
         }
     }
 

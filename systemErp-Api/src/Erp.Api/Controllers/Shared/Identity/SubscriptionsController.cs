@@ -18,5 +18,5 @@ public class SubscriptionsController : ErpControllerBase
 
     [HttpPost("upgrade"), RequireScreen("user-permissions", ScreenAction.Edit)]
     public async Task<IActionResult> Upgrade([FromBody] UpgradeSubscriptionRequestDto request, CancellationToken ct)
-        => Success(await _subscriptions.UpgradeAsync(request, ct), "تم تفعيل الباقة");
+        => Success(await _subscriptions.UpgradeAsync(request, ct), Messages.PlanActivated);
 }

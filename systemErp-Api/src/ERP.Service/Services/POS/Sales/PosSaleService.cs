@@ -30,7 +30,7 @@ public class PosSaleService : IPosSaleService
         {
             var me = _user.UserId ?? throw new UnauthorizedAppException();
             var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token)
-                ?? throw new ConflictException("افتح وردية أولاً قبل البيع.");
+                ?? throw new ConflictException(Messages.OpenShiftBeforeSale);
             var settings = await _db.Set<PosInvoiceSettings>().AsNoTracking().FirstOrDefaultAsync(token) ?? new PosInvoiceSettings();
 
             // 1-5) التسعير: السلة، العروض والخصم اليدوي، الكوبون، الولاء، الضريبة
@@ -47,19 +47,19 @@ public class PosSaleService : IPosSaleService
             if (r.OnlinePaymentId.HasValue)
             {
                 if (r.PaymentMethod is not (PosPaymentMethod.Card or PosPaymentMethod.Mada or PosPaymentMethod.ApplePay))
-                    throw new ValidationFailedException("الدفع الإلكتروني يُسجَّل كبطاقة أو مدى أو Apple Pay.");
+                    throw new ValidationFailedException(Messages.OnlinePaymentMethodValues);
                 online = await _db.Set<OnlinePayment>().FirstOrDefaultAsync(p => p.Id == r.OnlinePaymentId, token)
-                    ?? throw new NotFoundException("عملية الدفع الإلكتروني غير موجودة");
+                    ?? throw new NotFoundException(Messages.OnlinePaymentNotFound);
                 if (online.Purpose != OnlinePaymentPurpose.PosSale || online.Status != OnlinePaymentStatus.Paid)
-                    throw new ConflictException("لم يكتمل الدفع الإلكتروني بعد.");
-                if (online.ConsumedAt != null) throw new ConflictException("استُخدم هذا الدفع في عملية سابقة.");
-                if (online.Amount != total) throw new ConflictException($"مبلغ الدفع الإلكتروني ({online.Amount:0.00}) لا يطابق إجمالي السلة ({total:0.00}).");
+                    throw new ConflictException(Messages.OnlinePaymentNotCompleted);
+                if (online.ConsumedAt != null) throw new ConflictException(Messages.PaymentAlreadyUsed);
+                if (online.Amount != total) throw new ConflictException(string.Format(Messages.OnlinePaymentAmountMismatch, online.Amount, total));
             }
 
             // 7) الفاتورة (مخزون + قيد + QR) عبر محرك الفوترة المركزي
             var standard = string.Equals(r.InvoiceType ?? settings.DefaultInvoiceType, "standard", StringComparison.OrdinalIgnoreCase);
             var vat = string.IsNullOrWhiteSpace(r.CustomerTaxNumber) ? customer?.VatNumber : r.CustomerTaxNumber;
-            if (standard && string.IsNullOrWhiteSpace(vat)) throw new ValidationFailedException("الفاتورة القياسية تتطلب الرقم الضريبي للعميل.");
+            if (standard && string.IsNullOrWhiteSpace(vat)) throw new ValidationFailedException(Messages.StandardInvoiceRequiresCustomerVat);
             var invoiceDto = new CreateInvoiceDto
             {
                 Kind = InvoiceKind.Sales, InvoiceType = standard ? InvoiceType.TaxInvoice : InvoiceType.Simplified,
@@ -143,14 +143,14 @@ public class PosSaleService : IPosSaleService
                     ItemId = g.Key, Quantity = g.Sum(x => x.Quantity), ManualDiscount = g.Sum(x => x.ManualDiscount),
                     Note = string.Join(" | ", g.Select(x => x.Note).Where(n => !string.IsNullOrWhiteSpace(n))),
                 }).ToList();
-            if (lines.Count == 0) throw new ValidationFailedException("السلة فارغة.");
-            if (lines.Any(l => l.Quantity <= 0 || l.ManualDiscount < 0)) throw new ValidationFailedException("الكميات موجبة والخصومات غير سالبة.");
+            if (lines.Count == 0) throw new ValidationFailedException(Messages.CartEmpty);
+            if (lines.Any(l => l.Quantity <= 0 || l.ManualDiscount < 0)) throw new ValidationFailedException(Messages.QtyPositiveDiscountsNonNegative);
             if (lines.Any(l => l.ManualDiscount > 0) && !ManualDiscountRoles.Contains(_user.RoleId ?? string.Empty))
-                throw new ForbiddenException("الخصم اليدوي على السطر للأدوار الإدارية فقط.");
+                throw new ForbiddenException(Messages.ManualLineDiscountAdminOnly);
 
             var ids = lines.Select(l => l.ItemId).ToList();
             var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);
-            if (products.Count != ids.Count) throw new ValidationFailedException("صنف غير موجود في السلة.");
+            if (products.Count != ids.Count) throw new ValidationFailedException(Messages.ItemNotInCart);
             var categoryCodes = products.Values.Select(p => p.Category).Distinct().ToList();
             var categoryIds = await _db.Set<ProductCategory>().AsNoTracking().Where(c => categoryCodes.Contains(c.Code)).ToDictionaryAsync(c => c.Code, c => c.Id, token);
             var offers = await _db.Set<PosOffer>().AsNoTracking().Where(o => o.IsActive).ToListAsync(token);
@@ -163,7 +163,7 @@ public class PosSaleService : IPosSaleService
                 var p = products[l.ItemId];
                 var offer = PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, p.SellingPrice);
                 var gross = l.Quantity * p.SellingPrice;
-                if (l.ManualDiscount > gross - offer) throw new ValidationFailedException($"الخصم على الصنف {p.NameAr} يتجاوز قيمته.");
+                if (l.ManualDiscount > gross - offer) throw new ValidationFailedException(string.Format(Messages.ItemDiscountExceedsValue, p.NameAr));
                 offerDiscounts.Add(offer);
                 lineDiscounts.Add(offer + l.ManualDiscount);
             }
@@ -183,14 +183,14 @@ public class PosSaleService : IPosSaleService
 
             // 4) الولاء
             Customer? customer = r.CustomerId.HasValue
-                ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.CustomerId, token) ?? throw new ValidationFailedException("العميل غير موجود.")
+                ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.CustomerId, token) ?? throw new ValidationFailedException(Messages.CustomerNotFound)
                 : null;
             CustomerLoyalty? loyalty = customer == null ? null : await _db.Set<CustomerLoyalty>().FirstOrDefaultAsync(l => l.CustomerId == customer.Id, token);
             decimal loyaltyDiscount = 0; var pointsUsed = 0; string? loyaltyError = null;
             if (r.LoyaltyPointsToRedeem > 0)
             {
-                loyaltyError = loyalty == null ? "لا يوجد رصيد ولاء لهذا العميل."
-                    : r.LoyaltyPointsToRedeem > loyalty.PointsBalance ? "النقاط المطلوبة أكبر من الرصيد." : null;
+                loyaltyError = loyalty == null ? Messages.NoLoyaltyBalanceForCustomer
+                    : r.LoyaltyPointsToRedeem > loyalty.PointsBalance ? Messages.PointsExceedBalance : null;
                 if (loyaltyError != null && strict) throw new ValidationFailedException(loyaltyError);
                 if (loyaltyError == null)
                 {
@@ -241,25 +241,25 @@ public class PosSaleService : IPosSaleService
     /// <summary>يوزّع المدفوعات ويحسب الباقي. الباقي يُرد من النقد فقط.</summary>
     private static (decimal Cash, decimal Card, decimal Mada, decimal Apple, decimal Change) ResolvePayment(CheckoutRequestDto r, decimal total, Customer? customer)
     {
-        if (r.PaidCash < 0 || r.PaidCard < 0 || r.PaidMada < 0 || r.PaidApplePay < 0) throw new ValidationFailedException("المبالغ المدفوعة لا تكون سالبة.");
+        if (r.PaidCash < 0 || r.PaidCard < 0 || r.PaidMada < 0 || r.PaidApplePay < 0) throw new ValidationFailedException(Messages.PaidAmountsCannotBeNegative);
         switch (r.PaymentMethod)
         {
             case PosPaymentMethod.Cash:
-                if (r.PaidCash < total) throw new ValidationFailedException("المبلغ النقدي المدفوع أقل من الإجمالي.");
+                if (r.PaidCash < total) throw new ValidationFailedException(Messages.CashPaidBelowTotal);
                 return (total, 0, 0, 0, DocumentPricing.Round(r.PaidCash - total));
             case PosPaymentMethod.Card: return (0, total, 0, 0, 0);
             case PosPaymentMethod.Mada: return (0, 0, total, 0, 0);
             case PosPaymentMethod.ApplePay: return (0, 0, 0, total, 0);
             case PosPaymentMethod.Credit:
-                if (customer == null) throw new ValidationFailedException("البيع الآجل يتطلب تحديد العميل.");
+                if (customer == null) throw new ValidationFailedException(Messages.CreditSaleRequiresCustomer);
                 return (0, 0, 0, 0, 0);
             case PosPaymentMethod.Split:
                 var paid = r.PaidCash + r.PaidCard + r.PaidMada + r.PaidApplePay;
-                if (paid < total) throw new ValidationFailedException("مجموع المدفوعات أقل من الإجمالي.");
+                if (paid < total) throw new ValidationFailedException(Messages.PaymentsBelowTotal);
                 var over = paid - total;
-                if (over > r.PaidCash) throw new ValidationFailedException("الباقي يُرد من النقد فقط.");
+                if (over > r.PaidCash) throw new ValidationFailedException(Messages.ChangeFromCashOnly);
                 return (DocumentPricing.Round(r.PaidCash - over), r.PaidCard, r.PaidMada, r.PaidApplePay, DocumentPricing.Round(over));
-            default: throw new ValidationFailedException("طريقة دفع غير صالحة.");
+            default: throw new ValidationFailedException(Messages.InvalidPaymentMethod);
         }
     }
 
@@ -282,13 +282,13 @@ public class PosSaleService : IPosSaleService
     public Task<PosTransactionDto> UpdateAsync(Guid id, UpdatePosTransactionRequestDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            if (string.IsNullOrWhiteSpace(r.CustomerName)) throw new ValidationFailedException("اسم العميل مطلوب.");
-            var t = await _db.Set<PosTransaction>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("المعاملة غير موجودة");
-            if (t.Status == PosTransactionStatus.Voided) throw new ConflictException("المعاملة ملغاة ولا تُعدَّل.");
+            if (string.IsNullOrWhiteSpace(r.CustomerName)) throw new ValidationFailedException(Messages.CustomerNameRequired);
+            var t = await _db.Set<PosTransaction>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.TransactionNotFound);
+            if (t.Status == PosTransactionStatus.Voided) throw new ConflictException(Messages.VoidedTransactionNotEditable);
             var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == t.ShiftId, token);
             PosShiftRules.EnsureCanCorrect(shift, _user);
             var vat = string.IsNullOrWhiteSpace(r.CustomerTaxNumber) ? null : r.CustomerTaxNumber.Trim();
-            if (t.InvoiceType == "standard" && vat == null) throw new ValidationFailedException("الفاتورة القياسية تتطلب الرقم الضريبي للعميل.");
+            if (t.InvoiceType == "standard" && vat == null) throw new ValidationFailedException(Messages.StandardInvoiceRequiresCustomerVat);
 
             t.CustomerName = r.CustomerName.Trim(); t.CustomerPhone = r.CustomerPhone; t.CustomerTaxNumber = vat;
             if (t.InvoiceId.HasValue)
@@ -309,12 +309,12 @@ public class PosSaleService : IPosSaleService
     /// <summary>يعكس أثر المعاملة كلياً (فاتورة/قيد/مخزون/وردية/كوبون/ولاء) ثم يُبقيها ملغاة أو يحذفها.</summary>
     private async Task<PosTransaction> ReverseAsync(Guid id, bool remove, CancellationToken token)
     {
-        var t = await _db.Set<PosTransaction>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("المعاملة غير موجودة");
+        var t = await _db.Set<PosTransaction>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.TransactionNotFound);
         var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == t.ShiftId, token);
         PosShiftRules.EnsureCanCorrect(shift, _user);
-        if (t.Status == PosTransactionStatus.Voided && !remove) throw new ConflictException("المعاملة ملغاة مسبقاً.");
+        if (t.Status == PosTransactionStatus.Voided && !remove) throw new ConflictException(Messages.TransactionAlreadyVoided);
         if (await _db.Set<PosSalesReturn>().AnyAsync(x => x.OriginalTransactionId == id, token))
-            throw new ConflictException("للمعاملة مرتجعات؛ احذفها أولاً.");
+            throw new ConflictException(Messages.TransactionHasReturns);
 
         if (t.Status != PosTransactionStatus.Voided)
         {
@@ -373,15 +373,15 @@ public class PosSaleService : IPosSaleService
 
     public async Task<PosTransactionDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<PosTransactionDto>(await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id, ct)
-            ?? throw new NotFoundException("المعاملة غير موجودة"));
+            ?? throw new NotFoundException(Messages.TransactionNotFound));
 
     public async Task<PosTransactionDto> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default)
         => Mapper.Map<PosTransactionDto>(await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items)
-            .FirstOrDefaultAsync(t => t.InvoiceNumber == invoiceNumber, ct) ?? throw new NotFoundException("لا توجد معاملة بهذا الرقم"));
+            .FirstOrDefaultAsync(t => t.InvoiceNumber == invoiceNumber, ct) ?? throw new NotFoundException(Messages.NoTransactionWithNumber));
 
     public async Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default)
     {
-        var tx = await _db.Set<PosTransaction>().AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException("المعاملة غير موجودة");
-        return await _invoices.SubmitToZatcaAsync(tx.InvoiceId ?? throw new ConflictException("لا توجد فاتورة مرتبطة."), ct);
+        var tx = await _db.Set<PosTransaction>().AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException(Messages.TransactionNotFound);
+        return await _invoices.SubmitToZatcaAsync(tx.InvoiceId ?? throw new ConflictException(Messages.NoLinkedInvoice), ct);
     }
 }

@@ -39,7 +39,7 @@ public class JournalService : IJournalService
 
     public async Task<JournalEntryDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<JournalEntryDto>(await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, ct)
-            ?? throw new NotFoundException("القيد غير موجود"));
+            ?? throw new NotFoundException(Messages.JournalEntryNotFound));
 
     public Task<JournalEntryDto> CreateManualAsync(CreateJournalEntryDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>

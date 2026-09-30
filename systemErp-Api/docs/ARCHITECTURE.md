@@ -62,6 +62,17 @@ Vouchers ───────────────────────�
 JWT (HS256، مفتاح من الإعدادات فقط) · PBKDF2 عبر `PasswordHasher` · صلاحيات شاشات `[RequireScreen(screen, action)]` (تطابق منطق الواجهة) ·
 CORS بقائمة أصول صريحة · أخطاء موحّدة بلا stack trace خارج التطوير · لا كلمات مرور/رموز/أسرار ZATCA في أي استجابة.
 
+## لغة الرسائل (ar / en)
+
+رسائل الاستجابة (الأخطاء، التحقق، النجاح) في `ERP.Core/Resources/Messages.resx` (العربية، اللغة المحايدة) و`Messages.en.resx`.
+الفئة `Messages` تُولَّد وقت البناء من الـ resx وتقرأ `CurrentUICulture`، ويضبطها `UseRequestLocalization` من ترويسة
+`Accept-Language` (`ar` افتراضياً، `en`؛ أي لغة أخرى → العربية). تُضبط لغة الواجهة فقط، فتنسيق الأرقام والتواريخ لا يتغيّر.
+الواجهة ترسل لغتها الحالية في `auth.interceptor`.
+
+- رسالة جديدة: أضف المفتاح في الملفين معاً ثم استخدم `Messages.Key`، أو `string.Format(Messages.Key, a, b)` مع `{0}` و`{1:0.00}`.
+- `LocalizationTests` يفشل إن نقص مفتاح في أحد الملفين أو اختلفت العناصر النائبة بينهما.
+- النصوص **المحفوظة** (بيان القيود، الإشعارات، سجل التدقيق، شجرة الحسابات، التفقيط) تبقى عربية لأنها بيانات لا رسائل.
+
 ## قاعدة البيانات
 
 SQL Server + EF Core 9. الـ migrations في `ERP.Service/Data/Migrations`. **لا ترحيل تلقائي** إلا بـ `Database:AutoMigrate=true` (مفعّل في Development فقط).

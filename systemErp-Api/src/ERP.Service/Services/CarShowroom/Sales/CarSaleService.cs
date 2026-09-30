@@ -51,7 +51,7 @@ public class CarSaleService : ICarSaleService
 
     public async Task<CarSalesContractDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<CarSalesContractDto>(await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct)
-            ?? throw new NotFoundException("عقد البيع غير موجود"));
+            ?? throw new NotFoundException(Messages.SalesContractNotFound));
 
     public Task<CarSalesContractDto> CreateAsync(CreateCarSalesContractDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -74,11 +74,11 @@ public class CarSaleService : ICarSaleService
     public Task<CarSalesContractDto> UpdateAsync(Guid id, UpdateCarSalesContractDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var contract = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(c => c.Id == id, token) ?? throw new NotFoundException("عقد البيع غير موجود");
+            var contract = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(c => c.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
             if (contract.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled or SalesContractStatus.Delivered)
-                throw new ConflictException("لا يمكن تعديل عقد سُلّم أو فُوتر أو أُلغي.");
+                throw new ConflictException(Messages.CannotEditDeliveredInvoicedCancelledContract);
             if (r.VehicleId != contract.VehicleId && contract.Status != SalesContractStatus.Draft)
-                throw new ConflictException("تغيير المركبة يتم بالتخصيص بعد الاعتماد أو قبله في المسودة.");
+                throw new ConflictException(Messages.VehicleChangeViaAllocation);
 
             var keep = _db.Entry(contract).CurrentValues.Clone();
             Mapper.Apply(r, contract);
@@ -93,12 +93,12 @@ public class CarSaleService : ICarSaleService
     public Task<CarSalesContractDto> AdvanceStatusAsync(Guid id, AdvanceSalesContractRequestDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("عقد البيع غير موجود");
+            var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
             if (c.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled)
-                throw new ConflictException("العقد منتهٍ (مفوتر أو ملغى).");
-            if (r.TargetStatus == SalesContractStatus.Cancelled) throw new ValidationFailedException("للإلغاء استخدم نقطة الإلغاء.");
+                throw new ConflictException(Messages.ContractFinished);
+            if (r.TargetStatus == SalesContractStatus.Cancelled) throw new ValidationFailedException(Messages.UseCancelEndpoint);
             if (r.TargetStatus != c.Status + 1)
-                throw new ConflictException($"المرحلة التالية المسموحة: {c.Status + 1}.");
+                throw new ConflictException(string.Format(Messages.NextAllowedStage, c.Status + 1));
 
             switch (r.TargetStatus)
             {
@@ -118,9 +118,9 @@ public class CarSaleService : ICarSaleService
     public Task<CarSalesContractDto> CompleteAsync(Guid id, CompleteSalesContractRequestDto? h, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var current = await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("عقد البيع غير موجود");
+            var current = await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
             if (current.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled)
-                throw new ConflictException("العقد منتهٍ (مفوتر أو ملغى).");
+                throw new ConflictException(Messages.ContractFinished);
 
             var status = current.Status;
             CarSalesContractDto last = Mapper.Map<CarSalesContractDto>(current);
@@ -155,9 +155,9 @@ public class CarSaleService : ICarSaleService
     public Task<CarSalesContractDto> CancelAsync(Guid id, string? reason, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("عقد البيع غير موجود");
-            if (c.Status == SalesContractStatus.Invoiced) throw new ConflictException("لا يُلغى عقد فُوتر؛ أنشئ مرتجع مبيعات.");
-            if (c.Status == SalesContractStatus.Cancelled) throw new ConflictException("العقد ملغى مسبقاً.");
+            var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
+            if (c.Status == SalesContractStatus.Invoiced) throw new ConflictException(Messages.CannotCancelInvoicedContract);
+            if (c.Status == SalesContractStatus.Cancelled) throw new ConflictException(Messages.ContractAlreadyCancelled);
             var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == c.VehicleId, token);
             if (vehicle is { Status: VehicleStatus.Reserved }) vehicle.Status = VehicleStatus.Available; // فك الحجز
             c.Status = SalesContractStatus.Cancelled;
@@ -169,8 +169,8 @@ public class CarSaleService : ICarSaleService
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("عقد البيع غير موجود");
-        if (c.Status is not (SalesContractStatus.Draft or SalesContractStatus.Cancelled)) throw new ConflictException("يُحذف العقد المسودة أو الملغى فقط.");
+        var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException(Messages.SalesContractNotFound);
+        if (c.Status is not (SalesContractStatus.Draft or SalesContractStatus.Cancelled)) throw new ConflictException(Messages.OnlyDraftOrCancelledContractDeleted);
         _db.Remove(c);
         await _db.SaveChangesAsync(ct);
     }
@@ -181,14 +181,14 @@ public class CarSaleService : ICarSaleService
         var errors = new List<string>();
         if (c.CycleType == CarSalesCycleType.BankLease)
         {
-            if (string.IsNullOrWhiteSpace(c.FinancingBankName)) errors.Add("دورة التمويل البنكي تتطلب اسم البنك.");
-            if ((c.FinancedAmount ?? 0) <= 0) errors.Add("مبلغ التمويل مطلوب.");
+            if (string.IsNullOrWhiteSpace(c.FinancingBankName)) errors.Add(Messages.BankLeaseRequiresBankName);
+            if ((c.FinancedAmount ?? 0) <= 0) errors.Add(Messages.FinancingAmountRequired);
         }
         if (c.CycleType == CarSalesCycleType.Installment)
         {
-            if ((c.MonthlyInstallment ?? 0) <= 0 || (c.FinanceTenorMonths ?? 0) <= 0) errors.Add("القسط الشهري ومدة التقسيط مطلوبان.");
+            if ((c.MonthlyInstallment ?? 0) <= 0 || (c.FinanceTenorMonths ?? 0) <= 0) errors.Add(Messages.InstallmentDetailsRequired);
         }
-        if (c.PaymentMethod is "credit" or "bank_finance" && c.CustomerId == null) errors.Add("البيع الآجل/التمويل يتطلب ربط العقد بعميل.");
+        if (c.PaymentMethod is "credit" or "bank_finance" && c.CustomerId == null) errors.Add(Messages.CreditSaleRequiresCustomerLink);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         var vehicle = await LoadVehicleAsync(c.VehicleId, c.Id, ct);
@@ -222,9 +222,9 @@ public class CarSaleService : ICarSaleService
     private static void Deliver(CarSalesContract c, AdvanceSalesContractRequestDto r)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(r.HandoverProtocolNumber)) errors.Add("رقم محضر التسليم مطلوب.");
-        if (string.IsNullOrWhiteSpace(r.HandoverSignee)) errors.Add("اسم المستلم (الموقّع) مطلوب.");
-        if (string.IsNullOrWhiteSpace(r.HandoverSigneeNationalId)) errors.Add("هوية المستلم مطلوبة.");
+        if (string.IsNullOrWhiteSpace(r.HandoverProtocolNumber)) errors.Add(Messages.DeliveryReportNumberRequired);
+        if (string.IsNullOrWhiteSpace(r.HandoverSignee)) errors.Add(Messages.RecipientNameRequired);
+        if (string.IsNullOrWhiteSpace(r.HandoverSigneeNationalId)) errors.Add(Messages.RecipientIdRequired);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         c.HandoverProtocolNumber = r.HandoverProtocolNumber; c.HandoverSignee = r.HandoverSignee;
         c.HandoverSigneeNationalId = r.HandoverSigneeNationalId;
@@ -233,7 +233,7 @@ public class CarSaleService : ICarSaleService
 
     private async Task InvoiceAsync(CarSalesContract c, CancellationToken ct)
     {
-        if (c.InvoiceId != null) throw new ConflictException("العقد فُوتر مسبقاً.");
+        if (c.InvoiceId != null) throw new ConflictException(Messages.ContractAlreadyInvoiced);
         var vehicle = await _db.Set<Vehicle>().FirstAsync(v => v.Id == c.VehicleId, ct);
         var customer = c.CustomerId.HasValue ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == c.CustomerId, ct) : null;
         var net = c.NetPriceBeforeVat ?? c.SellingPrice - (c.DiscountAmount ?? 0);
@@ -288,15 +288,16 @@ public class CarSaleService : ICarSaleService
     // ---------------- التحقق والتسعير ----------------
     private async Task<Vehicle> LoadVehicleAsync(Guid vehicleId, Guid? contractId, CancellationToken ct)
     {
-        var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == vehicleId, ct) ?? throw new ValidationFailedException("المركبة غير موجودة.");
-        if (vehicle.Status == VehicleStatus.Sold) throw new ConflictException("المركبة مباعة.");
+        var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == vehicleId, ct) ?? throw new ValidationFailedException(Messages.VehicleNotFound);
+        if (vehicle.Status == VehicleStatus.Sold) throw new ConflictException(Messages.VehicleSold);
+        if (vehicle.Status == VehicleStatus.WrittenOff) throw new ConflictException(Messages.VehicleWrittenOffNotSellable);
         if (vehicle.Status == VehicleStatus.Reserved)
         {
             var reservedByThis = contractId.HasValue && await _db.Set<CarSalesContract>().AnyAsync(x => x.Id == contractId && x.VehicleId == vehicleId
                 && x.Status != SalesContractStatus.Cancelled, ct);
             var reservedByOther = await _db.Set<CarSalesContract>().AnyAsync(x => x.VehicleId == vehicleId && x.Id != contractId
                 && x.Status != SalesContractStatus.Cancelled && x.Status != SalesContractStatus.Draft, ct);
-            if (reservedByOther || (!reservedByThis && !contractId.HasValue)) throw new ConflictException("المركبة محجوزة لعقد آخر.");
+            if (reservedByOther || (!reservedByThis && !contractId.HasValue)) throw new ConflictException(Messages.VehicleReservedForAnotherContract);
         }
         return vehicle;
     }
@@ -304,19 +305,19 @@ public class CarSaleService : ICarSaleService
     private async Task ValidateAsync(CarSalesContract c, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(c.BuyerName)) errors.Add("اسم المشتري مطلوب.");
-        if (string.IsNullOrWhiteSpace(c.BuyerNationalIdOrCr)) errors.Add("هوية/سجل المشتري مطلوب.");
-        if (string.IsNullOrWhiteSpace(c.BuyerPhone)) errors.Add("جوال المشتري مطلوب.");
-        if (!PaymentMethods.Contains(c.PaymentMethod)) errors.Add("طريقة الدفع: " + string.Join(" | ", PaymentMethods));
-        if (c.SellingPrice < 0 || (c.DiscountAmount ?? 0) < 0 || (c.DiscountAmount ?? 0) > c.SellingPrice) errors.Add("السعر والخصم غير صالحين.");
-        if (!string.IsNullOrWhiteSpace(c.BuyerEmail) && !c.BuyerEmail.Contains('@')) errors.Add("البريد الإلكتروني غير صالح.");
-        if ((c.DownPaymentAmount ?? 0) < 0) errors.Add("الدفعة المقدمة لا تكون سالبة.");
+        if (string.IsNullOrWhiteSpace(c.BuyerName)) errors.Add(Messages.BuyerNameRequired);
+        if (string.IsNullOrWhiteSpace(c.BuyerNationalIdOrCr)) errors.Add(Messages.BuyerIdRequired);
+        if (string.IsNullOrWhiteSpace(c.BuyerPhone)) errors.Add(Messages.BuyerMobileRequired);
+        if (!PaymentMethods.Contains(c.PaymentMethod)) errors.Add(Messages.PaymentMethodPrefix + string.Join(" | ", PaymentMethods));
+        if (c.SellingPrice < 0 || (c.DiscountAmount ?? 0) < 0 || (c.DiscountAmount ?? 0) > c.SellingPrice) errors.Add(Messages.PriceAndDiscountInvalid);
+        if (!string.IsNullOrWhiteSpace(c.BuyerEmail) && !c.BuyerEmail.Contains('@')) errors.Add(Messages.EmailInvalid);
+        if ((c.DownPaymentAmount ?? 0) < 0) errors.Add(Messages.DownPaymentCannotBeNegative);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (c.CustomerId.HasValue && !await _db.Set<Customer>().AnyAsync(x => x.Id == c.CustomerId, ct))
-            throw new ValidationFailedException("العميل غير موجود.");
+            throw new ValidationFailedException(Messages.CustomerNotFound);
         if (c.FinancingBankId.HasValue && !await _db.Set<BankEntity>().AnyAsync(x => x.Id == c.FinancingBankId, ct))
-            throw new ValidationFailedException("البنك المموِّل غير موجود.");
+            throw new ValidationFailedException(Messages.FinancingBankNotFound);
     }
 
     /// <summary>ينسخ بيانات المركبة ويحسب التسعير والضريبة في الخادم (التكلفة من المركبة لا من العميل).</summary>
@@ -332,14 +333,14 @@ public class CarSaleService : ICarSaleService
         if (c.SellingPrice <= 0) c.SellingPrice = v.SellingPrice;
         var net = c.SellingPrice - (c.DiscountAmount ?? 0);
         if (v.MinSellingPrice.HasValue && net < v.MinSellingPrice)
-            throw new ValidationFailedException($"سعر البيع بعد الخصم ({net:0.00}) أقل من الحد الأدنى للمركبة ({v.MinSellingPrice:0.00}).");
+            throw new ValidationFailedException(string.Format(Messages.SellingPriceBelowMinimum, net, v.MinSellingPrice));
 
         c.CostPrice = v.TotalCost;
         c.VatMode = v.VatMode; // نمط الضريبة من بطاقة المركبة لا من العميل
         var vat = CarVat.Calculate(c.CostPrice, net, c.VatMode);
         c.NetPriceBeforeVat = vat.NetBeforeVat; c.ProfitMargin = vat.ProfitMargin; c.ProfitMarginVat = vat.ProfitMarginVat;
         c.VatAmount = vat.VatAmount; c.TotalWithVat = vat.PriceWithVat;
-        if ((c.DownPaymentAmount ?? 0) > c.TotalWithVat) throw new ValidationFailedException("الدفعة المقدمة تتجاوز إجمالي العقد.");
+        if ((c.DownPaymentAmount ?? 0) > c.TotalWithVat) throw new ValidationFailedException(Messages.DownPaymentExceedsTotal);
     }
 
     private static void ResetSystemFields(CarSalesContract c)

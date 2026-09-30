@@ -21,12 +21,12 @@ public class CostingService : ICostingService
 
     public async Task<CostingPolicyDto> SetPolicyAsync(CreateCostingPolicyDto d, CancellationToken ct = default)
     {
-        if (!Enum.IsDefined(d.Method)) throw new ValidationFailedException("طريقة التكلفة غير صالحة.");
+        if (!Enum.IsDefined(d.Method)) throw new ValidationFailedException(Messages.InvalidCostingMethod);
         if (d.NegativeInventoryPolicy is not ("prohibit" or "allow_with_last_cost"))
-            throw new ValidationFailedException("سياسة المخزون السالب: prohibit | allow_with_last_cost.");
+            throw new ValidationFailedException(Messages.NegativeInventoryPolicyValues);
         if (!string.IsNullOrWhiteSpace(d.StandardCostVarianceAccountCode)
             && !await _db.Set<Account>().AnyAsync(a => a.Code == d.StandardCostVarianceAccountCode, ct))
-            throw new ValidationFailedException("حساب فروقات التكلفة المعيارية غير موجود.");
+            throw new ValidationFailedException(Messages.StandardCostVarianceAccountNotFound);
 
         var policy = await _db.Set<CostingPolicy>().FirstOrDefaultAsync(ct);
         if (policy == null) { policy = new CostingPolicy(); _db.Add(policy); }

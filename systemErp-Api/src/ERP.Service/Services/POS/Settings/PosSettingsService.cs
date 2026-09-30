@@ -22,8 +22,8 @@ public class PosSettingsService : IPosSettingsService
 
     public async Task<PosInvoiceSettingsDto> UpdateAsync(UpdatePosInvoiceSettingsDto r, CancellationToken ct = default)
     {
-        if (r.DefaultInvoiceType is not ("simplified" or "standard")) throw new ValidationFailedException("نوع الفاتورة: simplified | standard.");
-        if (!PaperSizes.Contains(r.PaperSize)) throw new ValidationFailedException("مقاس الورق: " + string.Join(" | ", PaperSizes));
+        if (r.DefaultInvoiceType is not ("simplified" or "standard")) throw new ValidationFailedException(Messages.InvoiceTypeValues);
+        if (!PaperSizes.Contains(r.PaperSize)) throw new ValidationFailedException(Messages.PaperSizePrefix + string.Join(" | ", PaperSizes));
         var s = await LoadAsync(ct);
         Mapper.Apply(r, s);
         await _db.SaveChangesAsync(ct);

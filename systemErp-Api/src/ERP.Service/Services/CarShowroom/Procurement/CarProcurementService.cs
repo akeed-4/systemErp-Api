@@ -56,7 +56,7 @@ public class CarProcurementService : ICarProcurementService
     public async Task<CarProcurementOrderDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<CarProcurementOrderDto>(await _db.Set<CarProcurementOrder>().AsNoTracking()
             .Include(o => o.Items).Include(o => o.ReceivedVins).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == id, ct)
-            ?? throw new NotFoundException("أمر الشراء غير موجود"));
+            ?? throw new NotFoundException(Messages.ProcurementOrderNotFound));
 
     public Task<CarProcurementOrderDto> CreateAsync(CreateCarProcurementOrderDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -79,12 +79,12 @@ public class CarProcurementService : ICarProcurementService
         => _tx.RunAsync(async token =>
         {
             var order = await _db.Set<CarProcurementOrder>().Include(o => o.Items).Include(o => o.ReceivedVins).AsSplitQuery()
-                .FirstOrDefaultAsync(o => o.Id == id, token) ?? throw new NotFoundException("أمر الشراء غير موجود");
+                .FirstOrDefaultAsync(o => o.Id == id, token) ?? throw new NotFoundException(Messages.ProcurementOrderNotFound);
             if (order.Stage == ProcurementStage.Invoiced || order.Status is ProcurementOrderStatus.Invoiced or ProcurementOrderStatus.Closed)
-                throw new ConflictException("لا يمكن تعديل أمر تمت فوترته.");
-            if (order.Status == ProcurementOrderStatus.Rejected) throw new ConflictException("لا يمكن تعديل أمر مرفوض.");
+                throw new ConflictException(Messages.CannotEditInvoicedOrderProcurement);
+            if (order.Status == ProcurementOrderStatus.Rejected) throw new ConflictException(Messages.CannotEditRejectedOrder);
             if (order.ReceivedVins.Count > 0 && r.Items.Sum(i => i.Quantity) != order.Items.Sum(i => i.Quantity))
-                throw new ConflictException("لا تغيّر كميات أمر استُلمت شواسيهه.");
+                throw new ConflictException(Messages.CannotChangeQtyAfterVinsReceived);
             var supplier = await ValidateAsync(r, token);
 
             var keep = _db.Entry(order).CurrentValues.Clone(); // لاستعادة الحقول التي تديرها الدورة
@@ -112,12 +112,12 @@ public class CarProcurementService : ICarProcurementService
         => _tx.RunAsync(async token =>
         {
             var order = await _db.Set<CarProcurementOrder>().Include(o => o.Items).Include(o => o.ReceivedVins).AsSplitQuery()
-                .FirstOrDefaultAsync(o => o.Id == id, token) ?? throw new NotFoundException("أمر الشراء غير موجود");
+                .FirstOrDefaultAsync(o => o.Id == id, token) ?? throw new NotFoundException(Messages.ProcurementOrderNotFound);
             if (order.Status is ProcurementOrderStatus.Rejected or ProcurementOrderStatus.Closed)
-                throw new ConflictException("الأمر مرفوض أو مغلق ولا يتقدم في الدورة.");
-            if (!Enum.IsDefined(r.TargetStage)) throw new ValidationFailedException("مرحلة غير صالحة.");
+                throw new ConflictException(Messages.OrderRejectedOrClosed);
+            if (!Enum.IsDefined(r.TargetStage)) throw new ValidationFailedException(Messages.InvalidStage);
             if (r.TargetStage != order.Stage + 1)
-                throw new ConflictException($"المرحلة التالية المسموحة هي: {(order.Stage == ProcurementStage.Invoiced ? "لا يوجد" : (order.Stage + 1).ToString())}.");
+                throw new ConflictException(string.Format(Messages.NextAllowedStageIs, (order.Stage == ProcurementStage.Invoiced ? Messages.NoneValue : (order.Stage + 1).ToString())));
 
             var fromStage = order.Stage;
             switch (r.TargetStage)
@@ -151,10 +151,10 @@ public class CarProcurementService : ICarProcurementService
 
     public async Task<CarProcurementOrderDto> RejectAsync(Guid id, RejectProcurementRequestDto r, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(r.Reason)) throw new ValidationFailedException("سبب الرفض مطلوب.");
-        var order = await _db.Set<CarProcurementOrder>().FirstOrDefaultAsync(o => o.Id == id, ct) ?? throw new NotFoundException("أمر الشراء غير موجود");
+        if (string.IsNullOrWhiteSpace(r.Reason)) throw new ValidationFailedException(Messages.RejectionReasonRequired);
+        var order = await _db.Set<CarProcurementOrder>().FirstOrDefaultAsync(o => o.Id == id, ct) ?? throw new NotFoundException(Messages.ProcurementOrderNotFound);
         if (order.Stage >= ProcurementStage.VinReceived || order.Status is ProcurementOrderStatus.Invoiced or ProcurementOrderStatus.Closed)
-            throw new ConflictException("لا يمكن رفض أمر استُلمت مركباته أو فُوتر.");
+            throw new ConflictException(Messages.CannotRejectReceivedOrInvoicedOrder);
         order.Status = ProcurementOrderStatus.Rejected; order.RejectionReason = r.Reason;
         await _audit.LogAsync("ORDER_REJECTED", nameof(CarProcurementOrder), order.Id.ToString(), r.Reason, ct);
         await _db.SaveChangesAsync(ct);
@@ -164,8 +164,8 @@ public class CarProcurementService : ICarProcurementService
     public Task<CarProcurementOrderDto> QuickPurchaseAsync(QuickCarPurchaseRequestDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            if (string.IsNullOrWhiteSpace(r.Vin)) throw new ValidationFailedException("رقم الشاسيه (VIN) مطلوب.");
-            if (r.PurchasePrice <= 0) throw new ValidationFailedException("سعر الشراء يجب أن يكون موجباً.");
+            if (string.IsNullOrWhiteSpace(r.Vin)) throw new ValidationFailedException(Messages.VinRequired);
+            if (r.PurchasePrice <= 0) throw new ValidationFailedException(Messages.PurchasePriceMustBePositive);
 
             var notes = new List<string> { $"شراء سريع لمركبة (دورة {r.PurchaseCycle}) — VIN {r.Vin.Trim().ToUpperInvariant()}" };
             if (!string.IsNullOrWhiteSpace(r.FinancingBankName)) notes.Add($"الجهة: {r.FinancingBankName}");
@@ -211,9 +211,9 @@ public class CarProcurementService : ICarProcurementService
         => _tx.RunAsync(async token =>
         {
             var order = await _db.Set<CarProcurementOrder>().Include(o => o.Items).Include(o => o.ReceivedVins).AsSplitQuery()
-                .FirstOrDefaultAsync(o => o.Id == id, token) ?? throw new NotFoundException("أمر الشراء غير موجود");
+                .FirstOrDefaultAsync(o => o.Id == id, token) ?? throw new NotFoundException(Messages.ProcurementOrderNotFound);
             if (order.ReceivedVins.Count > 0 || order.PurchaseInvoiceId != null || order.Stage >= ProcurementStage.PurchaseOrder && order.Status != ProcurementOrderStatus.Rejected)
-                throw new ConflictException("لا يُحذف إلا أمر لم يصل لمرحلة أمر الشراء (أو مرفوض) ولم تُستلم مركباته.");
+                throw new ConflictException(Messages.OnlyEarlyOrdersCanBeDeleted);
             _db.RemoveRange(order.Items);
             _db.Remove(order);
             await _db.SaveChangesAsync(token);
@@ -223,24 +223,24 @@ public class CarProcurementService : ICarProcurementService
     private async Task<Supplier> ValidateAsync(CreateCarProcurementOrderDto r, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (!PaymentTypes.Contains(r.PaymentType)) errors.Add("نوع الدفع: " + string.Join(" | ", PaymentTypes));
-        if (!Currencies.Contains(r.Currency)) errors.Add("العملة: " + string.Join(" | ", Currencies));
-        if (!string.IsNullOrWhiteSpace(r.PurchaseCycle) && !PurchaseCycles.Contains(r.PurchaseCycle)) errors.Add("دورة الشراء: " + string.Join(" | ", PurchaseCycles));
-        if (r.ExchangeRate <= 0) errors.Add("سعر الصرف يجب أن يكون موجباً.");
-        if (r.Currency == "SAR" && r.ExchangeRate != 1) errors.Add("سعر صرف الريال 1.");
-        if (r.PaymentType == "credit" && (r.CreditDays ?? 0) <= 0) errors.Add("الدفع الآجل يتطلب عدد أيام الائتمان.");
-        if (r.Items.Count == 0) errors.Add("يجب إدخال بند واحد على الأقل.");
+        if (!PaymentTypes.Contains(r.PaymentType)) errors.Add(Messages.PaymentTypePrefix + string.Join(" | ", PaymentTypes));
+        if (!Currencies.Contains(r.Currency)) errors.Add(Messages.CurrencyPrefix + string.Join(" | ", Currencies));
+        if (!string.IsNullOrWhiteSpace(r.PurchaseCycle) && !PurchaseCycles.Contains(r.PurchaseCycle)) errors.Add(Messages.PurchaseCyclePrefix + string.Join(" | ", PurchaseCycles));
+        if (r.ExchangeRate <= 0) errors.Add(Messages.ExchangeRateMustBePositive);
+        if (r.Currency == "SAR" && r.ExchangeRate != 1) errors.Add(Messages.SarExchangeRateIsOne);
+        if (r.PaymentType == "credit" && (r.CreditDays ?? 0) <= 0) errors.Add(Messages.CreditPaymentRequiresDays);
+        if (r.Items.Count == 0) errors.Add(Messages.AtLeastOneLineRequired);
         foreach (var i in r.Items)
         {
-            if (string.IsNullOrWhiteSpace(i.BrandName) || string.IsNullOrWhiteSpace(i.ModelName)) errors.Add("الماركة والموديل مطلوبان لكل بند.");
-            if (i.Quantity <= 0 || i.UnitPrice < 0) errors.Add("الكمية موجبة والسعر غير سالب.");
-            if (i.Year is < 1980 or > 2100) errors.Add("سنة صنع البند غير صالحة.");
+            if (string.IsNullOrWhiteSpace(i.BrandName) || string.IsNullOrWhiteSpace(i.ModelName)) errors.Add(Messages.BrandAndModelRequiredPerLine);
+            if (i.Quantity <= 0 || i.UnitPrice < 0) errors.Add(Messages.QtyPositivePriceNonNegative);
+            if (i.Year is < 1980 or > 2100) errors.Add(Messages.LineModelYearInvalid);
         }
-        if (r.CustomsDutyFee < 0 || r.PortStorageFee < 0) errors.Add("الرسوم لا تكون سالبة.");
+        if (r.CustomsDutyFee < 0 || r.PortStorageFee < 0) errors.Add(Messages.FeesCannotBeNegative);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors.Distinct().ToList());
 
         return await _db.Set<Supplier>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == r.SupplierId, ct)
-            ?? throw new ValidationFailedException("المورد غير موجود.");
+            ?? throw new ValidationFailedException(Messages.SupplierNotFound);
     }
 
     /// <summary>الحقول التي تديرها الدورة فقط - لا تُقبل من العميل عند الإنشاء.</summary>
@@ -267,20 +267,20 @@ public class CarProcurementService : ICarProcurementService
     {
         if (r.PdiInspectionPassed == false)
         {
-            if (string.IsNullOrWhiteSpace(r.RejectionReason)) throw new ValidationFailedException("سبب رفض الفحص مطلوب.");
+            if (string.IsNullOrWhiteSpace(r.RejectionReason)) throw new ValidationFailedException(Messages.InspectionRejectionReasonRequired);
             order.PdiInspectionPassed = false; order.Status = ProcurementOrderStatus.Rejected; order.RejectionReason = r.RejectionReason;
             return false;
         }
-        if (r.PdiInspectionPassed != true) throw new ValidationFailedException("يلزم تأكيد اجتياز فحص الاستلام (PDI).");
+        if (r.PdiInspectionPassed != true) throw new ValidationFailedException(Messages.PdiConfirmationRequired);
 
         var expected = order.Items.Sum(i => i.Quantity);
-        if (r.Vins.Count != expected) throw new ValidationFailedException($"عدد الشواسيهات ({r.Vins.Count}) يجب أن يساوي إجمالي الكميات المطلوبة ({expected}).");
+        if (r.Vins.Count != expected) throw new ValidationFailedException(string.Format(Messages.VinCountMustMatchQuantities, r.Vins.Count, expected));
 
         var vins = r.Vins.Select(v => v.Vin.Trim().ToUpperInvariant()).ToList();
-        if (vins.Any(v => !VehicleService.VinPattern.IsMatch(v))) throw new ValidationFailedException("رقم شاسيه غير صالح (17 خانة بدون I/O/Q).");
-        if (vins.Distinct().Count() != vins.Count) throw new ValidationFailedException("أرقام الشواسيه مكررة في الطلب.");
+        if (vins.Any(v => !VehicleService.VinPattern.IsMatch(v))) throw new ValidationFailedException(Messages.VinInvalid);
+        if (vins.Distinct().Count() != vins.Count) throw new ValidationFailedException(Messages.DuplicateVinsInRequest);
         var existing = await _db.Set<Vehicle>().AsNoTracking().Where(v => vins.Contains(v.ChassisNumber)).Select(v => v.ChassisNumber).ToListAsync(ct);
-        if (existing.Count > 0) throw new ConflictException("شواسيهات مسجّلة مسبقاً: " + string.Join(", ", existing));
+        if (existing.Count > 0) throw new ConflictException(Messages.VinsAlreadyRegisteredPrefix + string.Join(", ", existing));
 
         var remaining = order.Items.ToDictionary(i => i.Id, i => i.Quantity);
         var landedCosts = (order.CustomsDutyFee ?? 0) + (order.PortStorageFee ?? 0);
@@ -291,9 +291,9 @@ public class CarProcurementService : ICarProcurementService
         {
             var src = r.Vins[n];
             var item = src.ItemId.HasValue
-                ? order.Items.FirstOrDefault(i => i.Id == src.ItemId) ?? throw new ValidationFailedException("بند غير موجود في الأمر.")
+                ? order.Items.FirstOrDefault(i => i.Id == src.ItemId) ?? throw new ValidationFailedException(Messages.LineNotInOrder)
                 : order.Items.FirstOrDefault(i => remaining[i.Id] > 0)!;
-            if (remaining[item.Id] <= 0) throw new ValidationFailedException("عدد الشواسيهات لبند يتجاوز كميته.");
+            if (remaining[item.Id] <= 0) throw new ValidationFailedException(Messages.VinCountExceedsLineQty);
             remaining[item.Id]--;
 
             var brandId = await _db.Set<CarBrand>().Where(b => b.NameAr == item.BrandName).Select(b => (Guid?)b.Id).FirstOrDefaultAsync(ct);
@@ -329,8 +329,8 @@ public class CarProcurementService : ICarProcurementService
     private async Task InvoiceAsync(CarProcurementOrder order, AdvanceProcurementRequestDto r, CancellationToken ct)
     {
         if (order.Status != ProcurementOrderStatus.Received || order.ReceivedVins.Count == 0)
-            throw new ConflictException("لا تُفوتر الدورة قبل استلام الشواسيهات.");
-        if (order.PurchaseInvoiceId != null) throw new ConflictException("الأمر فُوتر مسبقاً.");
+            throw new ConflictException(Messages.CannotInvoiceBeforeVinsReceived);
+        if (order.PurchaseInvoiceId != null) throw new ConflictException(Messages.OrderAlreadyInvoiced);
 
         var fx = order.ExchangeRate <= 0 ? 1 : order.ExchangeRate;
         var credit = order.PaymentType != "cash";

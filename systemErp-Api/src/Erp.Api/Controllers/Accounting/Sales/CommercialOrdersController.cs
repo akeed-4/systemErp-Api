@@ -12,5 +12,5 @@ public class CommercialOrdersController : CrudController<CommercialOrderDto, Cre
     public CommercialOrdersController(ICommercialOrderService s) : base(s) => _orders = s;
 
     [HttpPost("{id:guid}/ConvertToInvoice")]
-    public async Task<IActionResult> ToInvoice(Guid id, CancellationToken ct) => Success(await _orders.ConvertToInvoiceAsync(id, ct), "تم إنشاء فاتورة مسودة");
+    public async Task<IActionResult> ToInvoice(Guid id, CancellationToken ct) => Success(await _orders.ConvertToInvoiceAsync(id, ct), Messages.DraftInvoiceCreated);
 }

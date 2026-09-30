@@ -18,7 +18,7 @@ public class ApprovalService : IApprovalService
         {
             var me = _user.UserId ?? throw new UnauthorizedAppException();
             if (string.IsNullOrWhiteSpace(r.DocumentType) || string.IsNullOrWhiteSpace(r.ActionType))
-                throw new ValidationFailedException("نوع المستند والإجراء مطلوبان.");
+                throw new ValidationFailedException(Messages.DocumentTypeAndActionRequired);
 
             var policy = (await _db.Set<ApprovalPolicy>().Include(p => p.Steps)
                     .Where(p => p.IsActive && p.DocumentType == r.DocumentType && p.ActionType == r.ActionType).ToListAsync(token))
@@ -67,7 +67,7 @@ public class ApprovalService : IApprovalService
 
     public async Task<ApprovalRequestDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<ApprovalRequestDto>(await _db.Set<ApprovalRequest>().AsNoTracking().Include(x => x.History).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException("طلب الاعتماد غير موجود"));
+            ?? throw new NotFoundException(Messages.ApprovalRequestNotFound));
 
     public Task<ApprovalRequestDto> ApproveAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -102,9 +102,9 @@ public class ApprovalService : IApprovalService
     {
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         var request = await _db.Set<ApprovalRequest>().Include(x => x.History).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException("طلب الاعتماد غير موجود");
-        if (request.Status != "pending") throw new ConflictException("لا يُسحب إلا الطلب المعلّق.");
-        if (request.RequesterUserId != me && _user.RoleId is not ("owner" or "admin")) throw new ForbiddenException("لا يسحب الطلب إلا مقدّمه أو المالك/المدير.");
+            ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
+        if (request.Status != "pending") throw new ConflictException(Messages.OnlyPendingRequestWithdrawable);
+        if (request.RequesterUserId != me && _user.RoleId is not ("owner" or "admin")) throw new ForbiddenException(Messages.OnlyRequesterOrAdminCanWithdraw);
         request.Status = "cancelled";
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<ApprovalRequestDto>(request);
@@ -113,7 +113,7 @@ public class ApprovalService : IApprovalService
     public Task<ApprovalRequestDto> RejectAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            if (string.IsNullOrWhiteSpace(d.Comment)) throw new ValidationFailedException("سبب الرفض مطلوب.");
+            if (string.IsNullOrWhiteSpace(d.Comment)) throw new ValidationFailedException(Messages.RejectionReasonRequired);
             var (request, me) = await LoadForDecisionAsync(id, token);
             request.History.Add(new ApprovalHistoryItem
             {
@@ -131,16 +131,16 @@ public class ApprovalService : IApprovalService
     {
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         var request = await _db.Set<ApprovalRequest>().Include(x => x.History).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException("طلب الاعتماد غير موجود");
-        if (request.Status != "pending") throw new ConflictException("الطلب تم البت فيه مسبقاً.");
+            ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
+        if (request.Status != "pending") throw new ConflictException(Messages.RequestAlreadyDecided);
 
         var role = _user.RoleId;
         var isOwner = role == "owner";
         var allowed = isOwner
             || (request.RequiredApproverUserId.HasValue && request.RequiredApproverUserId == me)
             || (request.RequiredApproverUserId == null && request.RequiredApproverRole != null && request.RequiredApproverRole == role);
-        if (!allowed) throw new ForbiddenException("لست المعتمد المطلوب في هذا المستوى.");
-        if (request.RequesterUserId == me && !isOwner) throw new ForbiddenException("لا يمكنك اعتماد طلبك بنفسك.");
+        if (!allowed) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
+        if (request.RequesterUserId == me && !isOwner) throw new ForbiddenException(Messages.CannotApproveOwnRequest);
         return (request, me);
     }
 

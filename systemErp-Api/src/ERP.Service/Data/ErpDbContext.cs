@@ -44,6 +44,7 @@ public class ErpDbContext : DbContext
         (typeof(FixedAsset), nameof(FixedAsset.AssetAccountId), typeof(Account)),
         (typeof(FixedAsset), nameof(FixedAsset.AccumulatedDepreciationAccountId), typeof(Account)),
         (typeof(PasswordResetOtp), nameof(PasswordResetOtp.UserId), typeof(User)),
+        (typeof(InventoryCountApproval), nameof(InventoryCountApproval.InventoryCountId), typeof(InventoryCount)),
     };
 
     // فهارس فريدة على مستوى المنشأة (TenantId + الخاصية).
@@ -73,6 +74,8 @@ public class ErpDbContext : DbContext
         (typeof(PosShift), nameof(PosShift.ShiftNumber)),
         (typeof(PosTransaction), nameof(PosTransaction.InvoiceNumber)),
         (typeof(PosCoupon), nameof(PosCoupon.Code)),
+        (typeof(InventoryCount), nameof(InventoryCount.CountNumber)),
+        (typeof(InventoryCountApproval), nameof(InventoryCountApproval.ApprovalNumber)),
         (typeof(NumberSequence), nameof(NumberSequence.Key)),
         (typeof(User), nameof(User.Email)),
     };
@@ -119,6 +122,7 @@ public class ErpDbContext : DbContext
             modelBuilder.Entity(entity).HasIndex(nameof(BaseEntity.TenantId), prop).IsUnique();
 
         modelBuilder.Entity<NumberSequence>().Property(s => s.Version).IsConcurrencyToken();
+        modelBuilder.Entity<InventoryCountApproval>().Property(a => a.Version).IsConcurrencyToken();
 
         // الأبناء المملوكون للتجميع يُحذفون معه، وأي علاقة أخرى تمنع الحذف (Restrict) لتفادي مسارات حذف متعددة.
         foreach (var fk in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()))
@@ -161,12 +165,12 @@ public class ErpDbContext : DbContext
                     else if (tenantId.HasValue)
                     {
                         if (entry.Entity.TenantId != Guid.Empty && entry.Entity.TenantId != tenantId.Value)
-                            throw new InvalidOperationException("لا يمكن حفظ سجل ينتمي إلى منشأة أخرى.");
+                            throw new InvalidOperationException(Messages.CannotSaveOtherTenantRecord);
                         entry.Entity.TenantId = tenantId.Value;
                     }
                     else if (entry.Entity.TenantId == Guid.Empty)
                     {
-                        throw new InvalidOperationException("لا يمكن حفظ سجل بدون منشأة (tenant).");
+                        throw new InvalidOperationException(Messages.CannotSaveRecordWithoutTenant);
                     }
                     entry.Entity.CreatedAt = now;
                     break;

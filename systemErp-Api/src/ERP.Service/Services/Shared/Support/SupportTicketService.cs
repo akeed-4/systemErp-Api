@@ -22,7 +22,7 @@ public class SupportTicketService : CrudService<SupportTicket, SupportTicketDto,
         _numbers = numbers; _user = user;
     }
 
-    protected override string Label => "تذكرة الدعم";
+    protected override string Label => Messages.LabelSupportTicket;
     protected override bool Transactional => true;
 
     protected override IQueryable<SupportTicket> ApplySearch(IQueryable<SupportTicket> q, string term)
@@ -34,12 +34,12 @@ public class SupportTicketService : CrudService<SupportTicket, SupportTicketDto,
     protected override Task ValidateAsync(CreateSupportTicketDto d, SupportTicket? existing, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(d.Title) || d.Title.Trim().Length < 5) errors.Add("عنوان التذكرة مطلوب (5 أحرف على الأقل).");
-        if (string.IsNullOrWhiteSpace(d.Description) || d.Description.Trim().Length < 10) errors.Add("تفاصيل التذكرة مطلوبة (10 أحرف على الأقل).");
-        if (!Departments.Contains(d.Department)) errors.Add("القسم: " + string.Join(" | ", Departments));
-        if (!Priorities.Contains(d.Priority)) errors.Add("الأولوية: " + string.Join(" | ", Priorities));
+        if (string.IsNullOrWhiteSpace(d.Title) || d.Title.Trim().Length < 5) errors.Add(Messages.TicketTitleRequired);
+        if (string.IsNullOrWhiteSpace(d.Description) || d.Description.Trim().Length < 10) errors.Add(Messages.TicketDescriptionRequired);
+        if (!Departments.Contains(d.Department)) errors.Add(Messages.DepartmentPrefix + string.Join(" | ", Departments));
+        if (!Priorities.Contains(d.Priority)) errors.Add(Messages.PriorityPrefix + string.Join(" | ", Priorities));
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
-        if (existing != null && existing.Status != "open") throw new ConflictException("لا تُعدَّل تذكرة بدأت معالجتها أو أُغلقت.");
+        if (existing != null && existing.Status != "open") throw new ConflictException(Messages.CannotEditTicketInProgress);
         return Task.CompletedTask;
     }
 
@@ -58,15 +58,15 @@ public class SupportTicketService : CrudService<SupportTicket, SupportTicketDto,
 
     protected override Task OnDeletingAsync(SupportTicket e, CancellationToken ct)
     {
-        if (e.Status != "open") throw new ConflictException("لا تُحذف إلا التذكرة المفتوحة التي لم تبدأ معالجتها.");
+        if (e.Status != "open") throw new ConflictException(Messages.OnlyOpenUnprocessedTicketDeletable);
         return Task.CompletedTask;
     }
 
     public async Task<SupportTicketDto> AddReplyAsync(Guid id, AddSupportTicketReplyDto request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Message)) throw new ValidationFailedException("نص الرد مطلوب.");
-        var ticket = await Db.Set<SupportTicket>().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException($"{Label} غير موجودة");
-        if (ticket.Status == "closed") throw new ConflictException("التذكرة مغلقة ولا تقبل ردوداً؛ افتح تذكرة جديدة.");
+        if (string.IsNullOrWhiteSpace(request.Message)) throw new ValidationFailedException(Messages.ReplyTextRequired);
+        var ticket = await Db.Set<SupportTicket>().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException(string.Format(Messages.EntityNotFoundFeminine, Label));
+        if (ticket.Status == "closed") throw new ConflictException(Messages.TicketClosedNoReplies);
 
         Db.Add(new SupportTicketReply
         {
@@ -81,8 +81,8 @@ public class SupportTicketService : CrudService<SupportTicket, SupportTicketDto,
 
     public async Task<SupportTicketDto> ChangeStatusAsync(Guid id, ChangeSupportTicketStatusDto request, CancellationToken ct = default)
     {
-        if (!Statuses.Contains(request.Status)) throw new ValidationFailedException("الحالة: " + string.Join(" | ", Statuses));
-        var ticket = await Db.Set<SupportTicket>().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException($"{Label} غير موجودة");
+        if (!Statuses.Contains(request.Status)) throw new ValidationFailedException(Messages.StatusPrefix + string.Join(" | ", Statuses));
+        var ticket = await Db.Set<SupportTicket>().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException(string.Format(Messages.EntityNotFoundFeminine, Label));
         ticket.Status = request.Status;
         ticket.UpdatedAt = DateTime.UtcNow;
         await SaveAsync(ct);

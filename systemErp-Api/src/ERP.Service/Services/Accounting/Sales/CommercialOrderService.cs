@@ -14,7 +14,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         _numbers = numbers; _invoices = invoices;
     }
 
-    protected override string Label => "الأمر";
+    protected override string Label => Messages.LabelOrder;
     protected override bool Transactional => true;
 
     protected override IQueryable<CommercialOrder> ApplySearch(IQueryable<CommercialOrder> q, string t)
@@ -30,11 +30,11 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
     {
         var errors = new List<string>();
         TradeHelper.RequireParty(d.PartyName, errors);
-        if (d.Type is not ("sales_order" or "purchase_order")) errors.Add("النوع: sales_order | purchase_order.");
-        if (!TradeHelper.OrderStatuses.Contains(d.Status)) errors.Add("حالة غير صالحة.");
-        if (d.ExpectedDeliveryDate < d.OrderDate) errors.Add("تاريخ التسليم المتوقع قبل تاريخ الأمر.");
-        if (d.Items.Count == 0) errors.Add("يجب إدخال صنف واحد على الأقل.");
-        if (existing?.ConvertedInvoiceId != null) errors.Add("لا يمكن تعديل أمر تم تحويله لفاتورة.");
+        if (d.Type is not ("sales_order" or "purchase_order")) errors.Add(Messages.OrderTypeValues);
+        if (!TradeHelper.OrderStatuses.Contains(d.Status)) errors.Add(Messages.InvalidStatus);
+        if (d.ExpectedDeliveryDate < d.OrderDate) errors.Add(Messages.ExpectedDeliveryBeforeOrderDate);
+        if (d.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
+        if (existing?.ConvertedInvoiceId != null) errors.Add(Messages.CannotEditInvoicedOrder);
         if (errors.Count == 0 && d.AgreementId.HasValue) await ValidateAgainstAgreementAsync(d, existing?.Id, errors, ct);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
     }
@@ -43,9 +43,9 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
     private async Task ValidateAgainstAgreementAsync(CreateCommercialOrderDto d, Guid? orderId, List<string> errors, CancellationToken ct)
     {
         var agreement = await Db.Set<Agreement>().AsNoTracking().Include(a => a.Items).FirstOrDefaultAsync(a => a.Id == d.AgreementId, ct);
-        if (agreement == null) { errors.Add("الاتفاقية المحددة غير موجودة."); return; }
-        if (agreement.Status != "active") errors.Add("الاتفاقية غير فعالة حالياً.");
-        if ((d.Type == "sales_order") != (agreement.Type == "sales")) errors.Add("نوع الأمر لا يطابق نوع الاتفاقية (بيع/شراء).");
+        if (agreement == null) { errors.Add(Messages.AgreementNotFound); return; }
+        if (agreement.Status != "active") errors.Add(Messages.AgreementNotActive);
+        if ((d.Type == "sales_order") != (agreement.Type == "sales")) errors.Add(Messages.OrderTypeMismatchAgreement);
         var used = AgreementUsage.IsConsuming(d.Status)
             ? await AgreementUsage.UsedByItemAsync(Db, agreement.Id, orderId, ct)
             : new Dictionary<Guid, decimal>();
@@ -53,13 +53,13 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         {
             var term = agreement.Items.FirstOrDefault(i => i.ItemId == line.Key && i.Status == "active");
             var name = line.First().ItemName;
-            if (term == null) { errors.Add($"الصنف {name} غير موجود في بنود الاتفاقية."); continue; }
+            if (term == null) { errors.Add(string.Format(Messages.ItemNotInAgreement, name)); continue; }
             var qty = line.Sum(i => i.Quantity);
             if (qty < term.MinQuantity || (term.MaxQuantity > 0 && qty > term.MaxQuantity))
-                errors.Add($"الكمية للصنف {name} خارج الحدود المسموحة (الحد الأدنى: {term.MinQuantity:0.####}، الحد الأقصى: {(term.MaxQuantity > 0 ? term.MaxQuantity.ToString("0.####") : "بلا حد")}).");
+                errors.Add(string.Format(Messages.QtyOutsideAgreementLimits, name, term.MinQuantity, (term.MaxQuantity > 0 ? term.MaxQuantity.ToString("0.####") : Messages.NoLimit)));
             var remaining = term.Quantity - used.GetValueOrDefault(line.Key);
             if (AgreementUsage.IsConsuming(d.Status) && qty > remaining)
-                errors.Add($"الكمية المطلوبة للصنف {name} تتجاوز الكمية المتبقية في الاتفاقية ({remaining:0.####}).");
+                errors.Add(string.Format(Messages.QtyExceedsAgreementRemaining, name, remaining));
         }
     }
 
@@ -89,7 +89,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
 
     protected override Task OnDeletingAsync(CommercialOrder e, CancellationToken ct)
     {
-        if (e.ConvertedInvoiceId != null) throw new ConflictException("لا يمكن حذف أمر تم تحويله لفاتورة.");
+        if (e.ConvertedInvoiceId != null) throw new ConflictException(Messages.CannotDeleteInvoicedOrder);
         if (e.AgreementId is { } id) _touchedAgreements.Add(id);
         return Task.CompletedTask;
     }
@@ -119,9 +119,9 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         => await new TransactionRunner(Db).RunAsync(async token =>
         {
             var o = await Db.Set<CommercialOrder>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token)
-                ?? throw new NotFoundException("الأمر غير موجود");
-            if (o.ConvertedInvoiceId != null) throw new ConflictException("تم تحويل هذا الأمر مسبقاً.");
-            if (o.Status is "cancelled" or "draft") throw new ConflictException("أكّد الأمر أولاً؛ الأمر الملغى لا يُحوَّل.");
+                ?? throw new NotFoundException(Messages.OrderNotFound);
+            if (o.ConvertedInvoiceId != null) throw new ConflictException(Messages.OrderAlreadyConverted);
+            if (o.Status is "cancelled" or "draft") throw new ConflictException(Messages.ConfirmOrderFirst);
 
             var sales = o.Type == "sales_order";
             var invoice = await _invoices.CreateAsync(new CreateInvoiceDto

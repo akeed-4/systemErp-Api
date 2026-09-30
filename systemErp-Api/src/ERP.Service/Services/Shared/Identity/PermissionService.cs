@@ -17,6 +17,7 @@ public class PermissionService : IPermissionService
         new() { Id = "sales", NameAr = "فواتير المبيعات ونقاط البيع (POS)", NameEn = "Sales Invoices & POS" },
         new() { Id = "sales-returns", NameAr = "مرتجع المبيعات والإشعارات الدائنة", NameEn = "Sales Returns & Credit Notes" },
         new() { Id = "purchases", NameAr = "فواتير المشتريات وتكلفة المخزون", NameEn = "Purchase Invoices" },
+        new() { Id = "inventory-counts", NameAr = "جرد المخزون والمركبات واعتماده", NameEn = "Inventory Counts & Approvals" },
         new() { Id = "vouchers", NameAr = "سندات القبض والصرف", NameEn = "Receipt & Payment Vouchers" },
         new() { Id = "accounts", NameAr = "دليل الحسابات والقيود اليومية", NameEn = "Chart of Accounts" },
         new() { Id = "zatca", NameAr = "الربط الإلكتروني والفوترة (ZATCA)", NameEn = "ZATCA Integration" },
@@ -89,11 +90,11 @@ public class PermissionService : IPermissionService
     public async Task SaveAsync(SavePermissionsRequestDto request, CancellationToken ct = default)
     {
         if (request.UserId == null && string.IsNullOrEmpty(request.RoleId))
-            throw new ValidationFailedException("حدّد المستخدم أو الدور.");
+            throw new ValidationFailedException(Messages.SpecifyUserOrRole);
         var unknown = request.Permissions.Select(p => p.ScreenId).Except(Screens.Select(s => s.Id)).ToList();
-        if (unknown.Count > 0) throw new ValidationFailedException("شاشات غير معروفة: " + string.Join(", ", unknown));
+        if (unknown.Count > 0) throw new ValidationFailedException(Messages.UnknownScreensPrefix + string.Join(", ", unknown));
         if (request.UserId.HasValue && !await _db.Set<User>().AnyAsync(u => u.Id == request.UserId, ct))
-            throw new NotFoundException("المستخدم غير موجود");
+            throw new NotFoundException(Messages.UserNotFound);
 
         var existing = await _db.Set<UserRolePermission>().Include(p => p.Permissions)
             .FirstOrDefaultAsync(p => request.UserId != null

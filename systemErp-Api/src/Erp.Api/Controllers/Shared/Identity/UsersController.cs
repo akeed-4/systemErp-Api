@@ -16,16 +16,16 @@ public class UsersController : ErpControllerBase
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserRequestDto request, CancellationToken ct)
-        => Success(await _users.CreateAsync(request, ct), "تم إنشاء المستخدم");
+        => Success(await _users.CreateAsync(request, ct), Messages.UserCreated);
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserRequestDto request, CancellationToken ct)
-        => Success(await _users.UpdateAsync(id, request, ct), "تم تعديل المستخدم");
+        => Success(await _users.UpdateAsync(id, request, ct), Messages.UserUpdated);
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
     {
         await _users.DeactivateAsync(id, ct);
-        return Success("تم تعطيل المستخدم");
+        return Success(Messages.UserDeactivated);
     }
 }

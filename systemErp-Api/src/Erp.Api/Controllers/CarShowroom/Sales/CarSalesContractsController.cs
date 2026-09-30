@@ -24,7 +24,7 @@ public class CarSalesContractsController : ErpControllerBase
         if (!string.IsNullOrWhiteSpace(cycleType))
         {
             if (!Enum.TryParse<CarSalesCycleType>(cycleType.Replace("_", ""), true, out var parsed))
-                throw new ValidationFailedException("نوع الدورة غير صالح: individual | corporate | bank_lease | installment.");
+                throw new ValidationFailedException(Messages.InvalidSalesCycleType);
             cycle = parsed;
         }
         return Success(await _service.ListAsync(q, cycle, ct));
@@ -36,7 +36,7 @@ public class CarSalesContractsController : ErpControllerBase
     public async Task<IActionResult> Create([FromBody] CreateCarSalesContractDto dto, CancellationToken ct)
     {
         var created = await _service.CreateAsync(dto, ct);
-        return Created($"{Request.Path}/{created.Id}", ApiResponse<CarSalesContractDto>.Ok(created, "تم إنشاء العقد").WithStatus(201));
+        return Created($"{Request.Path}/{created.Id}", ApiResponse<CarSalesContractDto>.Ok(created, Messages.ContractCreated).WithStatus(201));
     }
 
     /// <summary>بيع سريع: إنشاء العقد ثم اعتماده وتخصيصه وتسليمه وفوترته في معاملة واحدة. يتطلب صلاحية الاعتماد.</summary>
@@ -45,18 +45,18 @@ public class CarSalesContractsController : ErpControllerBase
     {
         await Require(ScreenAction.Approve, ct);
         var done = await _service.QuickSaleAsync(dto, ct);
-        return Created($"{Request.Path}/{done.Id}", ApiResponse<CarSalesContractDto>.Ok(done, "تم اعتماد العقد وإصدار الفاتورة").WithStatus(201));
+        return Created($"{Request.Path}/{done.Id}", ApiResponse<CarSalesContractDto>.Ok(done, Messages.ContractApprovedAndInvoiced).WithStatus(201));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCarSalesContractDto dto, CancellationToken ct)
-        => Success(await _service.UpdateAsync(id, dto, ct), "تم التعديل");
+        => Success(await _service.UpdateAsync(id, dto, ct), Messages.Updated);
 
     [HttpPost("{id:guid}/AdvanceStatus")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceSalesContractRequestDto dto, CancellationToken ct)
     {
         await Require(dto.TargetStatus == SalesContractStatus.Approved ? ScreenAction.Approve : ScreenAction.Edit, ct);
-        return Success(await _service.AdvanceStatusAsync(id, dto, ct), "تم نقل العقد للمرحلة التالية");
+        return Success(await _service.AdvanceStatusAsync(id, dto, ct), Messages.ContractAdvanced);
     }
 
     /// <summary>يُكمل العقد القائم من مرحلته الحالية حتى الفوترة (بيانات التسليم الفارغة تُملأ من المشتري). يتطلب صلاحية الاعتماد.</summary>
@@ -64,18 +64,18 @@ public class CarSalesContractsController : ErpControllerBase
     public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteSalesContractRequestDto? dto, CancellationToken ct)
     {
         await Require(ScreenAction.Approve, ct);
-        return Success(await _service.CompleteAsync(id, dto, ct), "تم إكمال العقد وإصدار الفاتورة");
+        return Success(await _service.CompleteAsync(id, dto, ct), Messages.ContractCompletedAndInvoiced);
     }
 
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] RejectProcurementRequestDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Approve, ct);
-        return Success(await _service.CancelAsync(id, dto.Reason, ct), "تم إلغاء العقد");
+        return Success(await _service.CancelAsync(id, dto.Reason, ct), Messages.ContractCancelled);
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _service.DeleteAsync(id, ct); return Success("تم الحذف"); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _service.DeleteAsync(id, ct); return Success(Messages.Deleted); }
 
     private async Task Require(ScreenAction action, CancellationToken ct)
     {

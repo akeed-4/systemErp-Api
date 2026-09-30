@@ -20,14 +20,14 @@ public class NotificationsController : ErpControllerBase
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _notifications.GetAsync(id, ct));
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _notifications.DeleteAsync(id, ct); return Success("تم"); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _notifications.DeleteAsync(id, ct); return Success(Messages.Done); }
 
     [HttpPost("{id:guid}/read")]
-    public async Task<IActionResult> Read(Guid id, CancellationToken ct) { await _notifications.MarkAsReadAsync(id, ct); return Success("تم"); }
+    public async Task<IActionResult> Read(Guid id, CancellationToken ct) { await _notifications.MarkAsReadAsync(id, ct); return Success(Messages.Done); }
 
     [HttpPost("ReadAll")]
-    public async Task<IActionResult> ReadAll(CancellationToken ct) { await _notifications.MarkAllAsReadAsync(ct); return Success("تم"); }
+    public async Task<IActionResult> ReadAll(CancellationToken ct) { await _notifications.MarkAllAsReadAsync(ct); return Success(Messages.Done); }
 
     [HttpDelete]
-    public async Task<IActionResult> Clear(CancellationToken ct) { await _notifications.ClearAllAsync(ct); return Success("تم"); }
+    public async Task<IActionResult> Clear(CancellationToken ct) { await _notifications.ClearAllAsync(ct); return Success(Messages.Done); }
 }

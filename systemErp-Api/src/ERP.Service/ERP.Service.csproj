@@ -23,6 +23,7 @@
     <Using Include="ERP.Core.Models.Accounting" />
     <Using Include="ERP.Core.Models.CarShowroom" />
     <Using Include="ERP.Core.Models.POS" />
+    <Using Include="ERP.Core.Resources" />
     <Using Include="ERP.Core.DTOs.Shared" />
     <Using Include="ERP.Core.DTOs.Accounting" />
     <Using Include="ERP.Core.DTOs.CarShowroom" />

@@ -17,7 +17,7 @@ public class CompanyService : ICompanyService
     private async Task<Tenant> LoadAsync(CancellationToken ct)
     {
         var id = _tenant.TenantId ?? throw new UnauthorizedAppException();
-        return await _db.Set<Tenant>().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException("المنشأة غير موجودة");
+        return await _db.Set<Tenant>().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException(Messages.CompanyNotFound);
     }
 
     public async Task<TenantDto> GetCurrentAsync(CancellationToken ct = default) => Mapper.Map<TenantDto>(await LoadAsync(ct));
@@ -25,13 +25,13 @@ public class CompanyService : ICompanyService
     public async Task<TenantDto> UpdateAsync(UpdateTenantDto r, CancellationToken ct = default)
     {
         var t = await LoadAsync(ct);
-        if (string.IsNullOrWhiteSpace(r.NameAr)) throw new ValidationFailedException("اسم المنشأة بالعربية مطلوب.");
+        if (string.IsNullOrWhiteSpace(r.NameAr)) throw new ValidationFailedException(Messages.CompanyArabicNameRequired);
         if (r.VatNumber != t.VatNumber)
         {
             if (!SaudiVat.IsValid(r.VatNumber))
-                throw new ValidationFailedException("الرقم الضريبي السعودي يجب أن يتكون من 15 خانة ويبدأ وينتهي بالرقم 3.");
+                throw new ValidationFailedException(Messages.SaudiVatNumberFormat);
             if (await _db.Set<Tenant>().IgnoreQueryFilters().AnyAsync(x => x.VatNumber == r.VatNumber && x.Id != t.Id, ct))
-                throw new ConflictException("هذا الرقم الضريبي مسجّل مسبقاً.");
+                throw new ConflictException(Messages.VatNumberAlreadyRegistered);
         }
 
         t.NameAr = r.NameAr.Trim(); t.NameEn = r.NameEn; t.VatNumber = r.VatNumber; t.CrNumber = r.CrNumber;
@@ -87,8 +87,8 @@ public class CompanyService : ICompanyService
         c.LastTestStatus = ok ? ZatcaSubmissionStatus.Warning : ZatcaSubmissionStatus.Rejected;
         c.LastTestLatencyMs = 0;
         c.LastTestMessage = ok
-            ? "بيانات الربط مكتملة، لكن الاتصال الفعلي بهيئة الزكاة غير مُفعَّل في هذه النسخة."
-            : "بيانات الربط ناقصة: " + string.Join(", ", missing);
+            ? Messages.ZatcaTestCompleteNotConnected
+            : Messages.ZatcaTestMissingPrefix + string.Join(", ", missing);
         await _db.SaveChangesAsync(ct);
 
         return new ZatcaConnectionTestResultDto { Success = ok, Message = c.LastTestMessage, MissingFields = missing };

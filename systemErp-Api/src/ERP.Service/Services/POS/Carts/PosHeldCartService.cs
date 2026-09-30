@@ -9,13 +9,13 @@ public class PosHeldCartService : CrudService<PosHeldCart, PosHeldCartDto, Creat
 {
     private readonly INumberSequenceService _numbers;
     public PosHeldCartService(ErpDbContext db, INumberSequenceService numbers) : base(db) => _numbers = numbers;
-    protected override string Label => "السلة المعلّقة";
+    protected override string Label => Messages.LabelHeldCart;
     protected override bool Transactional => true;
 
     protected override Task ValidateAsync(CreatePosHeldCartDto d, PosHeldCart? existing, CancellationToken ct)
     {
-        if (d.Items.Count == 0) throw new ValidationFailedException("السلة فارغة.");
-        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.Discount < 0)) throw new ValidationFailedException("كميات وأسعار السلة غير صالحة.");
+        if (d.Items.Count == 0) throw new ValidationFailedException(Messages.CartEmpty);
+        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.Discount < 0)) throw new ValidationFailedException(Messages.CartQuantitiesPricesInvalid);
         return Task.CompletedTask;
     }
 

@@ -36,12 +36,12 @@ public class PosShiftService : IPosShiftService
         => _tx.RunAsync(async token =>
         {
             var me = Me;
-            if (r.OpeningCash < 0) throw new ValidationFailedException("الرصيد الافتتاحي لا يكون سالباً.");
-            if (string.IsNullOrWhiteSpace(r.PosTerminalName)) throw new ValidationFailedException("اسم الجهاز/الكاشير مطلوب.");
+            if (r.OpeningCash < 0) throw new ValidationFailedException(Messages.OpeningCashCannotBeNegative);
+            if (string.IsNullOrWhiteSpace(r.PosTerminalName)) throw new ValidationFailedException(Messages.TerminalNameRequired);
             if (await _db.Set<PosShift>().AnyAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token))
-                throw new ConflictException("لديك وردية مفتوحة بالفعل؛ أغلقها أولاً.");
+                throw new ConflictException(Messages.ShiftAlreadyOpen);
             if (await _db.Set<PosShift>().AnyAsync(s => s.PosTerminalName == r.PosTerminalName && s.Status == PosShiftStatus.Open, token))
-                throw new ConflictException("هذا الجهاز عليه وردية مفتوحة لكاشير آخر.");
+                throw new ConflictException(Messages.TerminalHasOpenShift);
 
             var shift = new PosShift
             {
@@ -62,14 +62,14 @@ public class PosShiftService : IPosShiftService
             var actual = r.ClosingCashActual;
             if (r.Denominations.Count > 0)
             {
-                if (r.Denominations.Any(d => d.Value <= 0 || d.Count < 0)) throw new ValidationFailedException("الفئات موجبة والأعداد غير سالبة.");
+                if (r.Denominations.Any(d => d.Value <= 0 || d.Count < 0)) throw new ValidationFailedException(Messages.DenominationsInvalid);
                 actual = DocumentPricing.Round(r.Denominations.Sum(d => d.Value * d.Count));
                 if (r.ClosingCashActual != 0 && r.ClosingCashActual != actual)
-                    throw new ValidationFailedException($"مجموع الفئات ({actual:0.00}) لا يطابق النقد الفعلي المُدخل ({r.ClosingCashActual:0.00}).");
+                    throw new ValidationFailedException(string.Format(Messages.DenominationsMismatchCash, actual, r.ClosingCashActual));
             }
-            if (actual < 0) throw new ValidationFailedException("النقد الفعلي لا يكون سالباً.");
+            if (actual < 0) throw new ValidationFailedException(Messages.ActualCashCannotBeNegative);
             var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token)
-                ?? throw new NotFoundException("لا توجد وردية مفتوحة لإغلاقها.");
+                ?? throw new NotFoundException(Messages.NoOpenShiftToClose);
 
             shift.ClosedAt = DateTime.UtcNow; shift.Status = PosShiftStatus.Closed;
             shift.ClosingCashActual = actual;
@@ -87,21 +87,21 @@ public class PosShiftService : IPosShiftService
         => _tx.RunAsync(async token =>
         {
             var me = Me;
-            if (!Enum.IsDefined(r.Type)) throw new ValidationFailedException("نوع الحركة إيداع أو صرف.");
-            if (r.Amount <= 0) throw new ValidationFailedException("المبلغ يجب أن يكون موجباً.");
-            if (string.IsNullOrWhiteSpace(r.Reason)) throw new ValidationFailedException("سبب الحركة مطلوب.");
+            if (!Enum.IsDefined(r.Type)) throw new ValidationFailedException(Messages.MovementTypeValues);
+            if (r.Amount <= 0) throw new ValidationFailedException(Messages.AmountMustBePositive);
+            if (string.IsNullOrWhiteSpace(r.Reason)) throw new ValidationFailedException(Messages.MovementReasonRequired);
             var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token)
-                ?? throw new ConflictException("افتح وردية أولاً.");
+                ?? throw new ConflictException(Messages.OpenShiftFirst);
             var amount = DocumentPricing.Round(r.Amount);
             if (r.Type == PosCashMovementType.PaidOut && amount > PosCashDrawer.ExpectedCash(shift))
-                throw new ConflictException($"المبلغ أكبر من النقد المتوقع في الدرج ({PosCashDrawer.ExpectedCash(shift):0.00}).");
+                throw new ConflictException(string.Format(Messages.AmountExceedsExpectedCash, PosCashDrawer.ExpectedCash(shift)));
 
             var counter = string.IsNullOrWhiteSpace(r.CounterAccountCode)
                 ? (r.Type == PosCashMovementType.PaidOut ? DefaultAccounts.PettyCashExpenses : DefaultAccounts.DefaultBank)
                 : r.CounterAccountCode.Trim();
             if (counter == DefaultAccounts.PettyCashExpenses) await DefaultAccounts.EnsureAsync(_db, token, counter);
             var cash = await PosCashDrawer.CashAccountAsync(_db, token);
-            if (counter == cash) throw new ValidationFailedException("الحساب المقابل لا يكون حساب الصندوق نفسه.");
+            if (counter == cash) throw new ValidationFailedException(Messages.CounterAccountCannotBeCash);
 
             var movement = new PosCashMovement
             {
@@ -135,7 +135,7 @@ public class PosShiftService : IPosShiftService
     public Task DeleteCashMovementAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var m = await _db.Set<PosCashMovement>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("الحركة غير موجودة");
+            var m = await _db.Set<PosCashMovement>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.MovementNotFound);
             var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == m.ShiftId, token);
             PosShiftRules.EnsureCanCorrect(shift, _user);
             await RemoveMovementAsync(m, shift, token);
@@ -155,11 +155,11 @@ public class PosShiftService : IPosShiftService
     {
         var me = Me;
         var shift = shiftId.HasValue
-            ? await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == shiftId, ct) ?? throw new NotFoundException("الوردية غير موجودة")
+            ? await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == shiftId, ct) ?? throw new NotFoundException(Messages.ShiftNotFound)
             : await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, ct)
-                ?? throw new NotFoundException("لا توجد وردية مفتوحة.");
+                ?? throw new NotFoundException(Messages.NoOpenShift);
         if (shift.CashierId != me && !PosShiftRules.IsPrivileged(_user))
-            throw new ForbiddenException("تقارير ورديات الكاشيرين الآخرين للأدوار الإدارية فقط.");
+            throw new ForbiddenException(Messages.OtherCashierShiftReportsAdminOnly);
 
         var sales = await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items).Where(t => t.ShiftId == shift.Id).ToListAsync(ct);
         var live = sales.Where(t => t.Status != PosTransactionStatus.Voided).ToList();
@@ -188,14 +188,14 @@ public class PosShiftService : IPosShiftService
     public Task<PosShiftDto> UpdateAsync(Guid id, UpdatePosShiftRequestDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.Id == id, token) ?? throw new NotFoundException("الوردية غير موجودة");
+            var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.Id == id, token) ?? throw new NotFoundException(Messages.ShiftNotFound);
             PosShiftRules.EnsureCanCorrect(shift, _user);
-            if (r.OpeningCash < 0 || r.ClosingCashActual < 0) throw new ValidationFailedException("المبالغ لا تكون سالبة.");
-            if (string.IsNullOrWhiteSpace(r.PosTerminalName)) throw new ValidationFailedException("اسم الجهاز/الكاشير مطلوب.");
+            if (r.OpeningCash < 0 || r.ClosingCashActual < 0) throw new ValidationFailedException(Messages.AmountsCannotBeNegative);
+            if (string.IsNullOrWhiteSpace(r.PosTerminalName)) throw new ValidationFailedException(Messages.TerminalNameRequired);
             var terminal = r.PosTerminalName.Trim();
             if (shift.Status == PosShiftStatus.Open && terminal != shift.PosTerminalName
                 && await _db.Set<PosShift>().AnyAsync(s => s.Id != id && s.PosTerminalName == terminal && s.Status == PosShiftStatus.Open, token))
-                throw new ConflictException("هذا الجهاز عليه وردية مفتوحة لكاشير آخر.");
+                throw new ConflictException(Messages.TerminalHasOpenShift);
 
             shift.PosTerminalName = terminal; shift.OpeningCash = r.OpeningCash; shift.ClosingNotes = r.ClosingNotes;
             if (shift.Status == PosShiftStatus.Closed && r.ClosingCashActual.HasValue) shift.ClosingCashActual = r.ClosingCashActual;
@@ -207,15 +207,15 @@ public class PosShiftService : IPosShiftService
     public Task DeleteAsync(Guid id, bool cascade, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.Id == id, token) ?? throw new NotFoundException("الوردية غير موجودة");
+            var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.Id == id, token) ?? throw new NotFoundException(Messages.ShiftNotFound);
             PosShiftRules.EnsureCanCorrect(shift, _user);
             var returnIds = await _db.Set<PosSalesReturn>().Where(x => x.ShiftId == id).Select(x => x.Id).ToListAsync(token);
             var saleIds = await _db.Set<PosTransaction>().Where(t => t.ShiftId == id).Select(t => t.Id).ToListAsync(token);
             var movements = await _db.Set<PosCashMovement>().Where(m => m.ShiftId == id).ToListAsync(token);
             if (returnIds.Count + saleIds.Count + movements.Count > 0)
             {
-                if (!cascade) throw new ConflictException("للوردية معاملات أو مرتجعات أو حركات نقدية؛ استخدم cascade=true لحذفها كلها بعكس أثرها.");
-                if (!PosShiftRules.IsPrivileged(_user)) throw new ForbiddenException("حذف وردية بمحتوياتها للأدوار الإدارية فقط.");
+                if (!cascade) throw new ConflictException(Messages.ShiftHasContentUseCascade);
+                if (!PosShiftRules.IsPrivileged(_user)) throw new ForbiddenException(Messages.DeleteShiftWithContentAdminOnly);
                 foreach (var rid in returnIds) await _returns.DeleteAsync(rid, token);
                 // مرتجعات أُنشئت على معاملات هذه الوردية من ورديات أخرى تُحذف أيضاً قبل المعاملة
                 var foreign = await _db.Set<PosSalesReturn>().Where(x => saleIds.Contains(x.OriginalTransactionId)).Select(x => x.Id).ToListAsync(token);
@@ -252,5 +252,5 @@ public class PosShiftService : IPosShiftService
 
     public async Task<PosShiftDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<PosShiftDto>(await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct)
-            ?? throw new NotFoundException("الوردية غير موجودة"));
+            ?? throw new NotFoundException(Messages.ShiftNotFound));
 }

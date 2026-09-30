@@ -13,9 +13,9 @@ public class CommercialContractsController : CrudController<CommercialContractDt
 
     [HttpPost("{id:guid}/AdvanceStage")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceStageRequestDto dto, CancellationToken ct)
-        => Success(await _contracts.AdvanceStageAsync(id, dto, ct), "تم نقل العقد للمرحلة التالية");
+        => Success(await _contracts.AdvanceStageAsync(id, dto, ct), Messages.ContractAdvanced);
 
     [HttpPost("{id:guid}/milestones/{milestoneId:guid}/bill")]
     public async Task<IActionResult> Bill(Guid id, Guid milestoneId, CancellationToken ct)
-        => Success(await _contracts.BillMilestoneAsync(id, milestoneId, ct), "تمت فوترة المستخلص");
+        => Success(await _contracts.BillMilestoneAsync(id, milestoneId, ct), Messages.MilestoneBilled);
 }

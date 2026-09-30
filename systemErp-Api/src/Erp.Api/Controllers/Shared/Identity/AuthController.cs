@@ -46,7 +46,7 @@ public class AuthController : ErpControllerBase
 
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request, CancellationToken ct)
-        => Success(await _users.UpdateProfileAsync(request, ct), "تم تحديث بيانات الملف الشخصي بنجاح");
+        => Success(await _users.UpdateProfileAsync(request, ct), Messages.ProfileUpdated);
 
     [HttpPost("ChangePassword")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request, CancellationToken ct)

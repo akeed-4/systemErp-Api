@@ -14,13 +14,13 @@ public class InventoryService : IInventoryService
 
     public async Task<StockMovementDto> RecordMovementAsync(RecordStockMovementDto r, CancellationToken ct = default)
     {
-        if (r.Quantity <= 0) throw new ValidationFailedException("الكمية يجب أن تكون أكبر من صفر.");
-        if (r.UnitCost < 0) throw new ValidationFailedException("تكلفة الوحدة لا تكون سالبة.");
+        if (r.Quantity <= 0) throw new ValidationFailedException(Messages.QuantityMustBePositive);
+        if (r.UnitCost < 0) throw new ValidationFailedException(Messages.UnitCostCannotBeNegative);
 
         var product = await _db.Set<Product>().FirstOrDefaultAsync(p => p.Id == r.ItemId, ct)
-            ?? throw new NotFoundException("الصنف غير موجود");
+            ?? throw new NotFoundException(Messages.ProductNotFound);
         if (r.WarehouseId.HasValue && !await _db.Set<Warehouse>().AnyAsync(w => w.Id == r.WarehouseId, ct))
-            throw new ValidationFailedException("المستودع غير موجود.");
+            throw new ValidationFailedException(Messages.WarehouseNotFound);
 
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
         var isIn = r.Type is StockMovementType.InPurchase or StockMovementType.AdjustmentIn;
@@ -57,7 +57,7 @@ public class InventoryService : IInventoryService
         else
         {
             if (product.CurrentStock < r.Quantity && policy.NegativeInventoryPolicy == "prohibit")
-                throw new ConflictException($"الرصيد غير كافٍ للصنف {product.NameAr}: المتاح {product.CurrentStock:0.####} والمطلوب {r.Quantity:0.####}.");
+                throw new ConflictException(string.Format(Messages.InsufficientStock, product.NameAr, product.CurrentStock, r.Quantity));
 
             movement.UnitCost = policy.Method switch
             {
@@ -119,14 +119,14 @@ public class InventoryService : IInventoryService
     public async Task<StockMovementDto> UpdateMovementAsync(Guid id, RecordStockMovementDto r, CancellationToken ct = default)
     {
         if (r.Type is not (StockMovementType.AdjustmentIn or StockMovementType.AdjustmentOut))
-            throw new ValidationFailedException("التسوية اليدوية: adjustment_in أو adjustment_out فقط.");
-        if (r.Quantity <= 0) throw new ValidationFailedException("الكمية يجب أن تكون أكبر من صفر.");
-        if (r.UnitCost < 0) throw new ValidationFailedException("تكلفة الوحدة لا تكون سالبة.");
+            throw new ValidationFailedException(Messages.ManualAdjustmentTypeOnly);
+        if (r.Quantity <= 0) throw new ValidationFailedException(Messages.QuantityMustBePositive);
+        if (r.UnitCost < 0) throw new ValidationFailedException(Messages.UnitCostCannotBeNegative);
 
         var m = await LoadManualAsync(id, ct);
-        if (r.ItemId != m.ItemId) throw new ValidationFailedException("لا يمكن تغيير الصنف؛ احذف الحركة وأنشئ أخرى.");
+        if (r.ItemId != m.ItemId) throw new ValidationFailedException(Messages.CannotChangeMovementItem);
         if (r.WarehouseId.HasValue && !await _db.Set<Warehouse>().AnyAsync(w => w.Id == r.WarehouseId, ct))
-            throw new ValidationFailedException("المستودع غير موجود.");
+            throw new ValidationFailedException(Messages.WarehouseNotFound);
 
         m.Type = r.Type; m.Quantity = r.Quantity; m.UnitCost = r.UnitCost; m.UnitPrice = r.UnitPrice;
         m.Date = r.Date ?? m.Date; m.ReferenceNumber = r.ReferenceNumber; m.Notes = r.Notes; m.WarehouseId = r.WarehouseId;
@@ -156,9 +156,9 @@ public class InventoryService : IInventoryService
 
     private async Task<StockMovement> LoadManualAsync(Guid id, CancellationToken ct)
     {
-        var m = await _db.Set<StockMovement>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("حركة المخزون غير موجودة");
+        var m = await _db.Set<StockMovement>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException(Messages.StockMovementNotFound);
         if (m.SourceType != "manual")
-            throw new ConflictException("هذه حركة نظامية ناتجة عن مستند؛ عدّل المستند نفسه (أو أنشئ تسوية جديدة).");
+            throw new ConflictException(Messages.SystemMovementFromDocument);
         return m;
     }
 
@@ -171,12 +171,12 @@ public class InventoryService : IInventoryService
             .Where(m => !excluded.Contains(m.Id)).OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToList();
         var min = StockReplay.Apply(product, ordered, policy);
         if (min < 0 && policy.NegativeInventoryPolicy == "prohibit")
-            throw new ConflictException($"العملية تجعل رصيد الصنف {product.NameAr} سالباً في تاريخ لاحق.");
+            throw new ConflictException(string.Format(Messages.OperationMakesStockNegativeLater, product.NameAr));
     }
 
     public async Task<StockMovementDto> GetMovementAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<StockMovementDto>(await _db.Set<StockMovement>().AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, ct)
-            ?? throw new NotFoundException("حركة المخزون غير موجودة"));
+            ?? throw new NotFoundException(Messages.StockMovementNotFound));
 
     public async Task<PagedResult<StockMovementDto>> ListMovementsAsync(Guid? itemId, PaginationParams p, CancellationToken ct = default)
     {

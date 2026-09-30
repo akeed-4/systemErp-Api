@@ -12,9 +12,9 @@ public class SupportTicketsController : CrudController<SupportTicketDto, CreateS
 
     [HttpPost("{id:guid}/replies")]
     public async Task<IActionResult> Reply(Guid id, [FromBody] AddSupportTicketReplyDto request, CancellationToken ct)
-        => Success(await _tickets.AddReplyAsync(id, request, ct), "تم إرسال الرد");
+        => Success(await _tickets.AddReplyAsync(id, request, ct), Messages.ReplySent);
 
     [HttpPatch("{id:guid}/status")]
     public async Task<IActionResult> ChangeStatus(Guid id, [FromBody] ChangeSupportTicketStatusDto request, CancellationToken ct)
-        => Success(await _tickets.ChangeStatusAsync(id, request, ct), "تم تحديث حالة التذكرة");
+        => Success(await _tickets.ChangeStatusAsync(id, request, ct), Messages.TicketStatusUpdated);
 }

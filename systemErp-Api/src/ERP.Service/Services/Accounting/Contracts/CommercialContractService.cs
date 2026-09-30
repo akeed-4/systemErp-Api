@@ -19,7 +19,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         _numbers = numbers; _invoices = invoices;
     }
 
-    protected override string Label => "العقد";
+    protected override string Label => Messages.LabelContract;
     protected override bool Transactional => true;
 
     private static string[] StagesFor(string contractType) => contractType == "normal_purchasing" ? NormalPurchasingStages : StandardStages;
@@ -33,21 +33,21 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     protected override Task ValidateAsync(CreateCommercialContractDto d, CommercialContract? existing, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(d.Title)) errors.Add("عنوان العقد مطلوب.");
+        if (string.IsNullOrWhiteSpace(d.Title)) errors.Add(Messages.ContractTitleRequired);
         TradeHelper.RequireParty(d.PartyName, errors);
-        if (d.ContractValue < 0) errors.Add("قيمة العقد لا تكون سالبة.");
-        if (d.VatRate is < 0 or > 100) errors.Add("نسبة الضريبة بين 0 و100.");
-        if (d.StartDate.HasValue && d.EndDate.HasValue && d.EndDate < d.StartDate) errors.Add("تاريخ النهاية قبل البداية.");
-        if (!string.IsNullOrWhiteSpace(d.PartyVatNumber) && !SaudiVat.IsValid(d.PartyVatNumber)) errors.Add("الرقم الضريبي للطرف غير صالح.");
-        if (d.Milestones.Sum(m => m.Percentage) > 100.0001m) errors.Add("مجموع نسب المستخلصات يتجاوز 100%.");
-        if (d.Milestones.Any(m => m.Percentage < 0 || m.Amount < 0)) errors.Add("نسب/مبالغ المستخلصات لا تكون سالبة.");
-        if (d.Milestones.Any(m => m.RetentionDeductionPercent is < 0 or > 100)) errors.Add("نسبة استقطاع الضمان من المستخلص بين 0 و100.");
-        if (d.RetentionPercent is < 0 or > 100) errors.Add("نسبة ضمان حسن التنفيذ بين 0 و100.");
-        if (d.MaxPenaltyPercent is < 0 or > 100) errors.Add("الحد الأقصى للغرامة بين 0 و100.");
-        if (d.LatePenaltyPerDay < 0) errors.Add("غرامة التأخير اليومية لا تكون سالبة.");
-        if (d.DurationMonths is < 1) errors.Add("مدة العقد شهر واحد على الأقل.");
-        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add("بنود العقد: الكمية موجبة والسعر غير سالب والضريبة بين 0 و100.");
-        if (existing != null && existing.Stage == "final_closed") errors.Add("لا يمكن تعديل عقد مغلق.");
+        if (d.ContractValue < 0) errors.Add(Messages.ContractValueCannotBeNegative);
+        if (d.VatRate is < 0 or > 100) errors.Add(Messages.VatRateRange);
+        if (d.StartDate.HasValue && d.EndDate.HasValue && d.EndDate < d.StartDate) errors.Add(Messages.EndDateBeforeStart);
+        if (!string.IsNullOrWhiteSpace(d.PartyVatNumber) && !SaudiVat.IsValid(d.PartyVatNumber)) errors.Add(Messages.PartyVatNumberInvalid);
+        if (d.Milestones.Sum(m => m.Percentage) > 100.0001m) errors.Add(Messages.MilestonePercentagesExceed100);
+        if (d.Milestones.Any(m => m.Percentage < 0 || m.Amount < 0)) errors.Add(Messages.MilestoneAmountsCannotBeNegative);
+        if (d.Milestones.Any(m => m.RetentionDeductionPercent is < 0 or > 100)) errors.Add(Messages.RetentionRateRange);
+        if (d.RetentionPercent is < 0 or > 100) errors.Add(Messages.PerformanceBondRateRange);
+        if (d.MaxPenaltyPercent is < 0 or > 100) errors.Add(Messages.MaxPenaltyRange);
+        if (d.LatePenaltyPerDay < 0) errors.Add(Messages.DailyPenaltyCannotBeNegative);
+        if (d.DurationMonths is < 1) errors.Add(Messages.ContractMinimumOneMonth);
+        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.ContractItemsInvalid);
+        if (existing != null && existing.Stage == "final_closed") errors.Add(Messages.CannotEditClosedContract);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
     }
@@ -76,7 +76,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             var wasBilled = entry.State != EntityState.Added
                 && entry.OriginalValues.GetValue<ContractMilestoneStatus>(nameof(ContractMilestone.Status)) is ContractMilestoneStatus.Invoiced or ContractMilestoneStatus.Paid;
             if (!wasBilled) continue;
-            if (entry.State == EntityState.Deleted) throw new ConflictException("لا يمكن حذف مستخلص تمت فوترته.");
+            if (entry.State == EntityState.Deleted) throw new ConflictException(Messages.CannotDeleteBilledMilestone);
             if (entry.State == EntityState.Modified) entry.CurrentValues.SetValues(entry.OriginalValues);
         }
         Recalculate(e);
@@ -86,9 +86,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     protected override async Task OnDeletingAsync(CommercialContract e, CancellationToken ct)
     {
         if (e.TotalInvoiced > 0 || await Db.Set<ContractMilestone>().AnyAsync(m => m.ContractId == e.Id && m.InvoiceId != null, ct))
-            throw new ConflictException("لا يمكن حذف عقد له مستخلصات مفوترة.");
+            throw new ConflictException(Messages.CannotDeleteContractWithBilledMilestones);
         if (await Db.Set<DeliveryNote>().AnyAsync(n => n.ContractId == e.Id, ct))
-            throw new ConflictException("لا يمكن حذف عقد له بيانات تسليم.");
+            throw new ConflictException(Messages.CannotDeleteContractWithDeliveryNotes);
     }
 
     private static void Recalculate(CommercialContract c)
@@ -116,13 +116,13 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     public async Task<CommercialContractDto> AdvanceStageAsync(Guid id, AdvanceStageRequestDto r, CancellationToken ct = default)
     {
         var c = await Includes(Db.Set<CommercialContract>()).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException("العقد غير موجود");
+            ?? throw new NotFoundException(Messages.ContractNotFound);
         var stages = StagesFor(c.ContractType);
         var target = Array.IndexOf(stages, r.Stage);
         var current = Array.IndexOf(stages, c.Stage);
-        if (target < 0) throw new ValidationFailedException($"مرحلة غير صالحة لهذا النوع من العقود: {string.Join(" | ", stages)}");
-        if (target <= current) throw new ConflictException("لا يمكن الرجوع إلى مرحلة سابقة أو تكرار المرحلة الحالية.");
-        if (target > current + 1) throw new ConflictException("لا يمكن تخطي مراحل الدورة؛ انتقل إلى المرحلة التالية مباشرة.");
+        if (target < 0) throw new ValidationFailedException(string.Format(Messages.InvalidStageForContractType, string.Join(" | ", stages)));
+        if (target <= current) throw new ConflictException(Messages.CannotGoBackOrRepeatStage);
+        if (target > current + 1) throw new ConflictException(Messages.CannotSkipStages);
 
         c.Stage = r.Stage;
         if (r.Stage == "active_execution" && c.Status is ContractStatus.Draft or ContractStatus.UnderReview) c.Status = ContractStatus.Active;
@@ -130,7 +130,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         else if (r.Stage == "final_closed")
         {
             if (c.Milestones.Any(m => m.Status is ContractMilestoneStatus.Pending or ContractMilestoneStatus.Due))
-                throw new ConflictException("لا يمكن إغلاق العقد وفيه مستخلصات غير مفوترة.");
+                throw new ConflictException(Messages.CannotCloseContractWithUnbilledMilestones);
             c.Status = ContractStatus.Completed;
         }
         if (!string.IsNullOrWhiteSpace(r.Notes)) c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? r.Notes : $"{c.Notes}\n{r.Notes}";
@@ -143,16 +143,16 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         => await new TransactionRunner(Db).RunAsync(async token =>
         {
             var c = await Db.Set<CommercialContract>().Include(x => x.Milestones).FirstOrDefaultAsync(x => x.Id == contractId, token)
-                ?? throw new NotFoundException("العقد غير موجود");
-            var m = c.Milestones.FirstOrDefault(x => x.Id == milestoneId) ?? throw new NotFoundException("المستخلص غير موجود");
+                ?? throw new NotFoundException(Messages.ContractNotFound);
+            var m = c.Milestones.FirstOrDefault(x => x.Id == milestoneId) ?? throw new NotFoundException(Messages.MilestoneNotFound);
 
-            if (m.Status is ContractMilestoneStatus.Invoiced or ContractMilestoneStatus.Paid) throw new ConflictException("تمت فوترة هذا المستخلص مسبقاً.");
+            if (m.Status is ContractMilestoneStatus.Invoiced or ContractMilestoneStatus.Paid) throw new ConflictException(Messages.MilestoneAlreadyBilled);
             var stages = StagesFor(c.ContractType);
             var activeIndex = Array.IndexOf(stages, c.ContractType == "normal_purchasing" ? "normal_milestone_invoice" : "active_execution");
             if (Array.IndexOf(stages, c.Stage) < activeIndex)
-                throw new ConflictException("لا تُفوتر المستخلصات قبل أن يصبح العقد ساري التنفيذ.");
-            if (c.PartyId == null) throw new ValidationFailedException("اربط العقد بعميل قبل الفوترة (يلزم حساب الذمم).");
-            if (m.Amount <= 0) throw new ValidationFailedException("مبلغ المستخلص يجب أن يكون موجباً.");
+                throw new ConflictException(Messages.MilestonesBilledOnlyWhenActive);
+            if (c.PartyId == null) throw new ValidationFailedException(Messages.LinkContractToCustomerBeforeBilling);
+            if (m.Amount <= 0) throw new ValidationFailedException(Messages.MilestoneAmountMustBePositive);
 
             var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
             {

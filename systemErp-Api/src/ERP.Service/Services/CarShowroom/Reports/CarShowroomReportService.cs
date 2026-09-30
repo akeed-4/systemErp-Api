@@ -34,7 +34,7 @@ public class CarShowroomReportService : ICarShowroomReportService
     public async Task<List<CarVinInventoryRowDto>> GetVinInventoryAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
-        return (await _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status != VehicleStatus.Sold).OrderBy(v => v.CreatedAt).ToListAsync(ct))
+        return (await _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status != VehicleStatus.Sold && v.Status != VehicleStatus.WrittenOff).OrderBy(v => v.CreatedAt).ToListAsync(ct))
             .Select(v => new CarVinInventoryRowDto
             {
                 Id = v.Id, BrandNameAr = v.BrandNameAr, AgentNameAr = v.AgentNameAr, ModelNameAr = v.ModelNameAr, TrimNameAr = v.TrimNameAr,

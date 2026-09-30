@@ -29,7 +29,7 @@ public class PosLoyaltyService : IPosLoyaltyService
 
     public async Task<CustomerLoyaltyDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<CustomerLoyaltyDto>(await _db.Set<CustomerLoyalty>().AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct)
-            ?? throw new NotFoundException("رصيد الولاء غير موجود"));
+            ?? throw new NotFoundException(Messages.LoyaltyBalanceNotFound));
 
     public async Task<CustomerLoyaltyDto?> GetByCustomerAsync(Guid customerId, CancellationToken ct = default)
     {

@@ -37,23 +37,23 @@ public class DeliveryNoteService : IDeliveryNoteService
 
     public async Task<DeliveryNoteDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<DeliveryNoteDto>(await _db.Set<DeliveryNote>().AsNoTracking().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, ct)
-            ?? throw new NotFoundException("بيان التسليم غير موجود"));
+            ?? throw new NotFoundException(Messages.DeliveryNoteNotFound));
 
     public Task<DeliveryNoteDto> CreateAsync(CreateDeliveryNoteDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var errors = new List<string>();
             TradeHelper.RequireParty(r.PartyName, errors);
-            if (r.Type is not ("sales_delivery" or "purchase_delivery")) errors.Add("النوع: sales_delivery | purchase_delivery.");
-            if (r.Items.Count == 0) errors.Add("يجب إدخال بند واحد على الأقل.");
-            if (r.Items.Any(i => i.DeliveredQty < 0 || i.ContractQty < 0)) errors.Add("الكميات لا تكون سالبة.");
+            if (r.Type is not ("sales_delivery" or "purchase_delivery")) errors.Add(Messages.DeliveryNoteTypeInvalid);
+            if (r.Items.Count == 0) errors.Add(Messages.AtLeastOneLineRequired);
+            if (r.Items.Any(i => i.DeliveredQty < 0 || i.ContractQty < 0)) errors.Add(Messages.QuantitiesCannotBeNegative);
             ValidatePricing(r.Items, errors);
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
             CommercialContract? contract = null;
             if (r.ContractId.HasValue)
                 contract = await _db.Set<CommercialContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.ContractId, token)
-                    ?? throw new ValidationFailedException("العقد غير موجود.");
+                    ?? throw new ValidationFailedException(Messages.ContractNotFoundDot);
 
             var note = Mapper.Map<DeliveryNote>(r);
             note.DeliveryNumber = await _numbers.NextAsync("delivery_note", r.Type == "sales_delivery" ? "DN-" : "GRN-", token);
@@ -72,15 +72,15 @@ public class DeliveryNoteService : IDeliveryNoteService
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, token)
-                ?? throw new NotFoundException("بيان التسليم غير موجود");
+                ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
             if (note.InvoiceId != null || note.Status is not (DeliveryNoteStatus.Delivered or DeliveryNoteStatus.Draft))
-                throw new ConflictException("لا يُعدَّل بيان فُوتر أو عليه مرتجعات.");
-            if (await _db.Set<DeliveryReturnNote>().AnyAsync(x => x.DeliveryNoteId == id, token)) throw new ConflictException("عليه مرتجعات.");
+                throw new ConflictException(Messages.CannotEditBilledOrReturnedNote);
+            if (await _db.Set<DeliveryReturnNote>().AnyAsync(x => x.DeliveryNoteId == id, token)) throw new ConflictException(Messages.HasReturns);
 
             var errors = new List<string>();
             TradeHelper.RequireParty(r.PartyName, errors);
-            if (r.Items.Count == 0) errors.Add("يجب إدخال بند واحد على الأقل.");
-            if (r.Items.Any(i => i.DeliveredQty < 0 || i.ContractQty < 0)) errors.Add("الكميات لا تكون سالبة.");
+            if (r.Items.Count == 0) errors.Add(Messages.AtLeastOneLineRequired);
+            if (r.Items.Any(i => i.DeliveredQty < 0 || i.ContractQty < 0)) errors.Add(Messages.QuantitiesCannotBeNegative);
             ValidatePricing(r.Items, errors);
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
@@ -96,7 +96,7 @@ public class DeliveryNoteService : IDeliveryNoteService
 
     private static void ValidatePricing(IEnumerable<DeliveryNoteItemDto> items, List<string> errors)
     {
-        if (items.Any(i => i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add("السعر غير سالب ونسبة الضريبة بين 0 و100.");
+        if (items.Any(i => i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.PriceAndVatInvalid);
     }
 
     /// <summary>قيمة البيان تُحتسب في الخادم: الكمية المسلّمة × السعر، والضريبة لكل سطر.</summary>
@@ -117,9 +117,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, token)
-                ?? throw new NotFoundException("بيان التسليم غير موجود");
-            if (note.InvoiceId != null) throw new ConflictException("لا يُحذف بيان فُوتر.");
-            if (await _db.Set<DeliveryReturnNote>().AnyAsync(x => x.DeliveryNoteId == id, token)) throw new ConflictException("احذف مرتجعاته أولاً.");
+                ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+            if (note.InvoiceId != null) throw new ConflictException(Messages.CannotDeleteBilledNote);
+            if (await _db.Set<DeliveryReturnNote>().AnyAsync(x => x.DeliveryNoteId == id, token)) throw new ConflictException(Messages.DeleteReturnsFirst);
             _db.RemoveRange(note.Items);
             _db.Remove(note);
             await _db.SaveChangesAsync(token);
@@ -127,17 +127,17 @@ public class DeliveryNoteService : IDeliveryNoteService
 
     public async Task<DeliveryReturnNoteDto> GetReturnAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<DeliveryReturnNoteDto>(await _db.Set<DeliveryReturnNote>().AsNoTracking().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, ct)
-            ?? throw new NotFoundException("مرتجع التسليم غير موجود"));
+            ?? throw new NotFoundException(Messages.DeliveryReturnNotFound));
 
     public Task DeleteReturnAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var ret = await _db.Set<DeliveryReturnNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, token)
-                ?? throw new NotFoundException("مرتجع التسليم غير موجود");
+                ?? throw new NotFoundException(Messages.DeliveryReturnNotFound);
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == ret.DeliveryNoteId, token);
             if (note != null)
             {
-                if (note.InvoiceId != null) throw new ConflictException("البيان الأصلي فُوتر.");
+                if (note.InvoiceId != null) throw new ConflictException(Messages.OriginalNoteBilled);
                 foreach (var line in ret.Items)
                 {
                     var src = note.Items.FirstOrDefault(i => i.ItemId == line.ItemId);
@@ -174,18 +174,18 @@ public class DeliveryNoteService : IDeliveryNoteService
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == r.DeliveryNoteId, token)
-                ?? throw new NotFoundException("بيان التسليم غير موجود");
-            if (note.Status == DeliveryNoteStatus.Invoiced) throw new ConflictException("لا يمكن إرجاع بيان تمت فوترته.");
-            if (r.Items.Count == 0 || r.Items.Any(i => i.Quantity <= 0)) throw new ValidationFailedException("الكميات المرتجعة يجب أن تكون موجبة.");
-            if (r.Type is not ("sales_delivery_return" or "purchase_delivery_return")) throw new ValidationFailedException("النوع غير صالح.");
+                ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+            if (note.Status == DeliveryNoteStatus.Invoiced) throw new ConflictException(Messages.CannotReturnBilledNote);
+            if (r.Items.Count == 0 || r.Items.Any(i => i.Quantity <= 0)) throw new ValidationFailedException(Messages.ReturnedQuantitiesMustBePositive);
+            if (r.Type is not ("sales_delivery_return" or "purchase_delivery_return")) throw new ValidationFailedException(Messages.InvalidType);
 
             foreach (var line in r.Items)
             {
                 var src = note.Items.FirstOrDefault(i => i.ItemId == line.ItemId)
-                    ?? throw new ValidationFailedException("صنف غير موجود في بيان التسليم.");
+                    ?? throw new ValidationFailedException(Messages.ItemNotInDeliveryNote);
                 var remaining = src.DeliveredQty - src.ReturnedQty;
                 if (line.Quantity > remaining)
-                    throw new ValidationFailedException($"كمية المرتجع للصنف {src.ItemName} تتجاوز المتاح ({remaining:0.####}).");
+                    throw new ValidationFailedException(string.Format(Messages.ReturnQtyExceedsAvailable, src.ItemName, remaining));
                 src.ReturnedQty += line.Quantity;
             }
             note.Status = note.Items.All(i => i.ReturnedQty >= i.DeliveredQty) ? DeliveryNoteStatus.Returned : DeliveryNoteStatus.PartiallyReturned;
@@ -217,10 +217,10 @@ public class DeliveryNoteService : IDeliveryNoteService
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
-                ?? throw new NotFoundException("بيان التسليم غير موجود");
-            if (note.InvoiceId != null) throw new ConflictException("تمت فوترة هذا البيان مسبقاً.");
+                ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+            if (note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
             var lines = note.Items.Select(i => (Item: i, Qty: i.DeliveredQty - i.ReturnedQty)).Where(x => x.Qty > 0).ToList();
-            if (lines.Count == 0) throw new ConflictException("لا توجد كميات صافية لفوترتها (البيان مُرتجع بالكامل).");
+            if (lines.Count == 0) throw new ConflictException(Messages.NoNetQuantitiesToBill);
 
             // الأصناف المخزنية تُفوتر كأصناف، وغيرها (بنود العقد الوصفية) كبنود خدمة.
             var ids = lines.Select(x => x.Item.ItemId).Distinct().ToList();
@@ -250,11 +250,11 @@ public class DeliveryNoteService : IDeliveryNoteService
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
-                ?? throw new NotFoundException("بيان التسليم غير موجود");
-            if (note.InvoiceId != null) throw new ConflictException("تمت فوترة هذا البيان مسبقاً.");
-            if (note.Status == DeliveryNoteStatus.Returned) throw new ConflictException("البيان مُرتجع بالكامل.");
-            if (note.ContractId == null) throw new ValidationFailedException("البيان غير مرتبط بعقد.");
-            if (note.Type != "sales_delivery") throw new ConflictException("الفوترة المرحلية لبيانات التسليم البيعية فقط.");
+                ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+            if (note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
+            if (note.Status == DeliveryNoteStatus.Returned) throw new ConflictException(Messages.DeliveryNoteFullyReturned);
+            if (note.ContractId == null) throw new ValidationFailedException(Messages.DeliveryNoteNotLinkedToContract);
+            if (note.Type != "sales_delivery") throw new ConflictException(Messages.MilestoneBillingSalesOnly);
 
             var invoice = await _contracts.BillMilestoneAsync(note.ContractId.Value, milestoneId, token);
             note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced;

@@ -14,11 +14,11 @@ public class CompanyController : ErpControllerBase
 
     [HttpPut, RequireScreen("user-permissions", ScreenAction.Edit)]
     public async Task<IActionResult> Update([FromBody] UpdateTenantDto request, CancellationToken ct)
-        => Success(await _company.UpdateAsync(request, ct), "تم تحديث بيانات المنشأة");
+        => Success(await _company.UpdateAsync(request, ct), Messages.CompanyUpdated);
 
     [HttpPut("ZatcaConfig"), RequireScreen("zatca")]
     public async Task<IActionResult> UpdateZatca([FromBody] UpdateZatcaConfigDto request, CancellationToken ct)
-        => Success(await _company.UpdateZatcaConfigAsync(request, ct), "تم حفظ إعدادات الربط");
+        => Success(await _company.UpdateZatcaConfigAsync(request, ct), Messages.IntegrationSettingsSaved);
 
     [HttpPost("ZatcaTest"), RequireScreen("zatca", ScreenAction.Edit)]
     public async Task<IActionResult> TestZatca(CancellationToken ct) => Success(await _company.TestZatcaConnectionAsync(ct));

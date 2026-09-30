@@ -16,12 +16,12 @@ public class VouchersController : ErpControllerBase
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateVoucherDto dto, CancellationToken ct)
-        => Success(await _vouchers.CreateAsync(dto, ct), "تم إنشاء السند وترحيله");
+        => Success(await _vouchers.CreateAsync(dto, ct), Messages.VoucherCreatedAndPosted);
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateVoucherDto dto, CancellationToken ct)
-        => Success(await _vouchers.UpdateAsync(id, dto, ct), "تم تعديل السند وإعادة ترحيله");
+        => Success(await _vouchers.UpdateAsync(id, dto, ct), Messages.VoucherUpdatedAndReposted);
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _vouchers.DeleteAsync(id, ct); return Success("تم حذف السند وعكس قيده"); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _vouchers.DeleteAsync(id, ct); return Success(Messages.VoucherDeletedAndReversed); }
 }

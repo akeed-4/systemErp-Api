@@ -19,19 +19,19 @@ public class PosTransactionsController : ErpControllerBase
     public async Task<IActionResult> ByInvoice(string invoiceNumber, CancellationToken ct) => Success(await _sales.GetByInvoiceNumberAsync(invoiceNumber, ct));
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePosTransactionRequestDto dto, CancellationToken ct) => Success(await _sales.UpdateAsync(id, dto, ct), "تم تحديث المعاملة");
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePosTransactionRequestDto dto, CancellationToken ct) => Success(await _sales.UpdateAsync(id, dto, ct), Messages.TransactionUpdated);
 
     [HttpPost("{id:guid}/void")]
-    public async Task<IActionResult> Void(Guid id, CancellationToken ct) => Success(await _sales.VoidAsync(id, ct), "تم إلغاء المعاملة");
+    public async Task<IActionResult> Void(Guid id, CancellationToken ct) => Success(await _sales.VoidAsync(id, ct), Messages.TransactionVoided);
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _sales.DeleteAsync(id, ct); return Success("تم حذف المعاملة"); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _sales.DeleteAsync(id, ct); return Success(Messages.TransactionDeleted); }
 
     [HttpPost("checkout")]
     public async Task<IActionResult> Checkout([FromBody] CheckoutRequestDto dto, CancellationToken ct)
     {
         var created = await _sales.CheckoutAsync(dto, ct);
-        return Created($"{Request.Path}/{created.Id}", ApiResponse<PosTransactionDto>.Ok(created, "تمت عملية البيع").WithStatus(201));
+        return Created($"{Request.Path}/{created.Id}", ApiResponse<PosTransactionDto>.Ok(created, Messages.SaleCompleted).WithStatus(201));
     }
 
     /// <summary>تسعير السلة من الخادم قبل الدفع (عروض/كوبون/ولاء/ضريبة) — بلا أي أثر.</summary>

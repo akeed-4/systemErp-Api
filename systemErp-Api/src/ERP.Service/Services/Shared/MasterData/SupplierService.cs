@@ -13,7 +13,7 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
         _accounts = accounts; _numbers = numbers;
     }
 
-    protected override string Label => "المورد";
+    protected override string Label => Messages.PartySupplier;
     protected override bool Transactional => true;
 
     protected override IQueryable<Supplier> ApplySearch(IQueryable<Supplier> q, string t)
@@ -25,11 +25,11 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
     protected override async Task ValidateAsync(CreateSupplierDto d, Supplier? existing, CancellationToken ct)
     {
         var extra = new List<string>();
-        if (d.PaymentTermsDays < 0) extra.Add("مدة السداد لا تكون سالبة.");
+        if (d.PaymentTermsDays < 0) extra.Add(Messages.PaymentTermsCannotBeNegative);
         PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<Supplier>().AnyAsync(s => s.Code == d.Code && (existing == null || s.Id != existing.Id), ct))
-            throw new ConflictException("كود المورد مستخدم مسبقاً.");
+            throw new ConflictException(Messages.SupplierCodeInUse);
     }
 
     protected override async Task OnCreatingAsync(Supplier e, CreateSupplierDto d, CancellationToken ct)
@@ -52,12 +52,12 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
     protected override async Task OnDeletingAsync(Supplier e, CancellationToken ct)
     {
         if (await Db.Set<CarProcurementOrder>().AnyAsync(o => o.SupplierId == e.Id, ct))
-            throw new ConflictException("لا يمكن حذف مورد له طلبات شراء.");
+            throw new ConflictException(Messages.CannotDeleteSupplierWithRequisitions);
         var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
         if (acc != null)
         {
             if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == acc.Code, ct))
-                throw new ConflictException("لا يمكن حذف مورد عليه حركات محاسبية.");
+                throw new ConflictException(Messages.CannotDeleteSupplierWithEntries);
             Db.Remove(acc);
         }
     }

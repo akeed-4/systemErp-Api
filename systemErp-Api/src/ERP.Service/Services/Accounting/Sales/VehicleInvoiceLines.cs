@@ -20,9 +20,9 @@ internal static class VehicleInvoiceLines
     {
         var isSales = r.Kind == InvoiceKind.Sales;
         if (!isSales && r.Kind != InvoiceKind.Purchase)
-            throw new ValidationFailedException("أسطر السيارات مدعومة لفواتير الشراء والبيع فقط.");
-        if (r.Items.Count > 0) throw new ValidationFailedException("لا تخلط بنود الأصناف مع أسطر السيارات في فاتورة واحدة.");
-        if (r.InvoiceDiscount != 0) throw new ValidationFailedException("خصم الفاتورة غير مدعوم مع أسطر السيارات؛ استخدم خصم السطر.");
+            throw new ValidationFailedException(Messages.VehicleLinesOnlyForPurchaseAndSales);
+        if (r.Items.Count > 0) throw new ValidationFailedException(Messages.DoNotMixItemAndVehicleLines);
+        if (r.InvoiceDiscount != 0) throw new ValidationFailedException(Messages.InvoiceDiscountNotSupportedWithVehicles);
 
         var draft = string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
         var errors = new List<string>();
@@ -47,14 +47,14 @@ internal static class VehicleInvoiceLines
                 VatMode = d.VatMode, UnitPrice = d.UnitPrice, Discount = d.Discount,
             };
 
-            if (d.UnitPrice < 0 || d.Discount < 0 || d.Discount > d.UnitPrice) errors.Add($"السطر {n}: السعر والخصم غير صالحين.");
+            if (d.UnitPrice < 0 || d.Discount < 0 || d.Discount > d.UnitPrice) errors.Add(string.Format(Messages.LinePriceOrDiscountInvalid, n));
             var vin = (d.Vin ?? string.Empty).Trim().ToUpperInvariant();
 
             if (isSales)
             {
-                if (!d.VehicleId.HasValue || !vehicles.TryGetValue(d.VehicleId.Value, out var v)) { errors.Add($"السطر {n}: اختر مركبة من المخزون المتاح."); continue; }
-                if (!seenVehicles.Add(v.Id)) errors.Add($"السطر {n}: المركبة مكررة في نفس الفاتورة.");
-                if (v.Status != VehicleStatus.Available) errors.Add($"السطر {n}: المركبة {v.ChassisNumber} غير متاحة للبيع.");
+                if (!d.VehicleId.HasValue || !vehicles.TryGetValue(d.VehicleId.Value, out var v)) { errors.Add(string.Format(Messages.LineSelectAvailableVehicle, n)); continue; }
+                if (!seenVehicles.Add(v.Id)) errors.Add(string.Format(Messages.LineVehicleDuplicated, n));
+                if (v.Status != VehicleStatus.Available) errors.Add(string.Format(Messages.LineVehicleNotAvailable, n, v.ChassisNumber));
                 line.Vin = v.ChassisNumber; line.BrandId = v.BrandId; line.ModelId = v.ModelId; line.TrimId = v.TrimId;
                 line.BrandNameAr = v.BrandNameAr; line.ModelNameAr = v.ModelNameAr; line.TrimNameAr = v.TrimNameAr; line.Year = v.Year;
                 line.ColorExterior = v.ColorExterior; line.ColorInterior = v.ColorInterior;
@@ -62,22 +62,22 @@ internal static class VehicleInvoiceLines
                 line.UnitCost = v.TotalCost; line.VehicleId = v.Id;
                 line.VatMode = v.VatMode; // نمط الضريبة من بطاقة المركبة لا من العميل
                 if (v.MinSellingPrice.HasValue && d.UnitPrice - d.Discount < v.MinSellingPrice)
-                    errors.Add($"السطر {n}: سعر البيع بعد الخصم أقل من الحد الأدنى للمركبة ({v.MinSellingPrice:0.00}).");
+                    errors.Add(string.Format(Messages.LinePriceBelowMinimum, n, v.MinSellingPrice));
             }
             else
             {
                 line.VehicleId = null;
-                if (d.VatMode is not (VatMode.Standard_15 or VatMode.Exempt)) errors.Add($"السطر {n}: نمط ضريبة الشراء قياسي 15% أو معفى فقط.");
-                if (string.IsNullOrWhiteSpace(line.BrandNameAr) || string.IsNullOrWhiteSpace(line.ModelNameAr)) errors.Add($"السطر {n}: الماركة والموديل مطلوبان.");
-                if (d.Year is < 1980 or > 2100) errors.Add($"السطر {n}: سنة الصنع غير صالحة.");
+                if (d.VatMode is not (VatMode.Standard_15 or VatMode.Exempt)) errors.Add(string.Format(Messages.LinePurchaseVatModeInvalid, n));
+                if (string.IsNullOrWhiteSpace(line.BrandNameAr) || string.IsNullOrWhiteSpace(line.ModelNameAr)) errors.Add(string.Format(Messages.LineBrandAndModelRequired, n));
+                if (d.Year is < 1980 or > 2100) errors.Add(string.Format(Messages.LineYearInvalid, n));
                 if (vin.Length == 0)
                 {
-                    if (!draft) errors.Add($"السطر {n}: رقم الشاسيه مطلوب للترحيل.");
+                    if (!draft) errors.Add(string.Format(Messages.LineVinRequiredForPosting, n));
                 }
                 else
                 {
-                    if (!VehicleService.VinPattern.IsMatch(vin)) errors.Add($"السطر {n}: رقم الشاسيه يجب أن يتكون من 17 خانة (أحرف وأرقام بدون I/O/Q).");
-                    else if (!seenVins.Add(vin)) errors.Add($"السطر {n}: رقم الشاسيه {vin} مكرر في نفس الفاتورة.");
+                    if (!VehicleService.VinPattern.IsMatch(vin)) errors.Add(string.Format(Messages.LineVinFormatInvalid, n));
+                    else if (!seenVins.Add(vin)) errors.Add(string.Format(Messages.LineVinDuplicated, n, vin));
                     line.Vin = vin;
                 }
             }
@@ -105,7 +105,7 @@ internal static class VehicleInvoiceLines
             if (vins.Count > 0)
             {
                 var existing = await db.Set<Vehicle>().AsNoTracking().Where(v => vins.Contains(v.ChassisNumber)).Select(v => v.ChassisNumber).ToListAsync(ct);
-                if (existing.Count > 0) throw new ConflictException("شواسيهات مسجّلة مسبقاً: " + string.Join(", ", existing));
+                if (existing.Count > 0) throw new ConflictException(Messages.VinsAlreadyRegisteredPrefix + string.Join(", ", existing));
             }
         }
 
@@ -138,7 +138,7 @@ internal static class VehicleInvoiceLines
         {
             foreach (var l in lines.Where(l => l.VehicleId == null))
             {
-                if (string.IsNullOrWhiteSpace(l.Vin)) throw new ValidationFailedException($"السطر {l.LineNo}: رقم الشاسيه مطلوب للترحيل.");
+                if (string.IsNullOrWhiteSpace(l.Vin)) throw new ValidationFailedException(string.Format(Messages.LineVinRequiredForPosting, l.LineNo));
                 try
                 {
                     var created = await vehicles.CreateAsync(new CreateVehicleDto
@@ -153,8 +153,8 @@ internal static class VehicleInvoiceLines
                     entity.PurchaseInvoiceId = invoice.Id;
                     l.VehicleId = created.Id;
                 }
-                catch (ValidationFailedException ex) { throw new ValidationFailedException($"السطر {l.LineNo}: {ex.Message}"); }
-                catch (ConflictException ex) { throw new ConflictException($"السطر {l.LineNo}: {ex.Message}"); }
+                catch (ValidationFailedException ex) { throw new ValidationFailedException(string.Format(Messages.LineMessage, l.LineNo, ex.Message)); }
+                catch (ConflictException ex) { throw new ConflictException(string.Format(Messages.LineMessage, l.LineNo, ex.Message)); }
             }
         }
         else if (invoice.Kind == InvoiceKind.Sales)
@@ -162,8 +162,8 @@ internal static class VehicleInvoiceLines
             foreach (var l in lines)
             {
                 var v = await db.Set<Vehicle>().FirstOrDefaultAsync(x => x.Id == l.VehicleId, ct)
-                    ?? throw new ValidationFailedException($"السطر {l.LineNo}: المركبة غير موجودة.");
-                if (v.Status != VehicleStatus.Available) throw new ConflictException($"السطر {l.LineNo}: المركبة {v.ChassisNumber} لم تعد متاحة للبيع.");
+                    ?? throw new ValidationFailedException(string.Format(Messages.LineVehicleNotFound, l.LineNo));
+                if (v.Status != VehicleStatus.Available) throw new ConflictException(string.Format(Messages.LineVehicleNoLongerAvailable, l.LineNo, v.ChassisNumber));
                 v.Status = VehicleStatus.Sold;
             }
         }
@@ -183,7 +183,7 @@ internal static class VehicleInvoiceLines
                 var used = v.Status != VehicleStatus.Available
                     || await db.Set<CarSalesContract>().AnyAsync(c => c.VehicleId == v.Id, ct)
                     || await db.Set<InvoiceVehicleLine>().AnyAsync(x => x.VehicleId == v.Id && x.InvoiceId != invoice.Id, ct);
-                if (used) throw new ConflictException($"لا يمكن إلغاء ترحيل الفاتورة: المركبة {v.ChassisNumber} لم تعد متاحة (محجوزة أو مباعة أو مرتبطة بمستند).");
+                if (used) throw new ConflictException(string.Format(Messages.CannotUnpostVehicleUnavailable, v.ChassisNumber));
                 db.Remove(v);
                 l.VehicleId = null;
             }

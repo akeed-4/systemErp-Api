@@ -25,14 +25,14 @@ public class PosSaleReturnService : IPosSaleReturnService
         => _tx.RunAsync(async token =>
         {
             var me = _user.UserId ?? throw new UnauthorizedAppException();
-            if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException("سبب الإرجاع مطلوب.");
+            if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
             var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token)
-                ?? throw new ConflictException("افتح وردية أولاً لمعالجة المرتجع.");
+                ?? throw new ConflictException(Messages.OpenShiftToProcessReturn);
 
             var tx = await _db.Set<PosTransaction>().Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == r.OriginalTransactionId, token)
-                ?? throw new NotFoundException("المعاملة الأصلية غير موجودة");
-            if (tx.Status == PosTransactionStatus.Voided) throw new ConflictException("المعاملة ملغاة.");
-            if (tx.InvoiceId == null) throw new ConflictException("لا توجد فاتورة مرتبطة بالمعاملة.");
+                ?? throw new NotFoundException(Messages.OriginalTransactionNotFound);
+            if (tx.Status == PosTransactionStatus.Voided) throw new ConflictException(Messages.TransactionVoidedState);
+            if (tx.InvoiceId == null) throw new ConflictException(Messages.NoInvoiceLinkedToTransaction);
 
             var previous = (await _db.Set<PosSalesReturnItem>().AsNoTracking()
                     .Where(i => _db.Set<PosSalesReturn>().Any(x => x.Id == i.ReturnId && x.OriginalTransactionId == tx.Id && x.Status == "completed")).ToListAsync(token))
@@ -41,14 +41,14 @@ public class PosSaleReturnService : IPosSaleReturnService
             var wanted = r.Items.Count > 0
                 ? r.Items
                 : tx.Items.Select(i => new PosReturnLineDto { ItemId = i.ItemId, ReturnQuantity = i.Quantity - previous.GetValueOrDefault(i.ItemId) }).Where(l => l.ReturnQuantity > 0).ToList();
-            if (wanted.Count == 0) throw new ConflictException("لا توجد كميات متبقية للإرجاع.");
+            if (wanted.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
 
             foreach (var l in wanted)
             {
-                var src = tx.Items.FirstOrDefault(i => i.ItemId == l.ItemId) ?? throw new ValidationFailedException("صنف غير موجود في المعاملة.");
+                var src = tx.Items.FirstOrDefault(i => i.ItemId == l.ItemId) ?? throw new ValidationFailedException(Messages.ItemNotInTransaction);
                 var remaining = src.Quantity - previous.GetValueOrDefault(l.ItemId);
                 if (l.ReturnQuantity <= 0 || l.ReturnQuantity > remaining)
-                    throw new ValidationFailedException($"كمية الإرجاع للصنف {src.NameAr} يجب أن تكون بين 0 و{remaining:0.####}.");
+                    throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.NameAr, remaining));
             }
 
             var refundMethod = r.RefundMethod switch
@@ -58,7 +58,7 @@ public class PosSaleReturnService : IPosSaleReturnService
                 _ => PaymentMethod.Credit, // رصيد للعميل
             };
             if (r.RefundMethod == PosRefundMethod.StoreCredit && tx.CustomerId == null)
-                throw new ValidationFailedException("الرصيد الدائن يتطلب عميلاً مسجّلاً.");
+                throw new ValidationFailedException(Messages.StoreCreditRequiresCustomer);
 
             var creditNote = await _invoices.CreateReturnAsync(new CreateReturnInvoiceRequestDto
             {
@@ -112,8 +112,8 @@ public class PosSaleReturnService : IPosSaleReturnService
 
     public async Task<PosSalesReturnDto> UpdateAsync(Guid id, UpdatePosReturnRequestDto r, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException("سبب الإرجاع مطلوب.");
-        var ret = await _db.Set<PosSalesReturn>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("المرتجع غير موجود");
+        if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
+        var ret = await _db.Set<PosSalesReturn>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException(Messages.ReturnNotFound);
         var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == ret.ShiftId, ct);
         PosShiftRules.EnsureCanCorrect(shift, _user);
         ret.ReturnReason = r.ReturnReason.Trim();
@@ -124,7 +124,7 @@ public class PosSaleReturnService : IPosSaleReturnService
     public Task DeleteAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var ret = await _db.Set<PosSalesReturn>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException("المرتجع غير موجود");
+            var ret = await _db.Set<PosSalesReturn>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.ReturnNotFound);
             var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == ret.ShiftId, token);
             PosShiftRules.EnsureCanCorrect(shift, _user);
 
@@ -173,5 +173,5 @@ public class PosSaleReturnService : IPosSaleReturnService
 
     public async Task<PosSalesReturnDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<PosSalesReturnDto>(await _db.Set<PosSalesReturn>().AsNoTracking().Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id, ct)
-            ?? throw new NotFoundException("المرتجع غير موجود"));
+            ?? throw new NotFoundException(Messages.ReturnNotFound));
 }

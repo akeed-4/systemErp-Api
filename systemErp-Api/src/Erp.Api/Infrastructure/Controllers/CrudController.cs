@@ -27,17 +27,17 @@ public abstract class CrudController<TDto, TCreate, TUpdate> : ErpControllerBase
     {
         var created = await _service.CreateAsync(dto, ct);
         var id = created?.GetType().GetProperty("Id")?.GetValue(created);
-        return Created($"{Request.Path}/{id}", ApiResponse<TDto>.Ok(created!, "تم الإنشاء بنجاح") .WithStatus(201));
+        return Created($"{Request.Path}/{id}", ApiResponse<TDto>.Ok(created!, Messages.CreatedSuccessfully) .WithStatus(201));
     }
 
     [HttpPut("{id:guid}")]
     public virtual async Task<IActionResult> Update(Guid id, [FromBody] TUpdate dto, CancellationToken ct)
-        => Success(await _service.UpdateAsync(id, dto, ct), "تم التعديل بنجاح");
+        => Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
 
     [HttpDelete("{id:guid}")]
     public virtual async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _service.DeleteAsync(id, ct);
-        return Success("تم الحذف بنجاح");
+        return Success(Messages.DeletedSuccessfully);
     }
 }

@@ -14,6 +14,6 @@ internal static class PosShiftRules
     {
         if (IsPrivileged(user)) return;
         if (shift.Status != PosShiftStatus.Open || shift.CashierId != user.UserId)
-            throw new ForbiddenException("تصحيح مستندات وردية مغلقة أو لكاشير آخر للأدوار الإدارية فقط.");
+            throw new ForbiddenException(Messages.ClosedOrOtherShiftCorrectionAdminOnly);
     }
 }

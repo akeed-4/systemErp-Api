@@ -19,15 +19,15 @@ public class ZatcaService : IZatcaService
     /// </summary>
     public async Task<ZatcaSubmitResultDto> SubmitInvoiceAsync(Guid invoiceId, CancellationToken ct = default)
     {
-        var invoice = await _db.Set<Invoice>().FirstOrDefaultAsync(i => i.Id == invoiceId, ct) ?? throw new NotFoundException("الفاتورة غير موجودة");
-        if (invoice.Status != "posted") throw new ConflictException("تُرسل الفواتير المرحّلة فقط.");
-        if (invoice.Kind is InvoiceKind.Purchase or InvoiceKind.PurchaseReturn) throw new ConflictException("فواتير المشتريات لا تُرسل لهيئة الزكاة.");
+        var invoice = await _db.Set<Invoice>().FirstOrDefaultAsync(i => i.Id == invoiceId, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        if (invoice.Status != "posted") throw new ConflictException(Messages.OnlyPostedInvoicesSubmitted);
+        if (invoice.Kind is InvoiceKind.Purchase or InvoiceKind.PurchaseReturn) throw new ConflictException(Messages.PurchaseInvoicesNotSubmittedToZatca);
 
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
         if (!tenant.ZatcaConfig.IsEnabled)
-            return new ZatcaSubmitResultDto { Success = false, Status = invoice.ZatcaStatus, Message = "الربط مع هيئة الزكاة غير مُفعَّل في إعدادات المنشأة.", QrCode = invoice.ZatcaQrCode };
+            return new ZatcaSubmitResultDto { Success = false, Status = invoice.ZatcaStatus, Message = Messages.ZatcaNotEnabled, QrCode = invoice.ZatcaQrCode };
 
-        invoice.ZatcaValidationMessages = "الإرسال الفعلي لهيئة الزكاة غير مُنفَّذ في هذه النسخة (يتطلب شهادة CSID حقيقية).";
+        invoice.ZatcaValidationMessages = Messages.ZatcaSubmissionNotImplemented;
         await _db.SaveChangesAsync(ct);
         return new ZatcaSubmitResultDto { Success = false, Status = invoice.ZatcaStatus, Message = invoice.ZatcaValidationMessages, QrCode = invoice.ZatcaQrCode };
     }

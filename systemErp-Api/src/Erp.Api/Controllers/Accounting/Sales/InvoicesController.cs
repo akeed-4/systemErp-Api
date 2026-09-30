@@ -48,14 +48,14 @@ public class InvoicesController : ErpControllerBase
     {
         await Require(dto.Kind, ScreenAction.Create, ct);
         var created = await _invoices.CreateAsync(dto, ct);
-        return Created($"{Request.Path}/{created.Id}", ApiResponse<InvoiceDto>.Ok(created, "تم إنشاء الفاتورة").WithStatus(201));
+        return Created($"{Request.Path}/{created.Id}", ApiResponse<InvoiceDto>.Ok(created, Messages.InvoiceCreated).WithStatus(201));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateInvoiceDto dto, CancellationToken ct)
     {
         await Require(dto.Kind, ScreenAction.Edit, ct);
-        return Success(await _invoices.UpdateAsync(id, dto, ct), "تم تعديل الفاتورة");
+        return Success(await _invoices.UpdateAsync(id, dto, ct), Messages.InvoiceUpdated);
     }
 
     [HttpPost("returns")]
@@ -63,14 +63,14 @@ public class InvoicesController : ErpControllerBase
     {
         var original = await _invoices.GetAsync(dto.OriginalInvoiceId, ct);
         await Require(original.Kind == InvoiceKind.Sales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn, ScreenAction.Create, ct);
-        return Success(await _invoices.CreateReturnAsync(dto, ct), "تم إنشاء المرتجع");
+        return Success(await _invoices.CreateReturnAsync(dto, ct), Messages.ReturnCreated);
     }
 
     [HttpPost("{id:guid}/post")]
     public async Task<IActionResult> Post(Guid id, CancellationToken ct)
     {
         await Require((await _invoices.GetAsync(id, ct)).Kind, ScreenAction.Edit, ct);
-        return Success(await _invoices.PostDraftAsync(id, ct), "تم ترحيل الفاتورة");
+        return Success(await _invoices.PostDraftAsync(id, ct), Messages.InvoicePosted);
     }
 
     [HttpDelete("{id:guid}")]
@@ -78,7 +78,7 @@ public class InvoicesController : ErpControllerBase
     {
         await Require((await _invoices.GetAsync(id, ct)).Kind, ScreenAction.Delete, ct);
         await _invoices.DeleteAsync(id, ct);
-        return Success("تم حذف الفاتورة");
+        return Success(Messages.InvoiceDeleted);
     }
 
     /// <summary>معاينة القيد المحاسبي (مخزون، تكلفة إيرادات، ضريبة، دفع/ذمم) قبل الحفظ أو الترحيل — بلا أي أثر.</summary>

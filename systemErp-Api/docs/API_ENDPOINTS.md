@@ -262,6 +262,34 @@
 | GET | `/fixedassets/{id}` |
 | PUT | `/fixedassets/{id}` |
 
+## InventoryCountApprovals
+
+صلاحية الشاشة `inventory-counts`؛ الاعتماد/الرفض يتطلب `approve`. الاعتماد النهائي ينشئ حركات التسوية وقيد الفروق (513).
+
+| Method | Path |
+|---|---|
+| GET | `/inventorycountapprovals` (`scope`, `status`) |
+| GET | `/inventorycountapprovals/{id}` |
+| POST | `/inventorycountapprovals/{id}/approve` |
+| POST | `/inventorycountapprovals/{id}/reject` |
+
+## InventoryCounts
+
+`scope` = `items` | `vehicles`. التعديل للمسودة/المرفوض فقط؛ الإرسال ينشئ مستند اعتماد جديد.
+
+| Method | Path |
+|---|---|
+| GET | `/inventorycounts` (`scope`, `status`) |
+| POST | `/inventorycounts` |
+| DELETE | `/inventorycounts/{id}` |
+| GET | `/inventorycounts/{id}` |
+| PUT | `/inventorycounts/{id}` |
+| GET | `/inventorycounts/{id}/approvals` |
+| POST | `/inventorycounts/{id}/submit` |
+| POST | `/inventorycounts/{id}/withdraw` |
+| POST | `/inventorycounts/{id}/cancel` |
+| POST | `/inventorycounts/snapshot` |
+
 ## Invoices
 
 | Method | Path |

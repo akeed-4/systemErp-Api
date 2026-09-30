@@ -10,7 +10,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
 {
     public AccountService(ErpDbContext db) : base(db) { }
 
-    protected override string Label => "الحساب";
+    protected override string Label => Messages.LabelAccount;
 
     protected override IQueryable<Account> ApplySearch(IQueryable<Account> q, string term)
         => q.Where(a => a.Code.Contains(term) || a.NameAr.Contains(term) || a.NameEn.Contains(term));
@@ -18,27 +18,27 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
     protected override async Task ValidateAsync(CreateAccountDto dto, Account? existing, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(dto.Code)) errors.Add("كود الحساب مطلوب.");
-        else if (!dto.Code.All(char.IsDigit)) errors.Add("كود الحساب أرقام فقط.");
-        if (string.IsNullOrWhiteSpace(dto.NameAr)) errors.Add("اسم الحساب بالعربية مطلوب.");
+        if (string.IsNullOrWhiteSpace(dto.Code)) errors.Add(Messages.AccountCodeRequired);
+        else if (!dto.Code.All(char.IsDigit)) errors.Add(Messages.AccountCodeDigitsOnly);
+        if (string.IsNullOrWhiteSpace(dto.NameAr)) errors.Add(Messages.AccountArabicNameRequired);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<Account>().AnyAsync(a => a.Code == dto.Code && (existing == null || a.Id != existing.Id), ct))
-            throw new ConflictException("كود الحساب مستخدم مسبقاً.");
+            throw new ConflictException(Messages.AccountCodeInUse);
 
         if (!string.IsNullOrEmpty(dto.ParentCode))
         {
             var parent = await Db.Set<Account>().AsNoTracking().FirstOrDefaultAsync(a => a.Code == dto.ParentCode, ct)
-                ?? throw new ValidationFailedException("الحساب الأب غير موجود.");
-            if (parent.Type != dto.Type) throw new ValidationFailedException("نوع الحساب يجب أن يطابق نوع الحساب الأب.");
-            if (existing != null && dto.ParentCode == existing.Code) throw new ValidationFailedException("لا يمكن أن يكون الحساب أباً لنفسه.");
+                ?? throw new ValidationFailedException(Messages.ParentAccountNotFound);
+            if (parent.Type != dto.Type) throw new ValidationFailedException(Messages.AccountTypeMustMatchParent);
+            if (existing != null && dto.ParentCode == existing.Code) throw new ValidationFailedException(Messages.AccountCannotBeOwnParent);
         }
 
         if (existing != null && existing.Code != dto.Code
             && await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == existing.Code, ct))
-            throw new ConflictException("لا يمكن تغيير كود حساب عليه حركات.");
+            throw new ConflictException(Messages.CannotChangeCodeOfAccountWithEntries);
         if (existing is { IsSystem: true } && (existing.Code != dto.Code || existing.Type != dto.Type))
-            throw new ConflictException("لا يمكن تعديل كود أو نوع حساب نظامي.");
+            throw new ConflictException(Messages.CannotEditSystemAccountCodeOrType);
     }
 
     protected override async Task OnCreatingAsync(Account entity, CreateAccountDto dto, CancellationToken ct)
@@ -61,13 +61,13 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
 
     protected override async Task OnDeletingAsync(Account entity, CancellationToken ct)
     {
-        if (entity.IsSystem) throw new ConflictException("لا يمكن حذف حساب نظامي.");
+        if (entity.IsSystem) throw new ConflictException(Messages.CannotDeleteSystemAccount);
         if (await Db.Set<Account>().AnyAsync(a => a.ParentCode == entity.Code, ct))
-            throw new ConflictException("لا يمكن حذف حساب له حسابات فرعية.");
+            throw new ConflictException(Messages.CannotDeleteAccountWithChildren);
         if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == entity.Code, ct))
-            throw new ConflictException("لا يمكن حذف حساب عليه حركات.");
+            throw new ConflictException(Messages.CannotDeleteAccountWithEntries);
         if (entity.LinkedEntityType is not null and not LinkedEntityType.General)
-            throw new ConflictException("الحساب مرتبط بعميل/مورد/بنك؛ احذف الكيان المرتبط أولاً.");
+            throw new ConflictException(Messages.AccountLinkedToEntity);
     }
 
     private async Task<int> LevelOfAsync(string? parentCode, CancellationToken ct)
@@ -86,7 +86,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
     public async Task<AccountDto> GetByCodeAsync(string code, CancellationToken ct = default)
     {
         var a = await Db.Set<Account>().AsNoTracking().FirstOrDefaultAsync(x => x.Code == code, ct)
-            ?? throw new NotFoundException("الحساب غير موجود");
+            ?? throw new NotFoundException(Messages.AccountNotFound);
         return Mapper.Map<AccountDto>(a);
     }
 
@@ -122,17 +122,17 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             LinkedEntityType.Customer => DefaultAccounts.Receivables,
             LinkedEntityType.Supplier => DefaultAccounts.Payables,
             LinkedEntityType.Bank => DefaultAccounts.Banks,
-            _ => throw new ValidationFailedException("نوع الكيان غير مدعوم لإنشاء حساب تلقائي."),
+            _ => throw new ValidationFailedException(Messages.EntityTypeNotSupportedForAutoAccount),
         };
         var parent = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == parentCode, ct)
-            ?? throw new ConflictException($"الحساب الأب {parentCode} غير موجود في شجرة الحسابات.");
+            ?? throw new ConflictException(string.Format(Messages.ParentAccountMissingInChart, parentCode));
 
         // أكبر كود فرعي حالي تحت الأب (خانات الأبناء: 3 أرقام بعد كود الأب)
         var existingCodes = await Db.Set<Account>().AsNoTracking()
             .Where(a => a.ParentCode == parentCode && a.Code.Length == parentCode.Length + 3)
             .Select(a => a.Code).ToListAsync(ct);
         var next = existingCodes.Select(c => int.Parse(c[parentCode.Length..])).DefaultIfEmpty(0).Max() + 1;
-        if (next > 999) throw new ConflictException("تم استهلاك جميع الأكواد الفرعية المتاحة تحت هذا الحساب.");
+        if (next > 999) throw new ConflictException(Messages.SubAccountCodesExhausted);
 
         var account = new Account
         {

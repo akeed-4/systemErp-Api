@@ -21,20 +21,20 @@ public class StockMovementsController : ErpControllerBase
     public async Task<IActionResult> Adjust([FromBody] RecordStockMovementDto request, CancellationToken ct)
     {
         if (request.Type is not (StockMovementType.AdjustmentIn or StockMovementType.AdjustmentOut))
-            throw new ValidationFailedException("التسوية اليدوية: adjustment_in أو adjustment_out فقط.");
+            throw new ValidationFailedException(Messages.ManualAdjustmentTypeOnly);
         request.SourceType = "manual";
-        return Success(await _inventory.RecordMovementAsync(request, ct), "تم تسجيل التسوية");
+        return Success(await _inventory.RecordMovementAsync(request, ct), Messages.AdjustmentRecorded);
     }
 
     /// <summary>تعديل تسوية يدوية فقط؛ حركات المستندات تُعدَّل من مستنداتها.</summary>
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] RecordStockMovementDto request, CancellationToken ct)
-        => Success(await _inventory.UpdateMovementAsync(id, request, ct), "تم تعديل التسوية");
+        => Success(await _inventory.UpdateMovementAsync(id, request, ct), Messages.AdjustmentUpdated);
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _inventory.DeleteMovementAsync(id, ct);
-        return Success("تم حذف التسوية وإعادة احتساب الرصيد");
+        return Success(Messages.AdjustmentDeletedAndStockRecalculated);
     }
 }

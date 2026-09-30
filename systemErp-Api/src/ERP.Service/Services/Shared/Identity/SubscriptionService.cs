@@ -19,7 +19,7 @@ public class SubscriptionService : ISubscriptionService
 
     public async Task<SubscriptionDto> UpgradeAsync(UpgradeSubscriptionRequestDto request, CancellationToken ct = default)
     {
-        if (!Enum.IsDefined(request.PlanId)) throw new ValidationFailedException("الباقة غير صالحة.");
+        if (!Enum.IsDefined(request.PlanId)) throw new ValidationFailedException(Messages.InvalidPlan);
 
         // لا توجد بوابة دفع مُدمجة؛ الاشتراك يُفعَّل مباشرة ويُسجَّل مرجع العملية للمطابقة اليدوية.
         var active = await _db.Set<Subscription>().Where(s => s.Status == SubscriptionStatus.Active).ToListAsync(ct);

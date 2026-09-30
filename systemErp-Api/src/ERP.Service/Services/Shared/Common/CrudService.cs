@@ -19,7 +19,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
     protected CrudService(ErpDbContext db) => Db = db;
 
     /// <summary>اسم الكيان للرسائل (بالعربية).</summary>
-    protected virtual string Label => "السجل";
+    protected virtual string Label => Messages.LabelRecord;
 
     // ---------- نقاط التوسّع ----------
     protected virtual IQueryable<TEntity> ApplySearch(IQueryable<TEntity> query, string term) => query;
@@ -88,7 +88,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
     public virtual async Task<TDto> GetAsync(Guid id, CancellationToken ct = default)
     {
         var entity = await Includes(Db.Set<TEntity>().AsNoTracking()).FirstOrDefaultAsync(e => e.Id == id, ct)
-            ?? throw new NotFoundException($"{Label} غير موجود");
+            ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
         return ToDto(entity);
     }
 
@@ -109,7 +109,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
         => Run(async token =>
         {
             var entity = await Includes(Db.Set<TEntity>()).FirstOrDefaultAsync(e => e.Id == id, token)
-                ?? throw new NotFoundException($"{Label} غير موجود");
+                ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
             await ValidateAsync(dto, entity, token);
     
             Mapper.Apply(dto, entity);
@@ -126,7 +126,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
         => Run(async token =>
         {
             var entity = await Db.Set<TEntity>().FirstOrDefaultAsync(e => e.Id == id, token)
-                ?? throw new NotFoundException($"{Label} غير موجود");
+                ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
             await OnDeletingAsync(entity, token);
             Db.Remove(entity);
             await SaveAsync(token);
@@ -173,7 +173,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
         }
         catch (DbUpdateException ex) when (IsConstraintViolation(ex))
         {
-            throw new ConflictException($"تعذّر الحفظ: {Label} مرتبط بسجلات أخرى أو يخالف قيد تفرّد.");
+            throw new ConflictException(string.Format(Messages.SaveConstraintViolation, Label));
         }
     }
 

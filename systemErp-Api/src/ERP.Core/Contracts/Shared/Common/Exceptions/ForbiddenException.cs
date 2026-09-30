@@ -2,6 +2,6 @@ namespace ERP.Core.Contracts.Shared;
 
 public class ForbiddenException : ErpException
 {
-    public ForbiddenException(string message = "ليس لديك صلاحية لتنفيذ هذه العملية") : base(message) { }
+    public ForbiddenException(string? message = null) : base(message ?? Messages.Forbidden) { }
     public override int StatusCode => 403;
 }

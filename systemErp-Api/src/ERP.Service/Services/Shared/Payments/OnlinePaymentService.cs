@@ -31,16 +31,16 @@ public class OnlinePaymentService : IOnlinePaymentService
     // ================= إنشاء عمليات الدفع =================
     public async Task<OnlinePaymentDto> CreateInvoicePaymentLinkAsync(CreateInvoicePaymentLinkDto r, CancellationToken ct = default)
     {
-        var inv = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == r.InvoiceId, ct) ?? throw new NotFoundException("الفاتورة غير موجودة");
-        if (inv.Kind != InvoiceKind.Sales || inv.Status != "posted") throw new ConflictException("رابط الدفع لفاتورة مبيعات مرحّلة فقط.");
-        if (inv.PartyId == null) throw new ValidationFailedException("الفاتورة بلا عميل مسجّل؛ لا يمكن ترحيل التحصيل على حسابه.");
+        var inv = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == r.InvoiceId, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        if (inv.Kind != InvoiceKind.Sales || inv.Status != "posted") throw new ConflictException(Messages.PaymentLinkPostedSalesOnly);
+        if (inv.PartyId == null) throw new ValidationFailedException(Messages.InvoiceWithoutRegisteredCustomer);
         var customer = await _db.Set<Customer>().AsNoTracking().FirstAsync(c => c.Id == inv.PartyId, ct);
-        if (string.IsNullOrWhiteSpace(customer.AccountCode)) throw new ValidationFailedException("العميل غير مربوط بحساب في شجرة الحسابات.");
+        if (string.IsNullOrWhiteSpace(customer.AccountCode)) throw new ValidationFailedException(Messages.CustomerNotLinkedToAccount);
 
         var outstanding = await OutstandingAsync(inv, ct);
-        if (outstanding <= 0) throw new ConflictException("الفاتورة مسددة بالكامل.");
+        if (outstanding <= 0) throw new ConflictException(Messages.InvoiceFullyPaid);
         var amount = DocumentPricing.Round(r.Amount ?? outstanding);
-        if (amount <= 0 || amount > outstanding) throw new ValidationFailedException($"المبلغ يجب أن يكون بين 0 و {outstanding:0.00}.");
+        if (amount <= 0 || amount > outstanding) throw new ValidationFailedException(string.Format(Messages.AmountRange, outstanding));
 
         var creds = await TenantCredentialsAsync(ct);
         return await CreateAsync(new OnlinePayment
@@ -53,7 +53,7 @@ public class OnlinePaymentService : IOnlinePaymentService
 
     public async Task<OnlinePaymentDto> CreatePosPaymentAsync(CreatePosPaymentDto r, CancellationToken ct = default)
     {
-        if (r.Amount <= 0) throw new ValidationFailedException("المبلغ يجب أن يكون موجباً.");
+        if (r.Amount <= 0) throw new ValidationFailedException(Messages.AmountMustBePositive);
         var creds = await TenantCredentialsAsync(ct);
         return await CreateAsync(new OnlinePayment
         {
@@ -64,7 +64,7 @@ public class OnlinePaymentService : IOnlinePaymentService
 
     public async Task<OnlinePaymentDto> CreateSubscriptionCheckoutAsync(CreateSubscriptionCheckoutDto r, CancellationToken ct = default)
     {
-        if (!Enum.IsDefined(r.PlanId) || !Enum.IsDefined(r.BillingCycle)) throw new ValidationFailedException("الباقة أو دورة الفوترة غير صالحة.");
+        if (!Enum.IsDefined(r.PlanId) || !Enum.IsDefined(r.BillingCycle)) throw new ValidationFailedException(Messages.InvalidPlanOrBillingCycle);
         var plan = SubscriptionCatalog.Get(r.PlanId);
         var price = r.BillingCycle == SubscriptionBillingCycle.Yearly ? plan.PriceYearly : plan.PriceMonthly;
         var total = DocumentPricing.Round(price * (1 + SubscriptionCatalog.VatRate));
@@ -80,7 +80,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     private async Task<OnlinePaymentDto> CreateAsync(OnlinePayment p, PaymobCredentials creds, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_platform.PublicApiUrl) || string.IsNullOrWhiteSpace(_platform.FrontendUrl))
-            throw new ConflictException("اضبط Paymob:PublicApiUrl و Paymob:FrontendUrl في إعدادات الخادم أولاً.");
+            throw new ConflictException(Messages.ConfigurePaymobUrls);
         p.Id = Guid.NewGuid();
         p.SpecialReference = $"ERP-{p.Id:N}";
         var intention = await _paymob.CreateIntentionAsync(creds, new PaymobIntentionRequest(
@@ -100,7 +100,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     // ================= القراءة =================
     public async Task<OnlinePaymentDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<OnlinePaymentDto>(await _db.Set<OnlinePayment>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct)
-            ?? throw new NotFoundException("عملية الدفع غير موجودة"));
+            ?? throw new NotFoundException(Messages.PaymentNotFound));
 
     public async Task<List<OnlinePaymentDto>> ListAsync(Guid? referenceId, CancellationToken ct = default)
     {
@@ -111,8 +111,8 @@ public class OnlinePaymentService : IOnlinePaymentService
 
     public async Task<OnlinePaymentDto> CancelAsync(Guid id, CancellationToken ct = default)
     {
-        var p = await _db.Set<OnlinePayment>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("عملية الدفع غير موجودة");
-        if (p.Status != OnlinePaymentStatus.Pending) throw new ConflictException("تُلغى عمليات الدفع المعلّقة فقط.");
+        var p = await _db.Set<OnlinePayment>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException(Messages.PaymentNotFound);
+        if (p.Status != OnlinePaymentStatus.Pending) throw new ConflictException(Messages.OnlyPendingPaymentsCancellable);
         p.Status = OnlinePaymentStatus.Cancelled;
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<OnlinePaymentDto>(p);
@@ -122,7 +122,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     public async Task<PublicPaymentStatusDto> GetPublicStatusAsync(Guid id, CancellationToken ct = default)
     {
         var p = await _db.Set<OnlinePayment>().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException("عملية الدفع غير موجودة");
+            ?? throw new NotFoundException(Messages.PaymentNotFound);
         var company = await _db.Set<Tenant>().IgnoreQueryFilters().AsNoTracking().Where(t => t.Id == p.TenantId).Select(t => t.NameAr).FirstOrDefaultAsync(ct);
         return new PublicPaymentStatusDto
         {
@@ -241,7 +241,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     public async Task<PaymentGatewaySettingsDto> UpdateSettingsAsync(UpdatePaymentGatewaySettingsDto r, CancellationToken ct = default)
     {
         if (!Uri.TryCreate(r.BaseUrl, UriKind.Absolute, out var baseUri) || baseUri.Scheme != Uri.UriSchemeHttps)
-            throw new ValidationFailedException("عنوان Paymob يجب أن يكون https (مثل https://ksa.paymob.com).");
+            throw new ValidationFailedException(Messages.PaymobUrlMustBeHttps);
         var ids = ParseIds(r.IntegrationIds);
         var s = await _db.Set<PaymentGatewaySettings>().FirstOrDefaultAsync(ct);
         if (s == null) { s = new PaymentGatewaySettings(); _db.Add(s); }
@@ -252,7 +252,7 @@ public class OnlinePaymentService : IOnlinePaymentService
         s.IntegrationIds = string.Join(",", ids);
         s.SettlementAccountCode = string.IsNullOrWhiteSpace(r.SettlementAccountCode) ? DefaultAccounts.PaymentGatewayReceivable : r.SettlementAccountCode.Trim();
         if (r.IsEnabled && (string.IsNullOrEmpty(s.PublicKey) || string.IsNullOrEmpty(s.SecretKeyEncrypted) || string.IsNullOrEmpty(s.HmacSecretEncrypted) || ids.Count == 0))
-            throw new ValidationFailedException("للتفعيل: المفتاح العام والسري ومفتاح HMAC ورقم تكامل واحد على الأقل.");
+            throw new ValidationFailedException(Messages.PaymobActivationRequirements);
         s.IsEnabled = r.IsEnabled;
         await _db.SaveChangesAsync(ct);
         return ToDto(s);
@@ -270,7 +270,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     private async Task<PaymobCredentials> TenantCredentialsAsync(CancellationToken ct)
     {
         var s = await _db.Set<PaymentGatewaySettings>().AsNoTracking().FirstOrDefaultAsync(ct);
-        if (s is not { IsEnabled: true }) throw new ConflictException("بوابة الدفع Paymob غير مفعّلة للمنشأة؛ اضبطها من إعدادات الدفع الإلكتروني.");
+        if (s is not { IsEnabled: true }) throw new ConflictException(Messages.PaymobNotEnabled);
         return new PaymobCredentials(s.BaseUrl, _secrets.Unprotect(s.SecretKeyEncrypted), s.PublicKey, _secrets.Unprotect(s.HmacSecretEncrypted), ParseIds(s.IntegrationIds));
     }
 
@@ -278,7 +278,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     {
         var ids = ParseIds(_platform.IntegrationIds);
         if (string.IsNullOrWhiteSpace(_platform.SecretKey) || string.IsNullOrWhiteSpace(_platform.PublicKey) || ids.Count == 0)
-            throw new ConflictException("دفع الاشتراكات غير مهيأ على المنصة (Paymob:SecretKey/PublicKey/IntegrationIds).");
+            throw new ConflictException(Messages.SubscriptionPaymentsNotConfigured);
         return new PaymobCredentials(_platform.BaseUrl, _platform.SecretKey, _platform.PublicKey, _platform.HmacSecret, ids);
     }
 
@@ -302,7 +302,7 @@ public class OnlinePaymentService : IOnlinePaymentService
 
     private static List<long> ParseIds(string? csv)
         => (csv ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => long.TryParse(x, out var n) ? n : throw new ValidationFailedException($"رقم تكامل غير صالح: {x}")).ToList();
+            .Select(x => long.TryParse(x, out var n) ? n : throw new ValidationFailedException(string.Format(Messages.InvalidIntegrationId, x))).ToList();
 
     private static bool Bool(JsonElement obj, string prop) => obj.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.True;
 }

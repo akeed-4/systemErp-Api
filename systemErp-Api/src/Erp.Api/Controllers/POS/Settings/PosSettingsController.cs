@@ -16,5 +16,5 @@ public class PosSettingsController : ErpControllerBase
 
     [HttpPut]
     public async Task<IActionResult> Update([FromBody] UpdatePosInvoiceSettingsDto dto, CancellationToken ct)
-        => Success(await _settings.UpdateAsync(dto, ct), "تم حفظ إعدادات الفاتورة");
+        => Success(await _settings.UpdateAsync(dto, ct), Messages.InvoiceSettingsSaved);
 }

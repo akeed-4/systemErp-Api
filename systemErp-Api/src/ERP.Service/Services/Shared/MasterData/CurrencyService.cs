@@ -6,21 +6,21 @@ namespace ERP.Service.Services.Shared;
 public class CurrencyService : CrudService<Currency, CurrencyDto, CreateCurrencyDto, UpdateCurrencyDto>, ICurrencyService
 {
     public CurrencyService(ErpDbContext db) : base(db) { }
-    protected override string Label => "العملة";
+    protected override string Label => Messages.LabelCurrency;
 
     protected override async Task ValidateAsync(CreateCurrencyDto d, Currency? existing, CancellationToken ct)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(d.Code) || d.Code.Length != 3) errors.Add("رمز العملة ISO من 3 أحرف.");
-        if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add("الاسم بالعربية مطلوب.");
-        if (d.ExchangeRate <= 0) errors.Add("سعر الصرف يجب أن يكون موجباً.");
-        if (d.DecimalPlaces is < 0 or > 4) errors.Add("خانات الكسور بين 0 و4.");
+        if (string.IsNullOrWhiteSpace(d.Code) || d.Code.Length != 3) errors.Add(Messages.CurrencyCodeIso3);
+        if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ArabicNameRequired);
+        if (d.ExchangeRate <= 0) errors.Add(Messages.ExchangeRateMustBePositive);
+        if (d.DecimalPlaces is < 0 or > 4) errors.Add(Messages.DecimalPlacesRange);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<Currency>().AnyAsync(c => c.Code == d.Code.ToUpper() && (existing == null || c.Id != existing.Id), ct))
-            throw new ConflictException("رمز العملة مسجّل مسبقاً.");
+            throw new ConflictException(Messages.CurrencyCodeAlreadyExists);
         if (existing is { IsBaseCurrency: true } && !d.IsBaseCurrency)
-            throw new ConflictException("لا يمكن إلغاء العملة الأساسية؛ عيّن عملة أخرى كأساسية أولاً.");
+            throw new ConflictException(Messages.CannotUnsetBaseCurrency);
     }
 
     protected override async Task OnCreatingAsync(Currency e, CreateCurrencyDto d, CancellationToken ct)
@@ -42,5 +42,5 @@ public class CurrencyService : CrudService<Currency, CurrencyDto, CreateCurrency
     }
 
     protected override Task OnDeletingAsync(Currency e, CancellationToken ct)
-        => e.IsBaseCurrency ? throw new ConflictException("لا يمكن حذف العملة الأساسية.") : Task.CompletedTask;
+        => e.IsBaseCurrency ? throw new ConflictException(Messages.CannotDeleteBaseCurrency) : Task.CompletedTask;
 }

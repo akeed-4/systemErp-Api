@@ -16,15 +16,15 @@ public class JournalEntriesController : ErpControllerBase
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateJournalEntryDto dto, CancellationToken ct)
-        => Success(await _journal.CreateManualAsync(dto, ct), "تم ترحيل القيد");
+        => Success(await _journal.CreateManualAsync(dto, ct), Messages.JournalEntryPosted);
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateJournalEntryDto dto, CancellationToken ct)
-        => Success(await _journal.UpdateManualAsync(id, dto, ct), "تم تعديل القيد");
+        => Success(await _journal.UpdateManualAsync(id, dto, ct), Messages.JournalEntryUpdated);
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _journal.DeleteManualAsync(id, ct); return Success("تم حذف القيد"); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _journal.DeleteManualAsync(id, ct); return Success(Messages.JournalEntryDeleted); }
 
     [HttpPost("{id:guid}/reverse")]
-    public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _journal.ReverseAsync(id, ct), "تم عكس القيد");
+    public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _journal.ReverseAsync(id, ct), Messages.JournalEntryReversed);
 }

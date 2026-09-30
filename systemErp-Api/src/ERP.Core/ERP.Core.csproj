@@ -4,12 +4,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>ERP.Core</RootNamespace>
+    <!-- اللغة الافتراضية للرسائل: العربية في Messages.resx، والإنجليزية في Messages.en.resx -->
+    <NeutralLanguage>ar</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
     <Using Include="ERP.Core.Models.Shared" />
     <Using Include="ERP.Core.Models.Accounting" />
     <Using Include="ERP.Core.Models.CarShowroom" />
     <Using Include="ERP.Core.Models.POS" />
+    <Using Include="ERP.Core.Resources" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- رسائل الـ API (أخطاء/تحقق/نجاح): فئة Messages تُولَّد وقت البناء ولغتها من CurrentUICulture للطلب -->
+    <EmbeddedResource Update="Resources\Messages.resx" StronglyTypedLanguage="CSharp" StronglyTypedClassName="Messages" StronglyTypedNamespace="ERP.Core.Resources" StronglyTypedFileName="$(IntermediateOutputPath)Messages.Designer.cs" PublicClass="true" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DevExtreme.AspNet.Data" Version="5.1.0" />

@@ -1,3 +1,4 @@
+using System.Globalization;
 using ERP.Core.Contracts.Shared;
 
 namespace ERP.Service.Services.Shared;
@@ -13,7 +14,7 @@ public static class DocumentPricing
     {
         if (lines.Count == 0)
         {
-            throw new ValidationFailedException("يجب إدخال سطر واحد على الأقل.");
+            throw new ValidationFailedException(T("يجب إدخال سطر واحد على الأقل.", "At least one line is required."));
         }
 
         var errors = new Dictionary<string, string[]>();
@@ -22,20 +23,24 @@ public static class DocumentPricing
             var l = lines[i];
             if (l.Quantity <= 0 || l.UnitPrice < 0 || l.Discount < 0 || l.Discount > l.Quantity * l.UnitPrice || l.VatRate is < 0 or > 100)
             {
-                errors[$"lines[{i}]"] = ["quantity > 0, price ≥ 0, 0 ≤ discount ≤ line amount, VAT rate 0–100"];
+                errors[$"lines[{i}]"] = [T(
+                    "الكمية أكبر من صفر، السعر ≥ 0، الخصم بين صفر وقيمة السطر، ونسبة الضريبة بين 0 و100",
+                    "quantity > 0, price ≥ 0, 0 ≤ discount ≤ line amount, VAT rate 0–100")];
             }
         }
 
         if (errors.Count > 0)
         {
-            throw new ValidationFailedException("بعض أسطر المستند غير صحيحة.", errors.Values.SelectMany(v => v));
+            throw new ValidationFailedException(T("بعض أسطر المستند غير صحيحة.", "Some document lines are invalid."), errors.Values.SelectMany(v => v));
         }
 
         var nets = lines.Select(l => Round((l.Quantity * l.UnitPrice) - l.Discount)).ToList();
         var netBeforeInvoiceDiscount = nets.Sum();
         if (invoiceDiscount < 0 || invoiceDiscount > netBeforeInvoiceDiscount)
         {
-            throw new ValidationFailedException("خصم الفاتورة يجب أن يكون بين صفر وإجمالي الأسطر.");
+            throw new ValidationFailedException(T(
+                "خصم الفاتورة يجب أن يكون بين صفر وإجمالي الأسطر.",
+                "The invoice discount must be between zero and the total of the lines."));
         }
 
         var priced = new List<PricedLine>(lines.Count);
@@ -60,4 +65,8 @@ public static class DocumentPricing
     }
 
     public static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>يختار النص حسب لغة الطلب الحالية (Accept-Language عبر RequestLocalizationMiddleware)؛ الإنجليزية فقط صراحةً، وإلا فالعربية.</summary>
+    private static string T(string ar, string en)
+        => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase) ? en : ar;
 }

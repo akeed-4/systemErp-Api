@@ -50,6 +50,27 @@ public class CrudCompletenessTests : TestBase
     }
 
     [Fact]
+    public async Task Invoice_linked_to_another_document_cannot_be_updated_or_deleted()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        var linked = await api.Post("/invoices", new
+        {
+            kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            referenceType = "car_sales_contract", referenceId = Guid.NewGuid(),
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } },
+        });
+        var id = linked.Data!["id"].S();
+
+        Assert.Equal(409, (await api.Put($"/invoices/{id}", new
+        {
+            kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            items = new[] { new { itemId = product, quantity = 2, unitPrice = 100, vatRate = 15 } },
+        })).Status);
+        Assert.Equal(409, (await api.Delete($"/invoices/{id}")).Status);
+    }
+
+    [Fact]
     public async Task Delivery_note_update_delete_and_return_removal_keep_quantities_consistent()
     {
         var api = await NewTenantAsync();

@@ -72,6 +72,7 @@ public class InvoiceService : IInvoiceService
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            EnsureNotLinkedToAnotherDocument(invoice);
             if (r.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
             // فاتورة مرحّلة: يُعكس أثرها المحاسبي والمخزني ثم تُعاد كمسودة وتُرحَّل من جديد بالقيم المعدّلة (نفس الرقم).
             if (invoice.Status == "posted") await UnpostAsync(invoice, bypassSourceGuard: false, token);
@@ -177,6 +178,7 @@ public class InvoiceService : IInvoiceService
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            if (!bypassSourceGuard) EnsureNotLinkedToAnotherDocument(invoice);
             if (invoice.Status == "posted") await UnpostAsync(invoice, bypassSourceGuard, token);
             await ReleaseSourceAsync(invoice, token);
             _db.RemoveRange(invoice.Items);
@@ -186,15 +188,18 @@ public class InvoiceService : IInvoiceService
             await _db.SaveChangesAsync(token);
         }, ct);
 
-    private static readonly string[] OwnedByOtherModules = { "pos_transaction", "car_sales_contract", "car_procurement_order", "commercial_contract" };
+    private static void EnsureNotLinkedToAnotherDocument(Invoice invoice)
+    {
+        if (invoice.ReferenceType != null || invoice.ReferenceId.HasValue || invoice.OriginalInvoiceId.HasValue)
+            throw new ConflictException(Messages.InvoiceFromSourceDocument);
+    }
 
     /// <summary>يعكس أثر فاتورة مرحّلة (قيد + حركات مخزون) ويعيدها مسودة. يرفض ما تعتمد عليه مستندات أخرى.</summary>
     private async Task UnpostAsync(Invoice invoice, bool bypassSourceGuard, CancellationToken ct)
     {
         if (invoice.ZatcaStatus is ZatcaSubmissionStatus.Cleared or ZatcaSubmissionStatus.Reported)
             throw new ConflictException(Messages.InvoiceSubmittedToZatcaLocked);
-        if (!bypassSourceGuard && invoice.ReferenceType != null && OwnedByOtherModules.Contains(invoice.ReferenceType))
-            throw new ConflictException(Messages.InvoiceFromSourceDocument);
+        if (!bypassSourceGuard) EnsureNotLinkedToAnotherDocument(invoice);
         if (await _db.Set<Invoice>().AnyAsync(i => i.OriginalInvoiceId == invoice.Id && i.Status == "posted", ct))
             throw new ConflictException(Messages.InvoiceHasPostedReturns);
 

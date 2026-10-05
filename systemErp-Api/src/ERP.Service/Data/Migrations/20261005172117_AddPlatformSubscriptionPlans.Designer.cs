@@ -4,6 +4,7 @@ using ERP.Service.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ERP.Service.Data.Migrations
 {
     [DbContext(typeof(ErpDbContext))]
-    partial class ErpDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005172117_AddPlatformSubscriptionPlans")]
+    partial class AddPlatformSubscriptionPlans
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4817,10 +4820,6 @@ namespace ERP.Service.Data.Migrations
                     b.Property<int?>("MaxUsers")
                         .HasColumnType("int");
 
-                    b.Property<string>("ModuleKeys")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("NameAr")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -4858,7 +4857,6 @@ namespace ERP.Service.Data.Migrations
                             IsActive = true,
                             MaxInvoicesPerMonth = 500,
                             MaxUsers = 2,
-                            ModuleKeys = "accounting,car_showroom",
                             NameAr = "باقة البداية (Starter)",
                             NameEn = "Starter Plan",
                             PriceMonthly = 199m,
@@ -4872,7 +4870,6 @@ namespace ERP.Service.Data.Migrations
                             Branches = 3,
                             IsActive = true,
                             MaxUsers = 10,
-                            ModuleKeys = "accounting,car_showroom",
                             NameAr = "باقة الشركات المتقدمة (Professional)",
                             NameEn = "Professional Business Plan",
                             PriceMonthly = 499m,
@@ -4884,7 +4881,6 @@ namespace ERP.Service.Data.Migrations
                         {
                             Id = "Enterprise",
                             IsActive = true,
-                            ModuleKeys = "accounting,car_showroom",
                             NameAr = "باقة المجموعات والمؤسسات (Enterprise)",
                             NameEn = "Enterprise Corporate Plan",
                             PriceMonthly = 999m,
@@ -5158,10 +5154,6 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<int>("MaxUsers")
                         .HasColumnType("int");
-
-                    b.Property<string>("ModuleKeys")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PaymentMethod")
                         .IsRequired()

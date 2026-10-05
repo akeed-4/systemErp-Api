@@ -18,6 +18,7 @@ builder.Services.AddControllers(o =>
         o.ModelBinderProviders.Insert(0, new DataSourceLoadOptionsBinderProvider()); // خيارات DevExtreme من الـ query string
         o.ModelBinderProviders.Insert(0, new SnakeCaseEnumModelBinderProvider()); // قيم Enum بصيغة snake_case في الـ query string (مثل kind=purchase_return)
         o.Filters.Add(new AuthorizeFilter(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()));
+        o.Filters.Add<SubscriptionGateFilter>(); // بوابة الاشتراك: الحالة والوحدات المرخّصة
     })
     .AddJsonOptions(o => JsonConfiguration.Apply(o.JsonSerializerOptions))
     .ConfigureApiBehaviorOptions(o =>

@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using ERP.Core.Contracts.Shared;
+using ERP.Service.Services.Shared;
 using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace ERP.Service.Data;
@@ -101,6 +102,15 @@ public class ErpDbContext : DbContext
                     entity.OwnsOne(pt, prop.Name);
             }
         }
+
+        // كتالوج الباقات على مستوى المنصة (ليس تابعاً لمنشأة): بلا مرشّح منشأة، ويُزرع بالقيم الافتراضية.
+        // يُسجَّل قبل تحويل القيم المعدّدة إلى نصوص ليتّسق معرّف الباقة مع Subscription.PlanType.
+        modelBuilder.Entity<PlanDefinition>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).ValueGeneratedNever();
+            e.HasData(SubscriptionCatalog.Seed);
+        });
 
         // القيم المعدّدة كنصوص مقروءة في قاعدة البيانات.
         foreach (var et in modelBuilder.Model.GetEntityTypes())

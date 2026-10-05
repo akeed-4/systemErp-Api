@@ -65,7 +65,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     public async Task<OnlinePaymentDto> CreateSubscriptionCheckoutAsync(CreateSubscriptionCheckoutDto r, CancellationToken ct = default)
     {
         if (!Enum.IsDefined(r.PlanId) || !Enum.IsDefined(r.BillingCycle)) throw new ValidationFailedException("الباقة أو دورة الفوترة غير صالحة.");
-        var plan = SubscriptionCatalog.Get(r.PlanId);
+        var plan = await SubscriptionCatalog.GetAsync(_db, r.PlanId, forSale: true, ct);
         var price = r.BillingCycle == SubscriptionBillingCycle.Yearly ? plan.PriceYearly : plan.PriceMonthly;
         var total = DocumentPricing.Round(price * (1 + SubscriptionCatalog.VatRate));
         var company = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
@@ -223,7 +223,7 @@ public class OnlinePaymentService : IOnlinePaymentService
             {
                 foreach (var s in await _db.Set<Subscription>().Where(s => s.Status == SubscriptionStatus.Active).ToListAsync(ct))
                     s.Status = SubscriptionStatus.Expired;
-                var sub = SubscriptionCatalog.NewSubscription(SubscriptionCatalog.Get(p.PlanId!.Value), p.BillingCycle!.Value, "Paymob");
+                var sub = SubscriptionCatalog.NewSubscription(await SubscriptionCatalog.GetAsync(_db, p.PlanId!.Value, forSale: false, ct), p.BillingCycle!.Value, "Paymob");
                 sub.TransactionReference = p.ProviderTransactionId?.ToString() ?? p.SpecialReference;
                 _db.Add(sub);
                 p.ReferenceId = sub.Id;

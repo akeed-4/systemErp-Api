@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
 
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
         services.Configure<PaymobOptions>(config.GetSection(PaymobOptions.Section));
+        services.Configure<PlatformOptions>(config.GetSection(PlatformOptions.Section));
         services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddDataProtection();
         services.AddScoped<ITenantContext, TenantContext>();

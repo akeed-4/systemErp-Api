@@ -11,4 +11,6 @@ public class SubscriptionPlanDto
     public int? MaxUsers { get; set; }
     public int? MaxInvoicesPerMonth { get; set; }
     public int? Branches { get; set; }
+    public bool ZatcaPhase2Enabled { get; set; } = true;
+    public string[] Modules { get; set; } = Array.Empty<string>();
 }

@@ -97,7 +97,7 @@ public class AuthService : IAuthService
             _tenant.SetTenant(tenant.Id);
             _db.Add(tenant);
 
-            var plan = SubscriptionCatalog.Get(r.PlanId);
+            var plan = await SubscriptionCatalog.GetAsync(_db, r.PlanId, forSale: true, token);
             _db.Add(SubscriptionCatalog.NewSubscription(plan, r.BillingCycle, r.PaymentMethod));
 
             var admin = new User

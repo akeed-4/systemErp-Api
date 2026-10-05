@@ -11,7 +11,7 @@ public class SubscriptionsController : ErpControllerBase
     public SubscriptionsController(ISubscriptionService subscriptions) => _subscriptions = subscriptions;
 
     [HttpGet("plans"), AllowAnonymous]
-    public IActionResult Plans() => Success(_subscriptions.GetPlans());
+    public async Task<IActionResult> Plans(CancellationToken ct) => Success(await _subscriptions.GetPlansAsync(ct));
 
     [HttpGet("current")]
     public async Task<IActionResult> Current(CancellationToken ct) => Success(await _subscriptions.GetCurrentAsync(ct));

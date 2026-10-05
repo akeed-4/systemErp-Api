@@ -22,4 +22,5 @@ public partial class SubscriptionDto
     public int MaxUsers { get; set; } = 10;
     public int MaxBranches { get; set; } = 3;
     public bool ZatcaPhase2Enabled { get; set; } = true;
+    public string[] Modules { get; set; } = Array.Empty<string>();
 }

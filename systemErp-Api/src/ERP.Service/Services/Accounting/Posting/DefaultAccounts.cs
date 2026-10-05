@@ -30,6 +30,7 @@ public static class DefaultAccounts
     public const string CashOverage = "421";        // زيادة نقدية الصندوق عند إغلاق الوردية
     public const string PettyCashExpenses = "521";  // المصروفات النثرية المصروفة من درج الكاشير
     public const string CashShortage = "522";       // عجز نقدية الصندوق عند إغلاق الوردية
+    public const string DepreciationExpense = "523"; // مصروف إهلاك الأصول الثابتة (الحساب الافتراضي لأصل جديد)
 
     public static readonly (string Code, string Ar, string En, AccountCategory Type, string? Parent)[] Chart =
     {
@@ -70,6 +71,7 @@ public static class DefaultAccounts
         ("52",   "المصروفات التشغيلية",             "Operating Expenses",        AccountCategory.Expense,   "5"),
         ("521",  "مصروفات نثرية من الصندوق",        "Petty Cash Expenses",       AccountCategory.Expense,   "52"),
         ("522",  "عجز نقدية الصندوق",               "Cash Shortage",             AccountCategory.Expense,   "52"),
+        ("523",  "مصروف إهلاك الأصول الثابتة",      "Depreciation Expense",      AccountCategory.Expense,   "52"),
     };
 
     /// <summary>طبيعة الحساب: الأصول والمصروفات مدينة، عدا مجمع الإهلاك (حساب مقابل للأصل) فطبيعته دائنة.</summary>

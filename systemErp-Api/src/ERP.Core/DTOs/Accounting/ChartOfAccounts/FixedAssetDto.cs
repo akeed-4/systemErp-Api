@@ -16,4 +16,6 @@ public partial class FixedAssetDto
     public decimal DepreciationRate { get; set; }
     public Guid AssetAccountId { get; set; }
     public Guid AccumulatedDepreciationAccountId { get; set; }
+    public Guid? DepreciationExpenseAccountId { get; set; }
+    public Guid? CostCenterId { get; set; }
 }

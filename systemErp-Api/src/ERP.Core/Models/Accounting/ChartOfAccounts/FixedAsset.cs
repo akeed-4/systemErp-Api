@@ -13,4 +13,8 @@ public class FixedAsset : BaseEntity
     public decimal DepreciationRate { get; set; }
     public Guid AssetAccountId { get; set; }
     public Guid AccumulatedDepreciationAccountId { get; set; }
+    /// <summary>حساب مصروف الإهلاك (مدين قيد الإهلاك). فارغ للأصول المسجَّلة قبل إضافة الإهلاك حتى تُعدَّل.</summary>
+    public Guid? DepreciationExpenseAccountId { get; set; }
+    /// <summary>مركز التكلفة (النشاط) المسؤول عن الأصل ويتحمّل مصروف إهلاكه. إلزامي للأصول الجديدة، وفارغ للقديمة حتى يُحدَّد يدوياً.</summary>
+    public Guid? CostCenterId { get; set; }
 }

@@ -4,4 +4,7 @@ using ERP.Core.DTOs.Shared;
 
 namespace ERP.Core.Contracts.Accounting;
 
-public interface IFixedAssetService : ICrudService<FixedAssetDto, CreateFixedAssetDto, UpdateFixedAssetDto> { }
+public interface IFixedAssetService : ICrudService<FixedAssetDto, CreateFixedAssetDto, UpdateFixedAssetDto>
+{
+    Task<PagedResult<FixedAssetDto>> ListAsync(Guid? costCenterId, PaginationParams query, CancellationToken ct = default);
+}

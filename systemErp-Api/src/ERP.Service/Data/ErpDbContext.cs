@@ -43,6 +43,10 @@ public class ErpDbContext : DbContext
         (typeof(ApprovalHistoryItem), nameof(ApprovalHistoryItem.ApproverUserId), typeof(User)),
         (typeof(FixedAsset), nameof(FixedAsset.AssetAccountId), typeof(Account)),
         (typeof(FixedAsset), nameof(FixedAsset.AccumulatedDepreciationAccountId), typeof(Account)),
+        (typeof(FixedAsset), nameof(FixedAsset.DepreciationExpenseAccountId), typeof(Account)),
+        (typeof(FixedAsset), nameof(FixedAsset.CostCenterId), typeof(CostCenter)),
+        (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.FixedAssetId), typeof(FixedAsset)),
+        (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.CostCenterId), typeof(CostCenter)),
         (typeof(PasswordResetOtp), nameof(PasswordResetOtp.UserId), typeof(User)),
         (typeof(InventoryCountApproval), nameof(InventoryCountApproval.InventoryCountId), typeof(InventoryCount)),
     };
@@ -120,6 +124,10 @@ public class ErpDbContext : DbContext
 
         foreach (var (entity, prop) in UniquePerTenant)
             modelBuilder.Entity(entity).HasIndex(nameof(BaseEntity.TenantId), prop).IsUnique();
+
+        // الأصل لا يُرحَّل إهلاكه مرتين لنفس الفترة (ضمان على مستوى قاعدة البيانات).
+        modelBuilder.Entity<FixedAssetDepreciation>()
+            .HasIndex(d => new { d.TenantId, d.FixedAssetId, d.Period }).IsUnique();
 
         modelBuilder.Entity<NumberSequence>().Property(s => s.Version).IsConcurrencyToken();
         modelBuilder.Entity<InventoryCountApproval>().Property(a => a.Version).IsConcurrencyToken();

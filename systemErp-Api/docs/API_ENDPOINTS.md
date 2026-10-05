@@ -261,6 +261,9 @@
 | DELETE | `/fixedassets/{id}` |
 | GET | `/fixedassets/{id}` |
 | PUT | `/fixedassets/{id}` |
+| GET | `/fixedassets/depreciation` |
+| POST | `/fixedassets/depreciation/preview` |
+| POST | `/fixedassets/depreciation/post` |
 
 ## InventoryCountApprovals
 

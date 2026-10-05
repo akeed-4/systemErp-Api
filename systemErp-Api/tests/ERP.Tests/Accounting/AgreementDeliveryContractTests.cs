@@ -98,7 +98,8 @@ public class AgreementDeliveryContractTests : TestBase
     public async Task Fixed_asset_without_accounts_uses_the_default_asset_and_depreciation_accounts()
     {
         var api = await NewTenantAsync();
-        var fa = await api.Post("/fixedassets", new { assetCode = "FA-1", nameAr = "خادم", nameEn = "Server", purchaseDate = DateTime.UtcNow, purchaseCost = 1000, currentBookValue = 1000, depreciationRate = 20 });
+        var center = (await api.Post("/costcenters", new { code = "CC-1", nameAr = "الإدارة" })).Data!["id"].S();
+        var fa = await api.Post("/fixedassets", new { assetCode = "FA-1", nameAr = "خادم", nameEn = "Server", purchaseDate = DateTime.UtcNow, purchaseCost = 1000, currentBookValue = 1000, depreciationRate = 20, costCenterId = center });
         Assert.Equal(201, fa.Status);
         var asset = (await api.Get("/accounts/ByCode/121")).Data!; var dep = (await api.Get("/accounts/ByCode/122")).Data!;
         Assert.Equal(asset["id"].S(), fa.Data!["assetAccountId"].S()); Assert.Equal(dep["id"].S(), fa.Data["accumulatedDepreciationAccountId"].S());

@@ -46,6 +46,9 @@
   <data name="AssetArabicNameRequired" xml:space="preserve"><value>Asset Arabic name is required.</value></data>
   <data name="AssetCodeInUse" xml:space="preserve"><value>Asset code is already in use.</value></data>
   <data name="AssetCodeRequired" xml:space="preserve"><value>Asset code is required.</value></data>
+  <data name="AssetCostCenterRequired" xml:space="preserve"><value>Cost center is required for the fixed asset.</value></data>
+  <data name="AssetHasNoDepreciableBalance" xml:space="preserve"><value>Asset {0} has no depreciable balance (fully depreciated or zero depreciation rate).</value></data>
+  <data name="AssetNotAcquiredInPeriod" xml:space="preserve"><value>Asset {0} was not yet acquired in this period.</value></data>
   <data name="AtLeastOneCountLineRequired" xml:space="preserve"><value>At least one count line is required.</value></data>
   <data name="AtLeastOneItemRequired" xml:space="preserve"><value>At least one item is required.</value></data>
   <data name="AtLeastOneLineRequired" xml:space="preserve"><value>At least one line is required.</value></data>
@@ -69,6 +72,7 @@
   <data name="CannotAssignOwnerRole" xml:space="preserve"><value>The owner role cannot be assigned to another user.</value></data>
   <data name="CannotCancelInvoicedContract" xml:space="preserve"><value>An invoiced contract cannot be cancelled; create a sales return.</value></data>
   <data name="CannotChangeCodeOfAccountWithEntries" xml:space="preserve"><value>Cannot change the code of an account that has entries.</value></data>
+  <data name="CannotChangeCostAfterDepreciation" xml:space="preserve"><value>The cost of an asset with posted depreciation cannot be changed.</value></data>
   <data name="CannotChangeCountScope" xml:space="preserve"><value>The count scope cannot be changed after creation.</value></data>
   <data name="CannotChangeDocumentType" xml:space="preserve"><value>The document type cannot be changed.</value></data>
   <data name="CannotChangeMovementItem" xml:space="preserve"><value>The item cannot be changed; delete the movement and create another.</value></data>
@@ -176,6 +180,7 @@
   <data name="ConversionFactorMustBePositive" xml:space="preserve"><value>The conversion factor must be positive.</value></data>
   <data name="ConvertedStatusSetByConversionOnly" xml:space="preserve"><value>The converted status is set by the conversion action only.</value></data>
   <data name="CostCenterCodeInUse" xml:space="preserve"><value>Cost center code is already in use.</value></data>
+  <data name="CostCenterInactive" xml:space="preserve"><value>The cost center is inactive.</value></data>
   <data name="CostingPolicySaved" xml:space="preserve"><value>Costing policy saved</value></data>
   <data name="CountDateInFuture" xml:space="preserve"><value>The count date cannot be in the future.</value></data>
   <data name="CountedQtyCannotBeNegative" xml:space="preserve"><value>The counted quantity cannot be negative.</value></data>
@@ -221,6 +226,16 @@
   <data name="DeliveryReportNumberRequired" xml:space="preserve"><value>The delivery report number is required.</value></data>
   <data name="DeliveryReturnCreated" xml:space="preserve"><value>Delivery return created</value></data>
   <data name="DeliveryReturnDeleted" xml:space="preserve"><value>Delivery return deleted</value></data>
+  <data name="DepreciationAlreadyPosted" xml:space="preserve"><value>Depreciation for asset {0} is already posted for period {1}.</value></data>
+  <data name="DepreciationCostCenterInactive" xml:space="preserve"><value>The cost center of asset {0} is inactive; its depreciation cannot be posted.</value></data>
+  <data name="DepreciationCostCenterRequired" xml:space="preserve"><value>Cost center is required before depreciation can be posted for asset {0}.</value></data>
+  <data name="DepreciationExpenseAccountNotFound" xml:space="preserve"><value>Depreciation expense account not found.</value></data>
+  <data name="DepreciationExpenseAccountRequired" xml:space="preserve"><value>A depreciation expense account is required before depreciation can be posted for asset {0}.</value></data>
+  <data name="DepreciationPeriodInFuture" xml:space="preserve"><value>A future period cannot be depreciated.</value></data>
+  <data name="DepreciationPeriodInvalid" xml:space="preserve"><value>Invalid depreciation period (format: YYYY-MM).</value></data>
+  <data name="DepreciationPeriodOutOfOrder" xml:space="preserve"><value>The next depreciation period due for asset {0} is {1}; periods cannot be posted out of order.</value></data>
+  <data name="DepreciationPosted" xml:space="preserve"><value>Depreciation posted</value></data>
+  <data name="DepreciationPostedConcurrently" xml:space="preserve"><value>Depreciation for one of the assets was just posted by another operation; preview again, then post.</value></data>
   <data name="DeliveryReturnNotFound" xml:space="preserve"><value>Delivery return not found</value></data>
   <data name="DenominationsInvalid" xml:space="preserve"><value>Denominations must be positive and counts non-negative.</value></data>
   <data name="DenominationsMismatchCash" xml:space="preserve"><value>The denominations total ({0:0.00}) does not match the entered actual cash ({1:0.00}).</value></data>
@@ -416,6 +431,7 @@
   <data name="NewPasswordMustDiffer" xml:space="preserve"><value>The new password must be different from the current one.</value></data>
   <data name="NextAllowedStage" xml:space="preserve"><value>Next allowed stage: {0}.</value></data>
   <data name="NextAllowedStageIs" xml:space="preserve"><value>The next allowed stage is: {0}.</value></data>
+  <data name="NoAssetsToDepreciate" xml:space="preserve"><value>There are no assets to depreciate in this period.</value></data>
   <data name="NoCountLines" xml:space="preserve"><value>There are no count lines.</value></data>
   <data name="NoInvoiceLinkedToTransaction" xml:space="preserve"><value>No invoice is linked to the transaction.</value></data>
   <data name="NoLimit" xml:space="preserve"><value>no limit</value></data>

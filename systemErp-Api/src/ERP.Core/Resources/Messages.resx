@@ -46,6 +46,9 @@
   <data name="AssetArabicNameRequired" xml:space="preserve"><value>اسم الأصل بالعربية مطلوب.</value></data>
   <data name="AssetCodeInUse" xml:space="preserve"><value>كود الأصل مستخدم مسبقاً.</value></data>
   <data name="AssetCodeRequired" xml:space="preserve"><value>كود الأصل مطلوب.</value></data>
+  <data name="AssetCostCenterRequired" xml:space="preserve"><value>مركز التكلفة مطلوب للأصل الثابت.</value></data>
+  <data name="AssetHasNoDepreciableBalance" xml:space="preserve"><value>لا يوجد رصيد قابل للإهلاك للأصل {0} (مُهلك بالكامل أو نسبة إهلاكه صفر).</value></data>
+  <data name="AssetNotAcquiredInPeriod" xml:space="preserve"><value>الأصل {0} لم يُقتنَ بعد في هذه الفترة.</value></data>
   <data name="AtLeastOneCountLineRequired" xml:space="preserve"><value>يجب إدخال سطر جرد واحد على الأقل.</value></data>
   <data name="AtLeastOneItemRequired" xml:space="preserve"><value>يجب إدخال صنف واحد على الأقل.</value></data>
   <data name="AtLeastOneLineRequired" xml:space="preserve"><value>يجب إدخال بند واحد على الأقل.</value></data>
@@ -69,6 +72,7 @@
   <data name="CannotAssignOwnerRole" xml:space="preserve"><value>لا يمكن إسناد دور المالك لمستخدم آخر.</value></data>
   <data name="CannotCancelInvoicedContract" xml:space="preserve"><value>لا يُلغى عقد فُوتر؛ أنشئ مرتجع مبيعات.</value></data>
   <data name="CannotChangeCodeOfAccountWithEntries" xml:space="preserve"><value>لا يمكن تغيير كود حساب عليه حركات.</value></data>
+  <data name="CannotChangeCostAfterDepreciation" xml:space="preserve"><value>لا يمكن تغيير تكلفة أصل رُحِّل له إهلاك.</value></data>
   <data name="CannotChangeCountScope" xml:space="preserve"><value>لا يمكن تغيير نطاق الجرد بعد إنشائه.</value></data>
   <data name="CannotChangeDocumentType" xml:space="preserve"><value>لا يمكن تغيير نوع المستند.</value></data>
   <data name="CannotChangeMovementItem" xml:space="preserve"><value>لا يمكن تغيير الصنف؛ احذف الحركة وأنشئ أخرى.</value></data>
@@ -176,6 +180,7 @@
   <data name="ConversionFactorMustBePositive" xml:space="preserve"><value>معامل التحويل يجب أن يكون موجباً.</value></data>
   <data name="ConvertedStatusSetByConversionOnly" xml:space="preserve"><value>حالة التحويل تُضبط بعملية التحويل فقط.</value></data>
   <data name="CostCenterCodeInUse" xml:space="preserve"><value>كود مركز التكلفة مستخدم مسبقاً.</value></data>
+  <data name="CostCenterInactive" xml:space="preserve"><value>مركز التكلفة غير نشط.</value></data>
   <data name="CostingPolicySaved" xml:space="preserve"><value>تم حفظ سياسة التكلفة</value></data>
   <data name="CountDateInFuture" xml:space="preserve"><value>تاريخ الجرد لا يكون في المستقبل.</value></data>
   <data name="CountedQtyCannotBeNegative" xml:space="preserve"><value>الكمية المعدودة لا تكون سالبة.</value></data>
@@ -221,6 +226,16 @@
   <data name="DeliveryReportNumberRequired" xml:space="preserve"><value>رقم محضر التسليم مطلوب.</value></data>
   <data name="DeliveryReturnCreated" xml:space="preserve"><value>تم إنشاء مرتجع التسليم</value></data>
   <data name="DeliveryReturnDeleted" xml:space="preserve"><value>تم حذف مرتجع التسليم</value></data>
+  <data name="DepreciationAlreadyPosted" xml:space="preserve"><value>إهلاك الأصل {0} مرحَّل مسبقاً للفترة {1}.</value></data>
+  <data name="DepreciationCostCenterInactive" xml:space="preserve"><value>مركز تكلفة الأصل {0} غير نشط؛ لا يمكن ترحيل إهلاكه.</value></data>
+  <data name="DepreciationCostCenterRequired" xml:space="preserve"><value>يجب تحديد مركز التكلفة للأصل {0} قبل ترحيل إهلاكه.</value></data>
+  <data name="DepreciationExpenseAccountNotFound" xml:space="preserve"><value>حساب مصروف الإهلاك غير موجود.</value></data>
+  <data name="DepreciationExpenseAccountRequired" xml:space="preserve"><value>يجب تحديد حساب مصروف الإهلاك للأصل {0} قبل ترحيل إهلاكه.</value></data>
+  <data name="DepreciationPeriodInFuture" xml:space="preserve"><value>لا يمكن إهلاك فترة مستقبلية.</value></data>
+  <data name="DepreciationPeriodInvalid" xml:space="preserve"><value>فترة الإهلاك غير صحيحة (الصيغة: YYYY-MM).</value></data>
+  <data name="DepreciationPeriodOutOfOrder" xml:space="preserve"><value>الفترة المستحقة لإهلاك الأصل {0} هي {1}؛ لا تُرحَّل الفترات خارج ترتيبها.</value></data>
+  <data name="DepreciationPosted" xml:space="preserve"><value>تم ترحيل الإهلاك</value></data>
+  <data name="DepreciationPostedConcurrently" xml:space="preserve"><value>رُحِّل إهلاك أحد الأصول للتو من عملية أخرى؛ أعد المعاينة ثم الترحيل.</value></data>
   <data name="DeliveryReturnNotFound" xml:space="preserve"><value>مرتجع التسليم غير موجود</value></data>
   <data name="DenominationsInvalid" xml:space="preserve"><value>الفئات موجبة والأعداد غير سالبة.</value></data>
   <data name="DenominationsMismatchCash" xml:space="preserve"><value>مجموع الفئات ({0:0.00}) لا يطابق النقد الفعلي المُدخل ({1:0.00}).</value></data>
@@ -416,6 +431,7 @@
   <data name="NewPasswordMustDiffer" xml:space="preserve"><value>كلمة المرور الجديدة يجب أن تختلف عن الحالية.</value></data>
   <data name="NextAllowedStage" xml:space="preserve"><value>المرحلة التالية المسموحة: {0}.</value></data>
   <data name="NextAllowedStageIs" xml:space="preserve"><value>المرحلة التالية المسموحة هي: {0}.</value></data>
+  <data name="NoAssetsToDepreciate" xml:space="preserve"><value>لا توجد أصول قابلة للإهلاك في هذه الفترة.</value></data>
   <data name="NoCountLines" xml:space="preserve"><value>لا توجد أسطر جرد.</value></data>
   <data name="NoInvoiceLinkedToTransaction" xml:space="preserve"><value>لا توجد فاتورة مرتبطة بالمعاملة.</value></data>
   <data name="NoLimit" xml:space="preserve"><value>بلا حد</value></data>

@@ -44,7 +44,12 @@ public class ErpFactory : WebApplicationFactory<Program>
         builder.UseSetting("Paymob:IntegrationIds", "111");
         builder.UseSetting("Paymob:PublicApiUrl", "https://api.test");
         builder.UseSetting("Paymob:FrontendUrl", "https://app.test");
-        builder.ConfigureTestServices(services => services.AddScoped<ERP.Core.Contracts.Shared.IPaymobClient, FakePaymobClient>());
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddScoped<ERP.Core.Contracts.Shared.IPaymobClient, FakePaymobClient>();
+            // لا بريد حقيقي في الاختبارات: الرسائل تُلتقط في الذاكرة
+            services.AddSingleton<ERP.Core.Contracts.Shared.IEmailSender>(FakeEmailSender.Instance);
+        });
     }
 
     protected override void Dispose(bool disposing)
@@ -135,4 +140,25 @@ public static class J
     public static decimal D(this JsonNode? n) => n == null ? 0 : n.GetValue<decimal>();
     public static string S(this JsonNode? n) => n?.GetValue<string>() ?? string.Empty;
     public static Guid G(this JsonNode? n) => Guid.Parse(n!.GetValue<string>());
+}
+
+/// <summary>بديل البريد في الاختبارات: يلتقط الرسائل بدل إرسالها.</summary>
+public sealed class FakeEmailSender : ERP.Core.Contracts.Shared.IEmailSender
+{
+    public static readonly FakeEmailSender Instance = new();
+    public sealed record Mail(string To, string Subject, string Body);
+    private readonly System.Collections.Concurrent.ConcurrentQueue<Mail> _sent = new();
+
+    public bool IsConfigured => true;
+    /// <summary>بريد يفشل الإرسال إليه (لمحاكاة تعطّل خادم البريد).</summary>
+    public string? FailFor { get; set; }
+
+    public Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default)
+    {
+        if (string.Equals(to, FailFor, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("smtp down");
+        _sent.Enqueue(new Mail(to, subject, htmlBody));
+        return Task.CompletedTask;
+    }
+
+    public IReadOnlyList<Mail> SentTo(string email) => _sent.Where(m => string.Equals(m.To, email, StringComparison.OrdinalIgnoreCase)).ToList();
 }

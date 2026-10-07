@@ -18,6 +18,8 @@ public class AuthService : IAuthService
 {
     private const int OtpMinutes = 10;
     private const int MaxOtpAttempts = 5;
+    /// <summary>مهلة بين طلبَي رمز لنفس المستخدم: تمنع إغراق بريده بالرسائل.</summary>
+    private const int OtpResendSeconds = 60;
     private const int MinPasswordLength = 8;
 
     private readonly ErpDbContext _db;
@@ -28,12 +30,13 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher<User> _hasher;
     private readonly IConfiguration _config;
     private readonly ILogger<AuthService> _log;
+    private readonly IEmailSender _email;
 
     public AuthService(ErpDbContext db, ITenantContext tenant, ITenantProvisioningService provisioning, ITransactionRunner tx,
-        IJwtTokenService tokens, IPasswordHasher<User> hasher, IConfiguration config, ILogger<AuthService> log)
+        IJwtTokenService tokens, IPasswordHasher<User> hasher, IConfiguration config, ILogger<AuthService> log, IEmailSender email)
     {
         _db = db; _tenant = tenant; _provisioning = provisioning; _tx = tx;
-        _tokens = tokens; _hasher = hasher; _config = config; _log = log;
+        _tokens = tokens; _hasher = hasher; _config = config; _log = log; _email = email;
     }
 
     public async Task<AuthResultDto> LoginAsync(LoginRequestDto request, CancellationToken ct = default)
@@ -164,6 +167,12 @@ public class AuthService : IAuthService
         if (user == null) return result;
 
         _tenant.SetTenant(user.TenantId);
+
+        var lastRequest = await _db.Set<PasswordResetOtp>().Where(o => o.UserId == user.Id)
+            .OrderByDescending(o => o.CreatedAt).Select(o => (DateTime?)o.CreatedAt).FirstOrDefaultAsync(ct);
+        if (lastRequest.HasValue && (DateTime.UtcNow - lastRequest.Value).TotalSeconds < OtpResendSeconds)
+            throw new ValidationFailedException(Messages.OtpRequestTooSoon);
+
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 
         // إبطال الرموز السابقة غير المستخدمة
@@ -178,10 +187,24 @@ public class AuthService : IAuthService
         result.MaskedEmail = MaskEmail(user.Email);
         result.MaskedPhone = string.IsNullOrEmpty(user.Phone) ? null : MaskPhone(user.Phone);
 
-        if (_config.GetValue<bool>("Auth:ExposeOtpInResponse"))
-            result.OtpCode = code; // للتطوير فقط
-        else
-            _log.LogWarning("لم يُضبط مزوّد إرسال OTP؛ الرمز لم يُرسل للمستخدم {UserId}.", user.Id);
+        var exposed = _config.GetValue<bool>("Auth:ExposeOtpInResponse");
+        if (exposed) result.OtpCode = code; // للتطوير فقط
+
+        if (_email.IsConfigured)
+        {
+            try
+            {
+                await _email.SendAsync(user.Email, PasswordResetEmail.Subject, PasswordResetEmail.Body(user.Name, code, OtpMinutes), ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // الرمز لم يصل: لا نُظهر للمستخدم نجاحاً زائفاً ينتظر بعده رسالة لن تأتي
+                _log.LogError(ex, "تعذّر إرسال رمز استعادة كلمة المرور للمستخدم {UserId}.", user.Id);
+                if (!exposed) throw new ValidationFailedException(Messages.OtpEmailFailed);
+            }
+        }
+        else if (!exposed)
+            _log.LogWarning("لم يُضبط بريد الإرسال (Email)؛ رمز الاستعادة لم يُرسل للمستخدم {UserId}.", user.Id);
 
         return result;
     }

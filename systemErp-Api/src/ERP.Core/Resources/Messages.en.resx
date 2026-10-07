@@ -489,6 +489,8 @@
   <data name="OtherCashierShiftReportsAdminOnly" xml:space="preserve"><value>Other cashiers' shift reports are for administrative roles only.</value></data>
   <data name="OtpIncorrect" xml:space="preserve"><value>The verification code is incorrect.</value></data>
   <data name="OtpInvalidOrExpired" xml:space="preserve"><value>The verification code is invalid or expired.</value></data>
+  <data name="OtpRequestTooSoon" xml:space="preserve"><value>A code was sent a moment ago. Wait a minute before requesting a new one.</value></data>
+  <data name="OtpEmailFailed" xml:space="preserve"><value>The verification code could not be sent to your email right now. Try again shortly.</value></data>
   <data name="PaidAmountsCannotBeNegative" xml:space="preserve"><value>Paid amounts cannot be negative.</value></data>
   <data name="PaidExceedsDocumentTotal" xml:space="preserve"><value>The paid amount exceeds the document total.</value></data>
   <data name="PaperSizePrefix" xml:space="preserve"><value>Paper size: </value></data>

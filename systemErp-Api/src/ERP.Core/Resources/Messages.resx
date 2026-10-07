@@ -489,6 +489,8 @@
   <data name="OtherCashierShiftReportsAdminOnly" xml:space="preserve"><value>تقارير ورديات الكاشيرين الآخرين للأدوار الإدارية فقط.</value></data>
   <data name="OtpIncorrect" xml:space="preserve"><value>رمز التحقق غير صحيح.</value></data>
   <data name="OtpInvalidOrExpired" xml:space="preserve"><value>رمز التحقق غير صالح أو منتهي.</value></data>
+  <data name="OtpRequestTooSoon" xml:space="preserve"><value>أُرسل رمز قبل قليل. انتظر دقيقة ثم اطلب رمزاً جديداً.</value></data>
+  <data name="OtpEmailFailed" xml:space="preserve"><value>تعذّر إرسال رمز التحقق إلى بريدك الآن. حاول بعد قليل.</value></data>
   <data name="PaidAmountsCannotBeNegative" xml:space="preserve"><value>المبالغ المدفوعة لا تكون سالبة.</value></data>
   <data name="PaidExceedsDocumentTotal" xml:space="preserve"><value>المدفوع أكبر من إجمالي المستند.</value></data>
   <data name="PaperSizePrefix" xml:space="preserve"><value>مقاس الورق: </value></data>

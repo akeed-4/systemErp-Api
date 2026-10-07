@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using ERP.Tests.Infrastructure;
 
 namespace ERP.Tests;
@@ -103,5 +105,50 @@ public class AuthTests : TestBase
         var r = await new Client(NewHttp()).SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = "nobody@nowhere.com" }, true);
         Assert.Equal(200, r.Status);
         Assert.Null(r.Body!["otpCode"]);
+    }
+
+    [Fact]
+    public async Task Forgot_password_emails_the_same_code_to_the_account_address()
+    {
+        var api = await NewTenantAsync();
+        var req = await new Client(NewHttp()).SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = api.Email }, true);
+        Assert.Equal(200, req.Status);
+
+        var mail = Assert.Single(FakeEmailSender.Instance.SentTo(api.Email));
+        Assert.Contains(req.Body!["otpCode"].S(), mail.Body);
+        Assert.Contains("Password reset", mail.Subject);
+    }
+
+    [Fact]
+    public async Task A_second_code_cannot_be_requested_right_away()
+    {
+        var api = await NewTenantAsync();
+        var anon = new Client(NewHttp());
+        Assert.Equal(200, (await anon.SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = api.Email }, true)).Status);
+        Assert.Equal(400, (await anon.SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = api.Email }, true)).Status);
+        Assert.Single(FakeEmailSender.Instance.SentTo(api.Email));
+    }
+
+    [Fact]
+    public async Task A_failed_email_is_reported_when_the_code_is_not_shown_in_the_response()
+    {
+        var api = await NewTenantAsync();
+        var host = Factory.WithWebHostBuilder(b => b.UseSetting("Auth:ExposeOtpInResponse", "false"));
+        FakeEmailSender.Instance.FailFor = api.Email;
+        try
+        {
+            var r = await new Client(host.CreateClient()).SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = api.Email }, true);
+            Assert.Equal(400, r.Status);
+            Assert.Null(r.Body!["otpCode"]);
+        }
+        finally { FakeEmailSender.Instance.FailFor = null; }
+    }
+
+    [Fact]
+    public async Task No_email_is_sent_for_an_unknown_account()
+    {
+        var unknown = $"nobody{Guid.NewGuid():N}@nowhere.com";
+        Assert.Equal(200, (await new Client(NewHttp()).SendAsync(HttpMethod.Post, "/auth/ForgotPassword/Request", new { identifier = unknown }, true)).Status);
+        Assert.Empty(FakeEmailSender.Instance.SentTo(unknown));
     }
 }

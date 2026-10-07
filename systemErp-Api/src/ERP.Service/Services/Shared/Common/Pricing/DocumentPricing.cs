@@ -1,3 +1,4 @@
+using System.Globalization;
 using ERP.Core.Contracts.Shared;
 
 namespace ERP.Service.Services.Shared;
@@ -22,7 +23,9 @@ public static class DocumentPricing
             var l = lines[i];
             if (l.Quantity <= 0 || l.UnitPrice < 0 || l.Discount < 0 || l.Discount > l.Quantity * l.UnitPrice || l.VatRate is < 0 or > 100)
             {
-                errors[$"lines[{i}]"] = ["quantity > 0, price ≥ 0, 0 ≤ discount ≤ line amount, VAT rate 0–100"];
+                errors[$"lines[{i}]"] = [T(
+                    "الكمية أكبر من صفر، السعر ≥ 0، الخصم بين صفر وقيمة السطر، ونسبة الضريبة بين 0 و100",
+                    "quantity > 0, price ≥ 0, 0 ≤ discount ≤ line amount, VAT rate 0–100")];
             }
         }
 
@@ -60,4 +63,8 @@ public static class DocumentPricing
     }
 
     public static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>يختار النص حسب لغة الطلب الحالية (Accept-Language عبر RequestLocalizationMiddleware)؛ الإنجليزية فقط صراحةً، وإلا فالعربية.</summary>
+    private static string T(string ar, string en)
+        => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase) ? en : ar;
 }

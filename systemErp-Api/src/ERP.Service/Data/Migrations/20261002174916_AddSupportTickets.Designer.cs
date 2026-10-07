@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ERP.Service.Data.Migrations
 {
     [DbContext(typeof(ErpDbContext))]
-    [Migration("20260930124904_AddSupportTickets")]
+    [Migration("20261002174916_AddSupportTickets")]
     partial class AddSupportTickets
     {
         /// <inheritdoc />

@@ -1,10 +1,11 @@
 namespace ERP.Core.DTOs.Accounting;
 
-/// <summary>طلب معاينة/ترحيل إهلاك فترة شهرية (yyyy-MM). بلا أصول محددة يشمل كل الأصول (أو أصول مركز تكلفة واحد).</summary>
+/// <summary>طلب معاينة/ترحيل إهلاك فترة شهرية (yyyy-MM). بلا أصول محددة يشمل كل الأصول، أو أصول مركز تكلفة و/أو مستودع (معرض) محدد.</summary>
 public class DepreciationRunRequestDto
 {
     public string Period { get; set; } = string.Empty;
     public Guid? CostCenterId { get; set; }
+    public Guid? WarehouseId { get; set; }
     public List<Guid>? AssetIds { get; set; }
 }
 
@@ -27,6 +28,7 @@ public class DepreciationLineDto
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public Guid? CostCenterId { get; set; }
+    public Guid? WarehouseId { get; set; }
     public decimal Amount { get; set; }
     public decimal BookValueBefore { get; set; }
     public decimal BookValueAfter { get; set; }
@@ -42,6 +44,7 @@ public class FixedAssetDepreciationDto
     public string Period { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public Guid CostCenterId { get; set; }
+    public Guid? WarehouseId { get; set; }
     public Guid JournalEntryId { get; set; }
     public string JournalEntryNumber { get; set; } = string.Empty;
     public DateTime PostedAt { get; set; }

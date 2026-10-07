@@ -72,7 +72,7 @@ public class PlatformSubscriptionTests : TestBase
         Assert.Equal("professional", (await admin.Get("/subscriptions/current")).Data!["planType"].S());
 
         var history = (await admin.Get($"/platform/tenants/{other.TenantId}/subscriptions")).Data!.AsArray();
-        Assert.Equal(2, history.Count);
+        Assert.Equal(3, history.Count); // الباقة الجديدة، ثم المدفوعة السابقة، ثم الفترة التجريبية
         Assert.Equal("starter", history[0]!["planType"].S());
         Assert.Equal("expired", history[1]!["status"].S());
     }

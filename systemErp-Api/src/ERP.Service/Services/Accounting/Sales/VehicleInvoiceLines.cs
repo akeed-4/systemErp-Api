@@ -168,29 +168,4 @@ internal static class VehicleInvoiceLines
             }
         }
     }
-
-    /// <summary>عند إلغاء الترحيل: شراء ← حذف المركبات المنشأة إن بقيت متاحة؛ بيع ← إعادتها Available.</summary>
-    public static async Task OnUnpostAsync(ErpDbContext db, Invoice invoice, CancellationToken ct)
-    {
-        if (invoice.VehicleLines.Count == 0) return;
-        foreach (var l in invoice.VehicleLines.Where(l => l.VehicleId.HasValue))
-        {
-            var v = await db.Set<Vehicle>().FirstOrDefaultAsync(x => x.Id == l.VehicleId, ct);
-            if (v == null) { l.VehicleId = null; continue; }
-
-            if (invoice.Kind == InvoiceKind.Purchase)
-            {
-                var used = v.Status != VehicleStatus.Available
-                    || await db.Set<CarSalesContract>().AnyAsync(c => c.VehicleId == v.Id, ct)
-                    || await db.Set<InvoiceVehicleLine>().AnyAsync(x => x.VehicleId == v.Id && x.InvoiceId != invoice.Id, ct);
-                if (used) throw new ConflictException(string.Format(Messages.CannotUnpostVehicleUnavailable, v.ChassisNumber));
-                db.Remove(v);
-                l.VehicleId = null;
-            }
-            else if (v.Status == VehicleStatus.Sold)
-            {
-                v.Status = VehicleStatus.Available;
-            }
-        }
-    }
 }

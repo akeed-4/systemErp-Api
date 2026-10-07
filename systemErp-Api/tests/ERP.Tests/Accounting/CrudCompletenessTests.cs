@@ -28,7 +28,7 @@ public class CrudCompletenessTests : TestBase
     }
 
     [Fact]
-    public async Task Draft_and_posted_invoices_can_both_be_updated_and_reposted()
+    public async Task Draft_invoices_can_be_updated_and_posted_but_a_posted_invoice_is_locked()
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
@@ -44,8 +44,11 @@ public class CrudCompletenessTests : TestBase
         var posted = await api.Put($"/invoices/{id}", Body(2, "posted"));
         Assert.Equal("posted", posted.Data!["status"].S()); Assert.Equal(230, posted.Data["grandTotal"].D());
         Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
-        var back = await api.Put($"/invoices/{id}", Body(1, "draft")); // المرحّلة تعود مسودة بعد عكس أثرها
-        Assert.Equal("draft", back.Data!["status"].S()); Assert.Equal(10, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        Assert.StartsWith("SINV-", posted.Data["invoiceNumber"].S()); // صُرف الرقم المتسلسل عند الترحيل
+        // المرحّلة مستند صادر: لا تُعدَّل ولا تعود مسودة، وأثرها باقٍ
+        Assert.Equal(409, (await api.Put($"/invoices/{id}", Body(1, "draft"))).Status);
+        Assert.Equal(409, (await api.Put($"/invoices/{id}", Body(5, "posted"))).Status);
+        Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         Assert.Equal(404, (await api.Put($"/invoices/{Guid.NewGuid()}", Body(1, "draft"))).Status);
     }
 

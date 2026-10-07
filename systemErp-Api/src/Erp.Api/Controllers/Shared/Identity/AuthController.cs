@@ -1,6 +1,7 @@
 using ERP.Api.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ERP.Api.Controllers.Shared;
 
@@ -17,23 +18,23 @@ public class AuthController : ErpControllerBase
     }
 
     // الاستجابة مسطّحة { success, message, token, user, tenant } كما يتوقعها auth.service.ts
-    [AllowAnonymous, HttpPost("login")]
+    [AllowAnonymous, HttpPost("login"), EnableRateLimiting(AuthRateLimit.Policy)]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request, CancellationToken ct)
         => Ok(await _auth.LoginAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("RegisterCompany")]
+    [AllowAnonymous, HttpPost("RegisterCompany"), EnableRateLimiting(AuthRateLimit.Policy)]
     public async Task<IActionResult> RegisterCompany([FromBody] CompanyRegistrationRequestDto request, CancellationToken ct)
         => Ok(await _auth.RegisterCompanyAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("ForgotPassword/Request")]
+    [AllowAnonymous, HttpPost("ForgotPassword/Request"), EnableRateLimiting(AuthRateLimit.Policy)]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request, CancellationToken ct)
         => Ok(await _auth.RequestPasswordResetAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("ForgotPassword/VerifyOtp")]
+    [AllowAnonymous, HttpPost("ForgotPassword/VerifyOtp"), EnableRateLimiting(AuthRateLimit.Policy)]
     public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequestDto request, CancellationToken ct)
         => Ok(await _auth.VerifyResetOtpAsync(request, ct));
 
-    [AllowAnonymous, HttpPost("ForgotPassword/Reset")]
+    [AllowAnonymous, HttpPost("ForgotPassword/Reset"), EnableRateLimiting(AuthRateLimit.Policy)]
     public async Task<IActionResult> Reset([FromBody] ResetPasswordRequestDto request, CancellationToken ct)
         => Ok(await _auth.ResetPasswordAsync(request, ct));
 

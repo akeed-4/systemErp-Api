@@ -18,28 +18,10 @@ public class FakePaymobClient : IPaymobClient
     }
 }
 
-/// <summary>المدفوعات الإلكترونية: روابط دفع الفواتير، دفع نقطة البيع، واشتراكات المنشآت — بإشعارات Paymob موقَّعة.</summary>
-[Collection("api")]
-public class OnlinePaymentTests : TestBase
+/// <summary>إشعار Paymob كما يرسله فعلاً، موقَّعاً بـ HMAC-SHA512.</summary>
+public static class PaymobCallback
 {
-    public OnlinePaymentTests(ErpFactory f) : base(f) { }
-
-    private const string TenantHmac = "tenant-hmac-secret";
-
-    private static async Task EnableGatewayAsync(Client api)
-    {
-        var r = await api.Put("/payments/GatewaySettings", new
-        {
-            isEnabled = true, baseUrl = "https://ksa.paymob.com", publicKey = "pk_test", secretKey = "sk_test", hmacSecret = TenantHmac,
-            integrationIds = "123, 456", settlementAccountCode = "1113",
-        });
-        Assert.Equal(200, r.Status);
-        Assert.True(r.Data!["hasSecretKey"]!.GetValue<bool>());
-        Assert.Null(r.Data["secretKey"]); // الأسرار لا تُعاد أبداً
-    }
-
-    /// <summary>إشعار Paymob كما يرسله فعلاً، موقَّعاً بـ HMAC-SHA512.</summary>
-    private static (object Body, string Hmac) Callback(long orderId, decimal amount, string secret, bool success = true, string currency = "SAR")
+    public static (object Body, string Hmac) Signed(long orderId, decimal amount, string secret, bool success = true, string currency = "SAR")
     {
         var obj = new JsonObject
         {
@@ -56,7 +38,34 @@ public class OnlinePaymentTests : TestBase
         return (new JsonObject { ["type"] = "TRANSACTION", ["obj"] = obj }, hmac);
     }
 
-    private static long OrderIdOf(Res payment) => long.Parse(payment.Data!["checkoutUrl"].S().Split("clientSecret=cs_")[1]);
+    /// <summary>رقم طلب Paymob لعملية أنشأها <see cref="FakePaymobClient"/>.</summary>
+    public static long OrderIdOf(JsonNode payment) => long.Parse(payment["checkoutUrl"].S().Split("clientSecret=cs_")[1]);
+}
+
+/// <summary>المدفوعات الإلكترونية: روابط دفع الفواتير، دفع نقطة البيع، واشتراكات المنشآت — بإشعارات Paymob موقَّعة.</summary>
+[Collection("api")]
+public class OnlinePaymentTests : TestBase
+{
+    public OnlinePaymentTests(ErpFactory f) : base(f) { }
+
+    private const string TenantHmac = "tenant-hmac-secret";
+
+    private static (object Body, string Hmac) Callback(long orderId, decimal amount, string secret, bool success = true)
+        => PaymobCallback.Signed(orderId, amount, secret, success);
+
+    private static long OrderIdOf(Res payment) => PaymobCallback.OrderIdOf(payment.Data!);
+
+    private static async Task EnableGatewayAsync(Client api)
+    {
+        var r = await api.Put("/payments/GatewaySettings", new
+        {
+            isEnabled = true, baseUrl = "https://ksa.paymob.com", publicKey = "pk_test", secretKey = "sk_test", hmacSecret = TenantHmac,
+            integrationIds = "123, 456", settlementAccountCode = "1113",
+        });
+        Assert.Equal(200, r.Status);
+        Assert.True(r.Data!["hasSecretKey"]!.GetValue<bool>());
+        Assert.Null(r.Data["secretKey"]); // الأسرار لا تُعاد أبداً
+    }
 
     [Fact]
     public async Task Invoice_payment_link_posts_a_receipt_once_on_a_signed_webhook()

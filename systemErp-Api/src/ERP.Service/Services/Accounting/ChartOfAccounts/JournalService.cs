@@ -10,9 +10,11 @@ public class JournalService : IJournalService
     private readonly ErpDbContext _db;
     private readonly IAccountingPostingService _posting;
     private readonly ITransactionRunner _tx;
+    private readonly ERP.Core.Contracts.Shared.IAuditService _audit;
 
-    public JournalService(ErpDbContext db, IAccountingPostingService posting, ITransactionRunner tx)
+    public JournalService(ErpDbContext db, IAccountingPostingService posting, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit)
     {
+        _audit = audit;
         _db = db; _posting = posting; _tx = tx;
     }
 
@@ -45,25 +47,46 @@ public class JournalService : IJournalService
         => _tx.RunAsync(async token =>
         {
             var result = await _posting.PostAsync(ToRequest(r), token);
+            await _audit.LogAsync("JOURNAL_ENTRY_CREATED", nameof(JournalEntry), result.JournalEntryId.ToString(), $"قيد يدوي {result.EntryNumber}", token);
             return await GetAsync(result.JournalEntryId, token);
         }, ct);
 
     public Task<JournalEntryDto> UpdateManualAsync(Guid id, UpdateJournalEntryDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await EnsureNotOwnedAsync(id, token);
             await _posting.ReplaceManualAsync(id, ToRequest(r), token);
-            return await GetAsync(id, token);
+            var updated = await GetAsync(id, token);
+            await _audit.LogAsync("JOURNAL_ENTRY_UPDATED", nameof(JournalEntry), id.ToString(), $"تعديل القيد {updated.EntryNumber}", token);
+            return updated;
         }, ct);
 
     public Task DeleteManualAsync(Guid id, CancellationToken ct = default)
-        => _tx.RunAsync(token => _posting.DeleteManualAsync(id, token), ct);
+        => _tx.RunAsync(async token =>
+        {
+            await EnsureNotOwnedAsync(id, token);
+            var number = await _db.Set<JournalEntry>().AsNoTracking().Where(e => e.Id == id).Select(e => e.EntryNumber).FirstOrDefaultAsync(token);
+            await _posting.DeleteManualAsync(id, token);
+            await _audit.LogAsync("JOURNAL_ENTRY_DELETED", nameof(JournalEntry), id.ToString(), $"حذف القيد {number}", token);
+        }, ct);
 
     public Task<JournalEntryDto> ReverseAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await EnsureNotOwnedAsync(id, token);
             var result = await _posting.ReverseAsync(id, null, token);
+            await _audit.LogAsync("JOURNAL_ENTRY_REVERSED", nameof(JournalEntry), id.ToString(), $"عكس القيد بقيد {result.EntryNumber}", token);
             return await GetAsync(result.JournalEntryId, token);
         }, ct);
+
+    /// <summary>قيود يحمل مستندها أرصدة أخرى (إهلاك أصل واقتناؤه واستبعاده، تسوية مخزون، رصيد افتتاحي): تُعدَّل وتُعكس من مستندها ليعود أثرها كاملاً.</summary>
+    private static readonly string[] OwnedSources = { "fixed_asset_depreciation", "fixed_asset_disposal", "fixed_asset_acquisition", "stock_adjustment", "opening_balance", "payroll" };
+
+    private async Task EnsureNotOwnedAsync(Guid id, CancellationToken ct)
+    {
+        var source = await _db.Set<JournalEntry>().AsNoTracking().Where(e => e.Id == id).Select(e => e.SourceType).FirstOrDefaultAsync(ct);
+        if (source != null && OwnedSources.Contains(source)) throw new ConflictException(Messages.JournalEntryOwnedByDocument);
+    }
 
     private static GenericPostingRequest ToRequest(CreateJournalEntryDto r) => new()
     {

@@ -6,11 +6,11 @@ using ERP.Service.Services.Shared;
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
-/// إهلاك الأصول الثابتة بالفترة الشهرية: قسط ثابت = تكلفة الشراء × النسبة السنوية ÷ 12، بدءاً من شهر الشراء، ولا يتجاوز
-/// القيمة الدفترية المتبقية. الترحيل قيد واحد للفترة عبر المحرك المحاسبي (مدين مصروف الإهلاك / دائن مجمع الإهلاك لكل أصل)
-/// ومركز تكلفة الأصل على السطرين، مع سجل لكل أصل يمنع تكرار الفترة — كل ذلك في معاملة واحدة.
+/// إهلاك الأصول الثابتة بالفترة الشهرية: قسط ثابت = (تكلفة الشراء − القيمة التخريدية) × النسبة السنوية ÷ 12، بدءاً من شهر
+/// الشراء، ولا تنزل القيمة الدفترية دون القيمة التخريدية. الترحيل قيد واحد للفترة عبر المحرك المحاسبي (مدين مصروف الإهلاك / دائن مجمع الإهلاك لكل أصل)
+/// ومركز تكلفة الأصل على السطرين، مع سجل لكل أصل (بمركزه ومستودعه وقت الترحيل) يمنع تكرار الفترة — كل ذلك في معاملة واحدة.
 /// فترات الأصل تُرحَّل متتالية: بعد أول فترة مرحَّلة لا تُقبل إلا الفترة التالية مباشرة (أول فترة حرّة لتبدأ الأصول القائمة من أي شهر).
-/// قيد معروف: عكس أو حذف قيد الإهلاك من شاشة القيود لا يعيد أرصدة الأصل ولا يحذف سجل الإهلاك (المحرك المحاسبي لم يُعدَّل).
+/// قيد الإهلاك لا يُعكس ولا يُعدَّل من شاشة القيود: عكسه من هنا (ReverseRunAsync) يعيد أرصدة الأصول ويحذف سجلات الفترة معه.
 /// </summary>
 public class FixedAssetDepreciationService : IFixedAssetDepreciationService
 {
@@ -80,7 +80,7 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
 
                 _db.Add(new FixedAssetDepreciation
                 {
-                    FixedAssetId = p.Line.FixedAssetId, Period = period, Amount = amount, CostCenterId = p.Line.CostCenterId!.Value,
+                    FixedAssetId = p.Line.FixedAssetId, Period = period, Amount = amount, CostCenterId = p.Line.CostCenterId!.Value, WarehouseId = p.Line.WarehouseId,
                     JournalEntryId = journal.JournalEntryId, JournalEntryNumber = journal.EntryNumber,
                     PostedAt = now, PostedByUserId = _user.UserId, PostedBy = _user.Name,
                 });
@@ -106,11 +106,42 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
             return result;
         }, ct);
 
-    public async Task<PagedResult<FixedAssetDepreciationDto>> ListAsync(Guid? fixedAssetId, Guid? costCenterId, string? period, PaginationParams p, CancellationToken ct = default)
+    /// <summary>
+    /// يعكس ترحيل إهلاك كامل (قيده وكل سجلاته): يعيد لكل أصل مجمع إهلاكه وقيمته الدفترية ويحذف سجل الفترة.
+    /// لا يُعكس إلا آخر فترة مرحَّلة لكل أصل، ولا لأصل استُبعد بعدها.
+    /// </summary>
+    public Task ReverseRunAsync(Guid journalEntryId, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var records = await _db.Set<FixedAssetDepreciation>().Where(d => d.JournalEntryId == journalEntryId).ToListAsync(token);
+            if (records.Count == 0) throw new NotFoundException(Messages.DepreciationRunNotFound);
+            var period = records[0].Period;
+            var assetIds = records.Select(d => d.FixedAssetId).ToList();
+            var assets = await _db.Set<FixedAsset>().Where(a => assetIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, token);
+            var later = await _db.Set<FixedAssetDepreciation>().AsNoTracking()
+                .Where(d => assetIds.Contains(d.FixedAssetId) && string.Compare(d.Period, period) > 0).Select(d => d.FixedAssetId).Distinct().ToListAsync(token);
+
+            foreach (var record in records)
+            {
+                var asset = assets[record.FixedAssetId];
+                if (later.Contains(asset.Id)) throw new ConflictException(string.Format(Messages.DepreciationReverseLatestOnly, asset.AssetCode));
+                if (asset.DisposedAt.HasValue) throw new ConflictException(string.Format(Messages.AssetAlreadyDisposed, asset.AssetCode));
+                asset.AccumulatedDepreciation = (asset.AccumulatedDepreciation ?? asset.PurchaseCost - asset.CurrentBookValue) - record.Amount;
+                asset.CurrentBookValue += record.Amount;
+            }
+            _db.RemoveRange(records);
+            await _db.SaveChangesAsync(token);
+            await _posting.ReverseAsync(journalEntryId, $"عكس إهلاك الفترة {period}", token);
+            await _audit.LogAsync("DEPRECIATION_REVERSED", nameof(FixedAsset), period,
+                $"عكس إهلاك الفترة {period}: {records.Count} أصل بمبلغ {records.Sum(d => d.Amount):0.00}", token);
+        }, ct);
+
+    public async Task<PagedResult<FixedAssetDepreciationDto>> ListAsync(Guid? fixedAssetId, Guid? costCenterId, Guid? warehouseId, string? period, PaginationParams p, CancellationToken ct = default)
     {
         var q = _db.Set<FixedAssetDepreciation>().AsNoTracking();
         if (fixedAssetId.HasValue) q = q.Where(d => d.FixedAssetId == fixedAssetId);
         if (costCenterId.HasValue) q = q.Where(d => d.CostCenterId == costCenterId);
+        if (warehouseId.HasValue) q = q.Where(d => d.WarehouseId == warehouseId);
         if (!string.IsNullOrWhiteSpace(period)) q = q.Where(d => d.Period == period.Trim());
         var total = await q.CountAsync(ct);
         var items = await q.OrderByDescending(d => d.Period).ThenByDescending(d => d.PostedAt)
@@ -139,6 +170,7 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
             if (await q.CountAsync(ct) != ids.Count) throw new NotFoundException(string.Format(Messages.EntityNotFound, Messages.LabelFixedAsset));
         }
         if (request.CostCenterId.HasValue) q = q.Where(a => a.CostCenterId == request.CostCenterId);
+        if (request.WarehouseId.HasValue) q = q.Where(a => a.WarehouseId == request.WarehouseId);
         var assets = await q.OrderBy(a => a.AssetCode).ToListAsync(ct);
 
         var assetIds = assets.Select(a => a.Id).ToList();
@@ -157,7 +189,7 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
         {
             var line = new DepreciationLineDto
             {
-                FixedAssetId = a.Id, AssetCode = a.AssetCode, NameAr = a.NameAr, NameEn = a.NameEn, CostCenterId = a.CostCenterId,
+                FixedAssetId = a.Id, AssetCode = a.AssetCode, NameAr = a.NameAr, NameEn = a.NameEn, CostCenterId = a.CostCenterId, WarehouseId = a.WarehouseId,
                 BookValueBefore = a.CurrentBookValue, BookValueAfter = a.CurrentBookValue, Status = Blocked,
             };
             string expense = string.Empty, accumulated = string.Empty;
@@ -167,6 +199,7 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
                 line.Status = Posted; line.Amount = postedAmount;
                 line.Reason = string.Format(Messages.DepreciationAlreadyPosted, a.AssetCode, period);
             }
+            else if (a.DisposedAt.HasValue) line.Reason = string.Format(Messages.AssetAlreadyDisposed, a.AssetCode);
             else if (a.PurchaseDate.Date > periodEnd) line.Reason = string.Format(Messages.AssetNotAcquiredInPeriod, a.AssetCode);
             else if (lastPosted.TryGetValue(a.Id, out var last) && NextPeriod(last!) != period)
                 line.Reason = string.Format(Messages.DepreciationPeriodOutOfOrder, a.AssetCode, NextPeriod(last!));
@@ -178,9 +211,9 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
                 line.Reason = Messages.AccumulatedDepreciationAccountNotFound;
             else
             {
-                // لا إهلاك تحت الصفر: القسط الأخير هو المتبقي من القيمة الدفترية (لا قيمة تخريدية في نموذج الأصل).
-                var monthly = Math.Round(a.PurchaseCost * a.DepreciationRate / 1200m, 2, MidpointRounding.AwayFromZero);
-                var remaining = Math.Floor(a.CurrentBookValue * 100m) / 100m;
+                // لا إهلاك دون القيمة التخريدية: القسط على التكلفة ناقصها، والقسط الأخير هو المتبقي فوقها
+                var monthly = Math.Round((a.PurchaseCost - a.SalvageValue) * a.DepreciationRate / 1200m, 2, MidpointRounding.AwayFromZero);
+                var remaining = Math.Floor((a.CurrentBookValue - a.SalvageValue) * 100m) / 100m;
                 var amount = Math.Min(monthly, remaining);
                 if (amount <= 0) line.Reason = string.Format(Messages.AssetHasNoDepreciableBalance, a.AssetCode);
                 else

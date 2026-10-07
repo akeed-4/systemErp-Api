@@ -20,4 +20,6 @@ public partial class StockMovementDto
     public string? Notes { get; set; }
     public string? SourceType { get; set; }
     public Guid? SourceId { get; set; }
+    public Guid? JournalEntryId { get; set; }
+    public string? CounterAccountCode { get; set; }
 }

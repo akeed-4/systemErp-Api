@@ -71,6 +71,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ParentCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -230,6 +236,106 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("AgreementItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.AgreementPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Percentage")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgreementId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("AgreementPayment");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.BankReconciliation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("BookBalance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("OutstandingDeposits")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("OutstandingPayments")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("PerformedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ReconciledLines")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("StatementBalance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("StatementDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("BankReconciliation");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialContract", b =>
@@ -527,6 +633,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("VatTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
@@ -858,6 +967,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("VehiclePlate")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("WarehouseLocation")
                         .HasColumnType("nvarchar(max)");
 
@@ -1069,6 +1181,87 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("DeliveryReturnNote");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Employee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("BasicSalary")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("EmployeeGosiRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("EmployerGosiRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("HireDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("HousingAllowance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Iban")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("JobTitle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NameEn")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NationalId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("OtherAllowances")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TransportAllowance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CostCenterId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Employee");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.FixedAsset", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1080,6 +1273,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("AccumulatedDepreciationAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AcquisitionJournalEntryId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AssetAccountId")
@@ -1106,6 +1302,16 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("DisposalJournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("DisposalProceeds")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("DisposedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("NameAr")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1121,11 +1327,18 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("PurchaseDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("SalvageValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
@@ -1138,6 +1351,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("DepreciationExpenseAccountId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.ToTable("FixedAsset");
                 });
@@ -1187,6 +1402,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CostCenterId");
@@ -1194,6 +1412,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("FixedAssetId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.HasIndex("TenantId", "FixedAssetId", "Period")
                         .IsUnique();
@@ -1281,10 +1501,25 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("OriginalInvoiceNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PartyAdditionalNo")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("PartyAddress")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PartyBuildingNo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PartyCity")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PartyCountry")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("PartyCrNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PartyDistrict")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PartyEmail")
@@ -1298,6 +1533,12 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PartyPhone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PartyPostalCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PartyStreet")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PartyVatNumber")
@@ -1350,6 +1591,12 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WarehouseName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ZatcaHash")
                         .HasColumnType("nvarchar(max)");
 
@@ -1372,6 +1619,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.HasIndex("TenantId", "InvoiceNumber")
                         .IsUnique();
@@ -1408,6 +1657,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("RevenueAccountCode")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Sku")
                         .IsRequired()
@@ -1446,6 +1698,15 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal?>("VatAmountOverride")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("VatCategory")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("Standard");
+
+                    b.Property<string>("VatExemptionReasonCode")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("VatRate")
                         .HasPrecision(18, 4)
@@ -1679,6 +1940,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("BankReconciliationId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1850,6 +2114,155 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("MaterialRequisitionItem");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PayrollLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Additions")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("BasicSalary")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Deductions")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("EmployeeCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("EmployeeGosi")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EmployeeName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("EmployerGosi")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("HousingAllowance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("OtherAllowances")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TransportAllowance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("PayrollLine");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PayrollRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RunNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TotalDeductions")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalEmployeeGosi")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalEmployerGosi")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalGross")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalNet")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "RunNumber")
+                        .IsUnique();
+
+                    b.ToTable("PayrollRun");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1929,6 +2342,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("VatTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
@@ -2073,6 +2489,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<string>("VoucherNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -2085,6 +2505,46 @@ namespace ERP.Service.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Voucher");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.VoucherAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("VoucherId");
+
+                    b.ToTable("VoucherAllocation");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.VoucherPaymentSplit", b =>
@@ -3427,9 +3887,14 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.ToTable("PosInvoiceSettings");
                 });
@@ -4332,6 +4797,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("OpeningEntryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -4527,6 +4995,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("OpeningBalance")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("OpeningEntryId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Phone")
                         .IsRequired()
@@ -5258,10 +5729,10 @@ namespace ERP.Service.Data.Migrations
                             BadgeAr = "الأكثر طلباً ⭐",
                             BadgeEn = "Most Popular ⭐",
                             Branches = 3,
-                            DescriptionAr = "الخيار الأكثر طلباً للشركات والمؤسسات المتوسطة مع دعم كامل للربط والتكامل ZATCA ومحاسبة التكاليف.",
-                            DescriptionEn = "Most popular choice for growing businesses with full ZATCA Phase 2 clearance and costing engine.",
-                            FeaturesAr = "حتى 10 مستخدمين مع إدارة أدوار متقدمة (RBAC)\nفواتير مبيعات ومشتريات غير محدودة شهرياً\nإدارة حتى 3 فروع ومستودعات متعددة\nربط وتكامل مع هيئة الزكاة ZATCA Phase 2 (فواتير ضريبية B2B واعتماد لحظي)\nمحرك حساب متوسط التكلفة المرجح المتحرك (Moving Average Costing)\nشجرة حسابات احترافية مرنة والقيود اليومية الآلية\nتقارير مالية تفصيلية (قائمة الدخل، الميزانية العمومية، إقرار الضريبة)\nدعم فني سريع عبر الواتساب والهاتف",
-                            FeaturesEn = "Up to 10 users with advanced RBAC permissions\nUnlimited invoices per month\nUp to 3 branches & multi-warehouse inventory\nZATCA Phase 2 Integration (B2B Clearance & B2C Reporting)\nWeighted Moving Average costing engine\nEnterprise chart of accounts with auto journal entries\nFinancial reports (P&L, Balance Sheet, VAT Return)\nPriority phone & WhatsApp support",
+                            DescriptionAr = "الخيار الأكثر طلباً للشركات والمؤسسات المتوسطة مع فواتير ضريبية برمز QR (المرحلة الأولى من ZATCA) ومحاسبة التكاليف.",
+                            DescriptionEn = "Most popular choice for growing businesses with QR tax invoices (ZATCA Phase 1) and a costing engine.",
+                            FeaturesAr = "حتى 10 مستخدمين مع إدارة أدوار متقدمة (RBAC)\nفواتير مبيعات ومشتريات غير محدودة شهرياً\nإدارة حتى 3 فروع ومستودعات متعددة\nفواتير ضريبية (B2B) ومبسطة (B2C) برمز QR وفق المرحلة الأولى من ZATCA\nمحرك حساب متوسط التكلفة المرجح المتحرك (Moving Average Costing)\nشجرة حسابات احترافية مرنة والقيود اليومية الآلية\nتقارير مالية تفصيلية (قائمة الدخل، الميزانية العمومية، إقرار الضريبة)\nدعم فني سريع عبر الواتساب والهاتف",
+                            FeaturesEn = "Up to 10 users with advanced RBAC permissions\nUnlimited invoices per month\nUp to 3 branches & multi-warehouse inventory\nTax (B2B) and simplified (B2C) invoices with QR code (ZATCA Phase 1)\nWeighted Moving Average costing engine\nEnterprise chart of accounts with auto journal entries\nFinancial reports (P&L, Balance Sheet, VAT Return)\nPriority phone & WhatsApp support",
                             IsActive = true,
                             IsPopular = true,
                             MaxUsers = 10,
@@ -5271,7 +5742,7 @@ namespace ERP.Service.Data.Migrations
                             PriceMonthly = 499m,
                             PriceYearly = 4990m,
                             SortOrder = 2,
-                            ZatcaPhase2Enabled = true
+                            ZatcaPhase2Enabled = false
                         },
                         new
                         {
@@ -5280,8 +5751,8 @@ namespace ERP.Service.Data.Migrations
                             BadgeEn = "Corporate & Holding",
                             DescriptionAr = "حل متكامل ومخصص للمجموعات التجارية والشركات الكبرى وفروعها مع بنية تحتية مخصصة وربط API مفتوح.",
                             DescriptionEn = "Custom corporate solution for large holdings and chains with dedicated infrastructure and API webhooks.",
-                            FeaturesAr = "عدد غير محدود من المستخدمين والمشرفين\nفروع ومستودعات ومراكز تكلفة غير محدودة\nربط برمجي كامل (RESTful API Webhooks) مع المتاجر ونقاط البيع\nربط تلقائي بالكامل مع بوابة Fatoora ZATCA وتخزين سحابي للـ CSID\nتعدد العملات وسعر الصرف التلقائي\nتقارير تحليلية ومؤشرات أداء مالية متقدمة وتصدير مخصص\nخادم وقاعدة بيانات مستقلة عالية الأداء ونسخ احتياطي فوري\nمدير حساب محاسبي معتمد مخصص ودعم على مدار الساعة 24/7",
-                            FeaturesEn = "Unlimited users and branch supervisors\nUnlimited branches, warehouses & cost centers\nFull RESTful API & POS webhooks integration\nAutomated Fatoora ZATCA portal with cloud CSID storage\nMulti-currency support with auto FX rates\nAdvanced financial BI dashboards & custom export\nDedicated high-performance tenant database & real-time backup\nDedicated account manager & 24/7 priority SLA",
+                            FeaturesAr = "عدد غير محدود من المستخدمين والمشرفين\nفروع ومستودعات ومراكز تكلفة غير محدودة\nربط برمجي كامل (RESTful API Webhooks) مع المتاجر ونقاط البيع\nفواتير ضريبية برمز QR وفق المرحلة الأولى من ZATCA\nتعدد العملات وسعر الصرف التلقائي\nتقارير تحليلية ومؤشرات أداء مالية متقدمة وتصدير مخصص\nخادم وقاعدة بيانات مستقلة عالية الأداء ونسخ احتياطي فوري\nمدير حساب محاسبي معتمد مخصص ودعم على مدار الساعة 24/7",
+                            FeaturesEn = "Unlimited users and branch supervisors\nUnlimited branches, warehouses & cost centers\nFull RESTful API & POS webhooks integration\nQR tax invoices compliant with ZATCA Phase 1\nMulti-currency support with auto FX rates\nAdvanced financial BI dashboards & custom export\nDedicated high-performance tenant database & real-time backup\nDedicated account manager & 24/7 priority SLA",
                             IsActive = true,
                             IsPopular = false,
                             ModuleKeys = "accounting,car_showroom,pos",
@@ -5290,7 +5761,7 @@ namespace ERP.Service.Data.Migrations
                             PriceMonthly = 999m,
                             PriceYearly = 9990m,
                             SortOrder = 3,
-                            ZatcaPhase2Enabled = true
+                            ZatcaPhase2Enabled = false
                         });
                 });
 
@@ -5336,6 +5807,12 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<decimal>("SellingPrice")
                         .HasPrecision(18, 4)
@@ -5468,6 +5945,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CounterAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -5480,6 +5960,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ItemName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -5532,6 +6015,106 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("StockMovement");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("FromWarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FromWarehouseName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ToWarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToWarehouseName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TransferNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromWarehouseId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("ToWarehouseId");
+
+                    b.HasIndex("TenantId", "TransferNumber")
+                        .IsUnique();
+
+                    b.ToTable("StockTransfer");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockTransferItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("StockTransferId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Unit")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("StockTransferId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("StockTransferItem");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.Subscription", b =>
@@ -5678,6 +6261,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("OpeningEntryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("PaymentTermsDays")
                         .HasColumnType("int");
 
@@ -5816,6 +6402,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Address")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("BooksLockedThrough")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("City")
                         .IsRequired()
@@ -6086,10 +6675,66 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("Warehouse");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.WarehouseStock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "ItemId", "WarehouseId")
+                        .IsUnique();
+
+                    b.ToTable("WarehouseStock");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.AgreementItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.Agreement", "Agreement")
                         .WithMany("Items")
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Agreement");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.AgreementPayment", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.Agreement", "Agreement")
+                        .WithMany("Payments")
                         .HasForeignKey("AgreementId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -6163,6 +6808,14 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("ReturnNote");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Employee", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
+                        .WithMany()
+                        .HasForeignKey("CostCenterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.FixedAsset", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.Account", null)
@@ -6186,6 +6839,11 @@ namespace ERP.Service.Data.Migrations
                         .WithMany()
                         .HasForeignKey("DepreciationExpenseAccountId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.FixedAssetDepreciation", b =>
@@ -6201,6 +6859,19 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("FixedAssetId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Invoice", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceItem", b =>
@@ -6258,6 +6929,21 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Requisition");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PayrollLine", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.PayrollRun", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.QuotationItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.Quotation", "Quotation")
@@ -6267,6 +6953,23 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Quotation");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.VoucherAllocation", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.Voucher", "Voucher")
+                        .WithMany("Allocations")
+                        .HasForeignKey("VoucherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Voucher");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.VoucherPaymentSplit", b =>
@@ -6412,6 +7115,14 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("HeldCart");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.POS.PosInvoiceSettings", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.POS.PosSalesReturn", b =>
                 {
                     b.HasOne("ERP.Core.Models.POS.PosTransaction", null)
@@ -6553,6 +7264,36 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("UserRolePermission");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockTransfer", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("FromWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("ToWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockTransferItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.StockTransfer", null)
+                        .WithMany("Items")
+                        .HasForeignKey("StockTransferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.SupportTicketReply", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.SupportTicket", "SupportTicket")
@@ -6676,9 +7417,26 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.WarehouseStock", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.Agreement", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialContract", b =>
@@ -6724,6 +7482,11 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Items");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PayrollRun", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>
                 {
                     b.Navigation("Items");
@@ -6731,6 +7494,8 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.Voucher", b =>
                 {
+                    b.Navigation("Allocations");
+
                     b.Navigation("PaymentSplits");
                 });
 
@@ -6769,6 +7534,11 @@ namespace ERP.Service.Data.Migrations
             modelBuilder.Entity("ERP.Core.Models.Shared.InventoryCount", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockTransfer", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.SupportTicket", b =>

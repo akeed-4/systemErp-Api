@@ -21,7 +21,8 @@ public static class ZatcaTlv
         }
         Add(1, sellerName);
         Add(2, vatNumber);
-        Add(3, timestamp.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+        // تاريخ ووقت إصدار الفاتورة محفوظان بتوقيت المملكة؛ الرمز يحملهما بالتوقيت العالمي (Z)
+        Add(3, SaudiTime.ToUtc(timestamp).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));
         Add(4, total.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
         Add(5, vat.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
         return Convert.ToBase64String(bytes.ToArray());

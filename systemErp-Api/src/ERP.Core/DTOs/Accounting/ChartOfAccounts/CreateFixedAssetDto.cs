@@ -10,8 +10,15 @@ public partial class CreateFixedAssetDto
     public decimal CurrentBookValue { get; set; }
     public decimal? AccumulatedDepreciation { get; set; }
     public decimal DepreciationRate { get; set; }
+    public decimal SalvageValue { get; set; }
+    /// <summary>
+    /// عند التسجيل: الحساب الذي مُوِّل منه الاقتناء (صندوق/بنك/مورد، أو الأرصدة الافتتاحية لأصل قائم) فيُرحَّل قيد الاقتناء.
+    /// فارغ = الاقتناء مقيَّد خارج شاشة الأصول ولا قيد هنا.
+    /// </summary>
+    public string? AcquisitionAccountCode { get; set; }
     public Guid AssetAccountId { get; set; }
     public Guid AccumulatedDepreciationAccountId { get; set; }
     public Guid? DepreciationExpenseAccountId { get; set; }
     public Guid? CostCenterId { get; set; }
+    public Guid? WarehouseId { get; set; }
 }

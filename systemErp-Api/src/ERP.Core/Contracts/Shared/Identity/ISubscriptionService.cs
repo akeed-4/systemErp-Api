@@ -7,5 +7,4 @@ public interface ISubscriptionService
     /// <summary>الباقات المتاحة للبيع (الفعّالة فقط) مرتبة.</summary>
     Task<List<SubscriptionPlanDto>> GetPlansAsync(CancellationToken ct = default);
     Task<SubscriptionDto?> GetCurrentAsync(CancellationToken ct = default);
-    Task<SubscriptionDto> UpgradeAsync(UpgradeSubscriptionRequestDto request, CancellationToken ct = default);
 }

@@ -14,6 +14,8 @@ public partial class QuotationDto
     public string? PartyPhone { get; set; }
     public string? PartyEmail { get; set; }
     public string? PartyVatNumber { get; set; }
+    /// <summary>المستودع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
+    public Guid? WarehouseId { get; set; }
     public DateTime Date { get; set; }
     public DateTime ValidUntil { get; set; }
     public string? PaymentTerms { get; set; }

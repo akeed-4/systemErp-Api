@@ -8,4 +8,6 @@ public class ReportQueryDto
     public DateTime? DateTo { get; set; }
     public Guid? ItemId { get; set; }
     public string? Category { get; set; }
+    /// <summary>تقارير المخزون: مستودع بعينه (تظهر تحويلاته)، وفارغ = المنشأة كلها.</summary>
+    public Guid? WarehouseId { get; set; }
 }

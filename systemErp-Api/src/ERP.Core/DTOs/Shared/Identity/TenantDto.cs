@@ -21,5 +21,6 @@ public partial class TenantDto
     public string FinancialYearStart { get; set; } = "01-01";
     public string FinancialYearEnd { get; set; } = "12-31";
     public bool IsActive { get; set; } = true;
+    public DateTime? BooksLockedThrough { get; set; }
     public ZatcaConfigDto ZatcaConfig { get; set; } = new();
 }

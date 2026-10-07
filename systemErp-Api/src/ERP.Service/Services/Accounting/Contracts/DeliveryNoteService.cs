@@ -231,6 +231,7 @@ public class DeliveryNoteService : IDeliveryNoteService
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,
                 PartyId = note.PartyId, PartyName = note.PartyName, PartyVatNumber = note.PartyTaxNumber, PartyPhone = note.PartyPhone,
+                WarehouseId = note.WarehouseId,
                 PaymentMethod = note.PartyId.HasValue ? PaymentMethod.Credit : PaymentMethod.Cash, Status = "posted",
                 Notes = $"فاتورة من بيان التسليم {note.DeliveryNumber}" + (note.ContractNumber != null ? $" - عقد {note.ContractNumber}" : ""),
                 ReferenceType = "delivery_note", ReferenceId = note.Id, ReferenceNumber = note.DeliveryNumber,

@@ -15,9 +15,11 @@ public class ReportsController : ErpControllerBase
 {
     private readonly IAccountingReportService _accounting;
     private readonly IInventoryReportService _inventory;
+    private readonly IPartyAgingService _aging;
 
-    public ReportsController(IAccountingReportService accounting, IInventoryReportService inventory)
+    public ReportsController(IAccountingReportService accounting, IInventoryReportService inventory, IPartyAgingService aging)
     {
+        _aging = aging;
         _accounting = accounting; _inventory = inventory;
     }
 
@@ -29,9 +31,17 @@ public class ReportsController : ErpControllerBase
     [HttpGet("FinancialSummary"), RequireScreen("reports")]
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _accounting.GetFinancialSummaryAsync(ct));
 
+    [HttpGet("BalanceSheet"), RequireScreen("reports")]
+    public async Task<IActionResult> BalanceSheet([FromQuery] DateTime? asOf, CancellationToken ct) => Success(await _accounting.GetBalanceSheetAsync(asOf, ct));
+
     [HttpGet("VatReturn"), RequireScreen("reports")]
     public async Task<IActionResult> Vat([FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
         => Success(await _accounting.GetVatReturnAsync(from, to, ct));
+
+    /// <summary>أعمار الديون (type = receivable للعملاء أو payable للموردين) حتى تاريخ.</summary>
+    [HttpGet("Aging"), RequireScreen("reports")]
+    public async Task<IActionResult> Aging([FromQuery] string type = "receivable", [FromQuery] DateTime? asOf = null, CancellationToken ct = default)
+        => Success(await _aging.GetAsync(receivable: !string.Equals(type, "payable", StringComparison.OrdinalIgnoreCase), asOf, ct));
 
     /// <summary>رأس كشف الحساب (الرصيد الافتتاحي والختامي) مع الحركات كاملة.</summary>
     [HttpGet("AccountStatement/{code}"), RequireScreen("reports")]

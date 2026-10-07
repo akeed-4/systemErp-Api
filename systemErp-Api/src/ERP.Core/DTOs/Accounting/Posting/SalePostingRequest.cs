@@ -20,6 +20,8 @@ public class SalePostingRequest
 
     /// <summary>الإيراد قبل الضريبة (بعد الخصم).</summary>
     public decimal NetAmount { get; set; }
+    /// <summary>توزيع الإيراد على حسابات ومراكز تكلفة (مجموعه = NetAmount). فارغ = سطر واحد بحساب الإيراد ومركز التكلفة أدناه.</summary>
+    public List<RevenuePosting> RevenueLines { get; set; } = new();
     public decimal VatAmount { get; set; }
     /// <summary>تكلفة البضاعة المباعة (0 = بدون قيد تكلفة).</summary>
     public decimal CostAmount { get; set; }

@@ -1,5 +1,6 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 
 namespace ERP.Service.Services.Shared;
 
@@ -7,10 +8,11 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
 {
     private readonly IAccountService _accounts;
     private readonly INumberSequenceService _numbers;
+    private readonly IAccountingPostingService _posting;
 
-    public BankService(ErpDbContext db, IAccountService accounts, INumberSequenceService numbers) : base(db)
+    public BankService(ErpDbContext db, IAccountService accounts, INumberSequenceService numbers, IAccountingPostingService posting) : base(db)
     {
-        _accounts = accounts; _numbers = numbers;
+        _accounts = accounts; _numbers = numbers; _posting = posting;
     }
 
     protected override string Label => Messages.LabelBank;
@@ -35,6 +37,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("bank", "BNK-");
         e.CurrentBalance = e.OpeningBalance;
         e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Bank, e.Id, e.NameAr, e.NameEn, ct);
+        await OpeningBalances.ApplyAsync(_posting, Db, null, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
     }
 
     protected override async Task OnUpdatingAsync(BankEntity e, UpdateBankEntityDto d, CancellationToken ct)
@@ -43,6 +46,10 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         e.AccountCode = o.GetValue<string?>(nameof(BankEntity.AccountCode));
         e.CurrentBalance = o.GetValue<decimal>(nameof(BankEntity.CurrentBalance));
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = o.GetValue<string>(nameof(BankEntity.Code));
+        // الرصيد الافتتاحي قيد في الدفاتر: تغييره يعكس قيده ويرحّل الجديد، والطرف القديم يُقيَّد افتتاحيه عند أول تعديل
+        e.OpeningEntryId = o.GetValue<Guid?>(nameof(BankEntity.OpeningEntryId));
+        if (e.OpeningBalance != o.GetValue<decimal>(nameof(BankEntity.OpeningBalance)) || (e.OpeningEntryId == null && e.OpeningBalance != 0))
+            await OpeningBalances.ApplyAsync(_posting, Db, e.OpeningEntryId, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
         var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
         if (acc != null) { acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn; }
     }

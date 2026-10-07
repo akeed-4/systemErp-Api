@@ -17,6 +17,18 @@ public class Invoice : BaseEntity
     public string? PartyVatNumber { get; set; }
     public string? PartyCrNumber { get; set; }
     public string? PartyAddress { get; set; }
+    /// <summary>المستودع الذي تدخل إليه/تخرج منه أصناف الفاتورة (الافتراضي عند عدم التحديد).</summary>
+    public Guid? WarehouseId { get; set; }
+    public string? WarehouseName { get; set; }
+    /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>
+    public string? PartyStreet { get; set; }
+    public string? PartyBuildingNo { get; set; }
+    public string? PartyDistrict { get; set; }
+    public string? PartyCity { get; set; }
+    public string? PartyPostalCode { get; set; }
+    public string? PartyAdditionalNo { get; set; }
+    /// <summary>رمز الدولة (SA افتراضياً)؛ المشتري خارج المملكة لا يُشترط له رقم ضريبي سعودي.</summary>
+    public string? PartyCountry { get; set; }
     
     public PaymentMethod PaymentMethod { get; set; }
     public bool IsSplitPayment { get; set; }

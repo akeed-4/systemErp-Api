@@ -104,6 +104,38 @@ public class PosTests : TestBase
     }
 
     [Fact]
+    public async Task Split_payment_across_several_methods_updates_each_shift_total_and_a_single_method_split_is_stored_as_that_method()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        await OpenShiftAsync(api);
+        object Split(decimal cash = 0, decimal card = 0, decimal mada = 0, decimal apple = 0)
+            => new { items = new[] { new { itemId = product, quantity = 1 } }, paymentMethod = "split", paidCash = cash, paidCard = card, paidMada = mada, paidApplePay = apple };
+
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", Split(cash: 40, mada: 40))).Status); // أقل من 115
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", Split(cash: -5, mada: 120))).Status);
+
+        var three = await api.Post("/pos/transactions/checkout", Split(cash: 50, card: 20, mada: 40, apple: 15)); // 125: الباقي 10 من النقد
+        Assert.Equal(201, three.Status);
+        Assert.Equal("split", three.Data!["paymentMethod"].S());
+        Assert.Equal(40, three.Data["paidCash"].D()); Assert.Equal(20, three.Data["paidCard"].D());
+        Assert.Equal(40, three.Data["paidMada"].D()); Assert.Equal(15, three.Data["paidApplePay"].D());
+        Assert.Equal(10, three.Data["changeAmount"].D());
+
+        // «مقسّم» بطريقة واحدة = دفع بتلك الطريقة
+        var onlyMada = await api.Post("/pos/transactions/checkout", Split(mada: 115));
+        Assert.Equal(201, onlyMada.Status); Assert.Equal("mada", onlyMada.Data!["paymentMethod"].S());
+        var onlyCash = await api.Post("/pos/transactions/checkout", Split(cash: 200));
+        Assert.Equal("cash", onlyCash.Data!["paymentMethod"].S()); Assert.Equal(85, onlyCash.Data["changeAmount"].D());
+
+        var shift = (await api.Get("/pos/shifts/active")).Data!;
+        Assert.Equal(155, shift["totalCashSales"].D()); Assert.Equal(20, shift["totalCardSales"].D());
+        Assert.Equal(155, shift["totalMadaSales"].D()); Assert.Equal(15, shift["totalApplePaySales"].D());
+        Assert.Equal(345, shift["totalGross"].D());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
+    [Fact]
     public async Task Stock_shortage_rolls_back_the_entire_sale()
     {
         var api = await NewTenantAsync();

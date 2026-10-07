@@ -16,8 +16,15 @@ public class FixedAssetDepreciationTests : TestBase
         return c.Data!["id"].G();
     }
 
-    private static object Asset(string code, Guid? costCenterId, decimal cost = 100000, decimal rate = 20, decimal? bookValue = null, string purchaseDate = "2026-01-10")
-        => new { assetCode = code, nameAr = "أصل " + code, nameEn = code, purchaseDate, purchaseCost = cost, currentBookValue = bookValue ?? cost, depreciationRate = rate, costCenterId };
+    private static async Task<Guid> SeedWarehouseAsync(Client api, string code, string status = "active")
+    {
+        var w = await api.Post("/warehouses", new { code, nameAr = "معرض " + code, nameEn = code, location = "الرياض", status });
+        Assert.Equal(201, w.Status);
+        return w.Data!["id"].G();
+    }
+
+    private static object Asset(string code, Guid? costCenterId, decimal cost = 100000, decimal rate = 20, decimal? bookValue = null, string purchaseDate = "2026-01-10", Guid? warehouseId = null)
+        => new { assetCode = code, nameAr = "أصل " + code, nameEn = code, purchaseDate, purchaseCost = cost, currentBookValue = bookValue ?? cost, depreciationRate = rate, costCenterId, warehouseId };
 
     private static Task<Res> Post(Client api, string period, params Guid[] assetIds)
         => api.Post("/fixedassets/depreciation/post", new { period, assetIds });
@@ -124,6 +131,41 @@ public class FixedAssetDepreciationTests : TestBase
         Assert.Equal(200, (await api.Put($"/fixedassets/{asset}", Asset("FA-1", center))).Status);
         Assert.Equal(400, (await api.Put($"/fixedassets/{asset}", Asset("FA-1", null))).Status); // لا يُفرَّغ بعد تحديده
         Assert.Equal(200, (await Post(api, "2026-01", asset)).Status);
+    }
+
+    [Fact]
+    public async Task Asset_warehouse_is_validated_scopes_the_depreciation_run_and_is_kept_on_the_posted_record()
+    {
+        var api = await NewTenantAsync();
+        var other = await NewTenantAsync();
+        var center = await SeedCostCenterAsync(api, "MNT");
+        var showroomA = await SeedWarehouseAsync(api, "SH-A"); var showroomB = await SeedWarehouseAsync(api, "SH-B");
+
+        Assert.Equal(400, (await api.Post("/fixedassets", Asset("FA-1", center, warehouseId: Guid.NewGuid()))).Status);
+        Assert.Equal(400, (await api.Post("/fixedassets", Asset("FA-1", center, warehouseId: await SeedWarehouseAsync(other, "X")))).Status);
+        Assert.Equal(400, (await api.Post("/fixedassets", Asset("FA-1", center, warehouseId: await SeedWarehouseAsync(api, "SH-OFF", "inactive")))).Status);
+
+        var inA = (await api.Post("/fixedassets", Asset("FA-1", center, warehouseId: showroomA))).Data!["id"].G();
+        var inB = (await api.Post("/fixedassets", Asset("FA-2", center, warehouseId: showroomB))).Data!["id"].G();
+        Assert.Equal(201, (await api.Post("/fixedassets", Asset("FA-3", center))).Status); // المستودع اختياري
+        Assert.Equal("FA-1", Assert.Single((await api.Get($"/fixedassets?warehouseId={showroomA}")).Data!["items"]!.AsArray())!["assetCode"].S());
+
+        // إهلاك معرض واحد: أصوله فقط
+        var preview = await api.Post("/fixedassets/depreciation/preview", new { period = "2026-01", warehouseId = showroomA });
+        Assert.Equal(showroomA, Assert.Single(preview.Data!["lines"]!.AsArray())!["warehouseId"].G());
+        var posted = await api.Post("/fixedassets/depreciation/post", new { period = "2026-01", warehouseId = showroomA });
+        Assert.Equal(200, posted.Status);
+        Assert.Equal(1666.67m, posted.Data!["totalAmount"].D());
+        Assert.Equal(100000, (await api.Get($"/fixedassets/{inB}")).Data!["currentBookValue"].D());
+
+        // نقل الأصل لمعرض آخر يسري على الفترات اللاحقة؛ السجل المرحَّل يحتفظ بمعرضه
+        Assert.Equal(200, (await api.Put($"/fixedassets/{inA}", Asset("FA-1", center, warehouseId: showroomB))).Status);
+        var second = await api.Post("/fixedassets/depreciation/post", new { period = "2026-02", warehouseId = showroomB });
+        Assert.Equal(2, second.Data!["readyCount"]!.GetValue<int>());
+        var keptInA = Assert.Single((await api.Get($"/fixedassets/depreciation?warehouseId={showroomA}")).Data!["items"]!.AsArray())!;
+        Assert.Equal("2026-01", keptInA["period"].S()); Assert.Equal(inA, keptInA["fixedAssetId"].G());
+        Assert.Equal(2, (await api.Get($"/fixedassets/depreciation?warehouseId={showroomB}")).Data!["items"]!.AsArray().Count);
+        Assert.Equal(409, (await api.Delete($"/warehouses/{showroomB}")).Status); // عليه أصول
     }
 
     [Fact]

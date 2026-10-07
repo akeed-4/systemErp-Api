@@ -14,6 +14,8 @@ public static class StockReplay
 
         foreach (var m in ordered)
         {
+            // التحويل بين المستودعات لا يغيّر رصيد الصنف ولا تكلفته ولا طبقاته
+            if (m.Type is StockMovementType.TransferIn or StockMovementType.TransferOut) { m.RemainingStock = stock; continue; }
             if (m.Type is StockMovementType.InPurchase or StockMovementType.AdjustmentIn)
             {
                 var baseStock = Math.Max(stock, 0);

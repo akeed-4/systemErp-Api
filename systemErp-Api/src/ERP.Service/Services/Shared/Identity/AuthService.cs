@@ -100,8 +100,9 @@ public class AuthService : IAuthService
             _tenant.SetTenant(tenant.Id);
             _db.Add(tenant);
 
+            // فترة تجريبية مجانية على الباقة المختارة؛ بعد انتهائها يُحجب النظام حتى سداد الاشتراك (POST /payments/subscription)
             var plan = await SubscriptionCatalog.GetAsync(_db, r.PlanId, forSale: true, token);
-            _db.Add(SubscriptionCatalog.NewSubscription(plan, r.BillingCycle, r.PaymentMethod));
+            _db.Add(SubscriptionCatalog.NewTrial(plan, r.BillingCycle));
 
             var admin = new User
             {
@@ -118,7 +119,7 @@ public class AuthService : IAuthService
             await _db.SaveChangesAsync(token);
             await _provisioning.SeedAsync(tenant.Id, tenant.Currency, token);
 
-            return Build(admin, tenant, string.Format(Messages.CompanyRegistered, tenant.NameAr));
+            return Build(admin, tenant, string.Format(Messages.CompanyRegisteredWithTrial, tenant.NameAr));
         }, ct);
 
     private static void ValidateRegistration(CompanyRegistrationRequestDto r)

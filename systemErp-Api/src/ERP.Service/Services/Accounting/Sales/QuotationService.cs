@@ -82,6 +82,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(q.PartyVatNumber) : InvoiceType.TaxInvoice,
                 PartyId = q.PartyId, PartyName = q.PartyName, PartyPhone = q.PartyPhone, PartyEmail = q.PartyEmail, PartyVatNumber = q.PartyVatNumber,
+                WarehouseId = q.WarehouseId,
                 PaymentMethod = q.PartyId.HasValue ? PaymentMethod.Credit : PaymentMethod.Cash, Status = "draft",
                 Notes = $"فاتورة محوّلة من عرض سعر {q.QuotationNumber}",
                 ReferenceType = "quotation", ReferenceId = q.Id, ReferenceNumber = q.QuotationNumber,
@@ -110,6 +111,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
             {
                 Type = q.Type == "sales_quotation" ? "sales_order" : "purchase_order",
                 PartyId = q.PartyId, PartyName = q.PartyName, PartyPhone = q.PartyPhone, PartyVatNumber = q.PartyVatNumber,
+                WarehouseId = q.WarehouseId,
                 OrderDate = DateTime.UtcNow, ExpectedDeliveryDate = DateTime.UtcNow.AddDays(7), PaymentTerms = q.PaymentTerms,
                 Status = "draft", Notes = $"أمر محوّل من عرض سعر {q.QuotationNumber}",
                 Items = q.Items.Select(i => new CommercialOrderItemDto

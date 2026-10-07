@@ -14,8 +14,14 @@ public partial class FixedAssetDto
     public decimal CurrentBookValue { get; set; }
     public decimal? AccumulatedDepreciation { get; set; }
     public decimal DepreciationRate { get; set; }
+    public decimal SalvageValue { get; set; }
+    public DateTime? DisposedAt { get; set; }
+    public decimal? DisposalProceeds { get; set; }
+    public Guid? DisposalJournalEntryId { get; set; }
+    public Guid? AcquisitionJournalEntryId { get; set; }
     public Guid AssetAccountId { get; set; }
     public Guid AccumulatedDepreciationAccountId { get; set; }
     public Guid? DepreciationExpenseAccountId { get; set; }
     public Guid? CostCenterId { get; set; }
+    public Guid? WarehouseId { get; set; }
 }

@@ -19,14 +19,8 @@ public class PosTransactionsController : ErpControllerBase
     [HttpGet("ByInvoice/{invoiceNumber}")]
     public async Task<IActionResult> ByInvoice(string invoiceNumber, CancellationToken ct) => Success(await _sales.GetByInvoiceNumberAsync(invoiceNumber, ct));
 
-    [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePosTransactionRequestDto dto, CancellationToken ct) => Success(await _sales.UpdateAsync(id, dto, ct), Messages.TransactionUpdated);
-
     [HttpPost("{id:guid}/void")]
     public async Task<IActionResult> Void(Guid id, CancellationToken ct) => Success(await _sales.VoidAsync(id, ct), Messages.TransactionVoided);
-
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _sales.DeleteAsync(id, ct); return Success(Messages.TransactionDeleted); }
 
     [HttpPost("checkout")]
     public async Task<IActionResult> Checkout([FromBody] CheckoutRequestDto dto, CancellationToken ct)

@@ -15,10 +15,12 @@ public class InvoiceService : IInvoiceService
     private readonly IZatcaService _zatca;
     private readonly ITransactionRunner _tx;
     private readonly IVehicleService _vehicles;
+    private readonly ERP.Core.Contracts.Shared.IAuditService _audit;
 
     public InvoiceService(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
-        INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, IVehicleService vehicles)
+        INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, IVehicleService vehicles, ERP.Core.Contracts.Shared.IAuditService audit)
     {
+        _audit = audit;
         _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx; _vehicles = vehicles;
     }
 
@@ -40,16 +42,27 @@ public class InvoiceService : IInvoiceService
         var items = await q.Include(i => i.Items).Include(i => i.PaymentSplits)
             .OrderByDescending(i => i.IssueDate).ThenByDescending(i => i.InvoiceNumber)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).AsSplitQuery().ToListAsync(ct);
+        var due = await InvoiceBalances.ForAsync(_db, items.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, ct);
         return new PagedResult<InvoiceDto>
         {
-            Items = items.Select(Mapper.Map<InvoiceDto>).ToList(),
+            Items = items.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0)).ToList(),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
 
     public async Task<InvoiceDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<InvoiceDto>(await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
-            .FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound));
+    {
+        var invoice = await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
+            .FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        return ToDto(invoice, invoice.Status == "posted" ? await InvoiceBalances.DueAsync(_db, id, ct) : 0);
+    }
+
+    private static InvoiceDto ToDto(Invoice invoice, decimal amountDue)
+    {
+        var dto = Mapper.Map<InvoiceDto>(invoice);
+        dto.AmountDue = amountDue;
+        return dto;
+    }
 
     // ---------------- الإنشاء ----------------
     public Task<InvoiceDto> CreateAsync(CreateInvoiceDto r, CancellationToken ct = default)
@@ -58,9 +71,8 @@ public class InvoiceService : IInvoiceService
             var invoice = await BuildAsync(r, token);
             var draft = string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
             invoice.Status = "draft";
-            invoice.InvoiceNumber = invoice.ReferenceType == "pos_transaction" && invoice.Kind == InvoiceKind.Sales
-                ? await _numbers.NextAsync("pos_invoice", "POS-", token) // ترقيم نقاط البيع مستقل ومتسلسل
-                : await _numbers.NextAsync(KeyFor(invoice.Kind), PrefixFor(invoice.Kind), token);
+            // المسودة برقم مؤقت؛ الرقم المتسلسل يُصرف عند الترحيل فلا يترك حذف مسودة فجوة في تسلسل الفواتير
+            invoice.InvoiceNumber = DraftPrefix + invoice.Id.ToString("N")[..10].ToUpperInvariant();
             _db.Add(invoice);
             await _db.SaveChangesAsync(token);
             if (!draft) await FinalizeAsync(invoice, token);
@@ -74,9 +86,9 @@ public class InvoiceService : IInvoiceService
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
             EnsureNotLinkedToAnotherDocument(invoice);
             if (r.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
-            // فاتورة مرحّلة: يُعكس أثرها المحاسبي والمخزني ثم تُعاد كمسودة وتُرحَّل من جديد بالقيم المعدّلة (نفس الرقم).
-            if (invoice.Status == "posted") await UnpostAsync(invoice, bypassSourceGuard: false, token);
-            else if (invoice.Status != "draft") throw new ConflictException(Messages.CannotEditCancelledInvoice);
+            // الفاتورة المرحّلة مستند صادر لا يُعدَّل: تُصحَّح بمرتجع (إشعار دائن/مدين) وفاتورة جديدة
+            if (invoice.Status == "posted") throw new ConflictException(Messages.PostedInvoiceLocked);
+            if (invoice.Status != "draft") throw new ConflictException(Messages.CannotEditCancelledInvoice);
 
             var fresh = await BuildAsync(r, token); // نفس تحقق الإنشاء وحساب الأرقام في الخادم
             var (keepId, keepTenant, keepCreated, keepNumber, keepUuid) = (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, invoice.Uuid);
@@ -141,6 +153,9 @@ public class InvoiceService : IInvoiceService
                 IsReturn = true, OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.ReturnReason,
                 PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber,
                 PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
+                WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
+                PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
+                PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
                 PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
                 Notes = $"مرتجع من الفاتورة {original.InvoiceNumber}",
                 Status = "posted",
@@ -155,6 +170,7 @@ public class InvoiceService : IInvoiceService
                 {
                     ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = l.Quantity,
                     UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, VatRate = src.VatRate,
+                    VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode, RevenueAccountCode = src.RevenueAccountCode,
                     Discount = src.Quantity == 0 ? 0 : Math.Round(src.Discount * l.Quantity / src.Quantity, 2),
                     CostCenterId = src.CostCenterId,
                 });
@@ -164,23 +180,38 @@ public class InvoiceService : IInvoiceService
             var retGross = dto.Items.Sum(i => i.Quantity * i.UnitPrice - i.Discount);
             dto.InvoiceDiscount = origGross == 0 ? 0 : DocumentPricing.Round(original.InvoiceDiscount * retGross / origGross);
 
+            if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
             return await CreateAsync(dto, token);
         }, ct);
 
-    /// <summary>حذف فاتورة: المسودة تُحذف مباشرة، والمرحّلة يُعكس أثرها (قيد + مخزون) ثم تُحذف مع بقاء قيد العكس للتدقيق.</summary>
-    public Task DeleteAsync(Guid id, CancellationToken ct = default) => DeleteCoreAsync(id, bypassSourceGuard: false, ct);
+    /// <summary>بلا طريقة ردّ محددة: فاتورة دُفعت بأكثر من طريقة يُردّ مرتجعها بالتوزيع نفسه (بنسبة قيمة المرتجع).</summary>
+    private static void MirrorOriginalSplits(CreateInvoiceDto dto, Invoice original)
+    {
+        if (original.PaymentSplits.Count == 0 || original.GrandTotal <= 0) return;
+        var returned = DocumentPricing.Price(
+            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride)).ToList(), dto.InvoiceDiscount).GrandTotal;
+        var allocated = 0m;
+        for (var i = 0; i < original.PaymentSplits.Count; i++)
+        {
+            var split = original.PaymentSplits.ElementAt(i);
+            var amount = i == original.PaymentSplits.Count - 1
+                ? returned - allocated : DocumentPricing.Round(split.Amount * returned / original.GrandTotal);
+            allocated += amount;
+            if (amount > 0) dto.PaymentSplits.Add(new InvoicePaymentSplitDto { Method = split.Method, Amount = amount, Reference = split.Reference });
+        }
+        dto.IsSplitPayment = dto.PaymentSplits.Count > 0;
+    }
 
-    /// <summary>حذف فاتورة أنشأتها وحدة أخرى (POS...) — تستدعيه الوحدة المصدر فقط بعد التحقق من قواعدها.</summary>
-    public Task DeleteSourceInvoiceAsync(Guid id, CancellationToken ct = default) => DeleteCoreAsync(id, bypassSourceGuard: true, ct);
-
-    private Task DeleteCoreAsync(Guid id, bool bypassSourceGuard, CancellationToken ct)
+    /// <summary>حذف مسودة فقط. الفاتورة المرحّلة مستند صادر لا يُحذف: تُلغى بمرتجع كامل (إشعار دائن/مدين).</summary>
+    public Task DeleteAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
-            if (!bypassSourceGuard) EnsureNotLinkedToAnotherDocument(invoice);
-            if (invoice.Status == "posted") await UnpostAsync(invoice, bypassSourceGuard, token);
+            if (invoice.Status == "posted") throw new ConflictException(Messages.PostedInvoiceLocked);
+            EnsureNotLinkedToAnotherDocument(invoice);
             await ReleaseSourceAsync(invoice, token);
+            await _audit.LogAsync("INVOICE_DRAFT_DELETED", nameof(Invoice), invoice.Id.ToString(), $"حذف مسودة {DescribeKind(invoice.Kind)} بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
             _db.RemoveRange(invoice.Items);
             _db.RemoveRange(invoice.PaymentSplits);
             _db.RemoveRange(invoice.VehicleLines);
@@ -192,26 +223,6 @@ public class InvoiceService : IInvoiceService
     {
         if (invoice.ReferenceType != null || invoice.ReferenceId.HasValue || invoice.OriginalInvoiceId.HasValue)
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
-    }
-
-    /// <summary>يعكس أثر فاتورة مرحّلة (قيد + حركات مخزون) ويعيدها مسودة. يرفض ما تعتمد عليه مستندات أخرى.</summary>
-    private async Task UnpostAsync(Invoice invoice, bool bypassSourceGuard, CancellationToken ct)
-    {
-        if (invoice.ZatcaStatus is ZatcaSubmissionStatus.Cleared or ZatcaSubmissionStatus.Reported)
-            throw new ConflictException(Messages.InvoiceSubmittedToZatcaLocked);
-        if (!bypassSourceGuard) EnsureNotLinkedToAnotherDocument(invoice);
-        if (await _db.Set<Invoice>().AnyAsync(i => i.OriginalInvoiceId == invoice.Id && i.Status == "posted", ct))
-            throw new ConflictException(Messages.InvoiceHasPostedReturns);
-
-        if (invoice.JournalEntryId.HasValue)
-            await _posting.ReverseAsync(invoice.JournalEntryId.Value, $"إلغاء ترحيل الفاتورة {invoice.InvoiceNumber}", ct);
-        await _inventory.RemoveDocumentMovementsAsync("invoice", invoice.Id, ct);
-        await VehicleInvoiceLines.OnUnpostAsync(_db, invoice, ct);
-
-        invoice.JournalEntryId = null; invoice.Status = "draft"; invoice.ZatcaQrCode = null;
-        invoice.TotalCost = 0; invoice.GrossProfit = 0;
-        foreach (var item in invoice.Items.Where(i => i.ItemId != Guid.Empty)) item.UnitCost = 0;
-        await _db.SaveChangesAsync(ct);
     }
 
     /// <summary>عند حذف فاتورة محوّلة من مستند تجاري يُفَك الارتباط ليعود المستند قابلاً للتحويل.</summary>
@@ -293,13 +304,19 @@ public class InvoiceService : IInvoiceService
     // ---------------- البناء والتحقق (بدون أي أثر جانبي) ----------------
     private async Task<Invoice> BuildAsync(CreateInvoiceDto r, CancellationToken ct)
     {
+        if (r.ItemsDerivedFromVehicles) r.Items.Clear(); // إعادة تنفيذ بعد تعارض تزامن: البنود تُشتق من جديد
         var vehicleLines = r.VehicleLines.Count > 0 ? await VehicleInvoiceLines.ResolveAsync(_db, r, ct) : null; // يشتق r.Items ويتحقق من الأسطر
+        r.ItemsDerivedFromVehicles = vehicleLines != null;
         var errors = new List<string>();
         if (!Enum.IsDefined(r.Kind)) errors.Add(Messages.InvalidDocumentType);
         if (!Enum.IsDefined(r.InvoiceType)) errors.Add(Messages.InvalidInvoiceType);
         if (r.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
         if (r.InvoiceDiscount < 0) errors.Add(Messages.InvoiceDiscountCannotBeNegative);
         if (r.ExchangeRate <= 0) errors.Add(Messages.ExchangeRateMustBePositive);
+        // التصنيف الضريبي غير الأساسي لا يحمل ضريبة
+        if (r.Items.Any(i => i.VatCategory is VatCategory.ZeroRated or VatCategory.Exempt or VatCategory.OutOfScope && (i.VatRate > 0 || i.VatAmountOverride > 0)))
+            errors.Add(Messages.VatCategoryRateMismatch);
+        ValidateExemptionReasons(r, errors);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         var isSales = r.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
@@ -323,9 +340,12 @@ public class InvoiceService : IInvoiceService
         invoice.Uuid = Guid.NewGuid();
         invoice.Status = "draft";
         invoice.IsReturn = isReturn;
-        invoice.IssueDate = r.IssueDate == default ? DateTime.UtcNow : r.IssueDate;
-        invoice.IssueTime = string.IsNullOrWhiteSpace(r.IssueTime) ? DateTime.UtcNow.ToString("HH:mm:ss") : r.IssueTime;
-        invoice.CurrencyCode = string.IsNullOrWhiteSpace(r.CurrencyCode) ? "SAR" : r.CurrencyCode;
+        // تاريخ ووقت الإصدار بتوقيت المملكة (كما يُطبعان)، ويُحوَّلان للتوقيت العالمي في رمز QR
+        invoice.IssueDate = r.IssueDate == default ? SaudiTime.Now : r.IssueDate;
+        invoice.IssueTime = string.IsNullOrWhiteSpace(r.IssueTime) ? SaudiTime.Now.ToString("HH:mm:ss") : r.IssueTime;
+        var baseCurrency = await _db.Set<Tenant>().AsNoTracking().Select(t => t.Currency).FirstAsync(ct);
+        invoice.CurrencyCode = string.IsNullOrWhiteSpace(r.CurrencyCode) ? baseCurrency : r.CurrencyCode.Trim().ToUpperInvariant();
+        if (invoice.CurrencyCode == baseCurrency) invoice.ExchangeRate = 1; // العملة الأساسية لا تُحوَّل
         invoice.Subtotal = priced.NetTotal;
         invoice.ItemsDiscountTotal = priced.ItemsDiscountTotal;
         invoice.InvoiceDiscount = priced.InvoiceDiscount;
@@ -351,8 +371,11 @@ public class InvoiceService : IInvoiceService
                 Quantity = src.Quantity, UnitPrice = src.UnitPrice, Discount = src.Discount,
                 UnitCost = src.ItemId == Guid.Empty ? src.UnitCost : 0, // بند الخدمة يحمل تكلفته (مثل تكلفة السيارة) لأن لا مخزون يحسبها
                 VatAmountOverride = src.VatAmountOverride,
+                VatCategory = src.VatCategory ?? (src.VatRate > 0 || src.VatAmountOverride > 0 ? VatCategory.Standard : VatCategory.ZeroRated),
+                VatExemptionReasonCode = VatExemptionReasons.Find(src.VatExemptionReasonCode)?.Code,
                 VatRate = src.VatRate, VatAmount = pl.VatAmount, TotalBeforeVat = pl.Net, TotalAfterVat = pl.Total,
                 CostCenterId = src.CostCenterId,
+                RevenueAccountCode = isSales && !string.IsNullOrWhiteSpace(src.RevenueAccountCode) ? src.RevenueAccountCode.Trim() : null,
             });
         }
 
@@ -375,6 +398,9 @@ public class InvoiceService : IInvoiceService
                 if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = c.NameAr;
                 invoice.PartyVatNumber ??= c.VatNumber; invoice.PartyCrNumber ??= c.CrNumber;
                 invoice.PartyPhone ??= c.Phone; invoice.PartyEmail ??= c.Email;
+                // العنوان الوطني من بطاقة العميل ما لم يُرسل مع الفاتورة
+                invoice.PartyStreet ??= c.Street; invoice.PartyBuildingNo ??= c.BuildingNo; invoice.PartyDistrict ??= c.District;
+                invoice.PartyCity ??= c.City; invoice.PartyPostalCode ??= c.PostalCode; invoice.PartyAdditionalNo ??= c.AdditionalNo;
             }
             else
             {
@@ -385,11 +411,17 @@ public class InvoiceService : IInvoiceService
                 invoice.PartyPhone ??= s.Phone; invoice.PartyEmail ??= s.Email;
             }
         }
-        if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = isSales ? "عميل نقدي" : "مورد نقدي";
-        if (!string.IsNullOrWhiteSpace(invoice.PartyVatNumber) && !SaudiVat.IsValid(invoice.PartyVatNumber))
+        if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = isSales ? DefaultCashCustomer : "مورد نقدي";
+        // المستودع: المحدَّد في الفاتورة أو الافتراضي للمنشأة
+        var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId, ct);
+        if (r.WarehouseId.HasValue && warehouse.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
+        invoice.WarehouseId = warehouse.Id; invoice.WarehouseName = warehouse.NameAr;
+
+        invoice.PartyCountry = string.IsNullOrWhiteSpace(invoice.PartyCountry) ? "SA" : invoice.PartyCountry.Trim().ToUpperInvariant();
+        var domesticParty = invoice.PartyCountry == "SA";
+        if (domesticParty && !string.IsNullOrWhiteSpace(invoice.PartyVatNumber) && !SaudiVat.IsValid(invoice.PartyVatNumber))
             throw new ValidationFailedException(Messages.PartyVatNumberInvalid);
-        if (r.Kind == InvoiceKind.Sales && r.InvoiceType == InvoiceType.TaxInvoice && string.IsNullOrWhiteSpace(invoice.PartyVatNumber))
-            throw new ValidationFailedException(Messages.TaxInvoiceRequiresBuyerVat);
+        if (r.Kind == InvoiceKind.Sales && r.InvoiceType == InvoiceType.TaxInvoice) ValidateTaxInvoiceBuyer(invoice, domesticParty);
 
         // الدفع
         invoice.PaymentSplits.Clear();
@@ -409,8 +441,8 @@ public class InvoiceService : IInvoiceService
         if (hasCredit && r.Kind == InvoiceKind.Sales)
         {
             var customer = await _db.Set<Customer>().AsNoTracking().FirstAsync(x => x.Id == r.PartyId, ct);
-            var creditPart = invoice.PaymentMethod == PaymentMethod.Credit && !r.IsSplitPayment
-                ? invoice.GrandTotal : invoice.PaymentSplits.Where(s => s.Method == PaymentMethod.Credit).Sum(s => s.Amount);
+            var creditPart = (invoice.PaymentMethod == PaymentMethod.Credit && !r.IsSplitPayment
+                ? invoice.GrandTotal : invoice.PaymentSplits.Where(s => s.Method == PaymentMethod.Credit).Sum(s => s.Amount)) * invoice.ExchangeRate;
             if (customer.CreditLimit > 0 && customer.CurrentBalance + creditPart > customer.CreditLimit)
                 throw new ConflictException(string.Format(Messages.CreditLimitExceeded, customer.CreditLimit, customer.CurrentBalance));
         }
@@ -427,14 +459,67 @@ public class InvoiceService : IInvoiceService
         return invoice;
     }
 
+    /// <summary>
+    /// سبب الإعفاء: إن أُرسل فهو رمز معروف يطابق تصنيف سطره؛ وفي فاتورة المبيعات يلزم لكل سطر حُدِّد له تصنيف غير أساسي
+    /// (السطر بنسبة 0 بلا تصنيف — كبيع نقطة البيع لصنف صفري — يبقى صفرياً بلا سبب).
+    /// </summary>
+    private static void ValidateExemptionReasons(CreateInvoiceDto r, List<string> errors)
+    {
+        var isSales = r.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
+        foreach (var item in r.Items)
+        {
+            var reason = VatExemptionReasons.Find(item.VatExemptionReasonCode);
+            if (!string.IsNullOrWhiteSpace(item.VatExemptionReasonCode) && reason == null) { errors.Add(Messages.VatExemptionReasonUnknown); return; }
+            var category = item.VatCategory ?? (reason?.Category);
+            if (reason != null && category != reason.Category) { errors.Add(Messages.VatExemptionReasonCategoryMismatch); return; }
+            if (reason != null) item.VatCategory ??= reason.Category;
+            if (isSales && reason == null && !r.IsReturn && item.VatCategory is VatCategory.ZeroRated or VatCategory.Exempt or VatCategory.OutOfScope)
+            { errors.Add(Messages.VatExemptionReasonRequired); return; }
+        }
+    }
+
+    /// <summary>
+    /// الفاتورة الضريبية (B2B) تحمل بيانات المشتري الإلزامية: اسمه، رقمه الضريبي (للمشتري داخل المملكة)، وعنوانه:
+    /// الشارع والمدينة دائماً، ورقم المبنى (4 أرقام) والحي والرمز البريدي (5 أرقام) للعنوان الوطني السعودي.
+    /// </summary>
+    private static void ValidateTaxInvoiceBuyer(Invoice invoice, bool domestic)
+    {
+        var missing = new List<string>();
+        if (!invoice.PartyId.HasValue && invoice.PartyName == DefaultCashCustomer) missing.Add(Messages.BuyerFieldName);
+        if (domestic && string.IsNullOrWhiteSpace(invoice.PartyVatNumber)) missing.Add(Messages.BuyerFieldVatNumber);
+        if (string.IsNullOrWhiteSpace(invoice.PartyStreet)) missing.Add(Messages.BuyerFieldStreet);
+        if (string.IsNullOrWhiteSpace(invoice.PartyCity)) missing.Add(Messages.BuyerFieldCity);
+        if (domestic)
+        {
+            if (!IsDigits(invoice.PartyBuildingNo, 4)) missing.Add(Messages.BuyerFieldBuildingNo);
+            if (string.IsNullOrWhiteSpace(invoice.PartyDistrict)) missing.Add(Messages.BuyerFieldDistrict);
+            if (!IsDigits(invoice.PartyPostalCode, 5)) missing.Add(Messages.BuyerFieldPostalCode);
+        }
+        if (missing.Count == 0) return;
+        var message = string.Format(Messages.TaxInvoiceBuyerDataRequired, string.Join("، ", missing));
+        throw new ValidationFailedException(message, missing.Prepend(message));
+    }
+
+    private static bool IsDigits(string? value, int length) => value?.Trim() is { } v && v.Length == length && v.All(char.IsAsciiDigit);
+
     // ---------------- الترحيل: مخزون + قيد + QR ----------------
     /// <param name="preview">معاينة القيد: يتخطى إنشاء/بيع المركبات و QR (لا أثر لهما على القيد) ليُسمح بمعاينة مسودة ناقصة الشواسيه.</param>
     private async Task FinalizeAsync(Invoice invoice, CancellationToken ct, bool preview = false)
     {
+        if (invoice.InvoiceNumber.StartsWith(DraftPrefix, StringComparison.Ordinal))
+            invoice.InvoiceNumber = invoice.ReferenceType == "pos_transaction" && invoice.Kind == InvoiceKind.Sales
+                ? await _numbers.NextAsync("pos_invoice", "POS-", ct) // ترقيم نقاط البيع مستقل ومتسلسل
+                : await _numbers.NextAsync(KeyFor(invoice.Kind), PrefixFor(invoice.Kind), ct);
         if (!preview) await VehicleInvoiceLines.OnPostingAsync(_db, _vehicles, invoice, ct); // شراء: إنشاء المركبات، بيع: تحويلها Sold
         var isSales = invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
-        var payments = await ResolvePaymentsAsync(invoice, ct);
+
+        // الدفاتر والمخزون بالعملة الأساسية: مبالغ المستند تُحوَّل بسعر صرفه (1 للعملة الأساسية)
+        var fx = invoice.ExchangeRate <= 0 ? 1 : invoice.ExchangeRate;
+        var baseTotal = DocumentPricing.Round(invoice.GrandTotal * fx);
+        var baseVat = DocumentPricing.Round(invoice.VatTotal * fx);
+        var baseNet = baseTotal - baseVat;
+        var payments = ToBase(await ResolvePaymentsAsync(invoice, ct), fx, invoice.GrandTotal, baseTotal);
         decimal totalCost = 0;
 
         Dictionary<Guid, decimal> originalCosts = new();
@@ -447,7 +532,7 @@ public class InvoiceService : IInvoiceService
             var movement = invoice.Kind switch
             {
                 InvoiceKind.Sales => new RecordStockMovementDto { Type = StockMovementType.OutSales },
-                InvoiceKind.Purchase => new RecordStockMovementDto { Type = StockMovementType.InPurchase, UnitCost = item.Quantity == 0 ? 0 : Math.Round(item.TotalBeforeVat / item.Quantity, 4) },
+                InvoiceKind.Purchase => new RecordStockMovementDto { Type = StockMovementType.InPurchase, UnitCost = item.Quantity == 0 ? 0 : Math.Round(item.TotalBeforeVat * fx / item.Quantity, 4) },
                 InvoiceKind.SalesReturn => new RecordStockMovementDto { Type = StockMovementType.AdjustmentIn, UnitCost = originalCosts.GetValueOrDefault(item.ItemId) },
                 _ => new RecordStockMovementDto { Type = StockMovementType.AdjustmentOut },
             };
@@ -455,15 +540,27 @@ public class InvoiceService : IInvoiceService
             movement.UnitPrice = item.UnitPrice; movement.ReferenceNumber = invoice.InvoiceNumber;
             movement.Date = invoice.IssueDate;
             movement.SourceType = "invoice"; movement.SourceId = invoice.Id;
+            movement.WarehouseId = invoice.WarehouseId;
 
             var recorded = await _inventory.RecordMovementAsync(movement, ct);
             item.UnitCost = invoice.Kind == InvoiceKind.Purchase ? movement.UnitCost : recorded.UnitCost;
             totalCost += Math.Round(item.Quantity * recorded.UnitCost, 2);
         }
+        var stockCost = totalCost; // تكلفة الأصناف المخزنية فقط (قيمة ما دخل/خرج من المخزون)
         foreach (var svc in invoice.Items.Where(i => i.ItemId == Guid.Empty && i.UnitCost > 0))
             totalCost += Math.Round(svc.Quantity * svc.UnitCost, 2);
-        invoice.TotalCost = totalCost;
-        invoice.GrossProfit = isSales ? (invoice.IsReturn ? -(invoice.Subtotal - totalCost) : invoice.Subtotal - totalCost) : 0;
+        invoice.TotalCost = totalCost; // بالعملة الأساسية
+        invoice.GrossProfit = isSales ? (invoice.IsReturn ? -(baseNet - totalCost) : baseNet - totalCost) : 0;
+
+        // مشتريات: البنود غير المخزنية (خدمات/مصروفات) لا تدخل حساب المخزون، إلا إن حدّد المستند حساب مخزون صراحةً
+        // (شراء السيارات: بنودها وصفية وهي مخزون فعلاً).
+        var expenseAmount = isSales || !string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) ? 0
+            : Math.Min(baseNet, DocumentPricing.Round(invoice.Items.Where(i => i.ItemId == Guid.Empty).Sum(i => i.TotalBeforeVat) * fx));
+        if (expenseAmount > 0) await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.PurchasedServices);
+        // مرتجع المشتريات يخرج من المخزون بتكلفته الحالية لا بسعر الشراء: الفرق إلى حساب فروق أسعار المشتريات
+        decimal? inventoryAmount = invoice.Kind == InvoiceKind.PurchaseReturn && invoice.VehicleLines.Count == 0 ? stockCost : null;
+        if (inventoryAmount.HasValue && inventoryAmount != baseNet - expenseAmount)
+            await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.PurchasePriceVariance);
 
         // القيد المحاسبي عبر المحرك المركزي
         var partyAccount = await PartyAccountAsync(invoice, isSales, ct);
@@ -474,16 +571,17 @@ public class InvoiceService : IInvoiceService
             {
                 Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id,
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
-                NetAmount = invoice.Subtotal, VatAmount = invoice.VatTotal, CostAmount = totalCost, Payments = payments,
+                NetAmount = baseNet, VatAmount = baseVat, CostAmount = totalCost, Payments = payments,
                 RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode,
-                CostCenterId = invoice.Items.Select(i => i.CostCenterId).FirstOrDefault(c => c.HasValue),
+                RevenueLines = RevenueByLine(invoice, fx, baseNet),
             }, ct);
         else
             posted = await _posting.PostPurchaseAsync(new PurchasePostingRequest
             {
                 Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id,
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
-                NetAmount = invoice.Subtotal, VatAmount = invoice.VatTotal, Payments = payments,
+                NetAmount = baseNet, VatAmount = baseVat, Payments = payments,
+                ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount,
                 InventoryAccountCode = invoice.InventoryAccountCode,
                 CostCenterId = invoice.Items.Select(i => i.CostCenterId).FirstOrDefault(c => c.HasValue),
             }, ct);
@@ -495,6 +593,9 @@ public class InvoiceService : IInvoiceService
 
         invoice.Status = "posted";
         await _db.SaveChangesAsync(ct);
+        if (!preview)
+            await _audit.LogAsync("INVOICE_POSTED", nameof(Invoice), invoice.Id.ToString(),
+                $"ترحيل {DescribeKind(invoice.Kind)} {invoice.InvoiceNumber} بإجمالي {invoice.GrandTotal:0.00} {invoice.CurrencyCode} - {invoice.PartyName}", ct);
     }
 
     private async Task<List<PaymentPosting>> ResolvePaymentsAsync(Invoice invoice, CancellationToken ct)
@@ -513,6 +614,24 @@ public class InvoiceService : IInvoiceService
         return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods), invoice.GrandTotal) };
     }
 
+    /// <summary>إيراد كل سطر على حسابه ومركز تكلفته بالعملة الأساسية؛ كسر التقريب على آخر سطر ليطابق صافي المستند.</summary>
+    private static List<RevenuePosting> RevenueByLine(Invoice invoice, decimal fx, decimal baseNet)
+    {
+        var lines = invoice.Items.Select(i => new RevenuePosting(i.RevenueAccountCode, i.CostCenterId, DocumentPricing.Round(i.TotalBeforeVat * fx))).ToList();
+        if (lines.Count > 0) lines[^1] = lines[^1] with { Amount = baseNet - lines.Take(lines.Count - 1).Sum(l => l.Amount) };
+        return lines;
+    }
+
+    /// <summary>يحوّل المدفوع إلى العملة الأساسية؛ السداد الكامل يطابق إجمالي المستند المحوَّل بلا كسر تقريب.</summary>
+    private static List<PaymentPosting> ToBase(List<PaymentPosting> payments, decimal fx, decimal documentTotal, decimal baseTotal)
+    {
+        if (fx == 1 || payments.Count == 0) return payments;
+        var converted = payments.Select(p => p with { Amount = DocumentPricing.Round(p.Amount * fx) }).ToList();
+        if (payments.Sum(p => p.Amount) == documentTotal)
+            converted[^1] = converted[^1] with { Amount = baseTotal - converted.Take(converted.Count - 1).Sum(p => p.Amount) };
+        return converted;
+    }
+
     private async Task<string?> PartyAccountAsync(Invoice invoice, bool isSales, CancellationToken ct)
     {
         if (!invoice.PartyId.HasValue) return null;
@@ -520,6 +639,10 @@ public class InvoiceService : IInvoiceService
             ? await _db.Set<Customer>().AsNoTracking().Where(c => c.Id == invoice.PartyId).Select(c => c.AccountCode).FirstOrDefaultAsync(ct)
             : await _db.Set<Supplier>().AsNoTracking().Where(s => s.Id == invoice.PartyId).Select(s => s.AccountCode).FirstOrDefaultAsync(ct);
     }
+
+    /// <summary>بادئة الرقم المؤقت للمسودة قبل صرف رقمها المتسلسل عند الترحيل.</summary>
+    private const string DraftPrefix = "DRAFT-";
+    private const string DefaultCashCustomer = "عميل نقدي";
 
     private static string KeyFor(InvoiceKind k) => k switch
     {

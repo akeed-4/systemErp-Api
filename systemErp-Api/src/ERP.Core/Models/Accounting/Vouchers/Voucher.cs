@@ -7,6 +7,8 @@ public class Voucher : BaseEntity
     public VoucherType Type { get; set; }
     public DateTime Date { get; set; }
     public decimal Amount { get; set; }
+    /// <summary>ضريبة القيمة المضافة المتضمَّنة في المبلغ (مصروف أو إيراد مباشر بضريبة)؛ 0 لسداد الذمم.</summary>
+    public decimal VatAmount { get; set; }
     public string AmountInWordsAr { get; set; } = string.Empty;
     
     public string PartyName { get; set; } = string.Empty;
@@ -22,4 +24,6 @@ public class Voucher : BaseEntity
     public string ReceivedOrPaidBy { get; set; } = string.Empty;
 
     public virtual ICollection<VoucherPaymentSplit> PaymentSplits { get; set; } = new List<VoucherPaymentSplit>();
+    /// <summary>توزيع السند على فواتير آجلة؛ ما لم يُوزَّع دفعة مقدمة على حساب الطرف.</summary>
+    public virtual ICollection<VoucherAllocation> Allocations { get; set; } = new List<VoucherAllocation>();
 }

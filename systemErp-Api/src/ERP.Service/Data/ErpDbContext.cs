@@ -46,8 +46,20 @@ public class ErpDbContext : DbContext
         (typeof(FixedAsset), nameof(FixedAsset.AccumulatedDepreciationAccountId), typeof(Account)),
         (typeof(FixedAsset), nameof(FixedAsset.DepreciationExpenseAccountId), typeof(Account)),
         (typeof(FixedAsset), nameof(FixedAsset.CostCenterId), typeof(CostCenter)),
+        (typeof(FixedAsset), nameof(FixedAsset.WarehouseId), typeof(Warehouse)),
         (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.FixedAssetId), typeof(FixedAsset)),
         (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.CostCenterId), typeof(CostCenter)),
+        (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.WarehouseId), typeof(Warehouse)),
+        (typeof(VoucherAllocation), nameof(VoucherAllocation.InvoiceId), typeof(Invoice)),
+        (typeof(PayrollLine), nameof(PayrollLine.EmployeeId), typeof(Employee)),
+        (typeof(Employee), nameof(Employee.CostCenterId), typeof(CostCenter)),
+        (typeof(WarehouseStock), nameof(WarehouseStock.ItemId), typeof(Product)),
+        (typeof(WarehouseStock), nameof(WarehouseStock.WarehouseId), typeof(Warehouse)),
+        (typeof(StockTransfer), nameof(StockTransfer.FromWarehouseId), typeof(Warehouse)),
+        (typeof(StockTransfer), nameof(StockTransfer.ToWarehouseId), typeof(Warehouse)),
+        (typeof(StockTransferItem), nameof(StockTransferItem.ItemId), typeof(Product)),
+        (typeof(Invoice), nameof(Invoice.WarehouseId), typeof(Warehouse)),
+        (typeof(PosInvoiceSettings), nameof(PosInvoiceSettings.WarehouseId), typeof(Warehouse)),
         (typeof(PasswordResetOtp), nameof(PasswordResetOtp.UserId), typeof(User)),
         (typeof(InventoryCountApproval), nameof(InventoryCountApproval.InventoryCountId), typeof(InventoryCount)),
     };
@@ -80,6 +92,9 @@ public class ErpDbContext : DbContext
         (typeof(PosTransaction), nameof(PosTransaction.InvoiceNumber)),
         (typeof(PosCoupon), nameof(PosCoupon.Code)),
         (typeof(InventoryCount), nameof(InventoryCount.CountNumber)),
+        (typeof(StockTransfer), nameof(StockTransfer.TransferNumber)),
+        (typeof(Employee), nameof(Employee.Code)),
+        (typeof(PayrollRun), nameof(PayrollRun.RunNumber)),
         (typeof(InventoryCountApproval), nameof(InventoryCountApproval.ApprovalNumber)),
         (typeof(NumberSequence), nameof(NumberSequence.Key)),
         (typeof(User), nameof(User.Email)),
@@ -138,6 +153,14 @@ public class ErpDbContext : DbContext
         // الأصل لا يُرحَّل إهلاكه مرتين لنفس الفترة (ضمان على مستوى قاعدة البيانات).
         modelBuilder.Entity<FixedAssetDepreciation>()
             .HasIndex(d => new { d.TenantId, d.FixedAssetId, d.Period }).IsUnique();
+
+        // الأرصدة والمخزون: تعارض التزامن يُرفض (ويُعاد تنفيذ المعاملة) بدل أن يُكتب رصيد فوق رصيد
+        modelBuilder.Entity<Account>().Property(a => a.RowVersion).IsRowVersion();
+        modelBuilder.Entity<Product>().Property(p => p.RowVersion).IsRowVersion();
+        // رصيد واحد لكل صنف في كل مستودع
+        modelBuilder.Entity<WarehouseStock>().Property(s => s.RowVersion).IsRowVersion();
+        modelBuilder.Entity<WarehouseStock>().HasIndex(s => new { s.TenantId, s.ItemId, s.WarehouseId }).IsUnique();
+        modelBuilder.Entity<InvoiceItem>().Property(i => i.VatCategory).HasDefaultValue(VatCategory.Standard);
 
         modelBuilder.Entity<NumberSequence>().Property(s => s.Version).IsConcurrencyToken();
         modelBuilder.Entity<InventoryCountApproval>().Property(a => a.Version).IsConcurrencyToken();

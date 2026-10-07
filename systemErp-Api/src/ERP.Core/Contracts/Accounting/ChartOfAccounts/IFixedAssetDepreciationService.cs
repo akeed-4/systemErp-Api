@@ -12,5 +12,7 @@ public interface IFixedAssetDepreciationService
     /// <summary>يحسب إهلاك الفترة ويبيّن حالة كل أصل دون أي أثر محفوظ.</summary>
     Task<DepreciationRunDto> PreviewAsync(DepreciationRunRequestDto request, CancellationToken ct = default);
     Task<DepreciationRunDto> PostAsync(DepreciationRunRequestDto request, CancellationToken ct = default);
-    Task<PagedResult<FixedAssetDepreciationDto>> ListAsync(Guid? fixedAssetId, Guid? costCenterId, string? period, PaginationParams query, CancellationToken ct = default);
+    /// <summary>يعكس ترحيل إهلاك بقيده: يعيد أرصدة الأصول ويحذف سجلات الفترة (آخر فترة لكل أصل فقط).</summary>
+    Task ReverseRunAsync(Guid journalEntryId, CancellationToken ct = default);
+    Task<PagedResult<FixedAssetDepreciationDto>> ListAsync(Guid? fixedAssetId, Guid? costCenterId, Guid? warehouseId, string? period, PaginationParams query, CancellationToken ct = default);
 }

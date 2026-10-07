@@ -22,7 +22,7 @@ public abstract class TestBase
         var id = p.Data!["id"].G();
         if (stock > 0)
         {
-            var m = await api.Post("/stockmovements/adjust", new { itemId = id, type = "adjustment_in", quantity = stock, unitCost = cost, referenceNumber = "OPEN" });
+            var m = await api.Post("/stockmovements/adjust", new { itemId = id, type = "adjustment_in", quantity = stock, unitCost = cost, referenceNumber = "OPEN", counterAccountCode = "33" }); // مخزون أول المدة مقابل الأرصدة الافتتاحية
             Assert.Equal(200, m.Status);
         }
         return id;

@@ -85,6 +85,8 @@ public class InventoryCountSnapshotRequestDto
     public InventoryCountScope Scope { get; set; } = InventoryCountScope.Items;
     /// <summary>للأصناف: كود التصنيف (جرد دوري لجزء من الأصناف).</summary>
     public string? Category { get; set; }
+    /// <summary>للأصناف: المستودع المجرود (فارغ = الافتراضي).</summary>
+    public Guid? WarehouseId { get; set; }
     /// <summary>للأصناف: تضمين الأصناف ذات الرصيد الصفري.</summary>
     public bool IncludeZeroStock { get; set; }
     /// <summary>للمركبات: موقع المعرض.</summary>

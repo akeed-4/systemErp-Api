@@ -18,6 +18,8 @@ public partial class DeliveryNoteDto
     public Guid? InvoiceId { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? PartyTaxNumber { get; set; }
+    /// <summary>المستودع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
+    public Guid? WarehouseId { get; set; }
     public string? PartyPhone { get; set; }
     public string? WarehouseLocation { get; set; }
     public string? DriverName { get; set; }

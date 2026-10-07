@@ -20,4 +20,6 @@ public class Agreement : BaseEntity
     public string Currency { get; set; } = "SAR";
 
     public virtual ICollection<AgreementItem> Items { get; set; } = new List<AgreementItem>();
+    /// <summary>جدول السداد: نسبة كل دفعة من إجمالي الاتفاقية (فارغ = بلا جدول سداد).</summary>
+    public virtual ICollection<AgreementPayment> Payments { get; set; } = new List<AgreementPayment>();
 }

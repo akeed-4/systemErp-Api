@@ -22,6 +22,8 @@ public class Customer : BaseEntity
     public int CreditPeriodDays { get; set; }
     public decimal OpeningBalance { get; set; }
     public decimal CurrentBalance { get; set; }
+    /// <summary>قيد الرصيد الافتتاحي في الدفاتر؛ فارغ = بلا رصيد افتتاحي، أو طرف قديم لم يُقيَّد افتتاحيه بعد.</summary>
+    public Guid? OpeningEntryId { get; set; }
     public string AccountCode { get; set; } = string.Empty;
     public string? Currency { get; set; }
     public string Status { get; set; } = "active"; // active | inactive

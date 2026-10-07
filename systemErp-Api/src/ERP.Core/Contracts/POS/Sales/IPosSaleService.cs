@@ -14,10 +14,8 @@ public interface IPosSaleService
     Task<PagedResult<PosTransactionDto>> ListAsync(Guid? shiftId, PaginationParams query, CancellationToken ct = default);
     Task<PosTransactionDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<PosTransactionDto> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default);
-    Task<PosTransactionDto> UpdateAsync(Guid id, UpdatePosTransactionRequestDto request, CancellationToken ct = default);
     /// <summary>إلغاء عملية: يُعكس القيد والمخزون وتُحذف فاتورتها وتُعاد أرقام الوردية والكوبون والولاء؛ يبقى السجل بحالة voided.</summary>
     Task<PosTransactionDto> VoidAsync(Guid id, CancellationToken ct = default);
     /// <summary>حذف عملية نهائياً بعد عكس أثرها.</summary>
-    Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default);
 }

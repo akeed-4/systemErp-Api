@@ -48,6 +48,51 @@ public class AgreementDeliveryContractTests : TestBase
         Assert.Equal(409, (await api.Delete($"/agreements/{id}")).Status);
     }
 
+    [Theory]
+    [InlineData("sales")]
+    [InlineData("purchase")]
+    public async Task Agreement_payment_schedule_must_total_100_percent_and_keeps_the_sent_order(string type)
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        object Body(params object[] payments) => new
+        {
+            type, partyName = "طرف", startDate = DateTime.UtcNow.AddDays(-1), status = "active",
+            items = new[] { new { itemId = product, itemName = "منتج", quantity = 10, unitPrice = 100 } }, payments,
+        };
+        static object Pay(decimal percentage, string? description = null, Guid? id = null, string? dueDate = null)
+            => new { id = id ?? Guid.Empty, percentage, description, dueDate };
+
+        Assert.Equal(400, (await api.Post("/agreements", Body(Pay(60), Pay(30)))).Status);  // 90%
+        Assert.Equal(400, (await api.Post("/agreements", Body(Pay(60), Pay(50)))).Status);  // 110%
+        Assert.Equal(400, (await api.Post("/agreements", Body(Pay(100), Pay(0)))).Status);  // دفعة بلا نسبة
+        api.Language = "en";
+        Assert.Equal("The agreement payment percentages must total 100% (current total 90%).", (await api.Post("/agreements", Body(Pay(60), Pay(30)))).Body!["message"].S());
+        api.Language = null;
+
+        var created = await api.Post("/agreements", Body(Pay(30, "مقدَّم", dueDate: "2026-11-01"), Pay(50), Pay(20, "عند التسليم")));
+        Assert.Equal(201, created.Status);
+        var id = created.Data!["id"].S();
+        var payments = created.Data["payments"]!.AsArray();
+        Assert.Equal(new[] { 1, 2, 3 }, payments.Select(p => p!["sequence"]!.GetValue<int>()));
+        Assert.Equal(new[] { "مقدَّم", "دفعة 2", "عند التسليم" }, payments.Select(p => p!["description"].S()));
+        Assert.Equal(new[] { 30m, 50m, 20m }, payments.Select(p => p!["percentage"].D()));
+        Assert.StartsWith("2026-11-01", payments[0]!["dueDate"].S());
+
+        // تعديل: حذف الثانية، تقديم الثالثة، وإضافة دفعة جديدة — الترتيب كما أُرسل والمعرّفات محفوظة
+        Guid first = payments[0]!["id"].G(), third = payments[2]!["id"].G();
+        Assert.Equal(400, (await api.Put($"/agreements/{id}", Body(Pay(25, "عند التسليم", third), Pay(30, "مقدَّم", first)))).Status);
+        var updated = await api.Put($"/agreements/{id}", Body(Pay(25, "عند التسليم", third), Pay(30, "مقدَّم", first), Pay(45, "ختامية")));
+        Assert.Equal(200, updated.Status);
+        var after = (await api.Get($"/agreements/{id}")).Data!["payments"]!.AsArray();
+        Assert.Equal(new[] { "عند التسليم", "مقدَّم", "ختامية" }, after.Select(p => p!["description"].S()));
+        Assert.Equal(new[] { 1, 2, 3 }, after.Select(p => p!["sequence"]!.GetValue<int>()));
+        Assert.Equal(third, after[0]!["id"].G()); Assert.Equal(first, after[1]!["id"].G());
+
+        // جدول السداد اختياري
+        Assert.Empty((await api.Put($"/agreements/{id}", Body())).Data!["payments"]!.AsArray());
+    }
+
     [Fact]
     public async Task Delivery_note_is_priced_on_the_server_and_returns_use_the_original_price()
     {

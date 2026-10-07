@@ -121,36 +121,6 @@ public class PosSaleReturnService : IPosSaleReturnService
         return Mapper.Map<PosSalesReturnDto>(ret);
     }
 
-    public Task DeleteAsync(Guid id, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
-        {
-            var ret = await _db.Set<PosSalesReturn>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.ReturnNotFound);
-            var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == ret.ShiftId, token);
-            PosShiftRules.EnsureCanCorrect(shift, _user);
-
-            shift.TotalReturns -= ret.GrandTotal;
-            if (ret.RefundMethod == PosRefundMethod.Cash) shift.TotalCashRefunds -= ret.GrandTotal;
-            await PosCashDrawer.SyncVarianceAsync(_db, _posting, shift, token);
-
-            var tx = await _db.Set<PosTransaction>().FirstOrDefaultAsync(t => t.Id == ret.OriginalTransactionId, token);
-            if (tx != null && tx.Status == PosTransactionStatus.Returned) tx.Status = PosTransactionStatus.Completed;
-
-            if (ret.CustomerId.HasValue && ret.PointsRevoked > 0)
-            {
-                var loyalty = await _db.Set<CustomerLoyalty>().FirstOrDefaultAsync(l => l.CustomerId == ret.CustomerId, token);
-                if (loyalty != null)
-                {
-                    loyalty.PointsBalance += ret.PointsRevoked;
-                    loyalty.PointsValueSar = loyalty.PointsBalance * PosPricing.PointValueSar;
-                }
-            }
-
-            var creditNoteId = ret.CreditNoteInvoiceId;
-            _db.Remove(ret);
-            await _db.SaveChangesAsync(token);
-            if (creditNoteId.HasValue) await _invoices.DeleteSourceInvoiceAsync(creditNoteId.Value, token);
-        }, ct);
-
     public async Task<PagedResult<PosSalesReturnDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
     {
         var q = _db.Set<PosSalesReturn>().AsNoTracking().AsQueryable();

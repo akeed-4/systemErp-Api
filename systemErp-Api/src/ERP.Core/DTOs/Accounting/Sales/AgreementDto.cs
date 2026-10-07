@@ -19,4 +19,5 @@ public partial class AgreementDto
     public string? PartyNameEn { get; set; }
     public string Currency { get; set; } = "SAR";
     public List<AgreementItemDto> Items { get; set; } = new();
+    public List<AgreementPaymentDto> Payments { get; set; } = new();
 }

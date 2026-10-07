@@ -1,5 +1,6 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 
 namespace ERP.Service.Services.Shared;
 
@@ -7,10 +8,11 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
 {
     private readonly IAccountService _accounts;
     private readonly INumberSequenceService _numbers;
+    private readonly IAccountingPostingService _posting;
 
-    public SupplierService(ErpDbContext db, IAccountService accounts, INumberSequenceService numbers) : base(db)
+    public SupplierService(ErpDbContext db, IAccountService accounts, INumberSequenceService numbers, IAccountingPostingService posting) : base(db)
     {
-        _accounts = accounts; _numbers = numbers;
+        _accounts = accounts; _numbers = numbers; _posting = posting;
     }
 
     protected override string Label => Messages.PartySupplier;
@@ -37,6 +39,7 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("supplier", "SUP-");
         e.CurrentBalance = e.OpeningBalance;
         e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Supplier, e.Id, e.NameAr, e.NameEn, ct);
+        await OpeningBalances.ApplyAsync(_posting, Db, null, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: false, e.NameAr, e.Id, ct);
     }
 
     protected override async Task OnUpdatingAsync(Supplier e, UpdateSupplierDto d, CancellationToken ct)
@@ -45,6 +48,10 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
         e.AccountCode = o.GetValue<string>(nameof(Supplier.AccountCode));
         e.CurrentBalance = o.GetValue<decimal>(nameof(Supplier.CurrentBalance));
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = o.GetValue<string>(nameof(Supplier.Code));
+        // الرصيد الافتتاحي قيد في الدفاتر: تغييره يعكس قيده ويرحّل الجديد، والطرف القديم يُقيَّد افتتاحيه عند أول تعديل
+        e.OpeningEntryId = o.GetValue<Guid?>(nameof(Supplier.OpeningEntryId));
+        if (e.OpeningBalance != o.GetValue<decimal>(nameof(Supplier.OpeningBalance)) || (e.OpeningEntryId == null && e.OpeningBalance != 0))
+            await OpeningBalances.ApplyAsync(_posting, Db, e.OpeningEntryId, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: false, e.NameAr, e.Id, ct);
         var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
         if (acc != null) { acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn; }
     }

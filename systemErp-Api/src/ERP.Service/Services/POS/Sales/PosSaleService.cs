@@ -41,12 +41,13 @@ public class PosSaleService : IPosSaleService
 
             // 6) الدفع
             var (cash, card, mada, apple, change) = ResolvePayment(r, total, customer);
+            var method = EffectiveMethod(r.PaymentMethod, cash, card, mada, apple);
 
             // 6ب) دفع إلكتروني مكتمل عبر Paymob: يطابق الإجمالي ويُستهلك مرة واحدة
             OnlinePayment? online = null;
             if (r.OnlinePaymentId.HasValue)
             {
-                if (r.PaymentMethod is not (PosPaymentMethod.Card or PosPaymentMethod.Mada or PosPaymentMethod.ApplePay))
+                if (method is not (PosPaymentMethod.Card or PosPaymentMethod.Mada or PosPaymentMethod.ApplePay))
                     throw new ValidationFailedException(Messages.OnlinePaymentMethodValues);
                 online = await _db.Set<OnlinePayment>().FirstOrDefaultAsync(p => p.Id == r.OnlinePaymentId, token)
                     ?? throw new NotFoundException(Messages.OnlinePaymentNotFound);
@@ -63,6 +64,7 @@ public class PosSaleService : IPosSaleService
             var invoiceDto = new CreateInvoiceDto
             {
                 Kind = InvoiceKind.Sales, InvoiceType = standard ? InvoiceType.TaxInvoice : InvoiceType.Simplified,
+                WarehouseId = settings.WarehouseId,
                 PartyId = customer?.Id, PartyName = r.CustomerName ?? customer?.NameAr ?? "عميل نقدي POS",
                 PartyVatNumber = vat, PartyPhone = r.CustomerPhone ?? customer?.Phone,
                 InvoiceDiscount = couponDiscount + loyaltyDiscount, Status = "posted",
@@ -73,7 +75,7 @@ public class PosSaleService : IPosSaleService
                     Discount = lineDiscounts[i], VatRate = products[l.ItemId].VatRate,
                 }).ToList(),
             };
-            ApplyPaymentToInvoice(invoiceDto, r.PaymentMethod, cash, card + mada + apple, total);
+            ApplyPaymentToInvoice(invoiceDto, method, cash, card + mada + apple, total);
             if (online != null) invoiceDto.SettlementAccountCode = await OnlinePaymentService.SettlementAccountAsync(_db, token);
             var invoice = await _invoices.CreateAsync(invoiceDto, token);
 
@@ -87,7 +89,7 @@ public class PosSaleService : IPosSaleService
                 SubtotalBeforeVat = DocumentPricing.Round(lines.Select((l, i) => l.Quantity * products[l.ItemId].SellingPrice).Sum()),
                 CouponDiscount = couponDiscount, CouponCode = coupon?.Code, LoyaltyDiscount = loyaltyDiscount, LoyaltyPointsRedeemed = pointsUsed,
                 TotalDiscount = lineDiscounts.Sum() + couponDiscount + loyaltyDiscount,
-                VatAmount = priced.VatTotal, GrandTotal = total, PaymentMethod = r.PaymentMethod,
+                VatAmount = priced.VatTotal, GrandTotal = total, PaymentMethod = method,
                 PaidCash = cash, PaidCard = card, PaidMada = mada, PaidApplePay = apple, ChangeAmount = change,
                 PointsEarned = pointsEarned, QrCodeBase64 = invoice.ZatcaQrCode ?? string.Empty,
                 ZatcaStatus = invoice.ZatcaStatus, ZatcaUuid = invoice.Uuid.ToString(), InvoiceId = invoice.Id,
@@ -109,7 +111,7 @@ public class PosSaleService : IPosSaleService
 
             // 9) الوردية والكوبون والولاء
             shift.TotalCashSales += cash; shift.TotalCardSales += card; shift.TotalMadaSales += mada; shift.TotalApplePaySales += apple;
-            if (r.PaymentMethod == PosPaymentMethod.Credit) shift.TotalCreditSales += total;
+            if (method == PosPaymentMethod.Credit) shift.TotalCreditSales += total;
             shift.TotalDiscount += pos.TotalDiscount; shift.TotalVat += pos.VatAmount; shift.TotalGross += total;
             if (coupon != null) coupon.UsageCount++;
 
@@ -263,6 +265,15 @@ public class PosSaleService : IPosSaleService
         }
     }
 
+    /// <summary>«مقسّم» سُدِّد كله بطريقة واحدة هو دفع بتلك الطريقة: يُحفظ ويُرحَّل ويظهر في التقارير كذلك.</summary>
+    private static PosPaymentMethod EffectiveMethod(PosPaymentMethod requested, decimal cash, decimal card, decimal mada, decimal apple)
+    {
+        if (requested != PosPaymentMethod.Split) return requested;
+        var used = new[] { (PosPaymentMethod.Cash, cash), (PosPaymentMethod.Card, card), (PosPaymentMethod.Mada, mada), (PosPaymentMethod.ApplePay, apple) }
+            .Where(t => t.Item2 > 0).ToList();
+        return used.Count == 1 ? used[0].Item1 : PosPaymentMethod.Split;
+    }
+
     private static void ApplyPaymentToInvoice(CreateInvoiceDto dto, PosPaymentMethod method, decimal cash, decimal nonCash, decimal total)
     {
         switch (method)
@@ -279,45 +290,20 @@ public class PosSaleService : IPosSaleService
         }
     }
 
-    public Task<PosTransactionDto> UpdateAsync(Guid id, UpdatePosTransactionRequestDto r, CancellationToken ct = default)
+    /// <summary>
+    /// إلغاء عملية بيع: الفاتورة الضريبية الصادرة لا تُحذف ولا تُعدَّل، فتُلغى بإشعار دائن كامل (قيد ومخزون معكوسان)
+    /// يردّ المبلغ بطرق الدفع نفسها، ويُسحب أثرها من الوردية والكوبون والولاء، وتبقى العملية في السجل «ملغاة».
+    /// </summary>
+    public Task<PosTransactionDto> VoidAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            if (string.IsNullOrWhiteSpace(r.CustomerName)) throw new ValidationFailedException(Messages.CustomerNameRequired);
             var t = await _db.Set<PosTransaction>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.TransactionNotFound);
-            if (t.Status == PosTransactionStatus.Voided) throw new ConflictException(Messages.VoidedTransactionNotEditable);
             var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == t.ShiftId, token);
             PosShiftRules.EnsureCanCorrect(shift, _user);
-            var vat = string.IsNullOrWhiteSpace(r.CustomerTaxNumber) ? null : r.CustomerTaxNumber.Trim();
-            if (t.InvoiceType == "standard" && vat == null) throw new ValidationFailedException(Messages.StandardInvoiceRequiresCustomerVat);
+            if (t.Status == PosTransactionStatus.Voided) throw new ConflictException(Messages.TransactionAlreadyVoided);
+            if (await _db.Set<PosSalesReturn>().AnyAsync(x => x.OriginalTransactionId == id, token))
+                throw new ConflictException(Messages.TransactionHasReturns);
 
-            t.CustomerName = r.CustomerName.Trim(); t.CustomerPhone = r.CustomerPhone; t.CustomerTaxNumber = vat;
-            if (t.InvoiceId.HasValue)
-            {
-                var inv = await _db.Set<Invoice>().FirstOrDefaultAsync(i => i.Id == t.InvoiceId, token);
-                if (inv != null) { inv.PartyName = t.CustomerName; inv.PartyPhone = t.CustomerPhone; inv.PartyVatNumber = vat; }
-            }
-            await _db.SaveChangesAsync(token);
-            return Mapper.Map<PosTransactionDto>(t);
-        }, ct);
-
-    public Task<PosTransactionDto> VoidAsync(Guid id, CancellationToken ct = default)
-        => _tx.RunAsync(async token => Mapper.Map<PosTransactionDto>(await ReverseAsync(id, remove: false, token)), ct);
-
-    public Task DeleteAsync(Guid id, CancellationToken ct = default)
-        => _tx.RunAsync(async token => { await ReverseAsync(id, remove: true, token); return 0; }, ct);
-
-    /// <summary>يعكس أثر المعاملة كلياً (فاتورة/قيد/مخزون/وردية/كوبون/ولاء) ثم يُبقيها ملغاة أو يحذفها.</summary>
-    private async Task<PosTransaction> ReverseAsync(Guid id, bool remove, CancellationToken token)
-    {
-        var t = await _db.Set<PosTransaction>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.TransactionNotFound);
-        var shift = await _db.Set<PosShift>().FirstAsync(s => s.Id == t.ShiftId, token);
-        PosShiftRules.EnsureCanCorrect(shift, _user);
-        if (t.Status == PosTransactionStatus.Voided && !remove) throw new ConflictException(Messages.TransactionAlreadyVoided);
-        if (await _db.Set<PosSalesReturn>().AnyAsync(x => x.OriginalTransactionId == id, token))
-            throw new ConflictException(Messages.TransactionHasReturns);
-
-        if (t.Status != PosTransactionStatus.Voided)
-        {
             shift.TotalCashSales -= t.PaidCash; shift.TotalCardSales -= t.PaidCard; shift.TotalMadaSales -= t.PaidMada; shift.TotalApplePaySales -= t.PaidApplePay;
             if (t.PaymentMethod == PosPaymentMethod.Credit) shift.TotalCreditSales -= t.GrandTotal;
             shift.TotalDiscount -= t.TotalDiscount; shift.TotalVat -= t.VatAmount; shift.TotalGross -= t.GrandTotal;
@@ -340,15 +326,16 @@ public class PosSaleService : IPosSaleService
                     loyalty.Tier = PosPricing.TierFor(loyalty.TotalPointsEarned);
                 }
             }
-        }
 
-        var invoiceId = t.InvoiceId;
-        t.Status = PosTransactionStatus.Voided; t.InvoiceId = null;
-        if (remove) _db.Remove(t);
-        await _db.SaveChangesAsync(token);
-        if (invoiceId.HasValue) await _invoices.DeleteSourceInvoiceAsync(invoiceId.Value, token);
-        return t;
-    }
+            t.Status = PosTransactionStatus.Voided;
+            await _db.SaveChangesAsync(token);
+            if (t.InvoiceId.HasValue)
+                await _invoices.CreateReturnAsync(new CreateReturnInvoiceRequestDto
+                {
+                    OriginalInvoiceId = t.InvoiceId.Value, ReturnReason = string.Format(Messages.PosVoidReturnReason, t.InvoiceNumber),
+                }, token);
+            return Mapper.Map<PosTransactionDto>(t);
+        }, ct);
 
     public async Task<PagedResult<PosTransactionDto>> ListAsync(Guid? shiftId, PaginationParams p, CancellationToken ct = default)
     {

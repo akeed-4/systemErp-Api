@@ -21,6 +21,10 @@ public class PaymobOptions
     public string PublicApiUrl { get; set; } = string.Empty;
     /// <summary>عنوان الواجهة (صفحة نتيجة الدفع بعد العودة من Paymob).</summary>
     public string FrontendUrl { get; set; } = string.Empty;
+    /// <summary>هل حساب Paymob الخاص بالمنصة مكتمل لاستقبال دفع الاشتراكات؟</summary>
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(SecretKey) && !string.IsNullOrWhiteSpace(PublicKey)
+        && !string.IsNullOrWhiteSpace(HmacSecret) && !string.IsNullOrWhiteSpace(IntegrationIds)
+        && !string.IsNullOrWhiteSpace(PublicApiUrl) && !string.IsNullOrWhiteSpace(FrontendUrl);
 }
 
 /// <summary>

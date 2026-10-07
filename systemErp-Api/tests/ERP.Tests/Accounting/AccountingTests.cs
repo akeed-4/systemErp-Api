@@ -192,31 +192,74 @@ public class AccountingTests : TestBase
     }
 
     [Fact]
-    public async Task Draft_invoice_has_no_financial_effect_until_posted_and_posted_delete_reverses_it()
+    public async Task Draft_invoice_has_no_effect_or_number_until_posted_and_a_posted_invoice_is_cancelled_only_by_a_return()
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         var draft = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
             items = new[] { new { itemId = product, quantity = 2, unitPrice = 100, vatRate = 15 } } });
         Assert.Equal("draft", draft.Data!["status"].S());
+        Assert.StartsWith("DRAFT-", draft.Data["invoiceNumber"].S()); // الرقم المتسلسل يُصرف عند الترحيل
         Assert.Equal(10, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         var id = draft.Data["id"].S();
+
+        // حذف مسودة لا يترك فجوة في تسلسل الفواتير
+        var discarded = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        Assert.Equal(200, (await api.Delete($"/invoices/{discarded.Data!["id"].S()}")).Status);
+
         var posted = await api.Post($"/invoices/{id}/post");
         Assert.Equal("posted", posted.Data!["status"].S());
+        var number = posted.Data["invoiceNumber"].S();
+        Assert.StartsWith("SINV-", number);
+        var next = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash",
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        Assert.Equal(long.Parse(number[5..]) + 1, long.Parse(next.Data!["invoiceNumber"].S()[5..]));
+        Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = next.Data["id"].S(), returnReason = "تجربة" })).Status);
         Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         Assert.Equal(409, (await api.Post($"/invoices/{id}/post")).Status); // لا يُرحَّل مرتين
-        Assert.Equal(200, (await api.Delete($"/invoices/{id}")).Status); // الحذف يعكس القيد والمخزون
+        // الفاتورة المرحّلة مستند صادر: لا تُحذف، وتُلغى بمرتجع كامل يعيد المخزون وتبقى في السجل
+        Assert.Equal(409, (await api.Delete($"/invoices/{id}")).Status);
+        Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = id, returnReason = "إلغاء" })).Status);
         Assert.Equal(10, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
-        Assert.Equal(404, (await api.Get($"/invoices/{id}")).Status);
+        Assert.Equal("posted", (await api.Get($"/invoices/{id}")).Data!["status"].S());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
-    public async Task Standard_tax_invoice_requires_the_buyer_vat_number()
+    public async Task Tax_invoice_requires_the_buyer_name_vat_number_and_national_address()
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
-        var r = await api.Post("/invoices", new { kind = "sales", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
-        Assert.Equal(400, r.Status);
+        object Invoice(string? name = null, string? vat = null, string? street = null, string? building = null, string? district = null, string? city = null,
+            string? postal = null, string? country = null, Guid? partyId = null) => new
+        {
+            kind = "sales", invoiceType = "tax_invoice", paymentMethod = "cash", partyId, partyName = name ?? "", partyVatNumber = vat, partyStreet = street,
+            partyBuildingNo = building, partyDistrict = district, partyCity = city, partyPostalCode = postal, partyCountry = country,
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } },
+        };
+        const string Vat = "300000000000003";
+
+        Assert.Equal(400, (await api.Post("/invoices", Invoice())).Status);
+        // رقم ضريبي بلا عنوان وطني: مرفوضة
+        Assert.Equal(400, (await api.Post("/invoices", Invoice("شركة المشتري", Vat))).Status);
+        // رقم مبنى ليس 4 أرقام
+        Assert.Equal(400, (await api.Post("/invoices", Invoice("شركة المشتري", Vat, "طريق الملك فهد", "12", "العليا", "الرياض", "12211"))).Status);
+
+        var full = await api.Post("/invoices", Invoice("شركة المشتري", Vat, "طريق الملك فهد", "1234", "العليا", "الرياض", "12211"));
+        Assert.Equal(201, full.Status);
+        Assert.Equal("SA", full.Data!["partyCountry"].S());
+
+        // العنوان يُؤخذ من بطاقة العميل
+        var customer = await api.Post("/customers", new { nameAr = "عميل منشأة", phone = "050", vatNumber = Vat, street = "شارع التحلية", buildingNo = "4321",
+            district = "السليمانية", city = "الرياض", postalCode = "12345", creditLimit = 1000, creditPeriodDays = 30, status = "active" });
+        Assert.Equal(201, customer.Status);
+        var fromCard = await api.Post("/invoices", Invoice(partyId: customer.Data!["id"].G()));
+        Assert.Equal(201, fromCard.Status);
+        Assert.Equal("4321", fromCard.Data!["partyBuildingNo"].S());
+
+        // مشترٍ خارج المملكة: لا رقم ضريبي سعودي ولا عنوان وطني، يكفي الاسم والشارع والمدينة
+        Assert.Equal(201, (await api.Post("/invoices", Invoice("Gulf Trading LLC", street: "Sheikh Zayed Rd", city: "Dubai", country: "AE"))).Status);
     }
 
     // ---------- المستندات التجارية ----------

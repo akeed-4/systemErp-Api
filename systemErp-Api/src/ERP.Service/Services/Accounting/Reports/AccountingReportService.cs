@@ -91,7 +91,7 @@ public class AccountingReportService : IAccountingReportService
     public async Task<FinancialStatsDto> GetFinancialStatsAsync(CancellationToken ct = default)
     {
         var invoices = await _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted")
-            .Select(i => new { i.Kind, i.Subtotal, i.TotalCost }).ToListAsync(ct);
+            .Select(i => new { i.Kind, Subtotal = i.Subtotal * i.ExchangeRate, i.TotalCost }).ToListAsync(ct); // بالعملة الأساسية
         var sales = invoices.Where(i => i.Kind == InvoiceKind.Sales).Sum(i => i.Subtotal) - invoices.Where(i => i.Kind == InvoiceKind.SalesReturn).Sum(i => i.Subtotal);
         var purchases = invoices.Where(i => i.Kind == InvoiceKind.Purchase).Sum(i => i.Subtotal) - invoices.Where(i => i.Kind == InvoiceKind.PurchaseReturn).Sum(i => i.Subtotal);
         var cogs = invoices.Where(i => i.Kind == InvoiceKind.Sales).Sum(i => i.TotalCost) - invoices.Where(i => i.Kind == InvoiceKind.SalesReturn).Sum(i => i.TotalCost);
@@ -115,21 +115,112 @@ public class AccountingReportService : IAccountingReportService
         };
     }
 
+    public async Task<BalanceSheetDto> GetBalanceSheetAsync(DateTime? asOf, CancellationToken ct = default)
+    {
+        var date = (asOf ?? DateTime.UtcNow).Date;
+        var end = date.AddDays(1);
+        var movements = await (from l in _db.Set<JournalEntryLine>().AsNoTracking()
+                               join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
+                               where e.Date < end
+                               group l by l.AccountCode into g
+                               select new { Code = g.Key, Net = g.Sum(x => x.Debit) - g.Sum(x => x.Credit) }).ToListAsync(ct);
+        var accounts = await _db.Set<Account>().AsNoTracking().ToDictionaryAsync(a => a.Code, ct);
+
+        var sheet = new BalanceSheetDto { AsOf = date };
+        foreach (var m in movements.Where(m => m.Net != 0 && accounts.ContainsKey(m.Code)).OrderBy(m => m.Code))
+        {
+            var account = accounts[m.Code];
+            BalanceSheetLineDto Line(decimal amount) => new() { AccountCode = account.Code, NameAr = account.NameAr, NameEn = account.NameEn, Amount = amount };
+            switch (account.Type)
+            {
+                case AccountCategory.Asset: sheet.Assets.Add(Line(m.Net)); break;
+                case AccountCategory.Liability: sheet.Liabilities.Add(Line(-m.Net)); break;
+                case AccountCategory.Equity: sheet.Equity.Add(Line(-m.Net)); break;
+                default: sheet.NetProfit -= m.Net; break; // إيراد دائن يزيد النتيجة ومصروف مدين ينقصها
+            }
+        }
+        sheet.TotalAssets = sheet.Assets.Sum(l => l.Amount);
+        sheet.TotalLiabilities = sheet.Liabilities.Sum(l => l.Amount);
+        sheet.TotalEquity = sheet.Equity.Sum(l => l.Amount);
+        sheet.TotalLiabilitiesAndEquity = sheet.TotalLiabilities + sheet.TotalEquity + sheet.NetProfit;
+        sheet.IsBalanced = Math.Abs(sheet.TotalAssets - sheet.TotalLiabilitiesAndEquity) < 0.01m;
+        return sheet;
+    }
+
+    /// <summary>
+    /// تسويات الضريبة بقيود يدوية في الفترة: ما قُيِّد يدوياً على حسابي ضريبة المخرجات والمدخلات.
+    /// قيد سداد الضريبة للهيئة أو مقاصّتها ليس تسوية: يُعرف بأن سطوره الأخرى كلها نقدية/بنوك أو حسابات ضريبة، فيُستثنى.
+    /// </summary>
+    private async Task<(decimal Output, decimal Input)> ManualVatAdjustmentsAsync(DateTime start, DateTime end, CancellationToken ct)
+    {
+        var vatAccounts = new[] { DefaultAccounts.OutputVat, DefaultAccounts.InputVat };
+        // القيد اليدوي وعكسه (العكس يُلغي أثر التسوية في فترته)
+        var entries = _db.Set<JournalEntry>().AsNoTracking();
+        var entryIds = await (from l in _db.Set<JournalEntryLine>().AsNoTracking()
+                              join e in entries on l.JournalEntryId equals e.Id
+                              where e.Date >= start && e.Date < end && vatAccounts.Contains(l.AccountCode)
+                                    && (e.SourceType == null || e.SourceType == "manual"
+                                        || (e.SourceType == "reversal" && entries.Any(o => o.Id == e.SourceReferenceId && (o.SourceType == null || o.SourceType == "manual"))))
+                              select e.Id).Distinct().ToListAsync(ct);
+        if (entryIds.Count == 0) return (0, 0);
+
+        var entryLines = await _db.Set<JournalEntryLine>().AsNoTracking().Where(l => entryIds.Contains(l.JournalEntryId))
+            .Select(l => new { l.JournalEntryId, l.AccountCode, l.Debit, l.Credit }).ToListAsync(ct);
+        decimal output = 0, input = 0;
+        foreach (var entry in entryLines.GroupBy(l => l.JournalEntryId))
+        {
+            var others = entry.Where(l => !vatAccounts.Contains(l.AccountCode)).ToList();
+            if (others.All(l => l.AccountCode.StartsWith(DefaultAccounts.Banks))) continue; // سداد للهيئة/استرداد منها أو مقاصّة بين الحسابين
+            output += entry.Where(l => l.AccountCode == DefaultAccounts.OutputVat).Sum(l => l.Credit - l.Debit);
+            input += entry.Where(l => l.AccountCode == DefaultAccounts.InputVat).Sum(l => l.Debit - l.Credit);
+        }
+        return (DocumentPricing.Round(output), DocumentPricing.Round(input));
+    }
+
     public async Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, CancellationToken ct = default)
     {
         if (to < from) throw new ValidationFailedException(Messages.PeriodEndBeforeStart);
-        var inv = await _db.Set<Invoice>().AsNoTracking()
-            .Where(i => i.Status == "posted" && i.IssueDate >= from && i.IssueDate <= to)
-            .Select(i => new { i.Kind, i.Subtotal, i.VatTotal }).ToListAsync(ct);
-        var sSales = inv.Where(i => i.Kind == InvoiceKind.Sales).ToList(); var sRet = inv.Where(i => i.Kind == InvoiceKind.SalesReturn).ToList();
-        var pPur = inv.Where(i => i.Kind == InvoiceKind.Purchase).ToList(); var pRet = inv.Where(i => i.Kind == InvoiceKind.PurchaseReturn).ToList();
-        var outVat = sSales.Sum(i => i.VatTotal) - sRet.Sum(i => i.VatTotal);
-        var inVat = pPur.Sum(i => i.VatTotal) - pRet.Sum(i => i.VatTotal);
+        // من سطور الفواتير المرحّلة في الفترة: كل سطر بتصنيفه الضريبي، محوَّلاً للعملة الأساسية، والمرتجعات تُطرح
+        var start = from.Date; var end = to.Date.AddDays(1);
+        var lines = await (from item in _db.Set<InvoiceItem>().AsNoTracking()
+                           join i in _db.Set<Invoice>().AsNoTracking() on item.InvoiceId equals i.Id
+                           where i.Status == "posted" && i.IssueDate >= start && i.IssueDate < end
+                           select new { i.Kind, i.ExchangeRate, item.VatCategory, item.VatExemptionReasonCode, item.TotalBeforeVat, item.VatAmount }).ToListAsync(ct);
+
+        // exports: null = لا تمييز، true = الصادرات فقط، false = ما عداها
+        decimal Sum(bool sales, VatCategory? category, bool vat, bool? exports = null)
+        {
+            decimal total = 0;
+            foreach (var l in lines)
+            {
+                var isSales = l.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
+                if (isSales != sales || (category.HasValue && l.VatCategory != category)) continue;
+                if (exports.HasValue && VatExemptionReasons.ExportCodes.Contains(l.VatExemptionReasonCode) != exports) continue;
+                var sign = l.Kind is InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn ? -1 : 1;
+                total += sign * (vat ? l.VatAmount : l.TotalBeforeVat) * (l.ExchangeRate <= 0 ? 1 : l.ExchangeRate);
+            }
+            return DocumentPricing.Round(total);
+        }
+
+        // مصروفات وإيرادات مباشرة بضريبة مسجَّلة بسندات صرف/قبض (خاضعة للنسبة الأساسية)
+        var vouchers = await _db.Set<Voucher>().AsNoTracking().Where(v => v.VatAmount > 0 && v.Date >= start && v.Date < end)
+            .Select(v => new { v.Type, v.Amount, v.VatAmount }).ToListAsync(ct);
+        decimal VoucherNet(VoucherType type) => vouchers.Where(v => v.Type == type).Sum(v => v.Amount - v.VatAmount);
+        decimal VoucherVat(VoucherType type) => vouchers.Where(v => v.Type == type).Sum(v => v.VatAmount);
+
+        var (outAdjustments, inAdjustments) = await ManualVatAdjustmentsAsync(start, end, ct);
+        var outVat = Sum(true, null, vat: true) + VoucherVat(VoucherType.Receipt) + outAdjustments;
+        var inVat = Sum(false, null, vat: true) + VoucherVat(VoucherType.Payment) + inAdjustments;
         return new VatReturnDto
         {
             FromDate = from, ToDate = to,
-            StandardRatedSales = sSales.Sum(i => i.Subtotal) - sRet.Sum(i => i.Subtotal), OutputVat = outVat,
-            StandardRatedPurchases = pPur.Sum(i => i.Subtotal) - pRet.Sum(i => i.Subtotal), InputVat = inVat,
+            StandardRatedSales = Sum(true, VatCategory.Standard, false) + VoucherNet(VoucherType.Receipt), ZeroRatedSales = Sum(true, VatCategory.ZeroRated, false, exports: false),
+            ExportSales = Sum(true, VatCategory.ZeroRated, false, exports: true),
+            ExemptSales = Sum(true, VatCategory.Exempt, false), OutOfScopeSales = Sum(true, VatCategory.OutOfScope, false),
+            OutputVat = outVat, OutputVatAdjustments = outAdjustments,
+            StandardRatedPurchases = Sum(false, VatCategory.Standard, false) + VoucherNet(VoucherType.Payment), ZeroRatedPurchases = Sum(false, VatCategory.ZeroRated, false),
+            ExemptPurchases = Sum(false, VatCategory.Exempt, false), OutOfScopePurchases = Sum(false, VatCategory.OutOfScope, false),
+            InputVat = inVat, InputVatAdjustments = inAdjustments,
             NetVatPayable = outVat - inVat,
         };
     }

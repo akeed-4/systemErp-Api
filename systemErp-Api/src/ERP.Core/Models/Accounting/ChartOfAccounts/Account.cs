@@ -16,6 +16,8 @@ public class Account : BaseEntity
     public LinkedEntityType? LinkedEntityType { get; set; }
     public Guid? LinkedEntityId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>رمز تزامن (rowversion): ترحيلان متزامنان على الحساب نفسه لا يُضيِّع أحدهما أثر الآخر على الرصيد.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public virtual ICollection<Account> Children { get; set; } = new List<Account>();
 }

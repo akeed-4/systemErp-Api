@@ -37,7 +37,7 @@ public class OnlinePaymentService : IOnlinePaymentService
         var customer = await _db.Set<Customer>().AsNoTracking().FirstAsync(c => c.Id == inv.PartyId, ct);
         if (string.IsNullOrWhiteSpace(customer.AccountCode)) throw new ValidationFailedException(Messages.CustomerNotLinkedToAccount);
 
-        var outstanding = await OutstandingAsync(inv, ct);
+        var outstanding = await InvoiceBalances.DueAsync(_db, inv.Id, ct);
         if (outstanding <= 0) throw new ConflictException(Messages.InvoiceFullyPaid);
         var amount = DocumentPricing.Round(r.Amount ?? outstanding);
         if (amount <= 0 || amount > outstanding) throw new ValidationFailedException(string.Format(Messages.AmountRange, outstanding));
@@ -128,6 +128,7 @@ public class OnlinePaymentService : IOnlinePaymentService
         {
             Status = p.Status, Amount = p.Amount, Currency = p.Currency, Description = p.Description,
             ReferenceNumber = p.ReferenceNumber, CompanyName = company ?? string.Empty,
+            Purpose = p.Purpose, FailureReason = p.FailureReason,
         };
     }
 
@@ -183,19 +184,25 @@ public class OnlinePaymentService : IOnlinePaymentService
                 return;
             }
 
-            p.Status = OnlinePaymentStatus.Paid;
-            p.PaidAt = DateTime.UtcNow;
             if (obj.TryGetProperty("source_data", out var src) && src.ValueKind == JsonValueKind.Object)
             {
                 p.CardBrand = src.TryGetProperty("sub_type", out var st) ? st.ToString() : null;
                 var pan = src.TryGetProperty("pan", out var pn) ? pn.ToString() : string.Empty;
                 p.CardLast4 = pan.Length >= 4 ? pan[^4..] : null;
             }
-            await _db.SaveChangesAsync(token);
-            await ApplyEffectAsync(p, token);
-            await _db.SaveChangesAsync(token);
+            await MarkPaidAsync(p, token);
         }, ct);
         return true;
+    }
+
+    /// <summary>يثبّت الدفع الناجح وينفّذ أثره (ضمن معاملة المتصل).</summary>
+    private async Task MarkPaidAsync(OnlinePayment p, CancellationToken ct)
+    {
+        p.Status = OnlinePaymentStatus.Paid;
+        p.PaidAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        await ApplyEffectAsync(p, ct);
+        await _db.SaveChangesAsync(ct);
     }
 
     /// <summary>أثر الدفع الناجح حسب الغرض.</summary>
@@ -215,16 +222,22 @@ public class OnlinePaymentService : IOnlinePaymentService
                     PaymentMethod = "bank_card", ReferenceNumber = inv.InvoiceNumber,
                     Notes = $"تحصيل إلكتروني عبر Paymob للفاتورة {inv.InvoiceNumber} (عملية {p.ProviderTransactionId})",
                     ReceivedOrPaidBy = "Paymob",
+                    Allocations = new() { new VoucherAllocationDto { InvoiceId = inv.Id, Amount = p.Amount } },
                 }, ct);
                 p.VoucherId = voucher.Id;
                 break;
             }
             case OnlinePaymentPurpose.Subscription:
             {
-                foreach (var s in await _db.Set<Subscription>().Where(s => s.Status == SubscriptionStatus.Active).ToListAsync(ct))
-                    s.Status = SubscriptionStatus.Expired;
+                var open = await _db.Set<Subscription>()
+                    .Where(s => s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.Trial).ToListAsync(ct);
+                // السداد قبل نهاية الفترة التجريبية لا يُضيِّع ما بقي منها: تُضاف أيامها الباقية إلى المدة المدفوعة
+                var trialEnd = open.Where(s => s.Status == SubscriptionStatus.Trial && s.ExpiryDate > DateTime.UtcNow)
+                    .Select(s => (DateTime?)s.ExpiryDate).Max();
+                foreach (var s in open) s.Status = SubscriptionStatus.Expired;
                 var sub = SubscriptionCatalog.NewSubscription(await SubscriptionCatalog.GetAsync(_db, p.PlanId!.Value, forSale: false, ct), p.BillingCycle!.Value, "Paymob");
                 sub.TransactionReference = p.ProviderTransactionId?.ToString() ?? p.SpecialReference;
+                if (trialEnd.HasValue) sub.ExpiryDate += trialEnd.Value - sub.StartDate;
                 _db.Add(sub);
                 p.ReferenceId = sub.Id;
                 break;
@@ -277,7 +290,9 @@ public class OnlinePaymentService : IOnlinePaymentService
     private PaymobCredentials PlatformCredentials()
     {
         var ids = ParseIds(_platform.IntegrationIds);
-        if (string.IsNullOrWhiteSpace(_platform.SecretKey) || string.IsNullOrWhiteSpace(_platform.PublicKey) || ids.Count == 0)
+        // بلا مفتاح HMAC لا يُقبل أي إشعار، فيُخصم من العميل ولا يُفعَّل اشتراكه
+        if (string.IsNullOrWhiteSpace(_platform.SecretKey) || string.IsNullOrWhiteSpace(_platform.PublicKey)
+            || string.IsNullOrWhiteSpace(_platform.HmacSecret) || ids.Count == 0)
             throw new ConflictException(Messages.SubscriptionPaymentsNotConfigured);
         return new PaymobCredentials(_platform.BaseUrl, _platform.SecretKey, _platform.PublicKey, _platform.HmacSecret, ids);
     }
@@ -291,13 +306,6 @@ public class OnlinePaymentService : IOnlinePaymentService
             ?? DefaultAccounts.PaymentGatewayReceivable;
         if (code == DefaultAccounts.PaymentGatewayReceivable) await DefaultAccounts.EnsureAsync(db, ct, code);
         return code;
-    }
-
-    private async Task<decimal> OutstandingAsync(Invoice inv, CancellationToken ct)
-    {
-        var receipts = await _db.Set<Voucher>().AsNoTracking()
-            .Where(v => v.Type == VoucherType.Receipt && v.ReferenceNumber == inv.InvoiceNumber).SumAsync(v => (decimal?)v.Amount, ct) ?? 0;
-        return DocumentPricing.Round(inv.GrandTotal - receipts);
     }
 
     private static List<long> ParseIds(string? csv)

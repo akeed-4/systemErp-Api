@@ -11,7 +11,20 @@ public class InventoryReportService : IInventoryReportService
     private readonly ErpDbContext _db;
     public InventoryReportService(ErpDbContext db) => _db = db;
 
-    private static int Sign(StockMovementType t) => t is StockMovementType.InPurchase or StockMovementType.AdjustmentIn ? 1 : -1;
+    // على مستوى المنشأة التحويل بين المستودعات أثره صفر؛ وعلى مستوى مستودع بعينه هو وارد أو صادر
+    private static int Sign(StockMovementType t, bool warehouseLevel = false) => t switch
+    {
+        StockMovementType.InPurchase or StockMovementType.AdjustmentIn => 1,
+        StockMovementType.TransferIn => warehouseLevel ? 1 : 0,
+        StockMovementType.TransferOut => warehouseLevel ? -1 : 0,
+        _ => -1,
+    };
+
+    private IQueryable<StockMovement> Movements(ReportQueryDto q)
+    {
+        var m = _db.Set<StockMovement>().AsNoTracking().AsQueryable();
+        return q.WarehouseId.HasValue ? m.Where(x => x.WarehouseId == q.WarehouseId) : m;
+    }
     private static bool IsReturnRef(string r) => r.StartsWith("SRET-") || r.StartsWith("PRET-");
 
     private IQueryable<Product> ProductsQuery(ReportQueryDto q)
@@ -23,23 +36,35 @@ public class InventoryReportService : IInventoryReportService
     }
 
     public async Task<List<InventoryAuditRowDto>> GetInventoryAuditAsync(ReportQueryDto q, CancellationToken ct = default)
-        => (await ProductsQuery(q).OrderBy(p => p.Sku).ToListAsync(ct)).Select(p => new InventoryAuditRowDto
+    {
+        // لمستودع بعينه: الكمية رصيده فيه، بالتكلفة الموحّدة للصنف
+        var inWarehouse = q.WarehouseId.HasValue
+            ? await _db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == q.WarehouseId).ToDictionaryAsync(s => s.ItemId, s => s.Quantity, ct)
+            : null;
+        return (await ProductsQuery(q).OrderBy(p => p.Sku).ToListAsync(ct)).Select(p =>
         {
-            ItemId = p.Id, Sku = p.Sku, Barcode = p.Barcode, ItemName = p.NameAr, Category = p.Category, Unit = p.Unit,
-            SystemQuantity = p.CurrentStock, AverageUnitCost = p.AverageCost, SystemValuation = Math.Round(p.CurrentStock * p.AverageCost, 2),
+            var quantity = inWarehouse == null ? p.CurrentStock : inWarehouse.GetValueOrDefault(p.Id);
+            return new InventoryAuditRowDto
+            {
+                ItemId = p.Id, Sku = p.Sku, Barcode = p.Barcode, ItemName = p.NameAr, Category = p.Category, Unit = p.Unit,
+                SystemQuantity = quantity, AverageUnitCost = p.AverageCost, SystemValuation = Math.Round(quantity * p.AverageCost, 2),
+            };
         }).ToList();
+    }
 
     public async Task<List<ItemMovementSummaryRowDto>> GetItemMovementsAsync(ReportQueryDto q, CancellationToken ct = default)
     {
         var products = await ProductsQuery(q).OrderBy(p => p.Sku).ToListAsync(ct);
         var ids = products.Select(p => p.Id).ToList();
-        var movements = (await _db.Set<StockMovement>().AsNoTracking().Where(m => ids.Contains(m.ItemId)).ToListAsync(ct))
+        var movements = (await Movements(q).Where(m => ids.Contains(m.ItemId)).ToListAsync(ct))
             .GroupBy(m => m.ItemId).ToDictionary(g => g.Key, g => g.ToList());
+        var byWarehouse = q.WarehouseId.HasValue;
+        int Signed(StockMovementType t) => Sign(t, byWarehouse);
 
         return products.Select(p =>
         {
             var list = movements.GetValueOrDefault(p.Id) ?? new();
-            var before = list.Where(m => q.DateFrom.HasValue && m.Date < q.DateFrom).Sum(m => Sign(m.Type) * m.Quantity);
+            var before = list.Where(m => q.DateFrom.HasValue && m.Date < q.DateFrom).Sum(m => Signed(m.Type) * m.Quantity);
             var inPeriod = list.Where(m => (!q.DateFrom.HasValue || m.Date >= q.DateFrom) && (!q.DateTo.HasValue || m.Date <= q.DateTo)).ToList();
             return new ItemMovementSummaryRowDto
             {
@@ -48,8 +73,8 @@ public class InventoryReportService : IInventoryReportService
                 PurchaseInQty = inPeriod.Where(m => m.Type == StockMovementType.InPurchase).Sum(m => m.Quantity),
                 SalesOutQty = inPeriod.Where(m => m.Type == StockMovementType.OutSales).Sum(m => m.Quantity),
                 ReturnsQty = inPeriod.Where(m => IsReturnRef(m.ReferenceNumber)).Sum(m => m.Quantity),
-                ClosingStock = before + inPeriod.Sum(m => Sign(m.Type) * m.Quantity),
-                AverageCost = p.AverageCost, TotalStockValue = Math.Round((before + inPeriod.Sum(m => Sign(m.Type) * m.Quantity)) * p.AverageCost, 2),
+                ClosingStock = before + inPeriod.Sum(m => Signed(m.Type) * m.Quantity),
+                AverageCost = p.AverageCost, TotalStockValue = Math.Round((before + inPeriod.Sum(m => Signed(m.Type) * m.Quantity)) * p.AverageCost, 2),
             };
         }).ToList();
     }
@@ -57,14 +82,15 @@ public class InventoryReportService : IInventoryReportService
     public async Task<List<DetailedItemLedgerEntryDto>> GetItemLedgerAsync(ReportQueryDto q, CancellationToken ct = default)
     {
         if (!q.ItemId.HasValue) throw new ValidationFailedException(Messages.SelectItemForItemCard);
-        var all = await _db.Set<StockMovement>().AsNoTracking().Where(m => m.ItemId == q.ItemId)
+        var all = await Movements(q).Where(m => m.ItemId == q.ItemId)
             .OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToListAsync(ct);
 
         decimal qty = 0, value = 0;
         var rows = new List<DetailedItemLedgerEntryDto>();
         foreach (var m in all)
         {
-            var sign = Sign(m.Type);
+            var sign = Sign(m.Type, q.WarehouseId.HasValue);
+            if (sign == 0) continue;
             qty += sign * m.Quantity;
             value += sign * m.Quantity * m.UnitCost;
             if ((q.DateFrom.HasValue && m.Date < q.DateFrom) || (q.DateTo.HasValue && m.Date > q.DateTo)) continue;

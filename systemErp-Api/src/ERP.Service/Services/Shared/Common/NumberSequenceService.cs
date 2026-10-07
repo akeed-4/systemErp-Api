@@ -26,7 +26,7 @@ public class NumberSequenceService : INumberSequenceService
                 await _db.SaveChangesAsync(ct);
                 return $"{seq.Prefix}{seq.LastValue.ToString().PadLeft(seq.Padding, '0')}";
             }
-            catch (DbUpdateConcurrencyException)
+            catch (DbUpdateConcurrencyException ex) when (ex.Entries.Any(e => e.Entity is NumberSequence))
             {
                 _db.Entry(seq).State = EntityState.Detached; // تزامن: أعد المحاولة بقيمة محدَّثة
             }

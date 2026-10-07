@@ -13,6 +13,8 @@ public interface IAccountingReportService
     Task<FinancialSummaryDto> GetFinancialSummaryAsync(CancellationToken ct = default);
     Task<FinancialStatsDto> GetFinancialStatsAsync(CancellationToken ct = default);
     Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, CancellationToken ct = default);
+    /// <summary>قائمة المركز المالي حتى تاريخ (فارغ = اليوم) من سطور القيود.</summary>
+    Task<BalanceSheetDto> GetBalanceSheetAsync(DateTime? asOf, CancellationToken ct = default);
     // ---- نسخ DevExtreme (filter / sort / group / summary / paging) ----
     Task<LoadResult> LoadTrialBalanceAsync(DateTime? from, DateTime? to, DataSourceLoadOptions options, CancellationToken ct = default);
     /// <summary>حركات الحساب (الصفوف) مع تحميل DevExtreme؛ ملخص الرصيد يأتي من GetAccountStatementAsync.</summary>

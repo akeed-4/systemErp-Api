@@ -48,10 +48,10 @@ public class VehicleInvoiceTests : TestBase
 
         // مركبة واردة من فاتورة لا تُحذف منفردة
         Assert.Equal(409, (await api.Delete($"/vehicles/{vehicles[0]!["id"].S()}")).Status);
-        // حذف الفاتورة يعكس الأثر ويحذف المركبات
-        Assert.Equal(200, (await api.Delete($"/invoices/{r.Data["id"].S()}")).Status);
-        Assert.Equal(0, (await api.Get("/vehicles")).Data!["totalCount"].D());
-        Assert.Equal(0, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
+        // الفاتورة المرحّلة لا تُحذف: المركبات ورصيد المخزون باقيان
+        Assert.Equal(409, (await api.Delete($"/invoices/{r.Data["id"].S()}")).Status);
+        Assert.Equal(3, (await api.Get("/vehicles")).Data!["totalCount"].D());
+        Assert.Equal(265000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class VehicleInvoiceTests : TestBase
     }
 
     [Fact]
-    public async Task Sales_invoice_sells_selected_vehicles_with_cogs_and_unposting_restores_them()
+    public async Task Sales_invoice_sells_selected_vehicles_with_cogs_and_posted_invoices_are_locked()
     {
         var api = await NewTenantAsync();
         var (supplier, _) = await SeedSupplierAsync(api);
@@ -127,13 +127,10 @@ public class VehicleInvoiceTests : TestBase
         Assert.Equal(400, (await api.Post("/invoices", Sale("posted", SaleLine(ids[0], 100000)))).Status);
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
-        // إلغاء الترحيل عبر الحذف يعيد المركبات متاحة
-        Assert.Equal(200, (await api.Delete($"/invoices/{s.Data["id"].S()}")).Status);
-        Assert.All((await api.Get("/vehicles")).Data!["items"]!.AsArray(), v => Assert.Equal("available", v!["status"].S()));
-        // فاتورة شراء لا تُلغى ترحيلها وسيارتها مباعة
-        var sold = await api.Post("/invoices", Sale("posted", SaleLine(ids[0], 100000)));
-        Assert.Equal(201, sold.Status);
+        // فاتورة البيع وفاتورة الشراء المرحّلتان لا تُحذفان، والمركبات تبقى مباعة
+        Assert.Equal(409, (await api.Delete($"/invoices/{s.Data["id"].S()}")).Status);
         Assert.Equal(409, (await api.Delete($"/invoices/{p.Data!["id"].S()}")).Status);
+        Assert.All((await api.Get("/vehicles")).Data!["items"]!.AsArray(), v => Assert.Equal("sold", v!["status"].S()));
     }
 
     private static decimal Side(System.Text.Json.Nodes.JsonNode journal, string code, string side)

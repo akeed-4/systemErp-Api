@@ -13,14 +13,12 @@ public class PosShiftService : IPosShiftService
     private readonly ICurrentUser _user;
     private readonly INumberSequenceService _numbers;
     private readonly ITransactionRunner _tx;
-    private readonly IPosSaleService _sales;
-    private readonly IPosSaleReturnService _returns;
     private readonly IAccountingPostingService _posting;
 
     public PosShiftService(ErpDbContext db, ICurrentUser user, INumberSequenceService numbers, ITransactionRunner tx,
-        IPosSaleService sales, IPosSaleReturnService returns, IAccountingPostingService posting)
+        IAccountingPostingService posting)
     {
-        _db = db; _user = user; _numbers = numbers; _tx = tx; _sales = sales; _returns = returns; _posting = posting;
+        _db = db; _user = user; _numbers = numbers; _tx = tx; _posting = posting;
     }
 
     private Guid Me => _user.UserId ?? throw new UnauthorizedAppException();
@@ -212,15 +210,12 @@ public class PosShiftService : IPosShiftService
             var returnIds = await _db.Set<PosSalesReturn>().Where(x => x.ShiftId == id).Select(x => x.Id).ToListAsync(token);
             var saleIds = await _db.Set<PosTransaction>().Where(t => t.ShiftId == id).Select(t => t.Id).ToListAsync(token);
             var movements = await _db.Set<PosCashMovement>().Where(m => m.ShiftId == id).ToListAsync(token);
-            if (returnIds.Count + saleIds.Count + movements.Count > 0)
+            // وردية صدرت فيها فواتير أو مرتجعات لا تُحذف: مستنداتها الضريبية باقية ومرتبطة بها
+            if (returnIds.Count + saleIds.Count > 0) throw new ConflictException(Messages.ShiftWithSalesCannotBeDeleted);
+            if (movements.Count > 0)
             {
                 if (!cascade) throw new ConflictException(Messages.ShiftHasContentUseCascade);
                 if (!PosShiftRules.IsPrivileged(_user)) throw new ForbiddenException(Messages.DeleteShiftWithContentAdminOnly);
-                foreach (var rid in returnIds) await _returns.DeleteAsync(rid, token);
-                // مرتجعات أُنشئت على معاملات هذه الوردية من ورديات أخرى تُحذف أيضاً قبل المعاملة
-                var foreign = await _db.Set<PosSalesReturn>().Where(x => saleIds.Contains(x.OriginalTransactionId)).Select(x => x.Id).ToListAsync(token);
-                foreach (var rid in foreign) await _returns.DeleteAsync(rid, token);
-                foreach (var sid in saleIds) await _sales.DeleteAsync(sid, token);
             }
             var fresh = await _db.Set<PosShift>().FirstAsync(s => s.Id == id, token);
             foreach (var m in movements) await RemoveMovementAsync(m, fresh, token);

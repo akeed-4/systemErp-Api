@@ -17,4 +17,6 @@ public class Product : BaseEntity
     public decimal VatRate { get; set; } = 15m;
     public decimal MinStockLevel { get; set; }
     public string? Notes { get; set; }
+    /// <summary>رمز تزامن (rowversion): حركتان متزامنتان على الصنف نفسه لا تبيعان الرصيد مرتين ولا تُفسدان متوسط التكلفة.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

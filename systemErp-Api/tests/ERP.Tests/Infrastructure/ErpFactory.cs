@@ -37,6 +37,7 @@ public class ErpFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:AutoMigrate", "true");
         builder.UseSetting("Jwt:Key", "integration-tests-signing-key-0123456789abcdef");
         builder.UseSetting("Auth:ExposeOtpInResponse", "true");
+        builder.UseSetting("Auth:RateLimitPerMinute", "0"); // الاختبارات تسجّل مئات المنشآت من العنوان نفسه
         // Paymob: حساب المنصة للاشتراكات + روابط الإشعار؛ العميل الفعلي يُستبدل ببديل لا يتصل بالإنترنت
         builder.UseSetting("Paymob:SecretKey", "platform-secret");
         builder.UseSetting("Paymob:PublicKey", "platform-public");
@@ -85,6 +86,8 @@ public class Client
     public string? Token { get; private set; }
     public string Email { get; private set; } = string.Empty;
     public Guid TenantId { get; private set; }
+    /// <summary>استجابة تسجيل المنشأة (تحمل عملية دفع الاشتراك).</summary>
+    public Res? Registration { get; private set; }
     /// <summary>قيمة Accept-Language لطلبات هذا العميل (null = بدون ترويسة، فتُستخدم العربية الافتراضية).</summary>
     public string? Language { get; set; }
 
@@ -93,7 +96,11 @@ public class Client
     public static string NewVat() => "3" + Rng.NextInt64(0, 9_999_999_999_999).ToString("D13") + "3";
     public static string NewVin(char prefix) => prefix + "HGCM82633A" + Rng.Next(0, 999_999).ToString("D6");
 
-    public async Task<Client> RegisterAsync(string name = "شركة اختبار")
+    /// <summary>
+    /// يسجّل منشأة جديدة (تبدأ بفترة تجريبية مجانية) ثم يسدّد اشتراكها ليصير فعّالاً؛
+    /// <paramref name="pay"/> = false يُبقيها في الفترة التجريبية.
+    /// </summary>
+    public async Task<Client> RegisterAsync(string name = "شركة اختبار", bool pay = true)
     {
         Email = $"o{Guid.NewGuid():N}@test.com";
         var r = await SendAsync(HttpMethod.Post, "/auth/RegisterCompany", new
@@ -104,7 +111,19 @@ public class Client
         });
         Token = r.Body!["token"]!.GetValue<string>();
         TenantId = Guid.Parse(r.Body["tenantId"]!.GetValue<string>());
+        Registration = r;
+        if (pay) await PaySubscriptionAsync();
         return this;
+    }
+
+    /// <summary>يسدّد اشتراك المنشأة: عملية دفع ثم إشعار Paymob الموقَّع كما يصل في الإنتاج.</summary>
+    public async Task<Res> PaySubscriptionAsync(string planId = "professional", string billingCycle = "yearly", bool success = true)
+    {
+        var checkout = await Post("/payments/subscription", new { planId, billingCycle });
+        var payment = checkout.Data!;
+        var (body, hmac) = PaymobCallback.Signed(PaymobCallback.OrderIdOf(payment), payment["amount"].D(), FakePaymobClient.PlatformHmac, success);
+        await SendAsync(HttpMethod.Post, $"/payments/paymob/webhook?hmac={hmac}", body, anonymous: true);
+        return checkout;
     }
 
     public Task<Res> Get(string path) => SendAsync(HttpMethod.Get, path);

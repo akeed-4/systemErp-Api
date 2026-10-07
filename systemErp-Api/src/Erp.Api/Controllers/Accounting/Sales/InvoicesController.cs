@@ -27,6 +27,10 @@ public class InvoicesController : ErpControllerBase
         if (!await _permissions.HasPermissionAsync(ScreenFor(kind), action, ct)) throw new ForbiddenException();
     }
 
+    /// <summary>أسباب الإعفاء/الصفرية برموز هيئة الزكاة لاختيارها على سطر الفاتورة.</summary>
+    [HttpGet("VatExemptionReasons")]
+    public IActionResult VatExemptionReasons() => Success(ERP.Service.Services.Accounting.VatExemptionReasons.All);
+
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] InvoiceKind? kind, [FromQuery] PaginationParams q, [FromQuery] bool? hasVehicleLines, CancellationToken ct)
     {

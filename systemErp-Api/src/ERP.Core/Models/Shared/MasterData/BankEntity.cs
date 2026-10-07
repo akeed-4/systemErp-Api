@@ -13,6 +13,8 @@ public class BankEntity : BaseEntity
     public string Currency { get; set; } = "SAR";
     public decimal OpeningBalance { get; set; }
     public decimal CurrentBalance { get; set; }
+    /// <summary>قيد الرصيد الافتتاحي في الدفاتر؛ فارغ = بلا رصيد افتتاحي، أو طرف قديم لم يُقيَّد افتتاحيه بعد.</summary>
+    public Guid? OpeningEntryId { get; set; }
     public string? AccountCode { get; set; }
     public string Status { get; set; } = "active";
     public string? Notes { get; set; }

@@ -30,7 +30,10 @@ public class PublicPaymentStatusDto
     public string Description { get; set; } = string.Empty;
     public string? ReferenceNumber { get; set; }
     public string CompanyName { get; set; } = string.Empty;
+    public OnlinePaymentPurpose Purpose { get; set; }
+    public string? FailureReason { get; set; }
 }
+
 
 public class CreateInvoicePaymentLinkDto
 {

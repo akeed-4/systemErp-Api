@@ -1,5 +1,6 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 
 namespace ERP.Service.Services.Shared;
 
@@ -7,10 +8,11 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
 {
     private readonly IAccountService _accounts;
     private readonly INumberSequenceService _numbers;
+    private readonly IAccountingPostingService _posting;
 
-    public CustomerService(ErpDbContext db, IAccountService accounts, INumberSequenceService numbers) : base(db)
+    public CustomerService(ErpDbContext db, IAccountService accounts, INumberSequenceService numbers, IAccountingPostingService posting) : base(db)
     {
-        _accounts = accounts; _numbers = numbers;
+        _accounts = accounts; _numbers = numbers; _posting = posting;
     }
 
     protected override string Label => Messages.PartyCustomer;
@@ -38,6 +40,7 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("customer", "CUST-");
         e.CurrentBalance = e.OpeningBalance;
         e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Customer, e.Id, e.NameAr, e.NameEn, ct);
+        await OpeningBalances.ApplyAsync(_posting, Db, null, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
     }
 
     protected override async Task OnUpdatingAsync(Customer e, UpdateCustomerDto d, CancellationToken ct)
@@ -47,6 +50,10 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
         e.AccountCode = o.GetValue<string>(nameof(Customer.AccountCode));
         e.CurrentBalance = o.GetValue<decimal>(nameof(Customer.CurrentBalance));
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = o.GetValue<string>(nameof(Customer.Code));
+        // الرصيد الافتتاحي قيد في الدفاتر: تغييره يعكس قيده ويرحّل الجديد، والطرف القديم يُقيَّد افتتاحيه عند أول تعديل
+        e.OpeningEntryId = o.GetValue<Guid?>(nameof(Customer.OpeningEntryId));
+        if (e.OpeningBalance != o.GetValue<decimal>(nameof(Customer.OpeningBalance)) || (e.OpeningEntryId == null && e.OpeningBalance != 0))
+            await OpeningBalances.ApplyAsync(_posting, Db, e.OpeningEntryId, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
         await RenameLinkedAccountAsync(e.AccountCode, e.NameAr, e.NameEn, ct);
     }
 

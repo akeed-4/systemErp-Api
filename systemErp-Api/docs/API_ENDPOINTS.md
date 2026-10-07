@@ -252,6 +252,14 @@
 | DELETE | `/deliverynotes/returns/{id}` |
 | GET | `/deliverynotes/returns/{id}` |
 
+## FiscalPeriods
+
+| Method | Path |
+|---|---|
+| GET | `/fiscalperiods` |
+| PUT | `/fiscalperiods/lock` |
+| POST | `/fiscalperiods/close-year` |
+
 ## FixedAssets
 
 | Method | Path |
@@ -494,7 +502,6 @@
 |---|---|
 | GET | `/subscriptions/current` |
 | GET | `/subscriptions/plans` |
-| POST | `/subscriptions/upgrade` |
 
 ## Suppliers
 

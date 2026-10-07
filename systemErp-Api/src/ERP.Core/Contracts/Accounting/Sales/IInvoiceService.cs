@@ -11,14 +11,13 @@ public interface IInvoiceService
     Task<InvoiceDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>ينشئ فاتورة (بيع/شراء) ويحسب الضريبة والإجماليات ويرحّل القيد والمخزون ويولّد QR — كلها في معاملة واحدة.</summary>
     Task<InvoiceDto> CreateAsync(CreateInvoiceDto request, CancellationToken ct = default);
-    /// <summary>تعديل فاتورة (مسودة أو مرحّلة): المرحّلة يُعكس أثرها ثم تُرحَّل من جديد بنفس الرقم؛ status=draft يعيدها مسودة.</summary>
+    /// <summary>تعديل مسودة فقط (وترحيلها إن أُرسلت status=posted). الفاتورة المرحّلة مستند صادر مقفل: تُصحَّح بمرتجع.</summary>
     Task<InvoiceDto> UpdateAsync(Guid id, UpdateInvoiceDto request, CancellationToken ct = default);
-    /// <summary>حذف فاتورة أنشأتها وحدة أخرى بعد عكس أثرها؛ للاستدعاء من الوحدة المصدر فقط (مثل إلغاء عملية POS).</summary>
-    Task DeleteSourceInvoiceAsync(Guid id, CancellationToken ct = default);
+    /// <summary>مرتجع (إشعار دائن/مدين) كلي أو جزئي لفاتورة مرحّلة: الطريقة الوحيدة لإلغاء أثر فاتورة صادرة.</summary>
     Task<InvoiceDto> CreateReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
     /// <summary>يرحّل مسودة فاتورة: مخزون + قيد + QR.</summary>
     Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default);
-    /// <summary>حذف فاتورة: المسودة مباشرة، والمرحّلة بعد عكس قيدها ومخزونها (مع بقاء قيد العكس للتدقيق). يُرفض ما أُرسل لهيئة الزكاة أو له مرتجعات.</summary>
+    /// <summary>حذف مسودة فقط (رقمها مؤقت فلا فجوة في التسلسل). الفاتورة المرحّلة لا تُحذف.</summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default);
     /// <summary>معاينة القيد (مخزون/تكلفة إيرادات/ضريبة/دفع) الذي سيُنشأ عند ترحيل هذه الفاتورة — بلا أي أثر محفوظ.</summary>

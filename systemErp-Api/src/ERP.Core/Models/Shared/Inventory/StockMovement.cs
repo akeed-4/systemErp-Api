@@ -19,4 +19,8 @@ public class StockMovement : BaseEntity
     /// <summary>مصدر الحركة: manual (تسوية يدوية) | invoice | invoice_reversal | ... — الحركات اليدوية فقط تُعدَّل/تُحذف.</summary>
     public string? SourceType { get; set; }
     public Guid? SourceId { get; set; }
+    /// <summary>قيد التسوية اليدوية (مدين/دائن المخزون مقابل الحساب المقابل). حركات المستندات قيدها قيد مستندها.</summary>
+    public Guid? JournalEntryId { get; set; }
+    /// <summary>الحساب المقابل للتسوية اليدوية (فروقات الجرد افتراضياً، أو الأرصدة الافتتاحية لمخزون أول المدة).</summary>
+    public string? CounterAccountCode { get; set; }
 }

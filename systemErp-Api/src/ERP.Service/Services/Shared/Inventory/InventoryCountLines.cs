@@ -30,11 +30,12 @@ internal static class InventoryCountLines
     {
         var ids = count.Lines.Select(l => l.ItemId!.Value).Distinct().ToList();
         var products = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var onHand = await WarehouseQuantitiesAsync(db, count.WarehouseId, ct);
         foreach (var line in count.Lines)
         {
             var p = products.GetValueOrDefault(line.ItemId!.Value) ?? throw new ValidationFailedException(Messages.ItemNotFoundInCountLines);
             line.Sku = p.Sku; line.ItemName = p.NameAr; line.Unit = p.Unit;
-            line.SystemQuantity = p.CurrentStock;
+            line.SystemQuantity = onHand.GetValueOrDefault(p.Id);
             line.UnitCost = p.AverageCost;
             line.VarianceQuantity = line.CountedQuantity.HasValue ? line.CountedQuantity.Value - line.SystemQuantity : 0;
             line.VarianceValue = Math.Round(line.VarianceQuantity * line.UnitCost, 2);
@@ -89,6 +90,13 @@ internal static class InventoryCountLines
         count.NetVarianceValue = count.TotalSurplusValue - count.TotalShortageValue;
     }
 
+    /// <summary>أرصدة الأصناف في المستودع المجرود (الافتراضي عند عدم التحديد): الجرد يقارن بما في مستودعه لا بإجمالي المنشأة.</summary>
+    private static async Task<Dictionary<Guid, decimal>> WarehouseQuantitiesAsync(ErpDbContext db, Guid? warehouseId, CancellationToken ct)
+    {
+        var warehouse = await WarehouseStocks.ResolveAsync(db, warehouseId, ct);
+        return await db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == warehouse.Id).ToDictionaryAsync(s => s.ItemId, s => s.Quantity, ct);
+    }
+
     /// <summary>قائمة المتوقَّع من رصيد النظام الحالي لتجهيز جرد جديد.</summary>
     public static async Task<List<InventoryCountLineDto>> SnapshotAsync(ErpDbContext db, InventoryCountSnapshotRequestDto r, CancellationToken ct)
     {
@@ -96,10 +104,10 @@ internal static class InventoryCountLines
         {
             var q = db.Set<Product>().AsNoTracking();
             if (!string.IsNullOrWhiteSpace(r.Category)) q = q.Where(p => p.Category == r.Category);
-            if (!r.IncludeZeroStock) q = q.Where(p => p.CurrentStock != 0);
-            return (await q.OrderBy(p => p.Sku).ToListAsync(ct)).Select(p => new InventoryCountLineDto
+            var onHand = await WarehouseQuantitiesAsync(db, r.WarehouseId, ct);
+            return (await q.OrderBy(p => p.Sku).ToListAsync(ct)).Where(p => r.IncludeZeroStock || onHand.GetValueOrDefault(p.Id) != 0).Select(p => new InventoryCountLineDto
             {
-                ItemId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit, SystemQuantity = p.CurrentStock, UnitCost = p.AverageCost,
+                ItemId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit, SystemQuantity = onHand.GetValueOrDefault(p.Id), UnitCost = p.AverageCost,
             }).ToList();
         }
 

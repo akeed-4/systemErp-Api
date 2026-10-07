@@ -10,6 +10,8 @@ public class JournalEntryLine : BaseEntity
     public decimal Credit { get; set; }
     public string? Notes { get; set; }
     public Guid? CostCenterId { get; set; }
+    /// <summary>التسوية البنكية التي طابقت هذه الحركة مع كشف البنك (لحسابات النقدية والبنوك).</summary>
+    public Guid? BankReconciliationId { get; set; }
 
     public virtual JournalEntry JournalEntry { get; set; } = null!;
 }

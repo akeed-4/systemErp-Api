@@ -129,6 +129,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(o.PartyVatNumber) : InvoiceType.TaxInvoice,
                 PartyId = o.PartyId, PartyName = o.PartyName, PartyPhone = o.PartyPhone, PartyVatNumber = o.PartyVatNumber,
+                WarehouseId = o.WarehouseId,
                 PaymentMethod = o.PartyId.HasValue ? PaymentMethod.Credit : PaymentMethod.Cash, Status = "draft",
                 Notes = $"فاتورة محوّلة من أمر {o.OrderNumber}",
                 ReferenceType = o.Type, ReferenceId = o.Id, ReferenceNumber = o.OrderNumber,

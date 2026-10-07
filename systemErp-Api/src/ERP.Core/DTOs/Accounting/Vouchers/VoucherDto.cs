@@ -10,6 +10,8 @@ public partial class VoucherDto
     public VoucherType Type { get; set; }
     public DateTime Date { get; set; }
     public decimal Amount { get; set; }
+    /// <summary>ضريبة القيمة المضافة المتضمَّنة في المبلغ (لمصروف/إيراد مباشر، لا لسداد عميل أو مورد).</summary>
+    public decimal VatAmount { get; set; }
     public string AmountInWordsAr { get; set; } = string.Empty;
     public string PartyName { get; set; } = string.Empty;
     public string PartyAccountCode { get; set; } = string.Empty;
@@ -21,4 +23,6 @@ public partial class VoucherDto
     public Guid? JournalEntryId { get; set; }
     public string ReceivedOrPaidBy { get; set; } = string.Empty;
     public List<VoucherPaymentSplitDto> PaymentSplits { get; set; } = new();
+    /// <summary>توزيع السند على فواتير آجلة للطرف (سداد كلي أو جزئي)؛ الباقي دفعة مقدمة.</summary>
+    public List<VoucherAllocationDto> Allocations { get; set; } = new();
 }

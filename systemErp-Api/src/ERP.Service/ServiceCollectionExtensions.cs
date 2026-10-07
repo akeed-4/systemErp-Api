@@ -19,12 +19,14 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
 
-        services.AddDbContext<ErpDbContext>(options =>
+        services.AddScoped<AuditTrailInterceptor>();
+        services.AddDbContext<ErpDbContext>((provider, options) =>
         {
             if (configureDb != null) configureDb(options);
             else
                 options.UseSqlServer(config.GetConnectionString("DefaultConnection"),
                     sql => sql.MigrationsAssembly(typeof(ErpDbContext).Assembly.FullName));
+            options.AddInterceptors(provider.GetRequiredService<AuditTrailInterceptor>());
         });
 
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
@@ -32,7 +34,11 @@ public static class ServiceCollectionExtensions
         services.Configure<PlatformOptions>(config.GetSection(PlatformOptions.Section));
         services.Configure<EmailOptions>(config.GetSection(EmailOptions.Section));
         services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
-        services.AddDataProtection();
+        // مفاتيح تشفير أسرار بوابات الدفع: تُحفظ في مسار دائم (DataProtection:KeysPath) لتبقى صالحة بعد إعادة النشر،
+        // وباسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب. بلا المسار تبقى في ملف المستخدم على الخادم نفسه.
+        var dataProtection = services.AddDataProtection().SetApplicationName("ERP");
+        var keysPath = config["DataProtection:KeysPath"];
+        if (!string.IsNullOrWhiteSpace(keysPath)) dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();

@@ -27,8 +27,34 @@ public class AgreementService : CrudService<Agreement, AgreementDto, CreateAgree
         if (d.Items.Any(i => i.MinQuantity < 0 || i.MaxQuantity < 0 || (i.MaxQuantity > 0 && i.MaxQuantity < i.MinQuantity)))
             errors.Add(Messages.OrderMinMaxInvalid);
         if (d.Items.GroupBy(i => i.ItemId).Any(g => g.Count() > 1)) errors.Add(Messages.DuplicateItemInAgreement);
+        PreparePayments(d.Payments, errors);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// جدول السداد اختياري؛ إن وُجد فكل دفعة بنسبة موجبة ومجموع النسب 100% بالضبط.
+    /// الدفعات تُرقَّم 1..n بترتيب إرسالها، والدفعة غير المسمّاة تأخذ بياناً افتراضياً.
+    /// </summary>
+    private static void PreparePayments(List<AgreementPaymentDto> payments, List<string> errors)
+    {
+        if (payments.Count == 0) return;
+        if (payments.Any(p => p.Percentage <= 0 || p.Percentage > 100)) errors.Add(Messages.AgreementPaymentPercentageRange);
+        else if (payments.Sum(p => p.Percentage) != 100m) errors.Add(string.Format(Messages.AgreementPaymentsMustTotal100, payments.Sum(p => p.Percentage)));
+
+        for (var i = 0; i < payments.Count; i++)
+        {
+            payments[i].Sequence = i + 1;
+            payments[i].Description = string.IsNullOrWhiteSpace(payments[i].Description)
+                ? string.Format(Messages.AgreementPaymentDefaultName, i + 1) : payments[i].Description!.Trim();
+        }
+    }
+
+    protected override AgreementDto ToDto(Agreement e)
+    {
+        var dto = base.ToDto(e);
+        dto.Payments = dto.Payments.OrderBy(p => p.Sequence).ToList();
+        return dto;
     }
 
     protected override async Task OnCreatingAsync(Agreement e, CreateAgreementDto d, CancellationToken ct)

@@ -14,4 +14,6 @@ public class RecordStockMovementDto
     /// <summary>manual | invoice | invoice_reversal | ...</summary>
     public string? SourceType { get; set; }
     public Guid? SourceId { get; set; }
+    /// <summary>للتسوية اليدوية: الحساب المقابل لقيدها (فارغ = فروقات جرد المخزون).</summary>
+    public string? CounterAccountCode { get; set; }
 }

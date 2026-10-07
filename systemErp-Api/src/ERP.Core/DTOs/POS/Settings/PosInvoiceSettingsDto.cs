@@ -7,6 +7,8 @@ public partial class PosInvoiceSettingsDto
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public string DefaultInvoiceType { get; set; } = "simplified";
+    /// <summary>مستودع نقاط البيع الذي تُصرف منه المبيعات (فارغ = المستودع الافتراضي).</summary>
+    public Guid? WarehouseId { get; set; }
     public bool ShowCompanyLogo { get; set; } = true;
     public string HeaderTextAr { get; set; } = string.Empty;
     public string HeaderTextEn { get; set; } = string.Empty;

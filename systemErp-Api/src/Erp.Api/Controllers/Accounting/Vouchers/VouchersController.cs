@@ -9,7 +9,13 @@ namespace ERP.Api.Controllers.Accounting;
 public class VouchersController : ErpControllerBase
 {
     private readonly IVoucherService _vouchers;
-    public VouchersController(IVoucherService vouchers) => _vouchers = vouchers;
+    private readonly IPartyAgingService _aging;
+    public VouchersController(IVoucherService vouchers, IPartyAgingService aging) { _vouchers = vouchers; _aging = aging; }
+
+    /// <summary>الفواتير الآجلة المفتوحة لحساب عميل/مورد: يُوزَّع عليها السند عند السداد.</summary>
+    [HttpGet("OpenInvoices")]
+    public async Task<IActionResult> OpenInvoices([FromQuery] string partyAccountCode, CancellationToken ct)
+        => Success(await _aging.OpenInvoicesAsync(partyAccountCode, ct));
 
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _vouchers.ListAsync(q, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _vouchers.GetAsync(id, ct));

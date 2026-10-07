@@ -53,6 +53,10 @@ builder.Services.AddErpServices(builder.Configuration);
 var jwt = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>() ?? new JwtOptions();
 if (string.IsNullOrWhiteSpace(jwt.Key) || jwt.Key.Length < 32)
     throw new InvalidOperationException(Messages.JwtKeyNotConfigured);
+
+// حساب Paymob الخاص بالمنصة (اشتراكات المنشآت): مفاتيح وضع الاختبار في التطوير، والمفاتيح الحية في الإنتاج
+var paymob = builder.Configuration.GetSection(PaymobOptions.Section).Get<PaymobOptions>() ?? new PaymobOptions();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
@@ -79,6 +83,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// حدّ محاولات نقاط الهوية العامة (دخول، تسجيل منشأة، استعادة كلمة المرور) لكل عنوان IP في الدقيقة؛ 0 = بلا حد
+var authRateLimit = builder.Configuration.GetValue("Auth:RateLimitPerMinute", 20);
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(AuthRateLimit.Policy, http => authRateLimit <= 0
+        ? System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("unlimited")
+        : System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = authRateLimit, Window = TimeSpan.FromMinutes(1) }));
+});
+
 // CORS: أصول الواجهة المسموحة من الإعدادات فقط (Cors:Origins)
 var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
@@ -87,6 +102,18 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 }));
 
 var app = builder.Build();
+
+// خلف وسيط عكسي: عنوان العميل والبروتوكول الحقيقيان من ترويسات X-Forwarded-* (من الوسطاء الموثوقين فقط)
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto,
+});
+if (!app.Environment.IsDevelopment()) app.UseHsts();
+
+if (app.Environment.IsProduction() && string.IsNullOrWhiteSpace(app.Configuration["DataProtection:KeysPath"]))
+    app.Logger.LogWarning("DataProtection:KeysPath غير مضبوط: مفاتيح تشفير أسرار بوابات الدفع محفوظة على هذا الخادم فقط وتضيع عند نقله أو إعادة بنائه.");
+if (!paymob.IsConfigured)
+    app.Logger.LogWarning("إعدادات Paymob للمنصة ناقصة (SecretKey/PublicKey/HmacSecret/IntegrationIds/PublicApiUrl/FrontendUrl): سداد الاشتراكات (بعد الفترة التجريبية والتجديد) متوقف حتى تُستكمل.");
 
 // لغة الرسائل من Accept-Language (ar افتراضياً | en). تُضبط لغة الواجهة فقط (UICulture)، وتنسيق الأرقام والتواريخ
 // يبقى على ثقافة الخادم كما كان. تسبق معالج الأخطاء لأن الثقافة المضبوطة داخل middleware لاحق لا تعود إليه.
@@ -106,6 +133,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();

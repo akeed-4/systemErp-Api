@@ -14,7 +14,8 @@ public class SubscriptionEntitlements : ISubscriptionEntitlements
         if (_cached != null) return _cached;
         var sub = await _db.Set<Subscription>().AsNoTracking().OrderByDescending(s => s.StartDate).ThenByDescending(s => s.CreatedAt).FirstOrDefaultAsync(ct);
         if (sub == null) return _cached = new EntitlementInfo(false, SubscriptionStatus.Expired, null, Array.Empty<string>());
-        var status = sub.Status is SubscriptionStatus.Active or SubscriptionStatus.Trial && sub.ExpiryDate < DateTime.UtcNow ? SubscriptionStatus.Expired : sub.Status;
-        return _cached = new EntitlementInfo(true, status, sub.ExpiryDate, PlatformModules.Parse(sub.ModuleKeys));
+        var lapsed = sub.Status is SubscriptionStatus.Active or SubscriptionStatus.Trial && sub.ExpiryDate < DateTime.UtcNow;
+        return _cached = new EntitlementInfo(true, lapsed ? SubscriptionStatus.Expired : sub.Status, sub.ExpiryDate,
+            PlatformModules.Parse(sub.ModuleKeys), TrialEnded: lapsed && sub.Status == SubscriptionStatus.Trial);
     }
 }

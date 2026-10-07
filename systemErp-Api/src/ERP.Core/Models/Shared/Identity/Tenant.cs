@@ -18,6 +18,8 @@ public class Tenant : BaseEntity
     public string FinancialYearStart { get; set; } = "01-01";
     public string FinancialYearEnd { get; set; } = "12-31";
     public bool IsActive { get; set; } = true;
+    /// <summary>الدفاتر مقفلة حتى هذا التاريخ شاملاً: لا قيد ولا حركة مخزون بتاريخ داخل الفترة المقفلة.</summary>
+    public DateTime? BooksLockedThrough { get; set; }
     
     public ZatcaConfig ZatcaConfig { get; set; } = new();
 }

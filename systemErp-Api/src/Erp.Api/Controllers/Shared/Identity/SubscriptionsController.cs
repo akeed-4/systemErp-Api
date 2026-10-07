@@ -16,7 +16,5 @@ public class SubscriptionsController : ErpControllerBase
     [HttpGet("current")]
     public async Task<IActionResult> Current(CancellationToken ct) => Success(await _subscriptions.GetCurrentAsync(ct));
 
-    [HttpPost("upgrade"), RequireScreen("user-permissions", ScreenAction.Edit)]
-    public async Task<IActionResult> Upgrade([FromBody] UpgradeSubscriptionRequestDto request, CancellationToken ct)
-        => Success(await _subscriptions.UpgradeAsync(request, ct), Messages.PlanActivated);
+    // الاشتراك والتجديد والترقية بالدفع فقط: POST /payments/subscription (لا تفعيل ذاتي بلا دفع).
 }

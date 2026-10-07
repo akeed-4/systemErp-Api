@@ -89,12 +89,12 @@ public class ArchitectureTests
             "AuditLogs", "Auth", "Company", "Permissions", "Platform", "Subscriptions", "Users", "Payments", "SupportTickets",
             "ApprovalPolicies", "Approvals", "Notifications",
             // المحاسبة مشتركة بين كل الوحدات
-            "Accounts", "CostCenters", "FixedAssets", "JournalEntries", "Vouchers", "Reports",
+            "Accounts", "BankReconciliations", "CostCenters", "Employees", "Payroll", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",
             // الفواتير محرّك واحد لفواتير التجارة وفواتير السيارات
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون
             "Banks", "Currencies", "Customers", "PaymentMethods", "Suppliers", "ProductCategories", "Products", "UnitsOfMeasure", "Warehouses",
-            "Costing", "InventoryCountApprovals", "InventoryCounts", "StockMovements",
+            "Costing", "InventoryCountApprovals", "InventoryCounts", "StockMovements", "StockTransfers", "FinancialStatements",
         };
         var controllers = Api.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(Microsoft.AspNetCore.Mvc.ControllerBase).IsAssignableFrom(t))

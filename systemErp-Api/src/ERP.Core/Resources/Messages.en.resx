@@ -27,9 +27,18 @@
   <data name="AgreedQtyBelowConsumed" xml:space="preserve"><value>The agreed quantity for item {0} is less than what was already consumed ({1:0.####}).</value></data>
   <data name="AgreementNotActive" xml:space="preserve"><value>The agreement is not currently active.</value></data>
   <data name="AgreementNotFound" xml:space="preserve"><value>The selected agreement was not found.</value></data>
+  <data name="AgreementPaymentDefaultName" xml:space="preserve"><value>Payment {0}</value></data>
+  <data name="AgreementPaymentPercentageRange" xml:space="preserve"><value>Each payment percentage must be greater than zero and not exceed 100%.</value></data>
+  <data name="AgreementPaymentsMustTotal100" xml:space="preserve"><value>The agreement payment percentages must total 100% (current total {0:0.##}%).</value></data>
   <data name="AgreementQuantitiesAndPricesInvalid" xml:space="preserve"><value>Agreement quantities must be positive and prices non-negative.</value></data>
   <data name="AgreementStatusValues" xml:space="preserve"><value>Status: draft | active | expired | cancelled | terminated.</value></data>
   <data name="AgreementTypeValues" xml:space="preserve"><value>Type: purchase | sales.</value></data>
+  <data name="AllocationAmountsMustBePositive" xml:space="preserve"><value>Allocation amounts must be greater than zero.</value></data>
+  <data name="AllocationExceedsInvoiceDue" xml:space="preserve"><value>The amount allocated to invoice {0} exceeds its outstanding balance ({1:0.00}).</value></data>
+  <data name="AllocationInvoiceNotForParty" xml:space="preserve"><value>An allocated invoice is not a posted credit invoice of this party.</value></data>
+  <data name="AllocationInvoiceRepeated" xml:space="preserve"><value>An invoice is repeated in the voucher allocation.</value></data>
+  <data name="AllocationNeedsPartyAccount" xml:space="preserve"><value>Allocating a voucher to invoices requires a customer or supplier account.</value></data>
+  <data name="AllocationsExceedVoucher" xml:space="preserve"><value>The total allocated to invoices exceeds the voucher amount.</value></data>
   <data name="AmountExceedsExpectedCash" xml:space="preserve"><value>The amount exceeds the expected cash in the drawer ({0:0.00}).</value></data>
   <data name="AmountMustBePositive" xml:space="preserve"><value>The amount must be positive.</value></data>
   <data name="AmountRange" xml:space="preserve"><value>The amount must be between 0 and {0:0.00}.</value></data>
@@ -43,10 +52,12 @@
   <data name="ApproverNotFound" xml:space="preserve"><value>One of the approvers was not found.</value></data>
   <data name="ArabicNameRequired" xml:space="preserve"><value>The Arabic name is required.</value></data>
   <data name="AssetAccountNotFound" xml:space="preserve"><value>Asset account not found.</value></data>
+  <data name="AssetAlreadyDisposed" xml:space="preserve"><value>Asset {0} has been disposed.</value></data>
   <data name="AssetArabicNameRequired" xml:space="preserve"><value>Asset Arabic name is required.</value></data>
   <data name="AssetCodeInUse" xml:space="preserve"><value>Asset code is already in use.</value></data>
   <data name="AssetCodeRequired" xml:space="preserve"><value>Asset code is required.</value></data>
   <data name="AssetCostCenterRequired" xml:space="preserve"><value>Cost center is required for the fixed asset.</value></data>
+  <data name="AssetDisposed" xml:space="preserve"><value>Asset disposed</value></data>
   <data name="AssetHasNoDepreciableBalance" xml:space="preserve"><value>Asset {0} has no depreciable balance (fully depreciated or zero depreciation rate).</value></data>
   <data name="AssetNotAcquiredInPeriod" xml:space="preserve"><value>Asset {0} was not yet acquired in this period.</value></data>
   <data name="AtLeastOneCountLineRequired" xml:space="preserve"><value>At least one count line is required.</value></data>
@@ -55,6 +66,9 @@
   <data name="AtLeastOneLineRequiredDocument" xml:space="preserve"><value>At least one line is required.</value></data>
   <data name="BankCodeInUse" xml:space="preserve"><value>The bank code is already in use.</value></data>
   <data name="BankLeaseRequiresBankName" xml:space="preserve"><value>The bank financing cycle requires the bank name.</value></data>
+  <data name="BankReconciliationDeleted" xml:space="preserve"><value>Bank reconciliation deleted.</value></data>
+  <data name="BankReconciliationNotFound" xml:space="preserve"><value>Bank reconciliation not found.</value></data>
+  <data name="BankReconciliationSaved" xml:space="preserve"><value>Bank reconciliation completed.</value></data>
   <data name="BarcodeInUse" xml:space="preserve"><value>The barcode is already in use.</value></data>
   <data name="BaseUnitNotFound" xml:space="preserve"><value>The base unit was not found.</value></data>
   <data name="BookValueRange" xml:space="preserve"><value>Book value must be between zero and the purchase cost.</value></data>
@@ -64,6 +78,13 @@
   <data name="BrandArabicNameRequired" xml:space="preserve"><value>Brand Arabic name is required.</value></data>
   <data name="BrandNotFound" xml:space="preserve"><value>Brand not found.</value></data>
   <data name="BuyAndGiftQtyMustBePositive" xml:space="preserve"><value>Buy and gift quantities must be positive.</value></data>
+  <data name="BuyerFieldBuildingNo" xml:space="preserve"><value>building number (4 digits)</value></data>
+  <data name="BuyerFieldCity" xml:space="preserve"><value>city</value></data>
+  <data name="BuyerFieldDistrict" xml:space="preserve"><value>district</value></data>
+  <data name="BuyerFieldName" xml:space="preserve"><value>buyer name</value></data>
+  <data name="BuyerFieldPostalCode" xml:space="preserve"><value>postal code (5 digits)</value></data>
+  <data name="BuyerFieldStreet" xml:space="preserve"><value>street</value></data>
+  <data name="BuyerFieldVatNumber" xml:space="preserve"><value>VAT number</value></data>
   <data name="BuyerIdRequired" xml:space="preserve"><value>Buyer ID/CR number is required.</value></data>
   <data name="BuyerMobileRequired" xml:space="preserve"><value>Buyer mobile number is required.</value></data>
   <data name="BuyerNameRequired" xml:space="preserve"><value>Buyer name is required.</value></data>
@@ -72,6 +93,7 @@
   <data name="CannotAssignOwnerRole" xml:space="preserve"><value>The owner role cannot be assigned to another user.</value></data>
   <data name="CannotCancelInvoicedContract" xml:space="preserve"><value>An invoiced contract cannot be cancelled; create a sales return.</value></data>
   <data name="CannotChangeCodeOfAccountWithEntries" xml:space="preserve"><value>Cannot change the code of an account that has entries.</value></data>
+  <data name="CannotChangeCostAfterAcquisitionEntry" xml:space="preserve"><value>The asset cost is booked by its acquisition entry and cannot be changed from the asset form.</value></data>
   <data name="CannotChangeCostAfterDepreciation" xml:space="preserve"><value>The cost of an asset with posted depreciation cannot be changed.</value></data>
   <data name="CannotChangeCountScope" xml:space="preserve"><value>The count scope cannot be changed after creation.</value></data>
   <data name="CannotChangeDocumentType" xml:space="preserve"><value>The document type cannot be changed.</value></data>
@@ -137,7 +159,7 @@
   <data name="CannotSaveOtherTenantRecord" xml:space="preserve"><value>Cannot save a record that belongs to another company.</value></data>
   <data name="CannotSaveRecordWithoutTenant" xml:space="preserve"><value>Cannot save a record without a company (tenant).</value></data>
   <data name="CannotSkipStages" xml:space="preserve"><value>Cannot skip cycle stages; move to the next stage directly.</value></data>
-  <data name="CannotUnpostVehicleUnavailable" xml:space="preserve"><value>Cannot unpost the invoice: vehicle {0} is no longer available (reserved, sold or linked to a document).</value></data>
+  <data name="CannotUnlockClosedYear" xml:space="preserve"><value>A period within a closed fiscal year (through {0:yyyy-MM-dd}) cannot be reopened; reverse the year closing entry first.</value></data>
   <data name="CannotUnsetBaseCurrency" xml:space="preserve"><value>The base currency cannot be unset; set another currency as base first.</value></data>
   <data name="CartEmpty" xml:space="preserve"><value>The cart is empty.</value></data>
   <data name="CartQuantitiesPricesInvalid" xml:space="preserve"><value>Cart quantities and prices are invalid.</value></data>
@@ -159,7 +181,7 @@
   <data name="CompanyArabicNameRequired" xml:space="preserve"><value>Company Arabic name is required.</value></data>
   <data name="CompanyInactive" xml:space="preserve"><value>The company is not active.</value></data>
   <data name="CompanyNotFound" xml:space="preserve"><value>Company not found</value></data>
-  <data name="CompanyRegistered" xml:space="preserve"><value>Company '{0}' registered and the subscription activated successfully!</value></data>
+  <data name="CompanyRegisteredWithTrial" xml:space="preserve"><value>Company '{0}' registered and the one-month free trial has started.</value></data>
   <data name="CompanyUpdated" xml:space="preserve"><value>Company details updated</value></data>
   <data name="ConfigurePaymobUrls" xml:space="preserve"><value>Configure Paymob:PublicApiUrl and Paymob:FrontendUrl in the server settings first.</value></data>
   <data name="ConfirmOrderFirst" xml:space="preserve"><value>Confirm the order first; a cancelled order cannot be converted.</value></data>
@@ -241,11 +263,18 @@
   <data name="DenominationsMismatchCash" xml:space="preserve"><value>The denominations total ({0:0.00}) does not match the entered actual cash ({1:0.00}).</value></data>
   <data name="DepartmentPrefix" xml:space="preserve"><value>Department: </value></data>
   <data name="DepreciationRateRange" xml:space="preserve"><value>Depreciation rate must be between 0 and 100.</value></data>
+  <data name="DepreciationReversed" xml:space="preserve"><value>Depreciation reversed and asset balances restored</value></data>
+  <data name="DepreciationReverseLatestOnly" xml:space="preserve"><value>Only the latest posted depreciation of asset {0} can be reversed.</value></data>
+  <data name="DepreciationRunNotFound" xml:space="preserve"><value>Depreciation run not found.</value></data>
   <data name="DiscountAmountMustBePositive" xml:space="preserve"><value>The discount amount must be positive.</value></data>
   <data name="DiscountAndVatInvalid" xml:space="preserve"><value>Discount must be non-negative and VAT between 0 and 100.</value></data>
   <data name="DiscountPercentMax100" xml:space="preserve"><value>The discount percentage cannot exceed 100%.</value></data>
   <data name="DiscountPercentRange" xml:space="preserve"><value>The discount percentage must be between 0 and 100.</value></data>
   <data name="DiscountValueMustBePositive" xml:space="preserve"><value>The discount value must be positive.</value></data>
+  <data name="DisposalBeforePostedDepreciation" xml:space="preserve"><value>The asset cannot be disposed on a date before posted depreciation (last period {0}).</value></data>
+  <data name="DisposalBeforePurchase" xml:space="preserve"><value>The disposal date is before the purchase date.</value></data>
+  <data name="DisposalProceedsCannotBeNegative" xml:space="preserve"><value>The disposal proceeds cannot be negative.</value></data>
+  <data name="DisposalTreasuryRequired" xml:space="preserve"><value>Select the cash or bank account that receives the sale proceeds.</value></data>
   <data name="DocumentNumberGenerationFailed" xml:space="preserve"><value>Could not generate the document number; please try again.</value></data>
   <data name="DocumentTotalCannotBeNegative" xml:space="preserve"><value>The document total cannot be negative.</value></data>
   <data name="DocumentTypeAndActionRequired" xml:space="preserve"><value>The document type and action are required.</value></data>
@@ -262,6 +291,10 @@
   <data name="EmailAlreadyRegistered" xml:space="preserve"><value>This email address is already registered.</value></data>
   <data name="EmailAndPasswordRequired" xml:space="preserve"><value>Email and password are required.</value></data>
   <data name="EmailInvalid" xml:space="preserve"><value>The email address is invalid.</value></data>
+  <data name="EmployeeCodeInUse" xml:space="preserve"><value>The employee code is already in use.</value></data>
+  <data name="EmployeeGosiRateInvalid" xml:space="preserve"><value>The social insurance rate must be between 0 and 100.</value></data>
+  <data name="EmployeeHasPayroll" xml:space="preserve"><value>The employee has payroll runs; deactivate instead of deleting.</value></data>
+  <data name="EmployeeSalaryInvalid" xml:space="preserve"><value>The basic salary is required and salary components cannot be negative.</value></data>
   <data name="EndDateBeforeStart" xml:space="preserve"><value>End date is before the start date.</value></data>
   <data name="EnterEmailOrMobile" xml:space="preserve"><value>Enter the email address or mobile number.</value></data>
   <data name="EntityNotFound" xml:space="preserve"><value>{0} not found</value></data>
@@ -272,12 +305,17 @@
   <data name="FeesCannotBeNegative" xml:space="preserve"><value>Fees cannot be negative.</value></data>
   <data name="FinancingAmountRequired" xml:space="preserve"><value>The financing amount is required.</value></data>
   <data name="FinancingBankNotFound" xml:space="preserve"><value>The financing bank was not found.</value></data>
+  <data name="FiscalYearAlreadyClosed" xml:space="preserve"><value>Fiscal year {0} is already closed.</value></data>
+  <data name="FiscalYearClosed" xml:space="preserve"><value>Fiscal year closed</value></data>
+  <data name="FiscalYearInvalid" xml:space="preserve"><value>Invalid fiscal year.</value></data>
+  <data name="FiscalYearNotEnded" xml:space="preserve"><value>The fiscal year cannot be closed before it ends ({0:yyyy-MM-dd}).</value></data>
   <data name="Forbidden" xml:space="preserve"><value>You do not have permission to perform this action</value></data>
   <data name="HasReturns" xml:space="preserve"><value>It has returns.</value></data>
   <data name="IbanInvalid" xml:space="preserve"><value>The IBAN is invalid.</value></data>
   <data name="InspectionRejectionReasonRequired" xml:space="preserve"><value>An inspection rejection reason is required.</value></data>
   <data name="InstallmentDetailsRequired" xml:space="preserve"><value>The monthly installment and installment period are required.</value></data>
   <data name="InsufficientStock" xml:space="preserve"><value>Insufficient stock for item {0}: available {1:0.####}, requested {2:0.####}.</value></data>
+  <data name="InsufficientStockInWarehouse" xml:space="preserve"><value>Insufficient stock of "{0}" in "{1}": available {2}, required {3}.</value></data>
   <data name="IntegrationSettingsSaved" xml:space="preserve"><value>Integration settings saved</value></data>
   <data name="InvalidCostingMethod" xml:space="preserve"><value>Invalid costing method.</value></data>
   <data name="InvalidCredentials" xml:space="preserve"><value>Invalid sign-in credentials</value></data>
@@ -287,7 +325,6 @@
   <data name="InvalidInvoiceType" xml:space="preserve"><value>Invalid invoice type.</value></data>
   <data name="InvalidLoadOptions" xml:space="preserve"><value>Invalid load options: {0}</value></data>
   <data name="InvalidPaymentMethod" xml:space="preserve"><value>Invalid payment method.</value></data>
-  <data name="InvalidPlan" xml:space="preserve"><value>Invalid plan.</value></data>
   <data name="InvalidPlanOrBillingCycle" xml:space="preserve"><value>The plan or billing cycle is invalid.</value></data>
   <data name="InvalidRequestData" xml:space="preserve"><value>The request data is invalid.</value></data>
   <data name="InvalidSalesCycleType" xml:space="preserve"><value>Invalid cycle type: individual | corporate | bank_lease | installment.</value></data>
@@ -311,14 +348,12 @@
   <data name="InvoiceDiscountRange" xml:space="preserve"><value>The invoice discount must be between zero and the lines total.</value></data>
   <data name="InvoiceFromSourceDocument" xml:space="preserve"><value>The invoice originates from a source document (POS/contract/purchase order); edit or reverse it from that document.</value></data>
   <data name="InvoiceFullyPaid" xml:space="preserve"><value>The invoice is fully paid.</value></data>
-  <data name="InvoiceHasPostedReturns" xml:space="preserve"><value>The invoice has posted returns; delete them first.</value></data>
   <data name="InvoiceIssued" xml:space="preserve"><value>Invoice issued</value></data>
   <data name="InvoiceNotFound" xml:space="preserve"><value>Invoice not found</value></data>
   <data name="InvoiceNotPostedUsePreview" xml:space="preserve"><value>The invoice is not posted; use the journal preview.</value></data>
   <data name="InvoicePendingApproval" xml:space="preserve"><value>The invoice is pending approval and cannot be posted until approval is complete.</value></data>
   <data name="InvoicePosted" xml:space="preserve"><value>Invoice posted</value></data>
   <data name="InvoiceSettingsSaved" xml:space="preserve"><value>Invoice settings saved</value></data>
-  <data name="InvoiceSubmittedToZatcaLocked" xml:space="preserve"><value>The invoice was submitted to ZATCA and cannot be edited or deleted; issue a credit note.</value></data>
   <data name="InvoiceTypeValues" xml:space="preserve"><value>Invoice type: simplified | standard.</value></data>
   <data name="InvoiceUpdated" xml:space="preserve"><value>Invoice updated</value></data>
   <data name="InvoiceWithoutRegisteredCustomer" xml:space="preserve"><value>The invoice has no registered customer; the collection cannot be posted to their account.</value></data>
@@ -338,7 +373,9 @@
   <data name="JournalEntryDeleted" xml:space="preserve"><value>Journal entry deleted</value></data>
   <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>A journal entry needs at least two lines.</value></data>
   <data name="JournalEntryNotFound" xml:space="preserve"><value>Journal entry not found</value></data>
+  <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>This entry is managed by its document (asset depreciation or disposal); reverse it from the fixed assets screen.</value></data>
   <data name="JournalEntryPosted" xml:space="preserve"><value>Journal entry posted</value></data>
+  <data name="JournalEntryReconciled" xml:space="preserve"><value>The entry is part of a completed bank reconciliation; reverse it with a new entry or delete the reconciliation first.</value></data>
   <data name="JournalEntryReversed" xml:space="preserve"><value>Journal entry reversed</value></data>
   <data name="JournalEntryUnbalanced" xml:space="preserve"><value>The journal entry is unbalanced: debit {0:0.00} ≠ credit {1:0.00}.</value></data>
   <data name="JournalEntryUpdated" xml:space="preserve"><value>Journal entry updated</value></data>
@@ -357,6 +394,7 @@
   <data name="LabelCostCenter" xml:space="preserve"><value>Cost center</value></data>
   <data name="LabelCoupon" xml:space="preserve"><value>Coupon</value></data>
   <data name="LabelCurrency" xml:space="preserve"><value>Currency</value></data>
+  <data name="LabelEmployee" xml:space="preserve"><value>Employee</value></data>
   <data name="LabelFixedAsset" xml:space="preserve"><value>Fixed asset</value></data>
   <data name="LabelHeldCart" xml:space="preserve"><value>Held cart</value></data>
   <data name="LabelInventoryCount" xml:space="preserve"><value>Inventory count</value></data>
@@ -458,6 +496,7 @@
   <data name="OnlyDraftOrRejectedCountEditable" xml:space="preserve"><value>Only a draft or rejected count can be edited; withdraw the submission first.</value></data>
   <data name="OnlyDraftOrRejectedCountSubmittable" xml:space="preserve"><value>Only a draft or rejected count can be submitted for approval.</value></data>
   <data name="OnlyEarlyOrdersCanBeDeleted" xml:space="preserve"><value>Only an order that has not reached the purchase order stage (or is rejected) and has no received vehicles can be deleted.</value></data>
+  <data name="OnlyLastReconciliationCanBeDeleted" xml:space="preserve"><value>Only the last reconciliation of the account can be deleted.</value></data>
   <data name="OnlyOpenUnprocessedTicketDeletable" xml:space="preserve"><value>Only an open ticket that has not been processed can be deleted.</value></data>
   <data name="OnlyPendingPaymentsCancellable" xml:space="preserve"><value>Only pending payments can be cancelled.</value></data>
   <data name="OnlyPendingRequestWithdrawable" xml:space="preserve"><value>Only a pending request can be withdrawn.</value></data>
@@ -523,16 +562,29 @@
   <data name="PaymobNotEnabled" xml:space="preserve"><value>The Paymob payment gateway is not enabled for the company; configure it in the online payment settings.</value></data>
   <data name="PaymobRejectedPayment" xml:space="preserve"><value>Paymob refused to create the payment ({0}): {1}</value></data>
   <data name="PaymobUrlMustBeHttps" xml:space="preserve"><value>The Paymob URL must be https (e.g. https://ksa.paymob.com).</value></data>
+  <data name="PayrollAdjustmentInvalid" xml:space="preserve"><value>Additions and deductions cannot be negative.</value></data>
+  <data name="PayrollNetNegative" xml:space="preserve"><value>The net salary of "{0}" is negative; review the deductions.</value></data>
+  <data name="PayrollNoEmployees" xml:space="preserve"><value>There are no active employees for this month.</value></data>
+  <data name="PayrollPeriodAlreadyPosted" xml:space="preserve"><value>Payroll for {0} is already posted; reverse it first to run it again.</value></data>
+  <data name="PayrollPeriodInvalid" xml:space="preserve"><value>Specify the month as yyyy-MM.</value></data>
+  <data name="PayrollPosted" xml:space="preserve"><value>Payroll posted.</value></data>
+  <data name="PayrollReversed" xml:space="preserve"><value>Payroll reversed.</value></data>
+  <data name="PayrollRunAlreadyReversed" xml:space="preserve"><value>The payroll run is already reversed.</value></data>
+  <data name="PayrollRunNotFound" xml:space="preserve"><value>Payroll run not found.</value></data>
   <data name="PdiConfirmationRequired" xml:space="preserve"><value>Confirmation that the receiving inspection (PDI) passed is required.</value></data>
   <data name="PerformanceBondRateRange" xml:space="preserve"><value>Performance bond rate must be between 0 and 100.</value></data>
   <data name="PeriodEndBeforeStart" xml:space="preserve"><value>The period end is before its start.</value></data>
+  <data name="PeriodLockDateInFuture" xml:space="preserve"><value>The books lock date cannot be in the future.</value></data>
+  <data name="PeriodLocked" xml:space="preserve"><value>The date {0:yyyy-MM-dd} falls in a locked period (books are locked through {1:yyyy-MM-dd}).</value></data>
+  <data name="PeriodLockSaved" xml:space="preserve"><value>Books lock date saved</value></data>
   <data name="PermissionsSaved" xml:space="preserve"><value>Permission changes saved successfully</value></data>
-  <data name="PlanActivated" xml:space="preserve"><value>Plan activated</value></data>
   <data name="PointsExceedBalance" xml:space="preserve"><value>The requested points exceed the balance.</value></data>
   <data name="PolicyArabicNameRequired" xml:space="preserve"><value>The policy Arabic name is required.</value></data>
   <data name="PolicyLinkedToRequests" xml:space="preserve"><value>The policy is linked to approval requests; deactivate it instead of deleting it.</value></data>
   <data name="PolicyNeedsOneLevel" xml:space="preserve"><value>The policy needs at least one approval level.</value></data>
   <data name="PolicyNotFound" xml:space="preserve"><value>Policy not found</value></data>
+  <data name="PostedInvoiceLocked" xml:space="preserve"><value>A posted invoice is an issued document that cannot be edited or deleted; correct it with a return (credit/debit note).</value></data>
+  <data name="PosVoidReturnReason" xml:space="preserve"><value>Void of POS sale {0}</value></data>
   <data name="PriceAndDiscountInvalid" xml:space="preserve"><value>The price and discount are invalid.</value></data>
   <data name="PriceAndVatInvalid" xml:space="preserve"><value>Price must be non-negative and VAT between 0 and 100.</value></data>
   <data name="PricesAndCostsCannotBeNegative" xml:space="preserve"><value>Prices and costs cannot be negative.</value></data>
@@ -544,6 +596,7 @@
   <data name="ProductCategoryNotFound" xml:space="preserve"><value>The item category was not found.</value></data>
   <data name="ProductNotFound" xml:space="preserve"><value>Item not found</value></data>
   <data name="ProfileUpdated" xml:space="preserve"><value>Profile updated successfully</value></data>
+  <data name="PurchaseAmountsInvalid" xml:space="preserve"><value>The inventory and service amounts of the purchase invoice are invalid.</value></data>
   <data name="PurchaseCostCannotBeNegative" xml:space="preserve"><value>Purchase cost cannot be negative.</value></data>
   <data name="PurchaseCyclePrefix" xml:space="preserve"><value>Purchase cycle: </value></data>
   <data name="PurchaseInvoicesNotSubmittedToZatca" xml:space="preserve"><value>Purchase invoices are not submitted to ZATCA.</value></data>
@@ -562,6 +615,9 @@
   <data name="RecipientIdRequired" xml:space="preserve"><value>The recipient ID is required.</value></data>
   <data name="RecipientNameRequired" xml:space="preserve"><value>The recipient (signatory) name is required.</value></data>
   <data name="RecipientNotFound" xml:space="preserve"><value>Recipient not found</value></data>
+  <data name="ReconciliationDoesNotBalance" xml:space="preserve"><value>The reconciliation does not balance: the statement balance exceeds the reconciled lines by {0}. Record the missing transactions (such as bank fees) or review the selection.</value></data>
+  <data name="ReconciliationLinesInvalid" xml:space="preserve"><value>Some selected lines are not on this account, are after the statement date, or were already reconciled.</value></data>
+  <data name="ReconciliationRequiresBankAccount" xml:space="preserve"><value>Bank reconciliation applies to a cash or bank sub-account only.</value></data>
   <data name="RecordModifiedByAnotherUser" xml:space="preserve"><value>The record was modified by another user; reload and try again.</value></data>
   <data name="RegularInvoiceTypeInvalid" xml:space="preserve"><value>A regular invoice is a tax or simplified invoice; notes are for returns.</value></data>
   <data name="RejectionReasonRequired" xml:space="preserve"><value>A rejection reason is required.</value></data>
@@ -574,7 +630,6 @@
   <data name="RequiredDateBeforeRequestDate" xml:space="preserve"><value>The required date is before the request date.</value></data>
   <data name="RetentionRateRange" xml:space="preserve"><value>Milestone retention rate must be between 0 and 100.</value></data>
   <data name="ReturnCreated" xml:space="preserve"><value>Return created</value></data>
-  <data name="ReturnDeleted" xml:space="preserve"><value>Return deleted</value></data>
   <data name="ReturnedQuantitiesMustBePositive" xml:space="preserve"><value>Returned quantities must be positive.</value></data>
   <data name="ReturnNeedsOriginalInvoice" xml:space="preserve"><value>A return requires an original invoice.</value></data>
   <data name="ReturnNotFound" xml:space="preserve"><value>Return not found</value></data>
@@ -582,10 +637,12 @@
   <data name="ReturnQtyRange" xml:space="preserve"><value>Return quantity for item {0} must be between 0 and {1:0.####}.</value></data>
   <data name="ReturnReasonRequired" xml:space="preserve"><value>A return reason is required.</value></data>
   <data name="ReturnUpdated" xml:space="preserve"><value>Return updated</value></data>
+  <data name="RevenueLinesMustEqualNet" xml:space="preserve"><value>The revenue lines do not equal the document net amount.</value></data>
   <data name="ReversalEntryIsAuditTrail" xml:space="preserve"><value>A reversal entry cannot be edited or deleted; it is an audit trail.</value></data>
   <data name="ReversedEntryCannotBeEdited" xml:space="preserve"><value>A reversed journal entry cannot be edited.</value></data>
   <data name="SaleCompleted" xml:space="preserve"><value>Sale completed</value></data>
   <data name="SalesContractNotFound" xml:space="preserve"><value>Sales contract not found</value></data>
+  <data name="SalvageValueRange" xml:space="preserve"><value>The salvage value must be between zero and the purchase cost.</value></data>
   <data name="SarExchangeRateIsOne" xml:space="preserve"><value>The SAR exchange rate is 1.</value></data>
   <data name="SaudiVatNumberFormat" xml:space="preserve"><value>The Saudi VAT number must be 15 digits and start and end with 3.</value></data>
   <data name="SaveConstraintViolation" xml:space="preserve"><value>Could not save: {0} is linked to other records or violates a uniqueness constraint.</value></data>
@@ -601,6 +658,7 @@
   <data name="ShiftNotFound" xml:space="preserve"><value>Shift not found</value></data>
   <data name="ShiftOpened" xml:space="preserve"><value>Shift opened</value></data>
   <data name="ShiftUpdated" xml:space="preserve"><value>Shift updated</value></data>
+  <data name="ShiftWithSalesCannotBeDeleted" xml:space="preserve"><value>A shift with issued invoices or returns cannot be deleted.</value></data>
   <data name="SkuInUse" xml:space="preserve"><value>The item code (SKU) is already in use.</value></data>
   <data name="SkuRequired" xml:space="preserve"><value>The item code (SKU) is required.</value></data>
   <data name="SomeDocumentLinesInvalid" xml:space="preserve"><value>Some document lines are invalid.</value></data>
@@ -611,15 +669,19 @@
   <data name="SplitPaymentsNeedPositiveAmounts" xml:space="preserve"><value>Split payments need positive amounts.</value></data>
   <data name="StandardCostVarianceAccountNotFound" xml:space="preserve"><value>The standard cost variance account was not found.</value></data>
   <data name="StandardInvoiceRequiresCustomerVat" xml:space="preserve"><value>A standard invoice requires the customer's VAT number.</value></data>
+  <data name="StatementDateInFuture" xml:space="preserve"><value>The bank statement date cannot be in the future.</value></data>
+  <data name="StatementDateNotAfterLast" xml:space="preserve"><value>The statement date must be after the last completed reconciliation of the account ({0}).</value></data>
   <data name="StatusPrefix" xml:space="preserve"><value>Status: </value></data>
   <data name="StockMovementNotFound" xml:space="preserve"><value>Stock movement not found</value></data>
+  <data name="StockTransferNotFound" xml:space="preserve"><value>Stock transfer not found.</value></data>
+  <data name="StockTransferRecorded" xml:space="preserve"><value>Stock transfer recorded.</value></data>
   <data name="StoreCreditRequiresCustomer" xml:space="preserve"><value>Store credit requires a registered customer.</value></data>
   <data name="SubAccountCodesExhausted" xml:space="preserve"><value>All available sub-account codes under this account have been used.</value></data>
   <data name="SubscriptionPaymentsNotConfigured" xml:space="preserve"><value>Subscription payments are not configured on the platform (Paymob:SecretKey/PublicKey/IntegrationIds).</value></data>
   <data name="SupplierCodeInUse" xml:space="preserve"><value>The supplier code is already in use.</value></data>
   <data name="SupplierNotFound" xml:space="preserve"><value>Supplier not found.</value></data>
   <data name="SystemMovementFromDocument" xml:space="preserve"><value>This is a system movement generated by a document; edit the document itself (or create a new adjustment).</value></data>
-  <data name="TaxInvoiceRequiresBuyerVat" xml:space="preserve"><value>A tax invoice (B2B) requires the buyer's VAT number.</value></data>
+  <data name="TaxInvoiceBuyerDataRequired" xml:space="preserve"><value>A tax invoice requires the buyer details: {0}.</value></data>
   <data name="TerminalHasOpenShift" xml:space="preserve"><value>This terminal has an open shift for another cashier.</value></data>
   <data name="TerminalNameRequired" xml:space="preserve"><value>The terminal/cashier name is required.</value></data>
   <data name="TicketClosedNoReplies" xml:space="preserve"><value>The ticket is closed and does not accept replies; open a new ticket.</value></data>
@@ -627,14 +689,15 @@
   <data name="TicketStatusUpdated" xml:space="preserve"><value>Ticket status updated</value></data>
   <data name="TicketTitleRequired" xml:space="preserve"><value>The ticket title is required (at least 5 characters).</value></data>
   <data name="TransactionAlreadyVoided" xml:space="preserve"><value>The transaction is already voided.</value></data>
-  <data name="TransactionDeleted" xml:space="preserve"><value>Transaction deleted</value></data>
   <data name="TransactionHasReturns" xml:space="preserve"><value>The transaction has returns; delete them first.</value></data>
   <data name="TransactionNotFound" xml:space="preserve"><value>Transaction not found</value></data>
-  <data name="TransactionUpdated" xml:space="preserve"><value>Transaction updated</value></data>
   <data name="TransactionVoided" xml:space="preserve"><value>Transaction voided</value></data>
   <data name="TransactionVoidedState" xml:space="preserve"><value>The transaction is voided.</value></data>
+  <data name="TransferRequiresItems" xml:space="preserve"><value>Add at least one item with a quantity greater than zero.</value></data>
+  <data name="TransferWarehousesMustDiffer" xml:space="preserve"><value>The source and destination warehouses must differ.</value></data>
   <data name="TreasuryAccountAndPositiveAmountRequired" xml:space="preserve"><value>Specify the treasury/bank account and a positive amount.</value></data>
   <data name="TreasuryAccountRequired" xml:space="preserve"><value>The treasury/bank account is required.</value></data>
+  <data name="TrialEndedPayToContinue" xml:space="preserve"><value>The free trial has ended. Pay the subscription to continue using the system.</value></data>
   <data name="TrimAlreadyExistsForModel" xml:space="preserve"><value>The trim is already registered for this model.</value></data>
   <data name="TrimArabicNameRequired" xml:space="preserve"><value>Trim Arabic name is required.</value></data>
   <data name="TrimNotFound" xml:space="preserve"><value>Trim not found.</value></data>
@@ -658,6 +721,10 @@
   <data name="UserUpdated" xml:space="preserve"><value>User updated</value></data>
   <data name="ValidityEndBeforeStart" xml:space="preserve"><value>The validity end is before its start.</value></data>
   <data name="ValidUntilBeforeQuotationDate" xml:space="preserve"><value>The validity date is before the quotation date.</value></data>
+  <data name="VatCategoryRateMismatch" xml:space="preserve"><value>A zero-rated, exempt or out-of-scope line cannot carry VAT (rate must be 0).</value></data>
+  <data name="VatExemptionReasonCategoryMismatch" xml:space="preserve"><value>The exemption reason does not match the VAT category of the line.</value></data>
+  <data name="VatExemptionReasonRequired" xml:space="preserve"><value>Select the exemption reason for every zero-rated, exempt or out-of-scope line of a sales invoice.</value></data>
+  <data name="VatExemptionReasonUnknown" xml:space="preserve"><value>Unknown VAT exemption reason code.</value></data>
   <data name="VatNumberAlreadyRegistered" xml:space="preserve"><value>This VAT number is already registered.</value></data>
   <data name="VatNumberFormat" xml:space="preserve"><value>The VAT number must be 15 digits and start and end with 3.</value></data>
   <data name="VatNumberInvalid" xml:space="preserve"><value>The VAT number is invalid.</value></data>
@@ -689,8 +756,11 @@
   <data name="VoucherDeletedAndReversed" xml:space="preserve"><value>Voucher deleted and its journal reversed</value></data>
   <data name="VoucherNotFound" xml:space="preserve"><value>Voucher not found</value></data>
   <data name="VoucherUpdatedAndReposted" xml:space="preserve"><value>Voucher updated and reposted</value></data>
+  <data name="VoucherVatInvalid" xml:space="preserve"><value>The voucher VAT must be zero or less than its amount.</value></data>
+  <data name="VoucherVatNotForPartySettlement" xml:space="preserve"><value>Included VAT applies to a direct expense or income; it cannot be recorded on a customer or supplier settlement (its VAT is on the invoice).</value></data>
   <data name="WarehouseCodeInUse" xml:space="preserve"><value>The warehouse code is already in use.</value></data>
   <data name="WarehouseHasMovements" xml:space="preserve"><value>The warehouse has stock movements.</value></data>
+  <data name="WarehouseInactive" xml:space="preserve"><value>The warehouse is inactive.</value></data>
   <data name="WarehouseNotFound" xml:space="preserve"><value>Warehouse not found.</value></data>
   <data name="YearAlreadyExistsForTrim" xml:space="preserve"><value>The year is already registered for this trim.</value></data>
   <data name="ZatcaNotEnabled" xml:space="preserve"><value>ZATCA integration is not enabled in the company settings.</value></data>

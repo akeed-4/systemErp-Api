@@ -9,6 +9,17 @@ public class PlanDefinition
     public SubscriptionPlanId Id { get; set; }
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    /// <summary>وصف تسويقي يظهر في بطاقة الباقة عند التسجيل.</summary>
+    public string DescriptionAr { get; set; } = string.Empty;
+    public string DescriptionEn { get; set; } = string.Empty;
+    /// <summary>شارة البطاقة (مثل «الأكثر طلباً»).</summary>
+    public string BadgeAr { get; set; } = string.Empty;
+    public string BadgeEn { get; set; } = string.Empty;
+    /// <summary>الباقة المُبرَزة في شاشة التسجيل.</summary>
+    public bool IsPopular { get; set; }
+    /// <summary>مزايا الباقة: ميزة في كل سطر.</summary>
+    public string FeaturesAr { get; set; } = string.Empty;
+    public string FeaturesEn { get; set; } = string.Empty;
     public decimal PriceMonthly { get; set; }
     public decimal PriceYearly { get; set; }
     /// <summary>null = غير محدود.</summary>

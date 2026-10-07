@@ -17,13 +17,28 @@ public static class SubscriptionCatalog
     {
         new() { Id = SubscriptionPlanId.Starter, NameAr = "باقة البداية (Starter)", NameEn = "Starter Plan",
                 PriceMonthly = 199, PriceYearly = 1990, MaxUsers = 2, MaxInvoicesPerMonth = 500, Branches = 1,
-                ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 1 },
+                ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 1,
+                DescriptionAr = "مثالية للمنشآت والمتاجر الناشئة ورواد الأعمال لتلبية متطلبات الفوترة الضريبية وإدارة المعاملات الأساسية.",
+                DescriptionEn = "Ideal for startups, sole proprietors, and small shops to meet basic invoicing and tax compliance.",
+                BadgeAr = "للمنشآت الناشئة", BadgeEn = "For Startups", IsPopular = false,
+                FeaturesAr = "مستخدمين 2 مع صلاحيات أساسية\nحتى 500 فاتورة مبيعات ومشتريات شهرياً\nفرع ومستودع رئيسي واحد\nإصدار فواتير ضريبية مبسطة (B2C) مع QR كود TLV\nسندات القبض والصرف الأساسية\nشجرة حسابات مبسطة (4 مستويات)\nدعم فني عبر البريد وتحديثات دورية",
+                FeaturesEn = "Up to 2 users with basic roles\nUp to 500 invoices/month\n1 branch & single warehouse\nSimplified Tax Invoices (B2C) with TLV QR Code\nBasic receipt & payment vouchers\nStandard chart of accounts (4 levels)\nEmail support & regular updates" },
         new() { Id = SubscriptionPlanId.Professional, NameAr = "باقة الشركات المتقدمة (Professional)", NameEn = "Professional Business Plan",
                 PriceMonthly = 499, PriceYearly = 4990, MaxUsers = 10, MaxInvoicesPerMonth = null, Branches = 3,
-                ZatcaPhase2Enabled = true, IsActive = true, SortOrder = 2 },
+                ZatcaPhase2Enabled = true, IsActive = true, SortOrder = 2,
+                DescriptionAr = "الخيار الأكثر طلباً للشركات والمؤسسات المتوسطة مع دعم كامل للربط والتكامل ZATCA ومحاسبة التكاليف.",
+                DescriptionEn = "Most popular choice for growing businesses with full ZATCA Phase 2 clearance and costing engine.",
+                BadgeAr = "الأكثر طلباً ⭐", BadgeEn = "Most Popular ⭐", IsPopular = true,
+                FeaturesAr = "حتى 10 مستخدمين مع إدارة أدوار متقدمة (RBAC)\nفواتير مبيعات ومشتريات غير محدودة شهرياً\nإدارة حتى 3 فروع ومستودعات متعددة\nربط وتكامل مع هيئة الزكاة ZATCA Phase 2 (فواتير ضريبية B2B واعتماد لحظي)\nمحرك حساب متوسط التكلفة المرجح المتحرك (Moving Average Costing)\nشجرة حسابات احترافية مرنة والقيود اليومية الآلية\nتقارير مالية تفصيلية (قائمة الدخل، الميزانية العمومية، إقرار الضريبة)\nدعم فني سريع عبر الواتساب والهاتف",
+                FeaturesEn = "Up to 10 users with advanced RBAC permissions\nUnlimited invoices per month\nUp to 3 branches & multi-warehouse inventory\nZATCA Phase 2 Integration (B2B Clearance & B2C Reporting)\nWeighted Moving Average costing engine\nEnterprise chart of accounts with auto journal entries\nFinancial reports (P&L, Balance Sheet, VAT Return)\nPriority phone & WhatsApp support" },
         new() { Id = SubscriptionPlanId.Enterprise, NameAr = "باقة المجموعات والمؤسسات (Enterprise)", NameEn = "Enterprise Corporate Plan",
                 PriceMonthly = 999, PriceYearly = 9990, MaxUsers = null, MaxInvoicesPerMonth = null, Branches = null,
-                ZatcaPhase2Enabled = true, IsActive = true, SortOrder = 3 },
+                ZatcaPhase2Enabled = true, IsActive = true, SortOrder = 3,
+                DescriptionAr = "حل متكامل ومخصص للمجموعات التجارية والشركات الكبرى وفروعها مع بنية تحتية مخصصة وربط API مفتوح.",
+                DescriptionEn = "Custom corporate solution for large holdings and chains with dedicated infrastructure and API webhooks.",
+                BadgeAr = "للمجموعات الكبرى", BadgeEn = "Corporate & Holding", IsPopular = false,
+                FeaturesAr = "عدد غير محدود من المستخدمين والمشرفين\nفروع ومستودعات ومراكز تكلفة غير محدودة\nربط برمجي كامل (RESTful API Webhooks) مع المتاجر ونقاط البيع\nربط تلقائي بالكامل مع بوابة Fatoora ZATCA وتخزين سحابي للـ CSID\nتعدد العملات وسعر الصرف التلقائي\nتقارير تحليلية ومؤشرات أداء مالية متقدمة وتصدير مخصص\nخادم وقاعدة بيانات مستقلة عالية الأداء ونسخ احتياطي فوري\nمدير حساب محاسبي معتمد مخصص ودعم على مدار الساعة 24/7",
+                FeaturesEn = "Unlimited users and branch supervisors\nUnlimited branches, warehouses & cost centers\nFull RESTful API & POS webhooks integration\nAutomated Fatoora ZATCA portal with cloud CSID storage\nMulti-currency support with auto FX rates\nAdvanced financial BI dashboards & custom export\nDedicated high-performance tenant database & real-time backup\nDedicated account manager & 24/7 priority SLA" },
     };
 
     public static SubscriptionPlanDto ToDto(PlanDefinition p) => new()
@@ -31,7 +46,16 @@ public static class SubscriptionCatalog
         Id = p.Id, NameAr = p.NameAr, NameEn = p.NameEn, PriceMonthly = p.PriceMonthly, PriceYearly = p.PriceYearly,
         MaxUsers = p.MaxUsers, MaxInvoicesPerMonth = p.MaxInvoicesPerMonth, Branches = p.Branches,
         ZatcaPhase2Enabled = p.ZatcaPhase2Enabled, Modules = PlatformModules.Parse(p.ModuleKeys),
+        DescriptionAr = p.DescriptionAr, DescriptionEn = p.DescriptionEn, BadgeAr = p.BadgeAr, BadgeEn = p.BadgeEn, IsPopular = p.IsPopular,
+        FeaturesAr = SplitLines(p.FeaturesAr), FeaturesEn = SplitLines(p.FeaturesEn),
     };
+
+    /// <summary>المزايا تُخزَّن ميزة في كل سطر.</summary>
+    public static string[] SplitLines(string? text)
+        => (text ?? string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    public static string JoinLines(IEnumerable<string>? lines)
+        => string.Join('\n', (lines ?? Array.Empty<string>()).Select(l => l?.Trim() ?? string.Empty).Where(l => l.Length > 0));
 
     /// <summary>الباقة من قاعدة البيانات. <paramref name="forSale"/>: يرفض الباقة المعطّلة (تسجيل/دفع/ترقية ذاتية).</summary>
     public static async Task<SubscriptionPlanDto> GetAsync(ErpDbContext db, SubscriptionPlanId id, bool forSale, CancellationToken ct = default)

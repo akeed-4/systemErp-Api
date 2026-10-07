@@ -260,5 +260,73 @@ public class PlatformSubscriptionTests : TestBase
         });
     }
 
+    [Fact]
+    public async Task Plan_marketing_details_are_stored_on_the_server_and_editable_by_the_platform_admin()
+    {
+        var admin = await PlatformAdminAsync();
+        var anon = new Client(NewHttp());
+
+        // الكتالوج العام (شاشة التسجيل) يحمل الوصف والشارة والمزايا من قاعدة البيانات
+        System.Text.Json.Nodes.JsonNode Enterprise(Res list) => list.Data!.AsArray().First(x => x!["id"].S() == "enterprise")!;
+        var before = Enterprise(await anon.SendAsync(HttpMethod.Get, "/subscriptions/plans", null, true));
+        Assert.False(string.IsNullOrWhiteSpace(before["descriptionAr"].S()));
+        Assert.False(string.IsNullOrWhiteSpace(before["descriptionEn"].S()));
+        Assert.True(before["featuresAr"]!.AsArray().Count >= 5);
+        Assert.Equal(before["featuresAr"]!.AsArray().Count, before["featuresEn"]!.AsArray().Count);
+        var popularBefore = (await admin.Get("/platform/plans")).Data!.AsArray().Single(x => x!["isPopular"]!.GetValue<bool>())!["id"].S();
+        Assert.Equal("professional", popularBefore);
+
+        object Payload() => new
+        {
+            nameAr = before["nameAr"].S(), nameEn = before["nameEn"].S(), priceMonthly = before["priceMonthly"].D(), priceYearly = before["priceYearly"].D(),
+            maxUsers = (int?)null, maxInvoicesPerMonth = (int?)null, branches = (int?)null, zatcaPhase2Enabled = true, isActive = true,
+            modules = new[] { "accounting", "car_showroom", "pos" },
+        };
+
+        // طلب لا يرسل التفاصيل لا يمسحها
+        Assert.Equal(200, (await admin.Put("/platform/plans/enterprise", Payload())).Status);
+        var kept = Enterprise(await anon.SendAsync(HttpMethod.Get, "/subscriptions/plans", null, true));
+        Assert.Equal(before["descriptionAr"].S(), kept["descriptionAr"].S());
+        Assert.Equal(before["featuresAr"]!.AsArray().Count, kept["featuresAr"]!.AsArray().Count);
+
+        // تعديل التفاصيل وإبراز الباقة: تُبرَز باقة واحدة فقط
+        var edited = await admin.Put("/platform/plans/enterprise", new
+        {
+            nameAr = before["nameAr"].S(), nameEn = before["nameEn"].S(), priceMonthly = before["priceMonthly"].D(), priceYearly = before["priceYearly"].D(),
+            maxUsers = (int?)null, maxInvoicesPerMonth = (int?)null, branches = (int?)null, zatcaPhase2Enabled = true, isActive = true,
+            modules = new[] { "accounting", "car_showroom", "pos" },
+            descriptionAr = "وصف جديد", descriptionEn = "New description", badgeAr = "شارة", badgeEn = "Badge", isPopular = true,
+            featuresAr = new[] { "ميزة أولى", "  ", "ميزة ثانية" }, featuresEn = new[] { "First", "Second" },
+        });
+        Assert.Equal(200, edited.Status);
+        try
+        {
+            var after = Enterprise(await anon.SendAsync(HttpMethod.Get, "/subscriptions/plans", null, true));
+            Assert.Equal("وصف جديد", after["descriptionAr"].S());
+            Assert.Equal("Badge", after["badgeEn"].S());
+            Assert.Equal(new[] { "ميزة أولى", "ميزة ثانية" }, after["featuresAr"]!.AsArray().Select(f => f.S()).ToArray());
+            Assert.Equal("enterprise", (await admin.Get("/platform/plans")).Data!.AsArray().Single(x => x!["isPopular"]!.GetValue<bool>())!["id"].S());
+        }
+        finally
+        {
+            // الكتالوج مشترك بين الاختبارات: تُعاد القيم الأصلية
+            await admin.Put("/platform/plans/enterprise", new
+            {
+                nameAr = before["nameAr"].S(), nameEn = before["nameEn"].S(), priceMonthly = before["priceMonthly"].D(), priceYearly = before["priceYearly"].D(),
+                maxUsers = (int?)null, maxInvoicesPerMonth = (int?)null, branches = (int?)null, zatcaPhase2Enabled = true, isActive = true,
+                modules = new[] { "accounting", "car_showroom", "pos" },
+                descriptionAr = before["descriptionAr"].S(), descriptionEn = before["descriptionEn"].S(), badgeAr = before["badgeAr"].S(), badgeEn = before["badgeEn"].S(),
+                isPopular = false, featuresAr = before["featuresAr"]!.AsArray().Select(f => f.S()).ToArray(), featuresEn = before["featuresEn"]!.AsArray().Select(f => f.S()).ToArray(),
+            });
+            var pro = (await admin.Get("/platform/plans")).Data!.AsArray().First(x => x!["id"].S() == "professional")!;
+            await admin.Put("/platform/plans/professional", new
+            {
+                nameAr = pro["nameAr"].S(), nameEn = pro["nameEn"].S(), priceMonthly = pro["priceMonthly"].D(), priceYearly = pro["priceYearly"].D(),
+                maxUsers = pro["maxUsers"]?.GetValue<int?>(), maxInvoicesPerMonth = pro["maxInvoicesPerMonth"]?.GetValue<int?>(), branches = pro["branches"]?.GetValue<int?>(),
+                zatcaPhase2Enabled = true, isActive = true, modules = pro["modules"]!.AsArray().Select(m => m.S()).ToArray(), isPopular = true,
+            });
+        }
+    }
+
     private Client NewHttpClient() => new(NewHttp());
 }

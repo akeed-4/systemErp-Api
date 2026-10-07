@@ -176,6 +176,8 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         MaxUsers = p.MaxUsers, MaxInvoicesPerMonth = p.MaxInvoicesPerMonth, Branches = p.Branches,
         ZatcaPhase2Enabled = p.ZatcaPhase2Enabled, Modules = PlatformModules.Parse(p.ModuleKeys),
         IsActive = p.IsActive, SortOrder = p.SortOrder, Subscribers = subscribers,
+        DescriptionAr = p.DescriptionAr, DescriptionEn = p.DescriptionEn, BadgeAr = p.BadgeAr, BadgeEn = p.BadgeEn, IsPopular = p.IsPopular,
+        FeaturesAr = SubscriptionCatalog.SplitLines(p.FeaturesAr), FeaturesEn = SubscriptionCatalog.SplitLines(p.FeaturesEn),
     };
 
     private async Task<Dictionary<SubscriptionPlanId, int>> SubscriberCountsAsync(CancellationToken ct)
@@ -216,6 +218,20 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         plan.ZatcaPhase2Enabled = r.ZatcaPhase2Enabled;
         plan.ModuleKeys = PlatformModules.ToCsv(PlatformModules.Normalize(r.Modules));
         plan.IsActive = r.IsActive;
+        if (r.DescriptionAr != null) plan.DescriptionAr = r.DescriptionAr.Trim();
+        if (r.DescriptionEn != null) plan.DescriptionEn = r.DescriptionEn.Trim();
+        if (r.BadgeAr != null) plan.BadgeAr = r.BadgeAr.Trim();
+        if (r.BadgeEn != null) plan.BadgeEn = r.BadgeEn.Trim();
+        if (r.FeaturesAr != null) plan.FeaturesAr = SubscriptionCatalog.JoinLines(r.FeaturesAr);
+        if (r.FeaturesEn != null) plan.FeaturesEn = SubscriptionCatalog.JoinLines(r.FeaturesEn);
+        if (r.IsPopular.HasValue)
+        {
+            // باقة مُبرَزة واحدة على الأكثر
+            if (r.IsPopular.Value)
+                foreach (var other in await _db.Set<PlanDefinition>().Where(p => p.IsPopular && p.Id != id).ToListAsync(ct))
+                    other.IsPopular = false;
+            plan.IsPopular = r.IsPopular.Value;
+        }
         plan.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ToPlanDto(plan, (await SubscriberCountsAsync(ct)).GetValueOrDefault(id));

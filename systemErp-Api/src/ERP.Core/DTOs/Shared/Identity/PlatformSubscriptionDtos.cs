@@ -13,6 +13,13 @@ public class PlatformPlanDto
     public SubscriptionPlanId Id { get; set; }
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    public string DescriptionAr { get; set; } = string.Empty;
+    public string DescriptionEn { get; set; } = string.Empty;
+    public string BadgeAr { get; set; } = string.Empty;
+    public string BadgeEn { get; set; } = string.Empty;
+    public bool IsPopular { get; set; }
+    public string[] FeaturesAr { get; set; } = Array.Empty<string>();
+    public string[] FeaturesEn { get; set; } = Array.Empty<string>();
     public decimal PriceMonthly { get; set; }
     public decimal PriceYearly { get; set; }
     public int? MaxUsers { get; set; }
@@ -30,13 +37,21 @@ public class UpdatePlanRequestDto
 {
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    // التفاصيل التسويقية: null = تبقى كما هي (طلب لا يرسلها لا يمسحها)
+    public string? DescriptionAr { get; set; }
+    public string? DescriptionEn { get; set; }
+    public string? BadgeAr { get; set; }
+    public string? BadgeEn { get; set; }
+    public bool? IsPopular { get; set; }
+    public string[]? FeaturesAr { get; set; }
+    public string[]? FeaturesEn { get; set; }
     public decimal PriceMonthly { get; set; }
     public decimal PriceYearly { get; set; }
     public int? MaxUsers { get; set; }
     public int? MaxInvoicesPerMonth { get; set; }
     public int? Branches { get; set; }
     public bool ZatcaPhase2Enabled { get; set; } = true;
-    public string[] Modules { get; set; } = new[] { PlatformModules.Accounting, PlatformModules.CarShowroom };
+    public string[] Modules { get; set; } = PlatformModules.All;
     public bool IsActive { get; set; } = true;
 }
 

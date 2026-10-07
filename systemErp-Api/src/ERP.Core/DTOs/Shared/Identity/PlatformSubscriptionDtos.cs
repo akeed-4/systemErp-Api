@@ -2,7 +2,10 @@ namespace ERP.Core.DTOs.Shared;
 
 public class PlatformAccessDto
 {
+    /// <summary>يرى لوحة المنصة (عرض).</summary>
     public bool IsPlatformAdmin { get; set; }
+    /// <summary>يعدّل الاشتراكات والباقات ويمنح صلاحية المنصة لغيره.</summary>
+    public bool CanManage { get; set; }
 }
 
 public class PlatformPlanDto

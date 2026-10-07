@@ -602,6 +602,7 @@
   <data name="SkuInUse" xml:space="preserve"><value>The item code (SKU) is already in use.</value></data>
   <data name="SkuRequired" xml:space="preserve"><value>The item code (SKU) is required.</value></data>
   <data name="SomeDocumentLinesInvalid" xml:space="preserve"><value>Some document lines are invalid.</value></data>
+  <data name="PlatformPermissionUserOnly" xml:space="preserve"><value>The platform administration permission is granted to a specific user, not to a role.</value></data>
   <data name="SpecifyUserOrRole" xml:space="preserve"><value>Specify the user or the role.</value></data>
   <data name="SplitPaymentsMustEqualInvoiceTotal" xml:space="preserve"><value>The split payments total must equal the invoice total.</value></data>
   <data name="SplitPaymentsMustEqualVoucherAmount" xml:space="preserve"><value>The split payments total must equal the voucher amount.</value></data>

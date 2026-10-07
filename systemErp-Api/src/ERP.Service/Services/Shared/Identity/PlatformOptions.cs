@@ -1,6 +1,9 @@
 namespace ERP.Service.Services.Shared;
 
-/// <summary>إعدادات المنصة. مديرو المنصة يُحدَّدون بالبريد من الإعدادات فقط (لا حقل في قاعدة البيانات يمكن التلاعب به).</summary>
+/// <summary>
+/// إعدادات المنصة. البريد هنا يحدد المدراء الجذريين (صلاحية كاملة دائماً، ومنهم يبدأ المنح)؛ وبعدها تُمنح صلاحية
+/// إدارة المنصة لمستخدمين محددين من قائمة الصلاحيات (انظر <see cref="PlatformAccessService"/>).
+/// </summary>
 public class PlatformOptions
 {
     public const string Section = "Platform";

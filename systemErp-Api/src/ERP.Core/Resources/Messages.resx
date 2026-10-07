@@ -602,6 +602,7 @@
   <data name="SkuInUse" xml:space="preserve"><value>رمز الصنف (SKU) مستخدم مسبقاً.</value></data>
   <data name="SkuRequired" xml:space="preserve"><value>رمز الصنف (SKU) مطلوب.</value></data>
   <data name="SomeDocumentLinesInvalid" xml:space="preserve"><value>بعض أسطر المستند غير صحيحة.</value></data>
+  <data name="PlatformPermissionUserOnly" xml:space="preserve"><value>صلاحية إدارة المنصة تُمنح لمستخدم محدد لا لدور.</value></data>
   <data name="SpecifyUserOrRole" xml:space="preserve"><value>حدّد المستخدم أو الدور.</value></data>
   <data name="SplitPaymentsMustEqualInvoiceTotal" xml:space="preserve"><value>مجموع الدفعات المقسّمة يجب أن يساوي إجمالي الفاتورة.</value></data>
   <data name="SplitPaymentsMustEqualVoucherAmount" xml:space="preserve"><value>مجموع الدفعات المقسّمة يجب أن يساوي مبلغ السند.</value></data>

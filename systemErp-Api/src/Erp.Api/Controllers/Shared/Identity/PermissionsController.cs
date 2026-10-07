@@ -22,7 +22,7 @@ public class PermissionsController : ErpControllerBase
 
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] Guid? userId, [FromQuery] string? roleId, CancellationToken ct)
-        => Success(await _permissions.GetForUserOrRoleAsync(userId, roleId, ct));
+        => Success(await _permissions.GetForEditingAsync(userId, roleId, ct));
 
     [HttpPost]
     public async Task<IActionResult> Save([FromBody] SavePermissionsRequestDto request, CancellationToken ct)

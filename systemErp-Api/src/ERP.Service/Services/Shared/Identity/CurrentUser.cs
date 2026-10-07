@@ -16,5 +16,6 @@ public class CurrentUser : ICurrentUser
     public bool IsAuthenticated => _principal?.Identity?.IsAuthenticated == true;
     public Guid? UserId => Guid.TryParse(_principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     public string? Name => _principal?.FindFirstValue(ClaimTypes.Name);
+    public string? Email => _principal?.FindFirstValue("email") ?? _principal?.FindFirstValue(ClaimTypes.Email);
     public string? RoleId => _principal?.FindFirstValue(RoleIdClaim);
 }

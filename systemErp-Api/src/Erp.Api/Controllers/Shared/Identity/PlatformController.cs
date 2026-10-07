@@ -1,8 +1,5 @@
-using System.Security.Claims;
 using ERP.Api.Infrastructure;
-using ERP.Service.Services.Shared;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace ERP.Api.Controllers.Shared;
 
@@ -11,21 +8,17 @@ namespace ERP.Api.Controllers.Shared;
 public class PlatformController : ErpControllerBase
 {
     private readonly IPlatformSubscriptionService _platform;
-    private readonly IOptionsMonitor<PlatformOptions> _options;
+    private readonly IPlatformAccessService _access;
 
-    public PlatformController(IPlatformSubscriptionService platform, IOptionsMonitor<PlatformOptions> options)
+    public PlatformController(IPlatformSubscriptionService platform, IPlatformAccessService access)
     {
         _platform = platform;
-        _options = options;
+        _access = access;
     }
 
     /// <summary>تُسأل من الواجهة لإظهار قسم المنصة؛ متاحة لأي مستخدم مسجّل وتعيد true/false فقط.</summary>
     [HttpGet("access")]
-    public IActionResult Access()
-    {
-        var email = User.FindFirstValue("email") ?? User.FindFirstValue(ClaimTypes.Email);
-        return Success(new PlatformAccessDto { IsPlatformAdmin = _options.CurrentValue.IsAdmin(email) });
-    }
+    public async Task<IActionResult> Access(CancellationToken ct) => Success(await _access.GetAsync(ct));
 
     [HttpGet("summary"), RequirePlatformAdmin]
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _platform.SummaryAsync(ct));

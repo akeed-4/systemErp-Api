@@ -4,6 +4,7 @@ public interface ICurrentUser
 {
     Guid? UserId { get; }
     string? Name { get; }
+    string? Email { get; }
     /// <summary>owner | admin | general_manager | chief_accountant | sales_rep</summary>
     string? RoleId { get; }
     bool IsAuthenticated { get; }

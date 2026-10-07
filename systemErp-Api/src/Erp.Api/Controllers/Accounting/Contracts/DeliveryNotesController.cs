@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Accounting;
 
 [Route("api/v1/deliverynotes"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Accounting)]
 public class DeliveryNotesController : ErpControllerBase
 {
     private readonly IDeliveryNoteService _notes;

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.POS;
 
 [Route("api/v1/pos/coupons"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Pos)]
 public class PosCouponsController : CrudController<PosCouponDto, CreatePosCouponDto, UpdatePosCouponDto>
 {
     private readonly IPosCouponService _coupons;

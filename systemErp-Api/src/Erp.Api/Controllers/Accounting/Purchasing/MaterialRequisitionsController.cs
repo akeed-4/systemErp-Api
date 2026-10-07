@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Accounting;
 
 [Route("api/v1/materialrequisitions"), RequireScreen("purchases")]
+[RequireModule(PlatformModules.Accounting)]
 public class MaterialRequisitionsController : CrudController<MaterialRequisitionDto, CreateMaterialRequisitionDto, UpdateMaterialRequisitionDto>
 {
     private readonly IMaterialRequisitionService _requisitions;

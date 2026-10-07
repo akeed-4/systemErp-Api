@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.POS;
 
 [Route("api/v1/pos/HeldCarts"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Pos)]
 public class PosHeldCartsController : CrudController<PosHeldCartDto, CreatePosHeldCartDto, UpdatePosHeldCartDto>
 {
     public PosHeldCartsController(IPosHeldCartService s) : base(s) { }

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.POS;
 
 [Route("api/v1/pos/shifts"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Pos)]
 public class PosShiftsController : ErpControllerBase
 {
     private readonly IPosShiftService _shifts;

@@ -75,4 +75,48 @@ public class ArchitectureTests
         }
         Assert.DoesNotContain(names, n => n.Contains("Product") && n.StartsWith("Vehicle")); // السيارة ليست صنفاً
     }
+
+    /// <summary>
+    /// كل controller مصنَّف صراحةً: إما مشترك بين الوحدات (القائمة أدناه) أو يحمل RequireModule.
+    /// controller جديد لا يمرّ دون أن يُقرَّر لأي وحدة يتبع.
+    /// </summary>
+    [Fact]
+    public void Every_controller_is_either_shared_or_tagged_with_a_module()
+    {
+        var shared = new HashSet<string>
+        {
+            // الهوية والمنصة والإعدادات
+            "AuditLogs", "Auth", "Company", "Permissions", "Platform", "Subscriptions", "Users", "Payments", "SupportTickets",
+            "ApprovalPolicies", "Approvals", "Notifications",
+            // المحاسبة مشتركة بين كل الوحدات
+            "Accounts", "CostCenters", "FixedAssets", "JournalEntries", "Vouchers", "Reports",
+            // الفواتير محرّك واحد لفواتير التجارة وفواتير السيارات
+            "Invoices",
+            // البيانات الأساسية والأصناف والمخزون
+            "Banks", "Currencies", "Customers", "PaymentMethods", "Suppliers", "ProductCategories", "Products", "UnitsOfMeasure", "Warehouses",
+            "Costing", "InventoryCountApprovals", "InventoryCounts", "StockMovements",
+        };
+        var controllers = Api.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(Microsoft.AspNetCore.Mvc.ControllerBase).IsAssignableFrom(t))
+            .ToList();
+        Assert.NotEmpty(controllers);
+
+        foreach (var c in controllers)
+        {
+            var name = c.Name.Replace("Controller", string.Empty);
+            var tag = c.GetCustomAttribute<ERP.Api.Infrastructure.RequireModuleAttribute>();
+            if (shared.Contains(name)) Assert.True(tag == null, $"{c.Name} مدرج كمشترك ويحمل RequireModule معاً.");
+            else
+            {
+                Assert.True(tag != null, $"{c.Name} غير مصنَّف: أضف له RequireModule أو أدرجه ضمن المشترك.");
+                Assert.All(tag!.AnyOf, m => Assert.Contains(m, PlatformModules.All));
+            }
+        }
+
+        // المجلد يطابق الوحدة: معارض السيارات ونقاط البيع
+        Assert.All(controllers.Where(c => c.Namespace!.EndsWith(".CarShowroom")),
+            c => Assert.Equal(new[] { PlatformModules.CarShowroom }, c.GetCustomAttribute<ERP.Api.Infrastructure.RequireModuleAttribute>()!.AnyOf));
+        Assert.All(controllers.Where(c => c.Namespace!.EndsWith(".POS")),
+            c => Assert.Equal(new[] { PlatformModules.Pos }, c.GetCustomAttribute<ERP.Api.Infrastructure.RequireModuleAttribute>()!.AnyOf));
+    }
 }

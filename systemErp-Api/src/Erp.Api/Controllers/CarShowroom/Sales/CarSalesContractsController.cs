@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.CarShowroom;
 
 [Route("api/v1/carsalescontracts"), RequireScreen("car-showroom")]
+[RequireModule(PlatformModules.CarShowroom)]
 public class CarSalesContractsController : ErpControllerBase
 {
     private readonly ICarSaleService _service;

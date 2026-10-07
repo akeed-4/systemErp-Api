@@ -8,6 +8,7 @@ namespace ERP.Api.Controllers.CarShowroom;
 
 /// <summary>كل تقارير معرض السيارات تقبل خيارات DevExtreme وتُعيد LoadResult مباشرة.</summary>
 [Route("api/v1/reports/car")]
+[RequireModule(PlatformModules.CarShowroom)]
 [RequireScreen("reports")]
 public class CarShowroomReportsController : ErpControllerBase
 {

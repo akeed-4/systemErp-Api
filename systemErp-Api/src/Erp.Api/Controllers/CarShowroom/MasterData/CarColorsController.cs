@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.CarShowroom;
 
 [Route("api/v1/carcolors"), RequireScreen("car-showroom")]
+[RequireModule(PlatformModules.CarShowroom)]
 public class CarColorsController : CrudController<CarColorDto, CreateCarColorDto, UpdateCarColorDto>
 {
     public CarColorsController(ICarColorService s) : base(s) { }

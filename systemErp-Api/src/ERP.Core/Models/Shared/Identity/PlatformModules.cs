@@ -7,13 +7,18 @@ namespace ERP.Core.Models.Shared;
 /// </summary>
 public static class PlatformModules
 {
-    /// <summary>النظام المحاسبي العام: مبيعات ومشتريات وسندات وحسابات وتقارير ونقطة بيع.</summary>
+    /// <summary>
+    /// التجارة العامة: عروض الأسعار والاتفاقيات والطلبات والعقود التجارية وإشعارات التسليم وطلبات الشراء.
+    /// المحاسبة نفسها (حسابات، قيود، سندات، تقارير) والبيانات الأساسية مشتركة بين كل الوحدات وليست ضمن هذا المفتاح.
+    /// </summary>
     public const string Accounting = "accounting";
     /// <summary>معارض السيارات: مركبات ومشتريات استيراد وعقود بيع وتقارير المعرض.</summary>
     public const string CarShowroom = "car_showroom";
+    /// <summary>نقاط البيع: الورديات والبيع والمرتجعات والعروض والولاء. تُباع منفردة أو مع غيرها.</summary>
+    public const string Pos = "pos";
 
-    public static readonly string[] All = { Accounting, CarShowroom };
-    public const string AllCsv = Accounting + "," + CarShowroom;
+    public static readonly string[] All = { Accounting, CarShowroom, Pos };
+    public const string AllCsv = Accounting + "," + CarShowroom + "," + Pos;
 
     /// <summary>يطبّع القائمة (حروف صغيرة، بلا تكرار، المعروف فقط، بترتيب ثابت). يرمي إن كانت فارغة أو فيها وحدة غير معروفة.</summary>
     public static string[] Normalize(IEnumerable<string>? modules)
@@ -26,7 +31,7 @@ public static class PlatformModules
     }
 
     public static string[] Parse(string? csv)
-        => string.IsNullOrWhiteSpace(csv) ? new[] { Accounting } : All.Where(m => csv.Split(',', StringSplitOptions.TrimEntries).Contains(m)).ToArray();
+        => string.IsNullOrWhiteSpace(csv) ? new[] { Accounting, Pos } : All.Where(m => csv.Split(',', StringSplitOptions.TrimEntries).Contains(m)).ToArray();
 
     public static string ToCsv(IEnumerable<string> modules) => string.Join(",", modules);
 }

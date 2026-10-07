@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.POS;
 
 [Route("api/v1/pos/settings"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Pos)]
 public class PosSettingsController : ErpControllerBase
 {
     private readonly IPosSettingsService _settings;

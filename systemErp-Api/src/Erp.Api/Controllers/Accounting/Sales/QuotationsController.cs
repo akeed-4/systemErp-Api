@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Accounting;
 
 [Route("api/v1/quotations"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Accounting)]
 public class QuotationsController : CrudController<QuotationDto, CreateQuotationDto, UpdateQuotationDto>
 {
     private readonly IQuotationService _quotations;

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.POS;
 
 [Route("api/v1/pos/offers"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Pos)]
 public class PosOffersController : CrudController<PosOfferDto, CreatePosOfferDto, UpdatePosOfferDto>
 {
     public PosOffersController(IPosOfferService s) : base(s) { }

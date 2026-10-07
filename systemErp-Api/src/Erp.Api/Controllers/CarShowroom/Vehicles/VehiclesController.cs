@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.CarShowroom;
 
 [Route("api/v1/vehicles"), RequireScreen("car-showroom")]
+[RequireModule(PlatformModules.CarShowroom)]
 public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, UpdateVehicleDto>
 {
     private readonly IVehicleService _vehicles;

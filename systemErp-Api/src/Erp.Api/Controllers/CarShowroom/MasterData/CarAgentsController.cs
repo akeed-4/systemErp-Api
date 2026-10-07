@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.CarShowroom;
 
 [Route("api/v1/caragents"), RequireScreen("car-showroom")]
+[RequireModule(PlatformModules.CarShowroom)]
 public class CarAgentsController : CrudController<CarAgentDto, CreateCarAgentDto, UpdateCarAgentDto>
 {
     public CarAgentsController(ICarAgentService s) : base(s) { }

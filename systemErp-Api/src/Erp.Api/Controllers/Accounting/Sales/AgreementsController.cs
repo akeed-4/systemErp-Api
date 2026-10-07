@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Accounting;
 
 [Route("api/v1/agreements"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Accounting)]
 public class AgreementsController : CrudController<AgreementDto, CreateAgreementDto, UpdateAgreementDto>
 {
     public AgreementsController(IAgreementService s) : base(s) { }

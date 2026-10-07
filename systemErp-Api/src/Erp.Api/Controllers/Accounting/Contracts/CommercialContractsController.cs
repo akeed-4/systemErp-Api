@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Accounting;
 
 [Route("api/v1/commercialcontracts"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Accounting)]
 public class CommercialContractsController : CrudController<CommercialContractDto, CreateCommercialContractDto, UpdateCommercialContractDto>
 {
     private readonly ICommercialContractService _contracts;

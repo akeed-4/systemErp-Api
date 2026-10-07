@@ -180,18 +180,18 @@ public class PlatformSubscriptionTests : TestBase
         var other = await NewTenantAsync("شركة وحدات");
 
         var current = (await other.Get("/subscriptions/current")).Data!["modules"]!.AsArray().Select(m => m.S()).ToArray();
-        Assert.Equal(new[] { "accounting", "car_showroom" }, current);
+        Assert.Equal(new[] { "accounting", "car_showroom", "pos" }, current);
 
-        // بيع النظام المحاسبي فقط
+        // بيع التجارة العامة فقط
         var only = await admin.Post($"/platform/tenants/{other.TenantId}/subscriptions/modules", new { modules = new[] { "accounting" } });
         Assert.Equal(200, only.Status);
         Assert.Equal(new[] { "accounting" }, only.Data!["modules"]!.AsArray().Select(m => m.S()).ToArray());
 
-        // وحدة المعرض ممنوعة، والنظام المحاسبي يعمل
+        // وحدة المعرض ممنوعة، والمشترك (البيانات الأساسية) يعمل
         Assert.Equal(403, (await other.Get("/vehicles")).Status);
         Assert.Equal(200, (await other.Get("/customers")).Status);
 
-        // بيع معارض السيارات فقط: نقطة البيع (تتبع المحاسبة) ممنوعة والمعرض يعمل
+        // بيع معارض السيارات فقط: نقطة البيع (وحدة مستقلة) ممنوعة والمعرض يعمل
         await admin.Post($"/platform/tenants/{other.TenantId}/subscriptions/modules", new { modules = new[] { "car_showroom" } });
         Assert.Equal(200, (await other.Get("/vehicles")).Status);
         Assert.Equal(403, (await other.Get("/pos/transactions")).Status);
@@ -256,7 +256,7 @@ public class PlatformSubscriptionTests : TestBase
         await admin.Put("/platform/plans/starter", new
         {
             nameAr = "باقة البداية (Starter)", nameEn = "Starter Plan", priceMonthly = 199, priceYearly = 1990, maxUsers = 2, maxInvoicesPerMonth = 500,
-            branches = 1, zatcaPhase2Enabled = false, isActive = true, modules = new[] { "accounting", "car_showroom" },
+            branches = 1, zatcaPhase2Enabled = false, isActive = true, modules = new[] { "accounting", "car_showroom", "pos" },
         });
     }
 

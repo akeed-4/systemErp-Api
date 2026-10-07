@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.POS;
 
 [Route("api/v1/pos/returns"), RequireScreen("sales-returns")]
+[RequireModule(PlatformModules.Pos)]
 public class PosReturnsController : ErpControllerBase
 {
     private readonly IPosSaleReturnService _returns;

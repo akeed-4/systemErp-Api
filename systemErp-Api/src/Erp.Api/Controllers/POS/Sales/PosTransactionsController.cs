@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.POS;
 
 [Route("api/v1/pos/transactions"), RequireScreen("sales")]
+[RequireModule(PlatformModules.Pos)]
 public class PosTransactionsController : ErpControllerBase
 {
     private readonly IPosSaleService _sales;

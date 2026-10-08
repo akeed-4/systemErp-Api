@@ -5,18 +5,38 @@ public class CreateEmployeeDto
     public string Code { get; set; } = string.Empty;
     public string NameAr { get; set; } = string.Empty;
     public string? NameEn { get; set; }
+    public string? Nationality { get; set; }
+    public string? Gender { get; set; }
+    public DateTime? BirthDate { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? Address { get; set; }
     public string? NationalId { get; set; }
+    public string IdType { get; set; } = "national_id";
+    public DateTime? IdExpiryDate { get; set; }
+    public string? PassportNumber { get; set; }
+    public DateTime? PassportExpiryDate { get; set; }
+    public Guid? DepartmentId { get; set; }
     public string? JobTitle { get; set; }
     public DateTime HireDate { get; set; }
+    public string ContractType { get; set; } = "unlimited";
+    public DateTime? ContractStartDate { get; set; }
+    public DateTime? ContractEndDate { get; set; }
+    public DateTime? ProbationEndDate { get; set; }
     public decimal BasicSalary { get; set; }
     public decimal HousingAllowance { get; set; }
     public decimal TransportAllowance { get; set; }
     public decimal OtherAllowances { get; set; }
     public decimal EmployeeGosiRate { get; set; }
     public decimal EmployerGosiRate { get; set; }
+    public string? GosiNumber { get; set; }
+    public string? BankName { get; set; }
     public string? Iban { get; set; }
     public Guid? CostCenterId { get; set; }
     public string Status { get; set; } = "active";
+    public DateTime? TerminationDate { get; set; }
+    public string? TerminationReason { get; set; }
+    public string? Notes { get; set; }
 }
 
 public class UpdateEmployeeDto : CreateEmployeeDto

@@ -20,6 +20,7 @@ public class PermissionService : IPermissionService
         new() { Id = "inventory-counts", NameAr = "جرد المخزون والمركبات واعتماده", NameEn = "Inventory Counts & Approvals" },
         new() { Id = "vouchers", NameAr = "سندات القبض والصرف", NameEn = "Receipt & Payment Vouchers" },
         new() { Id = "accounts", NameAr = "دليل الحسابات والقيود اليومية", NameEn = "Chart of Accounts" },
+        new() { Id = "hr", NameAr = "شؤون الموظفين والرواتب", NameEn = "Human Resources & Payroll" },
         new() { Id = "zatca", NameAr = "الربط الإلكتروني والفوترة (ZATCA)", NameEn = "ZATCA Integration" },
         new() { Id = "car-showroom", NameAr = "إدارة وتعاريف معارض السيارات والمبايعات", NameEn = "Car Showroom & Automotive" },
         new() { Id = "reports", NameAr = "التقارير المالية والإقرار الضريبي", NameEn = "Financial Reports" },
@@ -56,7 +57,7 @@ public class PermissionService : IPermissionService
             if (role == "sales_rep")
             {
                 canApprove = false; canDelete = false;
-                if (s.Id is "accounts" or "approval-policies" or "user-permissions" or "reports")
+                if (s.Id is "accounts" or "hr" or "approval-policies" or "user-permissions" or "reports")
                     canView = canCreate = canEdit = false;
             }
             else if (role is "chief_accountant" or "general_manager")

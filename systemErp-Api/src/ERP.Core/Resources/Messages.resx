@@ -767,4 +767,32 @@
   <data name="ZatcaSubmissionNotImplemented" xml:space="preserve"><value>الإرسال الفعلي لهيئة الزكاة غير مُنفَّذ في هذه النسخة (يتطلب شهادة CSID حقيقية).</value></data>
   <data name="ZatcaTestCompleteNotConnected" xml:space="preserve"><value>بيانات الربط مكتملة، لكن الاتصال الفعلي بهيئة الزكاة غير مُفعَّل في هذه النسخة.</value></data>
   <data name="ZatcaTestMissingPrefix" xml:space="preserve"><value>بيانات الربط ناقصة: </value></data>
+
+  <data name="LabelDepartment" xml:space="preserve"><value>القسم</value></data>
+
+  <data name="DepartmentCodeInUse" xml:space="preserve"><value>رمز القسم مستخدم مسبقاً.</value></data>
+
+  <data name="DepartmentHasEmployees" xml:space="preserve"><value>لا يمكن حذف قسم يتبعه موظفون. انقل موظفيه إلى قسم آخر أولاً.</value></data>
+
+  <data name="DepartmentNotFound" xml:space="preserve"><value>القسم المحدد غير موجود.</value></data>
+
+  <data name="DepartmentManagerNotFound" xml:space="preserve"><value>الموظف المحدد مديراً للقسم غير موجود.</value></data>
+
+  <data name="EmployeeStatusInvalid" xml:space="preserve"><value>حالة الموظف غير صالحة (active | inactive | terminated).</value></data>
+
+  <data name="EmployeeIdTypeInvalid" xml:space="preserve"><value>نوع الهوية غير صالح (national_id | iqama).</value></data>
+
+  <data name="EmployeeContractTypeInvalid" xml:space="preserve"><value>نوع العقد غير صالح (unlimited | fixed).</value></data>
+
+  <data name="EmployeeContractEndRequired" xml:space="preserve"><value>العقد محدد المدة يتطلب تاريخ نهاية.</value></data>
+
+  <data name="EmployeeContractDatesInvalid" xml:space="preserve"><value>تاريخ نهاية العقد يجب أن يكون بعد بدايته.</value></data>
+
+  <data name="EmployeeTerminationDateRequired" xml:space="preserve"><value>إنهاء خدمة الموظف يتطلب تاريخ آخر يوم عمل.</value></data>
+
+  <data name="EmployeeTerminationBeforeHire" xml:space="preserve"><value>تاريخ نهاية الخدمة لا يسبق تاريخ الالتحاق.</value></data>
+
+  <data name="EmployeeEmailInvalid" xml:space="preserve"><value>البريد الإلكتروني للموظف غير صالح.</value></data>
+
+  <data name="EmployeeIbanInvalid" xml:space="preserve"><value>رقم الآيبان غير صالح (الآيبان السعودي 24 خانة يبدأ بـ SA).</value></data>
 </root>

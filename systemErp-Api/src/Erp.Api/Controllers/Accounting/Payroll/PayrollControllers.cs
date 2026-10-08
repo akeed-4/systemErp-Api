@@ -5,14 +5,31 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-[Route("api/v1/employees"), RequireScreen("accounts")]
+/// <summary>ملفات الموظفين، مع تنبيهات انتهاء الوثائق والعقود ومؤشرات شؤون الموظفين.</summary>
+[Route("api/v1/employees"), RequireScreen("hr")]
 public class EmployeesController : CrudController<EmployeeDto, CreateEmployeeDto, UpdateEmployeeDto>
 {
-    public EmployeesController(IEmployeeService s) : base(s) { }
+    private const int DefaultAlertDays = 60;
+    private readonly IEmployeeService _employees;
+    public EmployeesController(IEmployeeService s) : base(s) => _employees = s;
+
+    /// <summary>هويات وجوازات وعقود انتهت أو تنتهي خلال days يوماً، وفترات تجربة تنتهي خلالها.</summary>
+    [HttpGet("expiring")]
+    public async Task<IActionResult> Expiring([FromQuery] int? days, CancellationToken ct)
+        => Success(await _employees.GetExpiringAsync(days ?? DefaultAlertDays, ct));
+
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _employees.GetSummaryAsync(ct));
+}
+
+[Route("api/v1/departments"), RequireScreen("hr")]
+public class DepartmentsController : CrudController<DepartmentDto, CreateDepartmentDto, UpdateDepartmentDto>
+{
+    public DepartmentsController(IDepartmentService s) : base(s) { }
 }
 
 /// <summary>مسير الرواتب الشهري: معاينة، ترحيل، سجل، وعكس.</summary>
-[Route("api/v1/payroll"), RequireScreen("accounts")]
+[Route("api/v1/payroll"), RequireScreen("hr")]
 public class PayrollController : ErpControllerBase
 {
     private readonly IPayrollService _payroll;

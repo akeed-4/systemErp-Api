@@ -104,7 +104,7 @@ public class PayrollService : IPayrollService
         var adjustments = r.Adjustments.GroupBy(a => a.EmployeeId)
             .ToDictionary(g => g.Key, g => (Additions: g.Sum(a => a.Additions), Deductions: g.Sum(a => a.Deductions)));
 
-        var employees = await _db.Set<Employee>().AsNoTracking().Where(e => e.Status == "active" && e.HireDate <= monthEnd).OrderBy(e => e.Code).ToListAsync(ct);
+        var employees = await _db.Set<Employee>().AsNoTracking().Where(e => e.Status == EmployeeStatuses.Active && e.HireDate <= monthEnd).OrderBy(e => e.Code).ToListAsync(ct);
         var run = new PayrollRun { Period = month.ToString("yyyy-MM", CultureInfo.InvariantCulture), Date = monthEnd, Notes = r.Notes };
         foreach (var e in employees)
         {

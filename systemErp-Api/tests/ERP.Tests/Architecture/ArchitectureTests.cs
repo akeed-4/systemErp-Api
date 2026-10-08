@@ -89,7 +89,7 @@ public class ArchitectureTests
             "AuditLogs", "Auth", "Company", "Permissions", "Platform", "Subscriptions", "Users", "Payments", "SupportTickets",
             "ApprovalPolicies", "Approvals", "Notifications",
             // المحاسبة مشتركة بين كل الوحدات
-            "Accounts", "BankReconciliations", "CostCenters", "Employees", "Departments", "LeaveTypes", "LeaveRequests", "Payroll", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",
+            "Accounts", "BankReconciliations", "CostCenters", "Employees", "Departments", "LeaveTypes", "LeaveRequests", "EmployeeLoans", "EndOfService", "Payroll", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",
             // الفواتير محرّك واحد لفواتير التجارة وفواتير السيارات
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون

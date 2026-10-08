@@ -84,6 +84,8 @@ public class PayrollLineDto
     public decimal UnpaidLeaveDays { get; set; }
     /// <summary>خصم الإجازة غير المدفوعة، وهو ضمن Deductions.</summary>
     public decimal LeaveDeduction { get; set; }
+    /// <summary>أقساط السلف المخصومة من الصافي.</summary>
+    public decimal LoanDeduction { get; set; }
     public decimal Gross { get; set; }
     public decimal EmployeeGosi { get; set; }
     public decimal EmployerGosi { get; set; }
@@ -101,6 +103,7 @@ public class PayrollRunDto
     public decimal TotalDeductions { get; set; }
     public decimal TotalEmployeeGosi { get; set; }
     public decimal TotalEmployerGosi { get; set; }
+    public decimal TotalLoanDeductions { get; set; }
     public decimal TotalNet { get; set; }
     public Guid? JournalEntryId { get; set; }
     public string Status { get; set; } = "preview";

@@ -845,4 +845,40 @@
   <data name="EmployeeLeaveSettingsInvalid" xml:space="preserve"><value>إعدادات الإجازة السنوية للموظف غير صالحة (الاستحقاق أو الرصيد الافتتاحي أو تاريخه).</value></data>
 
   <data name="EmployeeHasLeaves" xml:space="preserve"><value>لا يمكن حذف موظف له طلبات إجازات.</value></data>
+
+  <data name="LoanNotFound" xml:space="preserve"><value>السلفة غير موجودة.</value></data>
+
+  <data name="LoanAmountInvalid" xml:space="preserve"><value>مبلغ السلفة يجب أن يكون أكبر من صفر.</value></data>
+
+  <data name="LoanDateRequired" xml:space="preserve"><value>تاريخ السلفة مطلوب.</value></data>
+
+  <data name="LoanInstallmentInvalid" xml:space="preserve"><value>القسط الشهري يجب أن يكون أكبر من صفر ولا يتجاوز المتبقي من السلفة.</value></data>
+
+  <data name="LoanEmployeeNotActive" xml:space="preserve"><value>لا تُصرف سلفة لموظف ليس على رأس العمل.</value></data>
+
+  <data name="LoanPaymentAccountNotFound" xml:space="preserve"><value>حساب صرف السلفة غير موجود في دليل الحسابات.</value></data>
+
+  <data name="LoanNotActive" xml:space="preserve"><value>السلفة مسدّدة أو ملغاة.</value></data>
+
+  <data name="LoanHasRepayments" xml:space="preserve"><value>لا تُلغى سلفة خُصم منها قسط. اعكس المسير الذي خُصم فيه أولاً.</value></data>
+
+  <data name="LoanCancelled" xml:space="preserve"><value>تم إلغاء السلفة وعكس قيدها.</value></data>
+
+  <data name="EmployeeHasLoansOrSettlement" xml:space="preserve"><value>لا يمكن حذف موظف له سلف أو تصفية نهاية خدمة.</value></data>
+
+  <data name="EndOfServiceNotFound" xml:space="preserve"><value>تصفية نهاية الخدمة غير موجودة.</value></data>
+
+  <data name="EndOfServiceReasonInvalid" xml:space="preserve"><value>سبب انتهاء الخدمة غير صالح.</value></data>
+
+  <data name="EndOfServiceAmountsInvalid" xml:space="preserve"><value>المستحقات والخصومات الأخرى لا تكون سالبة.</value></data>
+
+  <data name="EndOfServiceAlreadySettled" xml:space="preserve"><value>الموظف منتهية خدمته أو له تصفية مرحّلة.</value></data>
+
+  <data name="EndOfServiceAlreadyReversed" xml:space="preserve"><value>التصفية معكوسة مسبقاً.</value></data>
+
+  <data name="EndOfServiceNetNegative" xml:space="preserve"><value>صافي التصفية سالب ({0}): السلف والخصومات تتجاوز المستحقات. عدّل المبالغ أو حصّل الفرق أولاً.</value></data>
+
+  <data name="EndOfServicePosted" xml:space="preserve"><value>تم ترحيل تصفية نهاية الخدمة وإنهاء خدمة الموظف.</value></data>
+
+  <data name="EndOfServiceReversed" xml:space="preserve"><value>تم عكس التصفية وإعادة الموظف إلى رأس العمل.</value></data>
 </root>

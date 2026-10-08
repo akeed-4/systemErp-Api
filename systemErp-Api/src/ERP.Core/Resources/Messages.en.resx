@@ -845,4 +845,40 @@
   <data name="EmployeeLeaveSettingsInvalid" xml:space="preserve"><value>The employee's annual leave settings are invalid (entitlement, opening balance or its date).</value></data>
 
   <data name="EmployeeHasLeaves" xml:space="preserve"><value>An employee with leave requests cannot be deleted.</value></data>
+
+  <data name="LoanNotFound" xml:space="preserve"><value>The loan does not exist.</value></data>
+
+  <data name="LoanAmountInvalid" xml:space="preserve"><value>The loan amount must be greater than zero.</value></data>
+
+  <data name="LoanDateRequired" xml:space="preserve"><value>The loan date is required.</value></data>
+
+  <data name="LoanInstallmentInvalid" xml:space="preserve"><value>The monthly installment must be greater than zero and not exceed the remaining loan amount.</value></data>
+
+  <data name="LoanEmployeeNotActive" xml:space="preserve"><value>A loan cannot be granted to an employee who is not active.</value></data>
+
+  <data name="LoanPaymentAccountNotFound" xml:space="preserve"><value>The loan payment account does not exist in the chart of accounts.</value></data>
+
+  <data name="LoanNotActive" xml:space="preserve"><value>The loan is settled or cancelled.</value></data>
+
+  <data name="LoanHasRepayments" xml:space="preserve"><value>A loan with a deducted installment cannot be cancelled. Reverse the payroll run it was deducted in first.</value></data>
+
+  <data name="LoanCancelled" xml:space="preserve"><value>Loan cancelled and its entry reversed.</value></data>
+
+  <data name="EmployeeHasLoansOrSettlement" xml:space="preserve"><value>An employee with loans or an end-of-service settlement cannot be deleted.</value></data>
+
+  <data name="EndOfServiceNotFound" xml:space="preserve"><value>The end-of-service settlement does not exist.</value></data>
+
+  <data name="EndOfServiceReasonInvalid" xml:space="preserve"><value>The end-of-service reason is invalid.</value></data>
+
+  <data name="EndOfServiceAmountsInvalid" xml:space="preserve"><value>Other additions and deductions cannot be negative.</value></data>
+
+  <data name="EndOfServiceAlreadySettled" xml:space="preserve"><value>The employee is already terminated or has a posted settlement.</value></data>
+
+  <data name="EndOfServiceAlreadyReversed" xml:space="preserve"><value>The settlement is already reversed.</value></data>
+
+  <data name="EndOfServiceNetNegative" xml:space="preserve"><value>The settlement net is negative ({0}): loans and deductions exceed the entitlements. Adjust the amounts or collect the difference first.</value></data>
+
+  <data name="EndOfServicePosted" xml:space="preserve"><value>End-of-service settlement posted and the employee terminated.</value></data>
+
+  <data name="EndOfServiceReversed" xml:space="preserve"><value>Settlement reversed and the employee reinstated.</value></data>
 </root>

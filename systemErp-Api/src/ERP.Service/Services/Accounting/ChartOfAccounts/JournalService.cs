@@ -86,7 +86,7 @@ public class JournalService : IJournalService
         }, ct);
 
     /// <summary>قيود يحمل مستندها أرصدة أخرى (إهلاك أصل واقتناؤه واستبعاده، تسوية مخزون، رصيد افتتاحي): تُعدَّل وتُعكس من مستندها ليعود أثرها كاملاً.</summary>
-    private static readonly string[] OwnedSources = { "fixed_asset_depreciation", "fixed_asset_disposal", "fixed_asset_acquisition", "stock_adjustment", "opening_balance", "payroll" };
+    private static readonly string[] OwnedSources = { "fixed_asset_depreciation", "fixed_asset_disposal", "fixed_asset_acquisition", "stock_adjustment", "opening_balance", "payroll", "employee_loan", "end_of_service" };
 
     private async Task EnsureNotOwnedAsync(Guid id, CancellationToken ct)
     {

@@ -24,6 +24,8 @@ public static class DefaultAccounts
     public const string OutputVat = "213";
     public const string SalariesPayable = "214";          // رواتب مستحقة للموظفين (صافي المسير حتى صرفه)
     public const string SocialInsurancePayable = "215";   // تأمينات اجتماعية مستحقة (حصة الموظف والمنشأة حتى سدادها)
+    public const string EmployeeLoans = "115";            // سلف وقروض الموظفين (ذمم مدينة حتى خصمها من الرواتب)
+    public const string EndOfServiceExpense = "528";      // مكافأة نهاية الخدمة
     public const string SalariesExpense = "526";          // رواتب وأجور
     public const string SocialInsuranceExpense = "527";   // حصة المنشأة في التأمينات الاجتماعية
     public const string OpeningBalanceEquity = "33"; // مقابل الأرصدة الافتتاحية للعملاء والموردين والبنوك
@@ -56,6 +58,7 @@ public static class DefaultAccounts
         ("114",  "المخزون",                         "Inventory",                 AccountCategory.Asset,     "11"),
         ("1141", "مخزون البضاعة",                   "Merchandise Inventory",     AccountCategory.Asset,     "114"),
         ("1142", "مخزون السيارات",                  "Vehicle Inventory",         AccountCategory.Asset,     "114"),
+        ("115",  "سلف وقروض الموظفين",              "Employee Loans and Advances", AccountCategory.Asset,   "11"),
         ("12",   "الأصول الثابتة",                  "Fixed Assets",              AccountCategory.Asset,     "1"),
         ("121",  "الأصول الثابتة المادية",          "Tangible Fixed Assets",     AccountCategory.Asset,     "12"),
         ("122",  "مجمع الإهلاك",                    "Accumulated Depreciation",  AccountCategory.Asset,     "12"),
@@ -91,6 +94,7 @@ public static class DefaultAccounts
         ("525",  "خسائر استبعاد الأصول الثابتة",    "Loss on Disposal of Fixed Assets", AccountCategory.Expense, "52"),
         ("526",  "رواتب وأجور",                     "Salaries and Wages",        AccountCategory.Expense,   "52"),
         ("527",  "تأمينات اجتماعية - حصة المنشأة",  "Social Insurance - Employer Share", AccountCategory.Expense, "52"),
+        ("528",  "مكافأة نهاية الخدمة",             "End of Service Benefits",  AccountCategory.Expense,   "52"),
     };
 
     /// <summary>طبيعة الحساب: الأصول والمصروفات مدينة، عدا مجمع الإهلاك (حساب مقابل للأصل) فطبيعته دائنة.</summary>

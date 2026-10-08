@@ -14,6 +14,7 @@ public class PayrollRun : BaseEntity
     public decimal TotalDeductions { get; set; }
     public decimal TotalEmployeeGosi { get; set; }
     public decimal TotalEmployerGosi { get; set; }
+    public decimal TotalLoanDeductions { get; set; }
     public decimal TotalNet { get; set; }
     public Guid? JournalEntryId { get; set; }
     public string Status { get; set; } = "posted"; // posted | reversed
@@ -38,6 +39,8 @@ public class PayrollLine : BaseEntity
     public decimal Deductions { get; set; }
     public decimal UnpaidLeaveDays { get; set; }
     public decimal LeaveDeduction { get; set; }
+    /// <summary>أقساط السلف المخصومة من الصافي (سداد لا مصروف).</summary>
+    public decimal LoanDeduction { get; set; }
     public decimal Gross { get; set; }
     public decimal EmployeeGosi { get; set; }
     public decimal EmployerGosi { get; set; }

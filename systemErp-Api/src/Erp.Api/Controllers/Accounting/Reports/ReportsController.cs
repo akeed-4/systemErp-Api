@@ -57,6 +57,16 @@ public class ReportsController : ErpControllerBase
     public async Task<IActionResult> StatementEntries(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _accounting.LoadAccountStatementEntriesAsync(code, from, to, loadOptions, ct));
 
+    /// <summary>الأرصدة الحالية للحسابات بعمودي مدين/دائن (ميزان الأرصدة في شاشة التقارير).</summary>
+    [HttpGet("AccountBalances"), RequireScreen("reports")]
+    public async Task<IActionResult> AccountBalances(DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadAccountBalancesAsync(loadOptions, ct));
+
+    /// <summary>دفتر اليومية: سطر لكل طرف مدين/دائن.</summary>
+    [HttpGet("JournalLedger"), RequireScreen("reports")]
+    public async Task<IActionResult> JournalLedger(DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, ct));
+
     [HttpGet("InventoryAudit"), RequireScreen("reports")]
     public async Task<IActionResult> Audit([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadInventoryAuditAsync(q, loadOptions, ct));

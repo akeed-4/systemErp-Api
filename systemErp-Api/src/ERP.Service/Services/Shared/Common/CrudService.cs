@@ -1,3 +1,5 @@
+using DevExtreme.AspNet.Data;
+using DevExtreme.AspNet.Data.ResponseModel;
 using ERP.Core.Contracts.Shared;
 using ERP.Core.DTOs.Shared;
 using ERP.Service.Data;
@@ -73,6 +75,13 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
             PageSize = p.NormalizedSize,
         };
     }
+
+    /// <summary>نفس القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم والملخصات في SQL، والصفوف بنفس DTO.</summary>
+    public virtual Task<LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default)
+        => EntityLoader.LoadAsync(Includes(ApplyFilters(Db.Set<TEntity>().AsNoTracking(), new PaginationParams())), options, ToDto, ct, DefaultLoadSort);
+
+    /// <summary>الفرز حين لا يطلب العميل فرزاً (الأحدث أولاً كما في ListAsync).</summary>
+    protected virtual SortingInfo[] DefaultLoadSort => new[] { EntityLoader.Desc(nameof(BaseEntity.CreatedAt)) };
 
     private string ResolveSortProperty(string? requested)
     {

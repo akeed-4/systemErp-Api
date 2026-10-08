@@ -8,6 +8,8 @@ public interface IInvoiceService
 {
     /// <summary>hasVehicleLines: true = فواتير السيارات متعددة الأسطر فقط، false = بدونها، null = الكل.</summary>
     Task<PagedResult<InvoiceDto>> ListAsync(InvoiceKind? kind, PaginationParams query, bool? hasVehicleLines = null, CancellationToken ct = default);
+    /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
+    Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(InvoiceKind? kind, DataSourceLoadOptions options, bool? hasVehicleLines = null, CancellationToken ct = default);
     Task<InvoiceDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>ينشئ فاتورة (بيع/شراء) ويحسب الضريبة والإجماليات ويرحّل القيد والمخزون ويولّد QR — كلها في معاملة واحدة.</summary>
     Task<InvoiceDto> CreateAsync(CreateInvoiceDto request, CancellationToken ct = default);

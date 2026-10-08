@@ -1,4 +1,5 @@
 using System.Text;
+using DevExtreme.AspNet.Data.ResponseModel;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.Contracts.CarShowroom;
 using ERP.Service.Data;
@@ -48,6 +49,19 @@ public class InvoiceService : IInvoiceService
             Items = items.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0)).ToList(),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
+    }
+
+    /// <summary>القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL، والمتبقي يُحسب لفواتير الصفحة فقط.</summary>
+    public Task<LoadResult> LoadAsync(InvoiceKind? kind, DataSourceLoadOptions options, bool? hasVehicleLines = null, CancellationToken ct = default)
+    {
+        var q = _db.Set<Invoice>().AsNoTracking().AsQueryable();
+        if (kind.HasValue) q = q.Where(i => i.Kind == kind);
+        if (hasVehicleLines.HasValue) q = hasVehicleLines.Value ? q.Where(i => i.VehicleLines.Any()) : q.Where(i => !i.VehicleLines.Any());
+        return EntityLoader.LoadAsync(q.Include(i => i.Items).Include(i => i.PaymentSplits).AsSplitQuery(), options, async (page, token) =>
+        {
+            var due = await InvoiceBalances.ForAsync(_db, page.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, token);
+            return page.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0)).ToList();
+        }, ct, EntityLoader.Desc(nameof(Invoice.IssueDate)), EntityLoader.Desc(nameof(Invoice.InvoiceNumber)));
     }
 
     public async Task<InvoiceDto> GetAsync(Guid id, CancellationToken ct = default)

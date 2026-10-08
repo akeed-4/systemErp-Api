@@ -1,3 +1,4 @@
+using DevExtreme.AspNet.Data.ResponseModel;
 using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
@@ -38,6 +39,11 @@ public class JournalService : IJournalService
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
+
+    /// <summary>القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL.</summary>
+    public Task<LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default)
+        => EntityLoader.LoadAsync(_db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines), options, Mapper.Map<JournalEntryDto>, ct,
+            EntityLoader.Desc(nameof(JournalEntry.Date)), EntityLoader.Desc(nameof(JournalEntry.EntryNumber)));
 
     public async Task<JournalEntryDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<JournalEntryDto>(await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, ct)

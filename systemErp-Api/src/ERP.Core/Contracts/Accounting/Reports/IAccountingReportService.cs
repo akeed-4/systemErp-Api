@@ -19,4 +19,8 @@ public interface IAccountingReportService
     Task<LoadResult> LoadTrialBalanceAsync(DateTime? from, DateTime? to, DataSourceLoadOptions options, CancellationToken ct = default);
     /// <summary>حركات الحساب (الصفوف) مع تحميل DevExtreme؛ ملخص الرصيد يأتي من GetAccountStatementAsync.</summary>
     Task<LoadResult> LoadAccountStatementEntriesAsync(string accountCode, DateTime? from, DateTime? to, DataSourceLoadOptions options, CancellationToken ct = default);
+    /// <summary>الأرصدة الحالية للحسابات (مدين/دائن حسب طبيعة الحساب)؛ الخيارات تُنفَّذ في قاعدة البيانات.</summary>
+    Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, CancellationToken ct = default);
+    /// <summary>دفتر اليومية سطراً سطراً (طرف مدين/دائن مع بيانات قيده)؛ الخيارات تُنفَّذ في قاعدة البيانات.</summary>
+    Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, CancellationToken ct = default);
 }

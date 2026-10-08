@@ -12,6 +12,8 @@ public class JournalEntriesController : ErpControllerBase
     public JournalEntriesController(IJournalService journal) => _journal = journal;
 
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _journal.ListAsync(q, ct));
+    /// <summary>القائمة بخيارات DevExtreme وتُعيد <c>LoadResult</c> مباشرة دون مغلّف ApiResponse.</summary>
+    [HttpGet("load")] public async Task<IActionResult> Load(DataSourceLoadOptions loadOptions, CancellationToken ct) => Ok(await _journal.LoadAsync(loadOptions, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _journal.GetAsync(id, ct));
 
     [HttpPost]

@@ -49,6 +49,15 @@ public class CarSaleService : ICarSaleService
         };
     }
 
+    /// <summary>القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL.</summary>
+    public Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
+    {
+        var q = _db.Set<CarSalesContract>().AsNoTracking().AsQueryable();
+        if (cycleType.HasValue) q = q.Where(c => c.CycleType == cycleType);
+        return EntityLoader.LoadAsync(q, options, Mapper.Map<CarSalesContractDto>, ct,
+            EntityLoader.Desc(nameof(CarSalesContract.Date)), EntityLoader.Desc(nameof(CarSalesContract.ContractNumber)));
+    }
+
     public async Task<CarSalesContractDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<CarSalesContractDto>(await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct)
             ?? throw new NotFoundException(Messages.SalesContractNotFound));

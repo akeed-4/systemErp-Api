@@ -8,6 +8,8 @@ public interface ICarProcurementService
 {
     /// <summary>purchaseCycle اختياري: individual | corporate | bank_lease.</summary>
     Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams query, string? purchaseCycle = null, CancellationToken ct = default);
+    /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
+    Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, string? purchaseCycle = null, CancellationToken ct = default);
     Task<CarProcurementOrderDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<CarProcurementOrderDto> CreateAsync(CreateCarProcurementOrderDto request, CancellationToken ct = default);
     /// <summary>تعديل بيانات الأمر غير المرحلية (بنود، شحن، جمارك...) قبل الفوترة.</summary>

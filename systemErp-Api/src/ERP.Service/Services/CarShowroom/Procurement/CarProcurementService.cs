@@ -53,6 +53,15 @@ public class CarProcurementService : ICarProcurementService
         };
     }
 
+    /// <summary>القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL.</summary>
+    public Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, string? purchaseCycle = null, CancellationToken ct = default)
+    {
+        var q = _db.Set<CarProcurementOrder>().AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(purchaseCycle)) q = q.Where(o => o.PurchaseCycle == purchaseCycle);
+        return EntityLoader.LoadAsync(q.Include(o => o.Items).Include(o => o.ReceivedVins).AsSplitQuery(), options, Mapper.Map<CarProcurementOrderDto>, ct,
+            EntityLoader.Desc(nameof(CarProcurementOrder.Date)), EntityLoader.Desc(nameof(CarProcurementOrder.OrderNumber)));
+    }
+
     public async Task<CarProcurementOrderDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<CarProcurementOrderDto>(await _db.Set<CarProcurementOrder>().AsNoTracking()
             .Include(o => o.Items).Include(o => o.ReceivedVins).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == id, ct)

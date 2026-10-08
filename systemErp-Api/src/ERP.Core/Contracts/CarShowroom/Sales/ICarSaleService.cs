@@ -8,6 +8,8 @@ public interface ICarSaleService
 {
     /// <summary>cycleType اختياري لتصفية دورة البيع (أفراد/شركات/بنوك/تقسيط).</summary>
     Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams query, CarSalesCycleType? cycleType = null, CancellationToken ct = default);
+    /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
+    Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CarSalesCycleType? cycleType = null, CancellationToken ct = default);
     Task<CarSalesContractDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<CarSalesContractDto> CreateAsync(CreateCarSalesContractDto request, CancellationToken ct = default);
     /// <summary>تعديل العقد قبل الفوترة؛ السعر والضريبة يُحسبان في الخادم.</summary>

@@ -18,6 +18,14 @@ public abstract class CrudController<TDto, TCreate, TUpdate> : ErpControllerBase
     public virtual async Task<IActionResult> List([FromQuery] PaginationParams query, CancellationToken ct)
         => Success(await _service.ListAsync(query, ct));
 
+    /// <summary>
+    /// القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary/requireTotalCount) كما يرسلها DataSource/CustomStore،
+    /// وتُعيد <c>LoadResult</c> مباشرة ({ data, totalCount, summary }) دون مغلّف ApiResponse.
+    /// </summary>
+    [HttpGet("load")]
+    public virtual async Task<IActionResult> Load(DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _service.LoadAsync(loadOptions, ct));
+
     [HttpGet("{id:guid}")]
     public virtual async Task<IActionResult> Get(Guid id, CancellationToken ct)
         => Success(await _service.GetAsync(id, ct));

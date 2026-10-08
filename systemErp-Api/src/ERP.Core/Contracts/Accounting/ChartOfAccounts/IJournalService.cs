@@ -7,6 +7,8 @@ namespace ERP.Core.Contracts.Accounting;
 public interface IJournalService
 {
     Task<PagedResult<JournalEntryDto>> ListAsync(PaginationParams query, CancellationToken ct = default);
+    /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
+    Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default);
     Task<JournalEntryDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>قيد يدوي مرحَّل مباشرة. يجب أن يتوازن المدين والدائن.</summary>
     Task<JournalEntryDto> CreateManualAsync(CreateJournalEntryDto request, CancellationToken ct = default);

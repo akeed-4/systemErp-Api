@@ -20,15 +20,19 @@ public class CarSalesContractsController : ErpControllerBase
     /// <summary>cycleType اختياري بصيغة snake_case (individual | corporate | bank_lease | installment).</summary>
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] PaginationParams q, [FromQuery] string? cycleType, CancellationToken ct)
+        => Success(await _service.ListAsync(q, ParseCycle(cycleType), ct));
+
+    /// <summary>القائمة بخيارات DevExtreme وتُعيد <c>LoadResult</c> مباشرة دون مغلّف ApiResponse.</summary>
+    [HttpGet("load")]
+    public async Task<IActionResult> Load([FromQuery] string? cycleType, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _service.LoadAsync(loadOptions, ParseCycle(cycleType), ct));
+
+    private static CarSalesCycleType? ParseCycle(string? cycleType)
     {
-        CarSalesCycleType? cycle = null;
-        if (!string.IsNullOrWhiteSpace(cycleType))
-        {
-            if (!Enum.TryParse<CarSalesCycleType>(cycleType.Replace("_", ""), true, out var parsed))
-                throw new ValidationFailedException(Messages.InvalidSalesCycleType);
-            cycle = parsed;
-        }
-        return Success(await _service.ListAsync(q, cycle, ct));
+        if (string.IsNullOrWhiteSpace(cycleType)) return null;
+        if (!Enum.TryParse<CarSalesCycleType>(cycleType.Replace("_", ""), true, out var parsed))
+            throw new ValidationFailedException(Messages.InvalidSalesCycleType);
+        return parsed;
     }
 
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _service.GetAsync(id, ct));

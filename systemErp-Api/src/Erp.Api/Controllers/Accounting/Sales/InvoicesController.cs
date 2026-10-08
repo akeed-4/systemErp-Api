@@ -39,6 +39,15 @@ public class InvoicesController : ErpControllerBase
         return Success(await _invoices.ListAsync(kind, q, hasVehicleLines, ct));
     }
 
+    /// <summary>القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) وتُعيد <c>LoadResult</c> مباشرة دون مغلّف ApiResponse.</summary>
+    [HttpGet("load")]
+    public async Task<IActionResult> Load([FromQuery] InvoiceKind? kind, [FromQuery] bool? hasVehicleLines, DataSourceLoadOptions loadOptions, CancellationToken ct)
+    {
+        if (kind.HasValue) await Require(kind.Value, ScreenAction.View, ct);
+        else { await Require(InvoiceKind.Sales, ScreenAction.View, ct); await Require(InvoiceKind.Purchase, ScreenAction.View, ct); }
+        return Ok(await _invoices.LoadAsync(kind, loadOptions, hasVehicleLines, ct));
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {

@@ -119,4 +119,35 @@ public class ArchitectureTests
         Assert.All(controllers.Where(c => c.Namespace!.EndsWith(".POS")),
             c => Assert.Equal(new[] { PlatformModules.Pos }, c.GetCustomAttribute<ERP.Api.Infrastructure.RequireModuleAttribute>()!.AnyOf));
     }
+
+    /// <summary>
+    /// تجاوز مرشّح المنشأة (IgnoreQueryFilters) يقرأ بيانات كل المنشآت، فمواضعه قائمة مغلقة مراجَعة: الدخول والتسجيل
+    /// واستعادة كلمة المرور (قبل معرفة المنشأة)، تفرّد البريد والرقم الضريبي عبر المنشآت، لوحة مدير المنصة،
+    /// وصفحة/إشعار الدفع العامّان. أي موضع جديد يُفشل هذا الاختبار حتى يُراجَع ويُضاف هنا بعدده.
+    /// </summary>
+    [Fact]
+    public void Tenant_filter_is_bypassed_only_in_reviewed_places()
+    {
+        var allowed = new Dictionary<string, int>
+        {
+            ["AuthService.cs"] = 5,
+            ["CompanyService.cs"] = 1,
+            ["PlatformSubscriptionService.cs"] = 6,
+            ["UserService.cs"] = 1,
+            ["OnlinePaymentService.cs"] = 4,
+        };
+
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root != null && !File.Exists(Path.Combine(root.FullName, "ERP.sln"))) root = root.Parent;
+        Assert.True(root != null, "تعذّر إيجاد جذر الحل (ERP.sln).");
+
+        var separator = Path.DirectorySeparatorChar;
+        var actual = Directory.EnumerateFiles(Path.Combine(root!.FullName, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{separator}obj{separator}") && !f.Contains($"{separator}bin{separator}") && !f.Contains($"{separator}Migrations{separator}"))
+            .Select(f => (File: Path.GetFileName(f), Count: File.ReadAllText(f).Split("IgnoreQueryFilters(").Length - 1))
+            .Where(x => x.Count > 0)
+            .ToDictionary(x => x.File, x => x.Count);
+
+        Assert.Equal(allowed.OrderBy(x => x.Key), actual.OrderBy(x => x.Key));
+    }
 }

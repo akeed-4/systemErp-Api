@@ -230,4 +230,24 @@ public class AccountingReportService : IAccountingReportService
 
     public async Task<LoadResult> LoadAccountStatementEntriesAsync(string accountCode, DateTime? from, DateTime? to, DataSourceLoadOptions options, CancellationToken ct = default)
         => await ReportLoader.LoadAsync((await GetAccountStatementAsync(accountCode, from, to, ct)).Entries, options, ct);
+
+    public Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, CancellationToken ct = default)
+        => EntityLoader.LoadRowsAsync(_db.Set<Account>().AsNoTracking().Select(a => new AccountBalanceRowDto
+        {
+            Id = a.Id, Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn, Type = a.Type, Level = a.Level,
+            Balance = a.Balance, IsDebitNature = a.IsDebitNature,
+            Debit = a.IsDebitNature ? Math.Abs(a.Balance) : 0m,
+            Credit = a.IsDebitNature ? 0m : Math.Abs(a.Balance),
+        }), options, nameof(AccountBalanceRowDto.Id), ct, EntityLoader.Asc(nameof(AccountBalanceRowDto.Code)));
+
+    public Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, CancellationToken ct = default)
+        => EntityLoader.LoadRowsAsync(
+            from l in _db.Set<JournalEntryLine>().AsNoTracking()
+            join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
+            select new JournalLedgerRowDto
+            {
+                LineId = l.Id, EntryId = e.Id, EntryNumber = e.EntryNumber, Date = e.Date, Description = e.Description,
+                AccountCode = l.AccountCode, AccountName = l.AccountName, Debit = l.Debit, Credit = l.Credit, ReferenceType = e.ReferenceType,
+            }, options, nameof(JournalLedgerRowDto.LineId), ct,
+            EntityLoader.Desc(nameof(JournalLedgerRowDto.Date)), EntityLoader.Desc(nameof(JournalLedgerRowDto.EntryNumber)));
 }

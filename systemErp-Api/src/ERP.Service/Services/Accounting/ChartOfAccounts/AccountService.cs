@@ -83,6 +83,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         return await base.ListAsync(p, ct);
     }
 
+    protected override DevExtreme.AspNet.Data.SortingInfo[] DefaultLoadSort => new[] { EntityLoader.Asc(nameof(Account.Code)) };
+
     public async Task<AccountDto> GetByCodeAsync(string code, CancellationToken ct = default)
     {
         var a = await Db.Set<Account>().AsNoTracking().FirstOrDefaultAsync(x => x.Code == code, ct)

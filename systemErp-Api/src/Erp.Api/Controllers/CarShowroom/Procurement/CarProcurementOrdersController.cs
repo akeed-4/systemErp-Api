@@ -21,6 +21,9 @@ public class CarProcurementOrdersController : ErpControllerBase
     /// <summary>purchaseCycle اختياري: individual | corporate | bank_lease.</summary>
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, [FromQuery] string? purchaseCycle, CancellationToken ct)
         => Success(await _service.ListAsync(q, purchaseCycle, ct));
+    /// <summary>القائمة بخيارات DevExtreme وتُعيد <c>LoadResult</c> مباشرة دون مغلّف ApiResponse.</summary>
+    [HttpGet("load")] public async Task<IActionResult> Load([FromQuery] string? purchaseCycle, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _service.LoadAsync(loadOptions, purchaseCycle, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _service.GetAsync(id, ct));
 
     /// <summary>المركبات الواردة من هذا الطلب (بحث/فرز/صفحات) — لعرض دفعة الاستلام دون تحميل كل المركبات.</summary>

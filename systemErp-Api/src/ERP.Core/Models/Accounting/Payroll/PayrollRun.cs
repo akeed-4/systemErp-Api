@@ -36,6 +36,8 @@ public class PayrollLine : BaseEntity
     public decimal Additions { get; set; }
     /// <summary>خصومات الشهر (غياب، سلفة، جزاء).</summary>
     public decimal Deductions { get; set; }
+    public decimal UnpaidLeaveDays { get; set; }
+    public decimal LeaveDeduction { get; set; }
     public decimal Gross { get; set; }
     public decimal EmployeeGosi { get; set; }
     public decimal EmployerGosi { get; set; }

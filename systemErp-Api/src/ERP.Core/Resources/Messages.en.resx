@@ -795,4 +795,54 @@
   <data name="EmployeeEmailInvalid" xml:space="preserve"><value>The employee email address is invalid.</value></data>
 
   <data name="EmployeeIbanInvalid" xml:space="preserve"><value>The IBAN is invalid (a Saudi IBAN has 24 characters and starts with SA).</value></data>
+
+  <data name="LabelLeaveType" xml:space="preserve"><value>Leave type</value></data>
+
+  <data name="LeaveTypeCodeInUse" xml:space="preserve"><value>The leave type code is already in use.</value></data>
+
+  <data name="LeaveTypePayPercentInvalid" xml:space="preserve"><value>The paid percentage of a leave must be between 0 and 100.</value></data>
+
+  <data name="LeaveTypeMaxDaysInvalid" xml:space="preserve"><value>The yearly limit of leave days must be greater than zero.</value></data>
+
+  <data name="LeaveTypeAnnualMustBePaid" xml:space="preserve"><value>Annual leave is fully paid.</value></data>
+
+  <data name="LeaveTypeHasRequests" xml:space="preserve"><value>A leave type with requests cannot be deleted. Deactivate it instead.</value></data>
+
+  <data name="LeaveTypeNotFound" xml:space="preserve"><value>The leave type does not exist.</value></data>
+
+  <data name="LeaveTypeInactive" xml:space="preserve"><value>The leave type is inactive.</value></data>
+
+  <data name="LeaveRequestNotFound" xml:space="preserve"><value>The leave request does not exist.</value></data>
+
+  <data name="LeaveRequestNotPending" xml:space="preserve"><value>The request has already been decided and cannot be changed or decided again.</value></data>
+
+  <data name="LeaveRequestAlreadyClosed" xml:space="preserve"><value>The request is already rejected or cancelled.</value></data>
+
+  <data name="LeaveApprovedCannotBeDeleted" xml:space="preserve"><value>An approved leave cannot be deleted; cancel it instead.</value></data>
+
+  <data name="LeaveDatesInvalid" xml:space="preserve"><value>The leave end date cannot be before its start, and it cannot exceed one year.</value></data>
+
+  <data name="LeaveEmployeeNotFound" xml:space="preserve"><value>The employee does not exist.</value></data>
+
+  <data name="LeaveEmployeeNotActive" xml:space="preserve"><value>Leave cannot be requested for an employee who is not active.</value></data>
+
+  <data name="LeaveBeforeHireDate" xml:space="preserve"><value>The leave cannot start before the employee's hire date.</value></data>
+
+  <data name="LeaveOverlaps" xml:space="preserve"><value>The employee has another pending or approved leave in the same period.</value></data>
+
+  <data name="LeaveBalanceInsufficient" xml:space="preserve"><value>The annual leave balance is not enough. Available: {0} days.</value></data>
+
+  <data name="LeaveTypeLimitExceeded" xml:space="preserve"><value>The yearly limit for this leave type ({0} days) is exceeded. Remaining: {1} days.</value></data>
+
+  <data name="LeaveAffectsPostedPayroll" xml:space="preserve"><value>Payroll for {0} is posted and this leave affects its deduction. Reverse the payroll first.</value></data>
+
+  <data name="LeaveApproved" xml:space="preserve"><value>Leave approved.</value></data>
+
+  <data name="LeaveRejected" xml:space="preserve"><value>Leave request rejected.</value></data>
+
+  <data name="LeaveCancelled" xml:space="preserve"><value>Leave cancelled.</value></data>
+
+  <data name="EmployeeLeaveSettingsInvalid" xml:space="preserve"><value>The employee's annual leave settings are invalid (entitlement, opening balance or its date).</value></data>
+
+  <data name="EmployeeHasLeaves" xml:space="preserve"><value>An employee with leave requests cannot be deleted.</value></data>
 </root>

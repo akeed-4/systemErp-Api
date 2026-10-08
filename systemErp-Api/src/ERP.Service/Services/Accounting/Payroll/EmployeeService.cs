@@ -31,6 +31,10 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
             throw new ValidationFailedException(Messages.EmployeeSalaryInvalid);
         if (d.EmployeeGosiRate is < 0 or > 100 || d.EmployerGosiRate is < 0 or > 100)
             throw new ValidationFailedException(Messages.EmployeeGosiRateInvalid);
+        if (d.AnnualLeaveDays is < 0 or > 365 || d.OpeningLeaveBalance is < -365 or > 365)
+            throw new ValidationFailedException(Messages.EmployeeLeaveSettingsInvalid);
+        if (d.OpeningLeaveBalanceDate.HasValue && d.OpeningLeaveBalanceDate.Value.Date < d.HireDate.Date)
+            throw new ValidationFailedException(Messages.EmployeeLeaveSettingsInvalid);
 
         d.Status = string.IsNullOrWhiteSpace(d.Status) ? EmployeeStatuses.Active : d.Status;
         d.IdType = string.IsNullOrWhiteSpace(d.IdType) ? EmployeeIdTypes.NationalId : d.IdType;
@@ -70,6 +74,8 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
     {
         if (await Db.Set<PayrollLine>().AnyAsync(l => l.EmployeeId == e.Id, ct))
             throw new ConflictException(Messages.EmployeeHasPayroll);
+        if (await Db.Set<LeaveRequest>().AnyAsync(l => l.EmployeeId == e.Id, ct))
+            throw new ConflictException(Messages.EmployeeHasLeaves);
         // مدير قسم يُحذف: يبقى القسم بلا مدير
         foreach (var department in await Db.Set<Department>().Where(x => x.ManagerEmployeeId == e.Id).ToListAsync(ct))
             department.ManagerEmployeeId = null;

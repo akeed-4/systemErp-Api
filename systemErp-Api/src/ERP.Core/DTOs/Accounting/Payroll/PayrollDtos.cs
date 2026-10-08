@@ -23,6 +23,9 @@ public class CreateEmployeeDto
     public DateTime? ContractStartDate { get; set; }
     public DateTime? ContractEndDate { get; set; }
     public DateTime? ProbationEndDate { get; set; }
+    public int? AnnualLeaveDays { get; set; }
+    public decimal OpeningLeaveBalance { get; set; }
+    public DateTime? OpeningLeaveBalanceDate { get; set; }
     public decimal BasicSalary { get; set; }
     public decimal HousingAllowance { get; set; }
     public decimal TransportAllowance { get; set; }
@@ -75,7 +78,12 @@ public class PayrollLineDto
     public decimal TransportAllowance { get; set; }
     public decimal OtherAllowances { get; set; }
     public decimal Additions { get; set; }
+    /// <summary>كل خصومات الشهر: اليدوية مع خصم الإجازة غير المدفوعة.</summary>
     public decimal Deductions { get; set; }
+    /// <summary>أيام الإجازة بلا أجر في الشهر (يوم بنصف أجر = نصف يوم).</summary>
+    public decimal UnpaidLeaveDays { get; set; }
+    /// <summary>خصم الإجازة غير المدفوعة، وهو ضمن Deductions.</summary>
+    public decimal LeaveDeduction { get; set; }
     public decimal Gross { get; set; }
     public decimal EmployeeGosi { get; set; }
     public decimal EmployerGosi { get; set; }

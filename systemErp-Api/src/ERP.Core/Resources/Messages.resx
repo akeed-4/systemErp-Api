@@ -795,4 +795,54 @@
   <data name="EmployeeEmailInvalid" xml:space="preserve"><value>البريد الإلكتروني للموظف غير صالح.</value></data>
 
   <data name="EmployeeIbanInvalid" xml:space="preserve"><value>رقم الآيبان غير صالح (الآيبان السعودي 24 خانة يبدأ بـ SA).</value></data>
+
+  <data name="LabelLeaveType" xml:space="preserve"><value>نوع الإجازة</value></data>
+
+  <data name="LeaveTypeCodeInUse" xml:space="preserve"><value>رمز نوع الإجازة مستخدم مسبقاً.</value></data>
+
+  <data name="LeaveTypePayPercentInvalid" xml:space="preserve"><value>نسبة الأجر المدفوع في الإجازة بين 0 و100.</value></data>
+
+  <data name="LeaveTypeMaxDaysInvalid" xml:space="preserve"><value>الحد السنوي لأيام الإجازة يجب أن يكون أكبر من صفر.</value></data>
+
+  <data name="LeaveTypeAnnualMustBePaid" xml:space="preserve"><value>الإجازة السنوية مدفوعة الأجر كاملاً.</value></data>
+
+  <data name="LeaveTypeHasRequests" xml:space="preserve"><value>لا يمكن حذف نوع إجازة له طلبات. أوقفه بدلاً من حذفه.</value></data>
+
+  <data name="LeaveTypeNotFound" xml:space="preserve"><value>نوع الإجازة غير موجود.</value></data>
+
+  <data name="LeaveTypeInactive" xml:space="preserve"><value>نوع الإجازة موقوف.</value></data>
+
+  <data name="LeaveRequestNotFound" xml:space="preserve"><value>طلب الإجازة غير موجود.</value></data>
+
+  <data name="LeaveRequestNotPending" xml:space="preserve"><value>الطلب بُتّ فيه مسبقاً ولا يمكن تعديله أو البتّ فيه مجدداً.</value></data>
+
+  <data name="LeaveRequestAlreadyClosed" xml:space="preserve"><value>الطلب مرفوض أو ملغى مسبقاً.</value></data>
+
+  <data name="LeaveApprovedCannotBeDeleted" xml:space="preserve"><value>الإجازة المعتمدة لا تُحذف، بل تُلغى.</value></data>
+
+  <data name="LeaveDatesInvalid" xml:space="preserve"><value>تاريخ نهاية الإجازة يجب ألا يسبق بدايتها، ومدتها لا تتجاوز سنة.</value></data>
+
+  <data name="LeaveEmployeeNotFound" xml:space="preserve"><value>الموظف غير موجود.</value></data>
+
+  <data name="LeaveEmployeeNotActive" xml:space="preserve"><value>لا تُطلب إجازة لموظف ليس على رأس العمل.</value></data>
+
+  <data name="LeaveBeforeHireDate" xml:space="preserve"><value>الإجازة لا تبدأ قبل تاريخ التحاق الموظف.</value></data>
+
+  <data name="LeaveOverlaps" xml:space="preserve"><value>للموظف إجازة أخرى معلّقة أو معتمدة في الفترة نفسها.</value></data>
+
+  <data name="LeaveBalanceInsufficient" xml:space="preserve"><value>رصيد الإجازة السنوية لا يكفي. المتاح: {0} يوماً.</value></data>
+
+  <data name="LeaveTypeLimitExceeded" xml:space="preserve"><value>تجاوز الحد السنوي لهذا النوع ({0} يوماً). المتبقي: {1} يوماً.</value></data>
+
+  <data name="LeaveAffectsPostedPayroll" xml:space="preserve"><value>مسير رواتب {0} مرحّل وهذه الإجازة تؤثر على خصمه. اعكس المسير أولاً.</value></data>
+
+  <data name="LeaveApproved" xml:space="preserve"><value>تم اعتماد الإجازة.</value></data>
+
+  <data name="LeaveRejected" xml:space="preserve"><value>تم رفض طلب الإجازة.</value></data>
+
+  <data name="LeaveCancelled" xml:space="preserve"><value>تم إلغاء الإجازة.</value></data>
+
+  <data name="EmployeeLeaveSettingsInvalid" xml:space="preserve"><value>إعدادات الإجازة السنوية للموظف غير صالحة (الاستحقاق أو الرصيد الافتتاحي أو تاريخه).</value></data>
+
+  <data name="EmployeeHasLeaves" xml:space="preserve"><value>لا يمكن حذف موظف له طلبات إجازات.</value></data>
 </root>

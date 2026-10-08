@@ -39,6 +39,13 @@ public class Employee : BaseEntity
     public DateTime? ProbationEndDate { get; set; }
     public Guid? CostCenterId { get; set; }
 
+    // ---------- الإجازة السنوية ----------
+    /// <summary>استحقاق الإجازة السنوية بالأيام؛ فارغ = حسب نظام العمل (21 يوماً، و30 بعد خمس سنوات خدمة).</summary>
+    public int? AnnualLeaveDays { get; set; }
+    /// <summary>رصيد إجازات افتتاحي في تاريخه (لموظف سابق على استخدام النظام)؛ التراكم يبدأ من ذلك التاريخ.</summary>
+    public decimal OpeningLeaveBalance { get; set; }
+    public DateTime? OpeningLeaveBalanceDate { get; set; }
+
     // ---------- الراتب والتأمينات ----------
     public decimal BasicSalary { get; set; }
     public decimal HousingAllowance { get; set; }

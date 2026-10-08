@@ -11,6 +11,7 @@ namespace ERP.Service.Services.Accounting;
 /// مسير الرواتب الشهري. لكل موظف نشط التحق قبل نهاية الشهر:
 /// الإجمالي = الأساسي + السكن + النقل + البدلات الأخرى + إضافات الشهر؛
 /// التأمينات على (الأساسي + السكن) بنسبتَي الموظف والمنشأة؛ الصافي = الإجمالي − خصومات الشهر − حصة الموظف.
+/// خصومات الشهر تشمل خصم الإجازات المعتمدة منقوصة الأجر: أجر اليوم (الراتب الثابت ÷ 30) × أيامها في الشهر × الجزء غير المدفوع.
 /// القيد: مدين الرواتب (الإجمالي − الخصومات) وحصة المنشأة في التأمينات، دائن الرواتب المستحقة (الصافي) والتأمينات المستحقة.
 /// صرف الرواتب وسداد التأمينات بسندات صرف على حسابيهما المستحقين.
 /// </summary>
@@ -105,11 +106,22 @@ public class PayrollService : IPayrollService
             .ToDictionary(g => g.Key, g => (Additions: g.Sum(a => a.Additions), Deductions: g.Sum(a => a.Deductions)));
 
         var employees = await _db.Set<Employee>().AsNoTracking().Where(e => e.Status == EmployeeStatuses.Active && e.HireDate <= monthEnd).OrderBy(e => e.Code).ToListAsync(ct);
+        // إجازات معتمدة منقوصة الأجر تقع أيام منها في الشهر
+        var unpaidLeaves = (await _db.Set<LeaveRequest>().AsNoTracking()
+                .Where(l => l.Status == LeaveStatuses.Approved && l.PayPercent < 100 && l.StartDate <= monthEnd && l.EndDate >= month).ToListAsync(ct))
+            .ToLookup(l => l.EmployeeId);
+
         var run = new PayrollRun { Period = month.ToString("yyyy-MM", CultureInfo.InvariantCulture), Date = monthEnd, Notes = r.Notes };
         foreach (var e in employees)
         {
             var (additions, deductions) = adjustments.GetValueOrDefault(e.Id);
-            var gross = e.BasicSalary + e.HousingAllowance + e.TransportAllowance + e.OtherAllowances + additions;
+            var package = e.BasicSalary + e.HousingAllowance + e.TransportAllowance + e.OtherAllowances;
+            // يوم بنصف أجر يُعدّ نصف يوم بلا أجر؛ الشهر 30 يوماً فلا يتجاوز الخصم الراتب الثابت
+            var unpaidDays = Math.Min(LeaveBalances.PayrollMonthDays, unpaidLeaves[e.Id].Sum(l =>
+                LeaveBalances.Span(l.StartDate > month ? l.StartDate : month, l.EndDate < monthEnd ? l.EndDate : monthEnd) * (100 - l.PayPercent) / 100));
+            var leaveDeduction = DocumentPricing.Round(package / LeaveBalances.PayrollMonthDays * unpaidDays);
+            deductions += leaveDeduction;
+            var gross = package + additions;
             var insurable = e.BasicSalary + e.HousingAllowance;
             var employeeGosi = DocumentPricing.Round(insurable * e.EmployeeGosiRate / 100);
             var net = gross - deductions - employeeGosi;
@@ -118,7 +130,7 @@ public class PayrollService : IPayrollService
             {
                 EmployeeId = e.Id, EmployeeCode = e.Code, EmployeeName = e.NameAr, CostCenterId = e.CostCenterId,
                 BasicSalary = e.BasicSalary, HousingAllowance = e.HousingAllowance, TransportAllowance = e.TransportAllowance, OtherAllowances = e.OtherAllowances,
-                Additions = additions, Deductions = deductions, Gross = gross, EmployeeGosi = employeeGosi,
+                Additions = additions, Deductions = deductions, UnpaidLeaveDays = unpaidDays, LeaveDeduction = leaveDeduction, Gross = gross, EmployeeGosi = employeeGosi,
                 EmployerGosi = DocumentPricing.Round(insurable * e.EmployerGosiRate / 100), Net = net,
             });
         }
@@ -138,7 +150,7 @@ public class PayrollService : IPayrollService
         {
             EmployeeId = l.EmployeeId, EmployeeCode = l.EmployeeCode, EmployeeName = l.EmployeeName, BasicSalary = l.BasicSalary,
             HousingAllowance = l.HousingAllowance, TransportAllowance = l.TransportAllowance, OtherAllowances = l.OtherAllowances,
-            Additions = l.Additions, Deductions = l.Deductions, Gross = l.Gross, EmployeeGosi = l.EmployeeGosi, EmployerGosi = l.EmployerGosi, Net = l.Net,
+            Additions = l.Additions, Deductions = l.Deductions, UnpaidLeaveDays = l.UnpaidLeaveDays, LeaveDeduction = l.LeaveDeduction, Gross = l.Gross, EmployeeGosi = l.EmployeeGosi, EmployerGosi = l.EmployerGosi, Net = l.Net,
         }).ToList(),
     };
 }

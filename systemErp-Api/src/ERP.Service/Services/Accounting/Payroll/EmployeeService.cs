@@ -78,6 +78,8 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
             throw new ConflictException(Messages.EmployeeHasLeaves);
         if (await Db.Set<EmployeeLoan>().AnyAsync(l => l.EmployeeId == e.Id, ct) || await Db.Set<EndOfServiceSettlement>().AnyAsync(s => s.EmployeeId == e.Id, ct))
             throw new ConflictException(Messages.EmployeeHasLoansOrSettlement);
+        // سجلات الحضور تُحذف مع الموظف: لا أثر مالي لها ما دام بلا مسيرات
+        Db.RemoveRange(await Db.Set<AttendanceRecord>().Where(a => a.EmployeeId == e.Id).ToListAsync(ct));
         // مدير قسم يُحذف: يبقى القسم بلا مدير
         foreach (var department in await Db.Set<Department>().Where(x => x.ManagerEmployeeId == e.Id).ToListAsync(ct))
             department.ManagerEmployeeId = null;

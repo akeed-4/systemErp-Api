@@ -56,6 +56,7 @@ public class ErpDbContext : DbContext
         (typeof(Employee), nameof(Employee.DepartmentId), typeof(Department)),
         (typeof(LeaveRequest), nameof(LeaveRequest.EmployeeId), typeof(Employee)),
         (typeof(LeaveRequest), nameof(LeaveRequest.LeaveTypeId), typeof(LeaveType)),
+        (typeof(AttendanceRecord), nameof(AttendanceRecord.EmployeeId), typeof(Employee)),
         (typeof(EmployeeLoan), nameof(EmployeeLoan.EmployeeId), typeof(Employee)),
         (typeof(EmployeeLoanRepayment), nameof(EmployeeLoanRepayment.EmployeeLoanId), typeof(EmployeeLoan)),
         (typeof(EndOfServiceSettlement), nameof(EndOfServiceSettlement.EmployeeId), typeof(Employee)),

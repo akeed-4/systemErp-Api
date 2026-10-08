@@ -17,7 +17,7 @@ public class PayrollRun : BaseEntity
     public decimal TotalLoanDeductions { get; set; }
     public decimal TotalNet { get; set; }
     public Guid? JournalEntryId { get; set; }
-    public string Status { get; set; } = "posted"; // posted | reversed
+    public string Status { get; set; } = "posted"; // draft | posted | reversed
     public string? Notes { get; set; }
 
     public virtual ICollection<PayrollLine> Lines { get; set; } = new List<PayrollLine>();
@@ -37,6 +37,15 @@ public class PayrollLine : BaseEntity
     public decimal Additions { get; set; }
     /// <summary>خصومات الشهر (غياب، سلفة، جزاء).</summary>
     public decimal Deductions { get; set; }
+    /// <summary>الخصم اليدوي المُدخل في المسير (بلا خصم الإجازات والحضور).</summary>
+    public decimal ManualDeductions { get; set; }
+    public decimal AbsentDays { get; set; }
+    public int LateMinutes { get; set; }
+    /// <summary>خصم الغياب والتأخير، وهو ضمن Deductions.</summary>
+    public decimal AttendanceDeduction { get; set; }
+    public decimal OvertimeHours { get; set; }
+    /// <summary>أجر العمل الإضافي، وهو ضمن Gross.</summary>
+    public decimal OvertimePay { get; set; }
     public decimal UnpaidLeaveDays { get; set; }
     public decimal LeaveDeduction { get; set; }
     /// <summary>أقساط السلف المخصومة من الصافي (سداد لا مصروف).</summary>

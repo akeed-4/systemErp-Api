@@ -80,6 +80,15 @@ public class PayrollLineDto
     public decimal Additions { get; set; }
     /// <summary>كل خصومات الشهر: اليدوية مع خصم الإجازة غير المدفوعة.</summary>
     public decimal Deductions { get; set; }
+    /// <summary>الخصم اليدوي المُدخل في المسير.</summary>
+    public decimal ManualDeductions { get; set; }
+    public decimal AbsentDays { get; set; }
+    public int LateMinutes { get; set; }
+    /// <summary>خصم الغياب والتأخير، وهو ضمن Deductions.</summary>
+    public decimal AttendanceDeduction { get; set; }
+    public decimal OvertimeHours { get; set; }
+    /// <summary>أجر العمل الإضافي، وهو ضمن Gross.</summary>
+    public decimal OvertimePay { get; set; }
     /// <summary>أيام الإجازة بلا أجر في الشهر (يوم بنصف أجر = نصف يوم).</summary>
     public decimal UnpaidLeaveDays { get; set; }
     /// <summary>خصم الإجازة غير المدفوعة، وهو ضمن Deductions.</summary>

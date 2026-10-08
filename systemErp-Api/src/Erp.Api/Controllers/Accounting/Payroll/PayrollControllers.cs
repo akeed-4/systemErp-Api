@@ -28,7 +28,29 @@ public class DepartmentsController : CrudController<DepartmentDto, CreateDepartm
     public DepartmentsController(IDepartmentService s) : base(s) { }
 }
 
-/// <summary>مسير الرواتب الشهري: معاينة، ترحيل، سجل، وعكس.</summary>
+/// <summary>الحضور اليومي: كشف يوم لكل الموظفين، استيراد جماعي، وملخص شهري.</summary>
+[Route("api/v1/attendance"), RequireScreen("hr")]
+public class AttendanceController : ErpControllerBase
+{
+    private readonly IAttendanceService _attendance;
+    public AttendanceController(IAttendanceService attendance) => _attendance = attendance;
+
+    [HttpGet("day")]
+    public async Task<IActionResult> Day([FromQuery] DateTime date, CancellationToken ct) => Success(await _attendance.GetDayAsync(date, ct));
+
+    [HttpPut("day")]
+    public async Task<IActionResult> SaveDay([FromBody] SaveAttendanceDayDto request, CancellationToken ct)
+        => Success(await _attendance.SaveDayAsync(request, ct), Messages.UpdatedSuccessfully);
+
+    [HttpPost("import")]
+    public async Task<IActionResult> Import([FromBody] List<AttendanceImportRowDto> rows, CancellationToken ct) => Success(await _attendance.ImportAsync(rows, ct));
+
+    /// <summary>ملخص الشهر (period = yyyy-MM) لكل موظف له سجلات، مع أثره المتوقع على المسير.</summary>
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary([FromQuery] string period, CancellationToken ct) => Success(await _attendance.GetSummaryAsync(period, ct));
+}
+
+/// <summary>مسير الرواتب الشهري: معاينة، مسودة واعتماد، ترحيل، سجل، عكس، وملف حماية الأجور.</summary>
 [Route("api/v1/payroll"), RequireScreen("hr")]
 public class PayrollController : ErpControllerBase
 {
@@ -43,6 +65,25 @@ public class PayrollController : ErpControllerBase
 
     [HttpPost("preview")]
     public async Task<IActionResult> Preview([FromBody] PayrollRunRequestDto request, CancellationToken ct) => Success(await _payroll.PreviewAsync(request, ct));
+
+    /// <summary>يحفظ مسير الشهر مسودة للمراجعة (أو يعيد حساب مسودته).</summary>
+    [HttpPost("draft")]
+    public async Task<IActionResult> SaveDraft([FromBody] PayrollRunRequestDto request, CancellationToken ct)
+        => Success(await _payroll.SaveDraftAsync(request, ct), Messages.PayrollDraftSaved);
+
+    [HttpPost("{id:guid}/approve"), RequireScreen("hr", ScreenAction.Approve)]
+    public async Task<IActionResult> Approve(Guid id, CancellationToken ct) => Success(await _payroll.ApproveAsync(id, ct), Messages.PayrollPosted);
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeleteDraft(Guid id, CancellationToken ct)
+    {
+        await _payroll.DeleteDraftAsync(id, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
+
+    /// <summary>ملف رواتب مسير مرحّل لرفعه للبنك (حماية الأجور).</summary>
+    [HttpGet("{id:guid}/wagefile")]
+    public async Task<IActionResult> WageFile(Guid id, CancellationToken ct) => Success(await _payroll.GetWageFileAsync(id, ct));
 
     [HttpPost("post")]
     public async Task<IActionResult> Post([FromBody] PayrollRunRequestDto request, CancellationToken ct)

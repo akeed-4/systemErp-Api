@@ -881,4 +881,24 @@
   <data name="EndOfServicePosted" xml:space="preserve"><value>تم ترحيل تصفية نهاية الخدمة وإنهاء خدمة الموظف.</value></data>
 
   <data name="EndOfServiceReversed" xml:space="preserve"><value>تم عكس التصفية وإعادة الموظف إلى رأس العمل.</value></data>
+
+  <data name="AttendanceDateRequired" xml:space="preserve"><value>تاريخ الحضور مطلوب.</value></data>
+
+  <data name="AttendanceStatusInvalid" xml:space="preserve"><value>حالة الحضور غير صالحة (present | absent | leave | off).</value></data>
+
+  <data name="AttendanceValuesInvalid" xml:space="preserve"><value>دقائق التأخير أو ساعات الإضافي خارج الحدود المقبولة.</value></data>
+
+  <data name="AttendanceTimeInvalid" xml:space="preserve"><value>وقت الحضور أو الانصراف يجب أن يكون بصيغة HH:mm.</value></data>
+
+  <data name="AttendanceMonthPosted" xml:space="preserve"><value>مسير رواتب {0} مرحّل وحضور هذا الشهر مقفل. اعكس المسير أولاً.</value></data>
+
+  <data name="PayrollRunNotDraft" xml:space="preserve"><value>المسير ليس مسودة.</value></data>
+
+  <data name="PayrollDraftStale" xml:space="preserve"><value>بيانات الشهر تغيّرت منذ حفظ المسودة (حضور أو إجازات أو سلف أو رواتب). أعد حساب المسودة ثم اعتمدها.</value></data>
+
+  <data name="PayrollDraftSaved" xml:space="preserve"><value>تم حفظ مسودة المسير.</value></data>
+
+  <data name="PayrollWageFileNeedsPostedRun" xml:space="preserve"><value>ملف الرواتب يُصدَّر لمسير مرحّل فقط.</value></data>
+
+  <data name="PayrollWageFileMissingData" xml:space="preserve"><value>ينقص رقم الهوية أو الآيبان للموظفين: {0}. أكمل ملفاتهم ثم صدّر الملف.</value></data>
 </root>

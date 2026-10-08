@@ -881,4 +881,24 @@
   <data name="EndOfServicePosted" xml:space="preserve"><value>End-of-service settlement posted and the employee terminated.</value></data>
 
   <data name="EndOfServiceReversed" xml:space="preserve"><value>Settlement reversed and the employee reinstated.</value></data>
+
+  <data name="AttendanceDateRequired" xml:space="preserve"><value>The attendance date is required.</value></data>
+
+  <data name="AttendanceStatusInvalid" xml:space="preserve"><value>The attendance status is invalid (present | absent | leave | off).</value></data>
+
+  <data name="AttendanceValuesInvalid" xml:space="preserve"><value>Late minutes or overtime hours are out of the accepted range.</value></data>
+
+  <data name="AttendanceTimeInvalid" xml:space="preserve"><value>Check-in and check-out times must be in HH:mm format.</value></data>
+
+  <data name="AttendanceMonthPosted" xml:space="preserve"><value>Payroll for {0} is posted and its attendance is locked. Reverse the payroll first.</value></data>
+
+  <data name="PayrollRunNotDraft" xml:space="preserve"><value>The payroll run is not a draft.</value></data>
+
+  <data name="PayrollDraftStale" xml:space="preserve"><value>The month data changed since the draft was saved (attendance, leave, loans or salaries). Recalculate the draft, then approve it.</value></data>
+
+  <data name="PayrollDraftSaved" xml:space="preserve"><value>Payroll draft saved.</value></data>
+
+  <data name="PayrollWageFileNeedsPostedRun" xml:space="preserve"><value>The wage file can only be exported for a posted payroll run.</value></data>
+
+  <data name="PayrollWageFileMissingData" xml:space="preserve"><value>The ID number or IBAN is missing for employees: {0}. Complete their files, then export.</value></data>
 </root>

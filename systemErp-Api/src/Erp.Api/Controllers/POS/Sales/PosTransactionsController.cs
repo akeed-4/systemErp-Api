@@ -29,7 +29,7 @@ public class PosTransactionsController : ErpControllerBase
         return Created($"{Request.Path}/{created.Id}", ApiResponse<PosTransactionDto>.Ok(created, Messages.SaleCompleted).WithStatus(201));
     }
 
-    /// <summary>تسعير السلة من الخادم قبل الدفع (عروض/كوبون/ولاء/ضريبة) — بلا أي أثر.</summary>
+    /// <summary>تسعير السلة من السرفر قبل الدفع (عروض/كوبون/ولاء/ضريبة) — بلا أي أثر.</summary>
     [HttpPost("quote")]
     public async Task<IActionResult> Quote([FromBody] CheckoutRequestDto dto, CancellationToken ct) => Success(await _sales.QuoteAsync(dto, ct));
 

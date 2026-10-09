@@ -144,7 +144,7 @@ public class Client
         return new Res { Status = (int)resp.StatusCode, Body = node };
     }
 
-    /// <summary>عميل يحمل رمز مستخدم آخر (مثلاً مندوب مبيعات) مع نفس الخادم.</summary>
+    /// <summary>عميل يحمل رمز مستخدم آخر (مثلاً مندوب مبيعات) مع نفس السرفر.</summary>
     public async Task<Client> LoginAsAsync(HttpClient http, string email, string password)
     {
         var other = new Client(http) { Email = email };

@@ -1,5 +1,13 @@
 namespace ERP.Core.Models.CarShowroom;
 
+/// <summary>قيم مصدر الشراء (CarProcurementOrder.PurchaseSource).</summary>
+public static class ProcurementSources
+{
+    public const string Company = "company";
+    public const string Bank = "bank";
+    public static readonly string[] All = { Company, Bank };
+}
+
 /// <summary>أمر توريد وشراء سيارات - يمر بدورة الشراء المعتمدة من 7 مراحل (ProcurementStage).</summary>
 public class CarProcurementOrder : BaseEntity
 {
@@ -15,6 +23,11 @@ public class CarProcurementOrder : BaseEntity
     public string? Priority { get; set; } = "normal";
     /// <summary>دورة الشراء: individual | corporate | bank_lease (اختياري للأوامر القديمة).</summary>
     public string? PurchaseCycle { get; set; }
+    /// <summary>
+    /// مصدر الشراء (مستقل عن نوع الدفع): company = شركة/وكيل، bank = بنك. يُحدَّد عند الإضافة حسب دورة الشراء ولا يتغيّر.
+    /// null = أمر قديم سابق لهذا الحقل: غير مصنَّف عمداً (لا يُستنتج من نوع الدفع ولا من غيره).
+    /// </summary>
+    public string? PurchaseSource { get; set; }
     /// <summary>SAR | USD | EUR | AED</summary>
     public string Currency { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1;

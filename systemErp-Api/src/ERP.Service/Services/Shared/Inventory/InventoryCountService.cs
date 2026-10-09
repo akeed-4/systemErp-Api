@@ -3,7 +3,7 @@ using ERP.Service.Data;
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
-/// مستندات الجرد: التعديل للمسودة والمرفوض فقط، ورصيد النظام والتكلفة والفروق يحسبها الخادم عند كل حفظ
+/// مستندات الجرد: التعديل للمسودة والمرفوض فقط، ورصيد النظام والتكلفة والفروق يحسبها السرفر عند كل حفظ
 /// ثم تُجمَّد عند الإرسال. الإرسال ينشئ مستند اعتماد مستقلاً، والتسوية لا تتم إلا باعتماده.
 /// </summary>
 public class InventoryCountService : CrudService<InventoryCount, InventoryCountDto, CreateInventoryCountDto, UpdateInventoryCountDto>, IInventoryCountService

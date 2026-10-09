@@ -3,7 +3,7 @@ using ERP.Core.DTOs.Shared;
 namespace ERP.Core.Contracts.Shared;
 
 /// <summary>
-/// اعتماد الجرد: القرار يُفرض في الخادم (صلاحية الاعتماد، فصل المهام، مستويات سياسة inventory_count إن وُجدت)،
+/// اعتماد الجرد: القرار يُفرض في السرفر (صلاحية الاعتماد، فصل المهام، مستويات سياسة inventory_count إن وُجدت)،
 /// والاعتماد النهائي ينشئ حركات التسوية والقيد المحاسبي للفروق ذرّياً.
 /// </summary>
 public interface IInventoryCountApprovalService

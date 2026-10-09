@@ -10,7 +10,7 @@ public partial class AgreementItemDto
     public string? ItemCode { get; set; }
     public string? Barcode { get; set; }
     public string? Unit { get; set; }
-    /// <summary>الكمية المستهلكة بأوامر معتمدة (يديرها الخادم).</summary>
+    /// <summary>الكمية المستهلكة بأوامر معتمدة (يديرها السرفر).</summary>
     public decimal UsedQuantity { get; set; }
     public decimal Discount { get; set; }
     public decimal VatRate { get; set; } = 15m;

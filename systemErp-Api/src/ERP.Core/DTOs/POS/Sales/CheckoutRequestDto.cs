@@ -1,6 +1,6 @@
 namespace ERP.Core.DTOs.POS;
 
-/// <summary>طلب إتمام بيع. الأسعار والضريبة والعروض تُحسب في الخادم من الكتالوج، لا من العميل.</summary>
+/// <summary>طلب إتمام بيع. الأسعار والضريبة والعروض تُحسب في السرفر من الكتالوج، لا من العميل.</summary>
 public class CheckoutRequestDto
 {
     public Guid? CustomerId { get; set; }

@@ -29,7 +29,7 @@ public class PosTests : TestBase
         Assert.Equal(404, (await api.Post("/pos/shifts/close", new { closingCashActual = 100 })).Status);
     }
 
-    // ---------- التسعير في الخادم ----------
+    // ---------- التسعير في السرفر ----------
     [Fact]
     public async Task Checkout_prices_from_the_catalog_and_applies_server_side_offers_and_coupons()
     {

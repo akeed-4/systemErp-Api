@@ -67,9 +67,10 @@ public class CarSaleService : ICarSaleService
         {
             var contract = Mapper.Map<CarSalesContract>(r);
             ResetSystemFields(contract);
-            var vehicle = await LoadVehicleAsync(r.VehicleId, null, token);
+            var vehicle = await LoadVehicleAsync(r.VehicleId, null, token, r.DepositVoucherId);
             await ValidateAsync(contract, token);
             ApplyVehicleAndPricing(contract, vehicle);
+            await ValidateDepositAsync(contract, token);
 
             contract.ContractNumber = await _numbers.NextAsync("car_sales_contract", "CSC-", token);
             contract.Date = r.Date == default ? DateTime.UtcNow : r.Date;
@@ -92,9 +93,10 @@ public class CarSaleService : ICarSaleService
             var keep = _db.Entry(contract).CurrentValues.Clone();
             Mapper.Apply(r, contract);
             RestoreSystemFields(contract, keep);
-            var vehicle = await LoadVehicleAsync(contract.VehicleId, contract.Id, token);
+            var vehicle = await LoadVehicleAsync(contract.VehicleId, contract.Id, token, contract.DepositVoucherId);
             await ValidateAsync(contract, token);
             ApplyVehicleAndPricing(contract, vehicle);
+            await ValidateDepositAsync(contract, token);
             await _db.SaveChangesAsync(token);
             return Mapper.Map<CarSalesContractDto>(contract);
         }, ct);
@@ -168,7 +170,9 @@ public class CarSaleService : ICarSaleService
             if (c.Status == SalesContractStatus.Invoiced) throw new ConflictException(Messages.CannotCancelInvoicedContract);
             if (c.Status == SalesContractStatus.Cancelled) throw new ConflictException(Messages.ContractAlreadyCancelled);
             var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == c.VehicleId, token);
-            if (vehicle is { Status: VehicleStatus.Reserved }) vehicle.Status = VehicleStatus.Available; // فك الحجز
+            // يبقى محجوزاً إن كان عليه عربون مفتوح (العربون يحجزه حتى يُحذف أو يُخصم من عقد)
+            var heldByDeposit = await _db.Set<Voucher>().AnyAsync(v => v.DepositVehicleId == c.VehicleId && v.DepositStatus == "open", token);
+            if (vehicle is { Status: VehicleStatus.Reserved } && !heldByDeposit) vehicle.Status = VehicleStatus.Available; // فك الحجز
             c.Status = SalesContractStatus.Cancelled;
             if (!string.IsNullOrWhiteSpace(reason)) c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? $"سبب الإلغاء: {reason}" : $"{c.Notes}\nسبب الإلغاء: {reason}";
             await _audit.LogAsync("CONTRACT_CANCELLED", nameof(CarSalesContract), c.Id.ToString(), reason ?? "بدون سبب", token);
@@ -247,7 +251,10 @@ public class CarSaleService : ICarSaleService
         var customer = c.CustomerId.HasValue ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == c.CustomerId, ct) : null;
         var net = c.NetPriceBeforeVat ?? c.SellingPrice - (c.DiscountAmount ?? 0);
 
-        var (method, splits) = PaymentPlan(c);
+        // العربون يُخصم أولاً: جزء الدفع به يقفل حساب عربونات العملاء (216) والباقي بحسب خطة الدفع
+        Voucher? deposit = c.DepositVoucherId.HasValue ? await _db.Set<Voucher>().FirstOrDefaultAsync(v => v.Id == c.DepositVoucherId, ct) : null;
+        var depositAmount = deposit == null ? 0m : Math.Min(deposit.Amount, c.TotalWithVat);
+        var (method, splits) = PaymentPlan(c, depositAmount, deposit?.VoucherNumber);
         var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
         {
             Kind = InvoiceKind.Sales,
@@ -272,12 +279,37 @@ public class CarSaleService : ICarSaleService
 
         c.InvoiceId = invoice.Id;
         vehicle.Status = VehicleStatus.Sold;
+        if (deposit != null)
+        {
+            deposit.DepositStatus = "applied"; deposit.DepositContractId = c.Id;
+            c.DepositAppliedAmount = depositAmount;
+        }
     }
 
     /// <summary>طريقة الدفع في الفاتورة: التمويل/الآجل مع دفعة مقدمة تُقسَّم إلى نقد + ذمم.</summary>
-    private static (PaymentMethod Method, List<InvoicePaymentSplitDto> Splits) PaymentPlan(CarSalesContract c)
+    private static (PaymentMethod Method, List<InvoicePaymentSplitDto> Splits) PaymentPlan(CarSalesContract c, decimal deposit = 0, string? depositRef = null)
     {
         var total = c.TotalWithVat;
+        if (deposit > 0)
+        {
+            var parts = new List<InvoicePaymentSplitDto> { new() { Method = PaymentMethod.CustomerDeposit, Amount = deposit, Reference = depositRef } };
+            var remaining = total - deposit;
+            if (remaining <= 0) return (PaymentMethod.CustomerDeposit, parts);
+            var downNow = Math.Min(c.DownPaymentAmount ?? 0, remaining);
+            if (c.PaymentMethod is "credit" or "bank_finance")
+            {
+                if (downNow >= remaining) { parts.Add(new() { Method = PaymentMethod.Cash, Amount = remaining, Reference = c.DownPaymentReceiptNo }); return (PaymentMethod.Cash, parts); }
+                if (downNow > 0) parts.Add(new() { Method = PaymentMethod.Cash, Amount = downNow, Reference = c.DownPaymentReceiptNo });
+                parts.Add(new() { Method = PaymentMethod.Credit, Amount = remaining - downNow, Reference = c.BankApprovalNumber });
+                return (PaymentMethod.Credit, parts);
+            }
+            var rest = c.PaymentMethod switch
+            {
+                "cash" => PaymentMethod.Cash, "bank_transfer" => PaymentMethod.BankTransfer, "pos_mada" => PaymentMethod.BankCard, _ => PaymentMethod.Credit,
+            };
+            parts.Add(new() { Method = rest, Amount = remaining });
+            return (rest, parts);
+        }
         var down = c.DownPaymentAmount ?? 0;
         if (c.PaymentMethod is "credit" or "bank_finance" && down > 0 && down < total)
             return (PaymentMethod.Credit, new List<InvoicePaymentSplitDto>
@@ -295,7 +327,7 @@ public class CarSaleService : ICarSaleService
     }
 
     // ---------------- التحقق والتسعير ----------------
-    private async Task<Vehicle> LoadVehicleAsync(Guid vehicleId, Guid? contractId, CancellationToken ct)
+    private async Task<Vehicle> LoadVehicleAsync(Guid vehicleId, Guid? contractId, CancellationToken ct, Guid? depositVoucherId = null)
     {
         var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == vehicleId, ct) ?? throw new ValidationFailedException(Messages.VehicleNotFound);
         if (vehicle.Status == VehicleStatus.Sold) throw new ConflictException(Messages.VehicleSold);
@@ -306,9 +338,25 @@ public class CarSaleService : ICarSaleService
                 && x.Status != SalesContractStatus.Cancelled, ct);
             var reservedByOther = await _db.Set<CarSalesContract>().AnyAsync(x => x.VehicleId == vehicleId && x.Id != contractId
                 && x.Status != SalesContractStatus.Cancelled && x.Status != SalesContractStatus.Draft, ct);
-            if (reservedByOther || (!reservedByThis && !contractId.HasValue)) throw new ConflictException(Messages.VehicleReservedForAnotherContract);
+            var reservedByDeposit = depositVoucherId.HasValue && await _db.Set<Voucher>().AnyAsync(v => v.Id == depositVoucherId && v.DepositVehicleId == vehicleId, ct);
+            if (reservedByOther || (!reservedByThis && !contractId.HasValue && !reservedByDeposit)) throw new ConflictException(Messages.VehicleReservedForAnotherContract);
         }
         return vehicle;
+    }
+
+    /// <summary>العربون المختار: سند عربون مفتوح لنفس المركبة والعميل، غير مربوط بعقد آخر، ولا يتجاوز إجمالي العقد.</summary>
+    private async Task ValidateDepositAsync(CarSalesContract c, CancellationToken ct)
+    {
+        if (!c.DepositVoucherId.HasValue) return;
+        var voucher = await _db.Set<Voucher>().AsNoTracking().FirstOrDefaultAsync(v => v.Id == c.DepositVoucherId, ct)
+            ?? throw new ValidationFailedException("سند العربون غير موجود.");
+        if (voucher.DepositVehicleId != c.VehicleId) throw new ValidationFailedException("سند العربون لمركبة أخرى.");
+        if (voucher.DepositStatus != "open" && voucher.DepositContractId != c.Id) throw new ConflictException("سند العربون مخصوم من عقد آخر.");
+        if (voucher.DepositCustomerId.HasValue && c.CustomerId.HasValue && voucher.DepositCustomerId != c.CustomerId)
+            throw new ValidationFailedException("سند العربون لعميل آخر.");
+        if (await _db.Set<CarSalesContract>().AnyAsync(x => x.DepositVoucherId == c.DepositVoucherId && x.Id != c.Id && x.Status != SalesContractStatus.Cancelled, ct))
+            throw new ConflictException("سند العربون مربوط بعقد آخر.");
+        if (voucher.Amount > c.TotalWithVat) throw new ValidationFailedException("العربون يتجاوز إجمالي العقد.");
     }
 
     private async Task ValidateAsync(CarSalesContract c, CancellationToken ct)
@@ -329,7 +377,7 @@ public class CarSaleService : ICarSaleService
             throw new ValidationFailedException(Messages.FinancingBankNotFound);
     }
 
-    /// <summary>ينسخ بيانات المركبة ويحسب التسعير والضريبة في الخادم (التكلفة من المركبة لا من العميل).</summary>
+    /// <summary>ينسخ بيانات المركبة ويحسب التسعير والضريبة في السرفر (التكلفة من المركبة لا من العميل).</summary>
     private static void ApplyVehicleAndPricing(CarSalesContract c, Vehicle v)
     {
         c.VehicleId = v.Id; c.Vin = v.ChassisNumber; c.EngineNumber = v.EngineNumber; c.CustomsCardNumber = v.CustomsCardNumber;
@@ -355,7 +403,7 @@ public class CarSaleService : ICarSaleService
     private static void ResetSystemFields(CarSalesContract c)
     {
         c.Status = SalesContractStatus.Draft; c.AllocatedVin = null; c.AllocatedAt = null; c.DeliveredAt = null;
-        c.HandoverProtocolNumber = null; c.HandoverSignee = null; c.HandoverSigneeNationalId = null; c.InvoiceId = null;
+        c.HandoverProtocolNumber = null; c.HandoverSignee = null; c.HandoverSigneeNationalId = null; c.InvoiceId = null; c.DepositAppliedAmount = null;
     }
 
     private static void RestoreSystemFields(CarSalesContract c, Microsoft.EntityFrameworkCore.ChangeTracking.PropertyValues o)
@@ -369,5 +417,6 @@ public class CarSaleService : ICarSaleService
         c.HandoverSignee = (string?)o[nameof(CarSalesContract.HandoverSignee)];
         c.HandoverSigneeNationalId = (string?)o[nameof(CarSalesContract.HandoverSigneeNationalId)];
         c.InvoiceId = (Guid?)o[nameof(CarSalesContract.InvoiceId)];
+        c.DepositAppliedAmount = (decimal?)o[nameof(CarSalesContract.DepositAppliedAmount)];
     }
 }

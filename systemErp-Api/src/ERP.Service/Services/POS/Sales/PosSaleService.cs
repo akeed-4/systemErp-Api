@@ -157,7 +157,7 @@ public class PosSaleService : IPosSaleService
             var categoryIds = await _db.Set<ProductCategory>().AsNoTracking().Where(c => categoryCodes.Contains(c.Code)).ToDictionaryAsync(c => c.Code, c => c.Id, token);
             var offers = await _db.Set<PosOffer>().AsNoTracking().Where(o => o.IsActive).ToListAsync(token);
 
-            // 2) الخصومات على مستوى السطر (عروض الخادم + خصم يدوي إداري)
+            // 2) الخصومات على مستوى السطر (عروض السرفر + خصم يدوي إداري)
             var offerDiscounts = new List<decimal>();
             var lineDiscounts = new List<decimal>();
             foreach (var l in lines)
@@ -210,7 +210,7 @@ public class PosSaleService : IPosSaleService
                 customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced);
     }
 
-    /// <summary>تسعير السلة من الخادم للعرض على شاشة الكاشير قبل الدفع — بلا أي أثر.</summary>
+    /// <summary>تسعير السلة من السرفر للعرض على شاشة الكاشير قبل الدفع — بلا أي أثر.</summary>
     public async Task<PosQuoteDto> QuoteAsync(CheckoutRequestDto r, CancellationToken ct = default)
     {
         var cart = await PriceCartAsync(r, strict: false, ct);

@@ -203,7 +203,7 @@ public class VehicleInvoiceTests : TestBase
         Assert.Equal(200, upd.Status);
         Assert.Equal("profit_margin_15", upd.Data!["vatMode"].S());
 
-        // العميل يرسل قياسي؛ الخادم يعتمد نمط المركبة
+        // العميل يرسل قياسي؛ السرفر يعتمد نمط المركبة
         var s = await api.Post("/invoices", new
         {
             kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",

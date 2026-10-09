@@ -15,6 +15,8 @@ public partial class CarProcurementOrderDto
     public string? SupplierVat { get; set; }
     public string? Priority { get; set; } = "normal";
     public string? PurchaseCycle { get; set; }
+    /// <summary>مصدر الشراء: company | bank. فارغ عند الإنشاء = company؛ وفي الأوامر القديمة فارغ = غير مصنَّف.</summary>
+    public string? PurchaseSource { get; set; }
     public string Currency { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1;
     public string PaymentType { get; set; } = "cash";

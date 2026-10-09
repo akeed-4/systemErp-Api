@@ -10,6 +10,7 @@ public static class TreasuryResolver
 {
     public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured)
     {
+        if (method == PaymentMethod.CustomerDeposit) return DefaultAccounts.CustomerDeposits;
         var type = method switch
         {
             PaymentMethod.Cash => "cash",

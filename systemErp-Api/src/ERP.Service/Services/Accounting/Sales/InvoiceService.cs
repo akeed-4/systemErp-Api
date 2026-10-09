@@ -104,7 +104,7 @@ public class InvoiceService : IInvoiceService
             if (invoice.Status == "posted") throw new ConflictException(Messages.PostedInvoiceLocked);
             if (invoice.Status != "draft") throw new ConflictException(Messages.CannotEditCancelledInvoice);
 
-            var fresh = await BuildAsync(r, token); // نفس تحقق الإنشاء وحساب الأرقام في الخادم
+            var fresh = await BuildAsync(r, token); // نفس تحقق الإنشاء وحساب الأرقام في السرفر
             var (keepId, keepTenant, keepCreated, keepNumber, keepUuid) = (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, invoice.Uuid);
 
             _db.RemoveRange(invoice.Items);
@@ -315,12 +315,34 @@ public class InvoiceService : IInvoiceService
         };
     }
 
+    /// <summary>
+    /// التصنيف الضريبي يُعرَّف على الصنف: السطر المرتبط بصنف صفري أو معفى (بسببه) ولم يُحدَّد تصنيفه صراحةً يرثهما منه بنسبة صفر.
+    /// الصنف الخاضع أو القديم بلا تعريف يبقى على سلوكه السابق (نسبة السطر).
+    /// </summary>
+    private async Task ApplyProductVatDefaultsAsync(CreateInvoiceDto r, CancellationToken ct)
+    {
+        var ids = r.Items.Where(i => i.ItemId != Guid.Empty && i.VatCategory == null).Select(i => i.ItemId).Distinct().ToList();
+        if (ids.Count == 0) return;
+        var defined = await _db.Set<Product>().AsNoTracking()
+            .Where(p => ids.Contains(p.Id) && p.VatCategory != VatCategory.Standard && p.VatExemptionReasonCode != null)
+            .ToDictionaryAsync(p => p.Id, ct);
+        foreach (var item in r.Items.Where(i => i.VatCategory == null && defined.ContainsKey(i.ItemId)))
+        {
+            var p = defined[item.ItemId];
+            item.VatCategory = p.VatCategory;
+            item.VatRate = 0;
+            item.VatAmountOverride = null;
+            item.VatExemptionReasonCode ??= p.VatExemptionReasonCode;
+        }
+    }
+
     // ---------------- البناء والتحقق (بدون أي أثر جانبي) ----------------
     private async Task<Invoice> BuildAsync(CreateInvoiceDto r, CancellationToken ct)
     {
         if (r.ItemsDerivedFromVehicles) r.Items.Clear(); // إعادة تنفيذ بعد تعارض تزامن: البنود تُشتق من جديد
         var vehicleLines = r.VehicleLines.Count > 0 ? await VehicleInvoiceLines.ResolveAsync(_db, r, ct) : null; // يشتق r.Items ويتحقق من الأسطر
         r.ItemsDerivedFromVehicles = vehicleLines != null;
+        await ApplyProductVatDefaultsAsync(r, ct);
         var errors = new List<string>();
         if (!Enum.IsDefined(r.Kind)) errors.Add(Messages.InvalidDocumentType);
         if (!Enum.IsDefined(r.InvoiceType)) errors.Add(Messages.InvalidInvoiceType);
@@ -370,7 +392,7 @@ public class InvoiceService : IInvoiceService
         invoice.ZatcaQrCode = null; invoice.ZatcaHash = null; invoice.ZatcaUblXml = null; invoice.ZatcaPih = null;
         invoice.JournalEntryId = null;
 
-        // الأسطر: الأرقام من الخادم دائماً، وبيانات الصنف من الكتالوج إن لم تُرسل.
+        // الأسطر: الأرقام من السرفر دائماً، وبيانات الصنف من الكتالوج إن لم تُرسل.
         invoice.Items.Clear();
         for (var i = 0; i < r.Items.Count; i++)
         {

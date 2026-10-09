@@ -48,9 +48,11 @@ public class VoucherService : IVoucherService
     public Task<VoucherDto> CreateAsync(CreateVoucherDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await PrepareDepositAsync(r, null, token);
             Validate(r);
             await PrepareAllocationsAsync(r, null, token);
             var voucher = Mapper.Map<Voucher>(r);
+            if (r.DepositVehicleId.HasValue) voucher.DepositStatus = "open";
             voucher.Date = r.Date == default ? DateTime.UtcNow : r.Date;
             voucher.VoucherNumber = await _numbers.NextAsync(r.Type == VoucherType.Receipt ? "receipt_voucher" : "payment_voucher",
                 r.Type == VoucherType.Receipt ? "RV-" : "PV-", token);
@@ -58,6 +60,7 @@ public class VoucherService : IVoucherService
             _db.Add(voucher);
             await _db.SaveChangesAsync(token);
             await PostAsync(voucher, r, token);
+            if (r.DepositVehicleId.HasValue) await ReserveVehicleAsync(r.DepositVehicleId.Value, token);
             await _audit.LogAsync("VOUCHER_CREATED", nameof(Voucher), voucher.Id.ToString(), $"سند {voucher.VoucherNumber} بمبلغ {voucher.Amount:0.00} - {voucher.PartyName}", token);
             return await GetAsync(voucher.Id, token);
         }, ct);
@@ -69,6 +72,7 @@ public class VoucherService : IVoucherService
             var voucher = await _db.Set<Voucher>().Include(v => v.PaymentSplits).Include(v => v.Allocations).FirstOrDefaultAsync(v => v.Id == id, token)
                 ?? throw new NotFoundException(Messages.VoucherNotFound);
             if (r.Type != voucher.Type) throw new ConflictException(Messages.CannotChangeVoucherType);
+            await PrepareDepositAsync(r, voucher, token);
             Validate(r);
             await PrepareAllocationsAsync(r, voucher.Id, token);
 
@@ -95,6 +99,58 @@ public class VoucherService : IVoucherService
             await _audit.LogAsync("VOUCHER_UPDATED", nameof(Voucher), id.ToString(), $"تعديل السند {voucher.VoucherNumber}: المبلغ {voucher.Amount:0.00}", token);
             return await GetAsync(id, token);
         }, ct);
+
+    /// <summary>
+    /// سند العربون: قبض فقط على مركبة قابلة للبيع، حسابه المقابل عربونات العملاء (216) بلا ضريبة ولا توزيع على فواتير،
+    /// ولا يُعدَّل بعد خصمه من فاتورة بيع. لا يُحوَّل سند عادي إلى عربون ولا العكس.
+    /// </summary>
+    private async Task PrepareDepositAsync(CreateVoucherDto r, Voucher? existing, CancellationToken ct)
+    {
+        if (existing != null && existing.DepositVehicleId != r.DepositVehicleId)
+            throw new ConflictException("لا يُحوَّل سند عادي إلى سند عربون ولا العكس، ولا تُغيَّر مركبته.");
+        if (!r.DepositVehicleId.HasValue) return;
+        if (r.Type != VoucherType.Receipt) throw new ValidationFailedException("سند العربون سند قبض فقط.");
+        if (existing != null && existing.DepositStatus != "open")
+            throw new ConflictException("عربون مخصوم من فاتورة بيع؛ لا يُعدَّل.");
+
+        var vehicle = await _db.Set<ERP.Core.Models.CarShowroom.Vehicle>().AsNoTracking().FirstOrDefaultAsync(v => v.Id == r.DepositVehicleId, ct)
+            ?? throw new ValidationFailedException(Messages.VehicleNotFound);
+        if (vehicle.Status is ERP.Core.Models.CarShowroom.VehicleStatus.Sold or ERP.Core.Models.CarShowroom.VehicleStatus.WrittenOff)
+            throw new ConflictException("المركبة مباعة أو مشطوبة؛ لا يُقبض عليها عربون.");
+        if (r.DepositCustomerId.HasValue && !await _db.Set<Customer>().AnyAsync(c => c.Id == r.DepositCustomerId, ct))
+            throw new ValidationFailedException(Messages.CustomerNotFound);
+        var otherCustomer = await _db.Set<Voucher>().AnyAsync(v => v.DepositVehicleId == r.DepositVehicleId && v.DepositStatus == "open"
+            && (existing == null || v.Id != existing.Id) && v.DepositCustomerId != r.DepositCustomerId, ct);
+        if (otherCustomer) throw new ConflictException("المركبة محجوزة بعربون عميل آخر.");
+
+        await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.CustomerDeposits);
+        r.PartyAccountCode = DefaultAccounts.CustomerDeposits;
+        r.VatAmount = 0;
+        r.Allocations.Clear();
+    }
+
+    /// <summary>العربون يحجز المركبة المتاحة (يُرفع الحجز عند حذف آخر عربون مفتوح عليها).</summary>
+    private async Task ReserveVehicleAsync(Guid vehicleId, CancellationToken ct)
+    {
+        var vehicle = await _db.Set<ERP.Core.Models.CarShowroom.Vehicle>().FirstOrDefaultAsync(v => v.Id == vehicleId, ct);
+        if (vehicle is { Status: ERP.Core.Models.CarShowroom.VehicleStatus.Available })
+        {
+            vehicle.Status = ERP.Core.Models.CarShowroom.VehicleStatus.Reserved;
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
+    private async Task ReleaseVehicleAsync(Guid vehicleId, CancellationToken ct)
+    {
+        var vehicle = await _db.Set<ERP.Core.Models.CarShowroom.Vehicle>().FirstOrDefaultAsync(v => v.Id == vehicleId, ct);
+        if (vehicle is not { Status: ERP.Core.Models.CarShowroom.VehicleStatus.Reserved }) return;
+        var stillHeld = await _db.Set<Voucher>().AnyAsync(v => v.DepositVehicleId == vehicleId && v.DepositStatus == "open", ct)
+            || await _db.Set<ERP.Core.Models.CarShowroom.CarSalesContract>().AnyAsync(c => c.VehicleId == vehicleId
+                && c.Status != ERP.Core.Models.CarShowroom.SalesContractStatus.Cancelled && c.Status != ERP.Core.Models.CarShowroom.SalesContractStatus.Draft, ct);
+        if (stillHeld) return;
+        vehicle.Status = ERP.Core.Models.CarShowroom.VehicleStatus.Available;
+        await _db.SaveChangesAsync(ct);
+    }
 
     private static void Validate(CreateVoucherDto r)
     {
@@ -173,11 +229,13 @@ public class VoucherService : IVoucherService
             var voucher = await _db.Set<Voucher>().Include(v => v.PaymentSplits).Include(v => v.Allocations).FirstOrDefaultAsync(v => v.Id == id, token)
                 ?? throw new NotFoundException(Messages.VoucherNotFound);
             // السند المرحَّل لا يُحذف فيزيائياً: يُعكس قيده ثم يُزال السند (مطابقاً لسلوك deleteVoucher في الواجهة).
+            if (voucher.DepositStatus == "applied") throw new ConflictException("عربون مخصوم من فاتورة بيع؛ لا يُحذف. يُصحَّح بمرتجع الفاتورة.");
             if (voucher.JournalEntryId.HasValue) await _posting.ReverseAsync(voucher.JournalEntryId.Value, $"حذف السند {voucher.VoucherNumber}", token);
             _db.RemoveRange(voucher.PaymentSplits);
             _db.RemoveRange(voucher.Allocations); // الفواتير الموزَّع عليها تعود بمتبقّيها
             _db.Remove(voucher);
             await _db.SaveChangesAsync(token);
+            if (voucher.DepositVehicleId.HasValue) await ReleaseVehicleAsync(voucher.DepositVehicleId.Value, token);
             await _audit.LogAsync("VOUCHER_DELETED", nameof(Voucher), id.ToString(), $"حذف السند {voucher.VoucherNumber} بمبلغ {voucher.Amount:0.00} وعكس قيده", token);
         }, ct);
 }

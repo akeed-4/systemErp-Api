@@ -52,7 +52,7 @@ public class InventoryCountLineDto
     public string? Notes { get; set; }
 }
 
-/// <summary>ما يُدخله المستخدم؛ الرقم والحالة ورصيد النظام والتكلفة والفروق يحسبها الخادم.</summary>
+/// <summary>ما يُدخله المستخدم؛ الرقم والحالة ورصيد النظام والتكلفة والفروق يحسبها السرفر.</summary>
 public class CreateInventoryCountDto
 {
     public InventoryCountScope Scope { get; set; } = InventoryCountScope.Items;

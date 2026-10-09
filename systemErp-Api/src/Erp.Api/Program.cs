@@ -111,12 +111,12 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 
 if (app.Environment.IsProduction() && string.IsNullOrWhiteSpace(app.Configuration["DataProtection:KeysPath"]))
-    app.Logger.LogWarning("DataProtection:KeysPath غير مضبوط: مفاتيح تشفير أسرار بوابات الدفع محفوظة على هذا الخادم فقط وتضيع عند نقله أو إعادة بنائه.");
+    app.Logger.LogWarning("DataProtection:KeysPath غير مضبوط: مفاتيح تشفير أسرار بوابات الدفع محفوظة على هذا السرفر فقط وتضيع عند نقله أو إعادة بنائه.");
 if (!paymob.IsConfigured)
     app.Logger.LogWarning("إعدادات Paymob للمنصة ناقصة (SecretKey/PublicKey/HmacSecret/IntegrationIds/PublicApiUrl/FrontendUrl): سداد الاشتراكات (بعد الفترة التجريبية والتجديد) متوقف حتى تُستكمل.");
 
 // لغة الرسائل من Accept-Language (ar افتراضياً | en). تُضبط لغة الواجهة فقط (UICulture)، وتنسيق الأرقام والتواريخ
-// يبقى على ثقافة الخادم كما كان. تسبق معالج الأخطاء لأن الثقافة المضبوطة داخل middleware لاحق لا تعود إليه.
+// يبقى على ثقافة السرفر كما كان. تسبق معالج الأخطاء لأن الثقافة المضبوطة داخل middleware لاحق لا تعود إليه.
 app.UseRequestLocalization(o =>
 {
     var server = System.Globalization.CultureInfo.CurrentCulture;

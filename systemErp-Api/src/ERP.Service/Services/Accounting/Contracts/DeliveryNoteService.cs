@@ -99,7 +99,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         if (items.Any(i => i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.PriceAndVatInvalid);
     }
 
-    /// <summary>قيمة البيان تُحتسب في الخادم: الكمية المسلّمة × السعر، والضريبة لكل سطر.</summary>
+    /// <summary>قيمة البيان تُحتسب في السرفر: الكمية المسلّمة × السعر، والضريبة لكل سطر.</summary>
     private static void Price(DeliveryNote note)
     {
         foreach (var i in note.Items)

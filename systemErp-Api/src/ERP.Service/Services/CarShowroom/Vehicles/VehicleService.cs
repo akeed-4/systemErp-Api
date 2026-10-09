@@ -132,7 +132,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
             throw new ValidationFailedException(Messages.BrandAndModelRequiredChooseOrType);
     }
 
-    /// <summary>التكلفة الإجمالية والضريبة تُحسب في الخادم دائماً.</summary>
+    /// <summary>التكلفة الإجمالية والضريبة تُحسب في السرفر دائماً.</summary>
     internal static void Recalculate(Vehicle v)
     {
         v.TotalCost = (v.PurchasePrice ?? 0) + (v.AdditionalCosts ?? 0) + (v.PreparationCost ?? 0);

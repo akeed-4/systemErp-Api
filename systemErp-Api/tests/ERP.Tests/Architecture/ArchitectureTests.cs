@@ -89,7 +89,7 @@ public class ArchitectureTests
             "AuditLogs", "Auth", "Company", "Permissions", "Platform", "Subscriptions", "Users", "Payments", "SupportTickets",
             "ApprovalPolicies", "Approvals", "Notifications",
             // المحاسبة مشتركة بين كل الوحدات
-            "Accounts", "BankReconciliations", "CostCenters", "Employees", "Departments", "LeaveTypes", "LeaveRequests", "EmployeeLoans", "EndOfService", "Attendance", "Payroll", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",
+            "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",
             // الفواتير محرّك واحد لفواتير التجارة وفواتير السيارات
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون
@@ -116,6 +116,9 @@ public class ArchitectureTests
         // المجلد يطابق الوحدة: معارض السيارات ونقاط البيع
         Assert.All(controllers.Where(c => c.Namespace!.EndsWith(".CarShowroom")),
             c => Assert.Equal(new[] { PlatformModules.CarShowroom }, c.GetCustomAttribute<ERP.Api.Infrastructure.RequireModuleAttribute>()!.AnyOf));
+        var hrNames = new[] { "Employees", "Departments", "LeaveTypes", "LeaveRequests", "EmployeeLoans", "EndOfService", "Attendance", "Payroll" };
+        Assert.All(controllers.Where(c => hrNames.Contains(c.Name.Replace("Controller", string.Empty))),
+            c => Assert.Equal(new[] { PlatformModules.Hr }, c.GetCustomAttribute<ERP.Api.Infrastructure.RequireModuleAttribute>()!.AnyOf));
         Assert.All(controllers.Where(c => c.Namespace!.EndsWith(".POS")),
             c => Assert.Equal(new[] { PlatformModules.Pos }, c.GetCustomAttribute<ERP.Api.Infrastructure.RequireModuleAttribute>()!.AnyOf));
     }

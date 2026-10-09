@@ -31,6 +31,10 @@ public class CarSalesContract : BaseEntity
     public string? BankDisbursementStatus { get; set; }
     public string? CorporatePoNumber { get; set; }
     public string? TenderNumber { get; set; }
+    /// <summary>سند العربون المقبوض على المركبة؛ يُخصم عند الفوترة ويُقفل بها.</summary>
+    public Guid? DepositVoucherId { get; set; }
+    /// <summary>مبلغ العربون الذي خُصم فعلاً من الفاتورة (يُسجَّل عند الفوترة).</summary>
+    public decimal? DepositAppliedAmount { get; set; }
     public decimal? DownPaymentAmount { get; set; }
     public string? DownPaymentReceiptNo { get; set; }
     public DateTime? DownPaymentDate { get; set; }

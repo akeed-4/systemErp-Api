@@ -23,6 +23,14 @@ public class Voucher : BaseEntity
     public Guid? JournalEntryId { get; set; }
     public string ReceivedOrPaidBy { get; set; } = string.Empty;
 
+    // سند عربون سيارة: قبض على المركبة يُحجز به، ويُقفل عند تطبيقه على فاتورة بيعها.
+    /// <summary>المركبة المحجوزة بالعربون؛ null = سند عادي.</summary>
+    public Guid? DepositVehicleId { get; set; }
+    public Guid? DepositCustomerId { get; set; }
+    /// <summary>open = مقبوض لم يُطبَّق | applied = خُصم من فاتورة بيع. null لغير العربون.</summary>
+    public string? DepositStatus { get; set; }
+    public Guid? DepositContractId { get; set; }
+
     public virtual ICollection<VoucherPaymentSplit> PaymentSplits { get; set; } = new List<VoucherPaymentSplit>();
     /// <summary>توزيع السند على فواتير آجلة؛ ما لم يُوزَّع دفعة مقدمة على حساب الطرف.</summary>
     public virtual ICollection<VoucherAllocation> Allocations { get; set; } = new List<VoucherAllocation>();

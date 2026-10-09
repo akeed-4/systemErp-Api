@@ -8,7 +8,7 @@ namespace ERP.Core.Models.Accounting;
 public class AgreementPayment : BaseEntity
 {
     public Guid AgreementId { get; set; }
-    /// <summary>ترتيب الدفعة (1، 2، ...) يضبطه الخادم.</summary>
+    /// <summary>ترتيب الدفعة (1، 2، ...) يضبطه السرفر.</summary>
     public int Sequence { get; set; }
     /// <summary>بيان الدفعة (مقدَّم، عند التوريد، ...).</summary>
     public string Description { get; set; } = string.Empty;

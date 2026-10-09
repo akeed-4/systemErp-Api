@@ -99,7 +99,7 @@ public class AgreementDeliveryContractTests : TestBase
         var api = await NewTenantAsync();
         var note = await api.Post("/deliverynotes", new { type = "sales_delivery", partyName = "عميل", date = DateTime.UtcNow,
             driverName = "سائق", vehiclePlate = "أ ب ج 123", warehouseLocation = "المستودع الرئيسي", notes = "تسليم جزئي",
-            subtotal = 1, grandTotal = 1, // تتجاهلها الخادم
+            subtotal = 1, grandTotal = 1, // تتجاهلها السرفر
             items = new[] { new { itemId = Guid.NewGuid(), itemName = "بند", unit = "PCS", contractQty = 10, deliveredQty = 4, unitPrice = 50, vatRate = 15 } } });
         Assert.Equal(200, note.Status);
         Assert.Equal(200, note.Data!["subtotal"].D()); Assert.Equal(30, note.Data["vatTotal"].D()); Assert.Equal(230, note.Data["grandTotal"].D());

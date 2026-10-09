@@ -114,7 +114,7 @@ public static class SubscriptionCatalog
             MaxUsers = plan.MaxUsers ?? int.MaxValue,
             MaxBranches = plan.Branches ?? int.MaxValue,
             ZatcaPhase2Enabled = plan.ZatcaPhase2Enabled,
-            ModuleKeys = PlatformModules.ToCsv(modules != null ? PlatformModules.Normalize(modules) : plan.Modules.Length > 0 ? plan.Modules : PlatformModules.All),
+            ModuleKeys = PlatformModules.ToCsv(modules != null ? PlatformModules.Normalize(modules) : plan.Modules.Length > 0 ? plan.Modules : PlatformModules.Parse(PlatformModules.DefaultCsv)),
         };
     }
 }

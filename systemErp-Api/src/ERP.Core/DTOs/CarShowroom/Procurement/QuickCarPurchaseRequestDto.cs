@@ -5,6 +5,8 @@ public class QuickCarPurchaseRequestDto
 {
     /// <summary>individual | corporate | bank_lease</summary>
     public string PurchaseCycle { get; set; } = "individual";
+    /// <summary>company (الافتراضي) | bank — مستقل عن PurchaseCycle ونوع الدفع.</summary>
+    public string? PurchaseSource { get; set; }
     public Guid SupplierId { get; set; }
     public DateTime? Date { get; set; }
 

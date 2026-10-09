@@ -31,6 +31,8 @@ public partial class CarSalesContractDto
     public string? TenderNumber { get; set; }
     public decimal? DownPaymentAmount { get; set; }
     public string? DownPaymentReceiptNo { get; set; }
+    public Guid? DepositVoucherId { get; set; }
+    public decimal? DepositAppliedAmount { get; set; }
     public DateTime? DownPaymentDate { get; set; }
     public decimal? FinancedAmount { get; set; }
     public decimal? MonthlyInstallment { get; set; }

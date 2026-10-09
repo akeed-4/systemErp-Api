@@ -1,6 +1,6 @@
 namespace ERP.Core.DTOs.Accounting;
 
-/// <summary>سطر سيارة في فاتورة. الحقول المحسوبة (الضريبة والإجماليات والتكلفة) تُتجاهل من العميل وتُحسب في الخادم.</summary>
+/// <summary>سطر سيارة في فاتورة. الحقول المحسوبة (الضريبة والإجماليات والتكلفة) تُتجاهل من العميل وتُحسب في السرفر.</summary>
 public class InvoiceVehicleLineDto
 {
     public Guid Id { get; set; }

@@ -20,5 +20,5 @@ public class Subscription : BaseEntity
     public int MaxBranches { get; set; } = 3;
     public bool ZatcaPhase2Enabled { get; set; } = true;
     /// <summary>الوحدات المرخّصة (مفاتيح PlatformModules مفصولة بفاصلة).</summary>
-    public string ModuleKeys { get; set; } = PlatformModules.AllCsv;
+    public string ModuleKeys { get; set; } = PlatformModules.DefaultCsv;
 }

@@ -3,7 +3,7 @@ using ERP.Service.Data;
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
-/// تذاكر الدعم الفني للمنشأة: الترقيم والحالة وبيانات العميل والرد الآلي من الخادم.
+/// تذاكر الدعم الفني للمنشأة: الترقيم والحالة وبيانات العميل والرد الآلي من السرفر.
 /// التعديل والحذف للتذكرة المفتوحة فقط؛ التذكرة المغلقة لا تقبل ردوداً.
 /// </summary>
 public class SupportTicketService : CrudService<SupportTicket, SupportTicketDto, CreateSupportTicketDto, UpdateSupportTicketDto>, ISupportTicketService

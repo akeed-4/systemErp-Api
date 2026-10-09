@@ -63,7 +63,7 @@ public class AttendanceSummaryRowDto
     public decimal OvertimePay { get; set; }
 }
 
-/// <summary>ملف للتنزيل يُنشأ في الخادم (نص).</summary>
+/// <summary>ملف للتنزيل يُنشأ في السرفر (نص).</summary>
 public class TextFileDto
 {
     public string FileName { get; set; } = string.Empty;

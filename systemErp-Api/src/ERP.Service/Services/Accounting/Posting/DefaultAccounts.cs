@@ -42,6 +42,7 @@ public static class DefaultAccounts
     public const string PettyCashExpenses = "521";  // المصروفات النثرية المصروفة من درج الكاشير
     public const string CashShortage = "522";       // عجز نقدية الصندوق عند إغلاق الوردية
     public const string DepreciationExpense = "523"; // مصروف إهلاك الأصول الثابتة (الحساب الافتراضي لأصل جديد)
+    public const string CustomerDeposits = "216";    // عربونات عملاء السيارات (خصم دائن حتى يُطبَّق على فاتورة البيع)
     public const string PurchasedServices = "524";   // خدمات ومصروفات مشتراة بفاتورة (بنود غير مخزنية)
 
     public static readonly (string Code, string Ar, string En, AccountCategory Type, string? Parent)[] Chart =
@@ -69,6 +70,7 @@ public static class DefaultAccounts
         ("213",  "ضريبة القيمة المضافة - مخرجات",  "Output VAT",                AccountCategory.Liability, "21"),
         ("214",  "رواتب مستحقة",                    "Salaries Payable",          AccountCategory.Liability, "21"),
         ("215",  "تأمينات اجتماعية مستحقة",         "Social Insurance Payable",  AccountCategory.Liability, "21"),
+        ("216",  "عربونات عملاء السيارات",          "Customer Vehicle Deposits", AccountCategory.Liability, "21"),
         ("3",    "حقوق الملكية",                    "Equity",                    AccountCategory.Equity,    null),
         ("31",   "رأس المال",                       "Capital",                   AccountCategory.Equity,    "3"),
         ("32",   "الأرباح المبقاة",                 "Retained Earnings",         AccountCategory.Equity,    "3"),

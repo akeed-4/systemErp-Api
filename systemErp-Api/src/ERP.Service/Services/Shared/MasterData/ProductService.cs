@@ -22,6 +22,17 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ProductArabicNameRequired);
         if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
         if (d.VatRate is < 0 or > 100) errors.Add(Messages.VatRateRange);
+        if (!Enum.IsDefined(d.VatCategory)) errors.Add("التصنيف الضريبي غير صالح.");
+        else if (d.VatCategory == VatCategory.Standard) d.VatExemptionReasonCode = null;
+        else
+        {
+            // صنف صفري أو معفى أو خارج النطاق: بلا ضريبة، وسببه برمز الهيئة يطابق تصنيفه (يحمله كل سطر يبيع به)
+            var reason = ERP.Service.Services.Accounting.VatExemptionReasons.Find(d.VatExemptionReasonCode);
+            if (reason == null) errors.Add("سبب الصفرية أو الإعفاء مطلوب للصنف غير الخاضع للضريبة.");
+            else if (reason.Category != d.VatCategory) errors.Add("سبب الإعفاء لا يطابق التصنيف الضريبي للصنف.");
+            else d.VatExemptionReasonCode = reason.Code;
+            d.VatRate = 0;
+        }
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<Product>().AnyAsync(p => p.Sku == d.Sku && (existing == null || p.Id != existing.Id), ct))

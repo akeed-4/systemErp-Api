@@ -75,6 +75,7 @@ public class CarProcurementService : ICarProcurementService
             order.OrderNumber = await _numbers.NextAsync("car_procurement_order", "CPO-", token);
             order.Stage = ProcurementStage.Requisition;
             order.Status = ProcurementOrderStatus.Draft;
+            order.PurchaseSource = string.IsNullOrWhiteSpace(r.PurchaseSource) ? ProcurementSources.Company : r.PurchaseSource.Trim().ToLowerInvariant();
             order.Date = r.Date == default ? DateTime.UtcNow : r.Date;
             order.SupplierName = supplier.NameAr; order.SupplierCr ??= supplier.CrNumber; order.SupplierVat ??= supplier.VatNumber;
             ResetSystemFields(order);
@@ -101,6 +102,7 @@ public class CarProcurementService : ICarProcurementService
             order.OrderNumber = (string)keep[nameof(CarProcurementOrder.OrderNumber)]!;
             order.Stage = (ProcurementStage)keep[nameof(CarProcurementOrder.Stage)]!;
             order.Status = (ProcurementOrderStatus)keep[nameof(CarProcurementOrder.Status)]!;
+            order.PurchaseSource = (string?)keep[nameof(CarProcurementOrder.PurchaseSource)]; // المصدر لا يتغيّر بعد الإنشاء
             order.PurchaseInvoiceId = (Guid?)keep[nameof(CarProcurementOrder.PurchaseInvoiceId)];
             order.MatchedInvoiceNumber = (string?)keep[nameof(CarProcurementOrder.MatchedInvoiceNumber)];
             order.PdiInspectionPassed = (bool?)keep[nameof(CarProcurementOrder.PdiInspectionPassed)];
@@ -183,7 +185,7 @@ public class CarProcurementService : ICarProcurementService
 
             var created = await CreateAsync(new CreateCarProcurementOrderDto
             {
-                SupplierId = r.SupplierId, Date = r.Date ?? DateTime.UtcNow, PurchaseCycle = r.PurchaseCycle,
+                SupplierId = r.SupplierId, Date = r.Date ?? DateTime.UtcNow, PurchaseCycle = r.PurchaseCycle, PurchaseSource = r.PurchaseSource,
                 PaymentType = r.PaymentType, CreditDays = r.CreditDays, Currency = r.Currency, ExchangeRate = r.ExchangeRate,
                 Notes = string.Join("\n", notes), WarehouseLocation = r.WarehouseLocation,
                 Items = new List<CarProcurementOrderItemDto>
@@ -235,6 +237,8 @@ public class CarProcurementService : ICarProcurementService
         if (!PaymentTypes.Contains(r.PaymentType)) errors.Add(Messages.PaymentTypePrefix + string.Join(" | ", PaymentTypes));
         if (!Currencies.Contains(r.Currency)) errors.Add(Messages.CurrencyPrefix + string.Join(" | ", Currencies));
         if (!string.IsNullOrWhiteSpace(r.PurchaseCycle) && !PurchaseCycles.Contains(r.PurchaseCycle)) errors.Add(Messages.PurchaseCyclePrefix + string.Join(" | ", PurchaseCycles));
+        if (!string.IsNullOrWhiteSpace(r.PurchaseSource) && !ProcurementSources.All.Contains(r.PurchaseSource.Trim().ToLowerInvariant()))
+            errors.Add("مصدر الشراء غير صالح؛ القيم المسموحة: " + string.Join(" | ", ProcurementSources.All));
         if (r.ExchangeRate <= 0) errors.Add(Messages.ExchangeRateMustBePositive);
         if (r.Currency == "SAR" && r.ExchangeRate != 1) errors.Add(Messages.SarExchangeRateIsOne);
         if (r.PaymentType == "credit" && (r.CreditDays ?? 0) <= 0) errors.Add(Messages.CreditPaymentRequiresDays);

@@ -16,9 +16,13 @@ public static class PlatformModules
     public const string CarShowroom = "car_showroom";
     /// <summary>نقاط البيع: الورديات والبيع والمرتجعات والعروض والولاء. تُباع منفردة أو مع غيرها.</summary>
     public const string Pos = "pos";
+    /// <summary>شؤون الموظفين: ملفات الموظفين والإجازات والسلف والحضور ومسير الرواتب ونهاية الخدمة. تُباع كوحدة مستقلة.</summary>
+    public const string Hr = "hr";
 
-    public static readonly string[] All = { Accounting, CarShowroom, Pos };
-    public const string AllCsv = Accounting + "," + CarShowroom + "," + Pos;
+    public static readonly string[] All = { Accounting, CarShowroom, Pos, Hr };
+    public const string AllCsv = Accounting + "," + CarShowroom + "," + Pos + "," + Hr;
+    /// <summary>الوحدات التي تحملها الباقات والاشتراكات افتراضياً؛ شؤون الموظفين إضافة تُمنح صراحةً عند شرائها.</summary>
+    public const string DefaultCsv = Accounting + "," + CarShowroom + "," + Pos;
 
     /// <summary>يطبّع القائمة (حروف صغيرة، بلا تكرار، المعروف فقط، بترتيب ثابت). يرمي إن كانت فارغة أو فيها وحدة غير معروفة.</summary>
     public static string[] Normalize(IEnumerable<string>? modules)

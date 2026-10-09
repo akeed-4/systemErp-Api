@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
         services.Configure<EmailOptions>(config.GetSection(EmailOptions.Section));
         services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
         // مفاتيح تشفير أسرار بوابات الدفع: تُحفظ في مسار دائم (DataProtection:KeysPath) لتبقى صالحة بعد إعادة النشر،
-        // وباسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب. بلا المسار تبقى في ملف المستخدم على الخادم نفسه.
+        // وباسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب. بلا المسار تبقى في ملف المستخدم على السرفر نفسه.
         var dataProtection = services.AddDataProtection().SetApplicationName("ERP");
         var keysPath = config["DataProtection:KeysPath"];
         if (!string.IsNullOrWhiteSpace(keysPath)) dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));

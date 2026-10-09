@@ -5,14 +5,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-[Route("api/v1/leavetypes"), RequireScreen("hr")]
+[Route("api/v1/leavetypes"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class LeaveTypesController : CrudController<LeaveTypeDto, CreateLeaveTypeDto, UpdateLeaveTypeDto>
 {
     public LeaveTypesController(ILeaveTypeService s) : base(s) { }
 }
 
 /// <summary>طلبات الإجازات: تقديم، اعتماد أو رفض (بصلاحية الاعتماد)، إلغاء، وأرصدة الإجازة السنوية.</summary>
-[Route("api/v1/leaverequests"), RequireScreen("hr")]
+[Route("api/v1/leaverequests"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class LeaveRequestsController : ErpControllerBase
 {
     private readonly ILeaveService _leaves;

@@ -4,6 +4,7 @@ using ERP.Service.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ERP.Service.Data.Migrations
 {
     [DbContext(typeof(ErpDbContext))]
-    partial class ErpDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261009154323_AddProcurementPurchaseSource")]
+    partial class AddProcurementPurchaseSource
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3011,18 +3014,6 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("DepositContractId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("DepositCustomerId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("DepositStatus")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("DepositVehicleId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<bool>("IsSplitPayment")
                         .HasColumnType("bit");
 
@@ -3704,13 +3695,6 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("DeliveryLocation")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("DepositAppliedAmount")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid?>("DepositVoucherId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("DiscountAmount")
                         .HasPrecision(18, 4)
@@ -6422,15 +6406,6 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("VatCategory")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(max)")
-                        .HasDefaultValue("Standard");
-
-                    b.Property<string>("VatExemptionReasonCode")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("VatRate")
                         .HasPrecision(18, 4)

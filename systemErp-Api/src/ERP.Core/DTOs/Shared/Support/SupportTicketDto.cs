@@ -28,7 +28,7 @@ public class SupportTicketReplyDto
     public string Message { get; set; } = string.Empty;
 }
 
-/// <summary>ما تُدخله المنشأة؛ الرقم والحالة والعميل والردود يديرها الخادم.</summary>
+/// <summary>ما تُدخله المنشأة؛ الرقم والحالة والعميل والردود يديرها السرفر.</summary>
 public class CreateSupportTicketDto
 {
     public string Title { get; set; } = string.Empty;

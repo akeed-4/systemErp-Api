@@ -183,7 +183,7 @@
   <data name="CompanyNotFound" xml:space="preserve"><value>المنشأة غير موجودة</value></data>
   <data name="CompanyRegisteredWithTrial" xml:space="preserve"><value>تم تسجيل منشأة '{0}' وبدأت الفترة التجريبية المجانية لمدة شهر.</value></data>
   <data name="CompanyUpdated" xml:space="preserve"><value>تم تحديث بيانات المنشأة</value></data>
-  <data name="ConfigurePaymobUrls" xml:space="preserve"><value>اضبط Paymob:PublicApiUrl و Paymob:FrontendUrl في إعدادات الخادم أولاً.</value></data>
+  <data name="ConfigurePaymobUrls" xml:space="preserve"><value>اضبط Paymob:PublicApiUrl و Paymob:FrontendUrl في إعدادات السرفر أولاً.</value></data>
   <data name="ConfirmOrderFirst" xml:space="preserve"><value>أكّد الأمر أولاً؛ الأمر الملغى لا يُحوَّل.</value></data>
   <data name="ContractAdvanced" xml:space="preserve"><value>تم نقل العقد للمرحلة التالية</value></data>
   <data name="ContractAlreadyCancelled" xml:space="preserve"><value>العقد ملغى مسبقاً.</value></data>

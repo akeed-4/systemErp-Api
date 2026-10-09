@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Accounting;
 
 /// <summary>ملفات الموظفين، مع تنبيهات انتهاء الوثائق والعقود ومؤشرات شؤون الموظفين.</summary>
-[Route("api/v1/employees"), RequireScreen("hr")]
+[Route("api/v1/employees"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class EmployeesController : CrudController<EmployeeDto, CreateEmployeeDto, UpdateEmployeeDto>
 {
     private const int DefaultAlertDays = 60;
@@ -22,14 +22,14 @@ public class EmployeesController : CrudController<EmployeeDto, CreateEmployeeDto
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _employees.GetSummaryAsync(ct));
 }
 
-[Route("api/v1/departments"), RequireScreen("hr")]
+[Route("api/v1/departments"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class DepartmentsController : CrudController<DepartmentDto, CreateDepartmentDto, UpdateDepartmentDto>
 {
     public DepartmentsController(IDepartmentService s) : base(s) { }
 }
 
 /// <summary>الحضور اليومي: كشف يوم لكل الموظفين، استيراد جماعي، وملخص شهري.</summary>
-[Route("api/v1/attendance"), RequireScreen("hr")]
+[Route("api/v1/attendance"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class AttendanceController : ErpControllerBase
 {
     private readonly IAttendanceService _attendance;
@@ -51,7 +51,7 @@ public class AttendanceController : ErpControllerBase
 }
 
 /// <summary>مسير الرواتب الشهري: معاينة، مسودة واعتماد، ترحيل، سجل، عكس، وملف حماية الأجور.</summary>
-[Route("api/v1/payroll"), RequireScreen("hr")]
+[Route("api/v1/payroll"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class PayrollController : ErpControllerBase
 {
     private readonly IPayrollService _payroll;

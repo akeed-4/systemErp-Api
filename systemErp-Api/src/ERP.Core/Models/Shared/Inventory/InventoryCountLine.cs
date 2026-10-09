@@ -1,6 +1,6 @@
 namespace ERP.Core.Models.Shared;
 
-/// <summary>سطر جرد: صنف (ItemId) أو مركبة (ChassisNumber). رصيد النظام والتكلفة والفرق يحسبها الخادم.</summary>
+/// <summary>سطر جرد: صنف (ItemId) أو مركبة (ChassisNumber). رصيد النظام والتكلفة والفرق يحسبها السرفر.</summary>
 public class InventoryCountLine : BaseEntity
 {
     public Guid InventoryCountId { get; set; }

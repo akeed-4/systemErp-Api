@@ -27,6 +27,8 @@ public partial class CreateCarSalesContractDto
     public string? TenderNumber { get; set; }
     public decimal? DownPaymentAmount { get; set; }
     public string? DownPaymentReceiptNo { get; set; }
+    /// <summary>سند عربون المركبة (مقبوض ومفتوح) ليُخصم عند الفوترة.</summary>
+    public Guid? DepositVoucherId { get; set; }
     public DateTime? DownPaymentDate { get; set; }
     public decimal? FinancedAmount { get; set; }
     public decimal? MonthlyInstallment { get; set; }

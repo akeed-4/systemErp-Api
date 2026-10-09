@@ -5,7 +5,7 @@ public partial class VoucherAllocationDto
 {
     public Guid Id { get; set; }
     public Guid InvoiceId { get; set; }
-    /// <summary>يملؤه الخادم.</summary>
+    /// <summary>يملؤه السرفر.</summary>
     public string? InvoiceNumber { get; set; }
     public decimal Amount { get; set; }
 }

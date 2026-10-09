@@ -12,7 +12,7 @@ public interface ICarSaleService
     Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CarSalesCycleType? cycleType = null, CancellationToken ct = default);
     Task<CarSalesContractDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<CarSalesContractDto> CreateAsync(CreateCarSalesContractDto request, CancellationToken ct = default);
-    /// <summary>تعديل العقد قبل الفوترة؛ السعر والضريبة يُحسبان في الخادم.</summary>
+    /// <summary>تعديل العقد قبل الفوترة؛ السعر والضريبة يُحسبان في السرفر.</summary>
     Task<CarSalesContractDto> UpdateAsync(Guid id, UpdateCarSalesContractDto request, CancellationToken ct = default);
     /// <summary>ينقل العقد للمرحلة التالية (5 مراحل) مع آثارها: حجز المركبة، التسليم، الفاتورة والقيد.</summary>
     Task<CarSalesContractDto> AdvanceStatusAsync(Guid id, AdvanceSalesContractRequestDto request, CancellationToken ct = default);

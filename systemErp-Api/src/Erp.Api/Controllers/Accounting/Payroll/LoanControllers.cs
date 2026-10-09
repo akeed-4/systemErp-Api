@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Accounting;
 
 /// <summary>سلف الموظفين: صرف بقيد محاسبي، والأقساط تُخصم من مسير الرواتب تلقائياً.</summary>
-[Route("api/v1/employeeloans"), RequireScreen("hr")]
+[Route("api/v1/employeeloans"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class EmployeeLoansController : ErpControllerBase
 {
     private readonly IEmployeeLoanService _loans;
@@ -36,7 +36,7 @@ public class EmployeeLoansController : ErpControllerBase
 }
 
 /// <summary>تصفية نهاية الخدمة: معاينة الحساب، ترحيله وإنهاء خدمة الموظف، وعكسه (بصلاحية الاعتماد).</summary>
-[Route("api/v1/endofservice"), RequireScreen("hr")]
+[Route("api/v1/endofservice"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class EndOfServiceController : ErpControllerBase
 {
     private readonly IEndOfServiceService _service;

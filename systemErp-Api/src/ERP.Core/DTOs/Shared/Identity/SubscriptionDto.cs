@@ -23,7 +23,7 @@ public partial class SubscriptionDto
     public int MaxBranches { get; set; } = 3;
     public bool ZatcaPhase2Enabled { get; set; } = true;
     public string[] Modules { get; set; } = Array.Empty<string>();
-    /// <summary>الأيام المتبقية حتى الانتهاء بتوقيت الخادم (سالبة بعد الانتهاء).</summary>
+    /// <summary>الأيام المتبقية حتى الانتهاء بتوقيت السرفر (سالبة بعد الانتهاء).</summary>
     public int DaysRemaining { get; set; }
     /// <summary>فترة تجريبية مجانية انتهت بلا سداد: النظام محجوب حتى يُدفع الاشتراك.</summary>
     public bool TrialEnded { get; set; }

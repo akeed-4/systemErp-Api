@@ -30,7 +30,7 @@ public class InvoiceVehicleLine : BaseEntity
     public VatMode VatMode { get; set; } = VatMode.Standard_15;
     public decimal UnitPrice { get; set; }
     public decimal Discount { get; set; }
-    // تُحسب في الخادم دائمًا
+    // تُحسب في السرفر دائمًا
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }

@@ -22,6 +22,11 @@ public partial class VoucherDto
     public string Notes { get; set; } = string.Empty;
     public Guid? JournalEntryId { get; set; }
     public string ReceivedOrPaidBy { get; set; } = string.Empty;
+    public Guid? DepositVehicleId { get; set; }
+    public Guid? DepositCustomerId { get; set; }
+    /// <summary>open | applied (null لغير العربون).</summary>
+    public string? DepositStatus { get; set; }
+    public Guid? DepositContractId { get; set; }
     public List<VoucherPaymentSplitDto> PaymentSplits { get; set; } = new();
     /// <summary>توزيع السند على فواتير آجلة للطرف (سداد كلي أو جزئي)؛ الباقي دفعة مقدمة.</summary>
     public List<VoucherAllocationDto> Allocations { get; set; } = new();

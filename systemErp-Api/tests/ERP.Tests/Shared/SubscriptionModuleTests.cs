@@ -16,6 +16,8 @@ public class SubscriptionModuleTests : TestBase
     private static readonly string[] Car = { "/vehicles", "/carbrands", "/carprocurementorders", "/carsalescontracts" };
     private static readonly string[] Pos = { "/pos/transactions", "/pos/shifts", "/pos/settings", "/pos/offers" };
 
+    private static readonly string[] Hr = { "/employees", "/departments", "/leavetypes", "/leaverequests/balances", "/attendance/summary", "/payroll" };
+
     private async Task<Client> TenantWithAsync(params string[] modules)
     {
         var admin = await NewTenantAsync("شركة مدير المنصة");
@@ -42,6 +44,7 @@ public class SubscriptionModuleTests : TestBase
     [InlineData("accounting")]
     [InlineData("car_showroom")]
     [InlineData("pos")]
+    [InlineData("hr")]
     public async Task A_single_module_opens_its_screens_and_the_shared_ones_only(string module)
     {
         var tenant = await TenantWithAsync(module);
@@ -50,6 +53,7 @@ public class SubscriptionModuleTests : TestBase
         await AssertAsync(tenant, Trade, allowed: module == "accounting");
         await AssertAsync(tenant, Car, allowed: module == "car_showroom");
         await AssertAsync(tenant, Pos, allowed: module == "pos");
+        await AssertAsync(tenant, Hr, allowed: module == "hr");
     }
 
     [Fact]

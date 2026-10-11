@@ -78,6 +78,10 @@
   <data name="BrandArabicNameRequired" xml:space="preserve"><value>Brand Arabic name is required.</value></data>
   <data name="BrandNotFound" xml:space="preserve"><value>Brand not found.</value></data>
   <data name="BuyAndGiftQtyMustBePositive" xml:space="preserve"><value>Buy and gift quantities must be positive.</value></data>
+  <data name="AddressCountryCodeInvalid" xml:space="preserve"><value>The country code must be two letters (e.g. SA).</value></data>
+  <data name="AddressBuildingNoInvalid" xml:space="preserve"><value>The building number must be 4 digits.</value></data>
+  <data name="AddressPostalCodeInvalid" xml:space="preserve"><value>The postal code must be 5 digits.</value></data>
+  <data name="AddressAdditionalNoInvalid" xml:space="preserve"><value>The additional number must be 4 digits.</value></data>
   <data name="BuyerFieldBuildingNo" xml:space="preserve"><value>building number (4 digits)</value></data>
   <data name="BuyerFieldCity" xml:space="preserve"><value>city</value></data>
   <data name="BuyerFieldDistrict" xml:space="preserve"><value>district</value></data>

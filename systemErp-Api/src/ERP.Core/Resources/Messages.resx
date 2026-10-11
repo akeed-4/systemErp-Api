@@ -78,6 +78,10 @@
   <data name="BrandArabicNameRequired" xml:space="preserve"><value>اسم الماركة بالعربية مطلوب.</value></data>
   <data name="BrandNotFound" xml:space="preserve"><value>الماركة غير موجودة.</value></data>
   <data name="BuyAndGiftQtyMustBePositive" xml:space="preserve"><value>كميتا الشراء والهدية يجب أن تكونا موجبتين.</value></data>
+  <data name="AddressCountryCodeInvalid" xml:space="preserve"><value>رمز الدولة يجب أن يكون حرفين (مثل SA).</value></data>
+  <data name="AddressBuildingNoInvalid" xml:space="preserve"><value>رقم المبنى يجب أن يكون 4 أرقام.</value></data>
+  <data name="AddressPostalCodeInvalid" xml:space="preserve"><value>الرمز البريدي يجب أن يكون 5 أرقام.</value></data>
+  <data name="AddressAdditionalNoInvalid" xml:space="preserve"><value>الرقم الإضافي يجب أن يكون 4 أرقام.</value></data>
   <data name="BuyerFieldBuildingNo" xml:space="preserve"><value>رقم المبنى (4 أرقام)</value></data>
   <data name="BuyerFieldCity" xml:space="preserve"><value>المدينة</value></data>
   <data name="BuyerFieldDistrict" xml:space="preserve"><value>الحي</value></data>

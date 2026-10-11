@@ -14,7 +14,14 @@ public partial class SupplierDto
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? ContactPerson { get; set; }
+    /// <summary>رمز الدولة ISO 3166-1 alpha-2 (SA افتراضياً): أول حقول العنوان الوطني المطلوب للهيئة.</summary>
+    public string Country { get; set; } = "SA";
     public string? City { get; set; }
+    public string? District { get; set; }
+    public string? Street { get; set; }
+    public string? BuildingNo { get; set; }
+    public string? PostalCode { get; set; }
+    public string? AdditionalNo { get; set; }
     public string? Address { get; set; }
     public string? BankName { get; set; }
     public string? Iban { get; set; }

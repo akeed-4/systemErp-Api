@@ -28,7 +28,8 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
     {
         var extra = new List<string>();
         if (d.PaymentTermsDays < 0) extra.Add(Messages.PaymentTermsCannotBeNegative);
-        PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra);
+        PartyValidation.AddAddressErrors(extra, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo);
+        PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra, d.Country);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<Supplier>().AnyAsync(s => s.Code == d.Code && (existing == null || s.Id != existing.Id), ct))
             throw new ConflictException(Messages.SupplierCodeInUse);
@@ -36,6 +37,7 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
 
     protected override async Task OnCreatingAsync(Supplier e, CreateSupplierDto d, CancellationToken ct)
     {
+        e.Country = PartyValidation.NormalizeCountry(e.Country);
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("supplier", "SUP-");
         e.CurrentBalance = e.OpeningBalance;
         e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Supplier, e.Id, e.NameAr, e.NameEn, ct);
@@ -44,6 +46,7 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
 
     protected override async Task OnUpdatingAsync(Supplier e, UpdateSupplierDto d, CancellationToken ct)
     {
+        e.Country = PartyValidation.NormalizeCountry(e.Country);
         var o = Db.Entry(e).OriginalValues;
         e.AccountCode = o.GetValue<string>(nameof(Supplier.AccountCode));
         e.CurrentBalance = o.GetValue<decimal>(nameof(Supplier.CurrentBalance));

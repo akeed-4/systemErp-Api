@@ -29,7 +29,8 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
         var extra = new List<string>();
         if (d.CreditLimit < 0) extra.Add(Messages.CreditLimitCannotBeNegative);
         if (d.CreditPeriodDays < 0) extra.Add(Messages.CreditPeriodCannotBeNegative);
-        PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra);
+        PartyValidation.AddAddressErrors(extra, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo);
+        PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra, d.Country);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<Customer>().AnyAsync(c => c.Code == d.Code && (existing == null || c.Id != existing.Id), ct))
             throw new ConflictException(Messages.CustomerCodeInUse);
@@ -37,6 +38,7 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
 
     protected override async Task OnCreatingAsync(Customer e, CreateCustomerDto d, CancellationToken ct)
     {
+        e.Country = PartyValidation.NormalizeCountry(e.Country);
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("customer", "CUST-");
         e.CurrentBalance = e.OpeningBalance;
         e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Customer, e.Id, e.NameAr, e.NameEn, ct);
@@ -45,6 +47,7 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
 
     protected override async Task OnUpdatingAsync(Customer e, UpdateCustomerDto d, CancellationToken ct)
     {
+        e.Country = PartyValidation.NormalizeCountry(e.Country);
         // الكود وحساب الأستاذ وأرصدة الحركة لا يُعدَّلان من الطلب.
         var o = Db.Entry(e).OriginalValues;
         e.AccountCode = o.GetValue<string>(nameof(Customer.AccountCode));

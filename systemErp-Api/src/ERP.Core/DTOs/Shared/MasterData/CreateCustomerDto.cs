@@ -10,6 +10,8 @@ public partial class CreateCustomerDto
     public string Phone { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? ContactPerson { get; set; }
+    /// <summary>رمز الدولة ISO 3166-1 alpha-2 (SA افتراضياً): أول حقول العنوان الوطني المطلوب للهيئة.</summary>
+    public string Country { get; set; } = "SA";
     public string City { get; set; } = string.Empty;
     public string? District { get; set; }
     public string? Street { get; set; }

@@ -26,6 +26,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         var extra = new List<string>();
         if (!string.IsNullOrWhiteSpace(d.Iban) && !(d.Iban.Length is >= 15 and <= 34 && d.Iban.All(char.IsLetterOrDigit)))
             extra.Add(Messages.IbanInvalid);
+        PartyValidation.AddAddressErrors(extra, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo);
         PartyValidation.Validate(d.NameAr, null, null, d.OpeningBalance, extra);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<BankEntity>().AnyAsync(b => b.Code == d.Code && (existing == null || b.Id != existing.Id), ct))
@@ -34,6 +35,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
 
     protected override async Task OnCreatingAsync(BankEntity e, CreateBankEntityDto d, CancellationToken ct)
     {
+        e.Country = PartyValidation.NormalizeCountry(e.Country);
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("bank", "BNK-");
         e.CurrentBalance = e.OpeningBalance;
         e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Bank, e.Id, e.NameAr, e.NameEn, ct);
@@ -42,6 +44,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
 
     protected override async Task OnUpdatingAsync(BankEntity e, UpdateBankEntityDto d, CancellationToken ct)
     {
+        e.Country = PartyValidation.NormalizeCountry(e.Country);
         var o = Db.Entry(e).OriginalValues;
         e.AccountCode = o.GetValue<string?>(nameof(BankEntity.AccountCode));
         e.CurrentBalance = o.GetValue<decimal>(nameof(BankEntity.CurrentBalance));

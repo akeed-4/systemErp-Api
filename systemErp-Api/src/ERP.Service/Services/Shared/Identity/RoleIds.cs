@@ -16,6 +16,6 @@ namespace ERP.Service.Services.Shared;
 
 public static class RoleIds
 {
-    /// <summary>owner | admin | general_manager | chief_accountant | sales_rep (تطابق UserRole في الواجهة).</summary>
+    /// <summary>owner | admin | general_manager | chief_accountant | sales_rep | employee (تطابق UserRole في الواجهة).</summary>
     public static string From(UserRole role) => JsonNamingPolicy.SnakeCaseLower.ConvertName(role.ToString());
 }

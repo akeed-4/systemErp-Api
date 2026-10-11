@@ -28,7 +28,10 @@ public class PermissionService : IPermissionService
         new() { Id = "user-permissions", NameAr = "إدارة صلاحيات المستخدمين والشاشات", NameEn = "User Roles & Screen Permissions" },
     };
 
-    private static readonly HashSet<string> PermissionAdminRoles = new() { "owner", "admin", "chief_accountant", "general_manager" };
+    /// <summary>دور بوابة الموظف (UserRole.Employee): لا يملك أي شاشة، ويُحصر في مسارات الخدمة الذاتية.</summary>
+    public const string EmployeeRoleId = "employee";
+
+    private static readonly HashSet<string> PermissionAdminRoles =new() { "owner", "admin", "chief_accountant", "general_manager" };
 
     /// <summary>
     /// صلاحية إدارة المنصة (كل المنشآت). ليست ضمن <see cref="Screens"/> عمداً: لا افتراضيات لها ولا يملكها المالك/المدير
@@ -54,7 +57,8 @@ public class PermissionService : IPermissionService
         => Screens.Select(s =>
         {
             bool canView = true, canCreate = true, canEdit = true, canDelete = true, canApprove = true;
-            if (role == "sales_rep")
+            if (role == EmployeeRoleId) canView = canCreate = canEdit = canDelete = canApprove = false;
+            else if (role == "sales_rep")
             {
                 canApprove = false; canDelete = false;
                 if (s.Id is "accounts" or "hr" or "approval-policies" or "user-permissions" or "reports")
@@ -172,6 +176,7 @@ public class PermissionService : IPermissionService
         if (!_user.IsAuthenticated || _user.RoleId == null) return false;
         if (screenId == PlatformScreenId) return false;
         var role = _user.RoleId;
+        if (role == EmployeeRoleId) return false; // بوابة الموظف فقط: لا شاشة من شاشات النظام، مهما حُفظ للدور من صلاحيات
 
         if (screenId == "user-permissions" && PermissionAdminRoles.Contains(role)) return true;
         if (role is "owner" or "admin") return true;

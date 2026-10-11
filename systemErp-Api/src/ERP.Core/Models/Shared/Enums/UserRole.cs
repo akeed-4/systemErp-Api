@@ -6,5 +6,7 @@ public enum UserRole
     Admin = 2,
     GeneralManager = 3,
     ChiefAccountant = 4,
-    SalesRep = 5
+    SalesRep = 5,
+    /// <summary>موظف يدخل بوابة الخدمة الذاتية فقط (طلبات إجازته)؛ لا يفتح شاشات النظام.</summary>
+    Employee = 6
 }

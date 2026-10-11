@@ -50,6 +50,8 @@ public class EmployeeDto : CreateEmployeeDto
 {
     public Guid Id { get; set; }
     public DateTime CreatedAt { get; set; }
+    /// <summary>حساب بوابة الموظف إن دُعي؛ يُضبط من الدعوة فقط لا من نموذج الموظف.</summary>
+    public Guid? UserId { get; set; }
 }
 
 /// <summary>إضافات وخصومات موظف في شهر المسير.</summary>

@@ -38,6 +38,19 @@ public class LeaveRequest : BaseEntity
     public string? DecidedBy { get; set; }
     public DateTime? DecidedAt { get; set; }
     public string? DecisionNote { get; set; }
+    /// <summary>عدد المرفقات (تقرير طبي مثلاً)؛ يُحدَّث مع كل رفع أو حذف.</summary>
+    public int AttachmentCount { get; set; }
+}
+
+/// <summary>مرفق طلب إجازة (PDF أو صورة) محفوظ في قاعدة البيانات؛ يفتحه صاحب الطلب ومن له صلاحية شؤون الموظفين.</summary>
+public class LeaveAttachment : BaseEntity
+{
+    public Guid LeaveRequestId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public byte[] Content { get; set; } = Array.Empty<byte>();
+    public string? UploadedBy { get; set; }
 }
 
 public static class LeaveStatuses

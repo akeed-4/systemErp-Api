@@ -232,6 +232,44 @@ public class AuthService : IAuthService
         return new OperationResultDto { Message = "تم تغيير كلمة المرور بنجاح." };
     }
 
+    // ---------------- رابط الدعوة (تفعيل حساب بوابة الموظف) ----------------
+    public async Task<InviteInfoDto> GetInviteAsync(string token, CancellationToken ct = default)
+    {
+        var (user, _) = await FindInviteAsync(token, ct);
+        var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(t => t.Id == user.TenantId, ct);
+        return new InviteInfoDto { Name = user.Name, Email = user.Email, CompanyName = tenant.NameAr };
+    }
+
+    public async Task<AuthResultDto> AcceptInviteAsync(AcceptInviteRequestDto request, CancellationToken ct = default)
+    {
+        var password = request.Password?.Trim() ?? string.Empty;
+        if (password.Length < MinPasswordLength)
+            throw new ValidationFailedException(string.Format(Messages.PasswordMinLength, MinPasswordLength));
+
+        var (user, invite) = await FindInviteAsync(request.Token, ct);
+        var tenant = await _db.Set<Tenant>().FirstOrDefaultAsync(t => t.Id == user.TenantId, ct);
+        if (tenant is not { IsActive: true }) throw new ForbiddenException(Messages.CompanyInactive);
+
+        user.PasswordHash = _hasher.HashPassword(user, password);
+        user.LastLoginAt = DateTime.UtcNow;
+        invite.UsedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return Build(user, tenant, Messages.LoginSucceeded);
+    }
+
+    /// <summary>الرابط يسبق معرفة المنشأة، فتُستنتج من الدعوة نفسها.</summary>
+    private async Task<(User User, UserInvite Invite)> FindInviteAsync(string? token, CancellationToken ct)
+    {
+        var hash = InviteTokens.Hash(token?.Trim() ?? string.Empty);
+        var invite = await _db.Set<UserInvite>().IgnoreQueryFilters().FirstOrDefaultAsync(i => i.TokenHash == hash && i.UsedAt == null, ct);
+        if (invite == null || invite.ExpiresAt < DateTime.UtcNow) throw new ValidationFailedException(Messages.InviteInvalidOrExpired);
+
+        _tenant.SetTenant(invite.TenantId);
+        var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == invite.UserId && u.IsActive, ct)
+            ?? throw new ValidationFailedException(Messages.InviteInvalidOrExpired);
+        return (user, invite);
+    }
+
     private async Task<PasswordResetOtp> FindValidOtpAsync(Guid userId, string code, bool markAttempt, CancellationToken ct)
     {
         var user = await _db.Set<User>().IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct)

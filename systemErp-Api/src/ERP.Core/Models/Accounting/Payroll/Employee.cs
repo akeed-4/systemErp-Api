@@ -60,6 +60,10 @@ public class Employee : BaseEntity
     public string? BankName { get; set; }
     public string? Iban { get; set; }
 
+    // ---------- بوابة الموظف ----------
+    /// <summary>حساب دخول الموظف لبوابة الخدمة الذاتية؛ فارغ = لم يُدعَ بعد.</summary>
+    public Guid? UserId { get; set; }
+
     // ---------- الحالة ----------
     public string Status { get; set; } = EmployeeStatuses.Active;
     /// <summary>آخر يوم عمل عند انتهاء الخدمة.</summary>

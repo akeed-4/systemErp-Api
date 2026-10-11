@@ -905,4 +905,32 @@
   <data name="PayrollWageFileNeedsPostedRun" xml:space="preserve"><value>ملف الرواتب يُصدَّر لمسير مرحّل فقط.</value></data>
 
   <data name="PayrollWageFileMissingData" xml:space="preserve"><value>ينقص رقم الهوية أو الآيبان للموظفين: {0}. أكمل ملفاتهم ثم صدّر الملف.</value></data>
+
+  <data name="InviteInvalidOrExpired" xml:space="preserve"><value>رابط الدعوة غير صالح أو انتهت صلاحيته. اطلب رابطاً جديداً من شؤون الموظفين.</value></data>
+
+  <data name="LeaveAttachmentEmpty" xml:space="preserve"><value>اختر ملفاً لإرفاقه.</value></data>
+
+  <data name="LeaveAttachmentTooLarge" xml:space="preserve"><value>حجم المرفق يتجاوز {0} ميغابايت.</value></data>
+
+  <data name="LeaveAttachmentTypeNotAllowed" xml:space="preserve"><value>نوع الملف غير مسموح. المرفقات المقبولة: PDF أو صورة (JPG / PNG).</value></data>
+
+  <data name="LeaveAttachmentLimitReached" xml:space="preserve"><value>لا يُرفق بالطلب أكثر من {0} ملفات.</value></data>
+
+  <data name="LeaveAttachmentNotFound" xml:space="preserve"><value>المرفق غير موجود.</value></data>
+
+  <data name="PortalEmployeeNotActive" xml:space="preserve"><value>الموظف ليس على رأس العمل، فلا يدخل بوابة الموظف.</value></data>
+
+  <data name="PortalEmailRequired" xml:space="preserve"><value>أضف بريداً إلكترونياً في ملف الموظف أولاً؛ به يدخل البوابة.</value></data>
+
+  <data name="PortalUserLinkedToAnotherEmployee" xml:space="preserve"><value>هذا البريد مرتبط بحساب موظف آخر.</value></data>
+
+  <data name="PortalNoEmployeeProfile" xml:space="preserve"><value>حسابك غير مرتبط بملف موظف. تواصل مع شؤون الموظفين.</value></data>
+
+  <data name="PortalInviteCreated" xml:space="preserve"><value>تم إنشاء دعوة بوابة الموظف.</value></data>
+
+  <data name="PortalAccessRevoked" xml:space="preserve"><value>تم إيقاف دخول الموظف للبوابة.</value></data>
+
+  <data name="PortalLeaveNotificationTitle" xml:space="preserve"><value>طلب إجازة جديد من {0}</value></data>
+
+  <data name="PortalLeaveNotificationBody" xml:space="preserve"><value>{0} من {1} إلى {2} ({3} يوم) بانتظار الاعتماد.</value></data>
 </root>

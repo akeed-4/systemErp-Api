@@ -125,7 +125,7 @@ public class ArchitectureTests
 
     /// <summary>
     /// تجاوز مرشّح المنشأة (IgnoreQueryFilters) يقرأ بيانات كل المنشآت، فمواضعه قائمة مغلقة مراجَعة: الدخول والتسجيل
-    /// واستعادة كلمة المرور (قبل معرفة المنشأة)، تفرّد البريد والرقم الضريبي عبر المنشآت، لوحة مدير المنصة،
+    /// واستعادة كلمة المرور ورابط الدعوة (قبل معرفة المنشأة)، تفرّد البريد والرقم الضريبي عبر المنشآت، لوحة مدير المنصة،
     /// وصفحة/إشعار الدفع العامّان. أي موضع جديد يُفشل هذا الاختبار حتى يُراجَع ويُضاف هنا بعدده.
     /// </summary>
     [Fact]
@@ -133,8 +133,9 @@ public class ArchitectureTests
     {
         var allowed = new Dictionary<string, int>
         {
-            ["AuthService.cs"] = 5,
+            ["AuthService.cs"] = 6,
             ["CompanyService.cs"] = 1,
+            ["EmployeePortalService.cs"] = 1,
             ["PlatformSubscriptionService.cs"] = 6,
             ["UserService.cs"] = 1,
             ["OnlinePaymentService.cs"] = 4,

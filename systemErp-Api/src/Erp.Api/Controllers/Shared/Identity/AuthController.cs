@@ -38,18 +38,27 @@ public class AuthController : ErpControllerBase
     public async Task<IActionResult> Reset([FromBody] ResetPasswordRequestDto request, CancellationToken ct)
         => Ok(await _auth.ResetPasswordAsync(request, ct));
 
+    /// <summary>رابط دعوة بوابة الموظف: بيانات صاحبه قبل تعيين كلمة المرور.</summary>
+    [AllowAnonymous, HttpGet("Invite/{token}"), EnableRateLimiting(AuthRateLimit.Policy)]
+    public async Task<IActionResult> Invite(string token, CancellationToken ct) => Success(await _auth.GetInviteAsync(token, ct));
+
+    // الاستجابة مسطّحة كاستجابة الدخول: يعيّن كلمة المرور ويدخل مباشرة
+    [AllowAnonymous, HttpPost("Invite/Accept"), EnableRateLimiting(AuthRateLimit.Policy)]
+    public async Task<IActionResult> AcceptInvite([FromBody] AcceptInviteRequestDto request, CancellationToken ct)
+        => Ok(await _auth.AcceptInviteAsync(request, ct));
+
     /// <summary>{ success, data: [users] } - يحمّلها الواجهة عند البدء لدمج مستخدمي المنشأة.</summary>
     [HttpGet("users")]
     public async Task<IActionResult> Users(CancellationToken ct) => Success(await _users.ListAsync(ct));
 
-    [HttpGet("me")]
+    [HttpGet("me"), EmployeeSelfService]
     public async Task<IActionResult> Me(CancellationToken ct) => Success(await _users.GetCurrentAsync(ct));
 
-    [HttpPut("profile")]
+    [HttpPut("profile"), EmployeeSelfService]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request, CancellationToken ct)
         => Success(await _users.UpdateProfileAsync(request, ct), Messages.ProfileUpdated);
 
-    [HttpPost("ChangePassword")]
+    [HttpPost("ChangePassword"), EmployeeSelfService]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request, CancellationToken ct)
         => Success(await _users.ChangePasswordAsync(request, ct));
 }

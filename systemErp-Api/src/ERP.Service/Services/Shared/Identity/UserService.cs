@@ -49,7 +49,8 @@ public class UserService : IUserService
             throw new ConflictException(Messages.EmailAlreadyRegistered);
 
         var sub = await _db.Set<Subscription>().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);
-        if (sub != null && await _db.Set<User>().CountAsync(u => u.IsActive, ct) >= sub.MaxUsers)
+        // حسابات بوابة الموظف لا تُحسب من مقاعد المستخدمين في الاشتراك
+        if (sub != null && await _db.Set<User>().CountAsync(u => u.IsActive && u.Role != UserRole.Employee, ct) >= sub.MaxUsers)
             throw new ConflictException(Messages.UserLimitReached);
 
         var user = new User

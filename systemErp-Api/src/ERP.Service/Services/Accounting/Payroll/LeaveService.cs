@@ -61,6 +61,9 @@ public class LeaveService : ILeaveService
     {
         var leave = await FindAsync(id, ct);
         if (leave.Status == LeaveStatuses.Approved) throw new ConflictException(Messages.LeaveApprovedCannotBeDeleted);
+        // المرفقات تُحذف مع الطلب (بالمعرّف، دون تحميل محتواها)
+        foreach (var attachmentId in await _db.Set<LeaveAttachment>().Where(a => a.LeaveRequestId == id).Select(a => a.Id).ToListAsync(ct))
+            _db.Remove(new LeaveAttachment { Id = attachmentId, TenantId = leave.TenantId });
         _db.Remove(leave);
         await _db.SaveChangesAsync(ct);
     }

@@ -80,6 +80,9 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
             throw new ConflictException(Messages.EmployeeHasLoansOrSettlement);
         // سجلات الحضور تُحذف مع الموظف: لا أثر مالي لها ما دام بلا مسيرات
         Db.RemoveRange(await Db.Set<AttendanceRecord>().Where(a => a.EmployeeId == e.Id).ToListAsync(ct));
+        // حساب بوابة الموظف يُعطَّل مع حذف ملفه (حساب مستخدم النظام المرتبط به يبقى)
+        if (e.UserId.HasValue && await Db.Set<User>().FirstOrDefaultAsync(u => u.Id == e.UserId && u.Role == UserRole.Employee, ct) is { } portalUser)
+            portalUser.IsActive = false;
         // مدير قسم يُحذف: يبقى القسم بلا مدير
         foreach (var department in await Db.Set<Department>().Where(x => x.ManagerEmployeeId == e.Id).ToListAsync(ct))
             department.ManagerEmployeeId = null;

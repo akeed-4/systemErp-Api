@@ -1414,6 +1414,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CostCenterId");
@@ -1421,6 +1424,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId");
 
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
@@ -2372,11 +2377,59 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("JournalEntryLine");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.LeaveAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("LeaveRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeaveRequestId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("LeaveAttachment");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.LeaveRequest", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttachmentCount")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -7234,6 +7287,43 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("User");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.UserInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserInvite");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.UserRolePermission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7469,6 +7559,11 @@ namespace ERP.Service.Data.Migrations
                         .WithMany()
                         .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.EmployeeLoan", b =>
@@ -7598,6 +7693,15 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("JournalEntry");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.LeaveAttachment", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.LeaveRequest", null)
+                        .WithMany()
+                        .HasForeignKey("LeaveRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.LeaveRequest", b =>
@@ -8111,6 +8215,15 @@ namespace ERP.Service.Data.Migrations
                         });
 
                     b.Navigation("ZatcaConfig")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.UserInvite", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

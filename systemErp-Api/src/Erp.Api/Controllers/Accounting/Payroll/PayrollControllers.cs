@@ -11,7 +11,22 @@ public class EmployeesController : CrudController<EmployeeDto, CreateEmployeeDto
 {
     private const int DefaultAlertDays = 60;
     private readonly IEmployeeService _employees;
-    public EmployeesController(IEmployeeService s) : base(s) => _employees = s;
+    private readonly IEmployeePortalService _portal;
+    public EmployeesController(IEmployeeService s, IEmployeePortalService portal) : base(s)
+    {
+        _employees = s; _portal = portal;
+    }
+
+    // ---------- بوابة الموظف: حالة الدخول، الدعوة، الإيقاف ----------
+    [HttpGet("{id:guid}/portal-access")]
+    public async Task<IActionResult> PortalAccess(Guid id, CancellationToken ct) => Success(await _portal.GetAccessAsync(id, ct));
+
+    /// <summary>ينشئ حساب البوابة ويعيد رمز الدعوة (مرة واحدة) لتبني الواجهة منه الرابط.</summary>
+    [HttpPost("{id:guid}/portal-access/invite"), RequireScreen("hr", ScreenAction.Edit)]
+    public async Task<IActionResult> InviteToPortal(Guid id, CancellationToken ct) => Success(await _portal.InviteAsync(id, ct), Messages.PortalInviteCreated);
+
+    [HttpPost("{id:guid}/portal-access/revoke"), RequireScreen("hr", ScreenAction.Edit)]
+    public async Task<IActionResult> RevokePortalAccess(Guid id, CancellationToken ct) => Success(await _portal.RevokeAsync(id, ct), Messages.PortalAccessRevoked);
 
     /// <summary>هويات وجوازات وعقود انتهت أو تنتهي خلال days يوماً، وفترات تجربة تنتهي خلالها.</summary>
     [HttpGet("expiring")]

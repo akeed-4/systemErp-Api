@@ -26,3 +26,36 @@ public interface ILeaveService
     /// <summary>أرصدة الموظفين على رأس العمل حتى اليوم.</summary>
     Task<List<LeaveBalanceDto>> ListBalancesAsync(CancellationToken ct = default);
 }
+
+/// <summary>
+/// مرفقات طلب الإجازة. <c>ownerEmployeeId</c> يقيّد العملية بطلبات ذلك الموظف (بوابة الموظف): طلب غيره يُعامل
+/// كغير موجود، ولا يضيف أو يحذف إلا وطلبه معلّق. بدونه العملية لشؤون الموظفين.
+/// </summary>
+public interface ILeaveAttachmentService
+{
+    Task<List<LeaveAttachmentDto>> ListAsync(Guid leaveRequestId, Guid? ownerEmployeeId = null, CancellationToken ct = default);
+    Task<LeaveAttachmentDto> AddAsync(Guid leaveRequestId, string fileName, byte[] content, Guid? ownerEmployeeId = null, CancellationToken ct = default);
+    Task<LeaveAttachmentFileDto> GetFileAsync(Guid leaveRequestId, Guid attachmentId, Guid? ownerEmployeeId = null, CancellationToken ct = default);
+    Task DeleteAsync(Guid leaveRequestId, Guid attachmentId, Guid? ownerEmployeeId = null, CancellationToken ct = default);
+}
+
+/// <summary>
+/// بوابة الموظف: دعوة الموظف لحساب دخول (من شؤون الموظفين)، وطلبات الموظف لنفسه. في عمليات الموظف يُحدَّد
+/// الموظف من جلسة الدخول دائماً، فلا يقدّم أحد طلباً باسم غيره ولا يرى طلبات غيره.
+/// </summary>
+public interface IEmployeePortalService
+{
+    Task<PortalAccessDto> GetAccessAsync(Guid employeeId, CancellationToken ct = default);
+    /// <summary>ينشئ حساب الموظف (بدور موظف) إن لم يوجد ويصدر رابط دعوة جديداً، ويرسله لبريده إن ضُبط البريد.</summary>
+    Task<PortalAccessDto> InviteAsync(Guid employeeId, CancellationToken ct = default);
+    /// <summary>يوقف دخول الموظف للبوابة ويبطل دعواته.</summary>
+    Task<PortalAccessDto> RevokeAsync(Guid employeeId, CancellationToken ct = default);
+
+    Task<MyLeaveOverviewDto> GetOverviewAsync(CancellationToken ct = default);
+    Task<LeaveRequestDto> CreateLeaveAsync(CreateMyLeaveRequestDto request, CancellationToken ct = default);
+    /// <summary>يلغي الموظف طلبه ما دام معلّقاً.</summary>
+    Task<LeaveRequestDto> CancelLeaveAsync(Guid id, CancellationToken ct = default);
+    Task<LeaveAttachmentDto> AddAttachmentAsync(Guid leaveRequestId, string fileName, byte[] content, CancellationToken ct = default);
+    Task<LeaveAttachmentFileDto> GetAttachmentAsync(Guid leaveRequestId, Guid attachmentId, CancellationToken ct = default);
+    Task DeleteAttachmentAsync(Guid leaveRequestId, Guid attachmentId, CancellationToken ct = default);
+}

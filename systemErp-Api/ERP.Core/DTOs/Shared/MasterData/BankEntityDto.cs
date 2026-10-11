@@ -13,6 +13,14 @@ public partial class BankEntityDto
     public string Iban { get; set; } = string.Empty;
     public string SwiftCode { get; set; } = string.Empty;
     public string Branch { get; set; } = string.Empty;
+    public string? VatNumber { get; set; }
+    public string? CrNumber { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    /// <summary>نوع الهوية الأخرى المرسلة للهيئة بدل السجل التجاري: NAT هوية وطنية، IQA إقامة، PAS جواز، GCC، TIN، MOM، MLS، SAG، OTH.</summary>
+    public string? IdType { get; set; }
+    /// <summary>رقم الهوية الأخرى (يقابل IdType).</summary>
+    public string? IdNumber { get; set; }
     /// <summary>رمز الدولة ISO 3166-1 alpha-2 (SA افتراضياً): أول حقول العنوان الوطني المطلوب للهيئة.</summary>
     public string Country { get; set; } = "SA";
     public string? City { get; set; }

@@ -305,7 +305,7 @@ public class ZatcaService : IZatcaService
             TypeCode = typeCode, IsSimplified = simplified, Currency = invoice.CurrencyCode, ExchangeRate = invoice.ExchangeRate,
             Seller = Seller(tenant),
             Buyer = new ZatcaParty(invoice.PartyName, invoice.PartyVatNumber, invoice.PartyCrNumber, invoice.PartyStreet, invoice.PartyBuildingNo,
-                invoice.PartyDistrict, invoice.PartyCity, invoice.PartyPostalCode, Or(invoice.PartyCountry, "SA")),
+                invoice.PartyDistrict, invoice.PartyCity, invoice.PartyPostalCode, Or(invoice.PartyCountry, "SA"), invoice.PartyIdType, invoice.PartyIdNumber),
             Lines = lines, Counter = counter, PreviousHash = previousHash,
             BillingReference = invoice.OriginalInvoiceNumber, NoteReason = Or(invoice.ReturnReason, invoice.Notes ?? string.Empty),
             PaymentMeansCode = invoice.PaymentMethod switch

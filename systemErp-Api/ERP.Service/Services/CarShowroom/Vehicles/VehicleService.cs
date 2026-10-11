@@ -11,10 +11,33 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     // ISO 3779: 17 خانة، بدون الأحرف I و O و Q
     internal static readonly Regex VinPattern = new("^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
 
-    public VehicleService(ErpDbContext db) : base(db) { }
+    private readonly INumberSequenceService _numbers;
+
+    public VehicleService(ErpDbContext db, INumberSequenceService numbers) : base(db) => _numbers = numbers;
     protected override string Label => Messages.LabelVehicle;
 
     public CarVatResult CalculateVat(CalculateCarVatRequestDto r) => CarVat.Calculate(r.CostPrice, r.SellingPrice, r.Mode);
+
+    /// <summary>أقصى عدد يُولَّد في طلب واحد (يطابق أقصى دفعة في الواجهة).</summary>
+    public const int MaxGeneratedVins = 1000;
+    /// <summary>بادئة الأرقام المؤقتة: تميّزها عن الشواسيه الحقيقية (WMI حقيقي لا يبدأ بـ TMP للمصنّعين المعتمدين هنا).</summary>
+    public const string ProvisionalVinPrefix = "TMP";
+
+    public async Task<List<string>> GenerateProvisionalVinsAsync(int count, CancellationToken ct = default)
+    {
+        if (count < 1 || count > MaxGeneratedVins) throw new ValidationFailedException(string.Format(Messages.VinGenerateCountInvalid, MaxGeneratedVins));
+        var result = new List<string>(count);
+        while (result.Count < count)
+        {
+            var need = count - result.Count;
+            var first = await _numbers.ReserveAsync("vin_provisional", ProvisionalVinPrefix, need, ct);
+            var batch = Enumerable.Range(0, need).Select(i => ProvisionalVinPrefix + (first + i).ToString().PadLeft(17 - ProvisionalVinPrefix.Length, '0')).ToList();
+            // أي تصادم مع شاسيه موجود (إدخال يدوي بنفس الصيغة) يُتخطى ويُحجز بدله رقم جديد
+            var taken = (await FindExistingChassisNumbersAsync(batch, ct)).ToHashSet();
+            result.AddRange(batch.Where(v => !taken.Contains(v)));
+        }
+        return result;
+    }
 
     public async Task<List<string>> FindExistingChassisNumbersAsync(List<string> vins, CancellationToken ct = default)
     {

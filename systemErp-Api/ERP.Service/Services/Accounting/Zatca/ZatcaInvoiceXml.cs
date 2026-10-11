@@ -7,7 +7,7 @@ namespace ERP.Service.Services.Accounting;
 /// <summary>طرف الفاتورة (البائع أو المشتري) بعنوانه الوطني.</summary>
 public sealed record ZatcaParty(
     string Name, string? VatNumber, string? CrNumber, string? Street, string? BuildingNumber, string? District,
-    string? City, string? PostalCode, string CountryCode);
+    string? City, string? PostalCode, string CountryCode, string? IdType = null, string? IdNumber = null);
 
 /// <summary>سطر فاتورة: الصافي بعد كل الخصومات وقبل الضريبة، والخصم هو الفرق بين (الكمية × السعر) والصافي.</summary>
 public sealed record ZatcaLine(
@@ -209,12 +209,15 @@ public static class ZatcaInvoiceXml
     private static void Party(XmlWriter w, ZatcaParty p, bool full)
     {
         w.WriteStartElement("cac", "Party", Cac);
-        if (!string.IsNullOrWhiteSpace(p.CrNumber))
+        // السجل التجاري أولاً، وإلا الهوية الأخرى بنوعها (NAT/IQA/PAS...) كما تحددها الهيئة
+        var idScheme = !string.IsNullOrWhiteSpace(p.CrNumber) ? "CRN" : p.IdType?.Trim().ToUpperInvariant();
+        var idValue = !string.IsNullOrWhiteSpace(p.CrNumber) ? p.CrNumber : p.IdNumber;
+        if (!string.IsNullOrWhiteSpace(idScheme) && !string.IsNullOrWhiteSpace(idValue))
         {
             w.WriteStartElement("cac", "PartyIdentification", Cac);
             w.WriteStartElement("cbc", "ID", Cbc);
-            w.WriteAttributeString("schemeID", "CRN");
-            w.WriteString(p.CrNumber.Trim());
+            w.WriteAttributeString("schemeID", idScheme);
+            w.WriteString(idValue.Trim());
             w.WriteEndElement();
             w.WriteEndElement();
         }

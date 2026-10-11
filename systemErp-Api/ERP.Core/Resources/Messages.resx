@@ -80,6 +80,13 @@
   <data name="BuyAndGiftQtyMustBePositive" xml:space="preserve"><value>كميتا الشراء والهدية يجب أن تكونا موجبتين.</value></data>
   <data name="AddressCountryCodeInvalid" xml:space="preserve"><value>رمز الدولة يجب أن يكون حرفين (مثل SA).</value></data>
   <data name="AddressBuildingNoInvalid" xml:space="preserve"><value>رقم المبنى يجب أن يكون 4 أرقام.</value></data>
+  <data name="VinGenerateCountInvalid" xml:space="preserve"><value>عدد أرقام الشاسيه المطلوب توليدها يجب أن يكون بين 1 و {0}.</value></data>
+  <data name="ReturnVehicleNotInOriginal" xml:space="preserve"><value>المركبة ليست ضمن الفاتورة الأصلية.</value></data>
+  <data name="ReturnVehicleAlreadyReturned" xml:space="preserve"><value>المركبة {0} سبق إرجاعها.</value></data>
+  <data name="ReturnVehicleNotAvailable" xml:space="preserve"><value>لا يمكن إرجاع المركبة {0} للمورد: ليست متاحة بالمخزون (مباعة أو محجوزة أو مشطوبة).</value></data>
+  <data name="ReturnVehicleNotSold" xml:space="preserve"><value>لا يمكن إرجاع المركبة {0} من العميل: ليست في حالة مباعة.</value></data>
+  <data name="PartyIdTypeInvalid" xml:space="preserve"><value>نوع الهوية غير معتمد لدى الهيئة (TIN, CRN, MOM, MLS, SAG, NAT, GCC, IQA, PAS, OTH).</value></data>
+  <data name="PartyIdPairRequired" xml:space="preserve"><value>نوع الهوية ورقمها يُدخلان معاً.</value></data>
   <data name="AddressPostalCodeInvalid" xml:space="preserve"><value>الرمز البريدي يجب أن يكون 5 أرقام.</value></data>
   <data name="AddressAdditionalNoInvalid" xml:space="preserve"><value>الرقم الإضافي يجب أن يكون 4 أرقام.</value></data>
   <data name="BuyerFieldBuildingNo" xml:space="preserve"><value>رقم المبنى (4 أرقام)</value></data>

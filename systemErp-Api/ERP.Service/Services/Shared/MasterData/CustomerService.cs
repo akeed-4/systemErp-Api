@@ -30,6 +30,7 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
         if (d.CreditLimit < 0) extra.Add(Messages.CreditLimitCannotBeNegative);
         if (d.CreditPeriodDays < 0) extra.Add(Messages.CreditPeriodCannotBeNegative);
         PartyValidation.AddAddressErrors(extra, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo);
+        PartyValidation.AddIdentificationErrors(extra, d.IdType, d.IdNumber);
         PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra, d.Country);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<Customer>().AnyAsync(c => c.Code == d.Code && (existing == null || c.Id != existing.Id), ct))

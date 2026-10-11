@@ -27,7 +27,8 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         if (!string.IsNullOrWhiteSpace(d.Iban) && !(d.Iban.Length is >= 15 and <= 34 && d.Iban.All(char.IsLetterOrDigit)))
             extra.Add(Messages.IbanInvalid);
         PartyValidation.AddAddressErrors(extra, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo);
-        PartyValidation.Validate(d.NameAr, null, null, d.OpeningBalance, extra);
+        PartyValidation.AddIdentificationErrors(extra, d.IdType, d.IdNumber);
+        PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra, d.Country);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<BankEntity>().AnyAsync(b => b.Code == d.Code && (existing == null || b.Id != existing.Id), ct))
             throw new ConflictException(Messages.BankCodeInUse);

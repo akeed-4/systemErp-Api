@@ -1927,6 +1927,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("PartyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("PartyIdNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PartyIdType")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("PartyName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -5500,6 +5506,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CrNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -5514,8 +5523,17 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("District")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Email")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Iban")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IdNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IdType")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NameAr")
@@ -5536,6 +5554,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("OpeningEntryId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Phone")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("PostalCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -5555,6 +5576,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("VatNumber")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -5725,6 +5749,12 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Email")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IdNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IdType")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NameAr")
@@ -7012,6 +7042,12 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Iban")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IdNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IdType")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NameAr")

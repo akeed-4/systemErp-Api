@@ -7,4 +7,6 @@ public interface INumberSequenceService
 {
     /// <summary>الرقم التالي، مثال: SINV-000001. يجب استدعاؤه داخل نفس معاملة المستند.</summary>
     Task<string> NextAsync(string key, string defaultPrefix, CancellationToken ct = default);
+    /// <summary>يحجز كتلة من <paramref name="count"/> أرقام متتالية دفعة واحدة ويعيد أول قيمة فيها.</summary>
+    Task<long> ReserveAsync(string key, string defaultPrefix, int count, CancellationToken ct = default);
 }

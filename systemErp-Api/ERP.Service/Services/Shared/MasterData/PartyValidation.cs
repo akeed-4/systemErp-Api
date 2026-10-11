@@ -36,6 +36,19 @@ internal static class PartyValidation
         if (!IsDigitsOrEmpty(additionalNo, 4)) errors.Add(Messages.AddressAdditionalNoInvalid);
     }
 
+    /// <summary>أنواع الهوية التي تقبلها الهيئة في معرّف الطرف (غير السجل التجاري).</summary>
+    public static readonly string[] IdTypes = { "TIN", "CRN", "MOM", "MLS", "SAG", "NAT", "GCC", "IQA", "PAS", "OTH" };
+
+    /// <summary>نوع الهوية ورقمها يُدخلان معاً، والنوع من قائمة الهيئة.</summary>
+    public static void AddIdentificationErrors(List<string> errors, string? idType, string? idNumber)
+    {
+        var hasType = !string.IsNullOrWhiteSpace(idType);
+        var hasNumber = !string.IsNullOrWhiteSpace(idNumber);
+        if (!hasType && !hasNumber) return;
+        if (hasType && !IdTypes.Contains(idType!.Trim().ToUpperInvariant())) errors.Add(Messages.PartyIdTypeInvalid);
+        else if (hasType != hasNumber) errors.Add(Messages.PartyIdPairRequired);
+    }
+
     private static bool IsDigitsOrEmpty(string? value, int length)
         => string.IsNullOrWhiteSpace(value) || (value.Trim().Length == length && value.Trim().All(char.IsAsciiDigit));
 }

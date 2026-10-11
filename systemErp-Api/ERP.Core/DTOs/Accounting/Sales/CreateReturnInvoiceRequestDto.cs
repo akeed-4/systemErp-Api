@@ -10,4 +10,10 @@ public class CreateReturnInvoiceRequestDto
     public PaymentMethod? RefundPaymentMethod { get; set; }
     /// <summary>الأصناف والكميات المرتجعة. فارغ = مرتجع كلي.</summary>
     public List<ReturnLineDto> Lines { get; set; } = new();
+    /// <summary>فاتورة سيارات: المركبات المرتجعة (فارغ = كل ما لم يُرجَع منها).</summary>
+    public List<Guid> VehicleIds { get; set; } = new();
+    /// <summary>تاريخ المرتجع (فارغ = الآن).</summary>
+    public DateTime? ReturnDate { get; set; }
+    /// <summary>ملاحظات المرتجع (تُضاف إلى سبب الإرجاع في سجل المستند).</summary>
+    public string? Notes { get; set; }
 }

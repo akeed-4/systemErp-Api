@@ -8,6 +8,10 @@ public class Customer : BaseEntity
     public string NameEn { get; set; } = string.Empty;
     public string? VatNumber { get; set; }
     public string? CrNumber { get; set; }
+    /// <summary>نوع الهوية الأخرى المرسلة للهيئة بدل السجل التجاري: NAT هوية وطنية، IQA إقامة، PAS جواز، GCC، TIN، MOM، MLS، SAG، OTH.</summary>
+    public string? IdType { get; set; }
+    /// <summary>رقم الهوية الأخرى (يقابل IdType).</summary>
+    public string? IdNumber { get; set; }
     public string Phone { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? ContactPerson { get; set; }

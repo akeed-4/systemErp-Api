@@ -8,6 +8,37 @@ public class NumberSequenceService : INumberSequenceService
     private readonly ErpDbContext _db;
     public NumberSequenceService(ErpDbContext db) => _db = db;
 
+    public async Task<long> ReserveAsync(string key, string defaultPrefix, int count, CancellationToken ct = default)
+    {
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            var seq = await _db.Set<NumberSequence>().FirstOrDefaultAsync(s => s.Key == key, ct);
+            var isNew = seq == null;
+            if (seq == null)
+            {
+                seq = new NumberSequence { Key = key, Prefix = defaultPrefix, LastValue = 0 };
+                _db.Add(seq);
+            }
+            var first = seq.LastValue + 1;
+            seq.LastValue += count;
+            seq.Version = Guid.NewGuid();
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                return first;
+            }
+            catch (DbUpdateConcurrencyException ex) when (ex.Entries.Any(e => e.Entity is NumberSequence))
+            {
+                _db.Entry(seq).State = EntityState.Detached;
+            }
+            catch (DbUpdateException) when (isNew)
+            {
+                _db.Entry(seq).State = EntityState.Detached;
+            }
+        }
+        throw new ConflictException(Messages.DocumentNumberGenerationFailed);
+    }
+
     public async Task<string> NextAsync(string key, string defaultPrefix, CancellationToken ct = default)
     {
         for (var attempt = 0; attempt < 8; attempt++)

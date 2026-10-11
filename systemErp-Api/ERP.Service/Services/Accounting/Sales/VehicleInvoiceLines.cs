@@ -122,7 +122,7 @@ internal static class VehicleInvoiceLines
         return lines;
     }
 
-    private static string Describe(InvoiceVehicleLine l)
+    internal static string Describe(InvoiceVehicleLine l)
     {
         var spec = $"{l.BrandNameAr} {l.ModelNameAr} {l.TrimNameAr} {l.Year}".Replace("  ", " ").Trim();
         return l.Vin != null ? $"{spec} (VIN: {l.Vin})" : l.TempRef != null ? $"{spec} ({l.TempRef})" : spec;

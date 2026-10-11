@@ -14,6 +14,9 @@ public partial class CreateInvoiceDto
     public string? PartyEmail { get; set; }
     public string? PartyVatNumber { get; set; }
     public string? PartyCrNumber { get; set; }
+    /// <summary>الهوية الأخرى للمشتري (نوعها ورقمها) عند غياب السجل التجاري.</summary>
+    public string? PartyIdType { get; set; }
+    public string? PartyIdNumber { get; set; }
     public string? PartyAddress { get; set; }
     /// <summary>المستودع الذي تدخل إليه/تخرج منه أصناف الفاتورة (الافتراضي عند عدم التحديد).</summary>
     public Guid? WarehouseId { get; set; }

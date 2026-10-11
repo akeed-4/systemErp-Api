@@ -29,6 +29,7 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
         var extra = new List<string>();
         if (d.PaymentTermsDays < 0) extra.Add(Messages.PaymentTermsCannotBeNegative);
         PartyValidation.AddAddressErrors(extra, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo);
+        PartyValidation.AddIdentificationErrors(extra, d.IdType, d.IdNumber);
         PartyValidation.Validate(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, extra, d.Country);
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<Supplier>().AnyAsync(s => s.Code == d.Code && (existing == null || s.Id != existing.Id), ct))

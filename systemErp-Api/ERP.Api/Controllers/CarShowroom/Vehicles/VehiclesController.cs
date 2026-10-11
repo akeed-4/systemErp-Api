@@ -24,6 +24,12 @@ public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, U
     public async Task<IActionResult> Import([FromBody] List<CreateVehicleDto> items, CancellationToken ct)
         => Success(await _vehicles.ImportAsync(items, ct));
 
+    /// <summary>توليد أرقام شاسيه مؤقتة فريدة لسيارات فاتورة الشراء.</summary>
+    [HttpPost("GenerateVins")]
+    [RequireScreen("car-showroom", ScreenAction.View)]
+    public async Task<IActionResult> GenerateVins([FromBody] GenerateVinsRequestDto request, CancellationToken ct)
+        => Success(await _vehicles.GenerateProvisionalVinsAsync(request.Count, ct));
+
     [HttpPost("CheckVins")]
     [RequireScreen("car-showroom", ScreenAction.View)]
     public async Task<IActionResult> CheckVins([FromBody] List<string> vins, CancellationToken ct)

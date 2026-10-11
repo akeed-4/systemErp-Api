@@ -80,6 +80,13 @@
   <data name="BuyAndGiftQtyMustBePositive" xml:space="preserve"><value>Buy and gift quantities must be positive.</value></data>
   <data name="AddressCountryCodeInvalid" xml:space="preserve"><value>The country code must be two letters (e.g. SA).</value></data>
   <data name="AddressBuildingNoInvalid" xml:space="preserve"><value>The building number must be 4 digits.</value></data>
+  <data name="VinGenerateCountInvalid" xml:space="preserve"><value>The number of VINs to generate must be between 1 and {0}.</value></data>
+  <data name="ReturnVehicleNotInOriginal" xml:space="preserve"><value>The vehicle is not part of the original invoice.</value></data>
+  <data name="ReturnVehicleAlreadyReturned" xml:space="preserve"><value>Vehicle {0} was already returned.</value></data>
+  <data name="ReturnVehicleNotAvailable" xml:space="preserve"><value>Vehicle {0} cannot be returned to the supplier: it is not available in stock.</value></data>
+  <data name="ReturnVehicleNotSold" xml:space="preserve"><value>Vehicle {0} cannot be returned by the customer: it is not in sold status.</value></data>
+  <data name="PartyIdTypeInvalid" xml:space="preserve"><value>The ID type is not accepted by ZATCA (TIN, CRN, MOM, MLS, SAG, NAT, GCC, IQA, PAS, OTH).</value></data>
+  <data name="PartyIdPairRequired" xml:space="preserve"><value>The ID type and number must be entered together.</value></data>
   <data name="AddressPostalCodeInvalid" xml:space="preserve"><value>The postal code must be 5 digits.</value></data>
   <data name="AddressAdditionalNoInvalid" xml:space="preserve"><value>The additional number must be 4 digits.</value></data>
   <data name="BuyerFieldBuildingNo" xml:space="preserve"><value>building number (4 digits)</value></data>

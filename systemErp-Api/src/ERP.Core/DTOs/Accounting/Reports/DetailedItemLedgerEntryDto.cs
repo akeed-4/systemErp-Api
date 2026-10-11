@@ -7,6 +7,8 @@ public class DetailedItemLedgerEntryDto
     public Guid Id { get; set; }
     public Guid ItemId { get; set; }
     public DateTime Date { get; set; }
+    /// <summary>وقت تسجيل الحركة: يرتّب حركات اليوم الواحد.</summary>
+    public DateTime CreatedAt { get; set; }
     public string DocType { get; set; } = string.Empty;
     public string DocNumber { get; set; } = string.Empty;
     public decimal QuantityIn { get; set; }

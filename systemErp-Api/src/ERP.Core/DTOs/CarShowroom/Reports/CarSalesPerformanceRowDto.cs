@@ -2,6 +2,7 @@ namespace ERP.Core.DTOs.CarShowroom;
 
 public class CarSalesPerformanceRowDto
 {
+    public Guid Id { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public CarSalesCycleType CycleType { get; set; }

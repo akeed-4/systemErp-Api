@@ -2,6 +2,7 @@ namespace ERP.Core.DTOs.CarShowroom;
 
 public class CarProcurementTrackingRowDto
 {
+    public Guid Id { get; set; }
     public string OrderNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public string SupplierName { get; set; } = string.Empty;

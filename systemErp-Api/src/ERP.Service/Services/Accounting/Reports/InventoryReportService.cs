@@ -6,26 +6,47 @@ using DevExtreme.AspNet.Data.ResponseModel;
 
 namespace ERP.Service.Services.Accounting;
 
+/// <summary>تقارير المخزون: كل تقرير استعلام يُنفَّذ في قاعدة البيانات (مع خيارات DevExtreme)، ولا تُحمَّل الحركات إلى الذاكرة.</summary>
 public class InventoryReportService : IInventoryReportService
 {
     private readonly ErpDbContext _db;
     public InventoryReportService(ErpDbContext db) => _db = db;
 
-    // على مستوى المنشأة التحويل بين المستودعات أثره صفر؛ وعلى مستوى مستودع بعينه هو وارد أو صادر
-    private static int Sign(StockMovementType t, bool warehouseLevel = false) => t switch
+    private sealed class SignedMovement
     {
-        StockMovementType.InPurchase or StockMovementType.AdjustmentIn => 1,
-        StockMovementType.TransferIn => warehouseLevel ? 1 : 0,
-        StockMovementType.TransferOut => warehouseLevel ? -1 : 0,
-        _ => -1,
-    };
+        public Guid Id { get; set; }
+        public Guid ItemId { get; set; }
+        public DateTime Date { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public StockMovementType Type { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
+        public decimal? UnitPrice { get; set; }
+        public string ReferenceNumber { get; set; } = string.Empty;
+        /// <summary>+1 وارد، −1 صادر، 0 بلا أثر.</summary>
+        public int Sign { get; set; }
+    }
 
     private IQueryable<StockMovement> Movements(ReportQueryDto q)
     {
         var m = _db.Set<StockMovement>().AsNoTracking().AsQueryable();
         return q.WarehouseId.HasValue ? m.Where(x => x.WarehouseId == q.WarehouseId) : m;
     }
-    private static bool IsReturnRef(string r) => r.StartsWith("SRET-") || r.StartsWith("PRET-");
+
+    // على مستوى المنشأة التحويل بين المستودعات أثره صفر؛ وعلى مستوى مستودع بعينه هو وارد أو صادر
+    private IQueryable<SignedMovement> SignedMovements(ReportQueryDto q)
+    {
+        var transfer = q.WarehouseId.HasValue ? 1 : 0;
+        return Movements(q).Select(m => new SignedMovement
+        {
+            Id = m.Id, ItemId = m.ItemId, Date = m.Date, CreatedAt = m.CreatedAt, Type = m.Type, Quantity = m.Quantity,
+            UnitCost = m.UnitCost, UnitPrice = m.UnitPrice, ReferenceNumber = m.ReferenceNumber,
+            Sign = m.Type == StockMovementType.InPurchase || m.Type == StockMovementType.AdjustmentIn ? 1
+                : m.Type == StockMovementType.TransferIn ? transfer
+                : m.Type == StockMovementType.TransferOut ? -transfer
+                : -1,
+        });
+    }
 
     private IQueryable<Product> ProductsQuery(ReportQueryDto q)
     {
@@ -35,98 +56,101 @@ public class InventoryReportService : IInventoryReportService
         return p;
     }
 
-    public async Task<List<InventoryAuditRowDto>> GetInventoryAuditAsync(ReportQueryDto q, CancellationToken ct = default)
+    private IQueryable<InventoryAuditRowDto> InventoryAuditQuery(ReportQueryDto q)
     {
         // لمستودع بعينه: الكمية رصيده فيه، بالتكلفة الموحّدة للصنف
-        var inWarehouse = q.WarehouseId.HasValue
-            ? await _db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == q.WarehouseId).ToDictionaryAsync(s => s.ItemId, s => s.Quantity, ct)
-            : null;
-        return (await ProductsQuery(q).OrderBy(p => p.Sku).ToListAsync(ct)).Select(p =>
+        var stocks = _db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == q.WarehouseId);
+        var rows = q.WarehouseId.HasValue
+            ? ProductsQuery(q).Select(p => new { p, Quantity = stocks.Where(s => s.ItemId == p.Id).Sum(s => s.Quantity) })
+            : ProductsQuery(q).Select(p => new { p, Quantity = p.CurrentStock });
+        return rows.Select(r => new InventoryAuditRowDto
         {
-            var quantity = inWarehouse == null ? p.CurrentStock : inWarehouse.GetValueOrDefault(p.Id);
-            return new InventoryAuditRowDto
-            {
-                ItemId = p.Id, Sku = p.Sku, Barcode = p.Barcode, ItemName = p.NameAr, Category = p.Category, Unit = p.Unit,
-                SystemQuantity = quantity, AverageUnitCost = p.AverageCost, SystemValuation = Math.Round(quantity * p.AverageCost, 2),
-            };
-        }).ToList();
+            ItemId = r.p.Id, Sku = r.p.Sku, Barcode = r.p.Barcode, ItemName = r.p.NameAr, Category = r.p.Category, Unit = r.p.Unit,
+            SystemQuantity = r.Quantity, AverageUnitCost = r.p.AverageCost, SystemValuation = Math.Round(r.Quantity * r.p.AverageCost, 2),
+        });
     }
 
-    public async Task<List<ItemMovementSummaryRowDto>> GetItemMovementsAsync(ReportQueryDto q, CancellationToken ct = default)
+    private IQueryable<ItemMovementSummaryRowDto> ItemMovementsQuery(ReportQueryDto q)
     {
-        var products = await ProductsQuery(q).OrderBy(p => p.Sku).ToListAsync(ct);
-        var ids = products.Select(p => p.Id).ToList();
-        var movements = (await Movements(q).Where(m => ids.Contains(m.ItemId)).ToListAsync(ct))
-            .GroupBy(m => m.ItemId).ToDictionary(g => g.Key, g => g.ToList());
-        var byWarehouse = q.WarehouseId.HasValue;
-        int Signed(StockMovementType t) => Sign(t, byWarehouse);
+        DateTime? start = q.DateFrom, end = q.DateTo;
+        var hasStart = start.HasValue;
+        var movements = SignedMovements(q);
+        if (end.HasValue) movements = movements.Where(m => m.Date <= end);
 
-        return products.Select(p =>
-        {
-            var list = movements.GetValueOrDefault(p.Id) ?? new();
-            var before = list.Where(m => q.DateFrom.HasValue && m.Date < q.DateFrom).Sum(m => Signed(m.Type) * m.Quantity);
-            var inPeriod = list.Where(m => (!q.DateFrom.HasValue || m.Date >= q.DateFrom) && (!q.DateTo.HasValue || m.Date <= q.DateTo)).ToList();
-            return new ItemMovementSummaryRowDto
-            {
-                ItemId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Category = p.Category, Unit = p.Unit,
-                OpeningStock = before,
-                PurchaseInQty = inPeriod.Where(m => m.Type == StockMovementType.InPurchase).Sum(m => m.Quantity),
-                SalesOutQty = inPeriod.Where(m => m.Type == StockMovementType.OutSales).Sum(m => m.Quantity),
-                ReturnsQty = inPeriod.Where(m => IsReturnRef(m.ReferenceNumber)).Sum(m => m.Quantity),
-                ClosingStock = before + inPeriod.Sum(m => Signed(m.Type) * m.Quantity),
-                AverageCost = p.AverageCost, TotalStockValue = Math.Round((before + inPeriod.Sum(m => Signed(m.Type) * m.Quantity)) * p.AverageCost, 2),
-            };
-        }).ToList();
+        // مجاميع الحركات لكل صنف في مرور واحد: ما قبل الفترة رصيد افتتاحي، وما فيها حركتها
+        var totals = from m in movements
+                     group m by m.ItemId into g
+                     select new
+                     {
+                         ItemId = g.Key,
+                         Opening = g.Sum(m => hasStart && m.Date < start ? m.Sign * m.Quantity : 0m),
+                         Net = g.Sum(m => !hasStart || m.Date >= start ? m.Sign * m.Quantity : 0m),
+                         PurchaseIn = g.Sum(m => (!hasStart || m.Date >= start) && m.Type == StockMovementType.InPurchase ? m.Quantity : 0m),
+                         SalesOut = g.Sum(m => (!hasStart || m.Date >= start) && m.Type == StockMovementType.OutSales ? m.Quantity : 0m),
+                         Returns = g.Sum(m => (!hasStart || m.Date >= start) && (m.ReferenceNumber.StartsWith("SRET-") || m.ReferenceNumber.StartsWith("PRET-")) ? m.Quantity : 0m),
+                     };
+        return from p in ProductsQuery(q)
+               join t in totals on p.Id equals t.ItemId into matched
+               from t in matched.DefaultIfEmpty()
+               select new { p, Opening = (decimal?)t.Opening ?? 0m, Net = (decimal?)t.Net ?? 0m, t } into r
+               select new ItemMovementSummaryRowDto
+               {
+                   ItemId = r.p.Id, Sku = r.p.Sku, ItemName = r.p.NameAr, Category = r.p.Category, Unit = r.p.Unit,
+                   OpeningStock = r.Opening,
+                   PurchaseInQty = (decimal?)r.t.PurchaseIn ?? 0m, SalesOutQty = (decimal?)r.t.SalesOut ?? 0m, ReturnsQty = (decimal?)r.t.Returns ?? 0m,
+                   ClosingStock = r.Opening + r.Net,
+                   AverageCost = r.p.AverageCost, TotalStockValue = Math.Round((r.Opening + r.Net) * r.p.AverageCost, 2),
+               };
     }
 
-    public async Task<List<DetailedItemLedgerEntryDto>> GetItemLedgerAsync(ReportQueryDto q, CancellationToken ct = default)
+    /// <summary>
+    /// بطاقة الصنف: حركات الفترة، والرصيد الجاري (كمية وقيمة) لكل حركة يُحسب في قاعدة البيانات: مجموع كل ما سبقها
+    /// (ومنه ما قبل الفترة) بترتيب التاريخ ثم وقت التسجيل.
+    /// </summary>
+    private IQueryable<DetailedItemLedgerEntryDto> ItemLedgerQuery(ReportQueryDto q)
     {
         if (!q.ItemId.HasValue) throw new ValidationFailedException(Messages.SelectItemForItemCard);
-        var all = await Movements(q).Where(m => m.ItemId == q.ItemId)
-            .OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToListAsync(ct);
+        var all = SignedMovements(q).Where(m => m.ItemId == q.ItemId && m.Sign != 0);
+        var period = all;
+        if (q.DateFrom.HasValue) period = period.Where(m => m.Date >= q.DateFrom);
+        if (q.DateTo.HasValue) period = period.Where(m => m.Date <= q.DateTo);
 
-        decimal qty = 0, value = 0;
-        var rows = new List<DetailedItemLedgerEntryDto>();
-        foreach (var m in all)
+        return period.Select(m => new DetailedItemLedgerEntryDto
         {
-            var sign = Sign(m.Type, q.WarehouseId.HasValue);
-            if (sign == 0) continue;
-            qty += sign * m.Quantity;
-            value += sign * m.Quantity * m.UnitCost;
-            if ((q.DateFrom.HasValue && m.Date < q.DateFrom) || (q.DateTo.HasValue && m.Date > q.DateTo)) continue;
-            rows.Add(new DetailedItemLedgerEntryDto
-            {
-                Id = m.Id, ItemId = m.ItemId, Date = m.Date, DocType = m.Type.ToString(), DocNumber = m.ReferenceNumber,
-                QuantityIn = sign > 0 ? m.Quantity : 0, QuantityOut = sign < 0 ? m.Quantity : 0,
-                UnitCost = m.UnitCost, UnitPrice = m.UnitPrice, TotalValue = Math.Round(m.Quantity * m.UnitCost, 2),
-                RunningStockBalance = qty, RunningStockValue = Math.Round(value, 2),
-            });
-        }
-        return rows;
+            Id = m.Id, ItemId = m.ItemId, Date = m.Date, CreatedAt = m.CreatedAt, DocType = m.Type.ToString(), DocNumber = m.ReferenceNumber,
+            QuantityIn = m.Sign > 0 ? m.Quantity : 0m, QuantityOut = m.Sign < 0 ? m.Quantity : 0m,
+            UnitCost = m.UnitCost, UnitPrice = m.UnitPrice, TotalValue = Math.Round(m.Quantity * m.UnitCost, 2),
+            RunningStockBalance = all
+                .Where(p => p.Date < m.Date || (p.Date == m.Date && (p.CreatedAt < m.CreatedAt || (p.CreatedAt == m.CreatedAt && p.Id.CompareTo(m.Id) <= 0))))
+                .Sum(p => p.Sign * p.Quantity),
+            RunningStockValue = Math.Round(all
+                .Where(p => p.Date < m.Date || (p.Date == m.Date && (p.CreatedAt < m.CreatedAt || (p.CreatedAt == m.CreatedAt && p.Id.CompareTo(m.Id) <= 0))))
+                .Sum(p => p.Sign * p.Quantity * p.UnitCost), 2),
+        });
     }
 
-    public async Task<List<CommercialTradeRowDto>> GetCommercialTradeAsync(ReportQueryDto q, CancellationToken ct = default)
+    private IQueryable<CommercialTradeRowDto> CommercialTradeQuery(ReportQueryDto q)
     {
         var inv = _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted");
         if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
         if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate <= q.DateTo);
-        var list = await inv.Include(i => i.Items).OrderBy(i => i.IssueDate).ToListAsync(ct);
-        return list.Select(i => new CommercialTradeRowDto
+        return inv.Select(i => new CommercialTradeRowDto
         {
-            DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,
+            Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,
             ItemsCount = i.Items.Count, Subtotal = i.Subtotal, DiscountTotal = i.DiscountTotal, VatTotal = i.VatTotal, GrandTotal = i.GrandTotal,
             CogsTotal = i.TotalCost, GrossProfit = i.GrossProfit,
-            GrossProfitMarginPercent = i.Subtotal == 0 ? 0 : Math.Round(i.GrossProfit / i.Subtotal * 100, 2),
+            GrossProfitMarginPercent = i.Subtotal == 0 ? 0m : Math.Round(i.GrossProfit / i.Subtotal * 100, 2),
             ZatcaStatus = i.ZatcaStatus,
-        }).ToList();
+        });
     }
 
-    public async Task<LoadResult> LoadInventoryAuditAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => await ReportLoader.LoadAsync(await GetInventoryAuditAsync(q, ct), options, ct);
-    public async Task<LoadResult> LoadItemMovementsAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => await ReportLoader.LoadAsync(await GetItemMovementsAsync(q, ct), options, ct);
-    public async Task<LoadResult> LoadItemLedgerAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => await ReportLoader.LoadAsync(await GetItemLedgerAsync(q, ct), options, ct);
-    public async Task<LoadResult> LoadCommercialTradeAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => await ReportLoader.LoadAsync(await GetCommercialTradeAsync(q, ct), options, ct);
+    public Task<LoadResult> LoadInventoryAuditAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(InventoryAuditQuery(q), options, nameof(InventoryAuditRowDto.ItemId), ct, EntityLoader.Asc(nameof(InventoryAuditRowDto.Sku)));
+    public Task<LoadResult> LoadItemMovementsAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(ItemMovementsQuery(q), options, nameof(ItemMovementSummaryRowDto.ItemId), ct, EntityLoader.Asc(nameof(ItemMovementSummaryRowDto.Sku)));
+    public Task<LoadResult> LoadItemLedgerAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(ItemLedgerQuery(q), options, nameof(DetailedItemLedgerEntryDto.Id), ct,
+            EntityLoader.Asc(nameof(DetailedItemLedgerEntryDto.Date)), EntityLoader.Asc(nameof(DetailedItemLedgerEntryDto.CreatedAt)));
+    public Task<LoadResult> LoadCommercialTradeAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(CommercialTradeQuery(q), options, nameof(CommercialTradeRowDto.Id), ct, EntityLoader.Asc(nameof(CommercialTradeRowDto.Date)));
 }

@@ -8,7 +8,6 @@ namespace ERP.Core.Contracts.Accounting;
 
 public interface IAccountingReportService
 {
-    Task<List<TrialBalanceItemDto>> GetTrialBalanceAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<FinancialSummaryDto> GetFinancialSummaryAsync(CancellationToken ct = default);
     Task<FinancialStatsDto> GetFinancialStatsAsync(CancellationToken ct = default);

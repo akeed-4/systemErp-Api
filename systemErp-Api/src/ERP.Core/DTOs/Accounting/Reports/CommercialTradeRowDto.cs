@@ -4,6 +4,7 @@ namespace ERP.Core.DTOs.Accounting;
 
 public class CommercialTradeRowDto
 {
+    public Guid Id { get; set; }
     public string DocNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public InvoiceKind Type { get; set; }

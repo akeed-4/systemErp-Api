@@ -2,6 +2,7 @@ namespace ERP.Core.DTOs.CarShowroom;
 
 public class CarZatcaMarginTaxRowDto
 {
+    public Guid Id { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public string BuyerName { get; set; } = string.Empty;

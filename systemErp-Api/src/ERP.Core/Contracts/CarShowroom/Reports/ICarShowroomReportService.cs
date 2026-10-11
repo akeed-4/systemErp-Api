@@ -8,14 +8,6 @@ namespace ERP.Core.Contracts.CarShowroom;
 
 public interface ICarShowroomReportService
 {
-    Task<List<CarSalesPerformanceRowDto>> GetSalesPerformanceAsync(CarReportQueryDto q, CancellationToken ct = default);
-    Task<List<CarVinInventoryRowDto>> GetVinInventoryAsync(CancellationToken ct = default);
-    Task<List<CarZatcaMarginTaxRowDto>> GetZatcaMarginTaxAsync(CarReportQueryDto q, CancellationToken ct = default);
-    Task<List<CarProcurementTrackingRowDto>> GetProcurementTrackingAsync(CarReportQueryDto q, CancellationToken ct = default);
-    Task<List<CarProfitLossRowDto>> GetProfitLossAsync(CarReportQueryDto q, CancellationToken ct = default);
-    Task<List<CarInstallmentReceivableRowDto>> GetInstallmentsReceivableAsync(CancellationToken ct = default);
-    Task<List<CarSupplierProcurementRowDto>> GetSuppliersProcurementAsync(CarReportQueryDto q, CancellationToken ct = default);
-    Task<List<CarDailyMonthlySalesRowDto>> GetDailyMonthlySalesAsync(CarReportQueryDto q, CancellationToken ct = default);
     Task<LoadResult> LoadSalesPerformanceAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default);
     Task<LoadResult> LoadVinInventoryAsync(DataSourceLoadOptions options, CancellationToken ct = default);
     Task<LoadResult> LoadZatcaMarginTaxAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default);

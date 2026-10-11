@@ -59,6 +59,7 @@ public class ErpDbContext : DbContext
         (typeof(LeaveAttachment), nameof(LeaveAttachment.LeaveRequestId), typeof(LeaveRequest)),
         (typeof(Employee), nameof(Employee.UserId), typeof(User)),
         (typeof(UserInvite), nameof(UserInvite.UserId), typeof(User)),
+        (typeof(ZatcaUnit), nameof(ZatcaUnit.UserId), typeof(User)),
         (typeof(AttendanceRecord), nameof(AttendanceRecord.EmployeeId), typeof(Employee)),
         (typeof(EmployeeLoan), nameof(EmployeeLoan.EmployeeId), typeof(Employee)),
         (typeof(EmployeeLoanRepayment), nameof(EmployeeLoanRepayment.EmployeeLoanId), typeof(EmployeeLoan)),
@@ -179,6 +180,7 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<Product>().Property(p => p.VatCategory).HasDefaultValue(VatCategory.Standard);
 
         modelBuilder.Entity<NumberSequence>().Property(s => s.Version).IsConcurrencyToken();
+        modelBuilder.Entity<ZatcaUnit>().Property(c => c.Version).IsConcurrencyToken();
         modelBuilder.Entity<InventoryCountApproval>().Property(a => a.Version).IsConcurrencyToken();
 
         // الأبناء المملوكون للتجميع يُحذفون معه، وأي علاقة أخرى تمنع الحذف (Restrict) لتفادي مسارات حذف متعددة.

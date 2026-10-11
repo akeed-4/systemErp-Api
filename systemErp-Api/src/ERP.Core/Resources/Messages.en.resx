@@ -933,4 +933,39 @@
   <data name="PortalLeaveNotificationTitle" xml:space="preserve"><value>New leave request from {0}</value></data>
 
   <data name="PortalLeaveNotificationBody" xml:space="preserve"><value>{0} from {1} to {2} ({3} days) is awaiting approval.</value></data>
+
+  <data name="ZatcaFieldOtp" xml:space="preserve"><value>the OTP from the Fatoora portal</value></data>
+
+  <data name="ZatcaFieldVatNumber" xml:space="preserve"><value>the company VAT number (15 digits)</value></data>
+
+  <data name="ZatcaOnboardingDataRequired" xml:space="preserve"><value>Complete the company details before connecting to ZATCA: {0}.</value></data>
+
+  <data name="ZatcaComplianceCsidFailed" xml:space="preserve"><value>ZATCA refused to issue the compliance certificate: {0}</value></data>
+
+  <data name="ZatcaComplianceCheckFailed" xml:space="preserve"><value>The sample invoices did not pass the ZATCA compliance check: {0}</value></data>
+
+  <data name="ZatcaProductionCsidFailed" xml:space="preserve"><value>ZATCA refused to issue the production certificate: {0}</value></data>
+
+  <data name="ZatcaOnboarded" xml:space="preserve"><value>Connected to ZATCA and the invoicing unit certificate was issued.</value></data>
+
+  <data name="ZatcaConnected" xml:space="preserve"><value>The ZATCA integration is complete and the invoicing unit certificate is issued.</value></data>
+
+  <data name="ZatcaNotOnboarded" xml:space="preserve"><value>The ZATCA integration is not complete. Finish it from the integration screen with the OTP, then resend.</value></data>
+
+  <data name="ZatcaAlreadySubmitted" xml:space="preserve"><value>The invoice has already been submitted to ZATCA.</value></data>
+
+  <data name="ZatcaUnreachable" xml:space="preserve"><value>Could not reach ZATCA; the invoice was not sent and can be resent: {0}</value></data>
+
+  <data name="ZatcaRejected" xml:space="preserve"><value>ZATCA rejected the invoice.</value></data>
+
+  <data name="ZatcaAcceptedWithWarnings" xml:space="preserve"><value>ZATCA accepted the invoice with warnings.</value></data>
+
+  <data name="ZatcaReported" xml:space="preserve"><value>The invoice was reported to ZATCA.</value></data>
+
+  <data name="ZatcaCleared" xml:space="preserve"><value>ZATCA cleared the invoice.</value></data>
+  <data name="ZatcaUserNotFound" xml:space="preserve"><value>The user to connect to ZATCA does not exist or is not active.</value></data>
+
+  <data name="ZatcaUserNotLinked" xml:space="preserve"><value>User "{0}" is not connected to ZATCA. Connect the user from the Fatoora integration screen with the OTP, then resend.</value></data>
+
+  <data name="ZatcaUnitDisabled" xml:space="preserve"><value>The user's ZATCA connection has been disabled.</value></data>
 </root>

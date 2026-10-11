@@ -1962,6 +1962,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("RevenueAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("SendToZatca")
+                        .HasColumnType("bit");
+
                     b.Property<string>("SettlementAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -3213,6 +3216,83 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("VoucherId");
 
                     b.ToTable("VoucherPaymentSplit");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ZatcaUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BinarySecurityToken")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CertificatePem")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ComplianceRequestId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("Counter")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Csid")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeviceSerial")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastHash")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("OnboardedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PrivateKeyPem")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SecretKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ZatcaUnit");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarAgent", b =>
@@ -7784,6 +7864,15 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Voucher");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ZatcaUnit", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarModel", b =>
                 {
                     b.HasOne("ERP.Core.Models.CarShowroom.CarBrand", null)
@@ -8128,10 +8217,16 @@ namespace ERP.Service.Data.Migrations
                             b1.Property<string>("BinarySecurityToken")
                                 .HasColumnType("nvarchar(max)");
 
+                            b1.Property<string>("BuildingNumber")
+                                .HasColumnType("nvarchar(max)");
+
                             b1.Property<string>("BusinessCategory")
                                 .HasColumnType("nvarchar(max)");
 
                             b1.Property<string>("CertificatePem")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<string>("ComplianceRequestId")
                                 .HasColumnType("nvarchar(max)");
 
                             b1.Property<string>("ComplianceStatus")
@@ -8154,6 +8249,9 @@ namespace ERP.Service.Data.Migrations
                             b1.Property<string>("DeviceSn")
                                 .HasColumnType("nvarchar(max)");
 
+                            b1.Property<string>("District")
+                                .HasColumnType("nvarchar(max)");
+
                             b1.Property<string>("Environment")
                                 .IsRequired()
                                 .HasColumnType("nvarchar(max)");
@@ -8173,6 +8271,9 @@ namespace ERP.Service.Data.Migrations
                             b1.Property<string>("LastTestStatus")
                                 .HasColumnType("nvarchar(max)");
 
+                            b1.Property<DateTime?>("OnboardedAt")
+                                .HasColumnType("datetime2");
+
                             b1.Property<string>("OrganizationName")
                                 .HasColumnType("nvarchar(max)");
 
@@ -8184,6 +8285,9 @@ namespace ERP.Service.Data.Migrations
 
                             b1.Property<string>("Phase")
                                 .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<string>("PostalCode")
                                 .HasColumnType("nvarchar(max)");
 
                             b1.Property<string>("PrivateKeyPem")
@@ -8201,6 +8305,9 @@ namespace ERP.Service.Data.Migrations
 
                             b1.Property<string>("SolutionVersion")
                                 .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<string>("Street")
                                 .HasColumnType("nvarchar(max)");
 
                             b1.Property<string>("TaxRegistrationNumber")

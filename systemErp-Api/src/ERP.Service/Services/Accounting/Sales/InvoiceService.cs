@@ -79,8 +79,8 @@ public class InvoiceService : IInvoiceService
     }
 
     // ---------------- الإنشاء ----------------
-    public Task<InvoiceDto> CreateAsync(CreateInvoiceDto r, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    public async Task<InvoiceDto> CreateAsync(CreateInvoiceDto r, CancellationToken ct = default)
+        => await SendToZatcaIfRequestedAsync(await _tx.RunAsync(async token =>
         {
             var invoice = await BuildAsync(r, token);
             var draft = string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
@@ -91,10 +91,10 @@ public class InvoiceService : IInvoiceService
             await _db.SaveChangesAsync(token);
             if (!draft) await FinalizeAsync(invoice, token);
             return await GetAsync(invoice.Id, token);
-        }, ct);
+        }, ct), ct);
 
-    public Task<InvoiceDto> UpdateAsync(Guid id, UpdateInvoiceDto r, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    public async Task<InvoiceDto> UpdateAsync(Guid id, UpdateInvoiceDto r, CancellationToken ct = default)
+        => await SendToZatcaIfRequestedAsync(await _tx.RunAsync(async token =>
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
@@ -123,10 +123,10 @@ public class InvoiceService : IInvoiceService
 
             if (!string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase)) await FinalizeAsync(invoice, token);
             return await GetAsync(id, token);
-        }, ct);
+        }, ct), ct);
 
-    public Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    public async Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default)
+        => await SendToZatcaIfRequestedAsync(await _tx.RunAsync(async token =>
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
@@ -138,10 +138,31 @@ public class InvoiceService : IInvoiceService
             if (approval == "rejected") throw new ConflictException(Messages.InvoiceApprovalRejected);
             await FinalizeAsync(invoice, token);
             return await GetAsync(id, token);
-        }, ct);
+        }, ct), ct);
 
-    public Task<InvoiceDto> CreateReturnAsync(CreateReturnInvoiceRequestDto r, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    /// <summary>
+    /// الإرسال لهيئة الزكاة بعد اكتمال الترحيل (خارج معاملته): لفاتورة مبيعات مرحّلة طُلب إرسالها من الشاشة أو من
+    /// إعداد المنشأة. رفض الهيئة أو تعذّر الاتصال لا يُسقط الفاتورة: تبقى مرحّلة والسبب محفوظ عليها ويُعاد الإرسال.
+    /// </summary>
+    private async Task<InvoiceDto> SendToZatcaIfRequestedAsync(InvoiceDto invoice, CancellationToken ct)
+    {
+        if (!invoice.SendToZatca || invoice.Status != "posted" || invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted) return invoice;
+        if (invoice.Kind is not (InvoiceKind.Sales or InvoiceKind.SalesReturn)) return invoice;
+        // داخل معاملة مستند آخر (نقطة بيع، عقد، مرتجع): الفاتورة لم تُثبَّت بعد، فلا تُرسل قبل اكتمال معاملته
+        if (_db.Database.CurrentTransaction != null) return invoice;
+        try
+        {
+            await _zatca.SubmitInvoiceAsync(invoice.Id, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await _audit.LogAsync("ZATCA_SUBMIT_FAILED", nameof(Invoice), invoice.Id.ToString(), $"{invoice.InvoiceNumber}: {ex.Message}", ct);
+        }
+        return await GetAsync(invoice.Id, ct);
+    }
+
+    public async Task<InvoiceDto> CreateReturnAsync(CreateReturnInvoiceRequestDto r, CancellationToken ct = default)
+        => await SendToZatcaIfRequestedAsync(await _tx.RunAsync(async token =>
         {
             var original = await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).Include(i => i.PaymentSplits).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, token) ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
@@ -196,7 +217,7 @@ public class InvoiceService : IInvoiceService
 
             if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
             return await CreateAsync(dto, token);
-        }, ct);
+        }, ct), ct);
 
     /// <summary>بلا طريقة ردّ محددة: فاتورة دُفعت بأكثر من طريقة يُردّ مرتجعها بالتوزيع نفسه (بنسبة قيمة المرتجع).</summary>
     private static void MirrorOriginalSplits(CreateInvoiceDto dto, Invoice original)
@@ -389,6 +410,9 @@ public class InvoiceService : IInvoiceService
         invoice.VatTotal = priced.VatTotal;
         invoice.GrandTotal = priced.GrandTotal;
         invoice.ZatcaStatus = ZatcaSubmissionStatus.NotSubmitted;
+        // خيار الشاشة «إرسال للهيئة»؛ إن لم يُرسل فبحسب إعداد المنشأة (الإرسال التلقائي عند الحفظ)
+        invoice.SendToZatca = isSales && (r.SendToZatca
+            ?? await _db.Set<Tenant>().AsNoTracking().Select(t => t.ZatcaConfig.AutoSubmitOnInvoiceSave).FirstAsync(ct));
         invoice.ZatcaQrCode = null; invoice.ZatcaHash = null; invoice.ZatcaUblXml = null; invoice.ZatcaPih = null;
         invoice.JournalEntryId = null;
 

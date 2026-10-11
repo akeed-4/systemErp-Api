@@ -61,6 +61,7 @@ public class CompanyService : ICompanyService
         c.CsrCommonName = r.CsrCommonName; c.OrganizationUnit = r.OrganizationUnit; c.OrganizationName = r.OrganizationName;
         c.CountryCode = r.CountryCode ?? c.CountryCode; c.DeviceSn = r.DeviceSn; c.BusinessCategory = r.BusinessCategory;
         c.AutoSubmitOnInvoiceSave = r.AutoSubmitOnInvoiceSave;
+        c.Street = r.Street; c.BuildingNumber = r.BuildingNumber; c.District = r.District; c.PostalCode = r.PostalCode;
 
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<TenantDto>(t);
@@ -69,8 +70,8 @@ public class CompanyService : ICompanyService
     private static string? Keep(string? incoming, string? current) => incoming == null ? current : (incoming.Length == 0 ? null : incoming);
 
     /// <summary>
-    /// يتحقق من اكتمال بيانات الربط فقط. لا يُجرى اتصال فعلي بهيئة الزكاة قبل توفّر بيانات التسجيل
-    /// (CSID/شهادة) الحقيقية للمنشأة، لذلك لا تُعاد نتيجة نجاح مصطنعة.
+    /// يتحقق من اكتمال بيانات الربط: رقم ضريبي صحيح ومستخدم واحد مربوط على الأقل (يحفظه الربط برمز التحقق
+    /// (<see cref="ERP.Core.Contracts.Accounting.IZatcaService.OnboardAsync"/>). لا يُجرى اتصال بالهيئة هنا.
     /// </summary>
     public async Task<ZatcaConnectionTestResultDto> TestZatcaConnectionAsync(CancellationToken ct = default)
     {
@@ -78,16 +79,15 @@ public class CompanyService : ICompanyService
         var c = t.ZatcaConfig;
         var missing = new List<string>();
         if (!SaudiVat.IsValid(t.VatNumber)) missing.Add("VatNumber");
-        if (string.IsNullOrWhiteSpace(c.Csid)) missing.Add("Csid");
-        if (string.IsNullOrWhiteSpace(c.BinarySecurityToken)) missing.Add("BinarySecurityToken");
-        if (string.IsNullOrWhiteSpace(c.SecretKey)) missing.Add("SecretKey");
+        // الشهادة والمفتاح يُحفظان لكل مستخدم مربوط (ZatcaUnit) لا على المنشأة
+        if (!await _db.Set<ZatcaUnit>().AnyAsync(u => u.IsActive, ct)) missing.Add("ZatcaUnit");
 
         var ok = missing.Count == 0;
         c.LastTestDate = DateTime.UtcNow;
-        c.LastTestStatus = ok ? ZatcaSubmissionStatus.Warning : ZatcaSubmissionStatus.Rejected;
+        c.LastTestStatus = ok ? ZatcaSubmissionStatus.Cleared : ZatcaSubmissionStatus.Rejected;
         c.LastTestLatencyMs = 0;
         c.LastTestMessage = ok
-            ? Messages.ZatcaTestCompleteNotConnected
+            ? Messages.ZatcaConnected
             : Messages.ZatcaTestMissingPrefix + string.Join(", ", missing);
         await _db.SaveChangesAsync(ct);
 

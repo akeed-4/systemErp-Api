@@ -53,6 +53,8 @@ public class Invoice : BaseEntity
     public string? ZatcaUblXml { get; set; }
     public string? ZatcaPih { get; set; }
     public string? ZatcaValidationMessages { get; set; }
+    /// <summary>خيار الشاشة «إرسال للهيئة»: تُرسل الفاتورة لهيئة الزكاة فور ترحيلها (حتى لو رُحّلت لاحقاً من مسودة).</summary>
+    public bool SendToZatca { get; set; }
     
     public Guid? JournalEntryId { get; set; }
     public string? Notes { get; set; }

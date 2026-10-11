@@ -27,4 +27,16 @@ public class UpdateZatcaConfigDto
     public string? BusinessCategory { get; set; }
     public bool AutoSubmitOnInvoiceSave { get; set; }
     public string? Phase { get; set; }
+    public string? Street { get; set; }
+    public string? BuildingNumber { get; set; }
+    public string? District { get; set; }
+    public string? PostalCode { get; set; }
+}
+
+/// <summary>طلب الربط مع الهيئة: رمز التحقق (OTP) الذي تصدره بوابة «فاتورة» لوحدة إصدار الفواتير.</summary>
+public class ZatcaOnboardRequestDto
+{
+    public string Otp { get; set; } = string.Empty;
+    /// <summary>المستخدم الذي تُربط الوحدة باسمه؛ فارغ = صاحب الجلسة. ربط مستخدم آخر للمالك ومدير النظام فقط.</summary>
+    public Guid? UserId { get; set; }
 }

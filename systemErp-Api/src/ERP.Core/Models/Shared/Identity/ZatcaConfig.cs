@@ -33,4 +33,18 @@ public class ZatcaConfig
     public ZatcaSubmissionStatus? LastTestStatus { get; set; }
     public int? LastTestLatencyMs { get; set; }
     public string? LastTestMessage { get; set; }
+
+    // ---------- العنوان الوطني للمنشأة (يظهر في الفاتورة الإلكترونية وفي طلب الشهادة) ----------
+    public string? Street { get; set; }
+    /// <summary>رقم المبنى (4 أرقام).</summary>
+    public string? BuildingNumber { get; set; }
+    public string? District { get; set; }
+    /// <summary>الرمز البريدي (5 أرقام).</summary>
+    public string? PostalCode { get; set; }
+
+    // ---------- نتيجة الربط (المرحلة الثانية) ----------
+    /// <summary>رقم طلب شهادة الامتثال الذي أُصدرت منه شهادة الإنتاج.</summary>
+    public string? ComplianceRequestId { get; set; }
+    /// <summary>متى اكتمل الربط وأُصدرت شهادة الإنتاج.</summary>
+    public DateTime? OnboardedAt { get; set; }
 }

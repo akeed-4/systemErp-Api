@@ -50,6 +50,8 @@ public class ErpFactory : WebApplicationFactory<Program>
             services.AddScoped<ERP.Core.Contracts.Shared.IPaymobClient, FakePaymobClient>();
             // لا بريد حقيقي في الاختبارات: الرسائل تُلتقط في الذاكرة
             services.AddSingleton<ERP.Core.Contracts.Shared.IEmailSender>(FakeEmailSender.Instance);
+            // هيئة الزكاة: بديل محلي يتحقق من التجزئة والتوقيع، فلا اتصال بالإنترنت في الاختبارات
+            services.AddSingleton<ERP.Core.Contracts.Accounting.IZatcaApiClient>(FakeZatcaApiClient.Instance);
         });
     }
 

@@ -27,4 +27,9 @@ public partial class ZatcaConfigDto
     public ZatcaSubmissionStatus? LastTestStatus { get; set; }
     public int? LastTestLatencyMs { get; set; }
     public string? LastTestMessage { get; set; }
+    public string? Street { get; set; }
+    public string? BuildingNumber { get; set; }
+    public string? District { get; set; }
+    public string? PostalCode { get; set; }
+    public DateTime? OnboardedAt { get; set; }
 }

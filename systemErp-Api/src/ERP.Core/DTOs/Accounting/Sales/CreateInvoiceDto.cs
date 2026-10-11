@@ -45,6 +45,8 @@ public partial class CreateInvoiceDto
     public string? ZatcaUblXml { get; set; }
     public string? ZatcaPih { get; set; }
     public string? ZatcaValidationMessages { get; set; }
+    /// <summary>خيار الشاشة «إرسال للهيئة»؛ فارغ = حسب إعداد المنشأة (الإرسال التلقائي عند الحفظ).</summary>
+    public bool? SendToZatca { get; set; }
     public Guid? JournalEntryId { get; set; }
     public string? Notes { get; set; }
     public string? ReferenceType { get; set; }

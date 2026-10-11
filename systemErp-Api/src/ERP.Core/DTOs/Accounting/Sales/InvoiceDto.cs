@@ -50,6 +50,7 @@ public partial class InvoiceDto
     public string? ZatcaUblXml { get; set; }
     public string? ZatcaPih { get; set; }
     public string? ZatcaValidationMessages { get; set; }
+    public bool SendToZatca { get; set; }
     public Guid? JournalEntryId { get; set; }
     public string? Notes { get; set; }
     public string? ReferenceType { get; set; }

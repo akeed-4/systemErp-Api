@@ -933,4 +933,39 @@
   <data name="PortalLeaveNotificationTitle" xml:space="preserve"><value>طلب إجازة جديد من {0}</value></data>
 
   <data name="PortalLeaveNotificationBody" xml:space="preserve"><value>{0} من {1} إلى {2} ({3} يوم) بانتظار الاعتماد.</value></data>
+
+  <data name="ZatcaFieldOtp" xml:space="preserve"><value>رمز التحقق (OTP) من بوابة فاتورة</value></data>
+
+  <data name="ZatcaFieldVatNumber" xml:space="preserve"><value>الرقم الضريبي للمنشأة (15 رقماً)</value></data>
+
+  <data name="ZatcaOnboardingDataRequired" xml:space="preserve"><value>أكمل بيانات المنشأة قبل الربط مع هيئة الزكاة: {0}.</value></data>
+
+  <data name="ZatcaComplianceCsidFailed" xml:space="preserve"><value>رفضت هيئة الزكاة إصدار شهادة الامتثال: {0}</value></data>
+
+  <data name="ZatcaComplianceCheckFailed" xml:space="preserve"><value>لم تجتز فواتير الفحص اختبار الامتثال لدى هيئة الزكاة: {0}</value></data>
+
+  <data name="ZatcaProductionCsidFailed" xml:space="preserve"><value>رفضت هيئة الزكاة إصدار شهادة الإنتاج: {0}</value></data>
+
+  <data name="ZatcaOnboarded" xml:space="preserve"><value>تم الربط مع هيئة الزكاة وإصدار شهادة وحدة الفواتير.</value></data>
+
+  <data name="ZatcaConnected" xml:space="preserve"><value>الربط مع هيئة الزكاة مكتمل وشهادة وحدة الفواتير صادرة.</value></data>
+
+  <data name="ZatcaNotOnboarded" xml:space="preserve"><value>لم يكتمل الربط مع هيئة الزكاة. أكمله من شاشة الربط برمز التحقق (OTP) ثم أعد الإرسال.</value></data>
+
+  <data name="ZatcaAlreadySubmitted" xml:space="preserve"><value>الفاتورة مُرسلة لهيئة الزكاة مسبقاً.</value></data>
+
+  <data name="ZatcaUnreachable" xml:space="preserve"><value>تعذّر الاتصال بهيئة الزكاة، لم تُرسل الفاتورة ويمكن إعادة إرسالها: {0}</value></data>
+
+  <data name="ZatcaRejected" xml:space="preserve"><value>رفضت هيئة الزكاة الفاتورة.</value></data>
+
+  <data name="ZatcaAcceptedWithWarnings" xml:space="preserve"><value>قبلت هيئة الزكاة الفاتورة مع تحذيرات.</value></data>
+
+  <data name="ZatcaReported" xml:space="preserve"><value>تم التبليغ عن الفاتورة لهيئة الزكاة.</value></data>
+
+  <data name="ZatcaCleared" xml:space="preserve"><value>اعتمدت هيئة الزكاة الفاتورة.</value></data>
+  <data name="ZatcaUserNotFound" xml:space="preserve"><value>المستخدم المطلوب ربطه مع هيئة الزكاة غير موجود أو غير نشط.</value></data>
+
+  <data name="ZatcaUserNotLinked" xml:space="preserve"><value>المستخدم «{0}» غير مربوط مع هيئة الزكاة. اربطه من شاشة الربط مع منصة فاتورة برمز التحقق ثم أعد الإرسال.</value></data>
+
+  <data name="ZatcaUnitDisabled" xml:space="preserve"><value>تم إيقاف ربط المستخدم مع هيئة الزكاة.</value></data>
 </root>

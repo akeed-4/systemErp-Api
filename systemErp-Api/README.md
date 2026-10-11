@@ -4,10 +4,9 @@ Backend لثلاثة أنظمة تعمل فوق أساس مشترك: **المح�
 مبني حول واجهة Angular الموجودة (`SystemErp-web`) التي هي مصدر الحقيقة للمتطلبات.
 
 ```
-src/
-├── ERP.Api/         Controllers/<System>/<Feature>/XController.cs  (ملف لكل controller)
-├── ERP.Service/     Services/<System>/<Feature>/XService.cs · Data/ (DbContext + Migrations)
-└── ERP.Core/        Models · DTOs · Contracts  ← كلٌّ منها: <System>/<Feature>/<Type>.cs (ملف لكل نوع)
+ERP.Api/             Controllers/<System>/<Feature>/XController.cs  (ملف لكل controller)
+ERP.Service/         Services/<System>/<Feature>/XService.cs · Data/ (DbContext + Migrations)
+ERP.Core/            Models · DTOs · Contracts  ← كلٌّ منها: <System>/<Feature>/<Type>.cs (ملف لكل نوع)
 tests/ERP.Tests/     Shared · Accounting · CarShowroom · POS · Architecture
 docs/                ARCHITECTURE · FRONTEND_MAPPING · API_ENDPOINTS
 ```
@@ -18,15 +17,15 @@ docs/                ARCHITECTURE · FRONTEND_MAPPING · API_ENDPOINTS
 
 ```bash
 # 1) الإعدادات (أسرار خارج المستودع)
-dotnet user-secrets init --project src/ERP.Api
-dotnet user-secrets set "Jwt:Key" "<32+ chars>" --project src/ERP.Api
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<sql server>" --project src/ERP.Api
+dotnet user-secrets init --project ERP.Api
+dotnet user-secrets set "Jwt:Key" "<32+ chars>" --project ERP.Api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<sql server>" --project ERP.Api
 
 # 2) قاعدة البيانات
-dotnet ef database update --project src/ERP.Service
+dotnet ef database update --project ERP.Service
 
 # 3) التشغيل (Development يفعّل Swagger والترحيل التلقائي و CORS لـ http://localhost:4200)
-dotnet run --project src/ERP.Api
+dotnet run --project ERP.Api
 ```
 
 في Development يوجد مفتاح JWT تجريبي في `appsettings.Development.json` — **لا تستخدمه خارج جهازك**.
@@ -90,11 +89,11 @@ dotnet run --project src/ERP.Api
 كلها أسرار/إعدادات بيئة لا تُكتب في المستودع. للفحص محلياً بمفاتيح الاختبار:
 
 ```bash
-dotnet user-secrets set "Paymob:SecretKey" "<sk_test_...>" --project src/ERP.Api
-dotnet user-secrets set "Paymob:PublicKey" "<pk_test_...>" --project src/ERP.Api
-dotnet user-secrets set "Paymob:HmacSecret" "<HMAC من لوحة Paymob>" --project src/ERP.Api
-dotnet user-secrets set "Paymob:IntegrationIds" "<رقم تكامل الاختبار>" --project src/ERP.Api
-dotnet user-secrets set "Paymob:PublicApiUrl" "<رابط https عام يصل للـ API المحلي، مثل نفق ngrok>" --project src/ERP.Api
+dotnet user-secrets set "Paymob:SecretKey" "<sk_test_...>" --project ERP.Api
+dotnet user-secrets set "Paymob:PublicKey" "<pk_test_...>" --project ERP.Api
+dotnet user-secrets set "Paymob:HmacSecret" "<HMAC من لوحة Paymob>" --project ERP.Api
+dotnet user-secrets set "Paymob:IntegrationIds" "<رقم تكامل الاختبار>" --project ERP.Api
+dotnet user-secrets set "Paymob:PublicApiUrl" "<رابط https عام يصل للـ API المحلي، مثل نفق ngrok>" --project ERP.Api
 ```
 
 `Paymob:FrontendUrl` مضبوط في `appsettings.Development.json` على `http://localhost:3000`. الدفع في وضع الاختبار يتم ببطاقات الاختبار

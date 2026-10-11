@@ -146,7 +146,8 @@ public class ArchitectureTests
         Assert.True(root != null, "تعذّر إيجاد جذر الحل (ERP.sln).");
 
         var separator = Path.DirectorySeparatorChar;
-        var actual = Directory.EnumerateFiles(Path.Combine(root!.FullName, "src"), "*.cs", SearchOption.AllDirectories)
+        var actual = new[] { "ERP.Api", "ERP.Service", "ERP.Core" }
+            .SelectMany(project => Directory.EnumerateFiles(Path.Combine(root!.FullName, project), "*.cs", SearchOption.AllDirectories))
             .Where(f => !f.Contains($"{separator}obj{separator}") && !f.Contains($"{separator}bin{separator}") && !f.Contains($"{separator}Migrations{separator}"))
             .Select(f => (File: Path.GetFileName(f), Count: File.ReadAllText(f).Split("IgnoreQueryFilters(").Length - 1))
             .Where(x => x.Count > 0)

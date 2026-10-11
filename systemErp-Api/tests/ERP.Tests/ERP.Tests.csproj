@@ -14,7 +14,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ERP.Api\ERP.Api.csproj" />
+    <ProjectReference Include="..\..\ERP.Api\ERP.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

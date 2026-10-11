@@ -78,8 +78,8 @@ CORS بقائمة أصول صريحة · أخطاء موحّدة بلا stack tr
 SQL Server + EF Core 9. الـ migrations في `ERP.Service/Data/Migrations`. **لا ترحيل تلقائي** إلا بـ `Database:AutoMigrate=true` (مفعّل في Development فقط).
 
 ```bash
-dotnet ef migrations add <Name> --project src/ERP.Service --output-dir Data/Migrations
-dotnet ef database update --project src/ERP.Service     # ERP_CONNECTION يحدّد قاعدة التصميم
+dotnet ef migrations add <Name> --project ERP.Service --output-dir Data/Migrations
+dotnet ef database update --project ERP.Service     # ERP_CONNECTION يحدّد قاعدة التصميم
 ```
 
 ## أرقام المستندات

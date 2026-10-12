@@ -3,6 +3,7 @@ namespace ERP.Core.Models.Accounting;
 
 public class JournalEntry : BaseEntity
 {
+    public string Module { get; set; } = "accounting";
     public string EntryNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;

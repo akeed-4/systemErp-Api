@@ -4,6 +4,7 @@ namespace ERP.Core.DTOs.Accounting;
 
 public class VoucherPostingRequest
 {
+    public string? Module { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public string Description { get; set; } = string.Empty;
     public Guid VoucherId { get; set; }

@@ -3,6 +3,7 @@ namespace ERP.Core.Models.Accounting;
 
 public class Voucher : BaseEntity
 {
+    public string Module { get; set; } = "accounting";
     public string VoucherNumber { get; set; } = string.Empty;
     public VoucherType Type { get; set; }
     public DateTime Date { get; set; }

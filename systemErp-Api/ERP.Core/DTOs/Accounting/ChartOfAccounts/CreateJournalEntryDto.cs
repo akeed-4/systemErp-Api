@@ -2,6 +2,7 @@ namespace ERP.Core.DTOs.Accounting;
 
 public partial class CreateJournalEntryDto
 {
+    public string? Module { get; set; }
     public string EntryNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;

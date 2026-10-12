@@ -20,6 +20,11 @@ public class PlatformController : ErpControllerBase
     [HttpGet("access")]
     public async Task<IActionResult> Access(CancellationToken ct) => Success(await _access.GetAsync(ct));
 
+    /// <summary>كتالوج الوحدات المعتمدة، يُستخدم لعرض تعريف موحّد للوحدات في الواجهة.</summary>
+    [HttpGet("modules")]
+    public async Task<IActionResult> Modules(CancellationToken ct)
+        => Success(await _platform.ListModulesAsync(ct));
+
     [HttpGet("summary"), RequirePlatformAdmin]
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _platform.SummaryAsync(ct));
 

@@ -14,7 +14,7 @@ public class PayrollTests : TestBase
     [Fact]
     public async Task Monthly_payroll_posts_one_balanced_entry_once_per_period_and_can_be_reversed()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var saudi = await api.Post("/employees", new { code = "E1", nameAr = "موظف سعودي", hireDate = "2025-01-01", basicSalary = 8000, housingAllowance = 2000,
             transportAllowance = 500, employeeGosiRate = 9.75, employerGosiRate = 11.75, status = "active" });
         Assert.Equal(201, saudi.Status);

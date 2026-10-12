@@ -52,6 +52,7 @@ public class VoucherService : IVoucherService
             Validate(r);
             await PrepareAllocationsAsync(r, null, token);
             var voucher = Mapper.Map<Voucher>(r);
+            voucher.Module = await ResolveModuleAsync(r, token);
             if (r.DepositVehicleId.HasValue) voucher.DepositStatus = "open";
             voucher.Date = r.Date == default ? DateTime.UtcNow : r.Date;
             voucher.VoucherNumber = await _numbers.NextAsync(r.Type == VoucherType.Receipt ? "receipt_voucher" : "payment_voucher",
@@ -82,6 +83,7 @@ public class VoucherService : IVoucherService
             var number = voucher.VoucherNumber;
             var date = voucher.Date;
             Mapper.Apply(r, voucher);
+            voucher.Module = await ResolveModuleAsync(r, token, voucher.Module);
             voucher.VoucherNumber = number;
             voucher.Date = r.Date == default ? date : r.Date;
             voucher.AmountInWordsAr = ArabicAmountInWords.Riyals(r.Amount);
@@ -199,6 +201,23 @@ public class VoucherService : IVoucherService
         }
     }
 
+    private async Task<string> ResolveModuleAsync(CreateVoucherDto r, CancellationToken ct, string? fallback = null)
+    {
+        if (r.DepositVehicleId.HasValue) return PlatformModules.CarShowroom;
+        if (r.Allocations.Count > 0)
+        {
+            var invoiceIds = r.Allocations.Select(a => a.InvoiceId).ToList();
+            var modules = await _db.Set<Invoice>().AsNoTracking().Where(i => invoiceIds.Contains(i.Id))
+                .Select(i => i.Module).Distinct().ToListAsync(ct);
+            if (modules.Count > 1) throw new ValidationFailedException("لا يمكن توزيع السند على فواتير من وحدات مختلفة.");
+            if (modules.Count == 1) return modules[0];
+        }
+
+        var requested = (r.Module ?? fallback ?? PlatformModules.Accounting).Trim().ToLowerInvariant();
+        if (!PlatformModules.All.Contains(requested)) throw new ValidationFailedException("وحدة السند غير معروفة.");
+        return requested;
+    }
+
     private async Task PostAsync(Voucher voucher, CreateVoucherDto r, CancellationToken token)
     {
         var treasury = r.IsSplitPayment && r.PaymentSplits.Count > 0
@@ -207,7 +226,7 @@ public class VoucherService : IVoucherService
 
         var posted = await _posting.PostVoucherAsync(new VoucherPostingRequest
         {
-            Date = voucher.Date,
+            Module = voucher.Module, Date = voucher.Date,
             Description = $"{(voucher.Type == VoucherType.Receipt ? "سند قبض" : "سند صرف")} {voucher.VoucherNumber} - {voucher.PartyName}",
             VoucherId = voucher.Id, VoucherNumber = voucher.VoucherNumber, Type = voucher.Type,
             PartyAccountCode = r.PartyAccountCode, Treasury = treasury, VatAmount = r.VatAmount,

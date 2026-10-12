@@ -20,6 +20,15 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
 
     // ---------- العرض ----------
 
+    public Task<List<PlatformModuleDto>> ListModulesAsync(CancellationToken ct = default)
+        => _db.Set<PlatformModuleDefinition>().AsNoTracking().Where(m => m.IsActive).OrderBy(m => m.SortOrder)
+            .Select(m => new PlatformModuleDto
+            {
+                Number = m.Number, Key = m.Key, NameAr = m.NameAr, NameEn = m.NameEn,
+                DescriptionAr = m.DescriptionAr, DescriptionEn = m.DescriptionEn,
+                Icon = m.Icon, SortOrder = m.SortOrder, IsActive = m.IsActive,
+            }).ToListAsync(ct);
+
     /// <summary>أحدث اشتراك لكل منشأة (بعد تجاوز مرشّح المنشأة).</summary>
     private async Task<Dictionary<Guid, Subscription>> LatestPerTenantAsync(CancellationToken ct)
     {

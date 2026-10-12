@@ -1891,6 +1891,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
@@ -2290,6 +2294,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("EntryNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("ReferenceId")
                         .HasColumnType("uniqueidentifier");
@@ -3090,6 +3098,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid?>("JournalEntryId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -6538,6 +6550,101 @@ namespace ERP.Service.Data.Migrations
                             PriceYearly = 9990m,
                             SortOrder = 3,
                             ZatcaPhase2Enabled = false
+                        });
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.PlatformModuleDefinition", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("DescriptionAr")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DescriptionEn")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.ToTable("PlatformModuleDefinition");
+
+                    b.HasData(
+                        new
+                        {
+                            Key = "accounting",
+                            DescriptionAr = "الحسابات والقيود والسندات والتقارير المالية.",
+                            DescriptionEn = "Accounts, journals, vouchers and financial reports.",
+                            Icon = "account_balance",
+                            IsActive = true,
+                            NameAr = "النظام المحاسبي",
+                            NameEn = "Accounting",
+                            Number = 1,
+                            SortOrder = 1
+                        },
+                        new
+                        {
+                            Key = "car_showroom",
+                            DescriptionAr = "مخزون المركبات والشراء والاستيراد وعقود البيع وتقارير المعرض.",
+                            DescriptionEn = "Vehicle inventory, procurement, sales contracts and showroom reports.",
+                            Icon = "directions_car",
+                            IsActive = true,
+                            NameAr = "معارض السيارات",
+                            NameEn = "Car Showroom",
+                            Number = 2,
+                            SortOrder = 2
+                        },
+                        new
+                        {
+                            Key = "pos",
+                            DescriptionAr = "البيع بالورديات والباركود والمرتجعات وطرق الدفع.",
+                            DescriptionEn = "Shift-based sales, barcode, returns and payment methods.",
+                            Icon = "point_of_sale",
+                            IsActive = true,
+                            NameAr = "نقاط البيع",
+                            NameEn = "Point of Sale",
+                            Number = 3,
+                            SortOrder = 3
+                        },
+                        new
+                        {
+                            Key = "hr",
+                            DescriptionAr = "الموظفون والإجازات والحضور والسلف والرواتب ونهاية الخدمة.",
+                            DescriptionEn = "Employees, leaves, attendance, loans, payroll and end of service.",
+                            Icon = "groups",
+                            IsActive = true,
+                            NameAr = "شؤون الموظفين",
+                            NameEn = "Human Resources",
+                            Number = 4,
+                            SortOrder = 4
                         });
                 });
 

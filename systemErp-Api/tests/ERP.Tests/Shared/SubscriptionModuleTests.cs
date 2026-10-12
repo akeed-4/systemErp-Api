@@ -19,16 +19,7 @@ public class SubscriptionModuleTests : TestBase
     private static readonly string[] Hr = { "/employees", "/departments", "/leavetypes", "/leaverequests/balances", "/attendance/summary", "/payroll" };
 
     private async Task<Client> TenantWithAsync(params string[] modules)
-    {
-        var admin = await NewTenantAsync("شركة مدير المنصة");
-        var host = Factory.WithWebHostBuilder(b => b.UseSetting("Platform:AdminEmails:0", admin.Email));
-        var root = await admin.LoginAsAsync(host.CreateClient(), admin.Email, "Passw0rd!");
-
-        var tenant = await NewTenantAsync("شركة " + string.Join("+", modules));
-        var set = await root.Post($"/platform/tenants/{tenant.TenantId}/subscriptions/modules", new { modules });
-        Assert.Equal(200, set.Status);
-        return tenant;
-    }
+        => await NewTenantWithModulesAsync(modules);
 
     private static async Task AssertAsync(Client tenant, IEnumerable<string> paths, bool allowed)
     {
@@ -38,6 +29,23 @@ public class SubscriptionModuleTests : TestBase
             if (allowed) Assert.True(status != 403, $"{path} مرفوض ({status}) وكان يجب أن يُسمح");
             else Assert.True(status == 403, $"{path} مسموح ({status}) وكان يجب أن يُرفض");
         }
+    }
+
+    [Fact]
+    public async Task The_authenticated_module_catalog_lists_all_registered_modules_in_order()
+    {
+        var tenant = await NewTenantAsync();
+        var response = await tenant.Get("/platform/modules");
+        Assert.Equal(200, response.Status);
+        var modules = response.Data!.AsArray();
+        Assert.Equal(new[] { "accounting", "car_showroom", "pos", "hr" }, modules.Select(m => m!["key"].S()));
+        Assert.Equal(new[] { 1, 2, 3, 4 }, modules.Select(m => m!["number"].GetValue<int>()));
+        Assert.All(modules, module =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(module!["nameAr"].S()));
+            Assert.False(string.IsNullOrWhiteSpace(module!["nameEn"].S()));
+        });
+        Assert.Equal(401, (await new Client(NewHttp()).Get("/platform/modules")).Status);
     }
 
     [Theory]

@@ -23,7 +23,7 @@ public class HrLoanAndEndOfServiceTests : TestBase
     [Fact]
     public async Task Loan_is_posted_deducted_by_payroll_installments_and_restored_on_reversal()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var employee = await EmployeeAsync(api, "E1", Today.AddYears(-1)); // الراتب 7500
         var month = new DateTime(Today.Year, Today.Month, 1).AddMonths(-3); // ثلاثة أشهر مكتملة قبل الشهر الحالي
         string Period(int offset) => month.AddMonths(offset).ToString("yyyy-MM");
@@ -86,7 +86,7 @@ public class HrLoanAndEndOfServiceTests : TestBase
     [InlineData("dismissal", 8, 0.0, 0)]
     public async Task End_of_service_award_follows_the_labor_law_tiers(string reason, int years, double factor, double award)
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var lastDay = Today;
         // مدة الخدمة تُحسب بالأيام ÷ 365: نختار تاريخ الالتحاق ليعطي عدد السنين بالضبط
         var employee = await EmployeeAsync(api, "E1", lastDay.AddDays(-(years * 365 - 1)));
@@ -100,7 +100,7 @@ public class HrLoanAndEndOfServiceTests : TestBase
     [Fact]
     public async Task Settlement_pays_award_and_leave_balance_settles_loans_and_terminates_the_employee()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var lastDay = Today;
         var employee = await EmployeeAsync(api, "E1", lastDay.AddDays(-(2 * 365 - 1))); // سنتان بالضبط
         var loan = await api.Post("/employeeloans", new { employeeId = employee, date = Day(Today.AddDays(-10)), amount = 2000, installmentAmount = 500, firstDeductionPeriod = Today.AddMonths(1).ToString("yyyy-MM") });

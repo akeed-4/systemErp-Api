@@ -5,6 +5,7 @@ namespace ERP.Core.DTOs.Accounting;
 /// <summary>قيد عام متوازن (يدوي أو من أي وحدة).</summary>
 public class GenericPostingRequest
 {
+    public string? Module { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public string Description { get; set; } = string.Empty;
     public string? SourceType { get; set; }

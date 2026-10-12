@@ -96,6 +96,7 @@ public class JournalService : IJournalService
 
     private static GenericPostingRequest ToRequest(CreateJournalEntryDto r) => new()
     {
+        Module = r.Module,
         Date = r.Date == default ? DateTime.UtcNow : r.Date,
         Description = string.IsNullOrWhiteSpace(r.Description) ? "قيد يومية" : r.Description,
         SourceType = "manual",

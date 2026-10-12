@@ -13,15 +13,15 @@ public class FinancialStatementsController : ErpControllerBase
 
     [HttpGet("IncomeStatement")]
     public async Task<IActionResult> IncomeStatement([FromQuery] DateTime from, [FromQuery] DateTime to,
-        [FromQuery] DateTime? compareFrom, [FromQuery] DateTime? compareTo, CancellationToken ct)
-        => Success(await _statements.GetIncomeStatementAsync(from, to, compareFrom, compareTo, ct));
+        [FromQuery] DateTime? compareFrom, [FromQuery] DateTime? compareTo, [FromQuery] string? module, CancellationToken ct)
+        => Success(await _statements.GetIncomeStatementAsync(from, to, compareFrom, compareTo, module, ct));
 
     [HttpGet("FinancialPosition")]
-    public async Task<IActionResult> FinancialPosition([FromQuery] DateTime? asOf, [FromQuery] DateTime? compareAsOf, CancellationToken ct)
-        => Success(await _statements.GetFinancialPositionAsync(asOf, compareAsOf, ct));
+    public async Task<IActionResult> FinancialPosition([FromQuery] DateTime? asOf, [FromQuery] DateTime? compareAsOf, [FromQuery] string? module, CancellationToken ct)
+        => Success(await _statements.GetFinancialPositionAsync(asOf, compareAsOf, module, ct));
 
     [HttpGet("CashFlow")]
     public async Task<IActionResult> CashFlow([FromQuery] DateTime from, [FromQuery] DateTime to,
-        [FromQuery] DateTime? compareFrom, [FromQuery] DateTime? compareTo, CancellationToken ct)
-        => Success(await _statements.GetCashFlowAsync(from, to, compareFrom, compareTo, ct));
+        [FromQuery] DateTime? compareFrom, [FromQuery] DateTime? compareTo, [FromQuery] string? module, CancellationToken ct)
+        => Success(await _statements.GetCashFlowAsync(from, to, compareFrom, compareTo, module, ct));
 }

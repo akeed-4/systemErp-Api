@@ -32,11 +32,11 @@ public class ReportsController : ErpControllerBase
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _accounting.GetFinancialSummaryAsync(ct));
 
     [HttpGet("BalanceSheet"), RequireScreen("reports")]
-    public async Task<IActionResult> BalanceSheet([FromQuery] DateTime? asOf, CancellationToken ct) => Success(await _accounting.GetBalanceSheetAsync(asOf, ct));
+    public async Task<IActionResult> BalanceSheet([FromQuery] DateTime? asOf, [FromQuery] string? module, CancellationToken ct) => Success(await _accounting.GetBalanceSheetAsync(asOf, module, ct));
 
     [HttpGet("VatReturn"), RequireScreen("reports")]
-    public async Task<IActionResult> Vat([FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
-        => Success(await _accounting.GetVatReturnAsync(from, to, ct));
+    public async Task<IActionResult> Vat([FromQuery] DateTime from, [FromQuery] DateTime to, [FromQuery] string? module, CancellationToken ct)
+        => Success(await _accounting.GetVatReturnAsync(from, to, module, ct));
 
     /// <summary>أعمار الديون (type = receivable للعملاء أو payable للموردين) حتى تاريخ.</summary>
     [HttpGet("Aging"), RequireScreen("reports")]
@@ -45,27 +45,27 @@ public class ReportsController : ErpControllerBase
 
     /// <summary>رأس كشف الحساب (الرصيد الافتتاحي والختامي) مع الحركات كاملة.</summary>
     [HttpGet("AccountStatement/{code}"), RequireScreen("reports")]
-    public async Task<IActionResult> Statement(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
-        => Success(await _accounting.GetAccountStatementAsync(code, from, to, ct));
+    public async Task<IActionResult> Statement(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, CancellationToken ct)
+        => Success(await _accounting.GetAccountStatementAsync(code, from, to, module, ct));
 
     // ---------- تقارير قائمية (DevExtreme loadOptions) ----------
     [HttpGet("TrialBalance"), RequireScreen("reports")]
-    public async Task<IActionResult> TrialBalance([FromQuery] DateTime? from, [FromQuery] DateTime? to, DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _accounting.LoadTrialBalanceAsync(from, to, loadOptions, ct));
+    public async Task<IActionResult> TrialBalance([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadTrialBalanceAsync(from, to, loadOptions, module, ct));
 
     [HttpGet("AccountStatement/{code}/Entries"), RequireScreen("reports")]
-    public async Task<IActionResult> StatementEntries(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _accounting.LoadAccountStatementEntriesAsync(code, from, to, loadOptions, ct));
+    public async Task<IActionResult> StatementEntries(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadAccountStatementEntriesAsync(code, from, to, loadOptions, module, ct));
 
     /// <summary>الأرصدة الحالية للحسابات بعمودي مدين/دائن (ميزان الأرصدة في شاشة التقارير).</summary>
     [HttpGet("AccountBalances"), RequireScreen("reports")]
-    public async Task<IActionResult> AccountBalances(DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _accounting.LoadAccountBalancesAsync(loadOptions, ct));
+    public async Task<IActionResult> AccountBalances([FromQuery] string? module, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadAccountBalancesAsync(loadOptions, module, ct));
 
     /// <summary>دفتر اليومية: سطر لكل طرف مدين/دائن.</summary>
     [HttpGet("JournalLedger"), RequireScreen("reports")]
-    public async Task<IActionResult> JournalLedger(DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, ct));
+    public async Task<IActionResult> JournalLedger([FromQuery] string? module, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, module, ct));
 
     [HttpGet("InventoryAudit"), RequireScreen("reports")]
     public async Task<IActionResult> Audit([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)

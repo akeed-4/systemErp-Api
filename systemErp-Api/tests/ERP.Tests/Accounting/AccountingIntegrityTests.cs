@@ -210,6 +210,80 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(-15, vat["netVatPayable"].D());
     }
 
+    [Fact]
+    public async Task Accounting_reports_are_scoped_to_the_requested_module()
+    {
+        var api = await NewTenantAsync();
+        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(price: 100))).Status);
+        var (supplier, _) = await SeedSupplierAsync(api);
+        var purchase = await api.Post("/invoices", new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, status = "posted",
+            inventoryAccountCode = "1142",
+            vehicleLines = new[]
+            {
+                new { vin = Client.NewVin('2'), brandNameAr = "تويوتا", modelNameAr = "كامري", trimNameAr = "GLE", year = 2025,
+                    colorExterior = "أبيض", colorInterior = "بيج", vatMode = "standard_15", unitPrice = 1000m, discount = 0m },
+            },
+        });
+        Assert.Equal(201, purchase.Status);
+
+        var vehicle = (await api.Get("/vehicles")).Data!["items"]!.AsArray()[0]!;
+        var sale = await api.Post("/invoices", new
+        {
+            kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",
+            vehicleLines = new[] { new { vehicleId = vehicle["id"].S(), unitPrice = 1500m, discount = 0m, vatMode = "standard_15" } },
+        });
+        Assert.Equal(201, sale.Status);
+
+        var from = DateTime.UtcNow.Date.AddDays(-1).ToString("yyyy-MM-dd");
+        var to = DateTime.UtcNow.Date.AddDays(1).ToString("yyyy-MM-dd");
+        var accountingVat = (await api.Get($"/reports/VatReturn?from={from}&to={to}&module=accounting")).Data!;
+        var showroomVat = (await api.Get($"/reports/VatReturn?from={from}&to={to}&module=car_showroom")).Data!;
+        var combinedVat = (await api.Get($"/reports/VatReturn?from={from}&to={to}&module=accounting,car_showroom")).Data!;
+        var allVat = (await api.Get($"/reports/VatReturn?from={from}&to={to}")).Data!;
+        Assert.Equal(100, accountingVat["standardRatedSales"].D());
+        Assert.Equal(0, accountingVat["standardRatedPurchases"].D());
+        Assert.Equal(1500, showroomVat["standardRatedSales"].D());
+        Assert.Equal(1000, showroomVat["standardRatedPurchases"].D());
+        Assert.Equal(allVat["standardRatedSales"].D(), combinedVat["standardRatedSales"].D());
+        Assert.Equal(allVat["standardRatedPurchases"].D(), combinedVat["standardRatedPurchases"].D());
+        Assert.Equal(1600, allVat["standardRatedSales"].D());
+        Assert.Equal(1000, allVat["standardRatedPurchases"].D());
+
+        var accountingBalances = (await api.Get("/reports/AccountBalances?module=accounting")).Data!.AsArray();
+        var showroomBalances = (await api.Get("/reports/AccountBalances?module=car_showroom")).Data!.AsArray();
+        Assert.Contains(accountingBalances, row => row!["code"]!.S() == "411");
+        Assert.DoesNotContain(accountingBalances, row => row!["code"]!.S() == "1142");
+        Assert.Contains(showroomBalances, row => row!["code"]!.S() == "1142");
+        Assert.DoesNotContain(showroomBalances, row => row!["code"]!.S() == "411");
+
+        var accountingLedger = (await api.Get("/reports/JournalLedger?module=accounting")).Data!.AsArray();
+        var showroomLedger = (await api.Get("/reports/JournalLedger?module=car_showroom")).Data!.AsArray();
+        Assert.Contains(accountingLedger, row => row!["accountCode"]!.S() == "411");
+        Assert.DoesNotContain(accountingLedger, row => row!["accountCode"]!.S() == "1142");
+        Assert.Contains(showroomLedger, row => row!["accountCode"]!.S() == "1142");
+        Assert.DoesNotContain(showroomLedger, row => row!["accountCode"]!.S() == "411");
+
+        var accountingTrial = Totals(await api.Get("/reports/TrialBalance?module=accounting"));
+        var showroomTrial = Totals(await api.Get("/reports/TrialBalance?module=car_showroom"));
+        var combinedTrial = Totals(await api.Get("/reports/TrialBalance?module=accounting,car_showroom"));
+        var allTrial = Totals(await api.Get("/reports/TrialBalance"));
+        Assert.Equal(accountingTrial.Debit, accountingTrial.Credit);
+        Assert.Equal(showroomTrial.Debit, showroomTrial.Credit);
+        Assert.NotEqual(accountingTrial.Debit, showroomTrial.Debit);
+        Assert.Equal(allTrial.Debit, combinedTrial.Debit);
+
+        var accountingPosition = (await api.Get($"/reports/BalanceSheet?asOf={to}&module=accounting")).Data!;
+        var showroomPosition = (await api.Get($"/reports/BalanceSheet?asOf={to}&module=car_showroom")).Data!;
+        Assert.True(accountingPosition["isBalanced"]!.GetValue<bool>());
+        Assert.True(showroomPosition["isBalanced"]!.GetValue<bool>());
+
+        var income = (await api.Get($"/financialstatements/IncomeStatement?from={from}&to={to}&module=car_showroom")).Data!;
+        Assert.Equal(1500, income["revenue"]!["total"].D());
+        Assert.Equal(1000, income["costOfSales"]!["total"].D());
+    }
+
     // ---------- التزامن ----------
     [Fact]
     public async Task Concurrent_sales_never_lose_a_balance_update_or_oversell_stock()

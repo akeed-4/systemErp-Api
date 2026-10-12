@@ -5,6 +5,7 @@ namespace ERP.Core.DTOs.Accounting;
 /// <summary>أثر بيع (فاتورة مبيعات، بيع POS، بيع سيارة). المبالغ موجبة، و IsReturn يعكس القيد.</summary>
 public class SalePostingRequest
 {
+    public string? Module { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public string Description { get; set; } = string.Empty;
     public string SourceType { get; set; } = string.Empty;

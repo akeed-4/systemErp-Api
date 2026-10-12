@@ -14,7 +14,7 @@ public class HrEmployeeTests : TestBase
     [Fact]
     public async Task Employee_profile_is_validated_and_linked_to_a_department()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var dept = await api.Post("/departments", new { code = "D-SALES", nameAr = "المبيعات" });
         Assert.Equal(201, dept.Status);
         Assert.Equal(409, (await api.Post("/departments", new { code = "D-SALES", nameAr = "مكرر" })).Status);
@@ -48,7 +48,7 @@ public class HrEmployeeTests : TestBase
     [Fact]
     public async Task Expiring_documents_and_contracts_are_listed_nearest_first_for_active_employees_only()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         async Task<string> Add(string code, object extra, string status = "active")
         {
             var r = await api.Post("/employees", Merge(new { code, nameAr = "موظف " + code, hireDate = "2024-01-01", basicSalary = 3000, status }, extra));
@@ -75,7 +75,7 @@ public class HrEmployeeTests : TestBase
     [Fact]
     public async Task Summary_counts_headcount_saudization_and_monthly_cost_for_active_employees()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var dept = (await api.Post("/departments", new { code = "D1", nameAr = "الإدارة" })).Data!["id"].S();
         await api.Post("/employees", new { code = "E1", nameAr = "سعودي", hireDate = "2024-01-01", basicSalary = 8000, housingAllowance = 2000, employerGosiRate = 11.75, departmentId = dept });
         await api.Post("/employees", new { code = "E2", nameAr = "مقيم", hireDate = "2024-01-01", basicSalary = 4000, transportAllowance = 500, idType = "iqama", employerGosiRate = 2 });
@@ -100,9 +100,9 @@ public class HrEmployeeTests : TestBase
     [Fact]
     public async Task Hr_endpoints_require_authentication_and_are_isolated_per_tenant()
     {
-        var first = await NewTenantAsync();
+        var first = await NewTenantWithModulesAsync("hr");
         await first.Post("/employees", new { code = "E1", nameAr = "موظف", hireDate = "2024-01-01", basicSalary = 3000, idExpiryDate = Day(3) });
-        var second = await NewTenantAsync();
+        var second = await NewTenantWithModulesAsync("hr");
 
         Assert.Empty((await second.Get("/employees/expiring")).Data!.AsArray());
         Assert.Equal(0, (await second.Get("/employees/summary")).Data!["activeCount"]!.GetValue<int>());

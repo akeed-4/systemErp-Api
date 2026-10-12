@@ -4,6 +4,7 @@ namespace ERP.Core.DTOs.Accounting;
 
 public class PurchasePostingRequest
 {
+    public string? Module { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public string Description { get; set; } = string.Empty;
     public string SourceType { get; set; } = string.Empty;

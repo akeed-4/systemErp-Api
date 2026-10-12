@@ -31,7 +31,7 @@ public class HrLeaveTests : TestBase
     [Fact]
     public async Task Default_leave_types_are_created_on_first_read_and_validated()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var types = await TypesAsync(api);
         Assert.Contains("annual", types.Keys); Assert.Contains("sick_75", types.Keys); Assert.Contains("unpaid", types.Keys);
         Assert.Equal(types.Count, (await TypesAsync(api)).Count); // لا تتكرر في القراءة الثانية
@@ -45,7 +45,7 @@ public class HrLeaveTests : TestBase
     [Fact]
     public async Task Annual_balance_accrues_daily_and_requests_cannot_exceed_it()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var types = await TypesAsync(api);
         // سنتا خدمة بالاستحقاق الأساسي: نحو 42 يوماً
         var employee = await EmployeeAsync(api, "E1");
@@ -79,7 +79,7 @@ public class HrLeaveTests : TestBase
     [Fact]
     public async Task Request_lifecycle_enforces_overlap_limits_and_decisions()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var types = await TypesAsync(api);
         var employee = await EmployeeAsync(api, "E1");
 
@@ -123,7 +123,7 @@ public class HrLeaveTests : TestBase
     [Fact]
     public async Task Unpaid_leave_is_deducted_from_payroll_and_locked_once_the_month_is_posted()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var types = await TypesAsync(api);
         var employee = await EmployeeAsync(api, "E1"); // الراتب الثابت 7500 ← أجر اليوم 250
         var month = new DateTime(Today.Year, Today.Month, 1).AddMonths(-1);

@@ -16,12 +16,14 @@ public class AccountingReportService : IAccountingReportService
     private IQueryable<Account> Accounts => _db.Set<Account>().AsNoTracking();
 
     /// <summary>ميزان المراجعة: صف لكل حساب تحرّك حتى نهاية الفترة، مجمَّعاً في قاعدة البيانات.</summary>
-    private IQueryable<TrialBalanceItemDto> TrialBalanceQuery(DateTime? from, DateTime? to)
+    private IQueryable<TrialBalanceItemDto> TrialBalanceQuery(DateTime? from, DateTime? to, string? module)
     {
         DateTime? start = from, end = to;
+        var moduleScope = ReportModuleScope.Normalize(module);
         var hasStart = start.HasValue;
         var lines = from l in Lines
                     join e in Entries on l.JournalEntryId equals e.Id
+                    where moduleScope == null || moduleScope.Contains(e.Module)
                     select new { l.AccountCode, l.Debit, l.Credit, e.Date };
         if (end.HasValue) lines = lines.Where(l => l.Date <= end);
 
@@ -59,15 +61,18 @@ public class AccountingReportService : IAccountingReportService
         public string? Notes { get; set; }
     }
 
-    private IQueryable<LedgerLine> AccountLines(string accountCode)
-        => from l in Lines
-           join e in Entries on l.JournalEntryId equals e.Id
-           where l.AccountCode == accountCode
-           select new LedgerLine
-           {
-               Id = l.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, EntryNumber = e.EntryNumber,
-               Description = e.Description, ReferenceNumber = e.ReferenceNumber, Notes = l.Notes,
-           };
+    private IQueryable<LedgerLine> AccountLines(string accountCode, string? module)
+    {
+        var moduleScope = ReportModuleScope.Normalize(module);
+        return from l in Lines
+               join e in Entries on l.JournalEntryId equals e.Id
+               where l.AccountCode == accountCode && (moduleScope == null || moduleScope.Contains(e.Module))
+               select new LedgerLine
+               {
+                   Id = l.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, EntryNumber = e.EntryNumber,
+                   Description = e.Description, ReferenceNumber = e.ReferenceNumber, Notes = l.Notes,
+               };
+    }
 
     private static IQueryable<LedgerLine> InPeriod(IQueryable<LedgerLine> lines, DateTime? from, DateTime? to)
     {
@@ -83,10 +88,10 @@ public class AccountingReportService : IAccountingReportService
     /// حركات الحساب في الفترة، والرصيد الجاري لكل حركة يُحسب في قاعدة البيانات: مجموع كل ما سبقها (ومنه ما قبل الفترة)
     /// بترتيب التاريخ ثم رقم القيد ثم السطر.
     /// </summary>
-    private IQueryable<AccountLedgerEntryDto> StatementEntries(Account account, DateTime? from, DateTime? to)
+    private IQueryable<AccountLedgerEntryDto> StatementEntries(Account account, DateTime? from, DateTime? to, string? module)
     {
         var debitNature = account.IsDebitNature;
-        var all = AccountLines(account.Code);
+        var all = AccountLines(account.Code, module);
         return InPeriod(all, from, to).Select(x => new AccountLedgerEntryDto
         {
             Id = x.Id, Date = x.Date, EntryNumber = x.EntryNumber, Description = string.IsNullOrWhiteSpace(x.Notes) ? x.Description : x.Notes!,
@@ -97,17 +102,17 @@ public class AccountingReportService : IAccountingReportService
         });
     }
 
-    public async Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, CancellationToken ct = default)
+    public async Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, string? module = null, CancellationToken ct = default)
     {
         var account = await AccountAsync(accountCode, ct);
         var debitNature = account.IsDebitNature;
-        var all = AccountLines(account.Code);
+        var all = AccountLines(account.Code, module);
         var opening = from.HasValue ? await all.Where(x => x.Date < from).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct) : 0m;
         var movement = await InPeriod(all, from, to).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct);
         return new AccountStatementDto
         {
             AccountCode = account.Code, AccountNameAr = account.NameAr, OpeningBalance = opening, ClosingBalance = opening + movement,
-            Entries = await StatementEntries(account, from, to).OrderBy(x => x.Date).ThenBy(x => x.EntryNumber).ThenBy(x => x.Id).ToListAsync(ct),
+            Entries = await StatementEntries(account, from, to, module).OrderBy(x => x.Date).ThenBy(x => x.EntryNumber).ThenBy(x => x.Id).ToListAsync(ct),
         };
     }
 
@@ -164,13 +169,14 @@ public class AccountingReportService : IAccountingReportService
         };
     }
 
-    public async Task<BalanceSheetDto> GetBalanceSheetAsync(DateTime? asOf, CancellationToken ct = default)
+    public async Task<BalanceSheetDto> GetBalanceSheetAsync(DateTime? asOf, string? module = null, CancellationToken ct = default)
     {
         var date = (asOf ?? DateTime.UtcNow).Date;
         var end = date.AddDays(1);
+        var moduleScope = ReportModuleScope.Normalize(module);
         var movements = from l in Lines
                         join e in Entries on l.JournalEntryId equals e.Id
-                        where e.Date < end
+                        where e.Date < end && (moduleScope == null || moduleScope.Contains(e.Module))
                         group l by l.AccountCode into g
                         select new { Code = g.Key, Net = g.Sum(x => x.Debit) - g.Sum(x => x.Credit) };
         // صف لكل حساب له رصيد: هذا حجم القائمة نفسها
@@ -201,12 +207,13 @@ public class AccountingReportService : IAccountingReportService
     /// تسويات الضريبة بقيود يدوية في الفترة: ما قُيِّد يدوياً على حسابي ضريبة المخرجات والمدخلات.
     /// قيد سداد الضريبة للهيئة أو مقاصّتها ليس تسوية: يُعرف بأن سطوره الأخرى كلها نقدية/بنوك أو حسابات ضريبة، فيُستثنى.
     /// </summary>
-    private async Task<(decimal Output, decimal Input)> ManualVatAdjustmentsAsync(DateTime start, DateTime end, CancellationToken ct)
+    private async Task<(decimal Output, decimal Input)> ManualVatAdjustmentsAsync(DateTime start, DateTime end, string[]? moduleScope, CancellationToken ct)
     {
         var vatAccounts = new[] { DefaultAccounts.OutputVat, DefaultAccounts.InputVat };
         // القيد اليدوي وعكسه (العكس يُلغي أثر التسوية في فترته)
         var manualEntryIds = from e in Entries
                              where e.Date >= start && e.Date < end
+                                   && (moduleScope == null || moduleScope.Contains(e.Module))
                                    && (e.SourceType == null || e.SourceType == "manual"
                                        || (e.SourceType == "reversal" && Entries.Any(o => o.Id == e.SourceReferenceId && (o.SourceType == null || o.SourceType == "manual"))))
                              select e.Id;
@@ -220,16 +227,18 @@ public class AccountingReportService : IAccountingReportService
         return (DocumentPricing.Round(output), DocumentPricing.Round(input));
     }
 
-    public async Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, CancellationToken ct = default)
+    public async Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, string? module = null, CancellationToken ct = default)
     {
         if (to < from) throw new ValidationFailedException(Messages.PeriodEndBeforeStart);
         // من سطور الفواتير المرحّلة في الفترة: كل سطر بتصنيفه الضريبي، محوَّلاً للعملة الأساسية، والمرتجعات تُطرح.
         // التجميع في قاعدة البيانات: صف لكل (مبيعات/مشتريات، تصنيف ضريبي، صادرات أو لا)
         var start = from.Date; var end = to.Date.AddDays(1);
+        var moduleScope = ReportModuleScope.Normalize(module);
         var exportCodes = VatExemptionReasons.ExportCodes;
         var lines = await (from item in _db.Set<InvoiceItem>().AsNoTracking()
                            join i in _db.Set<Invoice>().AsNoTracking() on item.InvoiceId equals i.Id
                            where i.Status == "posted" && i.IssueDate >= start && i.IssueDate < end
+                                 && (moduleScope == null || moduleScope.Contains(i.Module))
                            select new
                            {
                                Sales = i.Kind == InvoiceKind.Sales || i.Kind == InvoiceKind.SalesReturn,
@@ -252,12 +261,13 @@ public class AccountingReportService : IAccountingReportService
                 .Sum(l => vat ? l.Vat : l.Net));
 
         // مصروفات وإيرادات مباشرة بضريبة مسجَّلة بسندات صرف/قبض (خاضعة للنسبة الأساسية)
-        var vouchers = await _db.Set<Voucher>().AsNoTracking().Where(v => v.VatAmount > 0 && v.Date >= start && v.Date < end)
+        var vouchers = await _db.Set<Voucher>().AsNoTracking().Where(v => v.VatAmount > 0 && v.Date >= start && v.Date < end
+                && (moduleScope == null || moduleScope.Contains(v.Module)))
             .GroupBy(v => v.Type).Select(g => new { Type = g.Key, Net = g.Sum(v => v.Amount - v.VatAmount), Vat = g.Sum(v => v.VatAmount) }).ToListAsync(ct);
         decimal VoucherNet(VoucherType type) => vouchers.Where(v => v.Type == type).Sum(v => v.Net);
         decimal VoucherVat(VoucherType type) => vouchers.Where(v => v.Type == type).Sum(v => v.Vat);
 
-        var (outAdjustments, inAdjustments) = await ManualVatAdjustmentsAsync(start, end, ct);
+        var (outAdjustments, inAdjustments) = await ManualVatAdjustmentsAsync(start, end, moduleScope, ct);
         var outVat = Sum(true, null, vat: true) + VoucherVat(VoucherType.Receipt) + outAdjustments;
         var inVat = Sum(false, null, vat: true) + VoucherVat(VoucherType.Payment) + inAdjustments;
         return new VatReturnDto
@@ -274,31 +284,61 @@ public class AccountingReportService : IAccountingReportService
         };
     }
 
-    public Task<LoadResult> LoadTrialBalanceAsync(DateTime? from, DateTime? to, DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(TrialBalanceQuery(from, to), options, nameof(TrialBalanceItemDto.AccountCode), ct,
+    public Task<LoadResult> LoadTrialBalanceAsync(DateTime? from, DateTime? to, DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(TrialBalanceQuery(from, to, module), options, nameof(TrialBalanceItemDto.AccountCode), ct,
             EntityLoader.Asc(nameof(TrialBalanceItemDto.AccountCode)));
 
-    public async Task<LoadResult> LoadAccountStatementEntriesAsync(string accountCode, DateTime? from, DateTime? to, DataSourceLoadOptions options, CancellationToken ct = default)
-        => await ReportLoader.LoadAsync(StatementEntries(await AccountAsync(accountCode, ct), from, to), options, nameof(AccountLedgerEntryDto.Id), ct,
+    public async Task<LoadResult> LoadAccountStatementEntriesAsync(string accountCode, DateTime? from, DateTime? to, DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
+        => await ReportLoader.LoadAsync(StatementEntries(await AccountAsync(accountCode, ct), from, to, module), options, nameof(AccountLedgerEntryDto.Id), ct,
             EntityLoader.Asc(nameof(AccountLedgerEntryDto.Date)), EntityLoader.Asc(nameof(AccountLedgerEntryDto.EntryNumber)));
 
-    public Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => EntityLoader.LoadRowsAsync(_db.Set<Account>().AsNoTracking().Select(a => new AccountBalanceRowDto
+    public Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
+    {
+        var moduleScope = ReportModuleScope.Normalize(module);
+        IQueryable<AccountBalanceRowDto> rows;
+        if (moduleScope == null)
         {
-            Id = a.Id, Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn, Type = a.Type, Level = a.Level,
-            Balance = a.Balance, IsDebitNature = a.IsDebitNature,
-            Debit = a.IsDebitNature ? Math.Abs(a.Balance) : 0m,
-            Credit = a.IsDebitNature ? 0m : Math.Abs(a.Balance),
-        }), options, nameof(AccountBalanceRowDto.Id), ct, EntityLoader.Asc(nameof(AccountBalanceRowDto.Code)));
+            rows = Accounts.Select(a => new AccountBalanceRowDto
+            {
+                Id = a.Id, Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn, Type = a.Type, Level = a.Level,
+                Balance = a.Balance, IsDebitNature = a.IsDebitNature,
+                Debit = a.IsDebitNature ? Math.Abs(a.Balance) : 0m,
+                Credit = a.IsDebitNature ? 0m : Math.Abs(a.Balance),
+            });
+        }
+        else
+        {
+            var totals = from line in Lines
+                         join entry in Entries on line.JournalEntryId equals entry.Id
+                         where moduleScope.Contains(entry.Module)
+                         group line by line.AccountCode into grouped
+                         select new { Code = grouped.Key, Debit = grouped.Sum(x => x.Debit), Credit = grouped.Sum(x => x.Credit) };
+            rows = from total in totals
+                   join account in Accounts on total.Code equals account.Code
+                   let balance = account.IsDebitNature ? total.Debit - total.Credit : total.Credit - total.Debit
+                   select new AccountBalanceRowDto
+                   {
+                       Id = account.Id, Code = account.Code, NameAr = account.NameAr, NameEn = account.NameEn, Type = account.Type, Level = account.Level,
+                       Balance = balance, IsDebitNature = account.IsDebitNature,
+                       Debit = account.IsDebitNature ? Math.Abs(balance) : 0m,
+                       Credit = account.IsDebitNature ? 0m : Math.Abs(balance),
+                   };
+        }
+        return EntityLoader.LoadRowsAsync(rows, options, nameof(AccountBalanceRowDto.Id), ct, EntityLoader.Asc(nameof(AccountBalanceRowDto.Code)));
+    }
 
-    public Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => EntityLoader.LoadRowsAsync(
+    public Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
+    {
+        var moduleScope = ReportModuleScope.Normalize(module);
+        return EntityLoader.LoadRowsAsync(
             from l in _db.Set<JournalEntryLine>().AsNoTracking()
             join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
+            where moduleScope == null || moduleScope.Contains(e.Module)
             select new JournalLedgerRowDto
             {
                 LineId = l.Id, EntryId = e.Id, EntryNumber = e.EntryNumber, Date = e.Date, Description = e.Description,
                 AccountCode = l.AccountCode, AccountName = l.AccountName, Debit = l.Debit, Credit = l.Credit, ReferenceType = e.ReferenceType,
             }, options, nameof(JournalLedgerRowDto.LineId), ct,
             EntityLoader.Desc(nameof(JournalLedgerRowDto.Date)), EntityLoader.Desc(nameof(JournalLedgerRowDto.EntryNumber)));
+    }
 }

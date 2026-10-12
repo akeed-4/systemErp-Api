@@ -22,13 +22,15 @@ public class FinancialStatementService : IFinancialStatementService
     private sealed record Movement(string Code, decimal Net);
 
     /// <summary>صافي (مدين − دائن) لكل حساب في [from, to] شاملاً اليومين؛ from الفارغ = منذ البداية.</summary>
-    private async Task<List<Movement>> NetByAccountAsync(DateTime? from, DateTime to, bool excludeYearClosing, CancellationToken ct)
+    private async Task<List<Movement>> NetByAccountAsync(DateTime? from, DateTime to, bool excludeYearClosing, string? module, CancellationToken ct)
     {
         var end = to.Date.AddDays(1);
         var start = @from;
+        var moduleScope = ReportModuleScope.Normalize(module);
         var q = from l in _db.Set<JournalEntryLine>().AsNoTracking()
                 join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
                 where e.Date < end && (start == null || e.Date >= start) && (!excludeYearClosing || e.SourceType != YearClosingSource)
+                      && (moduleScope == null || moduleScope.Contains(e.Module))
                 group l by l.AccountCode into g
                 select new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) };
         return (await q.ToListAsync(ct)).Select(m => new Movement(m.Code, m.Debit - m.Credit)).ToList();
@@ -68,15 +70,15 @@ public class FinancialStatementService : IFinancialStatementService
     }
 
     // ---------------- قائمة الدخل ----------------
-    public async Task<IncomeStatementDto> GetIncomeStatementAsync(DateTime from, DateTime to, DateTime? compareFrom, DateTime? compareTo, CancellationToken ct = default)
+    public async Task<IncomeStatementDto> GetIncomeStatementAsync(DateTime from, DateTime to, DateTime? compareFrom, DateTime? compareTo, string? module = null, CancellationToken ct = default)
     {
         EnsurePeriod(from, to);
         var compare = compareFrom.HasValue && compareTo.HasValue;
         if (compare) EnsurePeriod(compareFrom!.Value, compareTo!.Value);
 
         var accounts = await AccountsAsync(ct);
-        var current = await NetByAccountAsync(from.Date, to, excludeYearClosing: true, ct);
-        var previous = compare ? await NetByAccountAsync(compareFrom!.Value.Date, compareTo!.Value, excludeYearClosing: true, ct) : null;
+        var current = await NetByAccountAsync(from.Date, to, excludeYearClosing: true, module, ct);
+        var previous = compare ? await NetByAccountAsync(compareFrom!.Value.Date, compareTo!.Value, excludeYearClosing: true, module, ct) : null;
         static bool IsCostOfSales(Account a) => a.Type == AccountCategory.Expense && a.Code.StartsWith(CostOfSalesGroup, StringComparison.Ordinal);
 
         var statement = new IncomeStatementDto
@@ -92,12 +94,12 @@ public class FinancialStatementService : IFinancialStatementService
     }
 
     // ---------------- قائمة المركز المالي ----------------
-    public async Task<FinancialPositionDto> GetFinancialPositionAsync(DateTime? asOf, DateTime? compareAsOf, CancellationToken ct = default)
+    public async Task<FinancialPositionDto> GetFinancialPositionAsync(DateTime? asOf, DateTime? compareAsOf, string? module = null, CancellationToken ct = default)
     {
         var date = (asOf ?? DateTime.UtcNow).Date;
         var accounts = await AccountsAsync(ct);
-        var current = await NetByAccountAsync(null, date, excludeYearClosing: false, ct);
-        var previous = compareAsOf.HasValue ? await NetByAccountAsync(null, compareAsOf.Value, excludeYearClosing: false, ct) : null;
+        var current = await NetByAccountAsync(null, date, excludeYearClosing: false, module, ct);
+        var previous = compareAsOf.HasValue ? await NetByAccountAsync(null, compareAsOf.Value, excludeYearClosing: false, module, ct) : null;
         static bool IsNonCurrent(Account a) => a.Code.StartsWith(NonCurrentAssetsGroup, StringComparison.Ordinal);
 
         var position = new FinancialPositionDto
@@ -118,15 +120,15 @@ public class FinancialStatementService : IFinancialStatementService
     }
 
     // ---------------- قائمة التدفقات النقدية ----------------
-    public async Task<CashFlowDto> GetCashFlowAsync(DateTime from, DateTime to, DateTime? compareFrom, DateTime? compareTo, CancellationToken ct = default)
+    public async Task<CashFlowDto> GetCashFlowAsync(DateTime from, DateTime to, DateTime? compareFrom, DateTime? compareTo, string? module = null, CancellationToken ct = default)
     {
         EnsurePeriod(from, to);
         var compare = compareFrom.HasValue && compareTo.HasValue;
         if (compare) EnsurePeriod(compareFrom!.Value, compareTo!.Value);
 
         var accounts = await AccountsAsync(ct);
-        var current = await CashCounterpartsAsync(from.Date, to, ct);
-        var previous = compare ? await CashCounterpartsAsync(compareFrom!.Value.Date, compareTo!.Value, ct) : null;
+        var current = await CashCounterpartsAsync(from.Date, to, module, ct);
+        var previous = compare ? await CashCounterpartsAsync(compareFrom!.Value.Date, compareTo!.Value, module, ct) : null;
 
         static bool IsInvesting(Account a) => a.Type == AccountCategory.Asset && a.Code.StartsWith(NonCurrentAssetsGroup, StringComparison.Ordinal);
         static bool IsFinancing(Account a) => a.Type == AccountCategory.Equity
@@ -141,8 +143,8 @@ public class FinancialStatementService : IFinancialStatementService
             Financing = Section(accounts, current, previous, IsFinancing, -1),
             OpeningCash = new StatementSectionDto
             {
-                Total = await CashBalanceAsync(from.Date.AddDays(-1), ct),
-                Comparative = compare ? await CashBalanceAsync(compareFrom!.Value.Date.AddDays(-1), ct) : 0,
+                Total = await CashBalanceAsync(from.Date.AddDays(-1), module, ct),
+                Comparative = compare ? await CashBalanceAsync(compareFrom!.Value.Date.AddDays(-1), module, ct) : 0,
             },
         };
         flow.NetChange = Total((flow.Operating, 1), (flow.Investing, 1), (flow.Financing, 1));
@@ -156,19 +158,21 @@ public class FinancialStatementService : IFinancialStatementService
     /// السطور غير النقدية في القيود التي حرّكت النقدية خلال الفترة: مجموع (دائن − مدين) لها يساوي صافي حركة النقد
     /// في القيد نفسه (القيد متوازن)، فتُنسب كل حركة نقد إلى حسابها المقابل بدقة.
     /// </summary>
-    private async Task<List<Movement>> CashCounterpartsAsync(DateTime from, DateTime to, CancellationToken ct)
+    private async Task<List<Movement>> CashCounterpartsAsync(DateTime from, DateTime to, string? module, CancellationToken ct)
     {
         var end = to.Date.AddDays(1);
+        var moduleScope = ReportModuleScope.Normalize(module);
         var lines = _db.Set<JournalEntryLine>().AsNoTracking();
         var cashEntryIds = from l in lines
                            join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
                            where e.Date >= @from && e.Date < end && l.AccountCode.StartsWith(DefaultAccounts.Banks)
+                                 && (moduleScope == null || moduleScope.Contains(e.Module))
                            select e.Id;
         var counterparts = await lines.Where(l => cashEntryIds.Contains(l.JournalEntryId) && !l.AccountCode.StartsWith(DefaultAccounts.Banks))
             .GroupBy(l => l.AccountCode).Select(g => new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) }).ToListAsync(ct);
         return counterparts.Select(c => new Movement(c.Code, c.Debit - c.Credit)).ToList();
     }
 
-    private async Task<decimal> CashBalanceAsync(DateTime asOf, CancellationToken ct)
-        => DocumentPricing.Round((await NetByAccountAsync(null, asOf, excludeYearClosing: false, ct)).Where(m => IsCash(m.Code)).Sum(m => m.Net));
+    private async Task<decimal> CashBalanceAsync(DateTime asOf, string? module, CancellationToken ct)
+        => DocumentPricing.Round((await NetByAccountAsync(null, asOf, excludeYearClosing: false, module, ct)).Where(m => IsCash(m.Code)).Sum(m => m.Net));
 }

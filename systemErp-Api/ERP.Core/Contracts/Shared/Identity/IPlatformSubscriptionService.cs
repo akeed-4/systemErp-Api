@@ -5,6 +5,7 @@ namespace ERP.Core.Contracts.Shared;
 /// <summary>إدارة الاشتراكات والباقات على مستوى المنصة (كل المنشآت). لمدير المنصة فقط.</summary>
 public interface IPlatformSubscriptionService
 {
+    Task<List<PlatformModuleDto>> ListModulesAsync(CancellationToken ct = default);
     Task<PlatformSummaryDto> SummaryAsync(CancellationToken ct = default);
     Task<List<PlatformTenantSubscriptionDto>> ListTenantsAsync(CancellationToken ct = default);
     Task<List<SubscriptionDto>> HistoryAsync(Guid tenantId, CancellationToken ct = default);

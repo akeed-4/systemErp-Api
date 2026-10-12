@@ -1,5 +1,18 @@
 namespace ERP.Core.DTOs.Shared;
 
+public class PlatformModuleDto
+{
+    public int Number { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string NameEn { get; set; } = string.Empty;
+    public string DescriptionAr { get; set; } = string.Empty;
+    public string DescriptionEn { get; set; } = string.Empty;
+    public string Icon { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; }
+}
+
 public class PlatformAccessDto
 {
     /// <summary>يرى لوحة المنصة (عرض).</summary>

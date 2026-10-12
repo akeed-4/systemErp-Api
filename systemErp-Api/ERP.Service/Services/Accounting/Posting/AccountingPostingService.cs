@@ -27,6 +27,7 @@ public class AccountingPostingService : IAccountingPostingService
         var prepared = await PrepareAsync(request, ct);
         var entry = new JournalEntry
         {
+            Module = ResolveModule(request.Module, request.SourceType),
             EntryNumber = await _numbers.NextAsync("journal_entry", "JE-", ct),
             Date = request.Date,
             Description = request.Description,
@@ -58,6 +59,7 @@ public class AccountingPostingService : IAccountingPostingService
         // القيد الآلي المعدَّل يدوياً يبقى مرتبطاً بمستنده مع علامة صريحة في الوصف للتدقيق.
         var automatic = entry.ReferenceType is not (null or "manual");
         entry.Description = automatic && !request.Description.Contains("[مُعدَّل يدوياً]") ? request.Description + " [مُعدَّل يدوياً]" : request.Description;
+        entry.Module = ResolveModule(request.Module ?? entry.Module, request.SourceType);
         Attach(entry, prepared);
         await SyncLinkedEntityBalancesAsync(prepared.Accounts, ct);
         await _db.SaveChangesAsync(ct);
@@ -151,7 +153,9 @@ public class AccountingPostingService : IAccountingPostingService
             lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, r.CostAmount, 0));
             lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, 0, r.CostAmount));
         }
-        return PostAsync(Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn), ct);
+        var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
+        request.Module = r.Module;
+        return PostAsync(request, ct);
     }
 
     /// <summary>الإيراد موزّعاً على حساب ومركز تكلفة كل سطر (مجمَّعاً)، أو سطراً واحداً بحساب المستند.</summary>
@@ -187,7 +191,9 @@ public class AccountingPostingService : IAccountingPostingService
         foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, 0, p.Amount));
         if (payable > Tolerance)
             lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartySupplier), 0, payable));
-        return PostAsync(Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn), ct);
+        var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
+        request.Module = r.Module;
+        return PostAsync(request, ct);
     }
 
     public Task<PostingResult> PostVoucherAsync(VoucherPostingRequest r, CancellationToken ct = default)
@@ -217,7 +223,7 @@ public class AccountingPostingService : IAccountingPostingService
         var type = r.Type == VoucherType.Receipt ? "receipt_voucher" : "payment_voucher";
         return PostAsync(new GenericPostingRequest
         {
-            Date = r.Date, Description = r.Description, SourceType = type, SourceId = r.VoucherId, SourceNumber = r.VoucherNumber, Lines = lines,
+            Module = r.Module, Date = r.Date, Description = r.Description, SourceType = type, SourceId = r.VoucherId, SourceNumber = r.VoucherNumber, Lines = lines,
         }, ct);
     }
 
@@ -234,7 +240,7 @@ public class AccountingPostingService : IAccountingPostingService
             // العكس في فترة القيد نفسها ليُلغى أثره فيها؛ إن كانت مقفلة فبتاريخ اليوم (تصحيح في الفترة المفتوحة)
             Date = await _periods.IsOpenAsync(original.Date, ct) ? original.Date : DateTime.UtcNow,
             Description = $"عكس القيد {original.EntryNumber}" + (string.IsNullOrWhiteSpace(reason) ? "" : $" - {reason}"),
-            SourceType = "reversal", SourceId = original.Id, SourceNumber = original.EntryNumber, Lines = lines,
+            Module = original.Module, SourceType = "reversal", SourceId = original.Id, SourceNumber = original.EntryNumber, Lines = lines,
         }, ct);
 
         original.Status = JournalEntryStatus.Reversed;
@@ -252,6 +258,21 @@ public class AccountingPostingService : IAccountingPostingService
             SourceType = sourceType, SourceId = sourceId, SourceNumber = sourceNumber,
             Lines = reverse ? lines.Select(l => l with { Debit = l.Credit, Credit = l.Debit }).ToList() : lines,
         };
+
+    private static string ResolveModule(string? module, string? sourceType)
+    {
+        if (!string.IsNullOrWhiteSpace(module))
+        {
+            var normalized = module.Trim().ToLowerInvariant();
+            if (PlatformModules.All.Contains(normalized)) return normalized;
+            throw new ValidationFailedException("وحدة القيد غير معروفة.");
+        }
+
+        if (sourceType?.StartsWith("car_", StringComparison.OrdinalIgnoreCase) == true) return PlatformModules.CarShowroom;
+        if (sourceType?.StartsWith("pos_", StringComparison.OrdinalIgnoreCase) == true) return PlatformModules.Pos;
+        if (sourceType is "payroll" or "employee_loan" or "end_of_service") return PlatformModules.Hr;
+        return PlatformModules.Accounting;
+    }
 
     private static List<PaymentPosting> ValidatePayments(List<PaymentPosting> payments, decimal total)
     {

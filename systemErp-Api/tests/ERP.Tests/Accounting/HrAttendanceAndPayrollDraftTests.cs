@@ -31,7 +31,7 @@ public class HrAttendanceAndPayrollDraftTests : TestBase
     [Fact]
     public async Task Daily_sheet_is_saved_validated_and_summarised()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var e1 = await EmployeeAsync(api, "E1");
         var e2 = await EmployeeAsync(api, "E2");
 
@@ -74,7 +74,7 @@ public class HrAttendanceAndPayrollDraftTests : TestBase
     [Fact]
     public async Task Attendance_feeds_payroll_and_is_locked_after_posting()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var e1 = await EmployeeAsync(api, "E1");
         await SaveDayAsync(api, Month, new { employeeId = e1, status = "absent" });
         await SaveDayAsync(api, Month.AddDays(1), new { employeeId = e1, status = "present", lateMinutes = 120, overtimeHours = 4m });
@@ -94,7 +94,7 @@ public class HrAttendanceAndPayrollDraftTests : TestBase
     [Fact]
     public async Task Draft_is_reviewed_then_approved_and_rejected_when_data_changed()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         var e1 = await EmployeeAsync(api, "E1");
         object Request(decimal deductions = 0) => new { period = Period, adjustments = new[] { new { employeeId = e1, additions = 500m, deductions } } };
 
@@ -136,7 +136,7 @@ public class HrAttendanceAndPayrollDraftTests : TestBase
     [Fact]
     public async Task Wage_file_lists_posted_salaries_and_requires_bank_details()
     {
-        var api = await NewTenantAsync();
+        var api = await NewTenantWithModulesAsync("hr");
         await EmployeeAsync(api, "E1", new { nationalId = "1012345678", iban = "SA0380000000608010167519", bankName = "الراجحي", employeeGosiRate = 10 });
         var missing = await EmployeeAsync(api, "E2");
         var posted = await api.Post("/payroll/post", new { period = Period });

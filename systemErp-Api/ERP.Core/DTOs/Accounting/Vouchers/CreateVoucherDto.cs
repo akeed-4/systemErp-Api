@@ -2,6 +2,7 @@ namespace ERP.Core.DTOs.Accounting;
 
 public partial class CreateVoucherDto
 {
+    public string? Module { get; set; }
     public string VoucherNumber { get; set; } = string.Empty;
     public VoucherType Type { get; set; }
     public DateTime Date { get; set; }

@@ -150,6 +150,16 @@ public class ErpDbContext : DbContext
             e.HasData(SubscriptionCatalog.Seed);
         });
 
+        modelBuilder.Entity<PlatformModuleDefinition>(e =>
+        {
+            e.HasKey(m => m.Key);
+            e.Property(m => m.Key).HasMaxLength(64);
+            e.Property(m => m.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(m => m.NameEn).HasMaxLength(200).IsRequired();
+            e.HasIndex(m => m.Number).IsUnique();
+            e.HasData(PlatformModules.Catalog);
+        });
+
         // القيم المعدّدة كنصوص مقروءة في قاعدة البيانات.
         foreach (var et in modelBuilder.Model.GetEntityTypes())
             foreach (var p in et.GetProperties())

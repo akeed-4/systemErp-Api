@@ -12,6 +12,16 @@ public abstract class TestBase
     protected HttpClient NewHttp() => Factory.CreateClient();
     protected async Task<Client> NewTenantAsync(string name = "شركة اختبار") => await new Client(NewHttp()).RegisterAsync(name);
 
+    protected async Task<Client> NewTenantWithModulesAsync(params string[] modules)
+    {
+        var admin = await NewTenantAsync("شركة مدير المنصة للاختبار");
+        var host = Factory.WithWebHostBuilder(builder => builder.UseSetting("Platform:AdminEmails:0", admin.Email));
+        var root = await admin.LoginAsAsync(host.CreateClient(), admin.Email, "Passw0rd!");
+        var tenant = await NewTenantAsync("شركة اختبار " + string.Join("+", modules));
+        Assert.Equal(200, (await root.Post($"/platform/tenants/{tenant.TenantId}/subscriptions/modules", new { modules })).Status);
+        return tenant;
+    }
+
     /// <summary>صنف بسعر 100 وضريبة 15% ومخزون افتتاحي بتكلفة معلومة.</summary>
     protected static async Task<Guid> SeedProductAsync(Client api, string sku = "P1", decimal stock = 10, decimal cost = 40, decimal price = 100)
     {

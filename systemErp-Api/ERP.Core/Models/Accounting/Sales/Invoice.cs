@@ -3,6 +3,7 @@ namespace ERP.Core.Models.Accounting;
 
 public class Invoice : BaseEntity
 {
+    public string Module { get; set; } = "accounting";
     public string InvoiceNumber { get; set; } = string.Empty;
     public Guid Uuid { get; set; } = Guid.NewGuid();
     public DateTime IssueDate { get; set; }

@@ -479,6 +479,17 @@ public class InvoiceService : IInvoiceService
         invoice.Uuid = Guid.NewGuid();
         invoice.Status = "draft";
         invoice.IsReturn = isReturn;
+        var isShowroomInvoice = vehicleLines != null;
+        if (!isShowroomInvoice && r.ReferenceId.HasValue)
+        {
+            isShowroomInvoice = r.ReferenceType switch
+            {
+                "car_sales_contract" => await _db.Set<CarSalesContract>().AnyAsync(c => c.Id == r.ReferenceId, ct),
+                "car_procurement_order" => await _db.Set<CarProcurementOrder>().AnyAsync(o => o.Id == r.ReferenceId, ct),
+                _ => false,
+            };
+        }
+        invoice.Module = isShowroomInvoice ? PlatformModules.CarShowroom : PlatformModules.Accounting;
         // تاريخ ووقت الإصدار بتوقيت المملكة (كما يُطبعان)، ويُحوَّلان للتوقيت العالمي في رمز QR
         invoice.IssueDate = r.IssueDate == default ? SaudiTime.Now : r.IssueDate;
         invoice.IssueTime = string.IsNullOrWhiteSpace(r.IssueTime) ? SaudiTime.Now.ToString("HH:mm:ss") : r.IssueTime;
@@ -601,6 +612,7 @@ public class InvoiceService : IInvoiceService
             var expected = r.Kind == InvoiceKind.SalesReturn ? InvoiceKind.Sales : InvoiceKind.Purchase;
             if (orig.Kind != expected || orig.Status != "posted") throw new ConflictException(Messages.OriginalInvoiceNotReturnable);
             invoice.OriginalInvoiceNumber = orig.InvoiceNumber;
+            invoice.Module = orig.Module;
         }
         return invoice;
     }
@@ -715,7 +727,7 @@ public class InvoiceService : IInvoiceService
         if (isSales)
             posted = await _posting.PostSaleAsync(new SalePostingRequest
             {
-                Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id,
+                Module = invoice.Module, Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id,
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
                 NetAmount = baseNet, VatAmount = baseVat, CostAmount = totalCost, Payments = payments,
                 RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode,
@@ -724,7 +736,7 @@ public class InvoiceService : IInvoiceService
         else
             posted = await _posting.PostPurchaseAsync(new PurchasePostingRequest
             {
-                Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id,
+                Module = invoice.Module, Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id,
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
                 NetAmount = baseNet, VatAmount = baseVat, Payments = payments,
                 ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount,

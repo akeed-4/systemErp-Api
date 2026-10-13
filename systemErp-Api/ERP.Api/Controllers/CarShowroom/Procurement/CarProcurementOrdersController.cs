@@ -13,10 +13,16 @@ public class CarProcurementOrdersController : ErpControllerBase
     private readonly ICarProcurementService _service;
     private readonly IVehicleService _vehicles;
     private readonly IPermissionService _permissions;
-    public CarProcurementOrdersController(ICarProcurementService service, IVehicleService vehicles, IPermissionService permissions)
+    private readonly IVehicleCostService _costs;
+    public CarProcurementOrdersController(ICarProcurementService service, IVehicleService vehicles, IPermissionService permissions, IVehicleCostService costs)
     {
-        _service = service; _vehicles = vehicles; _permissions = permissions;
+        _service = service; _vehicles = vehicles; _permissions = permissions; _costs = costs;
     }
+
+    /// <summary>التكلفة المتوقعة الكلية للأمر: ثمن السيارات + المصاريف المُرسمَلة التقديرية والفعلية. لمن يملك صلاحية رؤية التكلفة.</summary>
+    [HttpGet("{id:guid}/expected-cost")]
+    [RequireScreen(ERP.Service.Services.Shared.PermissionService.CarCostViewScreenId, ScreenAction.View)]
+    public async Task<IActionResult> ExpectedCost(Guid id, CancellationToken ct) => Success(await _costs.GetProcurementExpectedCostAsync(id, ct));
 
     /// <summary>purchaseCycle اختياري: individual | corporate | bank_lease.</summary>
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, [FromQuery] string? purchaseCycle, CancellationToken ct)
@@ -64,6 +70,14 @@ public class CarProcurementOrdersController : ErpControllerBase
     {
         await Require(ScreenAction.Approve, ct);
         return Success(await _service.RejectAsync(id, dto, ct), Messages.OrderRejected);
+    }
+
+    /// <summary>إلغاء شراء بعد مصاريف: treatment = loss (خسارة) أو supplier_claim (مطالبة على المورد). يتطلب صلاحية الاعتماد.</summary>
+    [HttpPost("{id:guid}/settle-cancelled-charges")]
+    public async Task<IActionResult> SettleCancelledCharges(Guid id, [FromBody] SettleCancelledChargesDto dto, CancellationToken ct)
+    {
+        await Require(ScreenAction.Approve, ct);
+        return Success(await _service.SettleCancelledChargesAsync(id, dto, ct), Messages.CancelledChargesSettled);
     }
 
     [HttpDelete("{id:guid}")]

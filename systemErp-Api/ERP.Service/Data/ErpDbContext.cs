@@ -73,6 +73,19 @@ public class ErpDbContext : DbContext
         (typeof(PosInvoiceSettings), nameof(PosInvoiceSettings.WarehouseId), typeof(Warehouse)),
         (typeof(PasswordResetOtp), nameof(PasswordResetOtp.UserId), typeof(User)),
         (typeof(InventoryCountApproval), nameof(InventoryCountApproval.InventoryCountId), typeof(InventoryCount)),
+        (typeof(AdditionalChargeLine), nameof(AdditionalChargeLine.ExpenseTypeId), typeof(ExpenseType)),
+        (typeof(AdditionalChargeLine), nameof(AdditionalChargeLine.SupplierId), typeof(Supplier)),
+        (typeof(AdditionalChargeAllocation), nameof(AdditionalChargeAllocation.VehicleId), typeof(Vehicle)),
+        (typeof(LandedCostVoucher), nameof(LandedCostVoucher.SupplierId), typeof(Supplier)),
+        (typeof(LandedCostVoucher), nameof(LandedCostVoucher.ProcurementOrderId), typeof(CarProcurementOrder)),
+        (typeof(LandedCostVoucherLine), nameof(LandedCostVoucherLine.ExpenseTypeId), typeof(ExpenseType)),
+        (typeof(LandedCostVoucherAllocation), nameof(LandedCostVoucherAllocation.VehicleId), typeof(Vehicle)),
+        (typeof(VehicleReservation), nameof(VehicleReservation.VehicleId), typeof(Vehicle)),
+        (typeof(VehicleReservation), nameof(VehicleReservation.CustomerId), typeof(Customer)),
+        (typeof(TammOperation), nameof(TammOperation.VehicleId), typeof(Vehicle)),
+        (typeof(VehicleCostAdjustment), nameof(VehicleCostAdjustment.VehicleId), typeof(Vehicle)),
+        (typeof(PrepaidExpense), nameof(PrepaidExpense.ExpenseTypeId), typeof(ExpenseType)),
+        (typeof(PrepaidExpense), nameof(PrepaidExpense.SupplierId), typeof(Supplier)),
     };
 
     // فهارس فريدة على مستوى المنشأة (TenantId + الخاصية).
@@ -113,6 +126,11 @@ public class ErpDbContext : DbContext
         (typeof(PayrollRun), nameof(PayrollRun.RunNumber)),
         (typeof(InventoryCountApproval), nameof(InventoryCountApproval.ApprovalNumber)),
         (typeof(NumberSequence), nameof(NumberSequence.Key)),
+        (typeof(ExpenseType), nameof(ExpenseType.Code)),
+        (typeof(LandedCostVoucher), nameof(LandedCostVoucher.VoucherNumber)),
+        (typeof(TammOperation), nameof(TammOperation.OperationNumber)),
+        (typeof(VehicleCostAdjustment), nameof(VehicleCostAdjustment.AdjustmentNumber)),
+        (typeof(PrepaidExpense), nameof(PrepaidExpense.Number)),
         (typeof(User), nameof(User.Email)),
     };
 
@@ -179,6 +197,21 @@ public class ErpDbContext : DbContext
         // الأصل لا يُرحَّل إهلاكه مرتين لنفس الفترة (ضمان على مستوى قاعدة البيانات).
         modelBuilder.Entity<FixedAssetDepreciation>()
             .HasIndex(d => new { d.TenantId, d.FixedAssetId, d.Period }).IsUnique();
+
+        // عملية تم الواحدة لا تُنشئ مصروفها مرتين (ضمان على مستوى قاعدة البيانات).
+        modelBuilder.Entity<AdditionalChargeLine>()
+            .HasIndex(l => new { l.TenantId, l.TammOperationId }).IsUnique().HasFilter("[TammOperationId] IS NOT NULL");
+        modelBuilder.Entity<AdditionalChargeLine>().HasIndex(l => new { l.TenantId, l.DocumentType, l.DocumentId });
+        modelBuilder.Entity<AdditionalChargeAllocation>().HasIndex(a => new { a.TenantId, a.VehicleId });
+
+        // حجز فعّال واحد لكل سيارة، وصف إعدادات واحد لكل منشأة.
+        modelBuilder.Entity<VehicleReservation>()
+            .HasIndex(r => new { r.TenantId, r.VehicleId }).IsUnique().HasFilter("[Status] = N'Active'");
+        modelBuilder.Entity<CarShowroomSettings>().HasIndex(s => s.TenantId).IsUnique();
+
+        // المصروف المدفوع مقدماً لا يُطفأ مرتين للشهر نفسه (ضمان على مستوى قاعدة البيانات).
+        modelBuilder.Entity<PrepaidExpenseAmortization>()
+            .HasIndex(a => new { a.TenantId, a.PrepaidExpenseId, a.Period }).IsUnique();
 
         // الأرصدة والمخزون: تعارض التزامن يُرفض (ويُعاد تنفيذ المعاملة) بدل أن يُكتب رصيد فوق رصيد
         modelBuilder.Entity<Account>().Property(a => a.RowVersion).IsRowVersion();

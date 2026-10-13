@@ -17,6 +17,8 @@ public interface ICarProcurementService
     /// <summary>ينقل الأمر للمرحلة التالية فقط (7 مراحل) مع الآثار: استلام VIN وإنشاء المركبات، ثم فاتورة الشراء والقيد.</summary>
     Task<CarProcurementOrderDto> AdvanceStageAsync(Guid id, AdvanceProcurementRequestDto request, CancellationToken ct = default);
     Task<CarProcurementOrderDto> RejectAsync(Guid id, RejectProcurementRequestDto request, CancellationToken ct = default);
+    /// <summary>أمر مرفوض/ملغى صُرف على سياراته: المصاريف الفعلية تتحول لخسارة أو لمطالبة على المورد.</summary>
+    Task<CarProcurementOrderDto> SettleCancelledChargesAsync(Guid id, SettleCancelledChargesDto request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     /// <summary>شراء مركبة واحدة بخطوة واحدة: أمر شراء ببند واحد يمرّ بكل المراحل حتى الفاتورة والقيد، في معاملة واحدة.</summary>
     Task<CarProcurementOrderDto> QuickPurchaseAsync(QuickCarPurchaseRequestDto request, CancellationToken ct = default);

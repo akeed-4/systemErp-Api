@@ -975,4 +975,94 @@
   <data name="ZatcaUserNotLinked" xml:space="preserve"><value>User "{0}" is not connected to ZATCA. Connect the user from the Fatoora integration screen with the OTP, then resend.</value></data>
 
   <data name="ZatcaUnitDisabled" xml:space="preserve"><value>The user's ZATCA connection has been disabled.</value></data>
+  <data name="LabelExpenseType" xml:space="preserve"><value>Expense type</value></data>
+  <data name="ExpenseTypeCodeRequired" xml:space="preserve"><value>Expense type code is required.</value></data>
+  <data name="ExpenseTypeNameRequired" xml:space="preserve"><value>Expense type Arabic name is required.</value></data>
+  <data name="ExpenseTypeValuesInvalid" xml:space="preserve"><value>Invalid value for stage, treatment, allocation method or tax category.</value></data>
+  <data name="ExpenseTypeCodeExists" xml:space="preserve"><value>Expense type code is already in use.</value></data>
+  <data name="ExpenseTypeAccountNotFound" xml:space="preserve"><value>The account linked to the expense type was not found.</value></data>
+  <data name="SystemExpenseTypeCodeFixed" xml:space="preserve"><value>The code of a system expense type cannot be changed.</value></data>
+  <data name="SystemExpenseTypeCannotBeDeleted" xml:space="preserve"><value>A system expense type cannot be deleted; deactivate it instead.</value></data>
+  <data name="ExpenseTypeInUse" xml:space="preserve"><value>The expense type is used by charge lines; deactivate it instead of deleting it.</value></data>
+  <data name="ExpenseTypeNotFoundOrInactive" xml:space="preserve"><value>The expense type was not found or is inactive.</value></data>
+  <data name="ChargeLineNotFound" xml:space="preserve"><value>Charge line not found.</value></data>
+  <data name="ChargeFilterRequired" xml:space="preserve"><value>Specify the document (documentType and documentId) or the vehicle (vehicleId).</value></data>
+  <data name="ChargeDocumentTypeInvalid" xml:space="preserve"><value>Invalid document type; allowed values: </value></data>
+  <data name="ChargeDocumentNotFound" xml:space="preserve"><value>The document linked to the charge line was not found.</value></data>
+  <data name="ChargeAmountMustBePositive" xml:space="preserve"><value>The charge amount must be greater than zero.</value></data>
+  <data name="ChargeVatCannotBeNegative" xml:space="preserve"><value>The charge line VAT cannot be negative.</value></data>
+  <data name="ChargeVatNotAllowedForType" xml:space="preserve"><value>VAT cannot be recorded for this type (its tax category is not taxable, or its whole amount is tax).</value></data>
+  <data name="ChargeCurrencyNotFound" xml:space="preserve"><value>The charge line currency is not defined.</value></data>
+  <data name="ChargeStatusInvalid" xml:space="preserve"><value>Line status: estimated | actual (use the cancel action to cancel).</value></data>
+  <data name="ChargeTreatmentOverrideForbidden" xml:space="preserve"><value>Changing the charge treatment from its type default requires the treatment override permission.</value></data>
+  <data name="ChargeVehicleRepeated" xml:space="preserve"><value>A vehicle is repeated in the line allocation.</value></data>
+  <data name="ChargeVehicleNotInDocument" xml:space="preserve"><value>A vehicle in the allocation does not belong to this document.</value></data>
+  <data name="ChargeNeedsVehicle" xml:space="preserve"><value>An actual capitalized charge must be allocated to at least one vehicle.</value></data>
+  <data name="ChargeManualAllocationMismatch" xml:space="preserve"><value>The manual allocation total ({0:0.00}) does not equal the line amount ({1:0.00}).</value></data>
+  <data name="ChargeAllocationByValueNeedsPrices" xml:space="preserve"><value>Allocation by value requires vehicle purchase prices.</value></data>
+  <data name="ChargeLineNotEditable" xml:space="preserve"><value>This line was created by the system (opening balance, Tamm, or a landed cost voucher) and cannot be changed here.</value></data>
+  <data name="ChargeLineAlreadyCancelled" xml:space="preserve"><value>The charge line is cancelled.</value></data>
+  <data name="ChargeLineCancelled" xml:space="preserve"><value>Charge line cancelled</value></data>
+  <data name="CannotChangeSoldVehicleCost" xml:space="preserve"><value>Vehicle {0} is sold or written off; its cost can only be changed by a documented adjustment entry.</value></data>
+  <data name="VehicleCostFieldsReadOnly" xml:space="preserve"><value>Vehicle cost (purchase price, additional costs, preparation) is read-only; record expenses in the additional charges section.</value></data>
+  <data name="VehicleHasChargeLines" xml:space="preserve"><value>The vehicle has recorded charges and cannot be deleted.</value></data>
+  <data name="LegacyCostsMigrated" xml:space="preserve"><value>Cost balances converted into {0} opening balance line(s)</value></data>
+  <data name="ChargeAllocationNeedsVolume" xml:space="preserve"><value>Allocation by volume requires a recorded volume (m³) for every vehicle.</value></data>
+  <data name="ChargeAllocationNeedsWeight" xml:space="preserve"><value>Allocation by weight requires a recorded weight (kg) for every vehicle.</value></data>
+  <data name="VehicleNotInStock" xml:space="preserve"><value>Vehicle {0} is not in stock (in transit or its purchase was cancelled).</value></data>
+  <data name="VehicleDimensionsInvalid" xml:space="preserve"><value>Vehicle volume and weight cannot be negative.</value></data>
+  <data name="OrderHasActualCharges" xml:space="preserve"><value>The order has actual charges recorded and cannot be deleted.</value></data>
+  <data name="OrderItemsLockedByCharges" xml:space="preserve"><value>Order items cannot be changed after charges were recorded on its in-transit vehicles; cancel the charges first.</value></data>
+  <data name="LabelLandedCostVoucher" xml:space="preserve"><value>Landed cost voucher</value></data>
+  <data name="LandedCostVoucherNotFound" xml:space="preserve"><value>Landed cost voucher not found.</value></data>
+  <data name="LandedCostVoucherNeedsLines" xml:space="preserve"><value>The voucher needs at least one line.</value></data>
+  <data name="LandedCostVoucherNeedsVehicles" xml:space="preserve"><value>Line {0}: select at least one vehicle to allocate to.</value></data>
+  <data name="LandedCostVoucherNotDraft" xml:space="preserve"><value>The voucher is not a draft and cannot be changed or deleted.</value></data>
+  <data name="LandedCostVoucherAlreadyCancelled" xml:space="preserve"><value>The voucher is cancelled.</value></data>
+  <data name="LandedCostReplacedLineInvalid" xml:space="preserve"><value>Line {0}: the estimated line chosen for replacement is not valid (different type, or already replaced or cancelled).</value></data>
+  <data name="LandedCostVoucherApproved" xml:space="preserve"><value>Landed cost voucher approved</value></data>
+  <data name="LandedCostVoucherCancelled" xml:space="preserve"><value>Landed cost voucher cancelled</value></data>
+  <data name="VehicleReservationNotFound" xml:space="preserve"><value>Reservation not found.</value></data>
+  <data name="VehicleAlreadyReservedFor" xml:space="preserve"><value>The vehicle is reserved for customer "{0}" until {1:yyyy-MM-dd}.</value></data>
+  <data name="ReservationCustomerRequired" xml:space="preserve"><value>Select the customer or enter their name.</value></data>
+  <data name="ReservationExpiryMustBeFuture" xml:space="preserve"><value>The reservation expiry date must be in the future.</value></data>
+  <data name="ReservationNotActive" xml:space="preserve"><value>The reservation is not active.</value></data>
+  <data name="ReservationHeldByDeposit" xml:space="preserve"><value>The reservation has an open deposit; cancel it by settling the deposit (refund or forfeit).</value></data>
+  <data name="ReservationHeldByContract" xml:space="preserve"><value>The reservation is held by an active sales contract; cancel the contract to release it.</value></data>
+  <data name="VehicleNotAvailableForReservation" xml:space="preserve"><value>Vehicle {0} is not available for reservation.</value></data>
+  <data name="ReservationCancelled" xml:space="preserve"><value>Reservation cancelled</value></data>
+  <data name="TammOperationNotFound" xml:space="preserve"><value>Tamm operation not found.</value></data>
+  <data name="TammOperationNeedsVehicleOrVin" xml:space="preserve"><value>Specify the vehicle or the chassis number.</value></data>
+  <data name="TammOperationFeeInvalid" xml:space="preserve"><value>The operation fee cannot be negative.</value></data>
+  <data name="TammOperationFinal" xml:space="preserve"><value>The operation is finished ({0}); its status cannot change.</value></data>
+  <data name="TammOperationStatusInvalid" xml:space="preserve"><value>Operation status: success | failed | unknown.</value></data>
+  <data name="TammOperationContractMismatch" xml:space="preserve"><value>The sales contract does not belong to this vehicle.</value></data>
+  <data name="TammStatusUpdated" xml:space="preserve"><value>Operation status updated</value></data>
+  <data name="ContractChargesLocked" xml:space="preserve"><value>The contract is invoiced or cancelled; its customer-charged lines cannot change.</value></data>
+  <data name="ContractHasActualCharges" xml:space="preserve"><value>The contract has actual charges recorded and cannot be deleted.</value></data>
+  <data name="ChargeSalePriceInvalid" xml:space="preserve"><value>The customer sale price cannot be negative and applies only to a line charged to the customer.</value></data>
+  <data name="ChargeExemptionReasonRequired" xml:space="preserve"><value>Type "{0}" is billed to the customer under a non-taxable category and needs an exemption reason (VATEX code) on the type.</value></data>
+  <data name="SettingsValuesInvalid" xml:space="preserve"><value>Invalid settings: reservation period must be at least one day and the VAT rate between 0 and 100.</value></data>
+  <data name="SettingsAccountInvalid" xml:space="preserve"><value>Settings account "{0}" does not exist in the chart of accounts or has sub-accounts (entries post to a leaf account).</value></data>
+  <data name="ChargePaymentAccountInvalid" xml:space="preserve"><value>The payment account does not exist in the chart of accounts.</value></data>
+  <data name="TammWalletAmountInvalid" xml:space="preserve"><value>The wallet top-up amount must be greater than zero.</value></data>
+  <data name="TammWalletTreasuryRequired" xml:space="preserve"><value>Specify the bank or cash account the wallet was topped up from.</value></data>
+  <data name="TammWalletToppedUp" xml:space="preserve"><value>Tamm wallet topped up</value></data>
+  <data name="TammWalletReconciled" xml:space="preserve"><value>Tamm wallet reconciled</value></data>
+  <data name="SoldVehicleAdjustmentForbidden" xml:space="preserve"><value>Vehicle {0} is sold: changing its cost requires the sold-vehicle adjustment permission.</value></data>
+  <data name="SoldVehicleAdjustmentReasonRequired" xml:space="preserve"><value>Vehicle {0} is sold: enter the adjustment reason to document the adjustment entry.</value></data>
+  <data name="ContractNotInvoicedForReturn" xml:space="preserve"><value>Only an invoiced contract can be returned.</value></data>
+  <data name="SaleReturned" xml:space="preserve"><value>Sale returned and the vehicle is back in stock</value></data>
+  <data name="OrderNotCancelledForSettlement" xml:space="preserve"><value>Charges can be settled only for a rejected or cancelled purchase order.</value></data>
+  <data name="CancelledChargesAlreadySettled" xml:space="preserve"><value>The charges of this order were already settled.</value></data>
+  <data name="CancelledChargesNothingToSettle" xml:space="preserve"><value>There are no actual charges on the vehicles of this order.</value></data>
+  <data name="CancelledChargesTreatmentInvalid" xml:space="preserve"><value>Treatment: loss | supplier_claim.</value></data>
+  <data name="CancelledChargesSettled" xml:space="preserve"><value>Cancelled purchase charges settled</value></data>
+  <data name="DepositActionInvalid" xml:space="preserve"><value>Deposit action: refund | forfeit.</value></data>
+  <data name="DepositNotOpen" xml:space="preserve"><value>The deposit is not open (applied, refunded or forfeited).</value></data>
+  <data name="PrepaidExpenseNotFound" xml:space="preserve"><value>Prepaid expense not found.</value></data>
+  <data name="PrepaidExpenseValuesInvalid" xml:space="preserve"><value>Amount must be positive, the period 1 to 120 months, and VAT not negative.</value></data>
+  <data name="PrepaidPeriodInvalid" xml:space="preserve"><value>The period must be in yyyy-MM format.</value></data>
+  <data name="PrepaidExpenseHasAmortization" xml:space="preserve"><value>The prepaid expense has amortization posted and cannot be cancelled.</value></data>
+  <data name="PrepaidAmortized" xml:space="preserve"><value>Monthly amortization posted</value></data>
 </root>

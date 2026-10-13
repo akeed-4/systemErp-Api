@@ -44,6 +44,17 @@ public static class DefaultAccounts
     public const string DepreciationExpense = "523"; // مصروف إهلاك الأصول الثابتة (الحساب الافتراضي لأصل جديد)
     public const string CustomerDeposits = "216";    // عربونات عملاء السيارات (خصم دائن حتى يُطبَّق على فاتورة البيع)
     public const string PurchasedServices = "524";   // خدمات ومصروفات مشتراة بفاتورة (بنود غير مخزنية)
+    // حسابات معرض السيارات: افتراضيات إعدادات المعرض (CarShowroomSettings) فقط؛ القيود تقرأ الحساب من الإعدادات.
+    public const string VehiclesInTransit = "1143";
+    public const string CustomerRecharge = "116";
+    public const string PrepaidExpenses = "117";
+    public const string SupplierClaims = "118";
+    public const string TammWallet = "119";
+    public const string CarAddOnRevenue = "413";
+    public const string ForfeitedDeposits = "423";
+    public const string CarAddOnCost = "515";
+    public const string VehicleExpenses = "529";
+    public const string PurchaseCancellationLoss = "530";
 
     public static readonly (string Code, string Ar, string En, AccountCategory Type, string? Parent)[] Chart =
     {
@@ -59,7 +70,12 @@ public static class DefaultAccounts
         ("114",  "المخزون",                         "Inventory",                 AccountCategory.Asset,     "11"),
         ("1141", "مخزون البضاعة",                   "Merchandise Inventory",     AccountCategory.Asset,     "114"),
         ("1142", "مخزون السيارات",                  "Vehicle Inventory",         AccountCategory.Asset,     "114"),
+        ("1143", "سيارات في الطريق",                "Vehicles in Transit",       AccountCategory.Asset,     "114"),
         ("115",  "سلف وقروض الموظفين",              "Employee Loans and Advances", AccountCategory.Asset,   "11"),
+        ("116",  "مدفوعات نيابة عن العملاء",        "Disbursements on Behalf of Customers", AccountCategory.Asset, "11"),
+        ("117",  "مصروفات مدفوعة مقدماً",           "Prepaid Expenses",          AccountCategory.Asset,     "11"),
+        ("118",  "مطالبات على الموردين",            "Supplier Claims",           AccountCategory.Asset,     "11"),
+        ("119",  "رصيد محفظة تم",                   "Tamm Wallet Balance",       AccountCategory.Asset,     "11"),
         ("12",   "الأصول الثابتة",                  "Fixed Assets",              AccountCategory.Asset,     "1"),
         ("121",  "الأصول الثابتة المادية",          "Tangible Fixed Assets",     AccountCategory.Asset,     "12"),
         ("122",  "مجمع الإهلاك",                    "Accumulated Depreciation",  AccountCategory.Asset,     "12"),
@@ -79,15 +95,18 @@ public static class DefaultAccounts
         ("41",   "إيرادات المبيعات",                "Sales Revenue Group",       AccountCategory.Revenue,   "4"),
         ("411",  "إيرادات المبيعات والعقود",        "Sales and Contract Revenue",AccountCategory.Revenue,   "41"),
         ("412",  "إيرادات بيع السيارات",            "Car Sales Revenue",         AccountCategory.Revenue,   "41"),
+        ("413",  "إيرادات إضافات وخدمات السيارات",  "Car Add-ons and Services Revenue", AccountCategory.Revenue, "41"),
         ("42",   "إيرادات أخرى",                    "Other Revenue",             AccountCategory.Revenue,   "4"),
         ("421",  "زيادة نقدية الصندوق",             "Cash Overage",              AccountCategory.Revenue,   "42"),
         ("422",  "أرباح استبعاد الأصول الثابتة",    "Gain on Disposal of Fixed Assets", AccountCategory.Revenue, "42"),
+        ("423",  "إيراد عربونات مصادرة",            "Forfeited Customer Deposits", AccountCategory.Revenue, "42"),
         ("5",    "المصروفات",                       "Expenses",                  AccountCategory.Expense,   null),
         ("51",   "تكلفة المبيعات",                  "Cost of Sales",             AccountCategory.Expense,   "5"),
         ("511",  "تكلفة البضاعة المباعة",           "Cost of Goods Sold",        AccountCategory.Expense,   "51"),
         ("512",  "تكلفة السيارات المباعة",          "Cost of Cars Sold",         AccountCategory.Expense,   "51"),
         ("513",  "فروقات جرد المخزون",              "Inventory Adjustments",     AccountCategory.Expense,   "51"),
         ("514",  "فروق أسعار المشتريات",            "Purchase Price Variance",   AccountCategory.Expense,   "51"),
+        ("515",  "تكلفة إضافات وخدمات السيارات",    "Cost of Car Add-ons and Services", AccountCategory.Expense, "51"),
         ("52",   "المصروفات التشغيلية",             "Operating Expenses",        AccountCategory.Expense,   "5"),
         ("521",  "مصروفات نثرية من الصندوق",        "Petty Cash Expenses",       AccountCategory.Expense,   "52"),
         ("522",  "عجز نقدية الصندوق",               "Cash Shortage",             AccountCategory.Expense,   "52"),
@@ -97,6 +116,8 @@ public static class DefaultAccounts
         ("526",  "رواتب وأجور",                     "Salaries and Wages",        AccountCategory.Expense,   "52"),
         ("527",  "تأمينات اجتماعية - حصة المنشأة",  "Social Insurance - Employer Share", AccountCategory.Expense, "52"),
         ("528",  "مكافأة نهاية الخدمة",             "End of Service Benefits",  AccountCategory.Expense,   "52"),
+        ("529",  "مصاريف تشغيل وبيع السيارات",      "Vehicle Operating and Selling Expenses", AccountCategory.Expense, "52"),
+        ("530",  "خسائر إلغاء مشتريات السيارات",    "Loss on Cancelled Vehicle Purchases", AccountCategory.Expense, "52"),
     };
 
     /// <summary>طبيعة الحساب: الأصول والمصروفات مدينة، عدا مجمع الإهلاك (حساب مقابل للأصل) فطبيعته دائنة.</summary>

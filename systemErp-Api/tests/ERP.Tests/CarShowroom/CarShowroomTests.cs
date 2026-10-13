@@ -71,7 +71,7 @@ public class CarShowroomTests : TestBase
             purchasePrice = 50000, additionalCosts = 1000, preparationCost = 500, sellingPrice = 60000, vatMode = "profit_margin_15", totalCost = 1, vatAmount = 99999 });
         Assert.Equal(201, v.Status);
         Assert.Equal(51500, v.Data!["totalCost"].D());
-        Assert.Equal(1108.70m, v.Data["vatAmount"].D()); // (60000 - 51500) × 15/115
+        Assert.Equal(1304.35m, v.Data["vatAmount"].D()); // (60000 - 50000) × 15/115: أساس الهامش الافتراضي سعر الشراء فقط (إعداد يحدده المحاسب)
         Assert.Equal(60000, v.Data["priceWithVat"].D());
         Assert.Equal("available", v.Data["status"].S());
         Assert.Equal(409, (await api.Post("/vehicles", new { chassisNumber = vin, brandNameAr = "x", modelNameAr = "y", year = 2024 })).Status);

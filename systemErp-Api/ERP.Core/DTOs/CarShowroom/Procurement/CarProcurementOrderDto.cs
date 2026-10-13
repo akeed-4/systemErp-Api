@@ -44,6 +44,9 @@ public partial class CarProcurementOrderDto
     public string? DebitNoteNumber { get; set; }
     public string? DebitNoteReason { get; set; }
     public Guid? PurchaseInvoiceId { get; set; }
+    public string? CancelledChargesSettlement { get; set; }
+    public decimal? CancelledChargesAmount { get; set; }
+    public Guid? CancelledChargesEntryId { get; set; }
     public List<CarProcurementOrderItemDto> Items { get; set; } = new();
     public List<CarProcurementOrderVinDto> ReceivedVins { get; set; } = new();
 }

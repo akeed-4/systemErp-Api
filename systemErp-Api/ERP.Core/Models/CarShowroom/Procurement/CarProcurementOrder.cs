@@ -68,6 +68,12 @@ public class CarProcurementOrder : BaseEntity
     public string? DebitNoteReason { get; set; }
     public Guid? PurchaseInvoiceId { get; set; }
 
+    // إلغاء الشراء بعد مصاريف: معالجة ما صُرف فعلاً على سياراته
+    /// <summary>loss | supplier_claim؛ فارغ = لم يُعالَج.</summary>
+    public string? CancelledChargesSettlement { get; set; }
+    public decimal? CancelledChargesAmount { get; set; }
+    public Guid? CancelledChargesEntryId { get; set; }
+
     public virtual ICollection<CarProcurementOrderItem> Items { get; set; } = new List<CarProcurementOrderItem>();
     public virtual ICollection<CarProcurementOrderVin> ReceivedVins { get; set; } = new List<CarProcurementOrderVin>();
 }

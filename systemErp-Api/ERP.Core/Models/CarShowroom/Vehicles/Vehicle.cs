@@ -59,6 +59,13 @@ public class Vehicle : BaseEntity
 
     /// <summary>أمر الشراء الذي وردت منه المركبة (إن وُجد).</summary>
     public Guid? ProcurementOrderId { get; set; }
+    /// <summary>بند أمر الشراء الذي تمثله المركبة وهي في الطريق (يُطابَق به الشاسيه الحقيقي عند الاستلام).</summary>
+    public Guid? ProcurementOrderItemId { get; set; }
+    /// <summary>الحجم (م³) والوزن (كجم): أساس توزيع مصاريف الشحن حسب الحجم/الوزن.</summary>
+    /// <summary>تاريخ دخولها المخزون (الاستلام أو الإضافة المباشرة): أساس عمر المخزون. فارغ وهي في الطريق.</summary>
+    public DateTime? ReceivedAt { get; set; }
+    public decimal? VolumeCbm { get; set; }
+    public decimal? WeightKg { get; set; }
     /// <summary>فاتورة الشراء متعددة السيارات التي أنشأت هذه المركبة (تمنع حذفها منفردة).</summary>
     public Guid? PurchaseInvoiceId { get; set; }
 }

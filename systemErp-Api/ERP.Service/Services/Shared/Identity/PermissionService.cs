@@ -26,6 +26,24 @@ public class PermissionService : IPermissionService
         new() { Id = "reports", NameAr = "التقارير المالية والإقرار الضريبي", NameEn = "Financial Reports" },
         new() { Id = "approval-policies", NameAr = "سياسات الموافقات والطلبات", NameEn = "Approval Policies & Requests" },
         new() { Id = "user-permissions", NameAr = "إدارة صلاحيات المستخدمين والشاشات", NameEn = "User Roles & Screen Permissions" },
+        new() { Id = CarCostViewScreenId, NameAr = "السيارات: رؤية التكلفة والربح", NameEn = "Cars: View Cost & Profit" },
+        new() { Id = ChargeTreatmentOverrideScreenId, NameAr = "السيارات: تعديل معالجة سطر المصروف", NameEn = "Cars: Override Charge Treatment" },
+        new() { Id = LandedCostApprovalScreenId, NameAr = "السيارات: اعتماد سند التكاليف الإضافية", NameEn = "Cars: Approve Landed Cost Vouchers" },
+        new() { Id = SoldVehicleAdjustmentScreenId, NameAr = "السيارات: قيود التعديل على سيارات مباعة", NameEn = "Cars: Cost Adjustments on Sold Vehicles" },
+    };
+
+    public const string CarCostViewScreenId = "car-cost-view";
+    public const string ChargeTreatmentOverrideScreenId = "charge-treatment-override";
+    public const string LandedCostApprovalScreenId = "landed-cost-approval";
+    public const string SoldVehicleAdjustmentScreenId = "sold-vehicle-adjustment";
+
+    /// <summary>
+    /// صلاحيات حسّاسة تُمنح صراحةً: للأدوار الإدارية والمحاسبية فقط افتراضياً، وغيابها من صلاحيات محفوظة قبل إضافتها
+    /// يعني افتراضي الدور لا السماح (بعكس قاعدة «شاشة غير مسجّلة = مسموحة»).
+    /// </summary>
+    private static readonly HashSet<string> RestrictedScreens = new()
+    {
+        CarCostViewScreenId, ChargeTreatmentOverrideScreenId, LandedCostApprovalScreenId, SoldVehicleAdjustmentScreenId,
     };
 
     /// <summary>دور بوابة الموظف (UserRole.Employee): لا يملك أي شاشة، ويُحصر في مسارات الخدمة الذاتية.</summary>
@@ -58,6 +76,7 @@ public class PermissionService : IPermissionService
         {
             bool canView = true, canCreate = true, canEdit = true, canDelete = true, canApprove = true;
             if (role == EmployeeRoleId) canView = canCreate = canEdit = canDelete = canApprove = false;
+            else if (RestrictedScreens.Contains(s.Id)) canView = canCreate = canEdit = canDelete = canApprove = PermissionAdminRoles.Contains(role);
             else if (role == "sales_rep")
             {
                 canApprove = false; canDelete = false;
@@ -92,13 +111,25 @@ public class PermissionService : IPermissionService
         if (match == null) return DefaultsFor(string.IsNullOrEmpty(roleId) ? "owner" : roleId);
 
         var names = Screens.ToDictionary(s => s.Id);
-        return match.Permissions.Where(p => p.ScreenId != PlatformScreenId).Select(p => new ScreenPermissionDto
+        var saved = match.Permissions.Where(p => p.ScreenId != PlatformScreenId).Select(p => new ScreenPermissionDto
         {
             ScreenId = p.ScreenId,
             ScreenNameAr = names.GetValueOrDefault(p.ScreenId)?.NameAr ?? p.ScreenId,
             ScreenNameEn = names.GetValueOrDefault(p.ScreenId)?.NameEn ?? p.ScreenId,
             CanView = p.CanView, CanCreate = p.CanCreate, CanEdit = p.CanEdit, CanDelete = p.CanDelete, CanApprove = p.CanApprove,
         }).ToList();
+        // صلاحيات حُفظت قبل إضافة الشاشات الحسّاسة: تُستكمل بافتراضي الدور لتظهر في شبكة التعديل وتُفرض كما هي
+        var missing = RestrictedScreens.Except(saved.Select(p => p.ScreenId)).ToList();
+        if (missing.Count > 0)
+            saved.AddRange(DefaultsFor(string.IsNullOrEmpty(roleId) ? await RoleOfAsync(userId, ct) : roleId).Where(p => missing.Contains(p.ScreenId)));
+        return saved;
+    }
+
+    /// <summary>دور المستخدم حين يُطلب تخصيصه دون تحديد الدور (شبكة تعديل صلاحيات مستخدم).</summary>
+    private async Task<string> RoleOfAsync(Guid? userId, CancellationToken ct)
+    {
+        var role = userId.HasValue ? await _db.Set<User>().AsNoTracking().Where(u => u.Id == userId).Select(u => (UserRole?)u.Role).FirstOrDefaultAsync(ct) : null;
+        return role.HasValue ? RoleIds.From(role.Value) : EmployeeRoleId;
     }
 
     public async Task<List<ScreenPermissionDto>> GetForEditingAsync(Guid? userId, string? roleId, CancellationToken ct = default)

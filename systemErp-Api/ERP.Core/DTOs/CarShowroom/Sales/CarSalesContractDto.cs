@@ -52,16 +52,21 @@ public partial class CarSalesContractDto
     public string? FuelType { get; set; }
     public string? Transmission { get; set; }
     public string? Location { get; set; }
-    public decimal CostPrice { get; set; }
+    public decimal? CostPrice { get; set; }
     public decimal? AdditionalCosts { get; set; }
     public decimal SellingPrice { get; set; }
     public decimal? DiscountAmount { get; set; }
     public decimal? NetPriceBeforeVat { get; set; }
-    public decimal ProfitMargin { get; set; }
+    public decimal? ProfitMargin { get; set; }
     public VatMode VatMode { get; set; } = VatMode.Standard_15;
-    public decimal VatAmount { get; set; }
+    public decimal? VatAmount { get; set; }
     public decimal TotalWithVat { get; set; }
     public decimal? ProfitMarginVat { get; set; }
+    public decimal? MarginBaseCost { get; set; }
+    public decimal CustomerChargesNet { get; set; }
+    public decimal CustomerChargesVat { get; set; }
+    /// <summary>ما يدفعه العميل: السيارة بضريبتها + الرسوم والإضافات المحمّلة عليه بضريبتها.</summary>
+    public decimal GrandTotalWithCharges => TotalWithVat + CustomerChargesNet + CustomerChargesVat;
     public string PaymentMethod { get; set; } = "cash";
     public string? PlateRegistrationType { get; set; }
     public string? PlateLettersAr { get; set; }

@@ -12,10 +12,20 @@ public class CarSalesContractsController : ErpControllerBase
 {
     private readonly ICarSaleService _service;
     private readonly IPermissionService _permissions;
-    public CarSalesContractsController(ICarSaleService service, IPermissionService permissions)
+    private readonly ISaleProfitService _profit;
+    public CarSalesContractsController(ICarSaleService service, IPermissionService permissions, ISaleProfitService profit)
     {
-        _service = service; _permissions = permissions;
+        _service = service; _permissions = permissions; _profit = profit;
     }
+
+    /// <summary>ما يظهر للعميل في عرض السعر والفاتورة غير السيارة: الرسوم المحمّلة عليه والإضافات، بضريبتها.</summary>
+    [HttpGet("{id:guid}/customer-charges")]
+    public async Task<IActionResult> CustomerCharges(Guid id, CancellationToken ct) => Success(await _profit.GetCustomerChargesAsync(id, ct));
+
+    /// <summary>اللوحة الداخلية (لا تُطبع): التكلفة الحالية، مصاريف المعرض المتوقعة، والربح المتوقع ونسبته. لمن يملك صلاحية رؤية التكلفة.</summary>
+    [HttpGet("{id:guid}/profit")]
+    [RequireScreen(ERP.Service.Services.Shared.PermissionService.CarCostViewScreenId, ScreenAction.View)]
+    public async Task<IActionResult> Profit(Guid id, CancellationToken ct) => Success(await _profit.GetPanelAsync(id, ct));
 
     /// <summary>cycleType اختياري بصيغة snake_case (individual | corporate | bank_lease | installment).</summary>
     [HttpGet]
@@ -77,6 +87,14 @@ public class CarSalesContractsController : ErpControllerBase
     {
         await Require(ScreenAction.Approve, ct);
         return Success(await _service.CancelAsync(id, dto.Reason, ct), Messages.ContractCancelled);
+    }
+
+    /// <summary>مرتجع بيع: إشعار دائن وإعادة السيارة للمخزون بتكلفتها الأصلية. يتطلب صلاحية الاعتماد.</summary>
+    [HttpPost("{id:guid}/return")]
+    public async Task<IActionResult> Return(Guid id, [FromBody] ReturnCarSaleDto dto, CancellationToken ct)
+    {
+        await Require(ScreenAction.Approve, ct);
+        return Success(await _service.ReturnAsync(id, dto, ct), Messages.SaleReturned);
     }
 
     [HttpDelete("{id:guid}")]

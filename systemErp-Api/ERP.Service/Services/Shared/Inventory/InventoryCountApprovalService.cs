@@ -215,7 +215,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             }
         }
         await _db.SaveChangesAsync(ct);
-        return await PostVarianceAsync(count, DefaultAccounts.VehicleInventory, ct);
+        return await PostVarianceAsync(count, (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).VehicleInventoryAccount, ct);
     }
 
     /// <summary>زيادة الجرد: مدين المخزون / دائن فروقات الجرد، والعجز بالعكس. لا قيد إن لم يكن للفروق قيمة.</summary>

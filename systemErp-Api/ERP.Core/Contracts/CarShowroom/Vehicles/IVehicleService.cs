@@ -7,7 +7,7 @@ namespace ERP.Core.Contracts.CarShowroom;
 public interface IVehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateVehicleDto>
 {
     /// <summary>حساب الضريبة وفق نمط الاحتساب (يطابق calculateVat في الواجهة).</summary>
-    CarVatResult CalculateVat(CalculateCarVatRequestDto request);
+    Task<CarVatResult> CalculateVatAsync(CalculateCarVatRequestDto request, CancellationToken ct = default);
     /// <summary>المركبات المتاحة للبيع (لمنتقي المركبات في عقد البيع).</summary>
     Task<List<VehicleDto>> ListAvailableAsync(string? search, CancellationToken ct = default);
     /// <summary>استيراد جماعي للمركبات (من Excel). صف فاشل لا يوقف البقية.</summary>

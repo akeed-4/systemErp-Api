@@ -37,7 +37,7 @@ public partial class VehicleDto
     public decimal? PurchasePrice { get; set; }
     public decimal? AdditionalCosts { get; set; }
     public decimal? PreparationCost { get; set; }
-    public decimal TotalCost { get; set; }
+    public decimal? TotalCost { get; set; }
     public decimal SellingPrice { get; set; }
     public decimal? VatAmount { get; set; }
     public decimal? PriceWithVat { get; set; }
@@ -51,5 +51,8 @@ public partial class VehicleDto
     public int? WarrantyKm { get; set; }
     public VehiclePdiChecklist? PdiChecklist { get; set; }
     public Guid? ProcurementOrderId { get; set; }
+    public DateTime? ReceivedAt { get; set; }
+    public decimal? VolumeCbm { get; set; }
+    public decimal? WeightKg { get; set; }
     public Guid? PurchaseInvoiceId { get; set; }
 }

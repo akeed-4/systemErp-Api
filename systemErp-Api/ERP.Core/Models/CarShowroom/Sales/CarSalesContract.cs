@@ -70,6 +70,11 @@ public class CarSalesContract : BaseEntity
     public decimal VatAmount { get; set; }
     public decimal TotalWithVat { get; set; }
     public decimal? ProfitMarginVat { get; set; }
+    /// <summary>أساس هامش الربح الذي احتُسبت عليه الضريبة (سعر الشراء أو التكلفة الكلية حسب إعداد المعرض).</summary>
+    public decimal? MarginBaseCost { get; set; }
+    /// <summary>الرسوم والإضافات المحمّلة على العميل (أسطر المصاريف بمعالجة «على العميل»): صافيها وضريبتها. تُحدَّث مع كل تغيير في الأسطر.</summary>
+    public decimal CustomerChargesNet { get; set; }
+    public decimal CustomerChargesVat { get; set; }
     /// <summary>cash | credit | bank_transfer | bank_finance | pos_mada</summary>
     public string PaymentMethod { get; set; } = "cash";
 

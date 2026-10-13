@@ -17,6 +17,8 @@ public interface ICarSaleService
     /// <summary>ينقل العقد للمرحلة التالية (5 مراحل) مع آثارها: حجز المركبة، التسليم، الفاتورة والقيد.</summary>
     Task<CarSalesContractDto> AdvanceStatusAsync(Guid id, AdvanceSalesContractRequestDto request, CancellationToken ct = default);
     Task<CarSalesContractDto> CancelAsync(Guid id, string? reason, CancellationToken ct = default);
+    /// <summary>مرتجع بيع عقد مفوتَر: إشعار دائن، والسيارة ترجع للمخزون بتكلفتها الأصلية.</summary>
+    Task<CarSalesContractDto> ReturnAsync(Guid id, ReturnCarSaleDto request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     /// <summary>يُكمل عقدًا قائمًا من مرحلته الحالية حتى الفوترة في معاملة واحدة (بيانات التسليم الفارغة تُملأ من المشتري).</summary>
     Task<CarSalesContractDto> CompleteAsync(Guid id, CompleteSalesContractRequestDto? request, CancellationToken ct = default);

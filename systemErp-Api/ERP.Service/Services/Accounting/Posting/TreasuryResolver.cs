@@ -8,9 +8,10 @@ namespace ERP.Service.Services.Accounting;
 /// <summary>يحوّل طريقة الدفع إلى حساب خزينة/بنك: حساب طريقة الدفع المُعرَّفة إن وُجد وإلا الصندوق/البنك الافتراضي.</summary>
 public static class TreasuryResolver
 {
-    public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured)
+    /// <param name="depositsAccount">حساب عربونات العملاء من إعدادات المعرض؛ فارغ = الافتراضي.</param>
+    public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured, string? depositsAccount = null)
     {
-        if (method == PaymentMethod.CustomerDeposit) return DefaultAccounts.CustomerDeposits;
+        if (method == PaymentMethod.CustomerDeposit) return string.IsNullOrWhiteSpace(depositsAccount) ? DefaultAccounts.CustomerDeposits : depositsAccount;
         var type = method switch
         {
             PaymentMethod.Cash => "cash",

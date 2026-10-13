@@ -21,14 +21,32 @@ public class CarSaleService : ICarSaleService
     private readonly ICurrentUser _user;
     private readonly ITransactionRunner _tx;
     private readonly IAuditService _audit;
+    private readonly ICostVisibility _cost;
+    private readonly IAccountingPostingService _posting;
+    /// <summary>يُحمَّل في بداية كل عملية عامة؛ الافتراضي الحجب.</summary>
+    private bool _canViewCost;
 
-    public CarSaleService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, ICurrentUser user, ITransactionRunner tx, IAuditService audit)
+    public CarSaleService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, ICurrentUser user, ITransactionRunner tx, IAuditService audit,
+        ICostVisibility cost, IAccountingPostingService posting)
     {
-        _db = db; _numbers = numbers; _invoices = invoices; _user = user; _tx = tx; _audit = audit;
+        _db = db; _numbers = numbers; _invoices = invoices; _user = user; _tx = tx; _audit = audit; _cost = cost; _posting = posting;
+    }
+
+    private async Task LoadCostVisibilityAsync(CancellationToken ct) => _canViewCost = await _cost.CanViewAsync(ct);
+
+    /// <summary>التكلفة والربح لمن يملك صلاحية car-cost-view فقط. في هامش الربح الضريبة والصافي يكشفان الهامش فيُحجبان معه.</summary>
+    private CarSalesContractDto ToDto(CarSalesContract contract)
+    {
+        var dto = Mapper.Map<CarSalesContractDto>(contract);
+        if (_canViewCost) return dto;
+        dto.CostPrice = null; dto.AdditionalCosts = null; dto.ProfitMargin = null; dto.ProfitMarginVat = null;
+        if (CarVat.IsMarginScheme(contract.VatMode)) { dto.VatAmount = null; dto.NetPriceBeforeVat = null; }
+        return dto;
     }
 
     public async Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams p, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
     {
+        await LoadCostVisibilityAsync(ct);
         var q = _db.Set<CarSalesContract>().AsNoTracking().AsQueryable();
         if (cycleType.HasValue) q = q.Where(c => c.CycleType == cycleType);
         if (Enum.TryParse<SalesContractStatus>(p.Status, true, out var st)) q = q.Where(c => c.Status == st);
@@ -44,68 +62,80 @@ public class CarSaleService : ICarSaleService
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
         return new PagedResult<CarSalesContractDto>
         {
-            Items = items.Select(Mapper.Map<CarSalesContractDto>).ToList(),
+            Items = items.Select(ToDto).ToList(),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
 
     /// <summary>القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL.</summary>
-    public Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
+    public async Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
     {
+        await LoadCostVisibilityAsync(ct);
         var q = _db.Set<CarSalesContract>().AsNoTracking().AsQueryable();
         if (cycleType.HasValue) q = q.Where(c => c.CycleType == cycleType);
-        return EntityLoader.LoadAsync(q, options, Mapper.Map<CarSalesContractDto>, ct,
+        return await EntityLoader.LoadAsync(q, options, ToDto, ct,
             EntityLoader.Desc(nameof(CarSalesContract.Date)), EntityLoader.Desc(nameof(CarSalesContract.ContractNumber)));
     }
 
     public async Task<CarSalesContractDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<CarSalesContractDto>(await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct)
+    {
+        await LoadCostVisibilityAsync(ct);
+        return ToDto(await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct)
             ?? throw new NotFoundException(Messages.SalesContractNotFound));
+    }
 
     public Task<CarSalesContractDto> CreateAsync(CreateCarSalesContractDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await LoadCostVisibilityAsync(token);
             var contract = Mapper.Map<CarSalesContract>(r);
             ResetSystemFields(contract);
-            var vehicle = await LoadVehicleAsync(r.VehicleId, null, token, r.DepositVoucherId);
+            var vehicle = await LoadVehicleAsync(r.VehicleId, null, token, r.DepositVoucherId, r.CustomerId, r.BuyerName);
             await ValidateAsync(contract, token);
-            ApplyVehicleAndPricing(contract, vehicle);
+            ApplyVehicleAndPricing(contract, vehicle, await CarTax.LoadAsync(_db, token));
             await ValidateDepositAsync(contract, token);
 
             contract.ContractNumber = await _numbers.NextAsync("car_sales_contract", "CSC-", token);
             contract.Date = r.Date == default ? DateTime.UtcNow : r.Date;
             contract.Status = SalesContractStatus.Draft;
             contract.SalespersonName ??= _user.Name;
+            contract.CustomerChargesNet = 0; contract.CustomerChargesVat = 0;
             _db.Add(contract);
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<CarSalesContractDto>(contract);
+            await SalesCharges.SyncContractFieldsAsync(_db, contract, token);
+            return ToDto(contract);
         }, ct);
 
     public Task<CarSalesContractDto> UpdateAsync(Guid id, UpdateCarSalesContractDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await LoadCostVisibilityAsync(token);
             var contract = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(c => c.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
-            if (contract.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled or SalesContractStatus.Delivered)
+            if (contract.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled or SalesContractStatus.Delivered or SalesContractStatus.Returned)
                 throw new ConflictException(Messages.CannotEditDeliveredInvoicedCancelledContract);
             if (r.VehicleId != contract.VehicleId && contract.Status != SalesContractStatus.Draft)
                 throw new ConflictException(Messages.VehicleChangeViaAllocation);
 
             var keep = _db.Entry(contract).CurrentValues.Clone();
+            var previousVehicle = contract.VehicleId;
             Mapper.Apply(r, contract);
             RestoreSystemFields(contract, keep);
-            var vehicle = await LoadVehicleAsync(contract.VehicleId, contract.Id, token, contract.DepositVoucherId);
+            var vehicle = await LoadVehicleAsync(contract.VehicleId, contract.Id, token, contract.DepositVoucherId, contract.CustomerId, contract.BuyerName);
             await ValidateAsync(contract, token);
-            ApplyVehicleAndPricing(contract, vehicle);
+            ApplyVehicleAndPricing(contract, vehicle, await CarTax.LoadAsync(_db, token));
             await ValidateDepositAsync(contract, token);
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<CarSalesContractDto>(contract);
+            if (contract.VehicleId != previousVehicle) await SalesCharges.MoveEstimatesAsync(_db, contract.Id, contract.VehicleId, token);
+            await SalesCharges.SyncContractFieldsAsync(_db, contract, token);
+            return ToDto(contract);
         }, ct);
 
     public Task<CarSalesContractDto> AdvanceStatusAsync(Guid id, AdvanceSalesContractRequestDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await LoadCostVisibilityAsync(token);
             var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
-            if (c.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled)
+            if (c.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled or SalesContractStatus.Returned)
                 throw new ConflictException(Messages.ContractFinished);
             if (r.TargetStatus == SalesContractStatus.Cancelled) throw new ValidationFailedException(Messages.UseCancelEndpoint);
             if (r.TargetStatus != c.Status + 1)
@@ -123,18 +153,19 @@ public class CarSaleService : ICarSaleService
             c.Status = r.TargetStatus;
             await _audit.LogAsync("STATUS_ADVANCED", nameof(CarSalesContract), c.Id.ToString(), $"من {from} إلى {c.Status}", token);
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<CarSalesContractDto>(c);
+            return ToDto(c);
         }, ct);
 
     public Task<CarSalesContractDto> CompleteAsync(Guid id, CompleteSalesContractRequestDto? h, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await LoadCostVisibilityAsync(token);
             var current = await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
-            if (current.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled)
+            if (current.Status is SalesContractStatus.Invoiced or SalesContractStatus.Cancelled or SalesContractStatus.Returned)
                 throw new ConflictException(Messages.ContractFinished);
 
             var status = current.Status;
-            CarSalesContractDto last = Mapper.Map<CarSalesContractDto>(current);
+            CarSalesContractDto last = ToDto(current);
             while (status != SalesContractStatus.Invoiced)
             {
                 var next = status + 1;
@@ -166,24 +197,119 @@ public class CarSaleService : ICarSaleService
     public Task<CarSalesContractDto> CancelAsync(Guid id, string? reason, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await LoadCostVisibilityAsync(token);
             var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
-            if (c.Status == SalesContractStatus.Invoiced) throw new ConflictException(Messages.CannotCancelInvoicedContract);
+            if (c.Status is SalesContractStatus.Invoiced or SalesContractStatus.Returned) throw new ConflictException(Messages.CannotCancelInvoicedContract);
             if (c.Status == SalesContractStatus.Cancelled) throw new ConflictException(Messages.ContractAlreadyCancelled);
             var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == c.VehicleId, token);
             // يبقى محجوزاً إن كان عليه عربون مفتوح (العربون يحجزه حتى يُحذف أو يُخصم من عقد)
             var heldByDeposit = await _db.Set<Voucher>().AnyAsync(v => v.DepositVehicleId == c.VehicleId && v.DepositStatus == "open", token);
-            if (vehicle is { Status: VehicleStatus.Reserved } && !heldByDeposit) vehicle.Status = VehicleStatus.Available; // فك الحجز
+            // أو حجز يدوي ما زال فعّالاً
+            var stillReserved = await VehicleReservations.UnholdAsync(_db, c.VehicleId, c.Id, null, "إلغاء عقد البيع", token);
+            if (vehicle is { Status: VehicleStatus.Reserved } && !heldByDeposit && !stillReserved) vehicle.Status = VehicleStatus.Available; // فك الحجز
+            await SalesCharges.CancelEstimatesAsync(_db, c.Id, token);
             c.Status = SalesContractStatus.Cancelled;
             if (!string.IsNullOrWhiteSpace(reason)) c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? $"سبب الإلغاء: {reason}" : $"{c.Notes}\nسبب الإلغاء: {reason}";
             await _audit.LogAsync("CONTRACT_CANCELLED", nameof(CarSalesContract), c.Id.ToString(), reason ?? "بدون سبب", token);
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<CarSalesContractDto>(c);
+            return ToDto(c);
+        }, ct);
+
+    /// <summary>
+    /// مرتجع البيع: إشعار دائن يعكس فاتورة العقد، والسيارة ترجع للمخزون بتكلفتها الأصلية (تكلفة المبيعات وقت البيع).
+    /// مصاريف وصلت بعد البيع (حُمّلت على تكلفة المبيعات) تبقى مصروفاً ولا تعود للمخزون. الرسوم المحمّلة على العميل تُرد له أو لا حسب
+    /// إعداد المعرض (أو اختيار المرتجع)؛ وما رُدّ منها وكان المعرض دفعه فعلاً (رسوم تم غير مستردة) يتحول لمصروف على المعرض.
+    /// </summary>
+    public Task<CarSalesContractDto> ReturnAsync(Guid id, ReturnCarSaleDto r, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            await LoadCostVisibilityAsync(token);
+            var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
+            if (c.Status != SalesContractStatus.Invoiced || c.InvoiceId == null) throw new ConflictException(Messages.ContractNotInvoicedForReturn);
+            if (string.IsNullOrWhiteSpace(r.Reason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
+            var original = await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).FirstAsync(i => i.Id == c.InvoiceId, token);
+            var settings = await SalesCharges.SettingsAsync(_db, token);
+            await ChargePosting.EnsureAccountsAsync(_db, settings, token);
+            var refundCharges = r.RefundCustomerCharges ?? settings.RefundCustomerChargesOnReturn;
+
+            // بند السيارة يحمل ضريبتها المحسوبة بنمطها؛ الباقي رسوم وإضافات على العميل
+            var vehicleItem = original.Items.FirstOrDefault(i => i.VatAmountOverride.HasValue) ?? original.Items.OrderByDescending(i => i.UnitCost).First();
+            var returned = refundCharges ? original.Items.OrderByDescending(i => i.Id == vehicleItem.Id).ToList() : new List<InvoiceItem> { vehicleItem };
+            var dto = new CreateInvoiceDto
+            {
+                Kind = InvoiceKind.SalesReturn, InvoiceType = InvoiceType.CreditNote, IsReturn = true,
+                OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.Reason.Trim(),
+                PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber,
+                PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber, PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
+                PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
+                PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
+                PaymentMethod = r.RefundPaymentMethod ?? (original.PaymentMethod == PaymentMethod.Credit ? PaymentMethod.Credit : PaymentMethod.Cash),
+                CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate, Status = "posted",
+                Notes = $"مرتجع بيع سيارة - عقد {c.ContractNumber} - VIN {c.Vin} - {r.Reason.Trim()}",
+                ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
+                RevenueAccountCode = original.RevenueAccountCode, CogsAccountCode = original.CogsAccountCode, InventoryAccountCode = original.InventoryAccountCode,
+                Items = returned.Select(i => new InvoiceItemDto
+                {
+                    ItemId = Guid.Empty, ItemName = i.ItemName, Sku = i.Sku, Unit = i.Unit, Quantity = i.Quantity, UnitPrice = i.UnitPrice, UnitCost = i.UnitCost,
+                    Discount = i.Discount, VatRate = i.VatRate, VatAmountOverride = i.VatAmountOverride, VatCategory = i.VatCategory,
+                    VatExemptionReasonCode = i.VatExemptionReasonCode, RevenueAccountCode = i.RevenueAccountCode, CostCenterId = i.CostCenterId,
+                }).ToList(),
+            };
+            if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
+            var creditNote = await _invoices.CreateAsync(dto, token);
+
+            var vehicle = await _db.Set<Vehicle>().FirstAsync(v => v.Id == c.VehicleId, token);
+            vehicle.Status = VehicleStatus.Available;
+
+            // مصاريف ما بعد البيع: بقيت على تكلفة المبيعات، فتخرج من تكلفة السيارة وتصير مصروفاً
+            var lateLines = (await _db.Set<AdditionalChargeAllocation>().Include(a => a.Line)
+                .Where(a => a.VehicleId == vehicle.Id && a.PostedToCogs && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Capitalize)
+                .ToListAsync(token)).Select(a => a.Line).Distinct().ToList();
+            foreach (var line in lateLines)
+            {
+                line.Treatment = ChargeTreatment.Expense;
+                line.Notes = string.IsNullOrWhiteSpace(line.Notes) ? "مصروف بعد البيع: بقي مصروفاً عند مرتجع البيع" : $"{line.Notes} - بقي مصروفاً عند مرتجع البيع";
+            }
+
+            // رسوم على العميل رُدّت له وكان المعرض دفعها فعلاً نيابة عنه: لم يعد من يتحملها غير المعرض
+            var contractLines = await SalesCharges.ContractLines(_db, c.Id)
+                .Where(l => l.Status == ChargeStatus.Actual && l.Treatment == ChargeTreatment.RechargeToCustomer).ToListAsync(token);
+            if (refundCharges && contractLines.Count > 0)
+            {
+                var typeIds = contractLines.Select(l => l.ExpenseTypeId).Distinct().ToList();
+                var disbursements = await _db.Set<ExpenseType>().AsNoTracking().Where(t => typeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.IsDisbursement, token);
+                var passThrough = contractLines.Where(l => l.JournalEntryId != null && (!l.SalePrice.HasValue || disbursements.GetValueOrDefault(l.ExpenseTypeId))).ToList();
+                var unrecovered = passThrough.Sum(l => l.SalePrice ?? l.CostAmount);
+                if (unrecovered > 0)
+                    await _posting.PostAsync(new GenericPostingRequest
+                    {
+                        Date = dto.IssueDate == default ? DateTime.UtcNow : dto.IssueDate,
+                        Description = $"رسوم غير مستردة رُدّت للعميل عند مرتجع عقد {c.ContractNumber}: مصروف على المعرض",
+                        SourceType = "car_sale_return_fees", SourceId = c.Id, SourceNumber = c.ContractNumber,
+                        Lines = new List<PostingLine> { new(settings.VehicleExpenseAccount, unrecovered, 0), new(settings.CustomerRechargeAccount, 0, unrecovered) },
+                    }, token);
+                foreach (var line in passThrough) { line.Treatment = ChargeTreatment.Expense; line.SalePrice = null; }
+            }
+            await _db.SaveChangesAsync(token);
+            await SalesCharges.CancelEstimatesAsync(_db, c.Id, token);
+            await VehicleCostLedger.RecomputeAsync(_db, new[] { vehicle.Id }, token);
+
+            c.Status = SalesContractStatus.Returned;
+            c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? $"سبب المرتجع: {r.Reason.Trim()}" : $"{c.Notes}\nسبب المرتجع: {r.Reason.Trim()}";
+            await _audit.LogAsync("CONTRACT_RETURNED", nameof(CarSalesContract), c.Id.ToString(),
+                $"مرتجع عقد {c.ContractNumber} بإشعار دائن {creditNote.InvoiceNumber}" + (refundCharges ? " مع رد الرسوم المحمّلة على العميل" : " دون رد الرسوم المحمّلة على العميل"), token);
+            await _db.SaveChangesAsync(token);
+            return ToDto(c);
         }, ct);
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException(Messages.SalesContractNotFound);
         if (c.Status is not (SalesContractStatus.Draft or SalesContractStatus.Cancelled)) throw new ConflictException(Messages.OnlyDraftOrCancelledContractDeleted);
+        var charges = await SalesCharges.ContractLines(_db, c.Id).Include(l => l.Allocations).ToListAsync(ct);
+        if (charges.Any(l => l.Status == ChargeStatus.Actual)) throw new ConflictException(Messages.ContractHasActualCharges);
+        _db.RemoveRange(charges.SelectMany(l => l.Allocations));
+        _db.RemoveRange(charges);
         _db.Remove(c);
         await _db.SaveChangesAsync(ct);
     }
@@ -204,8 +330,9 @@ public class CarSaleService : ICarSaleService
         if (c.PaymentMethod is "credit" or "bank_finance" && c.CustomerId == null) errors.Add(Messages.CreditSaleRequiresCustomerLink);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
-        var vehicle = await LoadVehicleAsync(c.VehicleId, c.Id, ct);
+        var vehicle = await LoadVehicleAsync(c.VehicleId, c.Id, ct, c.DepositVoucherId, c.CustomerId, c.BuyerName);
         vehicle.Status = VehicleStatus.Reserved; // حجز لهذا العقد
+        await VehicleReservations.HoldAsync(_db, vehicle.Id, c.CustomerId, c.BuyerName, c.Id, null, ct);
     }
 
     private async Task AllocateAsync(CarSalesContract c, AdvanceSalesContractRequestDto r, CancellationToken ct)
@@ -213,11 +340,14 @@ public class CarSaleService : ICarSaleService
         var vehicle = await _db.Set<Vehicle>().FirstAsync(v => v.Id == c.VehicleId, ct);
         if (r.VehicleId.HasValue && r.VehicleId != c.VehicleId)
         {
-            var replacement = await LoadVehicleAsync(r.VehicleId.Value, c.Id, ct);
-            if (vehicle.Status == VehicleStatus.Reserved) vehicle.Status = VehicleStatus.Available; // فك حجز المركبة القديمة
+            var replacement = await LoadVehicleAsync(r.VehicleId.Value, c.Id, ct, null, c.CustomerId, c.BuyerName);
+            var oldStillReserved = await VehicleReservations.UnholdAsync(_db, vehicle.Id, c.Id, null, "تبديل سيارة العقد", ct);
+            if (vehicle.Status == VehicleStatus.Reserved && !oldStillReserved) vehicle.Status = VehicleStatus.Available; // فك حجز المركبة القديمة
             replacement.Status = VehicleStatus.Reserved;
             c.VehicleId = replacement.Id;
-            ApplyVehicleAndPricing(c, replacement);
+            ApplyVehicleAndPricing(c, replacement, await CarTax.LoadAsync(_db, ct));
+            await VehicleReservations.HoldAsync(_db, replacement.Id, c.CustomerId, c.BuyerName, c.Id, null, ct);
+            await SalesCharges.MoveEstimatesAsync(_db, c.Id, replacement.Id, ct);
             vehicle = replacement;
         }
         if (vehicle.Status != VehicleStatus.Reserved) vehicle.Status = VehicleStatus.Reserved;
@@ -249,11 +379,25 @@ public class CarSaleService : ICarSaleService
         if (c.InvoiceId != null) throw new ConflictException(Messages.ContractAlreadyInvoiced);
         var vehicle = await _db.Set<Vehicle>().FirstAsync(v => v.Id == c.VehicleId, ct);
         var customer = c.CustomerId.HasValue ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == c.CustomerId, ct) : null;
+
+        // تكلفة المبيعات = تكلفة السيارة الكلية وقت الفوترة (بما أُضيف لها من مصاريف بعد إنشاء العقد)؛ سعر العميل لا يتغيّر
+        var settings = await SalesCharges.SettingsAsync(_db, ct);
+        await ChargePosting.EnsureAccountsAsync(_db, settings, ct);
+        var tax = new CarTax(settings.StandardVatRate, settings.MarginBasis);
+        c.CostPrice = vehicle.TotalCost;
+        c.MarginBaseCost = tax.MarginBase(vehicle.PurchasePrice, vehicle.TotalCost);
+        var pricing = tax.Calculate(vehicle.PurchasePrice, vehicle.TotalCost, c.SellingPrice - (c.DiscountAmount ?? 0), c.VatMode);
+        // الهامش المعروض ربح العقد الفعلي (السعر − التكلفة الكلية)؛ أما الضريبة فعلى الهامش الخاضع حسب أساسه في الإعدادات
+        c.NetPriceBeforeVat = pricing.NetBeforeVat; c.ProfitMargin = Math.Max(0, c.SellingPrice - (c.DiscountAmount ?? 0) - c.CostPrice); c.ProfitMarginVat = pricing.ProfitMarginVat;
+        c.VatAmount = pricing.VatAmount; c.TotalWithVat = pricing.PriceWithVat;
+        // الرسوم والإضافات المحمّلة على العميل: بنود مستقلة في فاتورته
+        await SalesCharges.RefreshContractAsync(_db, c.Id, ct);
+        var chargeItems = await SalesCharges.InvoiceItemsAsync(_db, c.Id, ct);
         var net = c.NetPriceBeforeVat ?? c.SellingPrice - (c.DiscountAmount ?? 0);
 
         // العربون يُخصم أولاً: جزء الدفع به يقفل حساب عربونات العملاء (216) والباقي بحسب خطة الدفع
         Voucher? deposit = c.DepositVoucherId.HasValue ? await _db.Set<Voucher>().FirstOrDefaultAsync(v => v.Id == c.DepositVoucherId, ct) : null;
-        var depositAmount = deposit == null ? 0m : Math.Min(deposit.Amount, c.TotalWithVat);
+        var depositAmount = deposit == null ? 0m : Math.Min(deposit.Amount, Total(c));
         var (method, splits) = PaymentPlan(c, depositAmount, deposit?.VoucherNumber);
         var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
         {
@@ -264,21 +408,22 @@ public class CarSaleService : ICarSaleService
             Status = "posted",
             Notes = $"فاتورة مبيعات سيارة - عقد {c.ContractNumber} - VIN {c.Vin}",
             ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
-            RevenueAccountCode = DefaultAccounts.CarSalesRevenue, CogsAccountCode = DefaultAccounts.CarCogs, InventoryAccountCode = DefaultAccounts.VehicleInventory,
+            RevenueAccountCode = settings.CarSalesRevenueAccount, CogsAccountCode = settings.CarCogsAccount, InventoryAccountCode = settings.VehicleInventoryAccount,
             Items = new List<InvoiceItemDto>
             {
                 new()
                 {
                     ItemId = Guid.Empty, ItemName = $"{c.VehicleDescription} (VIN: {c.Vin})", Unit = "سيارة", Quantity = 1,
                     UnitPrice = net, UnitCost = c.CostPrice,
-                    VatRate = c.VatMode == VatMode.Standard_15 ? 15 : 0,
+                    VatRate = tax.RateFor(c.VatMode),
                     VatAmountOverride = c.VatAmount, // الضريبة المحسوبة بنمط الاحتساب (قياسي/هامش الربح/معفى)
                 },
-            },
+            }.Concat(chargeItems).ToList(),
         }, ct);
 
         c.InvoiceId = invoice.Id;
         vehicle.Status = VehicleStatus.Sold;
+        await VehicleReservations.ConvertAsync(_db, vehicle.Id, ct);
         if (deposit != null)
         {
             deposit.DepositStatus = "applied"; deposit.DepositContractId = c.Id;
@@ -287,9 +432,12 @@ public class CarSaleService : ICarSaleService
     }
 
     /// <summary>طريقة الدفع في الفاتورة: التمويل/الآجل مع دفعة مقدمة تُقسَّم إلى نقد + ذمم.</summary>
+    /// <summary>ما يدفعه العميل: السيارة بضريبتها + الرسوم والإضافات المحمّلة عليه بضريبتها.</summary>
+    private static decimal Total(CarSalesContract c) => c.TotalWithVat + c.CustomerChargesNet + c.CustomerChargesVat;
+
     private static (PaymentMethod Method, List<InvoicePaymentSplitDto> Splits) PaymentPlan(CarSalesContract c, decimal deposit = 0, string? depositRef = null)
     {
-        var total = c.TotalWithVat;
+        var total = Total(c);
         if (deposit > 0)
         {
             var parts = new List<InvoicePaymentSplitDto> { new() { Method = PaymentMethod.CustomerDeposit, Amount = deposit, Reference = depositRef } };
@@ -327,19 +475,29 @@ public class CarSaleService : ICarSaleService
     }
 
     // ---------------- التحقق والتسعير ----------------
-    private async Task<Vehicle> LoadVehicleAsync(Guid vehicleId, Guid? contractId, CancellationToken ct, Guid? depositVoucherId = null)
+    private async Task<Vehicle> LoadVehicleAsync(Guid vehicleId, Guid? contractId, CancellationToken ct, Guid? depositVoucherId = null,
+        Guid? customerId = null, string? buyerName = null)
     {
+        await VehicleReservations.ExpireDueAsync(_db, ct); // حجز انتهت مدته بلا عربون ولا عقد لا يمنع البيع
         var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == vehicleId, ct) ?? throw new ValidationFailedException(Messages.VehicleNotFound);
         if (vehicle.Status == VehicleStatus.Sold) throw new ConflictException(Messages.VehicleSold);
         if (vehicle.Status == VehicleStatus.WrittenOff) throw new ConflictException(Messages.VehicleWrittenOffNotSellable);
+        if (vehicle.Status is VehicleStatus.InTransit or VehicleStatus.Cancelled) throw new ConflictException(string.Format(Messages.VehicleNotInStock, vehicle.ChassisNumber));
         if (vehicle.Status == VehicleStatus.Reserved)
         {
             var reservedByThis = contractId.HasValue && await _db.Set<CarSalesContract>().AnyAsync(x => x.Id == contractId && x.VehicleId == vehicleId
-                && x.Status != SalesContractStatus.Cancelled, ct);
+                && x.Status != SalesContractStatus.Cancelled && x.Status != SalesContractStatus.Returned, ct);
             var reservedByOther = await _db.Set<CarSalesContract>().AnyAsync(x => x.VehicleId == vehicleId && x.Id != contractId
-                && x.Status != SalesContractStatus.Cancelled && x.Status != SalesContractStatus.Draft, ct);
+                && x.Status != SalesContractStatus.Cancelled && x.Status != SalesContractStatus.Draft && x.Status != SalesContractStatus.Returned, ct);
             var reservedByDeposit = depositVoucherId.HasValue && await _db.Set<Voucher>().AnyAsync(v => v.Id == depositVoucherId && v.DepositVehicleId == vehicleId, ct);
-            if (reservedByOther || (!reservedByThis && !contractId.HasValue && !reservedByDeposit)) throw new ConflictException(Messages.VehicleReservedForAnotherContract);
+            // حجز قائم: يُباع لصاحبه فقط (العميل نفسه، أو الاسم نفسه لحجز بلا عميل معرَّف)
+            var reservation = await VehicleReservations.ActiveAsync(_db, vehicleId, ct);
+            var reservedForBuyer = reservation != null && (reservation.CustomerId.HasValue
+                ? reservation.CustomerId == customerId
+                : string.Equals(reservation.CustomerName.Trim(), buyerName?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (reservedByOther || (!reservedByThis && !contractId.HasValue && !reservedByDeposit && !reservedForBuyer)) throw new ConflictException(Messages.VehicleReservedForAnotherContract);
+            if (reservation != null && !reservedForBuyer && !reservedByDeposit && reservation.ContractId != contractId)
+                throw new ConflictException(string.Format(Messages.VehicleAlreadyReservedFor, reservation.CustomerName, reservation.ExpiresAt));
         }
         return vehicle;
     }
@@ -356,7 +514,7 @@ public class CarSaleService : ICarSaleService
             throw new ValidationFailedException("سند العربون لعميل آخر.");
         if (await _db.Set<CarSalesContract>().AnyAsync(x => x.DepositVoucherId == c.DepositVoucherId && x.Id != c.Id && x.Status != SalesContractStatus.Cancelled, ct))
             throw new ConflictException("سند العربون مربوط بعقد آخر.");
-        if (voucher.Amount > c.TotalWithVat) throw new ValidationFailedException("العربون يتجاوز إجمالي العقد.");
+        if (voucher.Amount > Total(c)) throw new ValidationFailedException("العربون يتجاوز إجمالي العقد.");
     }
 
     private async Task ValidateAsync(CarSalesContract c, CancellationToken ct)
@@ -378,7 +536,7 @@ public class CarSaleService : ICarSaleService
     }
 
     /// <summary>ينسخ بيانات المركبة ويحسب التسعير والضريبة في السرفر (التكلفة من المركبة لا من العميل).</summary>
-    private static void ApplyVehicleAndPricing(CarSalesContract c, Vehicle v)
+    private static void ApplyVehicleAndPricing(CarSalesContract c, Vehicle v, CarTax tax)
     {
         c.VehicleId = v.Id; c.Vin = v.ChassisNumber; c.EngineNumber = v.EngineNumber; c.CustomsCardNumber = v.CustomsCardNumber;
         c.VehicleDescription = $"{v.BrandNameAr} {v.ModelNameAr} {v.TrimNameAr} {v.Year}".Replace("  ", " ").Trim();
@@ -394,8 +552,10 @@ public class CarSaleService : ICarSaleService
 
         c.CostPrice = v.TotalCost;
         c.VatMode = v.VatMode; // نمط الضريبة من بطاقة المركبة لا من العميل
-        var vat = CarVat.Calculate(c.CostPrice, net, c.VatMode);
-        c.NetPriceBeforeVat = vat.NetBeforeVat; c.ProfitMargin = vat.ProfitMargin; c.ProfitMarginVat = vat.ProfitMarginVat;
+        c.MarginBaseCost = tax.MarginBase(v.PurchasePrice, v.TotalCost); // أساس هامش الربح حسب إعداد المعرض (يحدده المحاسب)
+        var vat = tax.Calculate(v.PurchasePrice, v.TotalCost, net, c.VatMode);
+        // الهامش المعروض ربح العقد الفعلي (السعر − التكلفة الكلية)؛ أما الضريبة فعلى الهامش الخاضع حسب أساسه في الإعدادات
+        c.NetPriceBeforeVat = vat.NetBeforeVat; c.ProfitMargin = Math.Max(0, net - c.CostPrice); c.ProfitMarginVat = vat.ProfitMarginVat;
         c.VatAmount = vat.VatAmount; c.TotalWithVat = vat.PriceWithVat;
         if ((c.DownPaymentAmount ?? 0) > c.TotalWithVat) throw new ValidationFailedException(Messages.DownPaymentExceedsTotal);
     }

@@ -975,4 +975,94 @@
   <data name="ZatcaUserNotLinked" xml:space="preserve"><value>المستخدم «{0}» غير مربوط مع هيئة الزكاة. اربطه من شاشة الربط مع منصة فاتورة برمز التحقق ثم أعد الإرسال.</value></data>
 
   <data name="ZatcaUnitDisabled" xml:space="preserve"><value>تم إيقاف ربط المستخدم مع هيئة الزكاة.</value></data>
+  <data name="LabelExpenseType" xml:space="preserve"><value>نوع المصروف</value></data>
+  <data name="ExpenseTypeCodeRequired" xml:space="preserve"><value>كود نوع المصروف مطلوب.</value></data>
+  <data name="ExpenseTypeNameRequired" xml:space="preserve"><value>اسم نوع المصروف بالعربية مطلوب.</value></data>
+  <data name="ExpenseTypeValuesInvalid" xml:space="preserve"><value>قيمة غير صالحة للمرحلة أو المعالجة أو طريقة التوزيع أو الفئة الضريبية.</value></data>
+  <data name="ExpenseTypeCodeExists" xml:space="preserve"><value>كود نوع المصروف مستخدم من قبل.</value></data>
+  <data name="ExpenseTypeAccountNotFound" xml:space="preserve"><value>الحساب المحاسبي المرتبط بنوع المصروف غير موجود.</value></data>
+  <data name="SystemExpenseTypeCodeFixed" xml:space="preserve"><value>كود نوع المصروف المزروع من النظام لا يتغيّر.</value></data>
+  <data name="SystemExpenseTypeCannotBeDeleted" xml:space="preserve"><value>نوع مصروف مزروع من النظام لا يُحذف؛ يمكن تعطيله.</value></data>
+  <data name="ExpenseTypeInUse" xml:space="preserve"><value>نوع المصروف مستخدم في أسطر مصاريف؛ يمكن تعطيله بدل حذفه.</value></data>
+  <data name="ExpenseTypeNotFoundOrInactive" xml:space="preserve"><value>نوع المصروف غير موجود أو معطَّل.</value></data>
+  <data name="ChargeLineNotFound" xml:space="preserve"><value>سطر المصروف غير موجود.</value></data>
+  <data name="ChargeFilterRequired" xml:space="preserve"><value>حدّد المستند (documentType و documentId) أو السيارة (vehicleId).</value></data>
+  <data name="ChargeDocumentTypeInvalid" xml:space="preserve"><value>نوع المستند غير صالح؛ القيم المسموحة: </value></data>
+  <data name="ChargeDocumentNotFound" xml:space="preserve"><value>المستند المرتبط بسطر المصروف غير موجود.</value></data>
+  <data name="ChargeAmountMustBePositive" xml:space="preserve"><value>مبلغ المصروف يجب أن يكون أكبر من صفر.</value></data>
+  <data name="ChargeVatCannotBeNegative" xml:space="preserve"><value>ضريبة سطر المصروف لا تكون سالبة.</value></data>
+  <data name="ChargeVatNotAllowedForType" xml:space="preserve"><value>هذا النوع لا تُسجَّل عليه ضريبة (فئته الضريبية غير خاضعة، أو مبلغه كله ضريبة).</value></data>
+  <data name="ChargeCurrencyNotFound" xml:space="preserve"><value>عملة سطر المصروف غير معرّفة.</value></data>
+  <data name="ChargeStatusInvalid" xml:space="preserve"><value>حالة السطر: estimated | actual (الإلغاء من إجراء الإلغاء).</value></data>
+  <data name="ChargeTreatmentOverrideForbidden" xml:space="preserve"><value>تغيير معالجة المصروف عن افتراضي نوعه يتطلب صلاحية تعديل المعالجة.</value></data>
+  <data name="ChargeVehicleRepeated" xml:space="preserve"><value>السيارة مكررة في توزيع السطر.</value></data>
+  <data name="ChargeVehicleNotInDocument" xml:space="preserve"><value>سيارة في التوزيع لا تتبع هذا المستند.</value></data>
+  <data name="ChargeNeedsVehicle" xml:space="preserve"><value>مصروف فعلي يُضاف للتكلفة يجب أن يُوزَّع على سيارة واحدة على الأقل.</value></data>
+  <data name="ChargeManualAllocationMismatch" xml:space="preserve"><value>مجموع التوزيع اليدوي ({0:0.00}) لا يساوي مبلغ السطر ({1:0.00}).</value></data>
+  <data name="ChargeAllocationByValueNeedsPrices" xml:space="preserve"><value>التوزيع حسب القيمة يتطلب ثمن شراء للسيارات.</value></data>
+  <data name="ChargeLineNotEditable" xml:space="preserve"><value>هذا السطر أنشأه النظام (رصيد افتتاحي، تم، أو سند تكاليف) ولا يُعدَّل من هنا.</value></data>
+  <data name="ChargeLineAlreadyCancelled" xml:space="preserve"><value>سطر المصروف ملغى.</value></data>
+  <data name="ChargeLineCancelled" xml:space="preserve"><value>تم إلغاء سطر المصروف</value></data>
+  <data name="CannotChangeSoldVehicleCost" xml:space="preserve"><value>السيارة {0} مباعة أو مشطوبة؛ لا تُعدَّل تكلفتها إلا بقيد تعديل موثق.</value></data>
+  <data name="VehicleCostFieldsReadOnly" xml:space="preserve"><value>تكلفة المركبة (ثمن الشراء، التكاليف الإضافية، التجهيز) للقراءة فقط؛ تُسجَّل المصاريف من قسم المصاريف الإضافية.</value></data>
+  <data name="VehicleHasChargeLines" xml:space="preserve"><value>المركبة عليها مصاريف مسجَّلة؛ لا تُحذف.</value></data>
+  <data name="LegacyCostsMigrated" xml:space="preserve"><value>تم تحويل أرصدة التكلفة إلى {0} سطر رصيد افتتاحي</value></data>
+  <data name="ChargeAllocationNeedsVolume" xml:space="preserve"><value>التوزيع حسب الحجم يتطلب حجماً (م³) مسجَّلاً لكل سيارة.</value></data>
+  <data name="ChargeAllocationNeedsWeight" xml:space="preserve"><value>التوزيع حسب الوزن يتطلب وزناً (كجم) مسجَّلاً لكل سيارة.</value></data>
+  <data name="VehicleNotInStock" xml:space="preserve"><value>المركبة {0} ليست في المخزون (في الطريق أو أُلغي شراؤها).</value></data>
+  <data name="VehicleDimensionsInvalid" xml:space="preserve"><value>حجم المركبة ووزنها لا يكونان سالبين.</value></data>
+  <data name="OrderHasActualCharges" xml:space="preserve"><value>على الأمر مصاريف فعلية مسجَّلة؛ لا يُحذف.</value></data>
+  <data name="OrderItemsLockedByCharges" xml:space="preserve"><value>لا تُعدَّل بنود الأمر بعد تسجيل مصاريف على سياراته في الطريق؛ ألغِ المصاريف أولاً.</value></data>
+  <data name="LabelLandedCostVoucher" xml:space="preserve"><value>سند التكاليف الإضافية</value></data>
+  <data name="LandedCostVoucherNotFound" xml:space="preserve"><value>سند التكاليف الإضافية غير موجود.</value></data>
+  <data name="LandedCostVoucherNeedsLines" xml:space="preserve"><value>السند يحتاج سطراً واحداً على الأقل.</value></data>
+  <data name="LandedCostVoucherNeedsVehicles" xml:space="preserve"><value>السطر {0}: حدّد سيارة واحدة على الأقل للتوزيع.</value></data>
+  <data name="LandedCostVoucherNotDraft" xml:space="preserve"><value>السند ليس مسودة؛ لا يُعدَّل ولا يُحذف.</value></data>
+  <data name="LandedCostVoucherAlreadyCancelled" xml:space="preserve"><value>السند ملغى.</value></data>
+  <data name="LandedCostReplacedLineInvalid" xml:space="preserve"><value>السطر {0}: السطر التقديري المحدَّد للاستبدال غير صالح (نوع مختلف، أو مُستبدَل أو ملغى من قبل).</value></data>
+  <data name="LandedCostVoucherApproved" xml:space="preserve"><value>تم اعتماد سند التكاليف الإضافية</value></data>
+  <data name="LandedCostVoucherCancelled" xml:space="preserve"><value>تم إلغاء سند التكاليف الإضافية</value></data>
+  <data name="VehicleReservationNotFound" xml:space="preserve"><value>الحجز غير موجود.</value></data>
+  <data name="VehicleAlreadyReservedFor" xml:space="preserve"><value>المركبة محجوزة للعميل «{0}» حتى {1:yyyy-MM-dd}.</value></data>
+  <data name="ReservationCustomerRequired" xml:space="preserve"><value>حدّد العميل أو اكتب اسمه.</value></data>
+  <data name="ReservationExpiryMustBeFuture" xml:space="preserve"><value>تاريخ انتهاء الحجز يجب أن يكون في المستقبل.</value></data>
+  <data name="ReservationNotActive" xml:space="preserve"><value>الحجز ليس فعّالاً.</value></data>
+  <data name="ReservationHeldByDeposit" xml:space="preserve"><value>على الحجز عربون مفتوح؛ يُلغى بمعالجة العربون (رد أو مصادرة).</value></data>
+  <data name="ReservationHeldByContract" xml:space="preserve"><value>الحجز مرتبط بعقد بيع قائم؛ ألغِ العقد لفك الحجز.</value></data>
+  <data name="VehicleNotAvailableForReservation" xml:space="preserve"><value>المركبة {0} غير متاحة للحجز.</value></data>
+  <data name="ReservationCancelled" xml:space="preserve"><value>تم إلغاء الحجز</value></data>
+  <data name="TammOperationNotFound" xml:space="preserve"><value>عملية تم غير موجودة.</value></data>
+  <data name="TammOperationNeedsVehicleOrVin" xml:space="preserve"><value>حدّد السيارة أو رقم الشاسيه.</value></data>
+  <data name="TammOperationFeeInvalid" xml:space="preserve"><value>رسم العملية لا يكون سالباً.</value></data>
+  <data name="TammOperationFinal" xml:space="preserve"><value>العملية منتهية ({0})؛ لا تتغيّر حالتها.</value></data>
+  <data name="TammOperationStatusInvalid" xml:space="preserve"><value>حالة العملية: success | failed | unknown.</value></data>
+  <data name="TammOperationContractMismatch" xml:space="preserve"><value>عقد البيع لا يخص هذه السيارة.</value></data>
+  <data name="TammStatusUpdated" xml:space="preserve"><value>تم تحديث حالة العملية</value></data>
+  <data name="ContractChargesLocked" xml:space="preserve"><value>العقد مفوتَر أو ملغى؛ لا تتغيّر أسطره المحمّلة على العميل.</value></data>
+  <data name="ContractHasActualCharges" xml:space="preserve"><value>على العقد مصاريف فعلية مسجَّلة؛ لا يُحذف.</value></data>
+  <data name="ChargeSalePriceInvalid" xml:space="preserve"><value>سعر البيع للعميل لا يكون سالباً، ويُحدَّد لسطر محمَّل على العميل فقط.</value></data>
+  <data name="ChargeExemptionReasonRequired" xml:space="preserve"><value>النوع «{0}» يُفوتَر على العميل بفئة غير خاضعة ويلزمه سبب إعفاء (رمز VATEX) في تعريف النوع.</value></data>
+  <data name="SettingsValuesInvalid" xml:space="preserve"><value>قيم الإعدادات غير صالحة: مدة الحجز يوم واحد على الأقل، ونسبة الضريبة بين 0 و100.</value></data>
+  <data name="SettingsAccountInvalid" xml:space="preserve"><value>حساب الإعدادات «{0}» غير موجود في شجرة الحسابات أو له حسابات فرعية (القيد يكون على حساب نهائي).</value></data>
+  <data name="ChargePaymentAccountInvalid" xml:space="preserve"><value>حساب الدفع غير موجود في شجرة الحسابات.</value></data>
+  <data name="TammWalletAmountInvalid" xml:space="preserve"><value>مبلغ شحن المحفظة يجب أن يكون أكبر من صفر.</value></data>
+  <data name="TammWalletTreasuryRequired" xml:space="preserve"><value>حدّد حساب البنك أو الصندوق الذي شُحنت منه المحفظة.</value></data>
+  <data name="TammWalletToppedUp" xml:space="preserve"><value>تم شحن محفظة تم</value></data>
+  <data name="TammWalletReconciled" xml:space="preserve"><value>تمت مطابقة محفظة تم</value></data>
+  <data name="SoldVehicleAdjustmentForbidden" xml:space="preserve"><value>السيارة {0} مباعة: تعديل تكلفتها يتطلب صلاحية قيود التعديل على السيارات المباعة.</value></data>
+  <data name="SoldVehicleAdjustmentReasonRequired" xml:space="preserve"><value>السيارة {0} مباعة: اكتب سبب التعديل ليُوثَّق في قيد التعديل.</value></data>
+  <data name="ContractNotInvoicedForReturn" xml:space="preserve"><value>المرتجع لعقد مفوتَر فقط.</value></data>
+  <data name="SaleReturned" xml:space="preserve"><value>تم إرجاع البيع وإعادة السيارة للمخزون</value></data>
+  <data name="OrderNotCancelledForSettlement" xml:space="preserve"><value>معالجة المصاريف لأمر شراء مرفوض/ملغى فقط.</value></data>
+  <data name="CancelledChargesAlreadySettled" xml:space="preserve"><value>مصاريف هذا الأمر عولجت من قبل.</value></data>
+  <data name="CancelledChargesNothingToSettle" xml:space="preserve"><value>لا مصاريف فعلية على سيارات هذا الأمر.</value></data>
+  <data name="CancelledChargesTreatmentInvalid" xml:space="preserve"><value>المعالجة: loss | supplier_claim.</value></data>
+  <data name="CancelledChargesSettled" xml:space="preserve"><value>تمت معالجة مصاريف الشراء الملغى</value></data>
+  <data name="DepositActionInvalid" xml:space="preserve"><value>معالجة العربون: refund | forfeit.</value></data>
+  <data name="DepositNotOpen" xml:space="preserve"><value>العربون ليس مفتوحاً (مخصوم أو مردود أو مصادَر).</value></data>
+  <data name="PrepaidExpenseNotFound" xml:space="preserve"><value>المصروف المدفوع مقدماً غير موجود.</value></data>
+  <data name="PrepaidExpenseValuesInvalid" xml:space="preserve"><value>المبلغ أكبر من صفر، والمدة من شهر إلى 120 شهراً، والضريبة غير سالبة.</value></data>
+  <data name="PrepaidPeriodInvalid" xml:space="preserve"><value>الفترة بصيغة yyyy-MM.</value></data>
+  <data name="PrepaidExpenseHasAmortization" xml:space="preserve"><value>المصروف أُطفئ منه؛ لا يُلغى.</value></data>
+  <data name="PrepaidAmortized" xml:space="preserve"><value>تم ترحيل إطفاء الشهر</value></data>
 </root>

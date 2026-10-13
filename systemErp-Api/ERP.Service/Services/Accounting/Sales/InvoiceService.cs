@@ -17,11 +17,13 @@ public class InvoiceService : IInvoiceService
     private readonly ITransactionRunner _tx;
     private readonly IVehicleService _vehicles;
     private readonly ERP.Core.Contracts.Shared.IAuditService _audit;
+    private readonly ICostVisibility _carCost;
 
     public InvoiceService(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
-        INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, IVehicleService vehicles, ERP.Core.Contracts.Shared.IAuditService audit)
+        INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, IVehicleService vehicles, ERP.Core.Contracts.Shared.IAuditService audit,
+        ICostVisibility carCost)
     {
-        _audit = audit;
+        _audit = audit; _carCost = carCost;
         _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx; _vehicles = vehicles;
     }
 
@@ -44,9 +46,10 @@ public class InvoiceService : IInvoiceService
             .OrderByDescending(i => i.IssueDate).ThenByDescending(i => i.InvoiceNumber)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).AsSplitQuery().ToListAsync(ct);
         var due = await InvoiceBalances.ForAsync(_db, items.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, ct);
+        var showCarCost = await _carCost.CanViewAsync(ct);
         return new PagedResult<InvoiceDto>
         {
-            Items = items.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0)).ToList(),
+            Items = items.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0, showCarCost)).ToList(),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
@@ -60,7 +63,8 @@ public class InvoiceService : IInvoiceService
         return EntityLoader.LoadAsync(q.Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery(), options, async (page, token) =>
         {
             var due = await InvoiceBalances.ForAsync(_db, page.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, token);
-            return page.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0)).ToList();
+            var showCarCost = await _carCost.CanViewAsync(token);
+            return page.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0, showCarCost)).ToList();
         }, ct, EntityLoader.Desc(nameof(Invoice.IssueDate)), EntityLoader.Desc(nameof(Invoice.InvoiceNumber)));
     }
 
@@ -68,14 +72,30 @@ public class InvoiceService : IInvoiceService
     {
         var invoice = await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
             .FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
-        return ToDto(invoice, invoice.Status == "posted" ? await InvoiceBalances.DueAsync(_db, id, ct) : 0);
+        return ToDto(invoice, invoice.Status == "posted" ? await InvoiceBalances.DueAsync(_db, id, ct) : 0, await _carCost.CanViewAsync(ct));
     }
 
-    private static InvoiceDto ToDto(Invoice invoice, decimal amountDue)
+    private static InvoiceDto ToDto(Invoice invoice, decimal amountDue, bool showCarCost)
     {
         var dto = Mapper.Map<InvoiceDto>(invoice);
         dto.AmountDue = amountDue;
+        if (!showCarCost && IsCarInvoice(invoice))
+        {
+            // تكلفة السيارات وربحها لمن يملك صلاحية car-cost-view فقط
+            dto.TotalCost = 0; dto.GrossProfit = 0;
+            foreach (var item in dto.Items) item.UnitCost = 0;
+            foreach (var line in dto.VehicleLines) line.UnitCost = 0;
+        }
         return dto;
+    }
+
+    private static bool IsCarInvoice(Invoice invoice)
+        => invoice.VehicleLines.Count > 0 || invoice.ReferenceType?.StartsWith("car_", StringComparison.Ordinal) == true;
+
+    /// <summary>قيد بيع السيارة يُظهر تكلفتها (تكلفة المبيعات)، فيتبع الصلاحية نفسها.</summary>
+    private async Task EnsureCarCostVisibleAsync(bool isCarSale, CancellationToken ct)
+    {
+        if (isCarSale && !await _carCost.CanViewAsync(ct)) throw new ForbiddenException();
     }
 
     // ---------------- الإنشاء ----------------
@@ -374,6 +394,7 @@ public class InvoiceService : IInvoiceService
     public async Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto r, CancellationToken ct = default)
     {
         if (_db.Database.CurrentTransaction != null) throw new InvalidOperationException(Messages.JournalPreviewInsideTransaction);
+        await EnsureCarCostVisibleAsync(r.VehicleLines.Count > 0 && r.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn, ct);
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {
@@ -397,7 +418,8 @@ public class InvoiceService : IInvoiceService
 
     public async Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default)
     {
-        var invoice = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        var invoice = await _db.Set<Invoice>().AsNoTracking().Include(i => i.VehicleLines).FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        await EnsureCarCostVisibleAsync(IsCarInvoice(invoice) && invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn, ct);
         if (invoice.JournalEntryId == null) throw new ConflictException(Messages.InvoiceNotPostedUsePreview);
         return await JournalOfAsync(invoice, ct);
     }
@@ -534,11 +556,12 @@ public class InvoiceService : IInvoiceService
 
         invoice.VehicleLines.Clear();
         if (vehicleLines != null) foreach (var vl in vehicleLines) invoice.VehicleLines.Add(vl);
-        if (vehicleLines != null) // حسابات السيارات الافتراضية عند عدم تحديدها من العميل
+        if (vehicleLines != null) // حسابات السيارات من إعدادات المعرض عند عدم تحديدها من العميل
         {
-            if (string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)) invoice.InventoryAccountCode = DefaultAccounts.VehicleInventory;
-            if (isSales && string.IsNullOrWhiteSpace(invoice.RevenueAccountCode)) invoice.RevenueAccountCode = DefaultAccounts.CarSalesRevenue;
-            if (isSales && string.IsNullOrWhiteSpace(invoice.CogsAccountCode)) invoice.CogsAccountCode = DefaultAccounts.CarCogs;
+            var car = await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct);
+            if (string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)) invoice.InventoryAccountCode = car.VehicleInventoryAccount;
+            if (isSales && string.IsNullOrWhiteSpace(invoice.RevenueAccountCode)) invoice.RevenueAccountCode = car.CarSalesRevenueAccount;
+            if (isSales && string.IsNullOrWhiteSpace(invoice.CogsAccountCode)) invoice.CogsAccountCode = car.CarCogsAccount;
         }
 
         // الطرف
@@ -765,11 +788,14 @@ public class InvoiceService : IInvoiceService
                 : invoice.PaymentMethod == PaymentMethod.Credit ? 0 : invoice.GrandTotal;
             return paid > 0 ? new() { new PaymentPosting(invoice.SettlementAccountCode, paid) } : new();
         }
+        // الدفع بعربون سيارة يقفل حساب عربونات العملاء المحدَّد في إعدادات المعرض
+        var byDeposit = invoice.PaymentMethod == PaymentMethod.CustomerDeposit || invoice.PaymentSplits.Any(s => s.Method == PaymentMethod.CustomerDeposit);
+        var deposits = byDeposit ? (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).CustomerDepositsAccount : null;
         if (invoice.PaymentSplits.Count > 0)
             return invoice.PaymentSplits.Where(s => s.Method != PaymentMethod.Credit)
-                .Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods), s.Amount)).ToList();
+                .Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, deposits), s.Amount)).ToList();
         if (invoice.PaymentMethod == PaymentMethod.Credit || invoice.GrandTotal <= 0) return new();
-        return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods), invoice.GrandTotal) };
+        return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods, deposits), invoice.GrandTotal) };
     }
 
     /// <summary>إيراد كل سطر على حسابه ومركز تكلفته بالعملة الأساسية؛ كسر التقريب على آخر سطر ليطابق صافي المستند.</summary>

@@ -12,11 +12,63 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     internal static readonly Regex VinPattern = new("^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
 
     private readonly INumberSequenceService _numbers;
+    private readonly ICostVisibility _cost;
+    private readonly ERP.Core.Contracts.Accounting.IAccountingPostingService _posting;
+    /// <summary>يُحمَّل قبل أي إرجاع لـ DTO؛ الافتراضي الحجب.</summary>
+    private bool _canViewCost;
 
-    public VehicleService(ErpDbContext db, INumberSequenceService numbers) : base(db) => _numbers = numbers;
+    public VehicleService(ErpDbContext db, INumberSequenceService numbers, ICostVisibility cost, ERP.Core.Contracts.Accounting.IAccountingPostingService posting) : base(db)
+    {
+        _numbers = numbers; _cost = cost; _posting = posting;
+    }
     protected override string Label => Messages.LabelVehicle;
 
-    public CarVatResult CalculateVat(CalculateCarVatRequestDto r) => CarVat.Calculate(r.CostPrice, r.SellingPrice, r.Mode);
+    // ---------- حجب التكلفة والربح عمّن لا يملك صلاحية car-cost-view ----------
+    private async Task LoadCostVisibilityAsync(CancellationToken ct) => _canViewCost = await _cost.CanViewAsync(ct);
+
+    protected override VehicleDto ToDto(Vehicle entity)
+    {
+        var dto = base.ToDto(entity);
+        if (_canViewCost) return dto;
+        dto.PurchasePrice = null; dto.AdditionalCosts = null; dto.PreparationCost = null; dto.TotalCost = null;
+        // في هامش الربح الضريبة = الهامش × 15/115، فإظهارها يكشف التكلفة
+        if (CarVat.IsMarginScheme(entity.VatMode)) dto.VatAmount = null;
+        return dto;
+    }
+
+    public override async Task<PagedResult<VehicleDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
+    {
+        await LoadCostVisibilityAsync(ct);
+        return await base.ListAsync(p, ct);
+    }
+
+    public override async Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default)
+    {
+        await LoadCostVisibilityAsync(ct);
+        return await base.LoadAsync(options, ct);
+    }
+
+    public override async Task<VehicleDto> GetAsync(Guid id, CancellationToken ct = default)
+    {
+        await LoadCostVisibilityAsync(ct);
+        return await base.GetAsync(id, ct);
+    }
+
+    public override async Task<VehicleDto> CreateAsync(CreateVehicleDto dto, CancellationToken ct = default)
+    {
+        await LoadCostVisibilityAsync(ct);
+        return await base.CreateAsync(dto, ct);
+    }
+
+    public override async Task<VehicleDto> UpdateAsync(Guid id, UpdateVehicleDto dto, CancellationToken ct = default)
+    {
+        await LoadCostVisibilityAsync(ct);
+        return await base.UpdateAsync(id, dto, ct);
+    }
+
+    /// <summary>حاسبة الضريبة: costPrice أساس الهامش كما يرسله المتصل، والنسبة من إعدادات المعرض.</summary>
+    public async Task<CarVatResult> CalculateVatAsync(CalculateCarVatRequestDto r, CancellationToken ct = default)
+        => CarVat.Calculate(r.CostPrice, r.SellingPrice, r.Mode, (await CarTax.LoadAsync(Db, ct)).Rate);
 
     /// <summary>أقصى عدد يُولَّد في طلب واحد (يطابق أقصى دفعة في الواجهة).</summary>
     public const int MaxGeneratedVins = 1000;
@@ -48,6 +100,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
 
     public async Task<PagedResult<VehicleDto>> ListByProcurementOrderAsync(Guid orderId, PaginationParams p, CancellationToken ct = default)
     {
+        await LoadCostVisibilityAsync(ct);
         var query = Db.Set<Vehicle>().AsNoTracking().Where(v => v.ProcurementOrderId == orderId);
         if (!string.IsNullOrWhiteSpace(p.SearchTerm)) query = ApplySearch(query, p.SearchTerm.Trim());
 
@@ -66,10 +119,12 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         => q.Where(v => v.ChassisNumber.Contains(t) || v.BrandNameAr.Contains(t) || v.ModelNameAr.Contains(t) || (v.PlateNumber != null && v.PlateNumber.Contains(t)));
 
     protected override IQueryable<Vehicle> ApplyFilters(IQueryable<Vehicle> q, PaginationParams p)
-        => Enum.TryParse<VehicleStatus>(p.Status, true, out var st) ? q.Where(v => v.Status == st) : q;
+        => Enum.TryParse<VehicleStatus>(p.Status?.Replace("_", ""), true, out var st) ? q.Where(v => v.Status == st) : q; // in_transit أو InTransit
 
     public async Task<List<VehicleDto>> ListAvailableAsync(string? search, CancellationToken ct = default)
     {
+        await LoadCostVisibilityAsync(ct);
+        await VehicleReservations.ExpireDueAsync(Db, ct); // حجز انتهت مدته يعيد سيارته للعرض
         var q = Db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.Available);
         if (!string.IsNullOrWhiteSpace(search)) q = ApplySearch(q, search.Trim());
         return (await q.OrderBy(v => v.BrandNameAr).ThenBy(v => v.ModelNameAr).Take(200).ToListAsync(ct)).Select(ToDto).ToList();
@@ -84,6 +139,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         if (d.SellingPrice < 0 || d.PurchasePrice < 0 || d.AdditionalCosts < 0 || d.PreparationCost < 0 || d.MinSellingPrice < 0)
             errors.Add(Messages.PricesAndCostsCannotBeNegative);
         if (d.MinSellingPrice > d.SellingPrice) errors.Add(Messages.MinPriceAboveSellingPrice);
+        if (d.VolumeCbm < 0 || d.WeightKg < 0) errors.Add(Messages.VehicleDimensionsInvalid);
         if (d.Condition == VehicleCondition.New && d.MileageKm is > 500) errors.Add(Messages.NewCarMileageLimit);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
@@ -97,6 +153,10 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
             throw new ValidationFailedException(Messages.ModelNotInBrand);
         if (d.TrimId.HasValue && d.ModelId.HasValue && !await Db.Set<CarTrim>().AnyAsync(t => t.Id == d.TrimId && t.ModelId == d.ModelId, ct))
             throw new ValidationFailedException(Messages.TrimNotInModel);
+        // التكلفة تُشتق من سجل المصاريف بعد الإنشاء: حقولها للقراءة فقط (قيمة فارغة أو مطابقة تُقبل، وتغييرها يُرفض صراحةً)
+        if (existing != null && (Differs(d.PurchasePrice, existing.PurchasePrice) || Differs(d.AdditionalCosts, existing.AdditionalCosts)
+            || Differs(d.PreparationCost, existing.PreparationCost)))
+            throw new ConflictException(Messages.VehicleCostFieldsReadOnly);
         if (existing != null && existing.Status != VehicleStatus.Available && d.VatMode != existing.VatMode)
             throw new ConflictException(Messages.CannotChangeVatModeReservedOrSold);
         if (CarVat.IsMarginScheme(d.VatMode) && (existing == null || !CarVat.IsMarginScheme(existing.VatMode))
@@ -114,11 +174,22 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         return orderId.HasValue && await Db.Set<CarProcurementOrder>().AnyAsync(o => o.Id == orderId && o.VatTotal > 0, ct);
     }
 
+    private static bool Differs(decimal? requested, decimal? current) => requested.HasValue && requested.Value != (current ?? 0);
+
     protected override async Task OnCreatingAsync(Vehicle e, CreateVehicleDto d, CancellationToken ct)
     {
         e.Status = VehicleStatus.Available;
+        e.ReceivedAt = DateTime.UtcNow;
         await FillDenormalizedAsync(e, ct);
-        Recalculate(e);
+        Recalculate(e, await CarTax.LoadAsync(Db, ct));
+    }
+
+    /// <summary>تكلفة أُدخلت مع المركبة (مخزون قائم، استيراد Excel) تُثبَّت أسطر «رصيد افتتاحي» في سجل المصاريف.</summary>
+    protected override async Task OnCreatedAsync(Vehicle e, CancellationToken ct)
+    {
+        await VehicleCostLedger.EnsureOpeningAsync(Db, new[] { e.Id }, ct);
+        // استعلامات تم التي سبقت شراءها (على رقم شاسيهها) تُنقل من مصروف عام إلى تكلفتها
+        await TammCharges.AttachPurchasedAsync(Db, _posting, new[] { e.Id }, ct);
     }
 
     protected override async Task OnUpdatingAsync(Vehicle e, UpdateVehicleDto d, CancellationToken ct)
@@ -127,10 +198,15 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         e.Status = o.GetValue<VehicleStatus>(nameof(Vehicle.Status)); // الحالة تتغير بدورة البيع فقط
         e.ProcurementOrderId = o.GetValue<Guid?>(nameof(Vehicle.ProcurementOrderId));
         e.PurchaseInvoiceId = o.GetValue<Guid?>(nameof(Vehicle.PurchaseInvoiceId));
+        e.ReceivedAt = o.GetValue<DateTime?>(nameof(Vehicle.ReceivedAt));
+        e.ProcurementOrderItemId = o.GetValue<Guid?>(nameof(Vehicle.ProcurementOrderItemId));
+        e.PurchasePrice = o.GetValue<decimal?>(nameof(Vehicle.PurchasePrice));
+        e.AdditionalCosts = o.GetValue<decimal?>(nameof(Vehicle.AdditionalCosts));
+        e.PreparationCost = o.GetValue<decimal?>(nameof(Vehicle.PreparationCost));
         if (e.Status == VehicleStatus.Sold) throw new ConflictException(Messages.CannotEditSoldVehicle);
         if (e.Status == VehicleStatus.WrittenOff) throw new ConflictException(Messages.VehicleWrittenOffRestoreByCount);
         await FillDenormalizedAsync(e, ct);
-        Recalculate(e);
+        Recalculate(e, await CarTax.LoadAsync(Db, ct));
     }
 
     protected override async Task OnDeletingAsync(Vehicle e, CancellationToken ct)
@@ -139,6 +215,15 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         if (e.PurchaseInvoiceId != null) throw new ConflictException(Messages.VehicleFromPurchaseInvoice);
         if (await Db.Set<CarSalesContract>().AnyAsync(c => c.VehicleId == e.Id, ct)) throw new ConflictException(Messages.VehicleLinkedToSalesContract);
         if (await Db.Set<CarProcurementOrderVin>().AnyAsync(v => v.VehicleId == e.Id, ct)) throw new ConflictException(Messages.VehicleFromPurchaseOrder);
+
+        // أسطر الرصيد الافتتاحي تُحذف مع المركبة؛ أي مصروف آخر مسجَّل عليها يمنع حذفها
+        var allocations = await Db.Set<AdditionalChargeAllocation>().Include(a => a.Line).ThenInclude(l => l.Allocations).Where(a => a.VehicleId == e.Id).ToListAsync(ct);
+        if (allocations.Any(a => a.Line.Source != ChargeSource.OpeningBalance)) throw new ConflictException(Messages.VehicleHasChargeLines);
+        foreach (var line in allocations.Select(a => a.Line).Distinct())
+        {
+            Db.RemoveRange(line.Allocations);
+            Db.Remove(line);
+        }
     }
 
     private async Task FillDenormalizedAsync(Vehicle e, CancellationToken ct)
@@ -156,10 +241,10 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     }
 
     /// <summary>التكلفة الإجمالية والضريبة تُحسب في السرفر دائماً.</summary>
-    internal static void Recalculate(Vehicle v)
+    internal static void Recalculate(Vehicle v, CarTax tax)
     {
         v.TotalCost = (v.PurchasePrice ?? 0) + (v.AdditionalCosts ?? 0) + (v.PreparationCost ?? 0);
-        var vat = CarVat.Calculate(v.TotalCost, v.SellingPrice, v.VatMode);
+        var vat = tax.Calculate(v.PurchasePrice, v.TotalCost, v.SellingPrice, v.VatMode);
         v.VatAmount = vat.VatAmount;
         v.PriceWithVat = vat.PriceWithVat;
     }

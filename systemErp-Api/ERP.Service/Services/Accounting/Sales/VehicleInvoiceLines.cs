@@ -13,8 +13,6 @@ namespace ERP.Service.Services.Accounting;
 /// </summary>
 internal static class VehicleInvoiceLines
 {
-    private const decimal VatRate = 15m;
-
     /// <summary>يتحقق من أسطر السيارات ويحسب أرقامها ويستبدل r.Items ببنود مشتقة. لا أثر جانبي على قاعدة البيانات.</summary>
     public static async Task<List<InvoiceVehicleLine>> ResolveAsync(ErpDbContext db, CreateInvoiceDto r, CancellationToken ct)
     {
@@ -25,6 +23,7 @@ internal static class VehicleInvoiceLines
         if (r.InvoiceDiscount != 0) throw new ValidationFailedException(Messages.InvoiceDiscountNotSupportedWithVehicles);
 
         var draft = string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
+        var tax = await CarTax.LoadAsync(db, ct); // نسبة الضريبة وأساس هامش الربح من إعدادات المعرض
         var errors = new List<string>();
         var seenVins = new HashSet<string>();
         var seenVehicles = new HashSet<Guid>();
@@ -86,12 +85,12 @@ internal static class VehicleInvoiceLines
             if (isSales)
             {
                 // هامش الربح: الضريبة مضمَّنة في السعر فيصير الإيراد = السعر − الضريبة ويبقى إجمالي العميل = السعر
-                var calc = CarVat.Calculate(line.UnitCost, net, line.VatMode);
+                var calc = tax.Calculate(vehicles[line.VehicleId!.Value].PurchasePrice, line.UnitCost, net, line.VatMode);
                 line.TotalBeforeVat = calc.NetBeforeVat; line.VatAmount = calc.VatAmount; line.TotalAfterVat = calc.PriceWithVat;
             }
             else
             {
-                var vat = d.VatMode == VatMode.Standard_15 ? DocumentPricing.Round(net * VatRate / 100m) : 0m;
+                var vat = DocumentPricing.Round(net * tax.RateFor(d.VatMode) / 100m);
                 line.TotalBeforeVat = net; line.VatAmount = vat; line.TotalAfterVat = net + vat;
             }
             lines.Add(line);
@@ -115,7 +114,7 @@ internal static class VehicleInvoiceLines
             ItemName = Describe(l),
             // سعر البند = صافي السطر قبل الضريبة + الخصم (يساوي سعر السطر إلا في هامش الربح حيث تُطرح الضريبة المضمَّنة)
             Unit = "سيارة", Quantity = 1, UnitPrice = l.TotalBeforeVat + l.Discount, Discount = l.Discount,
-            VatRate = l.VatMode == VatMode.Standard_15 ? VatRate : 0,
+            VatRate = tax.RateFor(l.VatMode),
             VatAmountOverride = isSales ? l.VatAmount : null,
             UnitCost = isSales ? l.UnitCost : 0,
         }).ToList();

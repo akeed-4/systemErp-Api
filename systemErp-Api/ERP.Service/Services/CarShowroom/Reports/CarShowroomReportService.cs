@@ -47,8 +47,8 @@ public class CarShowroomReportService : ICarShowroomReportService
     private IQueryable<CarVinInventoryRowDto> VinInventoryQuery()
     {
         var now = DateTime.UtcNow;
-        return _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status != VehicleStatus.Sold && v.Status != VehicleStatus.WrittenOff)
-            .Select(v => new { v, Hours = EF.Functions.DateDiffHour(v.CreatedAt, now) })
+        return _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.Available || v.Status == VehicleStatus.Reserved)
+            .Select(v => new { v, Hours = EF.Functions.DateDiffHour(v.ReceivedAt ?? v.CreatedAt, now) })
             .Select(r => new CarVinInventoryRowDto
             {
                 Id = r.v.Id, BrandNameAr = r.v.BrandNameAr, AgentNameAr = r.v.AgentNameAr, ModelNameAr = r.v.ModelNameAr, TrimNameAr = r.v.TrimNameAr,
@@ -63,7 +63,9 @@ public class CarShowroomReportService : ICarShowroomReportService
         => Sold(q).Where(c => c.VatMode == VatMode.ProfitMargin_15 || c.VatMode == VatMode.MarginScheme).Select(c => new CarZatcaMarginTaxRowDto
         {
             Id = c.Id, ContractNumber = c.ContractNumber, Date = c.Date, BuyerName = c.BuyerName, Vin = c.Vin, VehicleDescription = c.VehicleDescription,
-            PurchaseCost = c.CostPrice, SellingPrice = c.TotalWithVat, GrossProfitMargin = c.ProfitMargin,
+            PurchaseCost = c.MarginBaseCost ?? c.CostPrice, SellingPrice = c.TotalWithVat,
+            // الهامش الخاضع: السعر − أساس الهامش الذي احتُسبت عليه الضريبة
+            GrossProfitMargin = c.TotalWithVat > (c.MarginBaseCost ?? c.CostPrice) ? c.TotalWithVat - (c.MarginBaseCost ?? c.CostPrice) : 0m,
             VatAmount15Percent = c.VatAmount, TotalAmountCollected = c.TotalWithVat,
             ZatcaComplianceStatus = Invoices.Where(i => i.Id == c.InvoiceId).Select(i => (ZatcaSubmissionStatus?)i.ZatcaStatus).FirstOrDefault()
                 ?? ZatcaSubmissionStatus.NotSubmitted,
@@ -92,7 +94,7 @@ public class CarShowroomReportService : ICarShowroomReportService
 
     private IQueryable<CarInstallmentReceivableRowDto> InstallmentsReceivableQuery()
         => _db.Set<CarSalesContract>().AsNoTracking()
-            .Where(c => c.Status != SalesContractStatus.Cancelled
+            .Where(c => c.Status != SalesContractStatus.Cancelled && c.Status != SalesContractStatus.Returned
                 && (c.CycleType == CarSalesCycleType.Installment || c.CycleType == CarSalesCycleType.BankLease))
             .Select(c => new CarInstallmentReceivableRowDto
             {
@@ -160,6 +162,165 @@ public class CarShowroomReportService : ICarShowroomReportService
             VatCollected = t.Vat, AverageCarPrice = Math.Round(t.Revenue / t.Cars, 2),
         });
     }
+
+    /// <summary>
+    /// السيارات المباعة بنظام هامش الربح التي يختلف هامشها وضريبتها بين الطريقتين: الهامش من سعر الشراء فقط، أو من التكلفة الكلية.
+    /// يساعد المحاسب على تقدير أثر اختيار أساس الهامش على ما سبق بيعه.
+    /// </summary>
+    public async Task<LoadResult> LoadMarginBasisComparisonAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+    {
+        var rate = (await CarTax.LoadAsync(_db, ct)).Rate;
+        var rows = from c in Sold(q).Where(c => c.VatMode == VatMode.ProfitMargin_15 || c.VatMode == VatMode.MarginScheme)
+                   join v in _db.Set<Vehicle>().AsNoTracking() on c.VehicleId equals v.Id
+                   select new { c, Purchase = v.PurchasePrice ?? 0m };
+        var margins = rows.Select(r => new
+        {
+            r.c, r.Purchase,
+            OnPurchase = r.c.TotalWithVat > r.Purchase ? r.c.TotalWithVat - r.Purchase : 0m,
+            OnCost = r.c.TotalWithVat > r.c.CostPrice ? r.c.TotalWithVat - r.c.CostPrice : 0m,
+        });
+        var query = margins.Where(m => m.OnPurchase != m.OnCost).Select(m => new CarMarginBasisComparisonRowDto
+        {
+            Id = m.c.Id, ContractNumber = m.c.ContractNumber, Date = m.c.Date, Vin = m.c.Vin, VehicleDescription = m.c.VehicleDescription,
+            SellingPrice = m.c.TotalWithVat, PurchasePrice = m.Purchase, TotalCost = m.c.CostPrice,
+            MarginOnPurchasePrice = m.OnPurchase, VatOnPurchasePrice = Math.Round(m.OnPurchase * rate / (100m + rate), 2),
+            MarginOnTotalCost = m.OnCost, VatOnTotalCost = Math.Round(m.OnCost * rate / (100m + rate), 2),
+            AppliedVat = m.c.VatAmount,
+            VatDifference = Math.Round(m.OnPurchase * rate / (100m + rate), 2) - Math.Round(m.OnCost * rate / (100m + rate), 2),
+        });
+        return await ReportLoader.LoadAsync(query, options, nameof(CarMarginBasisComparisonRowDto.Id), ct, EntityLoader.Asc(nameof(CarMarginBasisComparisonRowDto.Date)));
+    }
+
+    // ---------------- تقارير المصاريف والتكاليف الإضافية ----------------
+    private IQueryable<AdditionalChargeLine> Charges => _db.Set<AdditionalChargeLine>().AsNoTracking();
+    private IQueryable<AdditionalChargeAllocation> Shares => _db.Set<AdditionalChargeAllocation>().AsNoTracking();
+
+    /// <summary>ربح كل سيارة مباعة بعد كل المصاريف: تكلفة المبيعات، ما وصل بعد البيع، مصاريف المعرض عليها، وتكلفة ما حُمّل على العميل.</summary>
+    private IQueryable<CarVehicleNetProfitRowDto> VehicleNetProfitQuery(CarReportQueryDto q)
+        => Sold(q).Select(c => new
+        {
+            c,
+            VehicleRevenue = c.NetPriceBeforeVat ?? c.SellingPrice,
+            Adjustments = _db.Set<VehicleCostAdjustment>().Where(a => a.ContractId == c.Id).Sum(a => (decimal?)a.Amount) ?? 0m,
+            Expenses = Shares.Where(a => a.VehicleId == c.VehicleId && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Expense).Sum(a => (decimal?)a.Amount) ?? 0m,
+            ChargesCost = Charges.Where(l => l.DocumentType == ChargeDocumentTypes.SalesContract && l.DocumentId == c.Id
+                && l.Treatment == ChargeTreatment.RechargeToCustomer && l.Status == ChargeStatus.Actual).Sum(l => (decimal?)l.CostAmount) ?? 0m,
+        }).Select(r => new
+        {
+            r.c, r.VehicleRevenue, r.Adjustments, r.Expenses, r.ChargesCost,
+            Revenue = r.VehicleRevenue + r.c.CustomerChargesNet,
+            Profit = r.VehicleRevenue + r.c.CustomerChargesNet - r.c.CostPrice - r.Adjustments - r.Expenses - r.ChargesCost,
+        }).Select(r => new CarVehicleNetProfitRowDto
+        {
+            Id = r.c.Id, ContractNumber = r.c.ContractNumber, Date = r.c.Date, Vin = r.c.Vin, VehicleDescription = r.c.VehicleDescription, BuyerName = r.c.BuyerName,
+            VehicleRevenue = r.VehicleRevenue, CustomerChargesRevenue = r.c.CustomerChargesNet, CostAtSale = r.c.CostPrice,
+            PostSaleAdjustments = r.Adjustments, ShowroomExpenses = r.Expenses, CustomerChargesCost = r.ChargesCost,
+            NetProfit = r.Profit, NetProfitPercent = r.Revenue == 0 ? 0m : Math.Round(r.Profit / r.Revenue * 100, 2),
+        });
+
+    /// <summary>المتوقع مقابل الفعلي لكل مصروف: فعلي له تقدير سابق (استبدله أو تحقق منه)، وتقدير لم يتحقق بعد.</summary>
+    private IQueryable<CarEstimatedVsActualRowDto> EstimatedVsActualQuery(CarReportQueryDto q)
+    {
+        var lines = Charges.Where(l => l.Status == ChargeStatus.Estimated
+            || (l.Status == ChargeStatus.Actual && (l.ReplacesLineId != null || l.EstimatedCostAmount != null)));
+        if (q.DateFrom.HasValue) lines = lines.Where(l => l.Date >= q.DateFrom);
+        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date <= q.DateTo);
+        return lines.Select(l => new
+        {
+            l,
+            Estimated = l.Status == ChargeStatus.Estimated ? l.CostAmount
+                : l.EstimatedCostAmount ?? Charges.Where(r => r.Id == l.ReplacesLineId).Select(r => (decimal?)r.CostAmount).FirstOrDefault() ?? 0m,
+        }).Select(r => new CarEstimatedVsActualRowDto
+        {
+            Id = r.l.Id, Date = r.l.Date, ExpenseTypeCode = r.l.ExpenseTypeCode, ExpenseTypeNameAr = r.l.ExpenseTypeNameAr,
+            DocumentType = r.l.DocumentType, DocumentNumber = r.l.DocumentNumber, Treatment = r.l.Treatment, Status = r.l.Status,
+            Estimated = r.Estimated,
+            Actual = r.l.Status == ChargeStatus.Actual ? r.l.CostAmount : null,
+            Variance = r.l.Status == ChargeStatus.Actual ? r.l.CostAmount - r.Estimated : null,
+        });
+    }
+
+    /// <summary>رسوم تم الشهرية حسب النوع (العمليات الناجحة فقط).</summary>
+    private IQueryable<CarTammMonthlyFeesRowDto> TammMonthlyFeesQuery(CarReportQueryDto q)
+    {
+        var lines = Charges.Where(l => l.Source == ChargeSource.Tamm && l.Status == ChargeStatus.Actual);
+        if (q.DateFrom.HasValue) lines = lines.Where(l => l.Date >= q.DateFrom);
+        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date <= q.DateTo);
+        return lines.GroupBy(l => new { l.Date.Year, l.Date.Month, l.ExpenseTypeCode, l.ExpenseTypeNameAr })
+            .Select(g => new CarTammMonthlyFeesRowDto
+            {
+                Key = g.Key.Year.ToString() + "-" + (g.Key.Month < 10 ? "0" : "") + g.Key.Month.ToString() + "|" + g.Key.ExpenseTypeCode,
+                Year = g.Key.Year, Month = g.Key.Month, ExpenseTypeCode = g.Key.ExpenseTypeCode, ExpenseTypeNameAr = g.Key.ExpenseTypeNameAr,
+                OperationsCount = g.Count(), TotalFees = g.Sum(l => l.BaseAmount),
+            });
+    }
+
+    /// <summary>مصاريف على سيارات لم تُشترَ: استعلامات تم قبل الشراء، ومصاريف فعلية على سيارات أُلغي شراؤها.</summary>
+    private IQueryable<CarUnpurchasedVehicleExpenseRowDto> UnpurchasedVehicleExpensesQuery(CarReportQueryDto q)
+    {
+        var cancelled = _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.Cancelled);
+        var lines = Charges.Where(l => l.Status == ChargeStatus.Actual
+            && (l.DocumentType == ChargeDocumentTypes.TammOperation || l.Allocations.Any(a => cancelled.Any(v => v.Id == a.VehicleId))));
+        if (q.DateFrom.HasValue) lines = lines.Where(l => l.Date >= q.DateFrom);
+        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date <= q.DateTo);
+        return lines.Select(l => new CarUnpurchasedVehicleExpenseRowDto
+        {
+            Id = l.Id, Date = l.Date, ExpenseTypeNameAr = l.ExpenseTypeNameAr, Source = l.Source, DocumentNumber = l.DocumentNumber, Amount = l.CostAmount,
+            PurchaseCancelled = l.DocumentType != ChargeDocumentTypes.TammOperation,
+            Vin = l.DocumentType == ChargeDocumentTypes.TammOperation
+                ? _db.Set<TammOperation>().Where(o => o.Id == l.TammOperationId).Select(o => o.Vin).FirstOrDefault()
+                : cancelled.Where(v => l.Allocations.Any(a => a.VehicleId == v.Id)).Select(v => v.ChassisNumber).FirstOrDefault(),
+        });
+    }
+
+    /// <summary>سيارات في الطريق وتكلفتها حتى الآن والمتوقعة عند الوصول.</summary>
+    private IQueryable<CarVehicleInTransitRowDto> VehiclesInTransitQuery()
+    {
+        var now = DateTime.UtcNow;
+        return _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.InTransit).Select(v => new
+        {
+            v,
+            Actual = Shares.Where(a => a.VehicleId == v.Id && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Capitalize).Sum(a => (decimal?)a.Amount) ?? 0m,
+            Estimated = Shares.Where(a => a.VehicleId == v.Id && a.Line.Status == ChargeStatus.Estimated && a.Line.Treatment == ChargeTreatment.Capitalize).Sum(a => (decimal?)a.Amount) ?? 0m,
+            Order = _db.Set<CarProcurementOrder>().Where(o => o.Id == v.ProcurementOrderId).Select(o => new { o.OrderNumber, o.SupplierName }).FirstOrDefault(),
+            Hours = EF.Functions.DateDiffHour(v.CreatedAt, now),
+        }).Select(r => new CarVehicleInTransitRowDto
+        {
+            Id = r.v.Id, ChassisNumber = r.v.ChassisNumber, Description = r.v.BrandNameAr + " " + r.v.ModelNameAr + " " + r.v.Year.ToString(),
+            OrderNumber = r.Order!.OrderNumber, SupplierName = r.Order.SupplierName, DaysInTransit = r.Hours > 0 ? r.Hours / 24 : 0,
+            PurchasePrice = r.v.PurchasePrice ?? 0m, ActualCharges = r.Actual, EstimatedCharges = r.Estimated,
+            CostToDate = (r.v.PurchasePrice ?? 0m) + r.Actual, ExpectedCost = (r.v.PurchasePrice ?? 0m) + r.Actual + r.Estimated,
+        });
+    }
+
+    /// <summary>عمر المخزون مع تكلفته: الأيام منذ دخول السيارة المخزون (الاستلام)، بشرائح عمرية.</summary>
+    private IQueryable<CarInventoryAgingRowDto> InventoryAgingQuery()
+    {
+        var now = DateTime.UtcNow;
+        return _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.Available || v.Status == VehicleStatus.Reserved)
+            .Select(v => new { v, Hours = EF.Functions.DateDiffHour(v.ReceivedAt ?? v.CreatedAt, now) })
+            .Select(r => new { r.v, Days = r.Hours > 0 ? r.Hours / 24 : 0 })
+            .Select(r => new CarInventoryAgingRowDto
+            {
+                Id = r.v.Id, ChassisNumber = r.v.ChassisNumber, Description = r.v.BrandNameAr + " " + r.v.ModelNameAr + " " + r.v.Year.ToString(), Status = r.v.Status,
+                DaysInStock = r.Days, AgeBucket = r.Days <= 30 ? "0-30" : r.Days <= 60 ? "31-60" : r.Days <= 90 ? "61-90" : r.Days <= 180 ? "91-180" : "180+",
+                PurchasePrice = r.v.PurchasePrice ?? 0m, AdditionalCosts = r.v.AdditionalCosts ?? 0m, PreparationCost = r.v.PreparationCost ?? 0m,
+                TotalCost = r.v.TotalCost, SellingPrice = r.v.SellingPrice,
+            });
+    }
+
+    public Task<LoadResult> LoadVehicleNetProfitAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(VehicleNetProfitQuery(q), options, nameof(CarVehicleNetProfitRowDto.Id), ct, EntityLoader.Asc(nameof(CarVehicleNetProfitRowDto.Date)));
+    public Task<LoadResult> LoadEstimatedVsActualAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(EstimatedVsActualQuery(q), options, nameof(CarEstimatedVsActualRowDto.Id), ct, EntityLoader.Asc(nameof(CarEstimatedVsActualRowDto.Date)));
+    public Task<LoadResult> LoadTammMonthlyFeesAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(TammMonthlyFeesQuery(q), options, nameof(CarTammMonthlyFeesRowDto.Key), ct, EntityLoader.Asc(nameof(CarTammMonthlyFeesRowDto.Key)));
+    public Task<LoadResult> LoadUnpurchasedVehicleExpensesAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(UnpurchasedVehicleExpensesQuery(q), options, nameof(CarUnpurchasedVehicleExpenseRowDto.Id), ct, EntityLoader.Asc(nameof(CarUnpurchasedVehicleExpenseRowDto.Date)));
+    public Task<LoadResult> LoadVehiclesInTransitAsync(DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(VehiclesInTransitQuery(), options, nameof(CarVehicleInTransitRowDto.Id), ct, EntityLoader.Desc(nameof(CarVehicleInTransitRowDto.DaysInTransit)));
+    public Task<LoadResult> LoadInventoryAgingAsync(DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(InventoryAgingQuery(), options, nameof(CarInventoryAgingRowDto.Id), ct, EntityLoader.Desc(nameof(CarInventoryAgingRowDto.DaysInStock)));
 
     public Task<LoadResult> LoadSalesPerformanceAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
         => ReportLoader.LoadAsync(SalesPerformanceQuery(q), options, nameof(CarSalesPerformanceRowDto.Id), ct, EntityLoader.Asc(nameof(CarSalesPerformanceRowDto.Date)));

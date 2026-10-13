@@ -50,6 +50,12 @@ public class TenantProvisioningService : ITenantProvisioningService
 
         _db.Add(new PosInvoiceSettings { TenantId = tenantId });
 
+        foreach (var type in CarShowroom.ExpenseTypeSeed.Build())
+        {
+            type.TenantId = tenantId;
+            _db.Add(type);
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 }

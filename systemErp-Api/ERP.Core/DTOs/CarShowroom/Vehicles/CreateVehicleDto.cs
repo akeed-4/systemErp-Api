@@ -47,4 +47,6 @@ public partial class CreateVehicleDto
     public int? WarrantyKm { get; set; }
     public VehiclePdiChecklist? PdiChecklist { get; set; }
     public Guid? ProcurementOrderId { get; set; }
+    public decimal? VolumeCbm { get; set; }
+    public decimal? WeightKg { get; set; }
 }

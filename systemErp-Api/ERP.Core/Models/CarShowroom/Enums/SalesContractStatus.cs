@@ -8,5 +8,7 @@ public enum SalesContractStatus
     Allocated = 3,      // 3. تخصيص الشاسيه وتجهيز PDI
     Delivered = 4,      // 4. تسليم المركبة ومحضر الاستلام
     Invoiced = 5,        // 5. الفوترة والترحيل المالي
-    Cancelled = 6
+    Cancelled = 6,
+    /// <summary>بيع أُرجع بإشعار دائن: السيارة عادت للمخزون بتكلفتها الأصلية.</summary>
+    Returned = 7
 }

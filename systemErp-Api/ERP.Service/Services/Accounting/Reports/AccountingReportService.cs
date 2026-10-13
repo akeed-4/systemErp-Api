@@ -204,6 +204,26 @@ public class AccountingReportService : IAccountingReportService
     }
 
     /// <summary>
+    /// ضريبة مدخلات مصاريف السيارات المرحّلة في الفترة (أسطر المصاريف الفعلية وسندات التكاليف الإضافية والمصروفات المدفوعة مقدماً):
+    /// قيودها ليست فواتير ولا سندات فلا تلتقطها بقية الإقرار. السطر الملغى عُكس قيده فلا يدخل. ضريبة الاستيراد (المبلغ كله ضريبة)
+    /// تدخل ضريبةً بلا وعاء هنا لأن وعاءها قيمة البضاعة في البيان الجمركي لا في السطر.
+    /// </summary>
+    private async Task<(decimal Net, decimal Vat)> CarChargesInputVatAsync(DateTime start, DateTime end, string[]? moduleScope, CancellationToken ct)
+    {
+        if (moduleScope != null && !moduleScope.Contains(PlatformModules.CarShowroom)) return (0, 0);
+        var charges = await _db.Set<ERP.Core.Models.CarShowroom.AdditionalChargeLine>().AsNoTracking()
+            .Where(l => l.Status == ERP.Core.Models.CarShowroom.ChargeStatus.Actual && l.JournalEntryId != null && l.IsVatRecoverable
+                && l.Date >= start && l.Date < end && (l.VatAmount > 0 || l.IsInputTax))
+            .Select(l => new { l.IsInputTax, l.BaseAmount, Vat = l.VatAmount * l.ExchangeRate }).ToListAsync(ct);
+        var prepaid = await _db.Set<ERP.Core.Models.CarShowroom.PrepaidExpense>().AsNoTracking()
+            .Where(e => e.Status != ERP.Core.Models.CarShowroom.PrepaidExpenseStatus.Cancelled && e.VatAmount > 0 && e.StartDate >= start && e.StartDate < end)
+            .Select(e => new { e.TotalAmount, e.VatAmount }).ToListAsync(ct);
+        var net = charges.Where(c => !c.IsInputTax).Sum(c => c.BaseAmount) + prepaid.Sum(e => e.TotalAmount);
+        var vat = charges.Sum(c => c.IsInputTax ? c.BaseAmount : DocumentPricing.Round(c.Vat)) + prepaid.Sum(e => e.VatAmount);
+        return (DocumentPricing.Round(net), DocumentPricing.Round(vat));
+    }
+
+    /// <summary>
     /// تسويات الضريبة بقيود يدوية في الفترة: ما قُيِّد يدوياً على حسابي ضريبة المخرجات والمدخلات.
     /// قيد سداد الضريبة للهيئة أو مقاصّتها ليس تسوية: يُعرف بأن سطوره الأخرى كلها نقدية/بنوك أو حسابات ضريبة، فيُستثنى.
     /// </summary>
@@ -268,8 +288,9 @@ public class AccountingReportService : IAccountingReportService
         decimal VoucherVat(VoucherType type) => vouchers.Where(v => v.Type == type).Sum(v => v.Vat);
 
         var (outAdjustments, inAdjustments) = await ManualVatAdjustmentsAsync(start, end, moduleScope, ct);
+        var (carChargesNet, carChargesVat) = await CarChargesInputVatAsync(start, end, moduleScope, ct);
         var outVat = Sum(true, null, vat: true) + VoucherVat(VoucherType.Receipt) + outAdjustments;
-        var inVat = Sum(false, null, vat: true) + VoucherVat(VoucherType.Payment) + inAdjustments;
+        var inVat = Sum(false, null, vat: true) + VoucherVat(VoucherType.Payment) + inAdjustments + carChargesVat;
         return new VatReturnDto
         {
             FromDate = from, ToDate = to,
@@ -277,7 +298,7 @@ public class AccountingReportService : IAccountingReportService
             ExportSales = Sum(true, VatCategory.ZeroRated, false, exports: true),
             ExemptSales = Sum(true, VatCategory.Exempt, false), OutOfScopeSales = Sum(true, VatCategory.OutOfScope, false),
             OutputVat = outVat, OutputVatAdjustments = outAdjustments,
-            StandardRatedPurchases = Sum(false, VatCategory.Standard, false) + VoucherNet(VoucherType.Payment), ZeroRatedPurchases = Sum(false, VatCategory.ZeroRated, false),
+            StandardRatedPurchases = Sum(false, VatCategory.Standard, false) + VoucherNet(VoucherType.Payment) + carChargesNet, ZeroRatedPurchases = Sum(false, VatCategory.ZeroRated, false),
             ExemptPurchases = Sum(false, VatCategory.Exempt, false), OutOfScopePurchases = Sum(false, VatCategory.OutOfScope, false),
             InputVat = inVat, InputVatAdjustments = inAdjustments,
             NetVatPayable = outVat - inVat,

@@ -8,6 +8,8 @@ public class AdvanceProcurementRequestDto
 
     // المرحلة 6: استلام الشواسيه
     public List<ReceiveVinDto> Vins { get; set; } = new();
+    /// <summary>استلام جزئي: يُقبل عدد أقل من المتبقي، ويبقى الأمر في مرحلة أمر الشراء حتى يكتمل استلام الكمية.</summary>
+    public bool PartialReceipt { get; set; }
     public bool? PdiInspectionPassed { get; set; }
     public string? WarehouseLocation { get; set; }
     public string? RejectionReason { get; set; }

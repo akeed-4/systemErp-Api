@@ -269,4 +269,47 @@ public class VehicleBatchTests : TestBase
         Assert.Equal(200, rec.Status);
         Assert.All(await VehiclesAsync(api), v => { Assert.Equal("available", v!["status"].S()); Assert.False(v["isTemporaryChassis"]!.GetValue<bool>()); });
     }
+
+    [Fact]
+    public async Task Purchase_order_is_received_in_parts_with_special_chassis_prices()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        var order = await api.Post("/carprocurementorders", new { supplierId = supplier, paymentType = "credit", creditDays = 30, currency = "SAR", exchangeRate = 1, date = DateTime.UtcNow,
+            items = new[] { new { brandName = "تويوتا", modelName = "كامري", year = 2025, quantity = 3, unitPrice = 80000, color = "أبيض" } } });
+        var id = order.Data!["id"].S();
+        foreach (var s in new[] { "requisition_approved", "rfq", "rfq_approved", "purchase_order" }) await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = s });
+        var first = Client.NewVin('1');
+
+        // بلا «استلام جزئي» يجب استلام الكمية كاملة
+        Assert.Equal(400, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = true, vins = new[] { new { vin = first } } })).Status);
+
+        // استلام جزئي: شاسيه واحد بسعر خاص ولون ورقم محرك؛ الأمر يبقى في مرحلته
+        var part = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = true, partialReceipt = true,
+            vins = new[] { new { vin = first, purchasePrice = 82000, colorExterior = "أحمر", engineNumber = "ENG-9" } } });
+        Assert.Equal(200, part.Status);
+        Assert.Equal("purchase_order", part.Data!["stage"].S()); Assert.Equal("in_progress", part.Data["status"].S());
+        Assert.Equal(242000, part.Data["subtotal"].D()); // 82000 + 2 × 80000
+        var stock = await VehiclesAsync(api, "available");
+        Assert.Single(stock);
+        Assert.Equal(first, stock[0]!["chassisNumber"].S()); Assert.Equal(82000, stock[0]!["purchasePrice"].D());
+        Assert.Equal("أحمر", stock[0]!["colorExterior"].S()); Assert.Equal("ENG-9", stock[0]!["engineNumber"].S());
+        Assert.Equal(2, (await VehiclesAsync(api, "in_transit")).Count);
+
+        // ما استُلم دخل المخزون: لا رفض ولا تعديل ولا فوترة قبل اكتمال الاستلام
+        Assert.Equal(409, (await api.Post($"/carprocurementorders/{id}/reject", new { reason = "x" })).Status);
+        Assert.Equal(409, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = false, rejectionReason = "x" })).Status);
+        Assert.Equal(400, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = true, partialReceipt = true,
+            vins = new[] { new { vin = Client.NewVin('2') }, new { vin = Client.NewVin('3') }, new { vin = Client.NewVin('4') } } })).Status); // أكثر من المتبقي
+
+        // استلام الباقي يكمل المرحلة، والفاتورة بسعر كل شاسيه
+        var rest = await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "vin_received", pdiInspectionPassed = true, vins = new[] { new { vin = Client.NewVin('2') }, new { vin = Client.NewVin('3') } } });
+        Assert.Equal(200, rest.Status);
+        Assert.Equal("vin_received", rest.Data!["stage"].S()); Assert.Equal("received", rest.Data["status"].S());
+        Assert.Equal(3, (await VehiclesAsync(api, "available")).Count);
+        Assert.Equal(200, (await api.Post($"/carprocurementorders/{id}/AdvanceStage", new { targetStage = "invoiced" })).Status);
+        Assert.Equal(242000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
+        Assert.Equal(278300, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D()); // 242000 + 15%
+        var (dr, cr) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(dr, cr);
+    }
 }

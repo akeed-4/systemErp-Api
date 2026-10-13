@@ -8,4 +8,5 @@ public partial class CarProcurementOrderVinDto
     public string? EngineNumber { get; set; }
     public string? CustomsCardNumber { get; set; }
     public Guid? VehicleId { get; set; }
+    public decimal? UnitPrice { get; set; }
 }

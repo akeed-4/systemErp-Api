@@ -95,6 +95,8 @@ public class CarProcurementService : ICarProcurementService
             if (order.Stage == ProcurementStage.Invoiced || order.Status is ProcurementOrderStatus.Invoiced or ProcurementOrderStatus.Closed)
                 throw new ConflictException(Messages.CannotEditInvoicedOrderProcurement);
             if (order.Status == ProcurementOrderStatus.Rejected) throw new ConflictException(Messages.CannotEditRejectedOrder);
+            // استلام جزئي جارٍ: سياراته مربوطة ببنود الأمر، فلا تُعدَّل البنود حتى يكتمل
+            if (order.ReceivedVins.Count > 0 && order.Stage < ProcurementStage.VinReceived) throw new ConflictException(Messages.OrderPartiallyReceivedLocked);
             if (order.ReceivedVins.Count > 0 && r.Items.Sum(i => i.Quantity) != order.Items.Sum(i => i.Quantity))
                 throw new ConflictException(Messages.CannotChangeQtyAfterVinsReceived);
             var supplier = await ValidateAsync(r, token);
@@ -154,11 +156,20 @@ public class CarProcurementService : ICarProcurementService
                     await ProcurementCharges.ReallocateAsync(_db, order.Id, token);
                     break;
                 case ProcurementStage.VinReceived:
-                    if (!await ReceiveVinsAsync(order, r, token))
+                    var receipt = await ReceiveVinsAsync(order, r, token);
+                    if (receipt == Receipt.Rejected)
                     {
                         await CancelInTransitAsync(order.Id, token);
                         await _audit.LogAsync("PDI_REJECTED", nameof(CarProcurementOrder), order.Id.ToString(), r.RejectionReason ?? "فشل فحص الاستلام (PDI)", token);
                         await _db.SaveChangesAsync(token); // فشل فحص الاستلام: رُفض الأمر
+                        return await GetAsync(id, token);
+                    }
+                    if (receipt == Receipt.Partial)
+                    {
+                        // استلام جزئي: الأمر يبقى في مرحلة أمر الشراء حتى يكتمل استلام الكمية
+                        await _audit.LogAsync("PARTIAL_RECEIPT", nameof(CarProcurementOrder), order.Id.ToString(),
+                            $"استلام جزئي: {r.Vins.Count} شاسيه، المستلم {order.ReceivedVins.Count} من {order.Items.Sum(i => i.Quantity)}", token);
+                        await _db.SaveChangesAsync(token);
                         return await GetAsync(id, token);
                     }
                     break;
@@ -179,6 +190,7 @@ public class CarProcurementService : ICarProcurementService
             var order = await _db.Set<CarProcurementOrder>().FirstOrDefaultAsync(o => o.Id == id, token) ?? throw new NotFoundException(Messages.ProcurementOrderNotFound);
             if (order.Stage >= ProcurementStage.VinReceived || order.Status is ProcurementOrderStatus.Invoiced or ProcurementOrderStatus.Closed)
                 throw new ConflictException(Messages.CannotRejectReceivedOrInvoicedOrder);
+            if (await _db.Set<CarProcurementOrderVin>().AnyAsync(v => v.OrderId == id, token)) throw new ConflictException(Messages.OrderPartiallyReceivedLocked);
             order.Status = ProcurementOrderStatus.Rejected; order.RejectionReason = r.Reason;
             await CancelInTransitAsync(order.Id, token);
             await _audit.LogAsync("ORDER_REJECTED", nameof(CarProcurementOrder), order.Id.ToString(), r.Reason, token);
@@ -340,7 +352,9 @@ public class CarProcurementService : ICarProcurementService
     {
         foreach (var i in o.Items)
         {
-            i.TotalBeforeVat = DocumentPricing.Round(i.Quantity * i.UnitPrice);
+            // ما استُلم بسعر خاص يُحسب بسعره، والباقي بسعر وحدة البند
+            var received = o.ReceivedVins.Where(v => v.ItemId == i.Id).ToList();
+            i.TotalBeforeVat = DocumentPricing.Round(received.Sum(v => v.UnitPrice ?? i.UnitPrice) + (i.Quantity - received.Count) * i.UnitPrice);
             i.Total = i.TotalBeforeVat + DocumentPricing.Round(i.TotalBeforeVat * vatRate / 100m);
         }
         o.Subtotal = o.Items.Sum(i => i.TotalBeforeVat);
@@ -348,19 +362,30 @@ public class CarProcurementService : ICarProcurementService
         o.GrandTotal = o.Subtotal + o.VatTotal;
     }
 
-    /// <summary>يُنشئ المركبات من الشواسيهات المستلمة. يُرجع false إن رُفض الاستلام في فحص PDI.</summary>
-    private async Task<bool> ReceiveVinsAsync(CarProcurementOrder order, AdvanceProcurementRequestDto r, CancellationToken ct)
+    private enum Receipt { Rejected, Partial, Complete }
+
+    /// <summary>
+    /// يستلم شواصي الأمر: سياراته «في الطريق» تأخذ شواسيها الحقيقية وتدخل المخزون. يُقبل الاستلام على دفعات (PartialReceipt)،
+    /// ولكل شاسيه لونه ورقم محركه وسعر شرائه الخاص إن اختلف عن سعر بنده.
+    /// </summary>
+    private async Task<Receipt> ReceiveVinsAsync(CarProcurementOrder order, AdvanceProcurementRequestDto r, CancellationToken ct)
     {
         if (r.PdiInspectionPassed == false)
         {
+            // ما استُلم سابقاً دخل المخزون: لا يُرفض الأمر كله بعده
+            if (order.ReceivedVins.Count > 0) throw new ConflictException(Messages.OrderPartiallyReceivedLocked);
             if (string.IsNullOrWhiteSpace(r.RejectionReason)) throw new ValidationFailedException(Messages.InspectionRejectionReasonRequired);
             order.PdiInspectionPassed = false; order.Status = ProcurementOrderStatus.Rejected; order.RejectionReason = r.RejectionReason;
-            return false;
+            return Receipt.Rejected;
         }
         if (r.PdiInspectionPassed != true) throw new ValidationFailedException(Messages.PdiConfirmationRequired);
 
-        var expected = order.Items.Sum(i => i.Quantity);
-        if (r.Vins.Count != expected) throw new ValidationFailedException(string.Format(Messages.VinCountMustMatchQuantities, r.Vins.Count, expected));
+        // المتبقي = كمية الأمر − ما استُلم سابقاً. بلا «استلام جزئي» يجب استلام المتبقي كاملاً
+        var expected = order.Items.Sum(i => i.Quantity) - order.ReceivedVins.Count;
+        if (r.Vins.Count == 0 || r.Vins.Count > expected || (!r.PartialReceipt && r.Vins.Count != expected))
+            throw new ValidationFailedException(string.Format(Messages.VinCountMustMatchQuantities, r.Vins.Count, expected));
+        if (r.Vins.Any(v => v.PurchasePrice < 0)) throw new ValidationFailedException(Messages.PurchasePriceMustBePositive);
+        var complete = r.Vins.Count == expected;
 
         var vins = r.Vins.Select(v => v.Vin.Trim().ToUpperInvariant()).ToList();
         if (vins.Any(v => !VehicleService.VinPattern.IsMatch(v))) throw new ValidationFailedException(Messages.VinInvalid);
@@ -369,7 +394,8 @@ public class CarProcurementService : ICarProcurementService
         if (existing.Count > 0) throw new ConflictException(Messages.VinsAlreadyRegisteredPrefix + string.Join(", ", existing));
 
         var tax = await CarTax.LoadAsync(_db, ct);
-        var remaining = order.Items.ToDictionary(i => i.Id, i => i.Quantity);
+        var remaining = order.Items.ToDictionary(i => i.Id, i => i.Quantity - order.ReceivedVins.Count(v => v.ItemId == i.Id));
+        var fx = order.ExchangeRate <= 0 ? 1 : order.ExchangeRate;
         // سيارات الأمر «في الطريق» تستلم شواسيها الحقيقية وتدخل المخزون؛ أمر سابق لهذه الحالة لا سيارات له فتُنشأ الآن
         var inTransit = await _db.Set<Vehicle>().Where(v => v.ProcurementOrderId == order.Id && v.Status == VehicleStatus.InTransit)
             .OrderBy(v => v.CreatedAt).ThenBy(v => v.ChassisNumber).ToListAsync(ct);
@@ -399,21 +425,32 @@ public class CarProcurementService : ICarProcurementService
             vehicle.Status = VehicleStatus.Available;
             vehicle.ReceivedAt = DateTime.UtcNow;
             vehicle.Location = r.WarehouseLocation ?? order.WarehouseLocation ?? vehicle.Location;
+            // سعر شراء خاص للشاسيه (بعملة الأمر) بدل سعر وحدة بنده
+            var specialPrice = src.PurchasePrice.HasValue && src.PurchasePrice != item.UnitPrice ? src.PurchasePrice : null;
+            if (specialPrice.HasValue) vehicle.PurchasePrice = DocumentPricing.Round(specialPrice.Value * fx);
             if (src.SellingPrice.HasValue) vehicle.SellingPrice = src.SellingPrice.Value;
             VehicleService.Recalculate(vehicle, tax);
             received.Add((vehicle, src.SellingPrice.HasValue));
-            order.ReceivedVins.Add(new CarProcurementOrderVin
+            var receivedVin = new CarProcurementOrderVin
             {
                 ItemId = item.Id, Vin = vins[n], EngineNumber = src.EngineNumber, CustomsCardNumber = src.CustomsCardNumber, VehicleId = vehicle.Id,
-            });
+                UnitPrice = specialPrice,
+            };
+            order.ReceivedVins.Add(receivedVin);
+            _db.Add(receivedVin);
         }
-        order.PdiInspectionPassed = true;
         order.WarehouseLocation = r.WarehouseLocation ?? order.WarehouseLocation;
-        order.Status = ProcurementOrderStatus.Received;
+        if (complete)
+        {
+            order.PdiInspectionPassed = true;
+            order.Status = ProcurementOrderStatus.Received;
+        }
+        Recalculate(order, tax.Rate); // إجمالي الأمر يتبع الأسعار الخاصة للشواصي المستلمة
         await _db.SaveChangesAsync(ct);
 
-        // رسوم الأمر (جمارك، أرضيات) تصير فعلية عند الاستلام وتُوزَّع على سياراته: مجموع الحصص = الرسوم تماماً
-        await ProcurementCharges.SyncOrderFeesAsync(_db, order, actual: true, createMissing: true, ct);
+        // رسوم الأمر (جمارك، أرضيات) تصير فعلية عند اكتمال الاستلام وتُوزَّع على سياراته: مجموع الحصص = الرسوم تماماً
+        if (complete) await ProcurementCharges.SyncOrderFeesAsync(_db, order, actual: true, createMissing: true, ct);
+        // التوزيع حسب القيمة يتبع الأسعار الخاصة
         await ProcurementCharges.ReallocateAsync(_db, order.Id, ct);
         // استعلامات تم التي سبقت الشراء على هذه الشواسي تُنقل إلى تكلفة سياراتها
         await TammCharges.AttachPurchasedAsync(_db, _posting, received.Select(x => x.Vehicle.Id).ToList(), ct);
@@ -424,7 +461,7 @@ public class CarProcurementService : ICarProcurementService
             vehicle.SellingPrice = vehicle.TotalCost; // السعر النهائي يُحدَّد لاحقاً من شاشة المركبات
             VehicleService.Recalculate(vehicle, tax);
         }
-        return true;
+        return complete ? Receipt.Complete : Receipt.Partial;
     }
 
     /// <summary>بيانات المركبة من بند الأمر (الماركة، الموديل، ثمن الشراء بالعملة الأساسية). الافتراضيات تُضبط للمركبة الجديدة فقط.</summary>
@@ -528,12 +565,15 @@ public class CarProcurementService : ICarProcurementService
             Notes = $"فاتورة شراء سيارات - أمر {order.OrderNumber}",
             ReferenceType = "car_procurement_order", ReferenceId = order.Id, ReferenceNumber = order.OrderNumber,
             InventoryAccountCode = settings.VehicleInventoryAccount,
-            Items = order.Items.Select(i => new InvoiceItemDto
-            {
-                ItemId = Guid.Empty,
-                ItemName = $"{i.BrandName} {i.ModelName} {i.TrimName} {i.Year}".Replace("  ", " ").Trim(),
-                Unit = "سيارة", Quantity = i.Quantity, UnitPrice = DocumentPricing.Round(i.UnitPrice * fx), VatRate = settings.StandardVatRate,
-            }).ToList(),
+            // بند لكل سعر في بند الأمر: سعر الوحدة، وكل سعر خاص لشواصٍ مستلمة
+            Items = order.Items.SelectMany(i => order.ReceivedVins.Where(v => v.ItemId == i.Id).GroupBy(v => v.UnitPrice ?? i.UnitPrice)
+                .OrderByDescending(g => g.Key == i.UnitPrice).ThenBy(g => g.Key)
+                .Select(g => new InvoiceItemDto
+                {
+                    ItemId = Guid.Empty,
+                    ItemName = $"{i.BrandName} {i.ModelName} {i.TrimName} {i.Year}".Replace("  ", " ").Trim(),
+                    Unit = "سيارة", Quantity = g.Count(), UnitPrice = DocumentPricing.Round(g.Key * fx), VatRate = settings.StandardVatRate,
+                })).ToList(),
         }, ct);
 
         // رسوم الأمر الفعلية (جمارك + أرضيات موانئ) داخلة في تكلفة المركبات، فتُرحَّل إلى مخزون السيارات مقابل مستحقات:

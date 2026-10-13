@@ -9,6 +9,8 @@ public class CarProcurementOrderVin : BaseEntity
     public string? EngineNumber { get; set; }
     public string? CustomsCardNumber { get; set; }
     public Guid? VehicleId { get; set; }
+    /// <summary>سعر شراء خاص لهذا الشاسيه بعملة الأمر؛ فارغ = سعر وحدة بنده.</summary>
+    public decimal? UnitPrice { get; set; }
 
     public virtual CarProcurementOrder Order { get; set; } = null!;
 }

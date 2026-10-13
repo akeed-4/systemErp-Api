@@ -10,4 +10,6 @@ public class ReceiveVinDto
     public string? ColorExterior { get; set; }
     public string? ColorInterior { get; set; }
     public decimal? SellingPrice { get; set; }
+    /// <summary>سعر شراء خاص لهذا الشاسيه بعملة الأمر، بدل سعر وحدة بنده.</summary>
+    public decimal? PurchasePrice { get; set; }
 }

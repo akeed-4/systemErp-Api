@@ -55,6 +55,21 @@ public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, U
     public async Task<IActionResult> GenerateVins([FromBody] GenerateVinsRequestDto request, CancellationToken ct)
         => Success(await _vehicles.GenerateProvisionalVinsAsync(request.Count, ct));
 
+    /// <summary>تحقق جماعي من أرقام شاسيه (استيراد Excel، لصق قائمة): يُرجع الصفوف التي بها مشكلة وسبب كل منها.</summary>
+    [HttpPost("ValidateChassis")]
+    [RequireScreen("car-showroom", ScreenAction.View)]
+    public async Task<IActionResult> ValidateChassis([FromBody] ValidateChassisRequestDto request, CancellationToken ct)
+        => Success(await _vehicles.ValidateChassisAsync(request, ct));
+
+    /// <summary>استبدال أرقام شاسيه مؤقتة بالحقيقية (جماعياً).</summary>
+    [HttpPost("ReplaceChassis")]
+    [RequireScreen("car-showroom", ScreenAction.Edit)]
+    public async Task<IActionResult> ReplaceChassis([FromBody] List<ReplaceChassisDto> items, CancellationToken ct)
+    {
+        var replaced = await _vehicles.ReplaceChassisAsync(items, ct);
+        return Success(new { replaced }, string.Format(Messages.ChassisReplaced, replaced));
+    }
+
     [HttpPost("CheckVins")]
     [RequireScreen("car-showroom", ScreenAction.View)]
     public async Task<IActionResult> CheckVins([FromBody] List<string> vins, CancellationToken ct)

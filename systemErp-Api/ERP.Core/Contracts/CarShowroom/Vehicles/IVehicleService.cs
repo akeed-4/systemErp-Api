@@ -16,6 +16,10 @@ public interface IVehicleService : ICrudService<VehicleDto, CreateVehicleDto, Up
     Task<List<string>> FindExistingChassisNumbersAsync(List<string> vins, CancellationToken ct = default);
     /// <summary>يولّد أرقام شاسيه مؤقتة فريدة (صيغة VIN صحيحة تبدأ بـ TMP) لسيارات فاتورة الشراء، تُستبدل بالأرقام الحقيقية عند الاستلام.</summary>
     Task<List<string>> GenerateProvisionalVinsAsync(int count, CancellationToken ct = default);
+    /// <summary>تحقق جماعي من أرقام شاسيه (الصيغة، التكرار في القائمة، الوجود في المنشأة) باستعلام واحد؛ يُرجع الصفوف التي بها مشكلة فقط.</summary>
+    Task<List<ChassisIssueDto>> ValidateChassisAsync(ValidateChassisRequestDto request, CancellationToken ct = default);
+    /// <summary>يستبدل أرقام شاسيه مؤقتة بالحقيقية (جماعياً) ويحدّث نسخها في أسطر الفواتير وسجل استلام الأوامر. يُرجع عدد ما استُبدل.</summary>
+    Task<int> ReplaceChassisAsync(List<ReplaceChassisDto> items, CancellationToken ct = default);
     /// <summary>المركبات الواردة من أمر شراء محدد (بحث/فرز/صفحات) — لعرض دفعة الاستلام دون تحميل كل المركبات.</summary>
     Task<PagedResult<VehicleDto>> ListByProcurementOrderAsync(Guid orderId, PaginationParams p, CancellationToken ct = default);
 }

@@ -482,7 +482,8 @@ public class CarSaleService : ICarSaleService
         var vehicle = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == vehicleId, ct) ?? throw new ValidationFailedException(Messages.VehicleNotFound);
         if (vehicle.Status == VehicleStatus.Sold) throw new ConflictException(Messages.VehicleSold);
         if (vehicle.Status == VehicleStatus.WrittenOff) throw new ConflictException(Messages.VehicleWrittenOffNotSellable);
-        if (vehicle.Status is VehicleStatus.InTransit or VehicleStatus.Cancelled) throw new ConflictException(string.Format(Messages.VehicleNotInStock, vehicle.ChassisNumber));
+        if (vehicle.Status is VehicleStatus.InTransit or VehicleStatus.Cancelled or VehicleStatus.Draft) throw new ConflictException(string.Format(Messages.VehicleNotInStock, vehicle.ChassisNumber));
+        if (vehicle.IsTemporaryChassis) throw new ConflictException(string.Format(Messages.VehicleChassisTemporary, vehicle.ChassisNumber));
         if (vehicle.Status == VehicleStatus.Reserved)
         {
             var reservedByThis = contractId.HasValue && await _db.Set<CarSalesContract>().AnyAsync(x => x.Id == contractId && x.VehicleId == vehicleId

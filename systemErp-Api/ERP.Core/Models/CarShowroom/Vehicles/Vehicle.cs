@@ -7,6 +7,8 @@ namespace ERP.Core.Models.CarShowroom;
 public class Vehicle : BaseEntity
 {
     public string ChassisNumber { get; set; } = string.Empty; // VIN
+    /// <summary>رقم الشاسيه مؤقت ولّده النظام (TMP…): يُستبدل بالحقيقي عند الاستلام أو من البطاقة، ولا تُباع السيارة قبله.</summary>
+    public bool IsTemporaryChassis { get; set; }
     public string? EngineNumber { get; set; }
     public string? CustomsCardNumber { get; set; }
 

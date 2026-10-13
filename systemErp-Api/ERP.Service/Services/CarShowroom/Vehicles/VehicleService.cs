@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using ERP.Core.Contracts.CarShowroom;
 using ERP.Core.DTOs.CarShowroom;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 using ERP.Service.Services.Shared;
 
 namespace ERP.Service.Services.CarShowroom;
@@ -17,9 +18,68 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     /// <summary>يُحمَّل قبل أي إرجاع لـ DTO؛ الافتراضي الحجب.</summary>
     private bool _canViewCost;
 
-    public VehicleService(ErpDbContext db, INumberSequenceService numbers, ICostVisibility cost, ERP.Core.Contracts.Accounting.IAccountingPostingService posting) : base(db)
+    private readonly IAuditService _audit;
+
+    public VehicleService(ErpDbContext db, INumberSequenceService numbers, ICostVisibility cost, ERP.Core.Contracts.Accounting.IAccountingPostingService posting,
+        IAuditService audit) : base(db)
     {
-        _numbers = numbers; _cost = cost; _posting = posting;
+        _numbers = numbers; _cost = cost; _posting = posting; _audit = audit;
+    }
+
+    // ---------- أرقام الشاسيه: التحقق الجماعي واستبدال المؤقت ----------
+    public Task<List<ChassisIssueDto>> ValidateChassisAsync(ValidateChassisRequestDto request, CancellationToken ct = default)
+        => ChassisCheck.RunAsync(Db, request.Vins.Select(ChassisCheck.Normalize).ToList(), request.InvoiceId, ct);
+
+    public Task<int> ReplaceChassisAsync(List<ReplaceChassisDto> items, CancellationToken ct = default)
+        => new TransactionRunner(Db).RunAsync(async token =>
+        {
+            if (items.Count == 0) return 0;
+            var ids = items.Select(i => i.VehicleId).ToList();
+            var vehicles = await Db.Set<Vehicle>().Where(v => ids.Contains(v.Id)).ToDictionaryAsync(v => v.Id, token);
+            var vins = items.Select(i => ChassisCheck.Normalize(i.ChassisNumber)).ToList();
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (!vehicles.TryGetValue(items[i].VehicleId, out var v) || ids.IndexOf(v.Id) != i) throw new ValidationFailedException(Messages.VehicleNotFound);
+                // بطاقة المسودة يُعدَّل شاسيهها من فاتورتها
+                if (v.Status == VehicleStatus.Draft) throw new ConflictException(Messages.DraftVehicleManagedByInvoice);
+                if (!v.IsTemporaryChassis) throw new ConflictException(string.Format(Messages.ChassisNotTemporary, v.ChassisNumber));
+                if (ChassisCheck.IsProvisional(vins[i])) throw new ValidationFailedException(string.Format(Messages.ReplacementMustBeReal, vins[i]));
+            }
+            var issues = await ChassisCheck.RunAsync(Db, vins, null, token);
+            if (issues.Count > 0)
+            {
+                var messages = issues.Select(x => $"{(x.Vin.Length == 0 ? "—" : x.Vin)}: {x.Message}").ToList();
+                throw new ValidationFailedException(messages[0], messages);
+            }
+
+            var replaced = new List<string>();
+            for (var i = 0; i < items.Count; i++)
+            {
+                var v = vehicles[items[i].VehicleId];
+                replaced.Add($"{v.ChassisNumber} ← {vins[i]}");
+                v.ChassisNumber = vins[i]; v.IsTemporaryChassis = false;
+            }
+            await PropagateChassisAsync(vehicles.Values, token);
+            await SaveAsync(token);
+            // استعلامات تم التي سبقت معرفة الشاسيه الحقيقي تُنقل إلى تكلفة سيارته
+            var inStock = vehicles.Values.Where(v => v.Status is VehicleStatus.Available or VehicleStatus.Reserved).Select(v => v.Id).ToList();
+            if (inStock.Count > 0) await TammCharges.AttachPurchasedAsync(Db, _posting, inStock, token);
+            await _audit.LogAsync("CHASSIS_REPLACED", nameof(Vehicle), items.Count == 1 ? items[0].VehicleId.ToString() : string.Empty,
+                $"استبدال {items.Count} شاسيه مؤقت: " + string.Join("، ", replaced.Take(20)) + (replaced.Count > 20 ? " …" : string.Empty), token);
+            return items.Count;
+        }, ct);
+
+    /// <summary>رقم الشاسيه منسوخ في أسطر الفواتير وسجل استلام الأوامر: يُحدَّث معهما (بلا حفظ).</summary>
+    private async Task PropagateChassisAsync(IReadOnlyCollection<Vehicle> vehicles, CancellationToken ct)
+    {
+        var ids = vehicles.Select(v => (Guid?)v.Id).ToList();
+        var byId = vehicles.ToDictionary(v => v.Id);
+        foreach (var line in await Db.Set<InvoiceVehicleLine>().Where(l => ids.Contains(l.VehicleId)).ToListAsync(ct))
+        {
+            line.Vin = byId[line.VehicleId!.Value].ChassisNumber; line.IsTemporaryChassis = byId[line.VehicleId.Value].IsTemporaryChassis;
+        }
+        foreach (var received in await Db.Set<CarProcurementOrderVin>().Where(r => ids.Contains(r.VehicleId)).ToListAsync(ct))
+            received.Vin = byId[received.VehicleId!.Value].ChassisNumber;
     }
     protected override string Label => Messages.LabelVehicle;
 
@@ -119,7 +179,8 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         => q.Where(v => v.ChassisNumber.Contains(t) || v.BrandNameAr.Contains(t) || v.ModelNameAr.Contains(t) || (v.PlateNumber != null && v.PlateNumber.Contains(t)));
 
     protected override IQueryable<Vehicle> ApplyFilters(IQueryable<Vehicle> q, PaginationParams p)
-        => Enum.TryParse<VehicleStatus>(p.Status?.Replace("_", ""), true, out var st) ? q.Where(v => v.Status == st) : q; // in_transit أو InTransit
+        // in_transit أو InTransit. بطاقات مسودات فواتير الشراء لا تظهر إلا بطلبها صراحةً (status=draft)
+        => Enum.TryParse<VehicleStatus>(p.Status?.Replace("_", ""), true, out var st) ? q.Where(v => v.Status == st) : q.Where(v => v.Status != VehicleStatus.Draft);
 
     public async Task<List<VehicleDto>> ListAvailableAsync(string? search, CancellationToken ct = default)
     {
@@ -179,6 +240,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     protected override async Task OnCreatingAsync(Vehicle e, CreateVehicleDto d, CancellationToken ct)
     {
         e.Status = VehicleStatus.Available;
+        e.IsTemporaryChassis = ChassisCheck.IsProvisional(e.ChassisNumber);
         e.ReceivedAt = DateTime.UtcNow;
         await FillDenormalizedAsync(e, ct);
         Recalculate(e, await CarTax.LoadAsync(Db, ct));
@@ -203,6 +265,13 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         e.PurchasePrice = o.GetValue<decimal?>(nameof(Vehicle.PurchasePrice));
         e.AdditionalCosts = o.GetValue<decimal?>(nameof(Vehicle.AdditionalCosts));
         e.PreparationCost = o.GetValue<decimal?>(nameof(Vehicle.PreparationCost));
+        if (e.Status == VehicleStatus.Draft) throw new ConflictException(Messages.DraftVehicleManagedByInvoice);
+        // تغيير رقم الشاسيه من البطاقة (استبدال المؤقت بالحقيقي): يُحدَّث معه ما نُسخ عنه
+        if (o.GetValue<string>(nameof(Vehicle.ChassisNumber)) != e.ChassisNumber)
+        {
+            e.IsTemporaryChassis = ChassisCheck.IsProvisional(e.ChassisNumber);
+            await PropagateChassisAsync(new[] { e }, ct);
+        }
         if (e.Status == VehicleStatus.Sold) throw new ConflictException(Messages.CannotEditSoldVehicle);
         if (e.Status == VehicleStatus.WrittenOff) throw new ConflictException(Messages.VehicleWrittenOffRestoreByCount);
         await FillDenormalizedAsync(e, ct);

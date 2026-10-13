@@ -1065,4 +1065,20 @@
   <data name="PrepaidPeriodInvalid" xml:space="preserve"><value>الفترة بصيغة yyyy-MM.</value></data>
   <data name="PrepaidExpenseHasAmortization" xml:space="preserve"><value>المصروف أُطفئ منه؛ لا يُلغى.</value></data>
   <data name="PrepaidAmortized" xml:space="preserve"><value>تم ترحيل إطفاء الشهر</value></data>
+  <data name="BatchesOnlyForPurchase" xml:space="preserve"><value>دفعات السيارات لفواتير الشراء فقط.</value></data>
+  <data name="DoNotMixBatchesAndVehicleLines" xml:space="preserve"><value>لا تجمع دفعات السيارات وأسطر السيارات المستقلة في فاتورة واحدة.</value></data>
+  <data name="BatchNeedsChassis" xml:space="preserve"><value>الدفعة {0}: أضف شاسيهاً واحداً على الأقل أو حدّد عدد الأرقام المؤقتة المطلوب توليدها.</value></data>
+  <data name="BatchChassisIssue" xml:space="preserve"><value>الدفعة {0}، الشاسيه {1}: {2}</value></data>
+  <data name="BatchChassisPriceInvalid" xml:space="preserve"><value>الدفعة {0}، الشاسيه {1}: السعر الخاص يجب ألا يقل عن خصم الوحدة.</value></data>
+  <data name="BatchVehicleNotDraft" xml:space="preserve"><value>بطاقة السيارة {0} لم تعد مسودة؛ أعد حفظ الفاتورة.</value></data>
+  <data name="ChassisRequired" xml:space="preserve"><value>رقم الشاسيه مطلوب.</value></data>
+  <data name="ChassisDuplicatedInDocument" xml:space="preserve"><value>مكرر في القائمة.</value></data>
+  <data name="ChassisExists" xml:space="preserve"><value>مسجَّل من قبل في المنشأة.</value></data>
+  <data name="ChassisExistsInDraft" xml:space="preserve"><value>موجود في مسودة فاتورة الشراء {0}.</value></data>
+  <data name="DraftVehicleManagedByInvoice" xml:space="preserve"><value>هذه البطاقة تتبع مسودة فاتورة شراء؛ تُعدَّل من الفاتورة حتى ترحيلها.</value></data>
+  <data name="DraftVehicleHasCharges" xml:space="preserve"><value>السيارة {0} في المسودة عليها مصاريف مسجَّلة؛ احذف المصاريف قبل حذفها.</value></data>
+  <data name="VehicleChassisTemporary" xml:space="preserve"><value>السيارة {0} بشاسيه مؤقت؛ استبدله بالرقم الحقيقي قبل البيع.</value></data>
+  <data name="ChassisNotTemporary" xml:space="preserve"><value>السيارة {0} شاسيهها ليس مؤقتاً.</value></data>
+  <data name="ReplacementMustBeReal" xml:space="preserve"><value>الرقم {0} رقم مؤقت؛ أدخل رقم الشاسيه الحقيقي.</value></data>
+  <data name="ChassisReplaced" xml:space="preserve"><value>تم استبدال {0} شاسيه</value></data>
 </root>

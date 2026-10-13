@@ -26,4 +26,11 @@ public class InvoiceVehicleLineDto
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
     public decimal UnitCost { get; set; }
+    public Guid? BatchId { get; set; }
+    /// <summary>سعر خاص للشاسيه بدل سعر وحدة الدفعة.</summary>
+    public decimal? PriceOverride { get; set; }
+    public bool IsTemporaryChassis { get; set; }
+    public string? Notes { get; set; }
+    /// <summary>قراءة فقط: أُرجع بمرتجع مرحّل.</summary>
+    public bool IsReturned { get; set; }
 }

@@ -43,6 +43,7 @@ public partial class VehicleDto
     public decimal? PriceWithVat { get; set; }
     public VatMode VatMode { get; set; } = VatMode.Standard_15;
     public decimal? MinSellingPrice { get; set; }
+    public bool IsTemporaryChassis { get; set; }
     public VehicleStatus Status { get; set; } = VehicleStatus.Available;
     public string Location { get; set; } = string.Empty;
     public string? QrCodeUrl { get; set; }

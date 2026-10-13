@@ -54,6 +54,7 @@ internal static class VehicleInvoiceLines
                 if (!d.VehicleId.HasValue || !vehicles.TryGetValue(d.VehicleId.Value, out var v)) { errors.Add(string.Format(Messages.LineSelectAvailableVehicle, n)); continue; }
                 if (!seenVehicles.Add(v.Id)) errors.Add(string.Format(Messages.LineVehicleDuplicated, n));
                 if (v.Status != VehicleStatus.Available) errors.Add(string.Format(Messages.LineVehicleNotAvailable, n, v.ChassisNumber));
+                if (v.IsTemporaryChassis) errors.Add(string.Format(Messages.VehicleChassisTemporary, v.ChassisNumber));
                 line.Vin = v.ChassisNumber; line.BrandId = v.BrandId; line.ModelId = v.ModelId; line.TrimId = v.TrimId;
                 line.BrandNameAr = v.BrandNameAr; line.ModelNameAr = v.ModelNameAr; line.TrimNameAr = v.TrimNameAr; line.Year = v.Year;
                 line.ColorExterior = v.ColorExterior; line.ColorInterior = v.ColorInterior;

@@ -37,5 +37,13 @@ public class InvoiceVehicleLine : BaseEntity
     /// <summary>بيع فقط: تكلفة المركبة وقت الحفظ.</summary>
     public decimal UnitCost { get; set; }
 
+    /// <summary>الدفعة التي يتبعها الشاسيه (فاتورة شراء بالدفعات)؛ فارغ = سطر سيارة مستقل.</summary>
+    public Guid? BatchId { get; set; }
+    /// <summary>سعر خاص لهذا الشاسيه بدل سعر وحدة الدفعة.</summary>
+    public decimal? PriceOverride { get; set; }
+    /// <summary>رقم مؤقت ولّده النظام، يُستبدل بالرقم الحقيقي لاحقاً.</summary>
+    public bool IsTemporaryChassis { get; set; }
+    public string? Notes { get; set; }
+
     public virtual Invoice Invoice { get; set; } = null!;
 }

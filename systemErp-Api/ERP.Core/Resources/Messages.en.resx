@@ -1065,4 +1065,20 @@
   <data name="PrepaidPeriodInvalid" xml:space="preserve"><value>The period must be in yyyy-MM format.</value></data>
   <data name="PrepaidExpenseHasAmortization" xml:space="preserve"><value>The prepaid expense has amortization posted and cannot be cancelled.</value></data>
   <data name="PrepaidAmortized" xml:space="preserve"><value>Monthly amortization posted</value></data>
+  <data name="BatchesOnlyForPurchase" xml:space="preserve"><value>Vehicle batches are for purchase invoices only.</value></data>
+  <data name="DoNotMixBatchesAndVehicleLines" xml:space="preserve"><value>Do not mix vehicle batches and individual vehicle lines in one invoice.</value></data>
+  <data name="BatchNeedsChassis" xml:space="preserve"><value>Batch {0}: add at least one chassis or set how many temporary numbers to generate.</value></data>
+  <data name="BatchChassisIssue" xml:space="preserve"><value>Batch {0}, chassis {1}: {2}</value></data>
+  <data name="BatchChassisPriceInvalid" xml:space="preserve"><value>Batch {0}, chassis {1}: the special price must not be less than the unit discount.</value></data>
+  <data name="BatchVehicleNotDraft" xml:space="preserve"><value>Vehicle card {0} is no longer a draft; save the invoice again.</value></data>
+  <data name="ChassisRequired" xml:space="preserve"><value>Chassis number is required.</value></data>
+  <data name="ChassisDuplicatedInDocument" xml:space="preserve"><value>Duplicated in the list.</value></data>
+  <data name="ChassisExists" xml:space="preserve"><value>Already registered in the company.</value></data>
+  <data name="ChassisExistsInDraft" xml:space="preserve"><value>Exists in draft purchase invoice {0}.</value></data>
+  <data name="DraftVehicleManagedByInvoice" xml:space="preserve"><value>This card belongs to a draft purchase invoice; edit it from the invoice until it is posted.</value></data>
+  <data name="DraftVehicleHasCharges" xml:space="preserve"><value>Draft vehicle {0} has recorded charges; delete them before removing it.</value></data>
+  <data name="VehicleChassisTemporary" xml:space="preserve"><value>Vehicle {0} has a temporary chassis number; replace it with the real one before selling.</value></data>
+  <data name="ChassisNotTemporary" xml:space="preserve"><value>Vehicle {0} does not have a temporary chassis number.</value></data>
+  <data name="ReplacementMustBeReal" xml:space="preserve"><value>{0} is a temporary number; enter the real chassis number.</value></data>
+  <data name="ChassisReplaced" xml:space="preserve"><value>{0} chassis number(s) replaced</value></data>
 </root>

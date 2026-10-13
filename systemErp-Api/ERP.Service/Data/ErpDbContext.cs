@@ -222,6 +222,10 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<InvoiceItem>().Property(i => i.VatCategory).HasDefaultValue(VatCategory.Standard);
         modelBuilder.Entity<Product>().Property(p => p.VatCategory).HasDefaultValue(VatCategory.Standard);
 
+        // شواصي الدفعة وبطاقات فاتورة الشراء تُقرأ جماعياً بمعرّف الدفعة/الفاتورة
+        modelBuilder.Entity<InvoiceVehicleLine>().HasIndex(l => l.BatchId);
+        modelBuilder.Entity<Vehicle>().HasIndex(v => new { v.TenantId, v.PurchaseInvoiceId });
+
         modelBuilder.Entity<NumberSequence>().Property(s => s.Version).IsConcurrencyToken();
         modelBuilder.Entity<ZatcaUnit>().Property(c => c.Version).IsConcurrencyToken();
         modelBuilder.Entity<InventoryCountApproval>().Property(a => a.Version).IsConcurrencyToken();

@@ -393,7 +393,7 @@ public class CarProcurementService : ICarProcurementService
                 _db.Add(vehicle);
             }
             await ApplyItemAsync(vehicle, order, item, isNew, ct);
-            vehicle.ChassisNumber = vins[n]; vehicle.EngineNumber = src.EngineNumber; vehicle.CustomsCardNumber = src.CustomsCardNumber;
+            vehicle.ChassisNumber = vins[n]; vehicle.IsTemporaryChassis = ChassisCheck.IsProvisional(vins[n]); vehicle.EngineNumber = src.EngineNumber; vehicle.CustomsCardNumber = src.CustomsCardNumber;
             vehicle.ColorExterior = src.ColorExterior ?? item.Color ?? vehicle.ColorExterior;
             vehicle.ColorInterior = src.ColorInterior ?? vehicle.ColorInterior;
             vehicle.Status = VehicleStatus.Available;
@@ -461,7 +461,7 @@ public class CarProcurementService : ICarProcurementService
         for (var i = 0; i < slots.Count; i++)
         {
             var isNew = i >= existing.Count;
-            var vehicle = isNew ? new Vehicle { ChassisNumber = newVins[i - existing.Count], ProcurementOrderId = order.Id, Status = VehicleStatus.InTransit } : existing[i];
+            var vehicle = isNew ? new Vehicle { ChassisNumber = newVins[i - existing.Count], IsTemporaryChassis = true, ProcurementOrderId = order.Id, Status = VehicleStatus.InTransit } : existing[i];
             if (isNew) _db.Add(vehicle);
             await ApplyItemAsync(vehicle, order, slots[i], isNew, ct);
             VehicleService.Recalculate(vehicle, tax);

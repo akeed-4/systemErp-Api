@@ -67,6 +67,10 @@ public partial class CreateInvoiceDto
     public List<InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
     /// <summary>أسطر السيارات: تُرسل بدل Items في فواتير الشراء/البيع متعددة السيارات.</summary>
     public List<InvoiceVehicleLineDto> VehicleLines { get; set; } = new();
+    /// <summary>دفعات السيارات (فاتورة شراء): سطر لكل دفعة بشواصيها، بدل VehicleLines.</summary>
+    public List<InvoiceVehicleBatchDto> VehicleBatches { get; set; } = new();
+    /// <summary>مسودة قائمة يُعاين قيدها: شواصيها المحفوظة لا تُعدّ تكراراً. في التعديل يُؤخذ من المسار، وفي الإنشاء يُتجاهل.</summary>
+    public Guid? ExistingInvoiceId { get; set; }
     /// <summary>داخلي: البنود اشتُقّت من أسطر السيارات (تُعاد اشتقاقها إن أُعيد تنفيذ الطلب بعد تعارض تزامن).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool ItemsDerivedFromVehicles { get; set; }

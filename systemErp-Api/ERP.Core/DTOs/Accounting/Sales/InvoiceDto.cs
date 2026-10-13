@@ -73,4 +73,5 @@ public partial class InvoiceDto
     public List<InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
     /// <summary>أسطر السيارات: تُرسل بدل Items في فواتير الشراء/البيع متعددة السيارات.</summary>
     public List<InvoiceVehicleLineDto> VehicleLines { get; set; } = new();
+    public List<InvoiceVehicleBatchDto> VehicleBatches { get; set; } = new();
 }

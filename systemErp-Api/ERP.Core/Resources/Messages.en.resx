@@ -381,7 +381,7 @@
   <data name="ItemNotInTransaction" xml:space="preserve"><value>Item not found in the transaction.</value></data>
   <data name="ItemsNotFoundInInvoice" xml:space="preserve"><value>Some invoice items were not found.</value></data>
   <data name="JournalEntryAlreadyReversed" xml:space="preserve"><value>The journal entry is already reversed.</value></data>
-  <data name="JournalEntryDeleted" xml:space="preserve"><value>Journal entry deleted</value></data>
+  <data name="JournalEntryDeleted" xml:space="preserve"><value>Journal entry cancelled by a reversing entry; both remain on record</value></data>
   <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>A journal entry needs at least two lines.</value></data>
   <data name="JournalEntryNotFound" xml:space="preserve"><value>Journal entry not found</value></data>
   <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>This entry is managed by its document (asset depreciation or disposal); reverse it from the fixed assets screen.</value></data>

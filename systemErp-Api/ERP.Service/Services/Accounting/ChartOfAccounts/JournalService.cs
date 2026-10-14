@@ -72,8 +72,8 @@ public class JournalService : IJournalService
         {
             await EnsureNotOwnedAsync(id, token);
             var number = await _db.Set<JournalEntry>().AsNoTracking().Where(e => e.Id == id).Select(e => e.EntryNumber).FirstOrDefaultAsync(token);
-            await _posting.DeleteManualAsync(id, token);
-            await _audit.LogAsync("JOURNAL_ENTRY_DELETED", nameof(JournalEntry), id.ToString(), $"حذف القيد {number}", token);
+            var reversal = await _posting.DeleteManualAsync(id, token);
+            await _audit.LogAsync("JOURNAL_ENTRY_CANCELLED", nameof(JournalEntry), id.ToString(), $"إلغاء القيد {number} بالقيد العكسي {reversal.EntryNumber}", token);
         }, ct);
 
     public Task<JournalEntryDto> ReverseAsync(Guid id, CancellationToken ct = default)
@@ -97,7 +97,7 @@ public class JournalService : IJournalService
     private static GenericPostingRequest ToRequest(CreateJournalEntryDto r) => new()
     {
         Module = r.Module,
-        Date = r.Date == default ? DateTime.UtcNow : r.Date,
+        Date = r.Date == default ? SaudiTime.Today : r.Date,
         Description = string.IsNullOrWhiteSpace(r.Description) ? "قيد يومية" : r.Description,
         SourceType = "manual",
         Lines = r.Lines.Select(l => new PostingLine(l.AccountCode, l.Debit, l.Credit, l.Notes, l.CostCenterId)).ToList(),

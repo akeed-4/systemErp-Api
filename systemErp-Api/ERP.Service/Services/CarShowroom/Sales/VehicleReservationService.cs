@@ -120,7 +120,7 @@ public class VehicleReservationService : IVehicleReservationService
         }
         await _posting.PostAsync(new GenericPostingRequest
         {
-            Date = DateTime.UtcNow,
+            Date = SaudiTime.Today,
             Description = (refund ? "رد عربون " : "مصادرة عربون ") + $"{voucher.VoucherNumber} - {voucher.PartyName} (إلغاء حجز)",
             SourceType = refund ? "car_deposit_refund" : "car_deposit_forfeit", SourceId = voucher.Id, SourceNumber = voucher.VoucherNumber,
             Lines = new List<PostingLine> { new(settings.CustomerDepositsAccount, voucher.Amount, 0), new(counter, 0, voucher.Amount) },

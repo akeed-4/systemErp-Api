@@ -102,12 +102,12 @@ public class LeaveService : ILeaveService
     {
         var employee = await _db.Set<Employee>().AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId, ct)
             ?? throw new NotFoundException(Messages.LeaveEmployeeNotFound);
-        return LeaveBalances.Compute(employee, asOf ?? DateTime.UtcNow.Date, await AnnualRequestsAsync(employeeId, null, ct));
+        return LeaveBalances.Compute(employee, asOf ?? SaudiTime.Today, await AnnualRequestsAsync(employeeId, null, ct));
     }
 
     public async Task<List<LeaveBalanceDto>> ListBalancesAsync(CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = SaudiTime.Today;
         var employees = await _db.Set<Employee>().AsNoTracking().Where(e => e.Status == EmployeeStatuses.Active).OrderBy(e => e.Code).ToListAsync(ct);
         var requests = (await _db.Set<LeaveRequest>().AsNoTracking()
                 .Where(r => r.IsAnnual && (r.Status == LeaveStatuses.Approved || r.Status == LeaveStatuses.Pending)).ToListAsync(ct))
@@ -160,7 +160,7 @@ public class LeaveService : ILeaveService
     {
         if (leave.IsAnnual)
         {
-            var asOf = leave.StartDate > DateTime.UtcNow.Date ? leave.StartDate : DateTime.UtcNow.Date;
+            var asOf = leave.StartDate > SaudiTime.Today ? leave.StartDate : SaudiTime.Today;
             var balance = LeaveBalances.Compute(employee, asOf, await AnnualRequestsAsync(employee.Id, leave.Id, ct));
             if (leave.Days > balance.Available)
                 throw new ValidationFailedException(string.Format(Messages.LeaveBalanceInsufficient, balance.Available.ToString("0.##", CultureInfo.InvariantCulture)));

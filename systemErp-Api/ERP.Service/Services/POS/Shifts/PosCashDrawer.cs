@@ -43,7 +43,7 @@ internal static class PosCashDrawer
             : new List<PostingLine> { new(DefaultAccounts.CashShortage, amount, 0), new(cash, 0, amount) };
         var posted = await posting.PostAsync(new GenericPostingRequest
         {
-            Date = shift.ClosedAt ?? DateTime.UtcNow,
+            Date = SaudiTime.FromUtc(shift.ClosedAt ?? DateTime.UtcNow).Date,
             Description = $"{(variance > 0 ? "زيادة" : "عجز")} نقدية الصندوق - وردية {shift.ShiftNumber}",
             SourceType = "pos_shift_variance", SourceId = shift.Id, SourceNumber = shift.ShiftNumber, Lines = lines,
         }, ct);

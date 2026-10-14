@@ -48,7 +48,7 @@ internal static class TammCharges
         var line = new AdditionalChargeLine
         {
             ExpenseTypeId = type.Id, ExpenseTypeCode = type.Code, ExpenseTypeNameAr = type.NameAr, Stage = type.Stage,
-            Date = op.CompletedAt ?? DateTime.UtcNow, Description = $"عملية تم {op.OperationNumber}",
+            Date = op.CompletedAt ?? SaudiTime.Now, Description = $"عملية تم {op.OperationNumber}",
             Amount = op.Fee, BaseAmount = op.Fee, CostAmount = op.Fee, ExchangeRate = 1,
             CurrencyCode = await db.Set<Currency>().Where(c => c.IsBaseCurrency).Select(c => c.Code).FirstOrDefaultAsync(ct) ?? "SAR",
             VatCategory = type.VatCategory, IsVatRecoverable = type.IsVatRecoverable, Status = ChargeStatus.Actual, Source = ChargeSource.Tamm,

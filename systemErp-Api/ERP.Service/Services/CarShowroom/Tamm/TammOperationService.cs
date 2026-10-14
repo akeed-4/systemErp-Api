@@ -75,7 +75,7 @@ public class TammOperationService : ITammOperationService
             {
                 OperationNumber = await _numbers.NextAsync("tamm_operation", "TAMM-", token),
                 Type = d.Type, Status = TammOperationStatus.Pending, VehicleId = vehicleId, Vin = vin, ContractId = d.ContractId, Fee = d.Fee,
-                Reference = string.IsNullOrWhiteSpace(d.Reference) ? null : d.Reference.Trim(), RequestedAt = d.RequestedAt ?? DateTime.UtcNow,
+                Reference = string.IsNullOrWhiteSpace(d.Reference) ? null : d.Reference.Trim(), RequestedAt = d.RequestedAt ?? SaudiTime.Now,
                 Notes = string.IsNullOrWhiteSpace(d.Notes) ? null : d.Notes.Trim(),
             };
             _db.Add(op);
@@ -103,7 +103,7 @@ public class TammOperationService : ITammOperationService
             if (!string.IsNullOrWhiteSpace(d.Reference)) op.Reference = d.Reference.Trim();
             if (d.Status != TammOperationStatus.Unknown)
             {
-                op.CompletedAt = d.CompletedAt ?? DateTime.UtcNow;
+                op.CompletedAt = d.CompletedAt ?? SaudiTime.Now;
                 if (wasUnknown) { op.ResolvedManually = true; op.ResolvedBy = _user.Name; }
             }
             op.FailureReason = d.Status == TammOperationStatus.Failed ? d.FailureReason?.Trim() : null;

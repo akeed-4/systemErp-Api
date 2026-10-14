@@ -17,7 +17,7 @@ public class InventoryService : IInventoryService
     {
         if (r.Quantity <= 0) throw new ValidationFailedException(Messages.QuantityMustBePositive);
         if (r.UnitCost < 0) throw new ValidationFailedException(Messages.UnitCostCannotBeNegative);
-        await _periods.EnsureOpenAsync(r.Date ?? DateTime.UtcNow, ct);
+        await _periods.EnsureOpenAsync(r.Date ?? SaudiTime.Today, ct);
 
         var product = await _db.Set<Product>().FirstOrDefaultAsync(p => p.Id == r.ItemId, ct)
             ?? throw new NotFoundException(Messages.ProductNotFound);
@@ -30,7 +30,7 @@ public class InventoryService : IInventoryService
         var movement = new StockMovement
         {
             ItemId = product.Id, ItemName = product.NameAr, WarehouseId = warehouse.Id,
-            Date = r.Date ?? DateTime.UtcNow, Type = r.Type, Quantity = r.Quantity,
+            Date = r.Date ?? SaudiTime.Today, Type = r.Type, Quantity = r.Quantity,
             UnitPrice = r.UnitPrice, ReferenceNumber = r.ReferenceNumber, Notes = r.Notes,
             SourceType = r.SourceType, SourceId = r.SourceId,
         };

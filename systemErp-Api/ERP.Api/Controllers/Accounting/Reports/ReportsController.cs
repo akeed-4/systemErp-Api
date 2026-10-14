@@ -16,10 +16,11 @@ public class ReportsController : ErpControllerBase
     private readonly IAccountingReportService _accounting;
     private readonly IInventoryReportService _inventory;
     private readonly IPartyAgingService _aging;
+    private readonly IAccountingIntegrityService _integrity;
 
-    public ReportsController(IAccountingReportService accounting, IInventoryReportService inventory, IPartyAgingService aging)
+    public ReportsController(IAccountingReportService accounting, IInventoryReportService inventory, IPartyAgingService aging, IAccountingIntegrityService integrity)
     {
-        _aging = aging;
+        _aging = aging; _integrity = integrity;
         _accounting = accounting; _inventory = inventory;
     }
 
@@ -37,6 +38,19 @@ public class ReportsController : ErpControllerBase
     [HttpGet("VatReturn"), RequireScreen("reports")]
     public async Task<IActionResult> Vat([FromQuery] DateTime from, [FromQuery] DateTime to, [FromQuery] string? module, CancellationToken ct)
         => Success(await _accounting.GetVatReturnAsync(from, to, module, ct));
+
+    // ---------- سلامة الدفاتر ----------
+    /// <summary>الحسابات التي يختلف رصيدها المخزَّن عن مجموع حركاتها في القيود.</summary>
+    [HttpGet("BalanceIntegrity"), RequireScreen("reports")]
+    public async Task<IActionResult> BalanceIntegrity(CancellationToken ct) => Success(await _integrity.CheckBalancesAsync(ct));
+
+    /// <summary>يعيد رصيد كل حساب مختلف إلى مجموع حركاته (يتطلب صلاحية تعديل الحسابات).</summary>
+    [HttpPost("BalanceIntegrity/rebuild"), RequireScreen("accounts", ScreenAction.Edit)]
+    public async Task<IActionResult> RebuildBalances(CancellationToken ct) => Success(await _integrity.RebuildBalancesAsync(ct));
+
+    /// <summary>قيمة المخزون من سجله التفصيلي مقابل أرصدة حسابات المخزون.</summary>
+    [HttpGet("InventoryReconciliation"), RequireScreen("reports")]
+    public async Task<IActionResult> InventoryReconciliation(CancellationToken ct) => Success(await _integrity.GetInventoryReconciliationAsync(ct));
 
     /// <summary>أعمار الديون (type = receivable للعملاء أو payable للموردين) حتى تاريخ.</summary>
     [HttpGet("Aging"), RequireScreen("reports")]

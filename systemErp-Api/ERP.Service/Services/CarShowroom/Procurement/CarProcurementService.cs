@@ -77,7 +77,7 @@ public class CarProcurementService : ICarProcurementService
             order.Stage = ProcurementStage.Requisition;
             order.Status = ProcurementOrderStatus.Draft;
             order.PurchaseSource = string.IsNullOrWhiteSpace(r.PurchaseSource) ? ProcurementSources.Company : r.PurchaseSource.Trim().ToLowerInvariant();
-            order.Date = r.Date == default ? DateTime.UtcNow : r.Date;
+            order.Date = r.Date == default ? SaudiTime.Today : r.Date;
             order.SupplierName = supplier.NameAr; order.SupplierCr ??= supplier.CrNumber; order.SupplierVat ??= supplier.VatNumber;
             ResetSystemFields(order);
             Recalculate(order, (await CarTax.LoadAsync(_db, token)).Rate);
@@ -230,7 +230,7 @@ public class CarProcurementService : ICarProcurementService
             {
                 var entry = await _posting.PostAsync(new GenericPostingRequest
                 {
-                    Date = DateTime.UtcNow,
+                    Date = SaudiTime.Today,
                     Description = (treatment == "loss" ? "خسارة مصاريف شراء ملغى - أمر " : "مطالبة على المورد بمصاريف شراء ملغى - أمر ") + $"{order.OrderNumber} - {order.SupplierName}",
                     SourceType = "car_purchase_cancellation", SourceId = order.Id, SourceNumber = order.OrderNumber, Lines = lines,
                 }, token);
@@ -266,7 +266,7 @@ public class CarProcurementService : ICarProcurementService
 
             var created = await CreateAsync(new CreateCarProcurementOrderDto
             {
-                SupplierId = r.SupplierId, Date = r.Date ?? DateTime.UtcNow, PurchaseCycle = r.PurchaseCycle, PurchaseSource = r.PurchaseSource,
+                SupplierId = r.SupplierId, Date = r.Date ?? SaudiTime.Today, PurchaseCycle = r.PurchaseCycle, PurchaseSource = r.PurchaseSource,
                 PaymentType = r.PaymentType, CreditDays = r.CreditDays, Currency = r.Currency, ExchangeRate = r.ExchangeRate,
                 Notes = string.Join("\n", notes), WarehouseLocation = r.WarehouseLocation,
                 Items = new List<CarProcurementOrderItemDto>
@@ -599,7 +599,7 @@ public class CarProcurementService : ICarProcurementService
 
         order.PurchaseInvoiceId = invoice.Id;
         order.MatchedInvoiceNumber = string.IsNullOrWhiteSpace(r.SupplierInvoiceNumber) ? invoice.InvoiceNumber : r.SupplierInvoiceNumber;
-        order.SupplierInvoiceDate = r.SupplierInvoiceDate ?? DateTime.UtcNow;
+        order.SupplierInvoiceDate = r.SupplierInvoiceDate ?? SaudiTime.Today;
         order.Status = ProcurementOrderStatus.Invoiced;
     }
 }

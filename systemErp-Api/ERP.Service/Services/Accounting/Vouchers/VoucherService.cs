@@ -54,7 +54,7 @@ public class VoucherService : IVoucherService
             var voucher = Mapper.Map<Voucher>(r);
             voucher.Module = await ResolveModuleAsync(r, token);
             if (r.DepositVehicleId.HasValue) voucher.DepositStatus = "open";
-            voucher.Date = r.Date == default ? DateTime.UtcNow : r.Date;
+            voucher.Date = r.Date == default ? SaudiTime.Today : r.Date;
             voucher.VoucherNumber = await _numbers.NextAsync(r.Type == VoucherType.Receipt ? "receipt_voucher" : "payment_voucher",
                 r.Type == VoucherType.Receipt ? "RV-" : "PV-", token);
             voucher.AmountInWordsAr = ArabicAmountInWords.Riyals(r.Amount);

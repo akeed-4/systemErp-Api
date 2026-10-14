@@ -217,7 +217,7 @@ public class OnlinePaymentService : IOnlinePaymentService
                 var settlement = await SettlementAccountAsync(ct);
                 var voucher = await _vouchers.CreateAsync(new CreateVoucherDto
                 {
-                    Type = VoucherType.Receipt, Date = DateTime.UtcNow, Amount = p.Amount,
+                    Type = VoucherType.Receipt, Date = SaudiTime.Today, Amount = p.Amount,
                     PartyName = customer.NameAr, PartyAccountCode = customer.AccountCode, TreasuryAccountCode = settlement,
                     PaymentMethod = "bank_card", ReferenceNumber = inv.InvoiceNumber,
                     Notes = $"تحصيل إلكتروني عبر Paymob للفاتورة {inv.InvoiceNumber} (عملية {p.ProviderTransactionId})",

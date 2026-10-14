@@ -96,7 +96,7 @@ public class CarSaleService : ICarSaleService
             await ValidateDepositAsync(contract, token);
 
             contract.ContractNumber = await _numbers.NextAsync("car_sales_contract", "CSC-", token);
-            contract.Date = r.Date == default ? DateTime.UtcNow : r.Date;
+            contract.Date = r.Date == default ? SaudiTime.Today : r.Date;
             contract.Status = SalesContractStatus.Draft;
             contract.SalespersonName ??= _user.Name;
             contract.CustomerChargesNet = 0; contract.CustomerChargesVat = 0;
@@ -283,7 +283,7 @@ public class CarSaleService : ICarSaleService
                 if (unrecovered > 0)
                     await _posting.PostAsync(new GenericPostingRequest
                     {
-                        Date = dto.IssueDate == default ? DateTime.UtcNow : dto.IssueDate,
+                        Date = dto.IssueDate == default ? SaudiTime.Today : dto.IssueDate,
                         Description = $"رسوم غير مستردة رُدّت للعميل عند مرتجع عقد {c.ContractNumber}: مصروف على المعرض",
                         SourceType = "car_sale_return_fees", SourceId = c.Id, SourceNumber = c.ContractNumber,
                         Lines = new List<PostingLine> { new(settings.VehicleExpenseAccount, unrecovered, 0), new(settings.CustomerRechargeAccount, 0, unrecovered) },
@@ -371,7 +371,7 @@ public class CarSaleService : ICarSaleService
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         c.HandoverProtocolNumber = r.HandoverProtocolNumber; c.HandoverSignee = r.HandoverSignee;
         c.HandoverSigneeNationalId = r.HandoverSigneeNationalId;
-        c.DeliveredAt = DateTime.UtcNow; c.DeliveryDate = r.DeliveryDate ?? DateTime.UtcNow; c.DeliveryLocation = r.DeliveryLocation ?? c.DeliveryLocation;
+        c.DeliveredAt = DateTime.UtcNow; c.DeliveryDate = r.DeliveryDate ?? SaudiTime.Today; c.DeliveryLocation = r.DeliveryLocation ?? c.DeliveryLocation;
     }
 
     private async Task InvoiceAsync(CarSalesContract c, CancellationToken ct)

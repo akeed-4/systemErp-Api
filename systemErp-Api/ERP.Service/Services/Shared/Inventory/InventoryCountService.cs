@@ -70,7 +70,7 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
         var errors = new List<string>();
         if (!Enum.IsDefined(d.Scope)) errors.Add(Messages.CountScopeValues);
         if (!Enum.IsDefined(d.CountType)) errors.Add(Messages.CountTypeValues);
-        if (d.CountDate > DateTime.UtcNow.AddDays(1)) errors.Add(Messages.CountDateInFuture);
+        if (d.CountDate > SaudiTime.Today.AddDays(1)) errors.Add(Messages.CountDateInFuture);
         if (d.Lines.Count == 0) errors.Add(Messages.AtLeastOneCountLineRequired);
 
         if (d.Scope == InventoryCountScope.Items)
@@ -111,7 +111,7 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
 
     private async Task PrepareAsync(InventoryCount e, CancellationToken ct)
     {
-        if (e.CountDate == default) e.CountDate = DateTime.UtcNow;
+        if (e.CountDate == default) e.CountDate = SaudiTime.Today;
         if (string.IsNullOrWhiteSpace(e.CountedBy)) e.CountedBy = _user.Name ?? string.Empty;
         e.Location = string.IsNullOrWhiteSpace(e.Location) ? null : e.Location.Trim();
         e.WarehouseName = e.WarehouseId.HasValue

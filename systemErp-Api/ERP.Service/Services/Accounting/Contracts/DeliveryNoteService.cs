@@ -58,7 +58,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             var note = Mapper.Map<DeliveryNote>(r);
             note.DeliveryNumber = await _numbers.NextAsync("delivery_note", r.Type == "sales_delivery" ? "DN-" : "GRN-", token);
             note.ContractNumber = contract?.ContractNumber ?? r.ContractNumber;
-            note.Date = r.Date == default ? DateTime.UtcNow : r.Date;
+            note.Date = r.Date == default ? SaudiTime.Today : r.Date;
             note.Status = DeliveryNoteStatus.Delivered;
             note.InvoiceId = null; note.InvoiceNumber = null;
             foreach (var i in note.Items) i.ReturnedQty = 0;
@@ -194,7 +194,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             ret.ReturnNumber = await _numbers.NextAsync("delivery_return", "DR-", token);
             ret.DeliveryNumber = note.DeliveryNumber;
             ret.ContractId = note.ContractId; ret.ContractNumber = note.ContractNumber; ret.PartyName = note.PartyName;
-            ret.Date = r.Date == default ? DateTime.UtcNow : r.Date;
+            ret.Date = r.Date == default ? SaudiTime.Today : r.Date;
             ret.Status = "completed";
             foreach (var i in ret.Items)
             {

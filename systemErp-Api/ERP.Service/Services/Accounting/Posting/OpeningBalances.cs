@@ -30,7 +30,7 @@ internal static class OpeningBalances
         var debitParty = debitNature == amount > 0;
         var posted = await posting.PostAsync(new GenericPostingRequest
         {
-            Date = DateTime.UtcNow, Description = $"رصيد افتتاحي - {partyName}",
+            Date = SaudiTime.Today, Description = $"رصيد افتتاحي - {partyName}",
             SourceType = SourceType, SourceId = partyId, SourceNumber = accountCode,
             Lines = debitParty
                 ? new() { new(accountCode, value, 0), new(DefaultAccounts.OpeningBalanceEquity, 0, value) }

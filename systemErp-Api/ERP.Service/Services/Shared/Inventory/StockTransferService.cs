@@ -36,7 +36,7 @@ public class StockTransferService : IStockTransferService
             var transfer = new StockTransfer
             {
                 TransferNumber = await _numbers.NextAsync("stock_transfer", "TRF-", token),
-                Date = r.Date ?? DateTime.UtcNow, Notes = r.Notes,
+                Date = r.Date ?? SaudiTime.Today, Notes = r.Notes,
                 FromWarehouseId = from.Id, FromWarehouseName = from.NameAr, ToWarehouseId = to.Id, ToWarehouseName = to.NameAr,
             };
             // سطر واحد لكل صنف: تكرار الصنف يُجمع

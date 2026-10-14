@@ -32,7 +32,7 @@ public class FixedAssetDisposalService : IFixedAssetDisposalService
                 ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Messages.LabelFixedAsset));
             if (asset.DisposedAt.HasValue) throw new ConflictException(string.Format(Messages.AssetAlreadyDisposed, asset.AssetCode));
 
-            var date = (r.Date == default ? DateTime.UtcNow : r.Date).Date;
+            var date = (r.Date == default ? SaudiTime.Today : r.Date).Date;
             var errors = new List<string>();
             if (date < asset.PurchaseDate.Date) errors.Add(Messages.DisposalBeforePurchase);
             if (r.Proceeds < 0) errors.Add(Messages.DisposalProceedsCannotBeNegative);

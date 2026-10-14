@@ -105,7 +105,7 @@ public class PrepaidExpenseService : IPrepaidExpenseService
     public Task<AmortizePrepaidExpensesResultDto> AmortizeAsync(AmortizePrepaidExpensesDto d, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var period = string.IsNullOrWhiteSpace(d.Period) ? DateTime.UtcNow.ToString("yyyy-MM", CultureInfo.InvariantCulture) : d.Period.Trim();
+            var period = string.IsNullOrWhiteSpace(d.Period) ? SaudiTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture) : d.Period.Trim();
             if (!DateTime.TryParseExact(period, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month))
                 throw new ValidationFailedException(Messages.PrepaidPeriodInvalid);
             var settings = await SalesCharges.SettingsAsync(_db, token);

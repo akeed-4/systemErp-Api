@@ -1,3 +1,4 @@
+using ERP.Core.Models.Shared;
 using ERP.Core.DTOs.Shared;
 
 namespace ERP.Core.DTOs.Accounting;
@@ -6,7 +7,7 @@ namespace ERP.Core.DTOs.Accounting;
 public class GenericPostingRequest
 {
     public string? Module { get; set; }
-    public DateTime Date { get; set; } = DateTime.UtcNow;
+    public DateTime Date { get; set; } = SaudiTime.Today;
     public string Description { get; set; } = string.Empty;
     public string? SourceType { get; set; }
     public Guid? SourceId { get; set; }

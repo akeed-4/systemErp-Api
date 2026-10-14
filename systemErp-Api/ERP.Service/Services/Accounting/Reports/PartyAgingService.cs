@@ -19,7 +19,7 @@ public class PartyAgingService : IPartyAgingService
 
     public async Task<AgingReportDto> GetAsync(bool receivable, DateTime? asOf, CancellationToken ct = default)
     {
-        var date = (asOf ?? DateTime.UtcNow).Date;
+        var date = (asOf ?? SaudiTime.Today).Date;
         var end = date.AddDays(1);
         var kind = receivable ? InvoiceKind.Sales : InvoiceKind.Purchase;
         var parties = await PartiesAsync(receivable, ct);

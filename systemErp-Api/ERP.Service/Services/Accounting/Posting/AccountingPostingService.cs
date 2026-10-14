@@ -40,7 +40,7 @@ public class AccountingPostingService : IAccountingPostingService
         };
         Attach(entry, prepared);
         _db.Add(entry);
-        await SyncLinkedEntityBalancesAsync(prepared.Accounts, ct);
+        await SyncLinkedEntityBalancesAsync(_db, prepared.Accounts, ct);
         await _db.SaveChangesAsync(ct);
         return new PostingResult(entry.Id, entry.EntryNumber);
     }
@@ -61,7 +61,7 @@ public class AccountingPostingService : IAccountingPostingService
         entry.Description = automatic && !request.Description.Contains("[مُعدَّل يدوياً]") ? request.Description + " [مُعدَّل يدوياً]" : request.Description;
         entry.Module = ResolveModule(request.Module ?? entry.Module, request.SourceType);
         Attach(entry, prepared);
-        await SyncLinkedEntityBalancesAsync(prepared.Accounts, ct);
+        await SyncLinkedEntityBalancesAsync(_db, prepared.Accounts, ct);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -71,18 +71,19 @@ public class AccountingPostingService : IAccountingPostingService
         if (entry.Lines.Any(l => l.BankReconciliationId != null)) throw new ConflictException(Messages.JournalEntryReconciled);
     }
 
-    public async Task DeleteManualAsync(Guid journalEntryId, CancellationToken ct = default)
+    /// <summary>
+    /// «حذف» القيد إلغاءٌ لا مسح: يُعكس بقيد عكسي في فترته (يجب أن تكون مفتوحة) ويبقى القيدان في السجل،
+    /// فلا فجوة في الترقيم ولا يضيع أثر ما حدث. يُرجع القيد العكسي.
+    /// </summary>
+    public async Task<PostingResult> DeleteManualAsync(Guid journalEntryId, CancellationToken ct = default)
     {
         var entry = await LoadManualAsync(journalEntryId, ct);
         EnsureNotReconciled(entry);
         await _periods.EnsureOpenAsync(entry.Date, ct);
-        await UnapplyAsync(entry, ct);
-        // فك ارتباط المستندات التي تشير لهذا القيد كي لا يبقى مرجع معلّق.
+        // المستندات المرتبطة لا تبقى مشيرة لقيد ملغى، فلا يحاول عكسه مرة ثانية عند حذفها أو إرجاعها لاحقاً.
         foreach (var inv in await _db.Set<Invoice>().Where(i => i.JournalEntryId == entry.Id).ToListAsync(ct)) inv.JournalEntryId = null;
         foreach (var v in await _db.Set<Voucher>().Where(x => x.JournalEntryId == entry.Id).ToListAsync(ct)) v.JournalEntryId = null;
-        _db.RemoveRange(entry.Lines);
-        _db.Remove(entry);
-        await _db.SaveChangesAsync(ct);
+        return await ReverseAsync(entry.Id, "إلغاء القيد", ct);
     }
 
     private async Task<JournalEntry> LoadManualAsync(Guid id, CancellationToken ct)
@@ -98,14 +99,24 @@ public class AccountingPostingService : IAccountingPostingService
 
     private async Task<Prepared> PrepareAsync(GenericPostingRequest request, CancellationToken ct)
     {
-        var lines = request.Lines.Where(l => l.Debit != 0 || l.Credit != 0).ToList();
-        if (lines.Count < 2) throw new ValidationFailedException(Messages.JournalEntryNeedsTwoLines);
-        if (lines.Any(l => l.Debit < 0 || l.Credit < 0 || (l.Debit > 0 && l.Credit > 0)))
+        var raw = request.Lines.Where(l => l.Debit != 0 || l.Credit != 0).ToList();
+        if (raw.Count < 2) throw new ValidationFailedException(Messages.JournalEntryNeedsTwoLines);
+        if (raw.Any(l => l.Debit < 0 || l.Credit < 0 || (l.Debit > 0 && l.Credit > 0)))
             throw new ValidationFailedException(Messages.LineMustBeDebitOrCredit);
 
+        var rawDebit = raw.Sum(l => l.Debit);
+        var rawCredit = raw.Sum(l => l.Credit);
+        if (Math.Abs(rawDebit - rawCredit) > Tolerance)
+            throw new ValidationFailedException(string.Format(Messages.JournalEntryUnbalanced, rawDebit, rawCredit));
+
+        // التقريب لهللة يسبق كل شيء: الأسطر المحفوظة والأرصدة والإجماليات كلها بالقيم المقرّبة نفسها،
+        // وكسر التقريب (المتبقي بعد اجتياز فحص التوازن أعلاه) يُحمَّل على أكبر سطر في الجانب الأصغر فيتوازن القيد تماماً.
+        var lines = BalanceRounding(raw.Select(l => l with { Debit = Round(l.Debit), Credit = Round(l.Credit) })
+            .Where(l => l.Debit != 0 || l.Credit != 0).ToList());
+        if (lines.Count < 2) throw new ValidationFailedException(Messages.JournalEntryNeedsTwoLines);
         var totalDebit = lines.Sum(l => l.Debit);
         var totalCredit = lines.Sum(l => l.Credit);
-        if (Math.Abs(totalDebit - totalCredit) > Tolerance)
+        if (totalDebit != totalCredit)
             throw new ValidationFailedException(string.Format(Messages.JournalEntryUnbalanced, totalDebit, totalCredit));
 
         var codes = lines.Select(l => l.AccountCode).Distinct().ToList();
@@ -121,16 +132,34 @@ public class AccountingPostingService : IAccountingPostingService
         return new Prepared(lines, accounts, accounts.ToDictionary(a => a.Code), totalDebit, totalCredit);
     }
 
+    /// <summary>
+    /// يوزّع فرق التقريب بعد تقريب كل سطر: مجموع أسطر مقرّبة قد يختلف بهللات عن الجانب الآخر وإن توازن القيد قبل التقريب.
+    /// الفرق يُضاف لأكبر سطر في الجانب الأصغر (أقل أثر نسبي)، فيُحفظ القيد متوازناً بلا فرق.
+    /// </summary>
+    internal static List<PostingLine> BalanceRounding(List<PostingLine> lines)
+    {
+        var diff = lines.Sum(l => l.Debit) - lines.Sum(l => l.Credit);
+        if (diff == 0) return lines;
+        var creditSide = diff > 0; // المدين أكبر: يُزاد الدائن
+        var target = lines.Select((l, i) => (l, i)).Where(x => creditSide ? x.l.Credit > 0 : x.l.Debit > 0)
+            .OrderByDescending(x => creditSide ? x.l.Credit : x.l.Debit).Select(x => (int?)x.i).FirstOrDefault();
+        if (target == null) return lines; // جانب بلا أسطر: يرفضه فحص التوازن عند المتصل
+        var t = lines[target.Value];
+        lines[target.Value] = creditSide ? t with { Credit = t.Credit + diff } : t with { Debit = t.Debit - diff };
+        return lines;
+    }
+
+    /// <summary>الأسطر في p مقرّبة مسبقاً؛ الرصيد يتحرك بما يُحفظ في السطر تماماً فيبقى = مجموع حركات الحساب.</summary>
     private static void Attach(JournalEntry entry, Prepared p)
     {
-        entry.TotalDebit = Round(p.TotalDebit);
-        entry.TotalCredit = Round(p.TotalCredit);
+        entry.TotalDebit = p.TotalDebit;
+        entry.TotalCredit = p.TotalCredit;
         foreach (var l in p.Lines)
         {
             entry.Lines.Add(new JournalEntryLine
             {
                 AccountCode = l.AccountCode, AccountName = p.ByCode[l.AccountCode].NameAr,
-                Debit = Round(l.Debit), Credit = Round(l.Credit), Notes = l.Notes, CostCenterId = l.CostCenterId,
+                Debit = l.Debit, Credit = l.Credit, Notes = l.Notes, CostCenterId = l.CostCenterId,
             });
             ApplyToBalance(p.ByCode[l.AccountCode], l.Debit, l.Credit);
         }
@@ -238,7 +267,7 @@ public class AccountingPostingService : IAccountingPostingService
         var result = await PostAsync(new GenericPostingRequest
         {
             // العكس في فترة القيد نفسها ليُلغى أثره فيها؛ إن كانت مقفلة فبتاريخ اليوم (تصحيح في الفترة المفتوحة)
-            Date = await _periods.IsOpenAsync(original.Date, ct) ? original.Date : DateTime.UtcNow,
+            Date = await _periods.IsOpenAsync(original.Date, ct) ? original.Date : SaudiTime.Today,
             Description = $"عكس القيد {original.EntryNumber}" + (string.IsNullOrWhiteSpace(reason) ? "" : $" - {reason}"),
             Module = original.Module, SourceType = "reversal", SourceId = original.Id, SourceNumber = original.EntryNumber, Lines = lines,
         }, ct);
@@ -293,7 +322,8 @@ public class AccountingPostingService : IAccountingPostingService
     internal static void ApplyToBalance(Account account, decimal debit, decimal credit)
         => account.Balance += account.IsDebitNature ? debit - credit : credit - debit;
 
-    private async Task SyncLinkedEntityBalancesAsync(List<Account> touched, CancellationToken ct)
+    /// <summary>رصيد العميل/المورد/البنك المرتبط يتبع رصيد حسابه (مع رصيده الافتتاحي القديم إن وُجد).</summary>
+    internal static async Task SyncLinkedEntityBalancesAsync(ErpDbContext db, IEnumerable<Account> touched, CancellationToken ct)
     {
         foreach (var a in touched.Where(a => a.LinkedEntityId.HasValue && a.LinkedEntityType is > LinkedEntityType.General))
         {
@@ -301,15 +331,15 @@ public class AccountingPostingService : IAccountingPostingService
             switch (a.LinkedEntityType)
             {
                 case LinkedEntityType.Customer:
-                    var c = await _db.Set<Customer>().FirstOrDefaultAsync(x => x.Id == id, ct);
+                    var c = await db.Set<Customer>().FirstOrDefaultAsync(x => x.Id == id, ct);
                     if (c != null) c.CurrentBalance = OpeningBalances.Current(a.Balance, c.OpeningBalance, c.OpeningEntryId);
                     break;
                 case LinkedEntityType.Supplier:
-                    var s = await _db.Set<Supplier>().FirstOrDefaultAsync(x => x.Id == id, ct);
+                    var s = await db.Set<Supplier>().FirstOrDefaultAsync(x => x.Id == id, ct);
                     if (s != null) s.CurrentBalance = OpeningBalances.Current(a.Balance, s.OpeningBalance, s.OpeningEntryId);
                     break;
                 case LinkedEntityType.Bank:
-                    var b = await _db.Set<BankEntity>().FirstOrDefaultAsync(x => x.Id == id, ct);
+                    var b = await db.Set<BankEntity>().FirstOrDefaultAsync(x => x.Id == id, ct);
                     if (b != null) b.CurrentBalance = OpeningBalances.Current(a.Balance, b.OpeningBalance, b.OpeningEntryId);
                     break;
             }
@@ -324,6 +354,6 @@ public class AccountingPostingService : IAccountingPostingService
         var byCode = accounts.ToDictionary(a => a.Code);
         foreach (var l in entry.Lines)
             if (byCode.TryGetValue(l.AccountCode, out var acc)) ApplyToBalance(acc, -l.Debit, -l.Credit);
-        await SyncLinkedEntityBalancesAsync(accounts, ct);
+        await SyncLinkedEntityBalancesAsync(_db, accounts, ct);
     }
 }

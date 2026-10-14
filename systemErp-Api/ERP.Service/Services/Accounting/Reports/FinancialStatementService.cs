@@ -96,7 +96,7 @@ public class FinancialStatementService : IFinancialStatementService
     // ---------------- قائمة المركز المالي ----------------
     public async Task<FinancialPositionDto> GetFinancialPositionAsync(DateTime? asOf, DateTime? compareAsOf, string? module = null, CancellationToken ct = default)
     {
-        var date = (asOf ?? DateTime.UtcNow).Date;
+        var date = (asOf ?? SaudiTime.Today).Date;
         var accounts = await AccountsAsync(ct);
         var current = await NetByAccountAsync(null, date, excludeYearClosing: false, module, ct);
         var previous = compareAsOf.HasValue ? await NetByAccountAsync(null, compareAsOf.Value, excludeYearClosing: false, module, ct) : null;

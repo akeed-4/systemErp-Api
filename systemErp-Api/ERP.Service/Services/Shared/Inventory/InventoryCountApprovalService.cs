@@ -178,7 +178,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             {
                 ItemId = line.ItemId!.Value, WarehouseId = count.WarehouseId,
                 Type = isIn ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
-                Quantity = Math.Abs(line.VarianceQuantity), UnitCost = unitCost, ReferenceNumber = count.CountNumber, Date = DateTime.UtcNow,
+                Quantity = Math.Abs(line.VarianceQuantity), UnitCost = unitCost, ReferenceNumber = count.CountNumber, Date = SaudiTime.Today,
                 Notes = $"تسوية جرد {count.CountNumber}", SourceType = SourceType, SourceId = count.Id,
             }, ct);
             line.UnitCost = movement.UnitCost;
@@ -231,7 +231,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         await DefaultAccounts.EnsureAsync(_db, ct, inventoryAccount, DefaultAccounts.InventoryAdjustment);
         return await _posting.PostAsync(new GenericPostingRequest
         {
-            Date = DateTime.UtcNow, Description = $"تسوية فروق الجرد {count.CountNumber}",
+            Date = SaudiTime.Today, Description = $"تسوية فروق الجرد {count.CountNumber}",
             SourceType = SourceType, SourceId = count.Id, SourceNumber = count.CountNumber, Lines = lines,
         }, ct);
     }

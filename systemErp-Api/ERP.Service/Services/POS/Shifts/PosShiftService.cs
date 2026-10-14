@@ -112,7 +112,7 @@ public class PosShiftService : IPosShiftService
             var paidIn = r.Type == PosCashMovementType.PaidIn;
             var posted = await _posting.PostAsync(new GenericPostingRequest
             {
-                Date = DateTime.UtcNow,
+                Date = SaudiTime.Today,
                 Description = $"{(paidIn ? "إيداع نقدي في" : "صرف نقدي من")} درج الوردية {shift.ShiftNumber} - {movement.Reason}",
                 SourceType = "pos_cash_movement", SourceId = movement.Id, SourceNumber = shift.ShiftNumber,
                 Lines = paidIn

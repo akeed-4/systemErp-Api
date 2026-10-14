@@ -295,7 +295,7 @@ public class LandedCostVoucherService : ILandedCostVoucherService
 
         var voucher = new LandedCostVoucher
         {
-            Date = d.Date ?? DateTime.UtcNow, SupplierId = supplier.Id, SupplierName = supplier.NameAr,
+            Date = d.Date ?? SaudiTime.Today, SupplierId = supplier.Id, SupplierName = supplier.NameAr,
             SupplierInvoiceNumber = string.IsNullOrWhiteSpace(d.SupplierInvoiceNumber) ? null : d.SupplierInvoiceNumber.Trim(),
             CurrencyCode = currency, ExchangeRate = rate, ProcurementOrderId = d.ProcurementOrderId, ProcurementOrderNumber = orderNumber,
             Notes = string.IsNullOrWhiteSpace(d.Notes) ? null : d.Notes.Trim(), Status = LandedCostVoucherStatus.Draft,

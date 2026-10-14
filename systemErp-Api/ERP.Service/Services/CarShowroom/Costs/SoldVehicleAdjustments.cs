@@ -45,7 +45,7 @@ internal static class SoldVehicleAdjustments
             db.Add(new VehicleCostAdjustment
             {
                 AdjustmentNumber = await numbers.NextAsync("vehicle_cost_adjustment", "VCA-", ct),
-                VehicleId = vehicleId, ContractId = contractId, ChargeLineId = chargeLineId, Date = DateTime.UtcNow, Amount = amount,
+                VehicleId = vehicleId, ContractId = contractId, ChargeLineId = chargeLineId, Date = SaudiTime.Today, Amount = amount,
                 Reason = reason.Trim(), Source = source, ApprovedBy = approvedBy, JournalEntryId = journalEntryId,
             });
         }

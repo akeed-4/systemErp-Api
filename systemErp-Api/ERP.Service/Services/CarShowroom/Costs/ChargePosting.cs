@@ -127,7 +127,7 @@ internal static class ChargePosting
         var s = await SalesCharges.SettingsAsync(db, ct);
         await posting.PostAsync(new GenericPostingRequest
         {
-            Date = DateTime.UtcNow, Description = "إعادة مصاريف سيارات مستلمة إلى حساب في الطريق لعكس قيدها", SourceType = ReceiptSource,
+            Date = SaudiTime.Today, Description = "إعادة مصاريف سيارات مستلمة إلى حساب في الطريق لعكس قيدها", SourceType = ReceiptSource,
             Lines = new List<PostingLine> { new(s.VehiclesInTransitAccount, amount, 0), new(s.VehicleInventoryAccount, 0, amount) },
         }, ct);
     }
@@ -144,7 +144,7 @@ internal static class ChargePosting
         await EnsureAccountsAsync(db, s, ct);
         await posting.PostAsync(new GenericPostingRequest
         {
-            Date = DateTime.UtcNow, Description = $"استلام سيارات أمر {order.OrderNumber}: نقل مصاريفها من في الطريق إلى المخزون",
+            Date = SaudiTime.Today, Description = $"استلام سيارات أمر {order.OrderNumber}: نقل مصاريفها من في الطريق إلى المخزون",
             SourceType = ReceiptSource, SourceId = order.Id, SourceNumber = order.OrderNumber,
             Lines = new List<PostingLine> { new(s.VehicleInventoryAccount, amount, 0), new(s.VehiclesInTransitAccount, 0, amount) },
         }, ct);

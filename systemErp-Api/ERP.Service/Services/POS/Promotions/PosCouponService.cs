@@ -41,7 +41,7 @@ public class PosCouponService : CrudService<PosCoupon, PosCouponDto, CreatePosCo
     {
         var code = (r.Code ?? string.Empty).Trim().ToUpperInvariant();
         var coupon = await Db.Set<PosCoupon>().AsNoTracking().FirstOrDefaultAsync(c => c.Code == code, ct);
-        var reason = PosPricing.CouponRejectionReason(coupon, r.CartAmount, DateTime.UtcNow);
+        var reason = PosPricing.CouponRejectionReason(coupon, r.CartAmount, SaudiTime.Now);
         if (reason != null) return new CouponValidationResultDto { IsValid = false, Message = reason };
         return new CouponValidationResultDto
         {

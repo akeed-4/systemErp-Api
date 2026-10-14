@@ -69,7 +69,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
         if (r.Status is not ("draft" or "pending_approval")) throw new ConflictException(Messages.CannotApproveRequisitionInCurrentState);
         foreach (var i in r.Items) i.ApprovedQuantity ??= i.RequestedQuantity;
-        r.Status = "approved"; r.ApprovedBy = _user.Name; r.ApprovalDate = DateTime.UtcNow;
+        r.Status = "approved"; r.ApprovedBy = _user.Name; r.ApprovalDate = SaudiTime.Today;
         await Db.SaveChangesAsync(ct);
         return ToDto(r);
     }

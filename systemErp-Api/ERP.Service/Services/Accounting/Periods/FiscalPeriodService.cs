@@ -34,7 +34,7 @@ public class FiscalPeriodService : IFiscalPeriodService
         var tenant = await _db.Set<Tenant>().FirstAsync(ct);
         var closed = await ClosedYearsAsync(ct);
         var target = r.LockedThrough?.Date;
-        if (target > DateTime.UtcNow.Date) throw new ValidationFailedException(Messages.PeriodLockDateInFuture);
+        if (target > SaudiTime.Today) throw new ValidationFailedException(Messages.PeriodLockDateInFuture);
         // السنة المقفلة تبقى مقفلة: فتحها يكون بعكس قيد إقفالها أولاً
         var lastClosedEnd = closed.Count == 0 ? (DateTime?)null : YearRange(tenant, closed.Max()).To;
         if (lastClosedEnd != null && (target == null || target < lastClosedEnd))
@@ -54,7 +54,7 @@ public class FiscalPeriodService : IFiscalPeriodService
             var tenant = await _db.Set<Tenant>().FirstAsync(token);
             if (r.Year is < 2000 or > 2200) throw new ValidationFailedException(Messages.FiscalYearInvalid);
             var (from, to) = YearRange(tenant, r.Year);
-            if (to >= DateTime.UtcNow.Date) throw new ValidationFailedException(string.Format(Messages.FiscalYearNotEnded, to));
+            if (to >= SaudiTime.Today) throw new ValidationFailedException(string.Format(Messages.FiscalYearNotEnded, to));
             if ((await ClosedYearsAsync(token)).Contains(r.Year)) throw new ConflictException(string.Format(Messages.FiscalYearAlreadyClosed, r.Year));
 
             // صافي حركة كل حساب إيراد/مصروف خلال السنة (من سطور القيود، لا من الأرصدة الجارية)

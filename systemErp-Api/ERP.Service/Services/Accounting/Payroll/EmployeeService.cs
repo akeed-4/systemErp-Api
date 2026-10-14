@@ -90,7 +90,7 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
 
     public async Task<List<EmployeeAlertDto>> GetExpiringAsync(int days, CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = SaudiTime.Today;
         var limit = today.AddDays(Math.Clamp(days, 0, MaxAlertDays));
         var employees = await Db.Set<Employee>().AsNoTracking()
             .Where(e => e.Status == EmployeeStatuses.Active

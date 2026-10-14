@@ -158,7 +158,7 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
     {
         if (!DateTime.TryParseExact(request.Period?.Trim(), "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
             throw new ValidationFailedException(Messages.DepreciationPeriodInvalid);
-        if (start > DateTime.UtcNow) throw new ValidationFailedException(Messages.DepreciationPeriodInFuture);
+        if (start > SaudiTime.Now) throw new ValidationFailedException(Messages.DepreciationPeriodInFuture);
         var period = start.ToString("yyyy-MM", CultureInfo.InvariantCulture);
         var periodEnd = start.AddMonths(1).AddDays(-1);
 

@@ -302,7 +302,7 @@ public class AdditionalChargeService : IAdditionalChargeService
         else if (d.Status == ChargeStatus.Estimated) line.EstimatedCostAmount = null;
         line.DocumentType = r.DocumentType; line.DocumentId = r.DocumentId; line.DocumentNumber = r.DocumentNumber;
         line.ExpenseTypeId = r.Type.Id; line.ExpenseTypeCode = r.Type.Code; line.ExpenseTypeNameAr = r.Type.NameAr; line.Stage = r.Type.Stage;
-        line.Date = d.Date ?? (isNew ? DateTime.UtcNow : line.Date);
+        line.Date = d.Date ?? (isNew ? SaudiTime.Today : line.Date);
         line.Description = string.IsNullOrWhiteSpace(d.Description) ? null : d.Description.Trim();
         line.Amount = d.Amount; line.CurrencyCode = r.CurrencyCode; line.ExchangeRate = r.ExchangeRate; line.BaseAmount = r.BaseAmount;
         line.VatCategory = r.Type.VatCategory; line.VatAmount = d.VatAmount;

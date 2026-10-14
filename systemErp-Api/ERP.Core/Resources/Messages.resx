@@ -381,7 +381,7 @@
   <data name="ItemNotInTransaction" xml:space="preserve"><value>صنف غير موجود في المعاملة.</value></data>
   <data name="ItemsNotFoundInInvoice" xml:space="preserve"><value>أصناف غير موجودة في الفاتورة.</value></data>
   <data name="JournalEntryAlreadyReversed" xml:space="preserve"><value>القيد معكوس مسبقاً.</value></data>
-  <data name="JournalEntryDeleted" xml:space="preserve"><value>تم حذف القيد</value></data>
+  <data name="JournalEntryDeleted" xml:space="preserve"><value>أُلغي القيد بقيد عكسي، ويبقى القيدان في السجل</value></data>
   <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>القيد يحتاج سطرين على الأقل.</value></data>
   <data name="JournalEntryNotFound" xml:space="preserve"><value>القيد غير موجود</value></data>
   <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>هذا القيد يُدار من مستنده (إهلاك أو استبعاد أصل)؛ اعكسه من شاشة الأصول الثابتة.</value></data>

@@ -54,7 +54,7 @@ public class TammWalletService : ITammWalletService
 
             var transaction = new TammWalletTransaction
             {
-                Date = d.Date ?? DateTime.UtcNow, Type = TammWalletTransactionType.TopUp, Amount = DocumentPricing.Round(d.Amount), TreasuryAccountCode = treasury,
+                Date = d.Date ?? SaudiTime.Today, Type = TammWalletTransactionType.TopUp, Amount = DocumentPricing.Round(d.Amount), TreasuryAccountCode = treasury,
                 Reference = string.IsNullOrWhiteSpace(d.Reference) ? null : d.Reference.Trim(), Notes = string.IsNullOrWhiteSpace(d.Notes) ? null : d.Notes.Trim(),
             };
             _db.Add(transaction);
@@ -75,7 +75,7 @@ public class TammWalletService : ITammWalletService
         {
             var settings = await SalesCharges.SettingsAsync(_db, token);
             await ChargePosting.EnsureAccountsAsync(_db, settings, token);
-            var date = d.Date ?? DateTime.UtcNow;
+            var date = d.Date ?? SaudiTime.Today;
             var book = await BalanceAsync(settings.TammWalletAccount, token);
             var difference = DocumentPricing.Round(d.StatementBalance - book);
 

@@ -177,7 +177,7 @@ public class PosSaleService : IPosSaleService
             {
                 var code = r.CouponCode.Trim().ToUpperInvariant();
                 coupon = await _db.Set<PosCoupon>().FirstOrDefaultAsync(c => c.Code == code, token);
-                couponError = PosPricing.CouponRejectionReason(coupon, netAfterLines, DateTime.UtcNow);
+                couponError = PosPricing.CouponRejectionReason(coupon, netAfterLines, SaudiTime.Now);
                 if (couponError != null && strict) throw new ValidationFailedException(couponError);
                 if (couponError != null) coupon = null;
                 else couponDiscount = PosPricing.CouponDiscount(coupon!, netAfterLines);

@@ -117,7 +117,7 @@ public class FixedAssetService : CrudService<FixedAsset, FixedAssetDto, CreateFi
 
         var posted = await _posting.PostAsync(new GenericPostingRequest
         {
-            Date = e.PurchaseDate > DateTime.UtcNow ? DateTime.UtcNow : e.PurchaseDate, Description = $"{note} - {e.NameAr}",
+            Date = e.PurchaseDate > SaudiTime.Today ? SaudiTime.Today : e.PurchaseDate, Description = $"{note} - {e.NameAr}",
             SourceType = "fixed_asset_acquisition", SourceId = e.Id, SourceNumber = e.AssetCode, Lines = lines,
         }, ct);
         e.AcquisitionJournalEntryId = posted.JournalEntryId;

@@ -50,7 +50,7 @@ internal static class VehicleCostLedger
             {
                 DocumentType = ChargeDocumentTypes.Vehicle, DocumentId = v.Id, DocumentNumber = v.ChassisNumber,
                 ExpenseTypeId = type.Id, ExpenseTypeCode = type.Code, ExpenseTypeNameAr = type.NameAr, Stage = type.Stage,
-                Date = v.CreatedAt, Amount = gap, CurrencyCode = currency, ExchangeRate = 1, BaseAmount = gap, CostAmount = gap,
+                Date = SaudiTime.FromUtc(v.CreatedAt).Date, Amount = gap, CurrencyCode = currency, ExchangeRate = 1, BaseAmount = gap, CostAmount = gap,
                 VatCategory = type.VatCategory, Treatment = ChargeTreatment.Capitalize, Status = ChargeStatus.Actual,
                 Source = ChargeSource.OpeningBalance, AllocationMethod = ChargeAllocationMethod.Equal,
             };

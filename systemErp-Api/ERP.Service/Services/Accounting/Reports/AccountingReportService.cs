@@ -171,7 +171,7 @@ public class AccountingReportService : IAccountingReportService
 
     public async Task<BalanceSheetDto> GetBalanceSheetAsync(DateTime? asOf, string? module = null, CancellationToken ct = default)
     {
-        var date = (asOf ?? DateTime.UtcNow).Date;
+        var date = (asOf ?? SaudiTime.Today).Date;
         var end = date.AddDays(1);
         var moduleScope = ReportModuleScope.Normalize(module);
         var movements = from l in Lines
@@ -323,8 +323,9 @@ public class AccountingReportService : IAccountingReportService
             {
                 Id = a.Id, Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn, Type = a.Type, Level = a.Level,
                 Balance = a.Balance, IsDebitNature = a.IsDebitNature,
-                Debit = a.IsDebitNature ? Math.Abs(a.Balance) : 0m,
-                Credit = a.IsDebitNature ? 0m : Math.Abs(a.Balance),
+                // الرصيد بإشارته: مدين الطبيعة السالب (بنك مكشوف) يظهر دائناً، ودائن الطبيعة السالب يظهر مديناً
+                Debit = a.IsDebitNature ? (a.Balance > 0 ? a.Balance : 0m) : (a.Balance < 0 ? -a.Balance : 0m),
+                Credit = a.IsDebitNature ? (a.Balance < 0 ? -a.Balance : 0m) : (a.Balance > 0 ? a.Balance : 0m),
             });
         }
         else
@@ -341,8 +342,8 @@ public class AccountingReportService : IAccountingReportService
                    {
                        Id = account.Id, Code = account.Code, NameAr = account.NameAr, NameEn = account.NameEn, Type = account.Type, Level = account.Level,
                        Balance = balance, IsDebitNature = account.IsDebitNature,
-                       Debit = account.IsDebitNature ? Math.Abs(balance) : 0m,
-                       Credit = account.IsDebitNature ? 0m : Math.Abs(balance),
+                       Debit = account.IsDebitNature ? (balance > 0 ? balance : 0m) : (balance < 0 ? -balance : 0m),
+                       Credit = account.IsDebitNature ? (balance < 0 ? -balance : 0m) : (balance > 0 ? balance : 0m),
                    };
         }
         return EntityLoader.LoadRowsAsync(rows, options, nameof(AccountBalanceRowDto.Id), ct, EntityLoader.Asc(nameof(AccountBalanceRowDto.Code)));

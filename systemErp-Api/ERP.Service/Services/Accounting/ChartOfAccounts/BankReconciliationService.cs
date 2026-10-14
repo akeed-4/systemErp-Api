@@ -68,7 +68,7 @@ public class BankReconciliationService : IBankReconciliationService
         {
             var account = await BankAccountAsync(r.AccountCode, token);
             var date = r.StatementDate.Date;
-            if (date > DateTime.UtcNow.Date.AddDays(1)) throw new ValidationFailedException(Messages.StatementDateInFuture);
+            if (date > SaudiTime.Today) throw new ValidationFailedException(Messages.StatementDateInFuture);
             // التسويات متتابعة: لا كشف بتاريخ يسبق آخر كشف مطابَق للحساب
             var last = await _db.Set<BankReconciliation>().AsNoTracking().Where(b => b.AccountCode == account.Code)
                 .OrderByDescending(b => b.StatementDate).Select(b => (DateTime?)b.StatementDate).FirstOrDefaultAsync(token);

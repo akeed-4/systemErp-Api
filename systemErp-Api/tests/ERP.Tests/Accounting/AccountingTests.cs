@@ -58,17 +58,22 @@ public class AccountingTests : TestBase
     }
 
     [Fact]
-    public async Task Automatic_journals_can_be_deleted_or_reversed_but_not_twice()
+    public async Task Automatic_journals_are_corrected_from_their_document_not_the_journal_screen()
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         var inv = await api.Post("/invoices", Sale(product, 1, "cash"));
         var jeId = inv.Data!["journalEntryId"].S();
-        Assert.Equal(200, (await api.Post($"/journalentries/{jeId}/reverse")).Status);
+        var cash = (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D();
+
+        // لا عكس ولا إلغاء ولا تعديل: الفاتورة تبقى مرحّلة بقيدها، والدفاتر مطابقة للمخزون
         Assert.Equal(409, (await api.Post($"/journalentries/{jeId}/reverse")).Status);
-        var inv2 = await api.Post("/invoices", Sale(product, 1, "cash"));
-        Assert.Equal(200, (await api.Delete($"/journalentries/{inv2.Data!["journalEntryId"].S()}")).Status);
-        Assert.Null((await api.Get($"/invoices/{inv2.Data["id"].S()}")).Data!["journalEntryId"]);
+        Assert.Equal(409, (await api.Delete($"/journalentries/{jeId}")).Status);
+        Assert.Equal(409, (await api.Put($"/journalentries/{jeId}", new { date = DateTime.UtcNow, description = "x",
+            lines = new[] { new { accountCode = "1111", debit = 1m, credit = 0m }, new { accountCode = "31", debit = 0m, credit = 1m } } })).Status);
+        Assert.Equal(jeId, (await api.Get($"/invoices/{inv.Data["id"].S()}")).Data!["journalEntryId"].S());
+        Assert.Equal("posted", (await api.Get($"/journalentries/{jeId}")).Data!["status"].S());
+        Assert.Equal(cash, (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D());
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 

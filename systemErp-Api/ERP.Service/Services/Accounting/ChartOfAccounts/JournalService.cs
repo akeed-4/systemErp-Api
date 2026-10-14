@@ -12,10 +12,12 @@ public class JournalService : IJournalService
     private readonly IAccountingPostingService _posting;
     private readonly ITransactionRunner _tx;
     private readonly ERP.Core.Contracts.Shared.IAuditService _audit;
+    private readonly IFiscalPeriodService _periods;
 
-    public JournalService(ErpDbContext db, IAccountingPostingService posting, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit)
+    public JournalService(ErpDbContext db, IAccountingPostingService posting, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit,
+        IFiscalPeriodService periods)
     {
-        _audit = audit;
+        _audit = audit; _periods = periods;
         _db = db; _posting = posting; _tx = tx;
     }
 
@@ -60,7 +62,6 @@ public class JournalService : IJournalService
     public Task<JournalEntryDto> UpdateManualAsync(Guid id, UpdateJournalEntryDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            await EnsureNotOwnedAsync(id, token);
             await _posting.ReplaceManualAsync(id, ToRequest(r), token);
             var updated = await GetAsync(id, token);
             await _audit.LogAsync("JOURNAL_ENTRY_UPDATED", nameof(JournalEntry), id.ToString(), $"تعديل القيد {updated.EntryNumber}", token);
@@ -70,28 +71,34 @@ public class JournalService : IJournalService
     public Task DeleteManualAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            await EnsureNotOwnedAsync(id, token);
-            var number = await _db.Set<JournalEntry>().AsNoTracking().Where(e => e.Id == id).Select(e => e.EntryNumber).FirstOrDefaultAsync(token);
+            var entry = await SourceOfAsync(id, token);
+            if (entry.SourceType == FiscalPeriodService.ClosingSource) { await _periods.ReopenYearAsync(id, token); return; }
             var reversal = await _posting.DeleteManualAsync(id, token);
-            await _audit.LogAsync("JOURNAL_ENTRY_CANCELLED", nameof(JournalEntry), id.ToString(), $"إلغاء القيد {number} بالقيد العكسي {reversal.EntryNumber}", token);
+            await _audit.LogAsync("JOURNAL_ENTRY_CANCELLED", nameof(JournalEntry), id.ToString(), $"إلغاء القيد {entry.EntryNumber} بالقيد العكسي {reversal.EntryNumber}", token);
         }, ct);
 
     public Task<JournalEntryDto> ReverseAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            await EnsureNotOwnedAsync(id, token);
+            var entry = await SourceOfAsync(id, token);
+            if (entry.SourceType == FiscalPeriodService.ClosingSource)
+                return await GetAsync((await _periods.ReopenYearAsync(id, token)).JournalEntryId, token);
+            // القيد الآلي يُعكس من مستنده (مرتجع الفاتورة، حذف السند...) ليعود أثره كاملاً في المخزون والذمم
+            if (!AccountingPostingService.IsManual(entry.SourceType)) throw new ConflictException(Messages.JournalEntryOwnedByDocument);
             var result = await _posting.ReverseAsync(id, null, token);
             await _audit.LogAsync("JOURNAL_ENTRY_REVERSED", nameof(JournalEntry), id.ToString(), $"عكس القيد بقيد {result.EntryNumber}", token);
             return await GetAsync(result.JournalEntryId, token);
         }, ct);
 
-    /// <summary>قيود يحمل مستندها أرصدة أخرى (إهلاك أصل واقتناؤه واستبعاده، تسوية مخزون، رصيد افتتاحي): تُعدَّل وتُعكس من مستندها ليعود أثرها كاملاً.</summary>
-    private static readonly string[] OwnedSources = { "fixed_asset_depreciation", "fixed_asset_disposal", "fixed_asset_acquisition", "stock_adjustment", "opening_balance", "payroll", "employee_loan", "end_of_service" };
-
-    private async Task EnsureNotOwnedAsync(Guid id, CancellationToken ct)
+    /// <summary>
+    /// مصدر القيد. عكس قيد الإقفال أو إلغاؤه = إعادة فتح سنته (FiscalPeriodService.ReopenYearAsync): يُعكس بتاريخه في السنة نفسها،
+    /// لا بتاريخ اليوم فيدخل صافي السنة المقفلة في قائمة دخل سنة أخرى.
+    /// </summary>
+    private async Task<(string? SourceType, string EntryNumber)> SourceOfAsync(Guid id, CancellationToken ct)
     {
-        var source = await _db.Set<JournalEntry>().AsNoTracking().Where(e => e.Id == id).Select(e => e.SourceType).FirstOrDefaultAsync(ct);
-        if (source != null && OwnedSources.Contains(source)) throw new ConflictException(Messages.JournalEntryOwnedByDocument);
+        var entry = await _db.Set<JournalEntry>().AsNoTracking().Where(e => e.Id == id).Select(e => new { e.SourceType, e.EntryNumber }).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.JournalEntryNotFound);
+        return (entry.SourceType, entry.EntryNumber);
     }
 
     private static GenericPostingRequest ToRequest(CreateJournalEntryDto r) => new()

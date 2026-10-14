@@ -56,9 +56,7 @@ public class AccountingPostingService : IAccountingPostingService
         _db.RemoveRange(entry.Lines);
         entry.Lines.Clear();
         entry.Date = request.Date;
-        // القيد الآلي المعدَّل يدوياً يبقى مرتبطاً بمستنده مع علامة صريحة في الوصف للتدقيق.
-        var automatic = entry.ReferenceType is not (null or "manual");
-        entry.Description = automatic && !request.Description.Contains("[مُعدَّل يدوياً]") ? request.Description + " [مُعدَّل يدوياً]" : request.Description;
+        entry.Description = request.Description;
         entry.Module = ResolveModule(request.Module ?? entry.Module, request.SourceType);
         Attach(entry, prepared);
         await SyncLinkedEntityBalancesAsync(_db, prepared.Accounts, ct);
@@ -80,20 +78,22 @@ public class AccountingPostingService : IAccountingPostingService
         var entry = await LoadManualAsync(journalEntryId, ct);
         EnsureNotReconciled(entry);
         await _periods.EnsureOpenAsync(entry.Date, ct);
-        // المستندات المرتبطة لا تبقى مشيرة لقيد ملغى، فلا يحاول عكسه مرة ثانية عند حذفها أو إرجاعها لاحقاً.
-        foreach (var inv in await _db.Set<Invoice>().Where(i => i.JournalEntryId == entry.Id).ToListAsync(ct)) inv.JournalEntryId = null;
-        foreach (var v in await _db.Set<Voucher>().Where(x => x.JournalEntryId == entry.Id).ToListAsync(ct)) v.JournalEntryId = null;
         return await ReverseAsync(entry.Id, "إلغاء القيد", ct);
     }
 
+    /// <summary>القيد اليدوي فقط. القيد الآلي يتبع مستنده (فاتورة، سند، جرد...)، وتعديله أو إلغاؤه وحده يفصل الدفاتر عن المستند والمخزون.</summary>
     private async Task<JournalEntry> LoadManualAsync(Guid id, CancellationToken ct)
     {
         var entry = await _db.Set<JournalEntry>().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, ct)
             ?? throw new NotFoundException(Messages.JournalEntryNotFound);
         if (entry.Status == JournalEntryStatus.Reversed) throw new ConflictException(Messages.ReversedEntryCannotBeEdited);
         if (entry.SourceType == "reversal") throw new ConflictException(Messages.ReversalEntryIsAuditTrail);
+        if (!IsManual(entry.SourceType)) throw new ConflictException(Messages.JournalEntryOwnedByDocument);
         return entry;
     }
+
+    /// <summary>قيد أُنشئ من شاشة القيود (القيود القديمة قد تكون بلا مصدر).</summary>
+    public static bool IsManual(string? sourceType) => sourceType is null or "manual";
 
     private sealed record Prepared(List<PostingLine> Lines, List<Account> Accounts, Dictionary<string, Account> ByCode, decimal TotalDebit, decimal TotalCredit);
 

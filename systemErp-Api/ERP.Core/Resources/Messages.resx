@@ -317,6 +317,7 @@
   <data name="FinancingAmountRequired" xml:space="preserve"><value>مبلغ التمويل مطلوب.</value></data>
   <data name="FinancingBankNotFound" xml:space="preserve"><value>البنك المموِّل غير موجود.</value></data>
   <data name="FiscalYearAlreadyClosed" xml:space="preserve"><value>السنة المالية {0} مقفلة مسبقاً.</value></data>
+  <data name="ReopenLaterYearFirst" xml:space="preserve"><value>أعد فتح السنة المالية {0} أولاً؛ إقفالها مبني على هذه السنة.</value></data>
   <data name="FiscalYearClosed" xml:space="preserve"><value>تم إقفال السنة المالية</value></data>
   <data name="FiscalYearInvalid" xml:space="preserve"><value>السنة المالية غير صالحة.</value></data>
   <data name="FiscalYearNotEnded" xml:space="preserve"><value>لا تُقفل السنة المالية قبل انتهائها ({0:yyyy-MM-dd}).</value></data>
@@ -384,7 +385,7 @@
   <data name="JournalEntryDeleted" xml:space="preserve"><value>أُلغي القيد بقيد عكسي، ويبقى القيدان في السجل</value></data>
   <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>القيد يحتاج سطرين على الأقل.</value></data>
   <data name="JournalEntryNotFound" xml:space="preserve"><value>القيد غير موجود</value></data>
-  <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>هذا القيد يُدار من مستنده (إهلاك أو استبعاد أصل)؛ اعكسه من شاشة الأصول الثابتة.</value></data>
+  <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>هذا القيد آلي يُدار من مستنده (فاتورة، سند، جرد، أصل ثابت، مسير رواتب...)؛ يُصحَّح أو يُلغى من المستند نفسه ليبقى أثره متطابقاً في الدفاتر والمخزون والذمم.</value></data>
   <data name="JournalEntryPosted" xml:space="preserve"><value>تم ترحيل القيد</value></data>
   <data name="JournalEntryReconciled" xml:space="preserve"><value>القيد مطابَق في تسوية بنكية معتمدة؛ اعكسه بقيد جديد أو ألغِ التسوية أولاً.</value></data>
   <data name="JournalEntryReversed" xml:space="preserve"><value>تم عكس القيد</value></data>

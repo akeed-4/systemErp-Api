@@ -317,6 +317,7 @@
   <data name="FinancingAmountRequired" xml:space="preserve"><value>The financing amount is required.</value></data>
   <data name="FinancingBankNotFound" xml:space="preserve"><value>The financing bank was not found.</value></data>
   <data name="FiscalYearAlreadyClosed" xml:space="preserve"><value>Fiscal year {0} is already closed.</value></data>
+  <data name="ReopenLaterYearFirst" xml:space="preserve"><value>Reopen fiscal year {0} first; its closing builds on this year.</value></data>
   <data name="FiscalYearClosed" xml:space="preserve"><value>Fiscal year closed</value></data>
   <data name="FiscalYearInvalid" xml:space="preserve"><value>Invalid fiscal year.</value></data>
   <data name="FiscalYearNotEnded" xml:space="preserve"><value>The fiscal year cannot be closed before it ends ({0:yyyy-MM-dd}).</value></data>
@@ -384,7 +385,7 @@
   <data name="JournalEntryDeleted" xml:space="preserve"><value>Journal entry cancelled by a reversing entry; both remain on record</value></data>
   <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>A journal entry needs at least two lines.</value></data>
   <data name="JournalEntryNotFound" xml:space="preserve"><value>Journal entry not found</value></data>
-  <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>This entry is managed by its document (asset depreciation or disposal); reverse it from the fixed assets screen.</value></data>
+  <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>This is an automatic entry managed by its document (invoice, voucher, stock count, fixed asset, payroll...); correct or cancel it from that document so the books, stock and balances stay in step.</value></data>
   <data name="JournalEntryPosted" xml:space="preserve"><value>Journal entry posted</value></data>
   <data name="JournalEntryReconciled" xml:space="preserve"><value>The entry is part of a completed bank reconciliation; reverse it with a new entry or delete the reconciliation first.</value></data>
   <data name="JournalEntryReversed" xml:space="preserve"><value>Journal entry reversed</value></data>

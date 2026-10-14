@@ -80,6 +80,46 @@ public class AccountingIntegrityTests : TestBase
         Assert.StartsWith($"{lastYear}-12-31", status["booksLockedThrough"].S());
     }
 
+    [Fact]
+    public async Task Reversing_a_closing_entry_reopens_its_year_without_touching_the_current_year()
+    {
+        var api = await NewTenantAsync();
+        var (older, lastYear) = (DateTime.UtcNow.Year - 2, DateTime.UtcNow.Year - 1);
+        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(older, 5, 1), price: 200))).Status);
+        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(lastYear, 3, 10), price: 1000))).Status);
+        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(price: 50))).Status);
+        var olderClosing = (await api.Post("/fiscalperiods/close-year", new { year = older })).Data!["journalEntryId"].S();
+        var closing = (await api.Post("/fiscalperiods/close-year", new { year = lastYear })).Data!["journalEntryId"].S();
+
+        // السنة الأقدم لا تُفتح والأحدث مقفلة فوقها
+        Assert.Equal(409, (await api.Post($"/journalentries/{olderClosing}/reverse")).Status);
+
+        var reversal = await api.Post($"/journalentries/{closing}/reverse");
+        Assert.Equal(200, reversal.Status);
+        Assert.StartsWith($"{lastYear}-12-31", reversal.Data!["date"].S()); // في السنة المُعاد فتحها لا بتاريخ اليوم
+        Assert.Equal(1050, await BalanceAsync(api, "411"));
+        Assert.Equal(200, await BalanceAsync(api, "32")); // تبقى نتيجة السنة الأقدم المقفلة فقط
+
+        var status = (await api.Get("/fiscalperiods")).Data!;
+        Assert.Equal(older, Assert.Single(status["closedYears"]!.AsArray())!.GetValue<int>());
+        Assert.StartsWith($"{older}-12-31", status["booksLockedThrough"].S());
+        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(lastYear, 12, 31)))).Status); // السنة مفتوحة للتصحيح
+
+        // قائمة دخل السنة الحالية لا ترث إيرادات السنة المُعاد فتحها
+        var from = new DateTime(DateTime.UtcNow.Year, 1, 1).ToString("yyyy-MM-dd"); var to = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+        Assert.Equal(50, (await api.Get($"/financialstatements/IncomeStatement?from={from}&to={to}")).Data!["revenue"]!["total"].D());
+        Assert.Contains("FISCAL_YEAR_REOPENED", (await api.Get("/auditlogs?entityName=Tenant")).Data!["items"]!.AsArray().Select(x => x!["action"].S()));
+
+        // زر «إلغاء القيد» في شاشة القيود يعيد فتح السنة بالطريقة نفسها
+        Assert.Equal(200, (await api.Delete($"/journalentries/{olderClosing}")).Status);
+        status = (await api.Get("/fiscalperiods")).Data!;
+        Assert.Empty(status["closedYears"]!.AsArray());
+        Assert.Null(status["booksLockedThrough"]);
+        Assert.Equal(0, await BalanceAsync(api, "32"));
+        Assert.Equal(1350, await BalanceAsync(api, "411")); // 200 + 1000 + 50 + تصحيح 100 في السنة المُعاد فتحها
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
     // ---------- المشتريات ----------
     [Fact]
     public async Task Purchased_services_are_expensed_and_only_stock_items_reach_the_inventory_account()

@@ -14,7 +14,7 @@ namespace ERP.Service.Services.Accounting;
 /// </summary>
 public class FiscalPeriodService : IFiscalPeriodService
 {
-    private const string ClosingSource = "year_closing";
+    internal const string ClosingSource = "year_closing";
 
     private readonly ErpDbContext _db;
     private readonly IAccountingPostingService _posting;
@@ -103,6 +103,32 @@ public class FiscalPeriodService : IFiscalPeriodService
                 $"إقفال السنة المالية {r.Year} ({from:yyyy-MM-dd} – {to:yyyy-MM-dd}): صافي {profit:0.00}، القيد {result.JournalEntryNumber ?? "—"}", token);
             result.BooksLockedThrough = tenant.BooksLockedThrough.Value;
             return result;
+        }, ct);
+
+    /// <summary>
+    /// إعادة فتح سنة مقفلة بعكس قيد إقفالها: الدفاتر تُفتح حتى نهاية السنة المقفلة السابقة (أو كلها)، ثم يُعكس القيد بتاريخه
+    /// فيعود صافي السنة إلى حساباتها ولا يمسّ قائمة دخل سنة أخرى. السنة اللاحقة المقفلة تُفتح أولاً، لأن إقفالها بُني على هذه.
+    /// </summary>
+    public Task<PostingResult> ReopenYearAsync(Guid closingEntryId, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var entry = await _db.Set<JournalEntry>().AsNoTracking().FirstOrDefaultAsync(e => e.Id == closingEntryId && e.SourceType == ClosingSource, token)
+                ?? throw new NotFoundException(Messages.JournalEntryNotFound);
+            if (entry.Status == JournalEntryStatus.Reversed) throw new ConflictException(Messages.JournalEntryAlreadyReversed);
+            var year = int.Parse(entry.ReferenceNumber!, NumberStyles.None, CultureInfo.InvariantCulture);
+            var closed = await ClosedYearsAsync(token);
+            if (closed.Any(y => y > year)) throw new ConflictException(string.Format(Messages.ReopenLaterYearFirst, closed.Max()));
+
+            var tenant = await _db.Set<Tenant>().FirstAsync(token);
+            var previous = tenant.BooksLockedThrough;
+            var earlier = closed.Where(y => y < year).ToList();
+            tenant.BooksLockedThrough = earlier.Count == 0 ? null : YearRange(tenant, earlier.Max()).To;
+            await _db.SaveChangesAsync(token);
+
+            var reversal = await _posting.ReverseAsync(entry.Id, $"إعادة فتح السنة المالية {year}", token);
+            await _audit.LogAsync("FISCAL_YEAR_REOPENED", nameof(Tenant), year.ToString(CultureInfo.InvariantCulture),
+                $"إعادة فتح السنة المالية {year} بعكس القيد {entry.EntryNumber} بالقيد {reversal.EntryNumber}؛ تاريخ إقفال الدفاتر: {Show(previous)} ← {Show(tenant.BooksLockedThrough)}", token);
+            return reversal;
         }, ct);
 
     private async Task<List<int>> ClosedYearsAsync(CancellationToken ct)

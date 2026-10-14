@@ -15,18 +15,22 @@ internal static class InvoiceBalances
     public sealed record Balance(decimal CreditAmount, decimal AmountDue);
 
     /// <param name="excludeVoucherId">سند يُعدَّل الآن: توزيعاته الحالية لا تُحسب عليه.</param>
-    public static async Task<Dictionary<Guid, Balance>> ForAsync(ErpDbContext db, IReadOnlyCollection<Guid> invoiceIds, Guid? excludeVoucherId, CancellationToken ct)
+    /// <param name="before">المتبقي كما كان قبل هذه اللحظة (أعمار الديون بتاريخ سابق): لا تُطرح سندات ولا مرتجعات بعدها.</param>
+    public static async Task<Dictionary<Guid, Balance>> ForAsync(ErpDbContext db, IReadOnlyCollection<Guid> invoiceIds, Guid? excludeVoucherId, CancellationToken ct,
+        DateTime? before = null)
     {
         if (invoiceIds.Count == 0) return new();
         var documents = await db.Set<Invoice>().AsNoTracking()
-            .Where(i => invoiceIds.Contains(i.Id) || (i.OriginalInvoiceId != null && invoiceIds.Contains(i.OriginalInvoiceId.Value) && i.Status == "posted"))
+            .Where(i => invoiceIds.Contains(i.Id) || (i.OriginalInvoiceId != null && invoiceIds.Contains(i.OriginalInvoiceId.Value) && i.Status == "posted"
+                && (before == null || i.IssueDate < before)))
             .Select(i => new { i.Id, i.OriginalInvoiceId, i.PaymentMethod, i.IsSplitPayment, i.GrandTotal }).ToListAsync(ct);
         var documentIds = documents.Select(d => d.Id).ToList();
         var splits = (await db.Set<InvoicePaymentSplit>().AsNoTracking().Where(s => documentIds.Contains(s.InvoiceId))
                 .Select(s => new { s.InvoiceId, s.Method, s.Amount }).ToListAsync(ct))
             .ToLookup(s => s.InvoiceId, s => (s.Method, s.Amount));
         var allocated = (await db.Set<VoucherAllocation>().AsNoTracking()
-                .Where(a => invoiceIds.Contains(a.InvoiceId) && (excludeVoucherId == null || a.VoucherId != excludeVoucherId))
+                .Where(a => invoiceIds.Contains(a.InvoiceId) && (excludeVoucherId == null || a.VoucherId != excludeVoucherId)
+                    && (before == null || db.Set<Voucher>().Any(v => v.Id == a.VoucherId && v.Date < before)))
                 .GroupBy(a => a.InvoiceId).Select(g => new { g.Key, Sum = g.Sum(a => a.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
 

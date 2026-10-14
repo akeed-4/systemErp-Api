@@ -25,7 +25,7 @@ public class SalePostingRequest
     /// <summary>توزيع الإيراد على حسابات ومراكز تكلفة (مجموعه = NetAmount). فارغ = سطر واحد بحساب الإيراد ومركز التكلفة أدناه.</summary>
     public List<RevenuePosting> RevenueLines { get; set; } = new();
     public decimal VatAmount { get; set; }
-    /// <summary>تكلفة البضاعة المباعة (0 = بدون قيد تكلفة).</summary>
+    /// <summary>تكلفة البضاعة المباعة (0 = بدون قيد تكلفة؛ السالب يعكس الاتجاه: مرتجع أعاد تسعير الرصيد بأقل من قيمته).</summary>
     public decimal CostAmount { get; set; }
 
     public List<PaymentPosting> Payments { get; set; } = new();

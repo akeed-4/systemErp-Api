@@ -26,5 +26,12 @@ public class AgingRowDto
     public decimal Unallocated { get; set; }
     /// <summary>الصافي = المتبقي − غير الموزّع.</summary>
     public decimal Net { get; set; }
+    /// <summary>رصيد حساب الطرف في الدفاتر بالتاريخ نفسه (بطبيعته: مدين للعميل، دائن للمورد).</summary>
+    public decimal LedgerBalance { get; set; }
+    /// <summary>
+    /// ما في الدفاتر خارج الفواتير والسندات = رصيد الحساب − الصافي: أرصدة افتتاحية، قيود يدوية، ورصيد دائن لمرتجع يزيد عن المتبقي.
+    /// صفر = التقرير مطابق لحساب الطرف.
+    /// </summary>
+    public decimal Other { get; set; }
     public int OpenInvoices { get; set; }
 }

@@ -27,7 +27,7 @@ public class PartyAgingService : IPartyAgingService
         var invoices = await _db.Set<Invoice>().AsNoTracking()
             .Where(i => i.Kind == kind && i.Status == "posted" && i.PartyId != null && i.IssueDate < end)
             .Select(i => new { i.Id, PartyId = i.PartyId!.Value, i.IssueDate, i.ExchangeRate }).ToListAsync(ct);
-        var balances = await InvoiceBalances.ForAsync(_db, invoices.Select(i => i.Id).ToList(), null, ct);
+        var balances = await InvoiceBalances.ForAsync(_db, invoices.Select(i => i.Id).ToList(), null, ct, before: end);
 
         // سندات الطرف غير الموزّعة على فواتير: دفعات مقدمة تُطرح من صافي ما عليه
         var voucherType = receivable ? VoucherType.Receipt : VoucherType.Payment;
@@ -37,6 +37,14 @@ public class PartyAgingService : IPartyAgingService
             .Select(v => new { v.PartyAccountCode, Free = v.Amount - v.VatAmount - v.Allocations.Sum(a => (decimal?)a.Amount) ?? v.Amount - v.VatAmount })
             .ToListAsync(ct);
         var unallocated = vouchers.GroupBy(v => v.PartyAccountCode).ToDictionary(g => g.Key, g => g.Sum(v => v.Free));
+
+        // رصيد حساب كل طرف في الدفاتر بالتاريخ نفسه: مرجع المطابقة (يكشف الأرصدة الافتتاحية والقيود اليدوية)
+        var ledger = (await (from l in _db.Set<JournalEntryLine>().AsNoTracking()
+                             join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
+                             where e.Date < end && accountCodes.Contains(l.AccountCode)
+                             group l by l.AccountCode into g
+                             select new { Code = g.Key, Net = g.Sum(x => x.Debit - x.Credit) }).ToListAsync(ct))
+            .ToDictionary(x => x.Code, x => receivable ? x.Net : -x.Net);
 
         var rows = new List<AgingRowDto>();
         foreach (var party in parties.OrderBy(p => p.Name))
@@ -56,7 +64,9 @@ public class PartyAgingService : IPartyAgingService
             row.TotalDue = row.Days0To30 + row.Days31To60 + row.Days61To90 + row.Over90;
             row.Unallocated = DocumentPricing.Round(unallocated.GetValueOrDefault(party.AccountCode));
             row.Net = row.TotalDue - row.Unallocated;
-            if (row.TotalDue != 0 || row.Unallocated != 0) rows.Add(row);
+            row.LedgerBalance = ledger.GetValueOrDefault(party.AccountCode);
+            row.Other = row.LedgerBalance - row.Net;
+            if (row.TotalDue != 0 || row.Unallocated != 0 || row.LedgerBalance != 0) rows.Add(row);
         }
 
         return new AgingReportDto
@@ -67,6 +77,7 @@ public class PartyAgingService : IPartyAgingService
                 Days0To30 = rows.Sum(r => r.Days0To30), Days31To60 = rows.Sum(r => r.Days31To60), Days61To90 = rows.Sum(r => r.Days61To90),
                 Over90 = rows.Sum(r => r.Over90), TotalDue = rows.Sum(r => r.TotalDue), Unallocated = rows.Sum(r => r.Unallocated),
                 Net = rows.Sum(r => r.Net), OpenInvoices = rows.Sum(r => r.OpenInvoices),
+                LedgerBalance = rows.Sum(r => r.LedgerBalance), Other = rows.Sum(r => r.Other),
             },
         };
     }

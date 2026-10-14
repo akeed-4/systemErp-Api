@@ -12,6 +12,7 @@ namespace ERP.Service.Services.Accounting;
 public class FinancialStatementService : IFinancialStatementService
 {
     private const string YearClosingSource = "year_closing";
+    private const string ReversalSource = "reversal";
     private const string CostOfSalesGroup = "51";
     private const string NonCurrentAssetsGroup = "12";
     private const string LongTermLiabilitiesGroup = "22";
@@ -21,15 +22,21 @@ public class FinancialStatementService : IFinancialStatementService
 
     private sealed record Movement(string Code, decimal Net);
 
-    /// <summary>صافي (مدين − دائن) لكل حساب في [from, to] شاملاً اليومين؛ from الفارغ = منذ البداية.</summary>
+    /// <summary>
+    /// صافي (مدين − دائن) لكل حساب في [from, to] شاملاً اليومين؛ from الفارغ = منذ البداية.
+    /// استبعاد الإقفال يشمل عكس قيد الإقفال (إعادة فتح السنة)، وإلا حُسب إيراد السنة ومصروفها مرتين.
+    /// </summary>
     private async Task<List<Movement>> NetByAccountAsync(DateTime? from, DateTime to, bool excludeYearClosing, string? module, CancellationToken ct)
     {
         var end = to.Date.AddDays(1);
         var start = @from;
         var moduleScope = ReportModuleScope.Normalize(module);
+        var entries = _db.Set<JournalEntry>().AsNoTracking();
         var q = from l in _db.Set<JournalEntryLine>().AsNoTracking()
-                join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
-                where e.Date < end && (start == null || e.Date >= start) && (!excludeYearClosing || e.SourceType != YearClosingSource)
+                join e in entries on l.JournalEntryId equals e.Id
+                where e.Date < end && (start == null || e.Date >= start)
+                      && (!excludeYearClosing || (e.SourceType != YearClosingSource
+                          && !(e.SourceType == ReversalSource && entries.Any(o => o.Id == e.SourceReferenceId && o.SourceType == YearClosingSource))))
                       && (moduleScope == null || moduleScope.Contains(e.Module))
                 group l by l.AccountCode into g
                 select new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) };

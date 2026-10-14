@@ -23,7 +23,7 @@ public class CarShowroomReportService : ICarShowroomReportService
     {
         var c = _db.Set<CarSalesContract>().AsNoTracking().Where(x => x.Status == SalesContractStatus.Invoiced);
         if (q.DateFrom.HasValue) c = c.Where(x => x.Date >= q.DateFrom);
-        if (q.DateTo.HasValue) c = c.Where(x => x.Date <= q.DateTo);
+        if (q.DateTo.HasValue) c = c.Where(x => x.Date < q.EndExclusive());
         return c;
     }
 
@@ -31,7 +31,7 @@ public class CarShowroomReportService : ICarShowroomReportService
     {
         var orders = _db.Set<CarProcurementOrder>().AsNoTracking().AsQueryable();
         if (q.DateFrom.HasValue) orders = orders.Where(o => o.Date >= q.DateFrom);
-        if (q.DateTo.HasValue) orders = orders.Where(o => o.Date <= q.DateTo);
+        if (q.DateTo.HasValue) orders = orders.Where(o => o.Date < q.EndExclusive());
         return orders;
     }
 
@@ -224,7 +224,7 @@ public class CarShowroomReportService : ICarShowroomReportService
         var lines = Charges.Where(l => l.Status == ChargeStatus.Estimated
             || (l.Status == ChargeStatus.Actual && (l.ReplacesLineId != null || l.EstimatedCostAmount != null)));
         if (q.DateFrom.HasValue) lines = lines.Where(l => l.Date >= q.DateFrom);
-        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date <= q.DateTo);
+        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date < q.EndExclusive());
         return lines.Select(l => new
         {
             l,
@@ -245,7 +245,7 @@ public class CarShowroomReportService : ICarShowroomReportService
     {
         var lines = Charges.Where(l => l.Source == ChargeSource.Tamm && l.Status == ChargeStatus.Actual);
         if (q.DateFrom.HasValue) lines = lines.Where(l => l.Date >= q.DateFrom);
-        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date <= q.DateTo);
+        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date < q.EndExclusive());
         return lines.GroupBy(l => new { l.Date.Year, l.Date.Month, l.ExpenseTypeCode, l.ExpenseTypeNameAr })
             .Select(g => new CarTammMonthlyFeesRowDto
             {
@@ -262,7 +262,7 @@ public class CarShowroomReportService : ICarShowroomReportService
         var lines = Charges.Where(l => l.Status == ChargeStatus.Actual
             && (l.DocumentType == ChargeDocumentTypes.TammOperation || l.Allocations.Any(a => cancelled.Any(v => v.Id == a.VehicleId))));
         if (q.DateFrom.HasValue) lines = lines.Where(l => l.Date >= q.DateFrom);
-        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date <= q.DateTo);
+        if (q.DateTo.HasValue) lines = lines.Where(l => l.Date < q.EndExclusive());
         return lines.Select(l => new CarUnpurchasedVehicleExpenseRowDto
         {
             Id = l.Id, Date = l.Date, ExpenseTypeNameAr = l.ExpenseTypeNameAr, Source = l.Source, DocumentNumber = l.DocumentNumber, Amount = l.CostAmount,

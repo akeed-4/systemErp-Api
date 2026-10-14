@@ -1,3 +1,4 @@
+using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
 
 namespace ERP.Service.Services.Shared;
@@ -5,7 +6,13 @@ namespace ERP.Service.Services.Shared;
 public class CostingService : ICostingService
 {
     private readonly ErpDbContext _db;
-    public CostingService(ErpDbContext db) => _db = db;
+    private readonly IAccountingPostingService _posting;
+    private readonly ITransactionRunner _tx;
+
+    public CostingService(ErpDbContext db, IAccountingPostingService posting, ITransactionRunner tx)
+    {
+        _db = db; _posting = posting; _tx = tx;
+    }
 
     public async Task<CostingPolicyDto> GetPolicyAsync(CancellationToken ct = default)
     {
@@ -19,7 +26,17 @@ public class CostingService : ICostingService
         return Mapper.Map<CostingPolicyDto>(policy);
     }
 
-    public async Task<CostingPolicyDto> SetPolicyAsync(CreateCostingPolicyDto d, CancellationToken ct = default)
+    /// <summary>تغيير طريقة التكلفة يعيد احتساب تكلفة الأصناف بالطريقة الجديدة فوراً ويرحّل فرق القيمة، فلا يفترق المخزون عن حسابه.</summary>
+    public Task<CostingPolicyDto> SetPolicyAsync(CreateCostingPolicyDto d, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var previous = await _db.Set<CostingPolicy>().AsNoTracking().Select(p => (CostingMethod?)p.Method).FirstOrDefaultAsync(token);
+            var saved = await SavePolicyAsync(d, token);
+            if (previous != d.Method) await RecalculateCoreAsync($"إعادة تقييم المخزون بتغيير طريقة التكلفة إلى {d.Method}", token);
+            return saved;
+        }, ct);
+
+    private async Task<CostingPolicyDto> SavePolicyAsync(CreateCostingPolicyDto d, CancellationToken ct)
     {
         if (!Enum.IsDefined(d.Method)) throw new ValidationFailedException(Messages.InvalidCostingMethod);
         if (d.NegativeInventoryPolicy is not ("prohibit" or "allow_with_last_cost"))
@@ -36,11 +53,18 @@ public class CostingService : ICostingService
         return Mapper.Map<CostingPolicyDto>(policy);
     }
 
-    /// <summary>يعيد بناء رصيد ومتوسط تكلفة كل صنف من حركاته الفعلية بترتيبها الزمني وفق الطريقة الحالية.</summary>
-    public async Task<RecalculateCostingResultDto> RecalculateAllAsync(CancellationToken ct = default)
+    /// <summary>
+    /// يعيد بناء رصيد ومتوسط تكلفة كل صنف من حركاته الفعلية بترتيبها الزمني وفق الطريقة الحالية،
+    /// ويرحّل فرق قيمة المخزون بقيد إعادة تقييم (لا تُغيَّر تكلفة مبيعات مرحّلة سابقاً).
+    /// </summary>
+    public Task<RecalculateCostingResultDto> RecalculateAllAsync(CancellationToken ct = default)
+        => _tx.RunAsync(token => RecalculateCoreAsync("إعادة تقييم المخزون بإعادة احتساب التكلفة", token), ct);
+
+    private async Task<RecalculateCostingResultDto> RecalculateCoreAsync(string description, CancellationToken ct)
     {
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
         var products = await _db.Set<Product>().ToListAsync(ct);
+        var before = InventoryValuation.Snapshot(products);
         var movements = (await _db.Set<StockMovement>().OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToListAsync(ct))
             .GroupBy(m => m.ItemId).ToDictionary(g => g.Key, g => g.ToList());
 
@@ -52,6 +76,12 @@ public class CostingService : ICostingService
             updated++;
         }
         await _db.SaveChangesAsync(ct);
-        return new RecalculateCostingResultDto { ProductsUpdated = updated, Method = policy.Method };
+
+        var difference = InventoryValuation.Difference(products, before);
+        var entry = await InventoryValuation.PostRevaluationAsync(_db, _posting, difference, description, null, ct);
+        return new RecalculateCostingResultDto
+        {
+            ProductsUpdated = updated, Method = policy.Method, RevaluationAmount = difference, RevaluationEntryNumber = entry?.EntryNumber,
+        };
     }
 }

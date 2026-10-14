@@ -6,7 +6,7 @@ using ERP.Service.Services.Accounting;
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
-/// تسوية مخزون يدوية = حركة عبر محرك المخزون + قيد عبر المحرك المحاسبي بقيمتها (الكمية × التكلفة):
+/// تسوية مخزون يدوية = حركة عبر محرك المخزون + قيد عبر المحرك المحاسبي بتغيّر القيمة الدفترية للصنف:
 /// الإضافة مدين المخزون / دائن الحساب المقابل، والخصم عكسه. الحساب المقابل فروقات الجرد افتراضياً،
 /// أو ما يحدده المستخدم (مثل الأرصدة الافتتاحية لمخزون أول المدة). كل ذلك في معاملة واحدة.
 /// </summary>
@@ -30,23 +30,34 @@ public class StockAdjustmentService : IStockAdjustmentService
             EnsureAdjustment(r);
             r.SourceType = "manual";
             var recorded = await _inventory.RecordMovementAsync(r, token);
-            return await PostAsync(recorded.Id, r.CounterAccountCode, token);
+            return await PostAsync(recorded.Id, r.CounterAccountCode, recorded.ValueChange, token);
         }, ct);
 
+    /// <summary>
+    /// تعديل تسوية (ولو بتاريخ سابق): يُعكس قيدها وتُعاد الحركة فيُعاد بناء تكلفة الصنف، ثم يُرحَّل ما تغيّر في قيمته الدفترية فعلاً
+    /// = (القيمة بعد − القيمة قبل) + ما كان القيد القديم أضافه. فيشمل القيد أثر إعادة التسعير على بقية الرصيد ولا يفترق المخزون عن حسابه.
+    /// </summary>
     public Task<StockMovementDto> UpdateAsync(Guid id, RecordStockMovementDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             EnsureAdjustment(r);
+            var (itemId, oldSigned) = await CurrentAsync(id, token);
+            var before = await ValueBeforeAsync(itemId, token);
             await ReverseEntryAsync(id, "تعديل", token);
             await _inventory.UpdateMovementAsync(id, r, token);
-            return await PostAsync(id, r.CounterAccountCode, token);
+            return await PostAsync(id, r.CounterAccountCode, await ValueAfterAsync(itemId, token) - before + oldSigned, token);
         }, ct);
 
     public Task DeleteAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            var (itemId, oldSigned) = await CurrentAsync(id, token);
+            var before = await ValueBeforeAsync(itemId, token);
             await ReverseEntryAsync(id, "حذف", token);
             await _inventory.DeleteMovementAsync(id, token);
+            // ما بقي بعد عكس القيد = أثر إعادة بناء التكلفة على بقية الرصيد (صرف سابق أعيد تسعيره)
+            await InventoryValuation.PostRevaluationAsync(_db, _posting, await ValueAfterAsync(itemId, token) - before + oldSigned,
+                "إعادة تقييم المخزون بعد حذف تسوية", id, token);
         }, ct);
 
     private static void EnsureAdjustment(RecordStockMovementDto r)
@@ -55,31 +66,60 @@ public class StockAdjustmentService : IStockAdjustmentService
             throw new ValidationFailedException(Messages.ManualAdjustmentTypeOnly);
     }
 
-    /// <summary>يرحّل قيد التسوية بقيمتها ويربطه بالحركة. قيمة صفرية (كمية بلا تكلفة) لا قيد لها.</summary>
-    private async Task<StockMovementDto> PostAsync(Guid movementId, string? counterAccountCode, CancellationToken ct)
+    /// <summary>صنف الحركة، وما أضافه قيدها الحالي إلى حساب المخزون (بإشارته).</summary>
+    private async Task<(Guid ItemId, decimal OldSigned)> CurrentAsync(Guid movementId, CancellationToken ct)
+    {
+        var movement = await _db.Set<StockMovement>().AsNoTracking().Where(m => m.Id == movementId)
+            .Select(m => new { m.ItemId, m.JournalEntryId }).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.StockMovementNotFound);
+        var oldSigned = movement.JournalEntryId == null ? 0m
+            : await _db.Set<JournalEntryLine>().AsNoTracking()
+                .Where(l => l.JournalEntryId == movement.JournalEntryId && l.AccountCode == DefaultAccounts.Inventory)
+                .SumAsync(l => l.Debit - l.Credit, ct);
+        return (movement.ItemId, oldSigned);
+    }
+
+    private async Task<decimal> ValueBeforeAsync(Guid itemId, CancellationToken ct)
+        => InventoryValuation.Value(await _db.Set<Product>().AsNoTracking().FirstAsync(p => p.Id == itemId, ct));
+
+    /// <summary>الصنف المتتبَّع بعد إعادة بناء تكلفته في هذه المعاملة.</summary>
+    private async Task<decimal> ValueAfterAsync(Guid itemId, CancellationToken ct)
+        => InventoryValuation.Value(await _db.Set<Product>().FirstAsync(p => p.Id == itemId, ct));
+
+    /// <summary>
+    /// يرحّل تغيّر القيمة الدفترية (موجب = زيادة المخزون) ويربط قيد التسوية بالحركة. الإضافة قيدها بقيمتها المعلنة (الكمية × التكلفة)
+    /// على حسابها المقابل، وما زاد أو نقص عنها (إعادة تسعير بقية الرصيد أو صرف سابق) قيد إعادة تقييم على حساب فروق التكلفة؛
+    /// والخصم قيده بتغيّر القيمة كله. التغيّر الصفري لا قيد له.
+    /// </summary>
+    private async Task<StockMovementDto> PostAsync(Guid movementId, string? counterAccountCode, decimal signedValue, CancellationToken ct)
     {
         var movement = await _db.Set<StockMovement>().FirstAsync(m => m.Id == movementId, ct);
         var counter = string.IsNullOrWhiteSpace(counterAccountCode) ? DefaultAccounts.InventoryAdjustment : counterAccountCode.Trim();
-        var value = DocumentPricing.Round(movement.Quantity * movement.UnitCost);
+        var isIn = movement.Type == StockMovementType.AdjustmentIn;
+        var own = isIn ? DocumentPricing.Round(movement.Quantity * movement.UnitCost) : signedValue;
+        var note = $"تسوية مخزون {(isIn ? "بالإضافة" : "بالخصم")} - {movement.ItemName}";
         movement.CounterAccountCode = counter;
-        movement.JournalEntryId = null;
-
-        if (value > 0)
-        {
-            await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.Inventory, counter);
-            var isIn = movement.Type == StockMovementType.AdjustmentIn;
-            var note = $"تسوية مخزون {(isIn ? "بالإضافة" : "بالخصم")} - {movement.ItemName}";
-            var posted = await _posting.PostAsync(new GenericPostingRequest
-            {
-                Date = movement.Date, Description = note, SourceType = SourceType, SourceId = movement.Id, SourceNumber = movement.ReferenceNumber,
-                Lines = isIn
-                    ? new() { new(DefaultAccounts.Inventory, value, 0, note), new(counter, 0, value, note) }
-                    : new() { new(counter, value, 0, note), new(DefaultAccounts.Inventory, 0, value, note) },
-            }, ct);
-            movement.JournalEntryId = posted.JournalEntryId;
-        }
+        movement.JournalEntryId = own == 0 ? null
+            : (await PostEntryAsync(movement.Id, movement.ReferenceNumber, movement.Date, counter, own, note, ct)).JournalEntryId;
+        await InventoryValuation.PostRevaluationAsync(_db, _posting, signedValue - own,
+            $"إعادة تقييم المخزون بأثر التسوية {movement.ReferenceNumber} - {movement.ItemName}", movement.Id, ct);
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<StockMovementDto>(movement);
+    }
+
+    private async Task<PostingResult> PostEntryAsync(Guid movementId, string referenceNumber, DateTime date, string? counterAccountCode,
+        decimal signedValue, string note, CancellationToken ct)
+    {
+        var counter = string.IsNullOrWhiteSpace(counterAccountCode) ? DefaultAccounts.InventoryAdjustment : counterAccountCode.Trim();
+        await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.Inventory, counter);
+        var value = Math.Abs(signedValue);
+        return await _posting.PostAsync(new GenericPostingRequest
+        {
+            Date = date, Description = note, SourceType = SourceType, SourceId = movementId, SourceNumber = referenceNumber,
+            Lines = signedValue > 0
+                ? new() { new(DefaultAccounts.Inventory, value, 0, note), new(counter, 0, value, note) }
+                : new() { new(counter, value, 0, note), new(DefaultAccounts.Inventory, 0, value, note) },
+        }, ct);
     }
 
     private async Task ReverseEntryAsync(Guid movementId, string reason, CancellationToken ct)

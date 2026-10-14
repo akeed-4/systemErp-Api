@@ -24,6 +24,7 @@ public static class StockReplay
                 {
                     case CostingMethod.MovingAverage:
                     case CostingMethod.FIFO:
+                    case CostingMethod.Standard: // بلا تكلفة معيارية محددة: متوسط متحرك (المحددة تُفرض بعد الحلقة)
                         avg = newQty == 0 ? m.UnitCost : Math.Round((baseStock * avg + m.Quantity * m.UnitCost) / newQty, 4);
                         break;
                     case CostingMethod.LastPurchase:

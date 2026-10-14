@@ -28,6 +28,8 @@ public class PurchasePostingRequest
     /// الفرق يُرحَّل إلى حساب فروق أسعار المشتريات. فارغ = صافي المستند ناقص الخدمات.
     /// </summary>
     public decimal? InventoryAmount { get; set; }
+    /// <summary>حساب فرق السعر (المخزون الدفتري − صافي الأصناف). فارغ = فروق أسعار المشتريات 514؛ وبالتكلفة المعيارية حساب فروقها من السياسة.</summary>
+    public string? VarianceAccountCode { get; set; }
     public decimal VatAmount { get; set; }
     public List<PaymentPosting> Payments { get; set; } = new();
     public Guid? CostCenterId { get; set; }

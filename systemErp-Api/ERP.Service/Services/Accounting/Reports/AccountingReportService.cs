@@ -18,14 +18,15 @@ public class AccountingReportService : IAccountingReportService
     /// <summary>ميزان المراجعة: صف لكل حساب تحرّك حتى نهاية الفترة، مجمَّعاً في قاعدة البيانات.</summary>
     private IQueryable<TrialBalanceItemDto> TrialBalanceQuery(DateTime? from, DateTime? to, string? module)
     {
-        DateTime? start = from, end = to;
+        // القيود تحمل وقت المستند: الفترة بالأيام، فنهايتها قبل بداية اليوم التالي
+        DateTime? start = from?.Date, end = to?.Date.AddDays(1);
         var moduleScope = ReportModuleScope.Normalize(module);
         var hasStart = start.HasValue;
         var lines = from l in Lines
                     join e in Entries on l.JournalEntryId equals e.Id
                     where moduleScope == null || moduleScope.Contains(e.Module)
                     select new { l.AccountCode, l.Debit, l.Credit, e.Date };
-        if (end.HasValue) lines = lines.Where(l => l.Date <= end);
+        if (end.HasValue) lines = lines.Where(l => l.Date < end);
 
         var totals = from l in lines
                      group l by l.AccountCode into g
@@ -74,10 +75,11 @@ public class AccountingReportService : IAccountingReportService
                };
     }
 
+    /// <summary>الفترة بالأيام شاملةً يومَي البداية والنهاية كاملين (القيود تحمل وقت المستند).</summary>
     private static IQueryable<LedgerLine> InPeriod(IQueryable<LedgerLine> lines, DateTime? from, DateTime? to)
     {
-        if (from.HasValue) lines = lines.Where(x => x.Date >= from);
-        if (to.HasValue) lines = lines.Where(x => x.Date <= to);
+        if (from.HasValue) { var start = from.Value.Date; lines = lines.Where(x => x.Date >= start); }
+        if (to.HasValue) { var end = to.Value.Date.AddDays(1); lines = lines.Where(x => x.Date < end); }
         return lines;
     }
 
@@ -107,7 +109,8 @@ public class AccountingReportService : IAccountingReportService
         var account = await AccountAsync(accountCode, ct);
         var debitNature = account.IsDebitNature;
         var all = AccountLines(account.Code, module);
-        var opening = from.HasValue ? await all.Where(x => x.Date < from).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct) : 0m;
+        var start = from?.Date;
+        var opening = start.HasValue ? await all.Where(x => x.Date < start).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct) : 0m;
         var movement = await InPeriod(all, from, to).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct);
         return new AccountStatementDto
         {

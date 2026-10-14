@@ -22,4 +22,9 @@ public partial class StockMovementDto
     public Guid? SourceId { get; set; }
     public Guid? JournalEntryId { get; set; }
     public string? CounterAccountCode { get; set; }
+    /// <summary>
+    /// تغيّر القيمة الدفترية للصنف بهذه الحركة (موجب للإضافة، سالب للصرف) = قيمته بعدها − قبلها، والقيمة = الرصيد × التكلفة مقرّبة لهللة.
+    /// يُرحَّل هذا المبلغ نفسه فيبقى حساب المخزون مساوياً لقيمة الأصناف بلا فروق تقريب. يُملأ عند تسجيل الحركة فقط.
+    /// </summary>
+    public decimal ValueChange { get; set; }
 }

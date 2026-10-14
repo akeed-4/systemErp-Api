@@ -763,9 +763,11 @@ public class InvoiceService : IInvoiceService
 
             var recorded = await _inventory.RecordMovementAsync(movement, ct);
             item.UnitCost = invoice.Kind == InvoiceKind.Purchase ? movement.UnitCost : recorded.UnitCost;
-            totalCost += Math.Round(item.Quantity * recorded.UnitCost, 2);
+            // تغيّر القيمة الدفترية للصنف لا الكمية × التكلفة: حساب المخزون يبقى مساوياً لقيمة الأصناف بلا هللات تقريب
+            // بإشارته: الإضافة بآخر سعر شراء أقل تُنقص قيمة الرصيد كله
+            totalCost += invoice.Kind is InvoiceKind.Purchase or InvoiceKind.SalesReturn ? recorded.ValueChange : -recorded.ValueChange;
         }
-        var stockCost = totalCost; // تكلفة الأصناف المخزنية فقط (قيمة ما دخل/خرج من المخزون)
+        var stockCost = totalCost; // قيمة ما دخل/خرج من المخزون فعلاً (الأصناف المخزنية فقط)
         foreach (var svc in invoice.Items.Where(i => i.ItemId == Guid.Empty && i.UnitCost > 0))
             totalCost += Math.Round(svc.Quantity * svc.UnitCost, 2);
         invoice.TotalCost = totalCost; // بالعملة الأساسية
@@ -776,10 +778,23 @@ public class InvoiceService : IInvoiceService
         var expenseAmount = isSales || !string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) ? 0
             : Math.Min(baseNet, DocumentPricing.Round(invoice.Items.Where(i => i.ItemId == Guid.Empty).Sum(i => i.TotalBeforeVat) * fx));
         if (expenseAmount > 0) await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.PurchasedServices);
-        // مرتجع المشتريات يخرج من المخزون بتكلفته الحالية لا بسعر الشراء: الفرق إلى حساب فروق أسعار المشتريات
-        decimal? inventoryAmount = invoice.Kind == InvoiceKind.PurchaseReturn && invoice.VehicleLines.Count == 0 ? stockCost : null;
-        if (inventoryAmount.HasValue && inventoryAmount != baseNet - expenseAmount)
-            await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.PurchasePriceVariance);
+        // المخزون بتغيّر قيمته الدفترية لا بسعر المستند: مرتجع المشتريات يخرج بتكلفته الحالية، والشراء بالمعيارية يدخل بها،
+        // وما زاد أو نقص عن صافي المستند فرق سعر. البنود غير المخزنية على حساب مخزون صريح تدخله بصافيها.
+        decimal? inventoryAmount = null;
+        string? varianceAccount = null;
+        if (!isSales && invoice.VehicleLines.Count == 0 && invoice.Items.Any(i => i.ItemId != Guid.Empty))
+        {
+            var nonStockNet = string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) ? 0
+                : DocumentPricing.Round(invoice.Items.Where(i => i.ItemId == Guid.Empty).Sum(i => i.TotalBeforeVat) * fx);
+            inventoryAmount = stockCost + nonStockNet;
+            if (inventoryAmount != baseNet - expenseAmount)
+            {
+                var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct);
+                varianceAccount = policy is { Method: CostingMethod.Standard } && !string.IsNullOrWhiteSpace(policy.StandardCostVarianceAccountCode)
+                    ? policy.StandardCostVarianceAccountCode.Trim() : DefaultAccounts.PurchasePriceVariance;
+                await DefaultAccounts.EnsureAsync(_db, ct, varianceAccount);
+            }
+        }
 
         // القيد المحاسبي عبر المحرك المركزي
         var partyAccount = await PartyAccountAsync(invoice, isSales, ct);
@@ -800,7 +815,7 @@ public class InvoiceService : IInvoiceService
                 Module = invoice.Module, Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id,
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
                 NetAmount = baseNet, VatAmount = baseVat, Payments = payments,
-                ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount,
+                ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount, VarianceAccountCode = varianceAccount,
                 InventoryAccountCode = invoice.InventoryAccountCode,
                 CostCenterId = invoice.Items.Select(i => i.CostCenterId).FirstOrDefault(c => c.HasValue),
             }, ct);

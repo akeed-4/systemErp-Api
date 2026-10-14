@@ -26,6 +26,7 @@ public class InventoryService : IInventoryService
 
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
         var isIn = r.Type is StockMovementType.InPurchase or StockMovementType.AdjustmentIn;
+        var valueBefore = InventoryValuation.Value(product);
 
         var movement = new StockMovement
         {
@@ -41,7 +42,12 @@ public class InventoryService : IInventoryService
             movement.UnitCost = r.UnitCost;
             movement.RemainingQuantity = r.Quantity;
 
-            if (policy.Method is CostingMethod.MovingAverage or CostingMethod.FIFO)
+            if (policy.Method == CostingMethod.Standard && product.StandardCost.HasValue)
+            {
+                // المعيارية: الإضافة بالتكلفة المعيارية، والفرق عن التكلفة الفعلية يظهر في ValueChange فيُرحَّل فرقاً
+                product.AverageCost = product.StandardCost.Value;
+            }
+            else if (policy.Method is CostingMethod.MovingAverage or CostingMethod.FIFO or CostingMethod.Standard)
             {
                 var newQty = baseStock + r.Quantity;
                 product.AverageCost = newQty == 0 ? r.UnitCost
@@ -51,7 +57,6 @@ public class InventoryService : IInventoryService
             {
                 product.AverageCost = r.UnitCost;
             }
-            // Standard: التكلفة المعيارية لا تتغيّر بالمشتريات.
 
             if (r.Type == StockMovementType.InPurchase) product.LastPurchaseCost = r.UnitCost;
             product.CurrentStock += r.Quantity;
@@ -69,8 +74,7 @@ public class InventoryService : IInventoryService
             movement.UnitCost = policy.Method switch
             {
                 CostingMethod.FIFO => await ConsumeFifoAsync(product, r.Quantity, ct),
-                CostingMethod.LastPurchase => product.LastPurchaseCost > 0 ? product.LastPurchaseCost : product.AverageCost,
-                CostingMethod.Standard => product.StandardCost ?? product.AverageCost,
+                // آخر شراء والمعيارية: المتوسط الدفتري يساوي تكلفة الطريقة (يُضبط عند الشراء وبقيد إعادة تقييم عند تغيير المعيارية)
                 _ => product.AverageCost,
             };
             if (policy.Method != CostingMethod.FIFO) await ConsumeLayersAsync(product.Id, r.Quantity, ct);
@@ -81,7 +85,11 @@ public class InventoryService : IInventoryService
         movement.RemainingStock = product.CurrentStock;
         _db.Add(movement);
         await _db.SaveChangesAsync(ct);
-        return Mapper.Map<StockMovementDto>(movement);
+        var dto = Mapper.Map<StockMovementDto>(movement);
+        // فرق القيمتين لا الكمية × التكلفة: مجموع ما يُرحَّل يساوي قيمة الصنف دائماً (لا تتراكم هللات التقريب، ويدخل فيه أثر
+        // إعادة تسعير الرصيد في آخر شراء وأثر الشراء على رصيد سالب)
+        dto.ValueChange = InventoryValuation.Value(product) - valueBefore;
+        return dto;
     }
 
     /// <summary>يستهلك أقدم الدفعات ويُرجع متوسط تكلفة الكمية المستهلكة.</summary>

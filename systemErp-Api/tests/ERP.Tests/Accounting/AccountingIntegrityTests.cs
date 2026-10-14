@@ -53,6 +53,29 @@ public class AccountingIntegrityTests : TestBase
     }
 
     [Fact]
+    public async Task Documents_in_a_locked_period_cannot_be_edited_or_deleted_so_its_vat_return_stays_as_filed()
+    {
+        var api = await NewTenantAsync();
+        var date = DateTime.UtcNow.Date.AddDays(-20);
+        object Payment(decimal amount, decimal vat, DateTime on) => new { type = "payment", date = on, amount, vatAmount = vat, partyName = "مصروف كهرباء",
+            partyAccountCode = "524", treasuryAccountCode = "1111", paymentMethod = "cash" };
+        var voucher = await api.Post("/vouchers", Payment(115, 15, date));
+        Assert.True(voucher.Success, voucher.Body?.ToJsonString());
+        var id = voucher.Data!["id"].S();
+        string Period(DateTime d) => $"from={d.AddDays(-1):yyyy-MM-dd}&to={d.AddDays(1):yyyy-MM-dd}";
+        Assert.Equal(15, (await api.Get($"/reports/VatReturn?{Period(date)}")).Data!["inputVat"].D());
+
+        Assert.Equal(200, (await api.Put("/fiscalperiods/lock", new { lockedThrough = date.AddDays(5) })).Status); // قُدِّم إقرار الفترة وأُقفلت
+
+        // لا تعديل (ولو بنقله إلى فترة مفتوحة) ولا حذف: الإقرار المقدَّم يبقى كما هو
+        Assert.Equal(409, (await api.Put($"/vouchers/{id}", Payment(230, 30, date))).Status);
+        Assert.Equal(409, (await api.Put($"/vouchers/{id}", Payment(115, 15, DateTime.UtcNow.Date))).Status);
+        Assert.Equal(409, (await api.Delete($"/vouchers/{id}")).Status);
+        Assert.Equal(15, (await api.Get($"/reports/VatReturn?{Period(date)}")).Data!["inputVat"].D());
+        Assert.Equal(-115, await BalanceAsync(api, "1111"));
+    }
+
+    [Fact]
     public async Task Closing_a_fiscal_year_moves_its_profit_to_retained_earnings_and_locks_it()
     {
         var api = await NewTenantAsync();
@@ -104,6 +127,10 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(older, Assert.Single(status["closedYears"]!.AsArray())!.GetValue<int>());
         Assert.StartsWith($"{older}-12-31", status["booksLockedThrough"].S());
         Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(lastYear, 12, 31)))).Status); // السنة مفتوحة للتصحيح
+
+        // قائمة دخل السنة المُعاد فتحها: إيرادها مرة واحدة (عكس قيد الإقفال لا يُحسب إيراداً ثانياً) + التصحيح
+        var reopened = (await api.Get($"/financialstatements/IncomeStatement?from={lastYear}-01-01&to={lastYear}-12-31")).Data!;
+        Assert.Equal(1100, reopened["revenue"]!["total"].D());
 
         // قائمة دخل السنة الحالية لا ترث إيرادات السنة المُعاد فتحها
         var from = new DateTime(DateTime.UtcNow.Year, 1, 1).ToString("yyyy-MM-dd"); var to = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");

@@ -182,6 +182,11 @@ public class AccountingPostingService : IAccountingPostingService
             lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, r.CostAmount, 0));
             lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, 0, r.CostAmount));
         }
+        else if (r.CostAmount < 0) // تغيّر قيمة المخزون عكس الاتجاه المعتاد (إعادة تسعير الرصيد)
+        {
+            lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, -r.CostAmount, 0));
+            lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, 0, -r.CostAmount));
+        }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
         return PostAsync(request, ct);
@@ -206,16 +211,20 @@ public class AccountingPostingService : IAccountingPostingService
         var payable = total - payments.Sum(p => p.Amount);
 
         // الخدمات على حساب مصروف لا على المخزون؛ والمخزون بقيمته الفعلية، وما زاد أو نقص عنها فرق سعر
-        if (r.ExpenseAmount < 0 || r.ExpenseAmount - r.NetAmount > Tolerance || r.InventoryAmount < 0)
+        // المخزون الدفتري قد يكون سالباً (شراء بآخر سعر أقل أعاد تسعير الرصيد كله بأقل من قيمته)
+        if (r.ExpenseAmount < 0 || r.ExpenseAmount - r.NetAmount > Tolerance)
             throw new ValidationFailedException(Messages.PurchaseAmountsInvalid);
         var inventory = r.InventoryAmount ?? r.NetAmount - r.ExpenseAmount;
         var variance = r.NetAmount - r.ExpenseAmount - inventory;
+        var inventoryAccount = r.InventoryAccountCode ?? DefaultAccounts.Inventory;
+        var varianceAccount = string.IsNullOrWhiteSpace(r.VarianceAccountCode) ? DefaultAccounts.PurchasePriceVariance : r.VarianceAccountCode;
 
         var lines = new List<PostingLine>();
-        if (inventory > 0) lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, inventory, 0, null, r.CostCenterId));
+        if (inventory > 0) lines.Add(new(inventoryAccount, inventory, 0, null, r.CostCenterId));
+        else if (inventory < 0) lines.Add(new(inventoryAccount, 0, -inventory, null, r.CostCenterId));
         if (r.ExpenseAmount > 0) lines.Add(new(r.ExpenseAccountCode ?? DefaultAccounts.PurchasedServices, r.ExpenseAmount, 0, null, r.CostCenterId));
-        if (variance > 0) lines.Add(new(DefaultAccounts.PurchasePriceVariance, variance, 0));
-        else if (variance < 0) lines.Add(new(DefaultAccounts.PurchasePriceVariance, 0, -variance));
+        if (variance > 0) lines.Add(new(varianceAccount, variance, 0));
+        else if (variance < 0) lines.Add(new(varianceAccount, 0, -variance));
         if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, r.VatAmount, 0));
         foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, 0, p.Amount));
         if (payable > Tolerance)
@@ -262,12 +271,14 @@ public class AccountingPostingService : IAccountingPostingService
             ?? throw new NotFoundException(Messages.JournalEntryNotFound);
         if (original.Status == JournalEntryStatus.Reversed) throw new ConflictException(Messages.JournalEntryAlreadyReversed);
         if (original.SourceType == "reversal") throw new ConflictException(Messages.CannotReverseReversalEntry);
+        // قيد في فترة مقفلة لا يُعكس: مستنده (سند، فاتورة، مصروف...) جزء من فترة أُقفلت وربما قُدِّم إقرارها الضريبي،
+        // وعكسه بتاريخ اليوم مع تعديل المستند أو حذفه يغيّر أرقام تلك الفترة. التصحيح بمستند جديد في الفترة المفتوحة.
+        await _periods.EnsureOpenAsync(original.Date, ct);
 
         var lines = original.Lines.Select(l => new PostingLine(l.AccountCode, l.Credit, l.Debit, l.Notes, l.CostCenterId)).ToList();
         var result = await PostAsync(new GenericPostingRequest
         {
-            // العكس في فترة القيد نفسها ليُلغى أثره فيها؛ إن كانت مقفلة فبتاريخ اليوم (تصحيح في الفترة المفتوحة)
-            Date = await _periods.IsOpenAsync(original.Date, ct) ? original.Date : SaudiTime.Today,
+            Date = original.Date, // العكس في فترة القيد نفسها فيُلغى أثره فيها
             Description = $"عكس القيد {original.EntryNumber}" + (string.IsNullOrWhiteSpace(reason) ? "" : $" - {reason}"),
             Module = original.Module, SourceType = "reversal", SourceId = original.Id, SourceNumber = original.EntryNumber, Lines = lines,
         }, ct);

@@ -182,7 +182,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
                 Notes = $"تسوية جرد {count.CountNumber}", SourceType = SourceType, SourceId = count.Id,
             }, ct);
             line.UnitCost = movement.UnitCost;
-            line.VarianceValue = Math.Round(line.VarianceQuantity * line.UnitCost, 2);
+            line.VarianceValue = movement.ValueChange; // تغيّر القيمة الدفترية بإشارته: يطابق حساب المخزون بلا هللات تقريب
         }
         return await PostVarianceAsync(count, DefaultAccounts.Inventory, ct);
     }

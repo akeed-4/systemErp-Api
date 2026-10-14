@@ -103,6 +103,31 @@ public class AccountingGapsTests : TestBase
         Assert.Equal(0, (await api.Get($"/invoices/{recent}")).Data!["amountDue"].D());
     }
 
+    [Fact]
+    public async Task Aging_as_of_a_past_date_ignores_later_settlements_and_ties_to_the_party_ledger()
+    {
+        var api = await NewTenantAsync();
+        var c = await api.Post("/customers", new { nameAr = "عميل", phone = "050", city = "الرياض", creditLimit = 100000, creditPeriodDays = 30, status = "active", openingBalance = 500 });
+        var (customer, account) = (c.Data!["id"].G(), c.Data["accountCode"].S());
+        var invoice = (await api.Post("/invoices", CreditSale(customer, 100, DateTime.UtcNow.Date.AddDays(-40)))).Data!["id"].S(); // 115
+        Assert.True((await api.Post("/vouchers", Receipt(account, 115, new { invoiceId = invoice, amount = 115 }))).Success);  // سداد اليوم
+
+        Row(await AgingAsync(api, DateTime.UtcNow.Date.AddDays(-10)), out var past);
+        Assert.Equal(115, past["totalDue"].D()); // السداد اللاحق لا يُطرح من تاريخ سابق
+        Assert.Equal(115, past["ledgerBalance"].D()); Assert.Equal(0, past["other"].D());
+
+        Row(await AgingAsync(api, null), out var today);
+        Assert.Equal(0, today["totalDue"].D());
+        Assert.Equal(500, today["ledgerBalance"].D()); // الرصيد الافتتاحي في الدفاتر خارج الفواتير
+        Assert.Equal(500, today["other"].D());
+        Assert.Equal((await api.Get($"/customers/{customer}")).Data!["currentBalance"].D(), today["ledgerBalance"].D());
+
+        void Row(JsonNode report, out JsonNode row) => row = report["rows"]!.AsArray().Single(r => r!["partyId"].G() == customer)!;
+    }
+
+    private static async Task<JsonNode> AgingAsync(Client api, DateTime? asOf)
+        => (await api.Get("/reports/Aging?type=receivable" + (asOf.HasValue ? $"&asOf={asOf:yyyy-MM-dd}" : ""))).Data!;
+
     // ---------- الأصول الثابتة ----------
     private static async Task<Guid> SeedCostCenterAsync(Client api, string code)
         => (await api.Post("/costcenters", new { code, nameAr = "مركز " + code, nameEn = code, isActive = true })).Data!["id"].G();

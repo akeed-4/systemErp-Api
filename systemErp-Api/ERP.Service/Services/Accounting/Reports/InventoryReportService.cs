@@ -72,10 +72,10 @@ public class InventoryReportService : IInventoryReportService
 
     private IQueryable<ItemMovementSummaryRowDto> ItemMovementsQuery(ReportQueryDto q)
     {
-        DateTime? start = q.DateFrom, end = q.DateTo;
+        DateTime? start = q.DateFrom, end = q.EndExclusive();
         var hasStart = start.HasValue;
         var movements = SignedMovements(q);
-        if (end.HasValue) movements = movements.Where(m => m.Date <= end);
+        if (end.HasValue) movements = movements.Where(m => m.Date < end);
 
         // مجاميع الحركات لكل صنف في مرور واحد: ما قبل الفترة رصيد افتتاحي، وما فيها حركتها
         var totals = from m in movements
@@ -113,7 +113,7 @@ public class InventoryReportService : IInventoryReportService
         var all = SignedMovements(q).Where(m => m.ItemId == q.ItemId && m.Sign != 0);
         var period = all;
         if (q.DateFrom.HasValue) period = period.Where(m => m.Date >= q.DateFrom);
-        if (q.DateTo.HasValue) period = period.Where(m => m.Date <= q.DateTo);
+        if (q.DateTo.HasValue) period = period.Where(m => m.Date < q.EndExclusive());
 
         return period.Select(m => new DetailedItemLedgerEntryDto
         {
@@ -133,7 +133,7 @@ public class InventoryReportService : IInventoryReportService
     {
         var inv = _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted");
         if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
-        if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate <= q.DateTo);
+        if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate < q.EndExclusive());
         return inv.Select(i => new CommercialTradeRowDto
         {
             Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,

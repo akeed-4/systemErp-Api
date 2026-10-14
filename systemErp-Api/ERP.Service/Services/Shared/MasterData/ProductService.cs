@@ -5,7 +5,8 @@ namespace ERP.Service.Services.Shared;
 
 public class ProductService : CrudService<Product, ProductDto, CreateProductDto, UpdateProductDto>, IProductService
 {
-    public ProductService(ErpDbContext db) : base(db) { }
+    private readonly IAccountingPostingService _posting;
+    public ProductService(ErpDbContext db, IAccountingPostingService posting) : base(db) => _posting = posting;
     protected override string Label => Messages.LabelProduct;
     protected override bool Transactional => true;
 
@@ -53,13 +54,21 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         return Task.CompletedTask;
     }
 
-    protected override Task OnUpdatingAsync(Product e, UpdateProductDto d, CancellationToken ct)
+    protected override async Task OnUpdatingAsync(Product e, UpdateProductDto d, CancellationToken ct)
     {
         var o = Db.Entry(e).OriginalValues;
         e.CurrentStock = o.GetValue<decimal>(nameof(Product.CurrentStock));
         e.AverageCost = o.GetValue<decimal>(nameof(Product.AverageCost));
         e.LastPurchaseCost = o.GetValue<decimal>(nameof(Product.LastPurchaseCost));
-        return Task.CompletedTask;
+
+        // بالتكلفة المعيارية: تغيير المعيارية يعيد تسعير الرصيد القائم بها فوراً، وفرق قيمته قيد إعادة تقييم
+        if (e.StandardCost is not { } standard || standard == e.AverageCost) return;
+        var method = await Db.Set<CostingPolicy>().AsNoTracking().Select(p => (CostingMethod?)p.Method).FirstOrDefaultAsync(ct);
+        if (method != CostingMethod.Standard) return;
+        var before = InventoryValuation.Value(e);
+        e.AverageCost = standard;
+        await InventoryValuation.PostRevaluationAsync(Db, _posting, InventoryValuation.Value(e) - before,
+            $"إعادة تقييم {e.NameAr} بالتكلفة المعيارية {standard:0.####}", e.Id, ct);
     }
 
     protected override async Task OnCreatedAsync(Product e, CancellationToken ct) => await RecountAsync(ct);

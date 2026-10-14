@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using ERP.Core.Models.Shared;
 using ERP.Tests.Infrastructure;
 
 namespace ERP.Tests;
@@ -72,6 +73,24 @@ public class ReportQueryTests : TestBase
         var later = Assert.Single(await RowsAsync(api, "/reports/TrialBalance?from=2100-01-01&" + Q(("filter", $"[\"accountCode\",\"=\",\"{account}\"]"))));
         Assert.Equal(245, later!["openingDebit"].D()); Assert.Equal(0, later["periodDebit"].D()); Assert.Equal(245, later["closingDebit"].D());
         Assert.Empty(await RowsAsync(api, "/reports/TrialBalance?to=2000-01-01"));
+    }
+
+    [Fact]
+    public async Task Period_ending_today_includes_documents_issued_during_the_day()
+    {
+        // الفاتورة تحمل وقت إصدارها؛ فترة تنتهي باليوم نفسه (to بلا وقت) تشمل اليوم كله
+        var (api, _, account) = await SeededAsync();
+        var today = SaudiTime.Today.ToString("yyyy-MM-dd");
+        var row = Assert.Single(await RowsAsync(api, $"/reports/TrialBalance?from={today}&to={today}&" + Q(("filter", $"[\"accountCode\",\"=\",\"{account}\"]"))));
+        Assert.Equal(345, row!["periodDebit"].D()); Assert.Equal(245, row["closingDebit"].D());
+
+        var statement = (await api.Get($"/reports/AccountStatement/{account}?from={today}&to={today}")).Data!;
+        Assert.Equal(245, statement["closingBalance"].D());
+        Assert.Equal(2, statement["entries"]!.AsArray().Count);
+        Assert.Equal(2, (await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries?from={today}&to={today}")).Count);
+
+        // تقارير المخزون والتجارة: الواجهة ترسل dateTo بتاريخ اليوم بلا وقت
+        Assert.Equal(3, (await RowsAsync(api, $"/reports/TradeCommercial?dateFrom={today}&dateTo={today}")).Count);
     }
 
     [Fact]

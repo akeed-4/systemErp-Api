@@ -17,13 +17,29 @@ public class UnitOfMeasureService : CrudService<UnitOfMeasure, UnitOfMeasureDto,
         if (string.IsNullOrWhiteSpace(d.Code)) errors.Add(Messages.CodeRequired);
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ArabicNameRequired);
         if (d.ConversionFactor <= 0) errors.Add(Messages.ConversionFactorMustBePositive);
-        if (!d.IsBaseUnit && string.IsNullOrWhiteSpace(d.BaseUnitCode)) errors.Add(Messages.NonBaseUnitNeedsBaseUnit);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<UnitOfMeasure>().AnyAsync(u => u.Code == d.Code && (existing == null || u.Id != existing.Id), ct))
             throw new ConflictException(Messages.UnitCodeInUse);
-        if (!d.IsBaseUnit && !await Db.Set<UnitOfMeasure>().AnyAsync(u => u.Code == d.BaseUnitCode && u.IsBaseUnit, ct))
-            throw new ValidationFailedException(Messages.BaseUnitNotFound);
+
+        // وحدة أساس واحدة: أول وحدة تُعرَّف تصبح الأساس تلقائياً، وبقية الوحدات تُربط بها مباشرة
+        // (رمز أساس فارغ أو غير موجود يُستبدل بالأساس الوحيد القائم بدل رفض الحفظ).
+        var baseCodes = await Db.Set<UnitOfMeasure>()
+            .Where(u => u.IsBaseUnit && (existing == null || u.Id != existing.Id))
+            .Select(u => u.Code).ToListAsync(ct);
+        if (d.IsBaseUnit || baseCodes.Count == 0)
+        {
+            d.IsBaseUnit = true;
+            d.BaseUnitCode = null;
+            d.ConversionFactor = 1;
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(d.BaseUnitCode) || !baseCodes.Contains(d.BaseUnitCode))
+        {
+            if (baseCodes.Count == 1) d.BaseUnitCode = baseCodes[0];
+            else if (string.IsNullOrWhiteSpace(d.BaseUnitCode)) throw new ValidationFailedException(Messages.NonBaseUnitNeedsBaseUnit);
+            else throw new ValidationFailedException(Messages.BaseUnitNotFound);
+        }
     }
 
     protected override async Task OnDeletingAsync(UnitOfMeasure e, CancellationToken ct)

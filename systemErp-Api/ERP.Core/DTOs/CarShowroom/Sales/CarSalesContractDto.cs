@@ -68,6 +68,7 @@ public partial class CarSalesContractDto
     /// <summary>ما يدفعه العميل: السيارة بضريبتها + الرسوم والإضافات المحمّلة عليه بضريبتها.</summary>
     public decimal GrandTotalWithCharges => TotalWithVat + CustomerChargesNet + CustomerChargesVat;
     public string PaymentMethod { get; set; } = "cash";
+    public List<ERP.Core.DTOs.Accounting.InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
     public string? PlateRegistrationType { get; set; }
     public string? PlateLettersAr { get; set; }
     public string? PlateDigitsAr { get; set; }

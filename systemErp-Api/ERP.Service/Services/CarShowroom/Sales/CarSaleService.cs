@@ -38,6 +38,7 @@ public class CarSaleService : ICarSaleService
     private CarSalesContractDto ToDto(CarSalesContract contract)
     {
         var dto = Mapper.Map<CarSalesContractDto>(contract);
+        dto.PaymentSplits = UnpackSplits(contract.PaymentSplitsJson);
         if (_canViewCost) return dto;
         dto.CostPrice = null; dto.AdditionalCosts = null; dto.ProfitMargin = null; dto.ProfitMarginVat = null;
         if (CarVat.IsMarginScheme(contract.VatMode)) { dto.VatAmount = null; dto.NetPriceBeforeVat = null; }
@@ -89,6 +90,7 @@ public class CarSaleService : ICarSaleService
         {
             await LoadCostVisibilityAsync(token);
             var contract = Mapper.Map<CarSalesContract>(r);
+            contract.PaymentSplitsJson = PackSplits(r.PaymentSplits);
             ResetSystemFields(contract);
             var vehicle = await LoadVehicleAsync(r.VehicleId, null, token, r.DepositVoucherId, r.CustomerId, r.BuyerName);
             await ValidateAsync(contract, token);
@@ -120,6 +122,7 @@ public class CarSaleService : ICarSaleService
             var previousVehicle = contract.VehicleId;
             Mapper.Apply(r, contract);
             RestoreSystemFields(contract, keep);
+            contract.PaymentSplitsJson = PackSplits(r.PaymentSplits);
             var vehicle = await LoadVehicleAsync(contract.VehicleId, contract.Id, token, contract.DepositVoucherId, contract.CustomerId, contract.BuyerName);
             await ValidateAsync(contract, token);
             ApplyVehicleAndPricing(contract, vehicle, await CarTax.LoadAsync(_db, token));
@@ -327,7 +330,7 @@ public class CarSaleService : ICarSaleService
         {
             if ((c.MonthlyInstallment ?? 0) <= 0 || (c.FinanceTenorMonths ?? 0) <= 0) errors.Add(Messages.InstallmentDetailsRequired);
         }
-        if (c.PaymentMethod is "credit" or "bank_finance" && c.CustomerId == null) errors.Add(Messages.CreditSaleRequiresCustomerLink);
+        if ((c.PaymentMethod is "credit" or "bank_finance" || UnpackSplits(c.PaymentSplitsJson).Any(x => x.Method == PaymentMethod.Credit)) && c.CustomerId == null) errors.Add(Messages.CreditSaleRequiresCustomerLink);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         var vehicle = await LoadVehicleAsync(c.VehicleId, c.Id, ct, c.DepositVoucherId, c.CustomerId, c.BuyerName);
@@ -435,9 +438,30 @@ public class CarSaleService : ICarSaleService
     /// <summary>ما يدفعه العميل: السيارة بضريبتها + الرسوم والإضافات المحمّلة عليه بضريبتها.</summary>
     private static decimal Total(CarSalesContract c) => c.TotalWithVat + c.CustomerChargesNet + c.CustomerChargesVat;
 
+    private static string? PackSplits(List<InvoicePaymentSplitDto>? splits)
+        => splits == null || splits.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(splits.Where(x => x.Amount > 0).Select(x => new { x.Method, x.Amount, x.Reference }));
+
+    private static List<InvoicePaymentSplitDto> UnpackSplits(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<InvoicePaymentSplitDto>>(json) ?? new(); } catch { return new(); }
+    }
+
     private static (PaymentMethod Method, List<InvoicePaymentSplitDto> Splits) PaymentPlan(CarSalesContract c, decimal deposit = 0, string? depositRef = null)
     {
         var total = Total(c);
+        var chosen = UnpackSplits(c.PaymentSplitsJson);
+        if (chosen.Count > 0)
+        {
+            // دفع متعدد: العربون أولاً ثم الطرق المختارة، ومجموعها يطابق المتبقي تماماً
+            var parts = new List<InvoicePaymentSplitDto>();
+            if (deposit > 0) parts.Add(new() { Method = PaymentMethod.CustomerDeposit, Amount = deposit, Reference = depositRef });
+            parts.AddRange(chosen.Where(x => x.Amount > 0 && x.Method != PaymentMethod.CustomerDeposit));
+            if (Math.Abs(parts.Sum(x => x.Amount) - total) > 0.005m)
+                throw new ValidationFailedException("مجموع طرق الدفع لا يساوي إجمالي العقد بعد العربون؛ عدّل طرق الدفع ثم أعد الفوترة.");
+            var main = parts.Any(x => x.Method == PaymentMethod.Credit) ? PaymentMethod.Credit : parts[0].Method;
+            return (main, parts);
+        }
         if (deposit > 0)
         {
             var parts = new List<InvoicePaymentSplitDto> { new() { Method = PaymentMethod.CustomerDeposit, Amount = deposit, Reference = depositRef } };

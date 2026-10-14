@@ -4276,6 +4276,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PaymentSplitsJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("PdiInspectionNotes")
                         .HasColumnType("nvarchar(max)");
 

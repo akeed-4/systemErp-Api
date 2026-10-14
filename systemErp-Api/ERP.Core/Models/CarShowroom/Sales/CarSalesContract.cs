@@ -77,6 +77,8 @@ public class CarSalesContract : BaseEntity
     public decimal CustomerChargesVat { get; set; }
     /// <summary>cash | credit | bank_transfer | bank_finance | pos_mada</summary>
     public string PaymentMethod { get; set; } = "cash";
+    /// <summary>طرق الدفع المتعددة (JSON لقائمة InvoicePaymentSplitDto)؛ فارغ = طريقة واحدة بحسب PaymentMethod والدفعة المقدمة.</summary>
+    public string? PaymentSplitsJson { get; set; }
 
     // خدمات المرور واللوحات والتأمين
     /// <summary>new | transfer | auction | export</summary>

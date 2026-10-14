@@ -59,6 +59,8 @@ public partial class CreateCarSalesContractDto
     public decimal TotalWithVat { get; set; }
     public decimal? ProfitMarginVat { get; set; }
     public string PaymentMethod { get; set; } = "cash";
+    /// <summary>دفع متعدد: مجموعه يساوي ما يدفعه العميل بعد العربون (يُتحقق عند الفوترة).</summary>
+    public List<ERP.Core.DTOs.Accounting.InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
     public string? PlateRegistrationType { get; set; }
     public string? PlateLettersAr { get; set; }
     public string? PlateDigitsAr { get; set; }

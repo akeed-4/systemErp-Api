@@ -47,7 +47,11 @@ public class CrudCompletenessTests : TestBase
         Assert.StartsWith("SINV-", posted.Data["invoiceNumber"].S()); // صُرف الرقم المتسلسل عند الترحيل
         // المرحّلة قبل إرسالها للهيئة تُعدَّل: يُعكس قيدها وحركاتها ويُعاد ترحيلها بنفس رقمها (ولا تعود مسودة)
         var serial = posted.Data["invoiceNumber"].S();
+        var entryBefore = (await api.Get($"/invoices/{id}/journal")).Data!["entryNumber"].S();
         var edited = await api.Put($"/invoices/{id}", Body(5, "posted"));
+        // القيد نفسه يُعدَّل في مكانه بنفس رقمه (لا قيد عكسي ولا قيد جديد)
+        var entryAfter = (await api.Get($"/invoices/{id}/journal")).Data!;
+        Assert.Equal(entryBefore, entryAfter["entryNumber"].S()); Assert.Equal(575, entryAfter["grandTotal"].D());
         Assert.Equal(200, edited.Status);
         Assert.Equal("posted", edited.Data!["status"].S()); Assert.Equal(serial, edited.Data["invoiceNumber"].S()); Assert.Equal(575, edited.Data["grandTotal"].D());
         Assert.Equal(5, (await api.Get($"/products/{product}")).Data!["currentStock"].D());

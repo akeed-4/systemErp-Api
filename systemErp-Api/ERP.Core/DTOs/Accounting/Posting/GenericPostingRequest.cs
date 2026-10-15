@@ -7,6 +7,8 @@ namespace ERP.Core.DTOs.Accounting;
 public class GenericPostingRequest
 {
     public string? Module { get; set; }
+    /// <summary>تعديل مستند مرحّل: يُستبدل هذا القيد في مكانه (نفس رقمه) بدل إنشاء قيد جديد.</summary>
+    public Guid? ReplaceEntryId { get; set; }
     public DateTime Date { get; set; } = SaudiTime.Today;
     public string Description { get; set; } = string.Empty;
     public string? SourceType { get; set; }

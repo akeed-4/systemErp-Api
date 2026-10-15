@@ -23,6 +23,7 @@ public class AccountingPostingService : IAccountingPostingService
 
     public async Task<PostingResult> PostAsync(GenericPostingRequest request, CancellationToken ct = default)
     {
+        if (request.ReplaceEntryId is { } replaceId) return await ReplaceDocumentEntryAsync(replaceId, request, ct);
         await _periods.EnsureOpenAsync(request.Date, ct);
         var prepared = await PrepareAsync(request, ct);
         var entry = new JournalEntry
@@ -61,6 +62,32 @@ public class AccountingPostingService : IAccountingPostingService
         Attach(entry, prepared);
         await SyncLinkedEntityBalancesAsync(_db, prepared.Accounts, ct);
         await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// تعديل قيد مستند مرحّل في مكانه (نفس الرقم والمعرّف): يُلغى أثر أسطره القديمة على الأرصدة وتُستبدل بالجديدة.
+    /// فترته القديمة والجديدة يجب أن تكونا مفتوحتين، والقيد المطابَق مع البنك أو المعكوس لا يُعدَّل.
+    /// </summary>
+    private async Task<PostingResult> ReplaceDocumentEntryAsync(Guid entryId, GenericPostingRequest request, CancellationToken ct)
+    {
+        var entry = await _db.Set<JournalEntry>().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == entryId, ct)
+            ?? throw new NotFoundException(Messages.JournalEntryNotFound);
+        if (entry.Status == JournalEntryStatus.Reversed) throw new ConflictException(Messages.ReversedEntryCannotBeEdited);
+        EnsureNotReconciled(entry);
+        await _periods.EnsureOpenAsync(entry.Date, ct);
+        await _periods.EnsureOpenAsync(request.Date, ct);
+        var prepared = await PrepareAsync(request, ct);
+        await UnapplyAsync(entry, ct);
+        _db.RemoveRange(entry.Lines);
+        entry.Lines.Clear();
+        entry.Date = request.Date;
+        entry.Description = request.Description;
+        entry.Module = ResolveModule(request.Module ?? entry.Module, request.SourceType);
+        entry.ReferenceNumber = request.SourceNumber;
+        Attach(entry, prepared);
+        await SyncLinkedEntityBalancesAsync(_db, prepared.Accounts, ct);
+        await _db.SaveChangesAsync(ct);
+        return new PostingResult(entry.Id, entry.EntryNumber);
     }
 
     /// <summary>قيد طوبقت إحدى حركاته مع كشف البنك لا يُعدَّل ولا يُحذف (يُعكس بقيد جديد)، وإلا اختلّت التسوية المعتمدة.</summary>
@@ -189,6 +216,7 @@ public class AccountingPostingService : IAccountingPostingService
         }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
+        request.ReplaceEntryId = r.ReplaceEntryId;
         return PostAsync(request, ct);
     }
 
@@ -231,6 +259,7 @@ public class AccountingPostingService : IAccountingPostingService
             lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartySupplier), 0, payable));
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
+        request.ReplaceEntryId = r.ReplaceEntryId;
         return PostAsync(request, ct);
     }
 

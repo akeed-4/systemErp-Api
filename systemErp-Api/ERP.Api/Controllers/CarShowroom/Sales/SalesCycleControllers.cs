@@ -43,6 +43,11 @@ public class VehicleReservationsController : ErpControllerBase
         return Created($"{Request.Path}/{created.Id}", ApiResponse<VehicleReservationDto>.Ok(created, Messages.CreatedSuccessfully).WithStatus(201));
     }
 
+    [HttpPut("{id:guid}")]
+    [RequireScreen("car-showroom", ScreenAction.Edit)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] CreateVehicleReservationDto dto, CancellationToken ct)
+        => Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+
     [HttpPost("{id:guid}/extend")]
     [RequireScreen("car-showroom", ScreenAction.Edit)]
     public async Task<IActionResult> Extend(Guid id, [FromBody] ExtendVehicleReservationDto dto, CancellationToken ct)

@@ -66,6 +66,58 @@ public class VehicleReservationService : IVehicleReservationService
             return (await ToDtosAsync(new List<VehicleReservation> { reservation }, token))[0];
         }, ct);
 
+    /// <summary>
+    /// تعديل حجز قائم: العميل وتاريخ الانتهاء والملاحظات، وتغيير السيارة (تُفك القديمة وتُحجز الجديدة). الحجز لا قيد له؛
+    /// عربونه سند قبض يُعدَّل قيده من شاشة السندات، ويُحدَّث اسم العميل عليه هنا ليبقى مطابقاً.
+    /// </summary>
+    public Task<VehicleReservationDto> UpdateAsync(Guid id, CreateVehicleReservationDto d, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var reservation = await _db.Set<VehicleReservation>().FirstOrDefaultAsync(r => r.Id == id, token) ?? throw new NotFoundException(Messages.VehicleReservationNotFound);
+            if (reservation.Status != VehicleReservationStatus.Active) throw new ConflictException(Messages.ReservationNotActive);
+
+            if (d.VehicleId != Guid.Empty && d.VehicleId != reservation.VehicleId)
+            {
+                if (reservation.ContractId.HasValue) throw new ConflictException(Messages.ReservationHeldByContract); // سيارة العقد تُغيَّر من العقد
+                var next = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == d.VehicleId, token) ?? throw new ValidationFailedException(Messages.VehicleNotFound);
+                var held = await VehicleReservations.ActiveAsync(_db, next.Id, token);
+                if (held != null) throw new ConflictException(string.Format(Messages.VehicleAlreadyReservedFor, held.CustomerName, held.ExpiresAt));
+                if (next.Status != VehicleStatus.Available) throw new ConflictException(string.Format(Messages.VehicleNotAvailableForReservation, next.ChassisNumber));
+                var previous = await _db.Set<Vehicle>().FirstOrDefaultAsync(v => v.Id == reservation.VehicleId, token);
+                if (previous is { Status: VehicleStatus.Reserved }) previous.Status = VehicleStatus.Available;
+                next.Status = VehicleStatus.Reserved;
+                reservation.VehicleId = next.Id;
+            }
+
+            var name = d.CustomerName?.Trim();
+            if (d.CustomerId.HasValue)
+                name = await _db.Set<Customer>().AsNoTracking().Where(c => c.Id == d.CustomerId).Select(c => c.NameAr).FirstOrDefaultAsync(token)
+                    ?? throw new ValidationFailedException(Messages.CustomerNotFound);
+            if (string.IsNullOrWhiteSpace(name)) throw new ValidationFailedException(Messages.ReservationCustomerRequired);
+            if (d.ExpiresAt.HasValue)
+            {
+                if (d.ExpiresAt <= DateTime.UtcNow) throw new ValidationFailedException(Messages.ReservationExpiryMustBeFuture);
+                reservation.ExpiresAt = d.ExpiresAt.Value;
+            }
+            reservation.CustomerId = d.CustomerId;
+            reservation.CustomerName = name!;
+            reservation.Notes = string.IsNullOrWhiteSpace(d.Notes) ? null : d.Notes.Trim();
+            if (reservation.DepositVoucherId.HasValue)
+            {
+                var voucher = await _db.Set<Voucher>().FirstOrDefaultAsync(v => v.Id == reservation.DepositVoucherId, token);
+                if (voucher != null)
+                {
+                    // العربون يتبع الحجز: سيارته وعميله
+                    voucher.PartyName = name!;
+                    voucher.DepositVehicleId = reservation.VehicleId;
+                    voucher.DepositCustomerId = reservation.CustomerId;
+                }
+            }
+            await _db.SaveChangesAsync(token);
+            await _audit.LogAsync("VEHICLE_RESERVATION_UPDATED", nameof(VehicleReservation), reservation.Id.ToString(), $"تعديل حجز {name} حتى {reservation.ExpiresAt:yyyy-MM-dd}", token);
+            return (await ToDtosAsync(new List<VehicleReservation> { reservation }, token))[0];
+        }, ct);
+
     public async Task<VehicleReservationDto> ExtendAsync(Guid id, ExtendVehicleReservationDto d, CancellationToken ct = default)
     {
         var reservation = await _db.Set<VehicleReservation>().FirstOrDefaultAsync(r => r.Id == id, ct) ?? throw new NotFoundException(Messages.VehicleReservationNotFound);

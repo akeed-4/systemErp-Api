@@ -1084,6 +1084,10 @@
   <data name="ChassisReplaced" xml:space="preserve"><value>تم استبدال {0} شاسيه</value></data>
   <data name="OrderPartiallyReceivedLocked" xml:space="preserve"><value>استُلم جزء من سيارات الأمر ودخل المخزون؛ لا يُعدَّل الأمر ولا يُرفض حتى يكتمل الاستلام.</value></data>
   <data name="PostedInvoiceEditZatcaSubmitted" xml:space="preserve"><value>أُرسلت الفاتورة لهيئة الزكاة فلا تُعدَّل؛ صحّحها بمرتجع (إشعار دائن/مدين).</value></data>
-  <data name="PostedInvoiceEditVehicles" xml:space="preserve"><value>فواتير السيارات المرحّلة لا تُعدَّل من هنا؛ صحّحها بمرتجع.</value></data>
+  <data name="PostedVehicleInvoiceHasReturns" xml:space="preserve"><value>على فاتورة السيارات مرتجع مرحّل؛ لا تُعدَّل حتى لا تتعارض حالة السيارات المرتجعة.</value></data>
+  <data name="PostedPurchaseVehicleInUse" xml:space="preserve"><value>السيارة {0} من هذه الفاتورة بيعت أو حُجزت أو دخلت عقداً أو أمر شراء؛ لا تُعدَّل فاتورة شرائها.</value></data>
   <data name="PostedInvoiceEditReason" xml:space="preserve"><value>تعديل الفاتورة {0}</value></data>
+  <data name="PostedInvoiceDeleteReason" xml:space="preserve"><value>حذف الفاتورة {0}</value></data>
+  <data name="PostedInvoiceDeleteHasReturns" xml:space="preserve"><value>على الفاتورة مرتجعات مرحّلة؛ احذف المرتجعات أولاً ثم الفاتورة.</value></data>
+  <data name="PostedInvoiceDeleteHasPayments" xml:space="preserve"><value>وُزِّعت على الفاتورة سندات قبض/صرف؛ ألغِ توزيعها أولاً ثم احذف الفاتورة.</value></data>
 </root>

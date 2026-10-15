@@ -14,6 +14,8 @@ public interface IVehicleReservationService
     /// <summary>status اختياري: active | released | expired | converted. الحجوزات المنتهية بلا عربون أو عقد تُفك أولاً.</summary>
     Task<PagedResult<VehicleReservationDto>> ListAsync(PaginationParams query, Guid? vehicleId = null, CancellationToken ct = default);
     Task<VehicleReservationDto> CreateAsync(CreateVehicleReservationDto dto, CancellationToken ct = default);
+    /// <summary>يعدّل الحجز القائم: العميل، الانتهاء، الملاحظات، والسيارة (تُفك القديمة وتُحجز الجديدة).</summary>
+    Task<VehicleReservationDto> UpdateAsync(Guid id, CreateVehicleReservationDto dto, CancellationToken ct = default);
     Task<VehicleReservationDto> ExtendAsync(Guid id, ExtendVehicleReservationDto dto, CancellationToken ct = default);
     /// <summary>يلغي الحجز. إن كان عليه عربون مفتوح يُرد أو يُصادَر حسب الطلب وإلا سياسة الإعدادات.</summary>
     Task<VehicleReservationDto> CancelAsync(Guid id, CancelVehicleReservationDto? request, CancellationToken ct = default);

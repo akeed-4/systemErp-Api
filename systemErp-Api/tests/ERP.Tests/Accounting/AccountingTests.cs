@@ -223,11 +223,11 @@ public class AccountingTests : TestBase
         Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = next.Data["id"].S(), returnReason = "تجربة" })).Status);
         Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         Assert.Equal(409, (await api.Post($"/invoices/{id}/post")).Status); // لا يُرحَّل مرتين
-        // الفاتورة المرحّلة مستند صادر: لا تُحذف، وتُلغى بمرتجع كامل يعيد المخزون وتبقى في السجل
-        Assert.Equal(409, (await api.Delete($"/invoices/{id}")).Status);
-        Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = id, returnReason = "إلغاء" })).Status);
+        // المرحّلة قبل إرسالها للهيئة تُحذف (يُعكس قيدها وحركاتها)، إلا إن بُني عليها مرتجع
+        Assert.Equal(409, (await api.Delete($"/invoices/{next.Data["id"].S()}")).Status);
+        Assert.Equal(200, (await api.Delete($"/invoices/{id}")).Status);
         Assert.Equal(10, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
-        Assert.Equal("posted", (await api.Get($"/invoices/{id}")).Data!["status"].S());
+        Assert.Equal(404, (await api.Get($"/invoices/{id}")).Status);
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 

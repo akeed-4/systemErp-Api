@@ -1084,6 +1084,10 @@
   <data name="ChassisReplaced" xml:space="preserve"><value>{0} chassis number(s) replaced</value></data>
   <data name="OrderPartiallyReceivedLocked" xml:space="preserve"><value>Part of the order has been received into stock; the order cannot be edited or rejected until receipt is complete.</value></data>
   <data name="PostedInvoiceEditZatcaSubmitted" xml:space="preserve"><value>The invoice was sent to ZATCA and cannot be edited; correct it with a return (credit/debit note).</value></data>
-  <data name="PostedInvoiceEditVehicles" xml:space="preserve"><value>Posted vehicle invoices cannot be edited here; correct them with a return.</value></data>
+  <data name="PostedVehicleInvoiceHasReturns" xml:space="preserve"><value>This vehicle invoice has a posted return; it cannot be edited without conflicting with the returned vehicles.</value></data>
+  <data name="PostedPurchaseVehicleInUse" xml:space="preserve"><value>Vehicle {0} from this invoice was sold, reserved, or linked to a contract or purchase order; its purchase invoice cannot be edited.</value></data>
   <data name="PostedInvoiceEditReason" xml:space="preserve"><value>Invoice {0} edited</value></data>
+  <data name="PostedInvoiceDeleteReason" xml:space="preserve"><value>Invoice {0} deleted</value></data>
+  <data name="PostedInvoiceDeleteHasReturns" xml:space="preserve"><value>The invoice has posted returns; delete the returns first.</value></data>
+  <data name="PostedInvoiceDeleteHasPayments" xml:space="preserve"><value>Vouchers are allocated to this invoice; remove the allocation first, then delete the invoice.</value></data>
 </root>

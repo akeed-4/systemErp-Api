@@ -48,10 +48,11 @@ public class VehicleInvoiceTests : TestBase
 
         // مركبة واردة من فاتورة لا تُحذف منفردة
         Assert.Equal(409, (await api.Delete($"/vehicles/{vehicles[0]!["id"].S()}")).Status);
-        // الفاتورة المرحّلة لا تُحذف: المركبات ورصيد المخزون باقيان
-        Assert.Equal(409, (await api.Delete($"/invoices/{r.Data["id"].S()}")).Status);
-        Assert.Equal(3, (await api.Get("/vehicles")).Data!["totalCount"].D());
-        Assert.Equal(265000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
+        // حذف المرحّلة (قبل الهيئة): تُحذف مركباتها ويُعكس قيدها
+        Assert.Equal(200, (await api.Delete($"/invoices/{r.Data["id"].S()}")).Status);
+        Assert.Equal(0, (await api.Get("/vehicles")).Data!["totalCount"].D());
+        Assert.Equal(0, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
+        (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]
@@ -127,10 +128,47 @@ public class VehicleInvoiceTests : TestBase
         Assert.Equal(400, (await api.Post("/invoices", Sale("posted", SaleLine(ids[0], 100000)))).Status);
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
-        // فاتورة البيع وفاتورة الشراء المرحّلتان لا تُحذفان، والمركبات تبقى مباعة
-        Assert.Equal(409, (await api.Delete($"/invoices/{s.Data["id"].S()}")).Status);
+        // تعديل فاتورة البيع المرحّلة: إزالة سيارة وتغيير السعر — المحذوفة تعود متاحة، والقيد يُعكس ويُعاد بالأرقام الجديدة
+        var edited = await api.Put($"/invoices/{s.Data["id"].S()}", Sale("posted", SaleLine(ids[0], 110000)));
+        Assert.Equal(200, edited.Status);
+        Assert.Equal(s.Data["invoiceNumber"].S(), edited.Data!["invoiceNumber"].S());
+        var cost = cars.ToDictionary(v => v!["id"].S(), v => v!["totalCost"].D());
+        Assert.Equal(110000, edited.Data["subtotal"].D()); Assert.Equal(cost[ids[0]], edited.Data["totalCost"].D());
+        var statuses = (await api.Get("/vehicles")).Data!["items"]!.AsArray().ToDictionary(v => v!["id"].S(), v => v!["status"].S());
+        Assert.Equal("sold", statuses[ids[0]]); Assert.Equal("available", statuses[ids[1]]);
+        Assert.Equal(cost[ids[1]], (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D()); // بقيت السيارة الثانية بتكلفتها
+        (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+
+        // شراء سيارة بيعت: لا يُعدَّل
+        Assert.Equal(409, (await api.Put($"/invoices/{p.Data!["id"].S()}", Purchase(supplier, "posted", Line(Client.NewVin('9'), 1000)))).Status);
+
+        // حذف المرحّلة: شراء سياراته مباعة لا يُحذف؛ حذف البيع يعيد سياراته متاحة ثم يُحذف الشراء ومركباته
         Assert.Equal(409, (await api.Delete($"/invoices/{p.Data!["id"].S()}")).Status);
-        Assert.All((await api.Get("/vehicles")).Data!["items"]!.AsArray(), v => Assert.Equal("sold", v!["status"].S()));
+        Assert.Equal(200, (await api.Delete($"/invoices/{s.Data["id"].S()}")).Status);
+        Assert.All((await api.Get("/vehicles")).Data!["items"]!.AsArray(), v => Assert.Equal("available", v!["status"].S()));
+        Assert.Equal(200, (await api.Delete($"/invoices/{p.Data!["id"].S()}")).Status);
+        Assert.Equal(0, (await api.Get("/vehicles")).Data!["totalCount"].D());
+        (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
+    [Fact]
+    public async Task Posted_vehicle_purchase_is_edited_by_recreating_its_vehicles_and_reposting()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        var v1 = Client.NewVin('1'); var v2 = Client.NewVin('2'); var v3 = Client.NewVin('3');
+        var p = await api.Post("/invoices", Purchase(supplier, "posted", Line(v1, 100000), Line(v2, 90000)));
+        Assert.Equal(201, p.Status);
+
+        var edited = await api.Put($"/invoices/{p.Data!["id"].S()}", Purchase(supplier, "posted", Line(v1, 95000), Line(v3, 60000)));
+        Assert.Equal(200, edited.Status);
+        Assert.Equal(p.Data["invoiceNumber"].S(), edited.Data!["invoiceNumber"].S());
+        var cars = (await api.Get("/vehicles")).Data!["items"]!.AsArray().ToDictionary(v => v!["chassisNumber"].S(), v => v!);
+        Assert.Equal(new[] { v1, v3 }.OrderBy(x => x), cars.Keys.OrderBy(x => x));
+        Assert.Equal(95000, cars[v1]["totalCost"].D());
+        Assert.Equal(155000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
+        Assert.Equal(155000 * 1.15m, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     private static decimal Side(System.Text.Json.Nodes.JsonNode journal, string code, string side)

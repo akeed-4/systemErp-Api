@@ -134,10 +134,21 @@ public class VehicleBatchTests : TestBase
         Assert.Equal(120000, await BalanceAsync(api, "1142"));
         Assert.Equal(138000, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
 
-        // بعد الترحيل: لا تعديل ولا حذف لشاسيه، فقط مرتجع
-        Assert.Equal(409, (await api.Put($"/invoices/{again.Data["id"].S()}", Purchase(supplier, "draft", Batch(40000, new[] { Chassis(a) })))).Status);
-        Assert.Equal(409, (await api.Delete($"/invoices/{again.Data["id"].S()}")).Status);
+        // بعد الترحيل: لا حذف للفاتورة ولا للبطاقة منفردة
         Assert.Equal(409, (await api.Delete($"/vehicles/{stock[0]!["id"].S()}")).Status);
+
+        // تعديل المرحّلة: تعود بطاقاتها مسودة، تُطابَق مع الشواصي الجديدة (الباقي يحتفظ ببطاقته) ثم يُعاد الترحيل بنفس الرقم
+        var cardOfA = stock.First(v => v!["chassisNumber"].S() == a)!["id"].S();
+        var repost = await api.Put($"/invoices/{again.Data["id"].S()}", Purchase(supplier, "draft", Batch(45000, new[] { Chassis(a), Chassis(d) })));
+        Assert.Equal(200, repost.Status);
+        Assert.Equal("posted", repost.Data!["status"].S()); Assert.Equal(posted.Data["invoiceNumber"].S(), repost.Data["invoiceNumber"].S());
+        var restocked = (await VehiclesAsync(api)).ToDictionary(v => v!["chassisNumber"].S(), v => v!);
+        Assert.Equal(new[] { a, d }.OrderBy(x => x), restocked.Keys.OrderBy(x => x));
+        Assert.Equal(cardOfA, restocked[a]["id"].S());
+        Assert.All(restocked.Values, v => { Assert.Equal("available", v["status"].S()); Assert.Equal(45000, v["totalCost"].D()); });
+        Assert.Empty(await VehiclesAsync(api, "draft"));
+        Assert.Equal(90000, await BalanceAsync(api, "1142"));
+        Assert.Equal(103500, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
         var (dr, cr) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(dr, cr);
     }
 

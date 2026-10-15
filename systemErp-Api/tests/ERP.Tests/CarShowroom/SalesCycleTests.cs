@@ -171,6 +171,31 @@ public class SalesCycleTests : TestBase
     }
 
     [Fact]
+    public async Task Reservation_is_edited_in_place_moving_the_hold_to_the_new_vehicle()
+    {
+        var api = await NewTenantAsync();
+        var (first, _) = await SeedCarAsync(api);
+        var (second, _) = await SeedCarAsync(api);
+        var (ali, _) = await SeedCustomerAsync(api, name: "علي");
+        var (omar, _) = await SeedCustomerAsync(api, name: "عمر");
+        var rid = (await api.Post("/vehiclereservations", new { vehicleId = first, customerId = ali })).Data!["id"].S();
+        var deposit = await api.Post("/vouchers", new { type = "receipt", amount = 1000, partyName = "علي", treasuryAccountCode = "1111", paymentMethod = "cash", depositVehicleId = first, depositCustomerId = ali });
+        Assert.True(deposit.Success);
+
+        var expires = DateTime.UtcNow.AddDays(30);
+        var edited = await api.Put($"/vehiclereservations/{rid}", new { vehicleId = second, customerId = omar, expiresAt = expires, notes = "تعديل" });
+        Assert.Equal(200, edited.Status);
+        Assert.Equal("عمر", edited.Data!["customerName"].S()); Assert.Equal(second.ToString(), edited.Data["vehicleId"].S());
+        Assert.Equal("available", (await api.Get($"/vehicles/{first}")).Data!["status"].S());
+        Assert.Equal("reserved", (await api.Get($"/vehicles/{second}")).Data!["status"].S());
+        var voucher = (await api.Get($"/vouchers/{deposit.Data!["id"].S()}")).Data!;
+        Assert.Equal("عمر", voucher["partyName"].S()); Assert.Equal(second.ToString(), voucher["depositVehicleId"].S());
+
+        Assert.Equal(400, (await api.Put($"/vehiclereservations/{rid}", new { vehicleId = second })).Status); // بلا عميل
+        Assert.Equal(404, (await api.Put($"/vehiclereservations/{Guid.NewGuid()}", new { vehicleId = second, customerId = ali })).Status);
+    }
+
+    [Fact]
     public async Task Reservation_holds_the_vehicle_for_its_customer_until_it_expires_or_is_cancelled()
     {
         var api = await NewTenantAsync();

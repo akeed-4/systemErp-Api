@@ -1083,4 +1083,7 @@
   <data name="ReplacementMustBeReal" xml:space="preserve"><value>الرقم {0} رقم مؤقت؛ أدخل رقم الشاسيه الحقيقي.</value></data>
   <data name="ChassisReplaced" xml:space="preserve"><value>تم استبدال {0} شاسيه</value></data>
   <data name="OrderPartiallyReceivedLocked" xml:space="preserve"><value>استُلم جزء من سيارات الأمر ودخل المخزون؛ لا يُعدَّل الأمر ولا يُرفض حتى يكتمل الاستلام.</value></data>
+  <data name="PostedInvoiceEditZatcaSubmitted" xml:space="preserve"><value>أُرسلت الفاتورة لهيئة الزكاة فلا تُعدَّل؛ صحّحها بمرتجع (إشعار دائن/مدين).</value></data>
+  <data name="PostedInvoiceEditVehicles" xml:space="preserve"><value>فواتير السيارات المرحّلة لا تُعدَّل من هنا؛ صحّحها بمرتجع.</value></data>
+  <data name="PostedInvoiceEditReason" xml:space="preserve"><value>تعديل الفاتورة {0}</value></data>
 </root>

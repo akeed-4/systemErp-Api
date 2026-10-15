@@ -1083,4 +1083,7 @@
   <data name="ReplacementMustBeReal" xml:space="preserve"><value>{0} is a temporary number; enter the real chassis number.</value></data>
   <data name="ChassisReplaced" xml:space="preserve"><value>{0} chassis number(s) replaced</value></data>
   <data name="OrderPartiallyReceivedLocked" xml:space="preserve"><value>Part of the order has been received into stock; the order cannot be edited or rejected until receipt is complete.</value></data>
+  <data name="PostedInvoiceEditZatcaSubmitted" xml:space="preserve"><value>The invoice was sent to ZATCA and cannot be edited; correct it with a return (credit/debit note).</value></data>
+  <data name="PostedInvoiceEditVehicles" xml:space="preserve"><value>Posted vehicle invoices cannot be edited here; correct them with a return.</value></data>
+  <data name="PostedInvoiceEditReason" xml:space="preserve"><value>Invoice {0} edited</value></data>
 </root>

@@ -28,7 +28,7 @@ public class CrudCompletenessTests : TestBase
     }
 
     [Fact]
-    public async Task Draft_invoices_can_be_updated_and_posted_but_a_posted_invoice_is_locked()
+    public async Task Draft_invoices_can_be_updated_and_posted_and_a_posted_invoice_is_reposted_on_edit()
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
@@ -45,11 +45,54 @@ public class CrudCompletenessTests : TestBase
         Assert.Equal("posted", posted.Data!["status"].S()); Assert.Equal(230, posted.Data["grandTotal"].D());
         Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         Assert.StartsWith("SINV-", posted.Data["invoiceNumber"].S()); // صُرف الرقم المتسلسل عند الترحيل
-        // المرحّلة مستند صادر: لا تُعدَّل ولا تعود مسودة، وأثرها باقٍ
-        Assert.Equal(409, (await api.Put($"/invoices/{id}", Body(1, "draft"))).Status);
-        Assert.Equal(409, (await api.Put($"/invoices/{id}", Body(5, "posted"))).Status);
-        Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        // المرحّلة قبل إرسالها للهيئة تُعدَّل: يُعكس قيدها وحركاتها ويُعاد ترحيلها بنفس رقمها (ولا تعود مسودة)
+        var serial = posted.Data["invoiceNumber"].S();
+        var edited = await api.Put($"/invoices/{id}", Body(5, "posted"));
+        Assert.Equal(200, edited.Status);
+        Assert.Equal("posted", edited.Data!["status"].S()); Assert.Equal(serial, edited.Data["invoiceNumber"].S()); Assert.Equal(575, edited.Data["grandTotal"].D());
+        Assert.Equal(5, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        var again = await api.Put($"/invoices/{id}", Body(1, "draft"));
+        Assert.Equal("posted", again.Data!["status"].S()); Assert.Equal(serial, again.Data["invoiceNumber"].S());
+        Assert.Equal(9, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+        var stock = (await api.Get("/reports/InventoryReconciliation")).Data!["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;
+        Assert.Equal(0, stock["difference"].D());
+        Assert.Equal(9 * 40m, stock["ledgerValue"].D());
         Assert.Equal(404, (await api.Put($"/invoices/{Guid.NewGuid()}", Body(1, "draft"))).Status);
+    }
+
+    [Fact]
+    public async Task Editing_a_posted_purchase_restores_the_prior_average_and_keeps_the_books_reconciled_after_later_movements()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api, stock: 10, cost: 5); // قيمة 50
+        var (supplier, _) = await SeedSupplierAsync(api);
+        object Purchase(decimal price) => new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier,
+            items = new[] { new { itemId = product, quantity = 10, unitPrice = price, vatRate = 15 } } };
+
+        var purchase = await api.Post("/invoices", Purchase(7)); // المتوسط 6
+        Assert.Equal(201, purchase.Status);
+        var id = purchase.Data!["id"].S();
+        Assert.Equal(6m, (await api.Get($"/products/{product}")).Data!["averageCost"].D());
+
+        // التعديل لسعر 9: يُستعاد متوسط ما قبل الشراء (5) ثم يُشترى بـ 9 → (50 + 90) / 20 = 7
+        var edited = await api.Put($"/invoices/{id}", Purchase(9));
+        Assert.Equal(200, edited.Status);
+        Assert.Equal(purchase.Data["invoiceNumber"].S(), edited.Data!["invoiceNumber"].S());
+        var p = (await api.Get($"/products/{product}")).Data!;
+        Assert.Equal(20, p["currentStock"].D()); Assert.Equal(7m, p["averageCost"].D());
+        var stock = (await api.Get("/reports/InventoryReconciliation")).Data!["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;
+        Assert.Equal(0, stock["difference"].D()); Assert.Equal(140m, stock["ledgerValue"].D());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+
+        // بيع بعد الشراء ثم تعديل الشراء: مسموح، وفرق التكلفة بقيد إعادة تقييم فيبقى حساب المخزون = قيمة الأصناف
+        Assert.Equal(201, (await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash",
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } })).Status);
+        Assert.Equal(200, (await api.Put($"/invoices/{id}", Purchase(8))).Status);
+        Assert.Equal(19, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        stock = (await api.Get("/reports/InventoryReconciliation")).Data!["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;
+        Assert.Equal(0, stock["difference"].D());
+        (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
     [Fact]

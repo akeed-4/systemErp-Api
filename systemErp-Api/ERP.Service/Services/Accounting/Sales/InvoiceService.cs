@@ -123,15 +123,20 @@ public class InvoiceService : IInvoiceService
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).Include(i => i.VehicleBatches).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
-            EnsureNotLinkedToAnotherDocument(invoice);
             if (r.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
-            // الفاتورة المرحّلة مستند صادر لا يُعدَّل: تُصحَّح بمرتجع (إشعار دائن/مدين) وفاتورة جديدة
-            if (invoice.Status == "posted") throw new ConflictException(Messages.PostedInvoiceLocked);
-            if (invoice.Status != "draft") throw new ConflictException(Messages.CannotEditCancelledInvoice);
+            // المرحّلة (قبل إرسالها للهيئة): يُعكس قيدها وحركاتها المخزنية ثم يُعاد ترحيلها بنفس رقمها بعد التعديل
+            var wasPosted = invoice.Status == "posted";
+            if (wasPosted) await UnpostForEditAsync(invoice, token);
+            else
+            {
+                EnsureNotLinkedToAnotherDocument(invoice);
+                if (invoice.Status != "draft") throw new ConflictException(Messages.CannotEditCancelledInvoice);
+            }
 
             r.ExistingInvoiceId = id; // شواصي هذه المسودة المحفوظة ليست تكراراً
             var fresh = await BuildAsync(r, token); // نفس تحقق الإنشاء وحساب الأرقام في السرفر
             var (keepId, keepTenant, keepCreated, keepNumber, keepUuid) = (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, invoice.Uuid);
+            var (keepRefType, keepRefId) = (invoice.ReferenceType, invoice.ReferenceId); // ارتباط المرحّلة بمستندها التجاري يبقى
 
             _db.RemoveRange(invoice.Items);
             _db.RemoveRange(invoice.PaymentSplits);
@@ -143,6 +148,7 @@ public class InvoiceService : IInvoiceService
             invoice.VehicleBatches.Clear();
             Mapper.Apply(fresh, invoice);
             (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, invoice.Uuid) = (keepId, keepTenant, keepCreated, keepNumber, keepUuid);
+            if (wasPosted) (invoice.ReferenceType, invoice.ReferenceId) = (keepRefType, keepRefId);
             invoice.Status = "draft";
             foreach (var item in fresh.Items) invoice.Items.Add(item);
             foreach (var split in fresh.PaymentSplits) invoice.PaymentSplits.Add(split);
@@ -156,9 +162,73 @@ public class InvoiceService : IInvoiceService
             if (invoice.Kind == InvoiceKind.Purchase) await VehicleBatchLines.SyncDraftVehiclesAsync(_db, invoice, removeAll: false, token);
             await _db.SaveChangesAsync(token);
 
-            if (!string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase)) await FinalizeAsync(invoice, token);
+            // المرحّلة تعود مرحّلة دائماً (بنفس رقمها) بقيد وحركات مخزنية جديدة
+            if (wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase)) await FinalizeAsync(invoice, token);
+            if (wasPosted)
+                await _audit.LogAsync("INVOICE_POSTED_EDITED", nameof(Invoice), invoice.Id.ToString(),
+                    $"تعديل {DescribeKind(invoice.Kind)} مرحّلة {invoice.InvoiceNumber}: عُكس قيدها وحركاتها وأُعيد ترحيلها بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
             return await GetAsync(id, token);
         }, ct), ct);
+
+    /// <summary>
+    /// يلغي أثر ترحيل فاتورة مبيعات/مشتريات تمهيداً لتعديلها وإعادة ترحيلها: يعكس قيدها (بتاريخه، في فترة مفتوحة)
+    /// ويعكس حركاتها المخزنية (المبيعات تعود بتكلفة خروجها، والمشتريات تخرج بتكلفتها). يُمنع ما لا يُصحَّح إلا بمرتجع:
+    /// المرسلة للهيئة، المرتجعات وما عليه مرتجعات أو سندات موزّعة، فواتير السيارات ومستندات النقاط والعقود،
+    /// والمشتريات التي تلتها حركات على أصنافها (يتغيّر بها المتوسط) أو بطريقة الوارد أولاً.
+    /// </summary>
+    private async Task UnpostForEditAsync(Invoice invoice, CancellationToken ct)
+    {
+        if (invoice.Kind is not (InvoiceKind.Sales or InvoiceKind.Purchase) || invoice.IsReturn || invoice.OriginalInvoiceId.HasValue)
+            throw new ConflictException(Messages.PostedInvoiceLocked);
+        if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted) throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
+        if (invoice.VehicleLines.Count > 0 || invoice.VehicleBatches.Count > 0 || invoice.ReferenceType?.StartsWith("car_", StringComparison.Ordinal) == true)
+            throw new ConflictException(Messages.PostedInvoiceEditVehicles);
+        // فاتورة نقطة بيع/عقد: مجاميع مستندها المصدر (الوردية، العقد) تتبعها، فتُعدَّل من ذلك المستند
+        if (invoice.ReferenceType is not (null or "quotation" or "sales_order" or "purchase_order" or "material_requisition"))
+            throw new ConflictException(Messages.InvoiceFromSourceDocument);
+
+        var stockItems = invoice.Items.Where(i => i.ItemId != Guid.Empty).ToList();
+        var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
+        // شراء تلته حركات على أصنافه: يُعكس بتكلفته الحالية، وأي فرق عن أثره الأصلي يُرحَّل بقيد إعادة تقييم أدناه
+        var restoreAverage = false;
+        if (invoice.Kind == InvoiceKind.Purchase && stockItems.Count > 0 && policy.Method == CostingMethod.MovingAverage)
+        {
+            var ids = stockItems.Select(i => i.ItemId).Distinct().ToList();
+            var postedAt = await _db.Set<StockMovement>().AsNoTracking()
+                .Where(m => m.SourceId == invoice.Id && m.SourceType == "invoice").MaxAsync(m => (DateTime?)m.CreatedAt, ct);
+            restoreAverage = postedAt.HasValue && !await _db.Set<StockMovement>().AsNoTracking()
+                .AnyAsync(m => ids.Contains(m.ItemId) && m.CreatedAt > postedAt && (m.SourceId == null || m.SourceId != invoice.Id), ct);
+        }
+
+        var reason = string.Format(Messages.PostedInvoiceEditReason, invoice.InvoiceNumber);
+        if (invoice.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, reason, ct);
+
+        // أثر الفاتورة الأصلي على قيمة المخزون (ما رُحِّل لحساب المخزون): تكلفتها ناقص تكلفة بنود الخدمات
+        var serviceCost = invoice.Items.Where(i => i.ItemId == Guid.Empty && i.UnitCost > 0).Sum(i => Math.Round(i.Quantity * i.UnitCost, 2));
+        var originalStockChange = invoice.Kind == InvoiceKind.Purchase ? invoice.TotalCost - serviceCost : -(invoice.TotalCost - serviceCost);
+        decimal reversalChange = 0;
+        foreach (var item in stockItems)
+        {
+            var product = await _db.Set<Product>().FirstAsync(p => p.Id == item.ItemId, ct);
+            var valueBefore = InventoryValuation.Value(product);
+            await _inventory.RecordMovementAsync(new RecordStockMovementDto
+            {
+                ItemId = item.ItemId, WarehouseId = invoice.WarehouseId, Quantity = item.Quantity,
+                Type = invoice.Kind == InvoiceKind.Sales ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
+                UnitCost = invoice.Kind == InvoiceKind.Sales ? item.UnitCost : 0, // المبيعات تعود بتكلفة خروجها
+                UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
+                SourceType = "invoice_reversal", SourceId = invoice.Id,
+            }, ct);
+            // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)
+            if (restoreAverage && product.CurrentStock > 0)
+                product.AverageCost = Math.Max(0, Math.Round((valueBefore - item.Quantity * item.UnitCost) / product.CurrentStock, 4));
+            reversalChange += InventoryValuation.Value(product) - valueBefore;
+        }
+        await _db.SaveChangesAsync(ct);
+        // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف
+        await InventoryValuation.PostRevaluationAsync(_db, _posting, reversalChange + originalStockChange, reason, invoice.Id, ct);
+        invoice.JournalEntryId = null;
+    }
 
     public async Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default)
         => await SendToZatcaIfRequestedAsync(await _tx.RunAsync(async token =>

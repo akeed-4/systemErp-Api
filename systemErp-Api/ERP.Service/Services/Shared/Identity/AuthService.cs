@@ -44,32 +44,80 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             throw new ValidationFailedException(Messages.EmailAndPasswordRequired);
 
-        var email = request.Email.Trim().ToLower();
-
         // الدخول يسبق معرفة المنشأة، لذلك يُتجاوز مرشّح المنشأة هنا فقط ويُستنتج المستأجر من المستخدم.
-        var candidates = await _db.Set<User>().IgnoreQueryFilters()
-            .Where(u => u.Email.ToLower() == email && u.IsActive).ToListAsync(ct);
+        // مقارنة مباشرة بلا ToLower على الأعمدة: ترتيب SQL Server غير حسّاس لحالة الأحرف، فيُستخدم فهرس البريد/الجوال بدل مسح الجدول.
+        var candidates = request.Email.Trim().Contains('@')
+            ? await FindByEmailAsync(request.Email.Trim(), ct)
+            : await FindByPhoneAsync(request.Email.Trim(), ct);
 
-        User? user = null;
-        foreach (var c in candidates.OrderByDescending(c => c.LastLoginAt))
-        {
-            if (c.PasswordHash != null
-                && _hasher.VerifyHashedPassword(c, c.PasswordHash, request.Password) != PasswordVerificationResult.Failed)
-            {
-                user = c;
-                break;
-            }
-        }
-        if (user == null) throw new UnauthorizedAppException();
+        // تُفحص كل الحسابات المطابقة: إن صحّت كلمة المرور لأكثر من حساب (جوال مشترك بين منشآت بكلمة مرور واحدة)
+        // لا يُختار أحدها، ويُطلب الدخول بالبريد الذي لا يتكرر بين المنشآت.
+        var matches = candidates.Where(c => c.PasswordHash != null
+            && _hasher.VerifyHashedPassword(c, c.PasswordHash, request.Password) != PasswordVerificationResult.Failed).Take(2).ToList();
+        if (matches.Count == 0) throw new UnauthorizedAppException();
+        if (matches.Count > 1) throw new UnauthorizedAppException(Messages.LoginAmbiguousUseEmail);
+        var user = matches[0];
 
         _tenant.SetTenant(user.TenantId);
-        var tenant = await _db.Set<Tenant>().FirstOrDefaultAsync(t => t.Id == user.TenantId, ct);
+        var tenant = await _db.Set<Tenant>().AsNoTracking().FirstOrDefaultAsync(t => t.Id == user.TenantId, ct);
         if (tenant is not { IsActive: true }) throw new ForbiddenException(Messages.CompanyInactive);
 
+        // تحديث مباشر لعمود واحد: بلا تتبّع ولا مرور على سجل التدقيق (LastLoginAt ليس تعديلاً من مستخدم أصلاً).
         user.LastLoginAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        var userId = user.Id;
+        var loginAt = user.LastLoginAt;
+        await _db.Set<User>().IgnoreQueryFilters().Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastLoginAt, loginAt), ct);
 
         return Build(user, tenant, Messages.LoginSucceeded);
+    }
+
+    /// <summary>البحث بالبريد عبر كل المنشآت: مقارنة مكشوفة على العمود تخدم فهرس Email مباشرة.</summary>
+    private async Task<List<User>> FindByEmailAsync(string email, CancellationToken ct)
+    {
+        return await _db.Set<User>().IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.Email == email && u.IsActive)
+            .OrderByDescending(u => u.LastLoginAt)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// البحث بالجوال عبر كل المنشآت: الرقم يُخزَّن كما أُدخل، فيُستعلام عن صيغه المحتملة بـ IN
+    /// (عمود مكشوف بلا دوال تحويل ⇒ الاستعلام قابل للاستفادة من فهرس Phone).
+    /// تعدد الحسابات بنفس الرقم بين المنشآت مسموح، وكلمة المرور هي ما يحسم الحساب في LoginAsync.
+    /// </summary>
+    private async Task<List<User>> FindByPhoneAsync(string input, CancellationToken ct)
+    {
+        var variants = PhoneCandidates(input);
+        if (variants.Count == 0) return [];
+
+        return await _db.Set<User>().IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.IsActive && variants.Contains(u.Phone))
+            .OrderByDescending(u => u.LastLoginAt)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>صيغ رقم الجوال المحتملة في تخزين المشروع (كما أُدخل، بمفتاح الدولة السعودي 966، وبالشكل المحلي 05XXXXXXXX).</summary>
+    public static List<string> PhoneCandidates(string input)
+    {
+        // الأرقام العربية-الهندية تُحوَّل إلى لاتينية، ويُزال البادئ الدولي 00.
+        var digits = new string(input.Where(char.IsDigit).Select(ch => (char)('0' + (int)char.GetNumericValue(ch))).ToArray());
+        if (digits.StartsWith("00")) digits = digits[2..];
+
+        // إن بُدئ بمفتاح الدولة 966 تُشتق الشكل المحلي منه، وإلا يُسبق بالصفر إن غاب.
+        var local = digits.StartsWith("966") ? "0" + digits[3..] : digits.StartsWith("0") ? digits : "0" + digits;
+        var national = local.TrimStart('0');
+        // رقم بلا خانات وطنية (مثل «0» أو «966») يطابق حسابات جوالها فارغ؛ لا يُبحث به.
+        if (national.Length < 2) return [];
+        var set = new HashSet<string>(StringComparer.Ordinal)
+        {
+            digits,            // كما أُدخلت
+            local,             // 05XXXXXXXX
+            national,          // 5XXXXXXXX
+            "966" + national,  // 9665XXXXXXXX
+            "+966" + national, // +9665XXXXXXXX
+        };
+        return set.ToList();
     }
 
     public Task<AuthResultDto> RegisterCompanyAsync(CompanyRegistrationRequestDto r, CancellationToken ct = default)

@@ -186,6 +186,10 @@ public class ErpDbContext : DbContext
                 if (t.IsEnum) p.SetProviderClrType(typeof(string));
             }
 
+        // الدخول يبحث بالبريد أو الجوال عبر كل المنشآت، والفهرس المركّب (TenantId, Email) لا يخدم هذا البحث.
+        modelBuilder.Entity<User>().HasIndex(u => u.Email);
+        modelBuilder.Entity<User>().HasIndex(u => u.Phone);
+
         modelBuilder.Entity<Account>().Ignore(a => a.Children);
 
         foreach (var (dep, fk, principal) in References)

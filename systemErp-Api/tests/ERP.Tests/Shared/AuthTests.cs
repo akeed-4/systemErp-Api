@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using ERP.Service.Services.Shared;
 using ERP.Tests.Infrastructure;
 
 namespace ERP.Tests;
@@ -65,6 +66,104 @@ public class AuthTests : TestBase
         Assert.False(string.IsNullOrEmpty(ok.Body!["token"].S()));
         var bad = await new Client(http).SendAsync(HttpMethod.Post, "/auth/login", new { email = api.Email, password = "wrong" }, true);
         Assert.Equal(401, bad.Status);
+    }
+
+    /// <summary>منشأة جديدة بجوال مدير محدد (كل منشآت الاختبار الافتراضية تشترك الجوال 050 فلا يصلح للدخول به).</summary>
+    private static async Task<(string TenantId, string Email)> RegisterWithPhoneAsync(Client anon, string phone, string password)
+    {
+        var mail = $"{Guid.NewGuid():N}@x.com";
+        var reg = await anon.SendAsync(HttpMethod.Post, "/auth/RegisterCompany", new
+        {
+            companyNameAr = "x", vatNumber = Client.NewVat(), adminName = "a", adminEmail = mail,
+            adminPhone = phone, password, planId = "starter", billingCycle = "monthly",
+        }, true);
+        Assert.Equal(200, reg.Status);
+        return (reg.Body!["tenantId"]!.GetValue<string>(), mail);
+    }
+
+    private static string NewMobile() => "05" + Random.Shared.Next(10_000_000, 99_999_999);
+
+    [Fact]
+    public async Task Login_succeeds_with_the_mobile_number_in_any_common_format()
+    {
+        // الجوال يُخزَّن كما أُدخل (05XXXXXXXX) ويُقبل بمفتاح الدولة وبلا صفر وبالبادئ الدولي 00
+        var anon = new Client(NewHttp());
+        var phone = NewMobile();
+        var (tenantId, _) = await RegisterWithPhoneAsync(anon, phone, "Passw0rd!");
+        var national = phone[1..];
+        foreach (var input in new[] { phone, national, "966" + national, "+966" + national, "00966" + national, "+966 " + national[..2] + " " + national[2..] })
+        {
+            var ok = await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = input, password = "Passw0rd!" }, true);
+            Assert.Equal(200, ok.Status);
+            Assert.False(string.IsNullOrEmpty(ok.Body!["token"].S()));
+            Assert.Equal(tenantId, ok.Body["tenantId"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
+    public async Task Login_by_mobile_rejects_a_wrong_password()
+    {
+        var anon = new Client(NewHttp());
+        var phone = NewMobile();
+        await RegisterWithPhoneAsync(anon, phone, "Passw0rd!");
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = phone, password = "wrong" }, true)).Status);
+    }
+
+    [Fact]
+    public async Task Login_with_an_unknown_email_or_mobile_is_unauthorized()
+    {
+        var anon = new Client(NewHttp());
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = "nobody@nowhere.com", password = "Passw0rd!" }, true)).Status);
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = "07777777777", password = "Passw0rd!" }, true)).Status);
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = "0", password = "Passw0rd!" }, true)).Status);
+    }
+
+    [Fact]
+    public async Task A_mobile_shared_by_two_companies_binds_the_login_to_the_account_matching_the_password()
+    {
+        // منشأتان تشتركان رقم جوال المدير بكلمتَي مرور مختلفتين: كلمة المرور هي ما يحسم الحساب
+        var anon = new Client(NewHttp());
+        var phone = NewMobile();
+        var (firstTenant, _) = await RegisterWithPhoneAsync(anon, phone, "Passw0rd!");
+        var (secondTenant, _) = await RegisterWithPhoneAsync(anon, phone, "OtherPassw0rd!");
+
+        var byFirst = await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = phone, password = "Passw0rd!" }, true);
+        Assert.Equal(200, byFirst.Status);
+        Assert.Equal(firstTenant, byFirst.Body!["tenantId"]!.GetValue<string>());
+
+        var bySecond = await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = phone, password = "OtherPassw0rd!" }, true);
+        Assert.Equal(200, bySecond.Status);
+        Assert.Equal(secondTenant, bySecond.Body!["tenantId"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_mobile_and_password_shared_by_two_companies_is_refused_instead_of_picking_one()
+    {
+        // الجوال وكلمة المرور متطابقان في منشأتين: لا يُختار أحد الحسابين، والبريد يبقى طريق الدخول
+        var anon = new Client(NewHttp());
+        var phone = NewMobile();
+        var (firstTenant, firstEmail) = await RegisterWithPhoneAsync(anon, phone, "Passw0rd!");
+        await RegisterWithPhoneAsync(anon, phone, "Passw0rd!");
+
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = phone, password = "Passw0rd!" }, true)).Status);
+        var byEmail = await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = firstEmail, password = "Passw0rd!" }, true);
+        Assert.Equal(200, byEmail.Status);
+        Assert.Equal(firstTenant, byEmail.Body!["tenantId"]!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("966")]
+    [InlineData("+")]
+    public void Mobile_input_without_national_digits_is_not_searched(string input)
+        => Assert.Empty(AuthService.PhoneCandidates(input));
+
+    [Fact]
+    public void Mobile_input_normalizes_international_prefix_and_arabic_digits()
+    {
+        var expected = AuthService.PhoneCandidates("0501234567");
+        Assert.Equal(expected.OrderBy(x => x), AuthService.PhoneCandidates("00966501234567").OrderBy(x => x));
+        Assert.Contains("0501234567", AuthService.PhoneCandidates("٠٥٠١٢٣٤٥٦٧"));
     }
 
     [Fact]

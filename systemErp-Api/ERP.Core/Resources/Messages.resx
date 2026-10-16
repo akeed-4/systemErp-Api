@@ -300,7 +300,8 @@
   <data name="DuplicateVinInCount" xml:space="preserve"><value>رقم الهيكل مكرر في أسطر الجرد.</value></data>
   <data name="DuplicateVinsInRequest" xml:space="preserve"><value>أرقام الشواسيه مكررة في الطلب.</value></data>
   <data name="EmailAlreadyRegistered" xml:space="preserve"><value>هذا البريد الإلكتروني مسجّل مسبقاً.</value></data>
-  <data name="EmailAndPasswordRequired" xml:space="preserve"><value>البريد الإلكتروني وكلمة المرور مطلوبان.</value></data>
+  <data name="EmailAndPasswordRequired" xml:space="preserve"><value>البريد الإلكتروني أو رقم الجوال وكلمة المرور مطلوبان.</value></data>
+  <data name="LoginAmbiguousUseEmail" xml:space="preserve"><value>بيانات الدخول هذه مرتبطة بأكثر من حساب، سجّل الدخول بالبريد الإلكتروني.</value></data>
   <data name="EmailInvalid" xml:space="preserve"><value>البريد الإلكتروني غير صالح.</value></data>
   <data name="EmployeeCodeInUse" xml:space="preserve"><value>رقم الموظف مستخدم مسبقاً.</value></data>
   <data name="EmployeeGosiRateInvalid" xml:space="preserve"><value>نسبة التأمينات بين 0 و 100.</value></data>
@@ -555,6 +556,7 @@
   <data name="PartySupplier" xml:space="preserve"><value>المورد</value></data>
   <data name="PartyVatNumberInvalid" xml:space="preserve"><value>الرقم الضريبي للطرف غير صالح.</value></data>
   <data name="PasswordMin8" xml:space="preserve"><value>كلمة المرور 8 أحرف على الأقل.</value></data>
+  <data name="AvatarTooLarge" xml:space="preserve"><value>الصورة الشخصية كبيرة جداً، اختر صورة أصغر.</value></data>
   <data name="PasswordMinLength" xml:space="preserve"><value>كلمة المرور {0} أحرف على الأقل.</value></data>
   <data name="PaymentAlreadyUsed" xml:space="preserve"><value>استُخدم هذا الدفع في عملية سابقة.</value></data>
   <data name="PaymentAmountsMustBePositiveWithAccount" xml:space="preserve"><value>مبالغ الدفع يجب أن تكون موجبة ومرتبطة بحساب.</value></data>

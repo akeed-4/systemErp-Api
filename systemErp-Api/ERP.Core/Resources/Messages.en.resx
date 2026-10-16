@@ -300,7 +300,8 @@
   <data name="DuplicateVinInCount" xml:space="preserve"><value>The chassis number is duplicated in the count lines.</value></data>
   <data name="DuplicateVinsInRequest" xml:space="preserve"><value>Chassis numbers are duplicated in the request.</value></data>
   <data name="EmailAlreadyRegistered" xml:space="preserve"><value>This email address is already registered.</value></data>
-  <data name="EmailAndPasswordRequired" xml:space="preserve"><value>Email and password are required.</value></data>
+  <data name="EmailAndPasswordRequired" xml:space="preserve"><value>Email or mobile number and password are required.</value></data>
+  <data name="LoginAmbiguousUseEmail" xml:space="preserve"><value>These sign-in details match more than one account. Sign in with your email instead.</value></data>
   <data name="EmailInvalid" xml:space="preserve"><value>The email address is invalid.</value></data>
   <data name="EmployeeCodeInUse" xml:space="preserve"><value>The employee code is already in use.</value></data>
   <data name="EmployeeGosiRateInvalid" xml:space="preserve"><value>The social insurance rate must be between 0 and 100.</value></data>
@@ -555,6 +556,7 @@
   <data name="PartySupplier" xml:space="preserve"><value>supplier</value></data>
   <data name="PartyVatNumberInvalid" xml:space="preserve"><value>The party VAT number is invalid.</value></data>
   <data name="PasswordMin8" xml:space="preserve"><value>The password must be at least 8 characters.</value></data>
+  <data name="AvatarTooLarge" xml:space="preserve"><value>The profile picture is too large. Choose a smaller image.</value></data>
   <data name="PasswordMinLength" xml:space="preserve"><value>The password must be at least {0} characters.</value></data>
   <data name="PaymentAlreadyUsed" xml:space="preserve"><value>This payment was already used in a previous transaction.</value></data>
   <data name="PaymentAmountsMustBePositiveWithAccount" xml:space="preserve"><value>Payment amounts must be positive and linked to an account.</value></data>

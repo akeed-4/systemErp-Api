@@ -9,8 +9,14 @@ namespace ERP.Service.Services.Accounting;
 public static class TreasuryResolver
 {
     /// <param name="depositsAccount">حساب عربونات العملاء من إعدادات المعرض؛ فارغ = الافتراضي.</param>
-    public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured, string? depositsAccount = null)
+    /// <param name="code">رمز طريقة دفع مختارة من جدول طرق الدفع: حسابها المرتبط يُقدَّم على الاختيار بالنوع.</param>
+    public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured, string? depositsAccount = null, string? code = null)
     {
+        if (method != PaymentMethod.CustomerDeposit && !string.IsNullOrWhiteSpace(code))
+        {
+            var chosen = configured.FirstOrDefault(m => m.Code == code && m.Status == "active" && !string.IsNullOrEmpty(m.LinkedAccountCode));
+            if (chosen != null) return chosen.LinkedAccountCode;
+        }
         if (method == PaymentMethod.CustomerDeposit) return string.IsNullOrWhiteSpace(depositsAccount) ? DefaultAccounts.CustomerDeposits : depositsAccount;
         var type = method switch
         {

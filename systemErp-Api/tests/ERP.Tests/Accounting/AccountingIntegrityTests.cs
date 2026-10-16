@@ -217,6 +217,36 @@ public class AccountingIntegrityTests : TestBase
     }
 
     [Fact]
+    public async Task Invoice_posts_to_the_account_of_the_chosen_configured_payment_method()
+    {
+        var api = await NewTenantAsync();
+        // طريقة «تحويل» مؤسَّسة مرتبطة بالصندوق 1111: اختيارها يُرحَّل عليه لا على البنك الافتراضي للنوع (1112)
+        Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "TR-BOX", nameAr = "تحويل للصندوق", nameEn = "Transfer to box", type = "cheque", linkedAccountCode = "1111", status = "active" })).Status);
+        var options = (await api.Get("/lookups/payment-methods")).Data!.AsArray();
+        Assert.Contains(options, m => m!["code"].S() == "TR-BOX");
+
+        object Sale(string? code) => new { kind = "sales", invoiceType = "simplified", status = "posted", paymentMethod = "bank_transfer", paymentMethodCode = code,
+            items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } } };
+        var chosen = await api.Post("/invoices", Sale("TR-BOX"));
+        Assert.Equal(201, chosen.Status);
+        Assert.Equal("TR-BOX", chosen.Data!["paymentMethodCode"].S());
+        Assert.Equal(115, await BalanceAsync(api, "1111"));
+        Assert.Equal(0, await BalanceAsync(api, "1112"));
+
+        // بلا رمز: السلوك السابق (حساب النوع الافتراضي)
+        Assert.Equal(201, (await api.Post("/invoices", Sale(null))).Status);
+        Assert.Equal(115, await BalanceAsync(api, "1112"));
+
+        // الدفع المتعدد: كل جزء على حساب طريقته
+        var split = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", status = "posted", paymentMethod = "cash", isSplitPayment = true,
+            paymentSplits = new object[] { new { method = "bank_transfer", paymentMethodCode = "TR-BOX", amount = 15 }, new { method = "bank_transfer", amount = 100 } },
+            items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        Assert.Equal(201, split.Status);
+        Assert.Equal(130, await BalanceAsync(api, "1111"));
+        Assert.Equal(215, await BalanceAsync(api, "1112"));
+    }
+
+    [Fact]
     public async Task Qr_carries_the_saudi_issue_time_converted_to_utc()
     {
         var api = await NewTenantAsync();

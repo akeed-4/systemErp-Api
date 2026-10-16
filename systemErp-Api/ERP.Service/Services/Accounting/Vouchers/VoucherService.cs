@@ -91,7 +91,7 @@ public class VoucherService : IVoucherService
             _db.RemoveRange(voucher.PaymentSplits);
             voucher.PaymentSplits.Clear();
             foreach (var s in r.PaymentSplits)
-                voucher.PaymentSplits.Add(new VoucherPaymentSplit { Method = s.Method, Amount = s.Amount, Reference = s.Reference });
+                voucher.PaymentSplits.Add(new VoucherPaymentSplit { Method = s.Method, PaymentMethodCode = s.PaymentMethodCode, Amount = s.Amount, Reference = s.Reference });
             _db.RemoveRange(voucher.Allocations);
             voucher.Allocations.Clear();
             foreach (var a in r.Allocations)
@@ -240,7 +240,7 @@ public class VoucherService : IVoucherService
     private async Task<List<PaymentPosting>> SplitsToTreasuryAsync(List<VoucherPaymentSplitDto> splits, CancellationToken ct)
     {
         var methods = await _db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct);
-        return splits.Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods), s.Amount)).ToList();
+        return splits.Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, code: s.PaymentMethodCode), s.Amount)).ToList();
     }
 
     public Task DeleteAsync(Guid id, CancellationToken ct = default)

@@ -10,6 +10,10 @@ public class PaymentMethodService : CrudService<PaymentMethodItem, PaymentMethod
     public PaymentMethodService(ErpDbContext db) : base(db) { }
     protected override string Label => Messages.LabelPaymentMethod;
 
+    public async Task<List<PaymentMethodItemDto>> ListActiveAsync(CancellationToken ct = default)
+        => (await Db.Set<PaymentMethodItem>().AsNoTracking().Where(m => m.Status == "active").OrderBy(m => m.Code).ToListAsync(ct))
+            .Select(Mapper.Map<PaymentMethodItemDto>).ToList();
+
     protected override IQueryable<PaymentMethodItem> ApplySearch(IQueryable<PaymentMethodItem> q, string t)
         => q.Where(m => m.Code.Contains(t) || m.NameAr.Contains(t) || m.NameEn.Contains(t));
 

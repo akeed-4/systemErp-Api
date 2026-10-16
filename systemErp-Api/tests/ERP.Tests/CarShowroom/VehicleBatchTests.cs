@@ -227,6 +227,39 @@ public class VehicleBatchTests : TestBase
     }
 
     [Fact]
+    public async Task Sales_invoice_sells_a_temporary_chassis_vehicle_only_after_the_user_confirms()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        Assert.Equal(201, (await api.Post("/invoices", Purchase(supplier, "posted", Batch(30000, Array.Empty<object>(), generateCount: 1)))).Status);
+        var car = (await VehiclesAsync(api))[0]!;
+        var id = car["id"].S();
+        object Sale(bool allow) => new
+        {
+            kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted", allowTemporaryChassis = allow,
+            vehicleLines = new[] { new { vehicleId = id, unitPrice = 40000, discount = 0 } },
+        };
+
+        // بلا تأكيد: مرفوض كما كان
+        Assert.Equal(400, (await api.Post("/invoices", Sale(false))).Status);
+
+        // بعد تأكيد المستخدم: تُباع والسطر يحمل علامة الشاسيه المؤقت
+        var sold = await api.Post("/invoices", Sale(true));
+        Assert.Equal(201, sold.Status);
+        var line = sold.Data!["vehicleLines"]!.AsArray()[0]!;
+        Assert.Equal(car["chassisNumber"].S(), line["vin"].S());
+        Assert.True(line["isTemporaryChassis"]!.GetValue<bool>());
+        Assert.Equal("sold", (await api.Get($"/vehicles/{id}")).Data!["status"].S());
+
+        // الرقم الحقيقي يُدخل بعد البيع ويظهر في فاتورة البيع
+        var real = Client.NewVin('7');
+        Assert.Equal(200, (await api.Post("/vehicles/ReplaceChassis", new[] { new { vehicleId = id, chassisNumber = real } })).Status);
+        var after = (await api.Get($"/invoices/{sold.Data["id"].S()}")).Data!["vehicleLines"]!.AsArray()[0]!;
+        Assert.Equal(real, after["vin"].S());
+        Assert.False(after["isTemporaryChassis"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public async Task Additional_charges_are_allocated_across_the_vehicles_of_a_batch()
     {
         var api = await NewTenantAsync();

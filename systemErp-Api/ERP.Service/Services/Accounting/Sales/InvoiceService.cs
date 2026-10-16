@@ -350,7 +350,7 @@ public class InvoiceService : IInvoiceService
                 WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
                 PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
                 PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
-                PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
+                PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : null, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
                 Notes = ReturnNotes(original, r),
                 Status = "posted",
             };
@@ -418,7 +418,7 @@ public class InvoiceService : IInvoiceService
             WarehouseId = original.WarehouseId,
             PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
             PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
-            PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
+            PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : null, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
             RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
             Notes = ReturnNotes(original, r), Status = "posted",
         };
@@ -487,7 +487,7 @@ public class InvoiceService : IInvoiceService
             var amount = i == original.PaymentSplits.Count - 1
                 ? returned - allocated : DocumentPricing.Round(split.Amount * returned / original.GrandTotal);
             allocated += amount;
-            if (amount > 0) dto.PaymentSplits.Add(new InvoicePaymentSplitDto { Method = split.Method, Amount = amount, Reference = split.Reference });
+            if (amount > 0) dto.PaymentSplits.Add(new InvoicePaymentSplitDto { Method = split.Method, PaymentMethodCode = split.PaymentMethodCode, Amount = amount, Reference = split.Reference });
         }
         dto.IsSplitPayment = dto.PaymentSplits.Count > 0;
     }
@@ -775,7 +775,7 @@ public class InvoiceService : IInvoiceService
             if (Math.Abs(r.PaymentSplits.Sum(s => s.Amount) - invoice.GrandTotal) > 0.005m)
                 throw new ValidationFailedException(Messages.SplitPaymentsMustEqualInvoiceTotal);
             foreach (var s in r.PaymentSplits)
-                invoice.PaymentSplits.Add(new InvoicePaymentSplit { Method = s.Method, Amount = s.Amount, Reference = s.Reference });
+                invoice.PaymentSplits.Add(new InvoicePaymentSplit { Method = s.Method, PaymentMethodCode = s.PaymentMethodCode, Amount = s.Amount, Reference = s.Reference });
         }
         var hasCredit = invoice.PaymentMethod == PaymentMethod.Credit || invoice.PaymentSplits.Any(s => s.Method == PaymentMethod.Credit);
         if (hasCredit && !r.PartyId.HasValue)
@@ -972,9 +972,9 @@ public class InvoiceService : IInvoiceService
         var deposits = byDeposit ? (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).CustomerDepositsAccount : null;
         if (invoice.PaymentSplits.Count > 0)
             return invoice.PaymentSplits.Where(s => s.Method != PaymentMethod.Credit)
-                .Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, deposits), s.Amount)).ToList();
+                .Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, deposits, s.PaymentMethodCode), s.Amount)).ToList();
         if (invoice.PaymentMethod == PaymentMethod.Credit || invoice.GrandTotal <= 0) return new();
-        return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods, deposits), invoice.GrandTotal) };
+        return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods, deposits, invoice.PaymentMethodCode), invoice.GrandTotal) };
     }
 
     /// <summary>إيراد كل سطر على حسابه ومركز تكلفته بالعملة الأساسية؛ كسر التقريب على آخر سطر ليطابق صافي المستند.</summary>

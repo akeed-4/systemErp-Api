@@ -35,6 +35,8 @@ public class Invoice : BaseEntity
     public string? PartyCountry { get; set; }
     
     public PaymentMethod PaymentMethod { get; set; }
+    /// <summary>رمز طريقة الدفع المؤسَّسة في النظام (جدول طرق الدفع): يُرحَّل على حسابها المرتبط. فارغ = أول طريقة فعّالة من النوع.</summary>
+    public string? PaymentMethodCode { get; set; }
     public bool IsSplitPayment { get; set; }
     public string CurrencyCode { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1.0m;

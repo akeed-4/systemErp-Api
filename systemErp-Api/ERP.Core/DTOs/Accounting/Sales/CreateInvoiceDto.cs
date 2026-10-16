@@ -30,6 +30,8 @@ public partial class CreateInvoiceDto
     /// <summary>رمز الدولة (SA افتراضياً)؛ المشتري خارج المملكة لا يُشترط له رقم ضريبي سعودي.</summary>
     public string? PartyCountry { get; set; }
     public PaymentMethod PaymentMethod { get; set; }
+    /// <summary>رمز طريقة الدفع المؤسَّسة في النظام (جدول طرق الدفع): يُرحَّل على حسابها المرتبط. فارغ = أول طريقة فعّالة من النوع.</summary>
+    public string? PaymentMethodCode { get; set; }
     public bool IsSplitPayment { get; set; }
     public string CurrencyCode { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1.0m;
@@ -71,6 +73,8 @@ public partial class CreateInvoiceDto
     public List<InvoiceVehicleBatchDto> VehicleBatches { get; set; } = new();
     /// <summary>مسودة قائمة يُعاين قيدها: شواصيها المحفوظة لا تُعدّ تكراراً. في التعديل يُؤخذ من المسار، وفي الإنشاء يُتجاهل.</summary>
     public Guid? ExistingInvoiceId { get; set; }
+    /// <summary>فاتورة بيع: المستخدم أكّد بيع سيارات بشاسيه مؤقت بعد التحذير (يُستبدل بالحقيقي لاحقاً من بطاقتها).</summary>
+    public bool AllowTemporaryChassis { get; set; }
     /// <summary>داخلي: البنود اشتُقّت من أسطر السيارات (تُعاد اشتقاقها إن أُعيد تنفيذ الطلب بعد تعارض تزامن).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool ItemsDerivedFromVehicles { get; set; }

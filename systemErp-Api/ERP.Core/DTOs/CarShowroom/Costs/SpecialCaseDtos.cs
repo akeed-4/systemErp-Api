@@ -42,6 +42,8 @@ public class ReturnCarSaleDto
 {
     public string Reason { get; set; } = string.Empty;
     public PaymentMethod? RefundPaymentMethod { get; set; }
+    /// <summary>رمز طريقة الرد المؤسَّسة (يُرحَّل على حسابها) مع RefundPaymentMethod.</summary>
+    public string? RefundPaymentMethodCode { get; set; }
     /// <summary>هل تُرد للعميل الرسوم والإضافات المحمّلة عليه؟ فارغ = إعداد المعرض.</summary>
     public bool? RefundCustomerCharges { get; set; }
     public DateTime? ReturnDate { get; set; }

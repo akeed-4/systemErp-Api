@@ -4285,6 +4285,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PaymentMethodCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("PaymentSplitsJson")
                         .HasColumnType("nvarchar(max)");
 

@@ -247,6 +247,7 @@ public class CarSaleService : ICarSaleService
                 PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
                 PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
                 PaymentMethod = r.RefundPaymentMethod ?? (original.PaymentMethod == PaymentMethod.Credit ? PaymentMethod.Credit : PaymentMethod.Cash),
+                PaymentMethodCode = r.RefundPaymentMethod == null ? null : r.RefundPaymentMethodCode,
                 CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate, Status = "posted",
                 Notes = $"مرتجع بيع سيارة - عقد {c.ContractNumber} - VIN {c.Vin} - {r.Reason.Trim()}",
                 ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
@@ -408,6 +409,7 @@ public class CarSaleService : ICarSaleService
             InvoiceType = string.IsNullOrWhiteSpace(customer?.VatNumber) ? InvoiceType.Simplified : InvoiceType.TaxInvoice,
             PartyId = c.CustomerId, PartyName = c.BuyerName, PartyVatNumber = customer?.VatNumber, PartyPhone = c.BuyerPhone, PartyEmail = c.BuyerEmail,
             PartyAddress = c.BuyerAddress, PaymentMethod = method, IsSplitPayment = splits.Count > 0, PaymentSplits = splits,
+            PaymentMethodCode = splits.Count == 0 && method != PaymentMethod.Credit ? c.PaymentMethodCode : null,
             Status = "posted",
             Notes = $"فاتورة مبيعات سيارة - عقد {c.ContractNumber} - VIN {c.Vin}",
             ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
@@ -479,7 +481,7 @@ public class CarSaleService : ICarSaleService
             {
                 "cash" => PaymentMethod.Cash, "bank_transfer" => PaymentMethod.BankTransfer, "pos_mada" => PaymentMethod.BankCard, _ => PaymentMethod.Credit,
             };
-            parts.Add(new() { Method = rest, Amount = remaining });
+            parts.Add(new() { Method = rest, PaymentMethodCode = rest == PaymentMethod.Credit ? null : c.PaymentMethodCode, Amount = remaining });
             return (rest, parts);
         }
         var down = c.DownPaymentAmount ?? 0;

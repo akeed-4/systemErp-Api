@@ -8,6 +8,8 @@ public class CreateReturnInvoiceRequestDto
     public string ReturnReason { get; set; } = string.Empty;
     /// <summary>طريقة رد المبلغ (فارغ = نفس طريقة دفع الفاتورة الأصلية).</summary>
     public PaymentMethod? RefundPaymentMethod { get; set; }
+    /// <summary>رمز طريقة الرد المؤسَّسة (يُرحَّل على حسابها) مع RefundPaymentMethod.</summary>
+    public string? RefundPaymentMethodCode { get; set; }
     /// <summary>الأصناف والكميات المرتجعة. فارغ = مرتجع كلي.</summary>
     public List<ReturnLineDto> Lines { get; set; } = new();
     /// <summary>فاتورة سيارات: المركبات المرتجعة (فارغ = كل ما لم يُرجَع منها).</summary>

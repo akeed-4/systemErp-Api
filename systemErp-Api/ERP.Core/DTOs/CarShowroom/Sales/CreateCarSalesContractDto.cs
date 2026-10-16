@@ -59,6 +59,8 @@ public partial class CreateCarSalesContractDto
     public decimal TotalWithVat { get; set; }
     public decimal? ProfitMarginVat { get; set; }
     public string PaymentMethod { get; set; } = "cash";
+    /// <summary>رمز طريقة الدفع المؤسَّسة لطريقة العقد النقدية (cash/bank_transfer/pos_mada): فاتورته تُرحَّل على حسابها.</summary>
+    public string? PaymentMethodCode { get; set; }
     /// <summary>دفع متعدد: مجموعه يساوي ما يدفعه العميل بعد العربون (يُتحقق عند الفوترة).</summary>
     public List<ERP.Core.DTOs.Accounting.InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
     public string? PlateRegistrationType { get; set; }

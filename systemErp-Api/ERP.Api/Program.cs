@@ -116,11 +116,15 @@ if (app.Environment.IsProduction() && string.IsNullOrWhiteSpace(app.Configuratio
 if (!paymob.IsConfigured)
     app.Logger.LogWarning("إعدادات Paymob للمنصة ناقصة (SecretKey/PublicKey/HmacSecret/IntegrationIds/PublicApiUrl/FrontendUrl): سداد الاشتراكات (بعد الفترة التجريبية والتجديد) متوقف حتى تُستكمل.");
 
+// تنسيق الأرقام والتواريخ ثابت (ميلادي وأرقام لاتينية) مهما كانت إعدادات المنطقة في السرفر: سرفر بإعداد عربي (ar-SA)
+// يجعل التقويم الافتراضي هجرياً، فتخرج التواريخ المنسَّقة نصاً (الفترات، التقارير، المستندات) بالهجري.
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+
 // لغة الرسائل من Accept-Language (ar افتراضياً | en). تُضبط لغة الواجهة فقط (UICulture)، وتنسيق الأرقام والتواريخ
-// يبقى على ثقافة السرفر كما كان. تسبق معالج الأخطاء لأن الثقافة المضبوطة داخل middleware لاحق لا تعود إليه.
+// ثابت (InvariantCulture). تسبق معالج الأخطاء لأن الثقافة المضبوطة داخل middleware لاحق لا تعود إليه.
 app.UseRequestLocalization(o =>
 {
-    var server = System.Globalization.CultureInfo.CurrentCulture;
+    var server = System.Globalization.CultureInfo.InvariantCulture;
     o.DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(server, new System.Globalization.CultureInfo("ar"));
     o.SupportedCultures = new[] { server };
     o.SupportedUICultures = new[] { new System.Globalization.CultureInfo("ar"), new System.Globalization.CultureInfo("en") };

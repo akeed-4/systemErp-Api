@@ -33,6 +33,9 @@ public class PosShiftsController : ErpControllerBase
     [HttpPost("CashMovements")]
     public async Task<IActionResult> AddCashMovement([FromBody] CashMovementRequestDto dto, CancellationToken ct) => Success(await _shifts.AddCashMovementAsync(dto, ct), Messages.CashMovementRecorded);
 
+    [HttpGet("CashMovements/accounts")]
+    public async Task<IActionResult> CashMovementAccounts(CancellationToken ct) => Success(await _shifts.GetCashAccountsAsync(ct));
+
     [HttpGet("{id:guid}/CashMovements")]
     public async Task<IActionResult> CashMovements(Guid id, CancellationToken ct) => Success(await _shifts.ListCashMovementsAsync(id, ct));
 

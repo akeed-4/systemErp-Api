@@ -9,6 +9,8 @@ public class PosCashMovement : BaseEntity
     public string Reason { get; set; } = string.Empty;
     /// <summary>الحساب المقابل للصندوق (صرف: مصروف نثري افتراضياً؛ إيداع: البنك افتراضياً).</summary>
     public string CounterAccountCode { get; set; } = string.Empty;
+    /// <summary>حساب النقدية الذي خرج منه/دخل إليه المبلغ (الصندوق افتراضياً).</summary>
+    public string CashAccountCode { get; set; } = string.Empty;
     public Guid? JournalEntryId { get; set; }
     public string CreatedByName { get; set; } = string.Empty;
 }

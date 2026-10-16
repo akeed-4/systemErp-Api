@@ -98,12 +98,12 @@ public class PosShiftService : IPosShiftService
                 ? (r.Type == PosCashMovementType.PaidOut ? DefaultAccounts.PettyCashExpenses : DefaultAccounts.DefaultBank)
                 : r.CounterAccountCode.Trim();
             if (counter == DefaultAccounts.PettyCashExpenses) await DefaultAccounts.EnsureAsync(_db, token, counter);
-            var cash = await PosCashDrawer.CashAccountAsync(_db, token);
+            var cash = string.IsNullOrWhiteSpace(r.CashAccountCode) ? await PosCashDrawer.CashAccountAsync(_db, token) : r.CashAccountCode.Trim();
             if (counter == cash) throw new ValidationFailedException(Messages.CounterAccountCannotBeCash);
 
             var movement = new PosCashMovement
             {
-                ShiftId = shift.Id, Type = r.Type, Amount = amount, Reason = r.Reason.Trim(), CounterAccountCode = counter,
+                ShiftId = shift.Id, Type = r.Type, Amount = amount, Reason = r.Reason.Trim(), CounterAccountCode = counter, CashAccountCode = cash,
                 CreatedByName = _user.Name ?? string.Empty,
             };
             _db.Add(movement);
@@ -124,6 +124,17 @@ public class PosShiftService : IPosShiftService
             await _db.SaveChangesAsync(token);
             return Mapper.Map<PosCashMovementDto>(movement);
         }, ct);
+
+    public async Task<PosCashAccountsDto> GetCashAccountsAsync(CancellationToken ct = default)
+    {
+        // الحسابات الفرعية فقط: الحساب الأب لا يُرحَّل عليه
+        var accounts = await _db.Set<Account>().AsNoTracking()
+            .Where(a => !_db.Set<Account>().Any(c => c.ParentCode == a.Code))
+            .OrderBy(a => a.Code)
+            .Select(a => new PosAccountOptionDto { Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn })
+            .ToListAsync(ct);
+        return new PosCashAccountsDto { DefaultCashAccountCode = await PosCashDrawer.CashAccountAsync(_db, ct), Accounts = accounts };
+    }
 
     public async Task<List<PosCashMovementDto>> ListCashMovementsAsync(Guid shiftId, CancellationToken ct = default)
         => (await _db.Set<PosCashMovement>().AsNoTracking().Where(m => m.ShiftId == shiftId).OrderBy(m => m.CreatedAt).ToListAsync(ct))

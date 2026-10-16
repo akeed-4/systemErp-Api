@@ -5494,6 +5494,10 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("CashAccountCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("CounterAccountCode")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

@@ -8,6 +8,22 @@ public class CashMovementRequestDto
     public string Reason { get; set; } = string.Empty;
     /// <summary>فارغ = الافتراضي (صرف: 521 مصروفات نثرية، إيداع: حساب البنك).</summary>
     public string? CounterAccountCode { get; set; }
+    /// <summary>حساب النقدية؛ فارغ = حساب الصندوق المرتبط بطريقة الدفع النقدي.</summary>
+    public string? CashAccountCode { get; set; }
+}
+
+/// <summary>حسابات الحركة النقدية في نقاط البيع: الحسابات القابلة للترحيل وحساب الصندوق الافتراضي.</summary>
+public class PosCashAccountsDto
+{
+    public string DefaultCashAccountCode { get; set; } = string.Empty;
+    public List<PosAccountOptionDto> Accounts { get; set; } = new();
+}
+
+public class PosAccountOptionDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string NameEn { get; set; } = string.Empty;
 }
 
 public class PosCashMovementDto
@@ -19,6 +35,7 @@ public class PosCashMovementDto
     public decimal Amount { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string CounterAccountCode { get; set; } = string.Empty;
+    public string CashAccountCode { get; set; } = string.Empty;
     public Guid? JournalEntryId { get; set; }
     public string CreatedByName { get; set; } = string.Empty;
 }

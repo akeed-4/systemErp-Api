@@ -14,6 +14,8 @@ public interface IPosShiftService
     Task<PosShiftDto> CloseAsync(CloseShiftRequestDto request, CancellationToken ct = default);
     /// <summary>إيداع/صرف نقدي على درج الوردية المفتوحة للكاشير الحالي، مع قيده.</summary>
     Task<PosCashMovementDto> AddCashMovementAsync(CashMovementRequestDto request, CancellationToken ct = default);
+    /// <summary>الحسابات القابلة للترحيل وحساب الصندوق الافتراضي، لقوائم الحركة النقدية.</summary>
+    Task<PosCashAccountsDto> GetCashAccountsAsync(CancellationToken ct = default);
     Task<List<PosCashMovementDto>> ListCashMovementsAsync(Guid shiftId, CancellationToken ct = default);
     Task DeleteCashMovementAsync(Guid id, CancellationToken ct = default);
     /// <summary>تقرير X للوردية المفتوحة (shiftId = null) أو Z لوردية مغلقة.</summary>

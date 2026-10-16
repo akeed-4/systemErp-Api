@@ -72,6 +72,34 @@ public class PosCashDrawerTests : TestBase
     }
 
     [Fact]
+    public async Task Cash_movement_uses_the_chosen_cash_account_defaulting_to_the_cash_box()
+    {
+        var api = await NewTenantAsync();
+        var accounts = (await api.Get("/pos/shifts/CashMovements/accounts")).Data!;
+        Assert.Equal("1111", accounts["defaultCashAccountCode"].S());
+        var codes = accounts["accounts"]!.AsArray().Select(a => a!["code"].S()).ToList();
+        Assert.Contains("1111", codes);
+        Assert.DoesNotContain("111", codes); // الحساب الأب لا يُرحَّل عليه
+
+        await OpenShiftAsync(api);
+        var byDefault = await api.Post("/pos/shifts/CashMovements", new { type = "paid_in", amount = 100, reason = "فكّة" });
+        Assert.Equal(200, byDefault.Status);
+        Assert.Equal("1111", byDefault.Data!["cashAccountCode"].S());
+        Assert.Equal(100, await BalanceAsync(api, "1111"));
+
+        // صرف من حساب نقدية آخر يختاره الكاشير: يُقيَّد عليه لا على الصندوق
+        var chosen = await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 30, reason = "ضيافة", cashAccountCode = "1112" });
+        Assert.Equal(200, chosen.Status);
+        Assert.Equal("1112", chosen.Data!["cashAccountCode"].S());
+        Assert.Equal(100, await BalanceAsync(api, "1111"));
+        Assert.Equal(-130, await BalanceAsync(api, "1112")); // دائن 100 مقابل الإيداع الأول + 30 هذا الصرف
+        Assert.Equal(30, await BalanceAsync(api, "521"));
+
+        Assert.Equal(400, (await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 5, reason = "x", cashAccountCode = "521", counterAccountCode = "521" })).Status);
+        Assert.Equal(400, (await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 5, reason = "x", cashAccountCode = "999999" })).Status);
+    }
+
+    [Fact]
     public async Task Closing_with_denominations_posts_shortage_and_corrections_resync_the_entry()
     {
         var api = await NewTenantAsync();

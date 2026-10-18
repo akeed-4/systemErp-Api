@@ -1,4 +1,5 @@
 using ERP.Core.Contracts.Accounting;
+using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
 
@@ -6,11 +7,6 @@ namespace ERP.Service.Services.Accounting;
 
 public class CommercialContractService : CrudService<CommercialContract, CommercialContractDto, CreateCommercialContractDto, UpdateCommercialContractDto>, ICommercialContractService
 {
-    public static readonly string[] StandardStages =
-        { "draft", "legal_review", "approved_signed", "active_execution", "milestone_billing", "initial_inspection", "final_closed" };
-    public static readonly string[] NormalPurchasingStages =
-        { "normal_agreement", "normal_delivery", "normal_delivery_return", "normal_milestone_invoice" };
-
     private readonly INumberSequenceService _numbers;
     private readonly IInvoiceService _invoices;
 
@@ -22,7 +18,34 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     protected override string Label => Messages.LabelContract;
     protected override bool Transactional => true;
 
-    private static string[] StagesFor(string contractType) => contractType == "normal_purchasing" ? NormalPurchasingStages : StandardStages;
+    public async Task<ContractStageCatalogDto> GetStageCatalogAsync(CancellationToken ct = default)
+    {
+        var definitions = await Db.Set<ContractStageDefinition>()
+            .AsNoTracking()
+            .Where(stage => stage.IsActive)
+            .OrderBy(stage => stage.WorkflowType)
+            .ThenBy(stage => stage.Number)
+            .ToListAsync(ct);
+
+        return new(
+            definitions.Where(stage => stage.WorkflowType == "general").Select(ToStageDto).ToArray(),
+            definitions.Where(stage => stage.WorkflowType == "normal_purchasing").Select(ToStageDto).ToArray());
+    }
+
+    private async Task<string[]> StagesFor(string contractType, CancellationToken ct)
+    {
+        var workflowType = contractType == "normal_purchasing" ? "normal_purchasing" : "general";
+        return await Db.Set<ContractStageDefinition>()
+            .AsNoTracking()
+            .Where(stage => stage.IsActive && stage.WorkflowType == workflowType)
+            .OrderBy(stage => stage.Number)
+            .Select(stage => stage.Id)
+            .ToArrayAsync(ct);
+    }
+
+    private static ContractStageDefinitionDto ToStageDto(ContractStageDefinition stage)
+        => new(stage.Id, stage.WorkflowType, stage.Number, stage.NameAr, stage.NameEn, stage.DescAr, stage.DescEn,
+            stage.Icon, stage.BadgeColor, stage.HeaderColor);
 
     protected override IQueryable<CommercialContract> ApplySearch(IQueryable<CommercialContract> q, string t)
         => q.Where(c => c.ContractNumber.Contains(t) || c.Title.Contains(t) || c.PartyName.Contains(t));
@@ -55,7 +78,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     protected override async Task OnCreatingAsync(CommercialContract e, CreateCommercialContractDto d, CancellationToken ct)
     {
         e.ContractNumber = await _numbers.NextAsync("commercial_contract", "CON-", ct);
-        e.Stage = StagesFor(e.ContractType)[0];
+        var stages = await StagesFor(e.ContractType, ct);
+        if (stages.Length == 0) throw new InvalidOperationException($"No active contract stages configured for workflow '{e.ContractType}'.");
+        e.Stage = stages[0];
         e.Status = ContractStatus.Draft;
         e.TotalInvoiced = 0; e.TotalCollected = 0;
         Recalculate(e);
@@ -117,7 +142,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     {
         var c = await Includes(Db.Set<CommercialContract>()).FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException(Messages.ContractNotFound);
-        var stages = StagesFor(c.ContractType);
+        var stages = await StagesFor(c.ContractType, ct);
         var target = Array.IndexOf(stages, r.Stage);
         var current = Array.IndexOf(stages, c.Stage);
         if (target < 0) throw new ValidationFailedException(string.Format(Messages.InvalidStageForContractType, string.Join(" | ", stages)));
@@ -147,7 +172,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             var m = c.Milestones.FirstOrDefault(x => x.Id == milestoneId) ?? throw new NotFoundException(Messages.MilestoneNotFound);
 
             if (m.Status is ContractMilestoneStatus.Invoiced or ContractMilestoneStatus.Paid) throw new ConflictException(Messages.MilestoneAlreadyBilled);
-            var stages = StagesFor(c.ContractType);
+            var stages = await StagesFor(c.ContractType, token);
             var activeIndex = Array.IndexOf(stages, c.ContractType == "normal_purchasing" ? "normal_milestone_invoice" : "active_execution");
             if (Array.IndexOf(stages, c.Stage) < activeIndex)
                 throw new ConflictException(Messages.MilestonesBilledOnlyWhenActive);

@@ -178,6 +178,23 @@ public class ErpDbContext : DbContext
             e.HasData(PlatformModules.Catalog);
         });
 
+        modelBuilder.Entity<ContractStageDefinition>(e =>
+        {
+            e.ToTable("ContractStageDefinition");
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).HasMaxLength(64);
+            e.Property(s => s.WorkflowType).HasMaxLength(64).IsRequired();
+            e.Property(s => s.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(s => s.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(s => s.DescAr).HasMaxLength(1000).IsRequired();
+            e.Property(s => s.DescEn).HasMaxLength(1000).IsRequired();
+            e.Property(s => s.Icon).HasMaxLength(100).IsRequired();
+            e.Property(s => s.BadgeColor).HasMaxLength(300).IsRequired();
+            e.Property(s => s.HeaderColor).HasMaxLength(200).IsRequired();
+            e.HasIndex(s => new { s.WorkflowType, s.Number }).IsUnique();
+            e.HasData(ContractStageCatalogSeed.All);
+        });
+
         // القيم المعدّدة كنصوص مقروءة في قاعدة البيانات.
         foreach (var et in modelBuilder.Model.GetEntityTypes())
             foreach (var p in et.GetProperties())

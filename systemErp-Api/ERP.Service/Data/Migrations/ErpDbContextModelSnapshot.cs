@@ -6742,6 +6742,222 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("BankEntity");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.ContractStageDefinition", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("BadgeColor")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("DescAr")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("DescEn")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("HeaderColor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WorkflowType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkflowType", "Number")
+                        .IsUnique();
+
+                    b.ToTable("ContractStageDefinition", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = "draft",
+                            BadgeColor = "bg-slate-700 text-slate-200 border-slate-600",
+                            DescAr = "صياغة بنود التوريد والخدمات والاتفاقية والشروط الفنية",
+                            DescEn = "Drafting supply and service clauses, the agreement, and technical terms",
+                            HeaderColor = "from-slate-700 to-slate-800",
+                            Icon = "edit_document",
+                            IsActive = true,
+                            NameAr = "مسودة وصياغة العقد",
+                            NameEn = "Contract Drafting",
+                            Number = 1,
+                            WorkflowType = "general"
+                        },
+                        new
+                        {
+                            Id = "legal_review",
+                            BadgeColor = "bg-amber-950 text-amber-300 border-amber-800",
+                            DescAr = "تدقيق البنود، الشروط الجزائية، واعتماد الجدوى والمخاطر",
+                            DescEn = "Reviewing clauses, penalties, feasibility, and risks",
+                            HeaderColor = "from-amber-700 to-amber-800",
+                            Icon = "gavel",
+                            IsActive = true,
+                            NameAr = "المراجعة القانونية والمالية",
+                            NameEn = "Legal and Financial Review",
+                            Number = 2,
+                            WorkflowType = "general"
+                        },
+                        new
+                        {
+                            Id = "approved_signed",
+                            BadgeColor = "bg-blue-950 text-blue-300 border-blue-800",
+                            DescAr = "توقيع الأطراف، إيداع الضمانات الابتدائية، وتفعيل العقد",
+                            DescEn = "Signing by the parties, depositing initial guarantees, and activating the contract",
+                            HeaderColor = "from-blue-700 to-blue-800",
+                            Icon = "draw",
+                            IsActive = true,
+                            NameAr = "الاعتماد والتوقيع الرسمي",
+                            NameEn = "Approval and Signing",
+                            Number = 3,
+                            WorkflowType = "general"
+                        },
+                        new
+                        {
+                            Id = "active_execution",
+                            BadgeColor = "bg-emerald-950 text-emerald-300 border-emerald-800",
+                            DescAr = "إصدار أوامر العمل، تنفيذ التوريد، ومتابعة الجدول الزمني",
+                            DescEn = "Issuing work orders, fulfilling supply, and tracking the schedule",
+                            HeaderColor = "from-emerald-700 to-emerald-800",
+                            Icon = "engineering",
+                            IsActive = true,
+                            NameAr = "ساري وقيد التنفيذ",
+                            NameEn = "Active Execution",
+                            Number = 4,
+                            WorkflowType = "general"
+                        },
+                        new
+                        {
+                            Id = "milestone_billing",
+                            BadgeColor = "bg-purple-950 text-purple-300 border-purple-800",
+                            DescAr = "إصدار فواتير المستخلصات الضريبية والقيود المحاسبية الآلية",
+                            DescEn = "Issuing tax invoices for milestones and automated accounting entries",
+                            HeaderColor = "from-purple-700 to-purple-800",
+                            Icon = "receipt_long",
+                            IsActive = true,
+                            NameAr = "المستخلصات والفوترة ZATCA",
+                            NameEn = "Milestone Billing (ZATCA)",
+                            Number = 5,
+                            WorkflowType = "general"
+                        },
+                        new
+                        {
+                            Id = "initial_inspection",
+                            BadgeColor = "bg-cyan-950 text-cyan-300 border-cyan-800",
+                            DescAr = "فحص مخرجات العقد، اعتماد محاضر الاستلام وإغلاق الملاحظات",
+                            DescEn = "Inspecting contract deliverables, approving acceptance records, and closing remarks",
+                            HeaderColor = "from-cyan-700 to-cyan-800",
+                            Icon = "checklist",
+                            IsActive = true,
+                            NameAr = "الفحص والاستلام الأولي",
+                            NameEn = "Initial Inspection and Acceptance",
+                            Number = 6,
+                            WorkflowType = "general"
+                        },
+                        new
+                        {
+                            Id = "final_closed",
+                            BadgeColor = "bg-teal-950 text-teal-300 border-teal-800",
+                            DescAr = "الإفراج عن ضمان حسن التنفيذ، التسوية الختامية والمخالصة",
+                            DescEn = "Releasing the performance bond, final settlement, and clearance",
+                            HeaderColor = "from-teal-700 to-teal-800",
+                            Icon = "verified",
+                            IsActive = true,
+                            NameAr = "الإغلاق والتسليم النهائي",
+                            NameEn = "Final Handover and Closure",
+                            Number = 7,
+                            WorkflowType = "general"
+                        },
+                        new
+                        {
+                            Id = "normal_agreement",
+                            BadgeColor = "bg-indigo-950 text-indigo-300 border-indigo-800",
+                            DescAr = "صياغة اتفاقية الشراء وتفاصيل البنود والكميات والأطراف",
+                            DescEn = "Drafting the purchase agreement, line details, quantities, and parties",
+                            HeaderColor = "from-indigo-700 to-indigo-800",
+                            Icon = "description",
+                            IsActive = true,
+                            NameAr = "اتفاقية شراء وتفاصيل الاتفاقية",
+                            NameEn = "Purchase Agreement Details",
+                            Number = 1,
+                            WorkflowType = "normal_purchasing"
+                        },
+                        new
+                        {
+                            Id = "normal_delivery",
+                            BadgeColor = "bg-blue-950 text-blue-300 border-blue-800",
+                            DescAr = "استلام المواد والخدمات وإصدار محضر وبيان التسليم",
+                            DescEn = "Receiving goods and services and issuing a delivery receipt",
+                            HeaderColor = "from-blue-700 to-blue-800",
+                            Icon = "local_shipping",
+                            IsActive = true,
+                            NameAr = "التسليم (بيان الاستلام)",
+                            NameEn = "Delivery (Receipt Note)",
+                            Number = 2,
+                            WorkflowType = "normal_purchasing"
+                        },
+                        new
+                        {
+                            Id = "normal_delivery_return",
+                            BadgeColor = "bg-amber-950 text-amber-300 border-amber-800",
+                            DescAr = "تسجيل المرتجعات والإشعارات المدينة المرتبطة ببيان التسليم",
+                            DescEn = "Recording returns and debit notes linked to the delivery receipt",
+                            HeaderColor = "from-amber-700 to-amber-800",
+                            Icon = "assignment_return",
+                            IsActive = true,
+                            NameAr = "مرتجع من بيان تسليم",
+                            NameEn = "Delivery Return",
+                            Number = 3,
+                            WorkflowType = "normal_purchasing"
+                        },
+                        new
+                        {
+                            Id = "normal_milestone_invoice",
+                            BadgeColor = "bg-emerald-950 text-emerald-300 border-emerald-800",
+                            DescAr = "إصدار الفاتورة المرحلية وترحيل القيود المحاسبية التلقائية",
+                            DescEn = "Issuing the milestone tax invoice and posting automated accounting entries",
+                            HeaderColor = "from-emerald-700 to-emerald-800",
+                            Icon = "receipt_long",
+                            IsActive = true,
+                            NameAr = "فاتورة مرحلية (ضريبية ZATCA)",
+                            NameEn = "Milestone Invoice (ZATCA Tax Invoice)",
+                            Number = 4,
+                            WorkflowType = "normal_purchasing"
+                        });
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.CostingPolicy", b =>
                 {
                     b.Property<Guid>("Id")

@@ -1,6 +1,7 @@
 using ERP.Api.Infrastructure;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting;
+using ERP.Core.DTOs.Accounting.Contracts;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
@@ -11,6 +12,10 @@ public class CommercialContractsController : CrudController<CommercialContractDt
 {
     private readonly ICommercialContractService _contracts;
     public CommercialContractsController(ICommercialContractService s) : base(s) => _contracts = s;
+
+    [HttpGet("stages")]
+    public async Task<IActionResult> GetStages(CancellationToken ct)
+        => Success(await _contracts.GetStageCatalogAsync(ct));
 
     [HttpPost("{id:guid}/AdvanceStage")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceStageRequestDto dto, CancellationToken ct)

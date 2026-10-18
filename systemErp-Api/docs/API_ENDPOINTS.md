@@ -172,6 +172,7 @@
 | Method | Path |
 |---|---|
 | GET | `/commercialcontracts` |
+| GET | `/commercialcontracts/stages` |
 | POST | `/commercialcontracts` |
 | DELETE | `/commercialcontracts/{id}` |
 | GET | `/commercialcontracts/{id}` |

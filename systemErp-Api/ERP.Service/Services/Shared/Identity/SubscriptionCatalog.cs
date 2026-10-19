@@ -58,8 +58,9 @@ public static class SubscriptionCatalog
         => string.Join('\n', (lines ?? Array.Empty<string>()).Select(l => l?.Trim() ?? string.Empty).Where(l => l.Length > 0));
 
     /// <summary>الباقة من قاعدة البيانات. <paramref name="forSale"/>: يرفض الباقة المعطّلة (تسجيل/دفع/ترقية ذاتية).</summary>
-    public static async Task<SubscriptionPlanDto> GetAsync(ErpDbContext db, SubscriptionPlanId id, bool forSale, CancellationToken ct = default)
+    public static async Task<SubscriptionPlanDto> GetAsync(ErpDbContext db, string id, bool forSale, CancellationToken ct = default)
     {
+        id = SubscriptionPlanId.Normalize(id);
         var plan = await db.Set<PlanDefinition>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new ValidationFailedException("الباقة غير موجودة.");
         if (forSale && !plan.IsActive) throw new ValidationFailedException("هذه الباقة غير متاحة حالياً.");

@@ -13,7 +13,7 @@ public class CompanyRegistrationRequestDto
     public string Email { get; set; } = string.Empty;
     public string Industry { get; set; } = string.Empty;
 
-    public SubscriptionPlanId PlanId { get; set; } = SubscriptionPlanId.Professional;
+    public string PlanId { get; set; } = SubscriptionPlanId.Professional;
     public SubscriptionBillingCycle BillingCycle { get; set; } = SubscriptionBillingCycle.Yearly;
     /// <summary>mada | credit_card | bank_transfer | apple_pay</summary>
     public string PaymentMethod { get; set; } = "mada";

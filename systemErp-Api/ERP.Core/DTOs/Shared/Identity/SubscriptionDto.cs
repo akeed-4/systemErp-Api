@@ -6,7 +6,7 @@ public partial class SubscriptionDto
     public Guid TenantId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
-    public SubscriptionPlanId PlanType { get; set; }
+    public string PlanType { get; set; } = string.Empty;
     public string PlanNameAr { get; set; } = string.Empty;
     public string PlanNameEn { get; set; } = string.Empty;
     public SubscriptionBillingCycle BillingCycle { get; set; }

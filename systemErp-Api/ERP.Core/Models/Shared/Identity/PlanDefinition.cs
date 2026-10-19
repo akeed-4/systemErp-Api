@@ -6,7 +6,7 @@ namespace ERP.Core.Models.Shared;
 /// </summary>
 public class PlanDefinition
 {
-    public SubscriptionPlanId Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     /// <summary>وصف تسويقي يظهر في بطاقة الباقة عند التسجيل.</summary>

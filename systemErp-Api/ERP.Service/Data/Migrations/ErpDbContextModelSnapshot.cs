@@ -7849,7 +7849,7 @@ namespace ERP.Service.Data.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "Starter",
+                            Id = "starter",
                             BadgeAr = "للمنشآت الناشئة",
                             BadgeEn = "For Startups",
                             Branches = 1,
@@ -7871,7 +7871,7 @@ namespace ERP.Service.Data.Migrations
                         },
                         new
                         {
-                            Id = "Professional",
+                            Id = "professional",
                             BadgeAr = "الأكثر طلباً ⭐",
                             BadgeEn = "Most Popular ⭐",
                             Branches = 3,
@@ -7892,7 +7892,7 @@ namespace ERP.Service.Data.Migrations
                         },
                         new
                         {
-                            Id = "Enterprise",
+                            Id = "enterprise",
                             BadgeAr = "للمجموعات الكبرى",
                             BadgeEn = "Corporate & Holding",
                             DescriptionAr = "حل متكامل ومخصص للمجموعات التجارية والشركات الكبرى وفروعها مع بنية تحتية مخصصة وربط API مفتوح.",

@@ -35,7 +35,7 @@ public class OnlinePayment : BaseEntity
     public Guid? ReferenceId { get; set; }
     public string? ReferenceNumber { get; set; }
     /// <summary>للاشتراك: الباقة والدورة المطلوبتان (تُفعَّلان عند الدفع).</summary>
-    public SubscriptionPlanId? PlanId { get; set; }
+    public string? PlanId { get; set; }
     public SubscriptionBillingCycle? BillingCycle { get; set; }
 
     public string? CustomerName { get; set; }

@@ -14,5 +14,9 @@ public interface IPlatformSubscriptionService
     Task<SubscriptionDto> SetModulesAsync(Guid tenantId, PlatformSetModulesRequestDto request, CancellationToken ct = default);
     Task<SubscriptionDto> SetStatusAsync(Guid tenantId, PlatformSetStatusRequestDto request, CancellationToken ct = default);
     Task<List<PlatformPlanDto>> ListPlansAsync(CancellationToken ct = default);
-    Task<PlatformPlanDto> UpdatePlanAsync(SubscriptionPlanId id, UpdatePlanRequestDto request, CancellationToken ct = default);
+    /// <summary>باقة جديدة برمز فريد؛ تُعرض للبيع فور إنشائها إن كانت فعّالة.</summary>
+    Task<PlatformPlanDto> CreatePlanAsync(CreatePlanRequestDto request, CancellationToken ct = default);
+    Task<PlatformPlanDto> UpdatePlanAsync(string id, UpdatePlanRequestDto request, CancellationToken ct = default);
+    /// <summary>حذف باقة لم يُشترك فيها قط ولا عليها مدفوعات؛ غير ذلك تُعطَّل بدل الحذف.</summary>
+    Task DeletePlanAsync(string id, CancellationToken ct = default);
 }

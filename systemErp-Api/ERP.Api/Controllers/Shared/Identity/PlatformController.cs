@@ -53,7 +53,18 @@ public class PlatformController : ErpControllerBase
     [HttpGet("plans"), RequirePlatformAdmin]
     public async Task<IActionResult> Plans(CancellationToken ct) => Success(await _platform.ListPlansAsync(ct));
 
+    [HttpPost("plans"), RequirePlatformAdmin]
+    public async Task<IActionResult> CreatePlan([FromBody] CreatePlanRequestDto request, CancellationToken ct)
+        => Success(await _platform.CreatePlanAsync(request, ct), "تم إنشاء الباقة");
+
     [HttpPut("plans/{id}"), RequirePlatformAdmin]
-    public async Task<IActionResult> UpdatePlan(SubscriptionPlanId id, [FromBody] UpdatePlanRequestDto request, CancellationToken ct)
+    public async Task<IActionResult> UpdatePlan(string id, [FromBody] UpdatePlanRequestDto request, CancellationToken ct)
         => Success(await _platform.UpdatePlanAsync(id, request, ct), "تم حفظ الباقة");
+
+    [HttpDelete("plans/{id}"), RequirePlatformAdmin]
+    public async Task<IActionResult> DeletePlan(string id, CancellationToken ct)
+    {
+        await _platform.DeletePlanAsync(id, ct);
+        return Success("تم حذف الباقة");
+    }
 }

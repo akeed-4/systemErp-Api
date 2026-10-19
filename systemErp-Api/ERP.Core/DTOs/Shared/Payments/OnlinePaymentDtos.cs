@@ -54,7 +54,7 @@ public class CreatePosPaymentDto
 
 public class CreateSubscriptionCheckoutDto
 {
-    public SubscriptionPlanId PlanId { get; set; }
+    public string PlanId { get; set; } = string.Empty;
     public SubscriptionBillingCycle BillingCycle { get; set; }
 }
 

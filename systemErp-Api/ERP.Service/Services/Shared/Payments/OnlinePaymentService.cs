@@ -64,7 +64,7 @@ public class OnlinePaymentService : IOnlinePaymentService
 
     public async Task<OnlinePaymentDto> CreateSubscriptionCheckoutAsync(CreateSubscriptionCheckoutDto r, CancellationToken ct = default)
     {
-        if (!Enum.IsDefined(r.PlanId) || !Enum.IsDefined(r.BillingCycle)) throw new ValidationFailedException(Messages.InvalidPlanOrBillingCycle);
+        if (!SubscriptionPlanId.IsValid(r.PlanId) || !Enum.IsDefined(r.BillingCycle)) throw new ValidationFailedException(Messages.InvalidPlanOrBillingCycle);
         var plan = await SubscriptionCatalog.GetAsync(_db, r.PlanId, forSale: true, ct);
         var price = r.BillingCycle == SubscriptionBillingCycle.Yearly ? plan.PriceYearly : plan.PriceMonthly;
         var total = DocumentPricing.Round(price * (1 + SubscriptionCatalog.VatRate));
@@ -235,7 +235,7 @@ public class OnlinePaymentService : IOnlinePaymentService
                 var trialEnd = open.Where(s => s.Status == SubscriptionStatus.Trial && s.ExpiryDate > DateTime.UtcNow)
                     .Select(s => (DateTime?)s.ExpiryDate).Max();
                 foreach (var s in open) s.Status = SubscriptionStatus.Expired;
-                var sub = SubscriptionCatalog.NewSubscription(await SubscriptionCatalog.GetAsync(_db, p.PlanId!.Value, forSale: false, ct), p.BillingCycle!.Value, "Paymob");
+                var sub = SubscriptionCatalog.NewSubscription(await SubscriptionCatalog.GetAsync(_db, p.PlanId!, forSale: false, ct), p.BillingCycle!.Value, "Paymob");
                 sub.TransactionReference = p.ProviderTransactionId?.ToString() ?? p.SpecialReference;
                 if (trialEnd.HasValue) sub.ExpiryDate += trialEnd.Value - sub.StartDate;
                 _db.Add(sub);

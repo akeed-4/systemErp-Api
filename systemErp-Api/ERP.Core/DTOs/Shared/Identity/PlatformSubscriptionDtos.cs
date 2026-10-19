@@ -23,7 +23,7 @@ public class PlatformAccessDto
 
 public class PlatformPlanDto
 {
-    public SubscriptionPlanId Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public string DescriptionAr { get; set; } = string.Empty;
@@ -44,6 +44,14 @@ public class PlatformPlanDto
     public int SortOrder { get; set; }
     /// <summary>عدد المنشآت المشتركة حالياً (اشتراك فعّال أو تجريبي).</summary>
     public int Subscribers { get; set; }
+}
+
+/// <summary>باقة جديدة: رمزها الفريد (حروف إنجليزية صغيرة وأرقام و- و_) وترتيب عرضها، مع حقول التعديل نفسها.</summary>
+public class CreatePlanRequestDto : UpdatePlanRequestDto
+{
+    public string Id { get; set; } = string.Empty;
+    /// <summary>null = بعد آخر باقة.</summary>
+    public int? SortOrder { get; set; }
 }
 
 public class UpdatePlanRequestDto
@@ -104,7 +112,7 @@ public class PlatformSummaryDto
 
 public class PlatformChangePlanRequestDto
 {
-    public SubscriptionPlanId PlanId { get; set; }
+    public string PlanId { get; set; } = string.Empty;
     public SubscriptionBillingCycle BillingCycle { get; set; } = SubscriptionBillingCycle.Monthly;
     public string PaymentMethod { get; set; } = "manual";
     /// <summary>null = وحدات الباقة الافتراضية.</summary>

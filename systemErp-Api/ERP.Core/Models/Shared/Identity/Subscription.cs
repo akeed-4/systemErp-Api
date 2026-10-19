@@ -3,7 +3,7 @@ namespace ERP.Core.Models.Shared;
 
 public class Subscription : BaseEntity
 {
-    public SubscriptionPlanId PlanType { get; set; }
+    public string PlanType { get; set; } = string.Empty;
     public string PlanNameAr { get; set; } = string.Empty;
     public string PlanNameEn { get; set; } = string.Empty;
     public SubscriptionBillingCycle BillingCycle { get; set; }

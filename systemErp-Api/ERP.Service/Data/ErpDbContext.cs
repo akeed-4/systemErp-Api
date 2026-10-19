@@ -172,7 +172,7 @@ public class ErpDbContext : DbContext
         }
 
         // كتالوج الباقات على مستوى المنصة (ليس تابعاً لمنشأة): بلا مرشّح منشأة، ويُزرع بالقيم الافتراضية.
-        // يُسجَّل قبل تحويل القيم المعدّدة إلى نصوص ليتّسق معرّف الباقة مع Subscription.PlanType.
+        // معرّف الباقة رمز نصي (SubscriptionPlanId) يطابق Subscription.PlanType و OnlinePayment.PlanId.
         modelBuilder.Entity<PlanDefinition>(e =>
         {
             e.HasKey(p => p.Id);

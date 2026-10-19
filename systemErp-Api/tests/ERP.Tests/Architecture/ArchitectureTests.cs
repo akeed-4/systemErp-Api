@@ -137,7 +137,7 @@ public class ArchitectureTests
             ["AuthService.cs"] = 6,
             ["CompanyService.cs"] = 1,
             ["EmployeePortalService.cs"] = 1,
-            ["PlatformSubscriptionService.cs"] = 6,
+            ["PlatformSubscriptionService.cs"] = 8, // + حذف الباقة: لا اشتراك ولا دفع عليها في أي منشأة
             ["UserService.cs"] = 1,
             ["OnlinePaymentService.cs"] = 4,
         };

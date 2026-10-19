@@ -113,7 +113,8 @@ public class PlatformSubscriptionTests : TestBase
     {
         var admin = await PlatformAdminAsync();
         var plans = (await admin.Get("/platform/plans")).Data!.AsArray();
-        Assert.Equal(3, plans.Count);
+        // الباقات الثلاث الافتراضية مزروعة (قد توجد باقات أنشأتها اختبارات أخرى على قاعدة البيانات نفسها)
+        Assert.Subset(plans.Select(p => p!["id"].S()).ToHashSet(), new HashSet<string> { "starter", "professional", "enterprise" });
         var enterprise = plans.First(p => p!["id"].S() == "enterprise")!;
 
         // تعديل السعر والحدود يظهر في القائمة العامة
@@ -173,6 +174,73 @@ public class PlatformSubscriptionTests : TestBase
         Assert.Equal(400, negative.Status);
     }
 
+
+    private static object NewPlan(string id, decimal monthly = 299, bool active = true) => new
+    {
+        id, nameAr = "باقة اختبار", nameEn = "Test Plan", priceMonthly = monthly, priceYearly = monthly * 10,
+        maxUsers = 4, branches = 2, zatcaPhase2Enabled = false, modules = new[] { "accounting" }, isActive = active,
+        featuresAr = new[] { "ميزة" }, featuresEn = new[] { "Feature" },
+    };
+
+    [Fact]
+    public async Task Platform_admin_creates_a_plan_that_is_sold_at_its_price_and_deletes_it_while_unused()
+    {
+        var admin = await PlatformAdminAsync();
+        var id = "gold-" + Guid.NewGuid().ToString("N")[..8];
+
+        var created = await admin.Post("/platform/plans", NewPlan(id.ToUpperInvariant())); // الرمز يُحفظ بأحرف صغيرة
+        Assert.Equal(200, created.Status);
+        Assert.Equal(id, created.Data!["id"].S());
+        Assert.Equal(299, created.Data["priceMonthly"].D());
+        Assert.Equal(0, created.Data["subscribers"].D());
+        Assert.Equal(409, (await admin.Post("/platform/plans", NewPlan(id))).Status); // رمز مكرر
+
+        // تظهر في شاشة التسجيل وتُباع بسعرها
+        var pub = (await NewHttpClient().SendAsync(HttpMethod.Get, "/subscriptions/plans", anonymous: true)).Data!.AsArray();
+        Assert.Contains(pub, p => p!["id"].S() == id);
+
+        // تُعدَّل وتُحذف ما دامت بلا مشتركين
+        Assert.Equal(200, (await admin.Put($"/platform/plans/{id}", NewPlan(id, monthly: 350))).Status);
+        Assert.Equal(350, (await admin.Get("/platform/plans")).Data!.AsArray().Single(p => p!["id"].S() == id)!["priceMonthly"].D());
+        Assert.Equal(200, (await admin.Delete($"/platform/plans/{id}")).Status);
+        Assert.DoesNotContain((await admin.Get("/platform/plans")).Data!.AsArray(), p => p!["id"].S() == id);
+        Assert.Equal(404, (await admin.Delete($"/platform/plans/{id}")).Status);
+    }
+
+    [Fact]
+    public async Task A_plan_in_use_cannot_be_deleted_and_is_disabled_instead()
+    {
+        var admin = await PlatformAdminAsync();
+        var id = "used-" + Guid.NewGuid().ToString("N")[..8];
+        Assert.Equal(200, (await admin.Post("/platform/plans", NewPlan(id))).Status);
+
+        // منشأة اشتركت فيها: يبقى سجلها، فالحذف مرفوض والتعطيل متاح
+        var tenant = await NewTenantAsync();
+        Assert.Equal(200, (await admin.Post($"/platform/tenants/{tenant.TenantId}/subscriptions/change-plan",
+            new { planId = id, billingCycle = "monthly", paymentMethod = "manual" })).Status);
+        Assert.Equal(409, (await admin.Delete($"/platform/plans/{id}")).Status);
+        Assert.Equal(200, (await admin.Put($"/platform/plans/{id}", NewPlan(id, active: false))).Status);
+        Assert.Contains((await admin.Get("/platform/plans")).Data!.AsArray(), p => p!["id"].S() == id && !p["isActive"]!.GetValue<bool>());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("x")]
+    [InlineData("has space")]
+    [InlineData("باقة")]
+    public async Task A_new_plan_needs_a_valid_code(string id)
+    {
+        var admin = await PlatformAdminAsync();
+        Assert.Equal(400, (await admin.Post("/platform/plans", NewPlan(id))).Status);
+    }
+
+    [Fact]
+    public async Task Only_the_platform_admin_creates_or_deletes_plans()
+    {
+        var owner = await NewTenantAsync();
+        Assert.Equal(403, (await owner.Post("/platform/plans", NewPlan("hack-plan"))).Status);
+        Assert.Equal(403, (await owner.Delete("/platform/plans/starter")).Status);
+    }
     [Fact]
     public async Task New_subscription_carries_the_plan_modules_and_admin_can_restrict_them()
     {

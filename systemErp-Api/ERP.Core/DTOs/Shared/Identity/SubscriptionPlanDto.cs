@@ -2,7 +2,7 @@ namespace ERP.Core.DTOs.Shared;
 
 public class SubscriptionPlanDto
 {
-    public SubscriptionPlanId Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public string DescriptionAr { get; set; } = string.Empty;

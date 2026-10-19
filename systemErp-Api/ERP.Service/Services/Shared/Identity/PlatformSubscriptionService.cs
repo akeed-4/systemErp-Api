@@ -118,7 +118,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
 
     public async Task<SubscriptionDto> ChangePlanAsync(Guid tenantId, PlatformChangePlanRequestDto request, CancellationToken ct = default)
     {
-        if (!Enum.IsDefined(request.PlanId) || !Enum.IsDefined(request.BillingCycle))
+        if (!SubscriptionPlanId.IsValid(request.PlanId) || !Enum.IsDefined(request.BillingCycle))
             throw new ValidationFailedException("الباقة أو دورة الفوترة غير صالحة.");
         await ScopeToTenantAsync(tenantId, ct);
         // مدير المنصة قد يمنح باقة معطّلة للبيع.
@@ -189,7 +189,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         FeaturesAr = SubscriptionCatalog.SplitLines(p.FeaturesAr), FeaturesEn = SubscriptionCatalog.SplitLines(p.FeaturesEn),
     };
 
-    private async Task<Dictionary<SubscriptionPlanId, int>> SubscriberCountsAsync(CancellationToken ct)
+    private async Task<Dictionary<string, int>> SubscriberCountsAsync(CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         return (await LatestPerTenantAsync(ct)).Values
@@ -200,21 +200,66 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
     public async Task<List<PlatformPlanDto>> ListPlansAsync(CancellationToken ct = default)
     {
         var counts = await SubscriberCountsAsync(ct);
-        return (await _db.Set<PlanDefinition>().AsNoTracking().OrderBy(p => p.SortOrder).ToListAsync(ct))
+        return (await _db.Set<PlanDefinition>().AsNoTracking().OrderBy(p => p.SortOrder).ThenBy(p => p.Id).ToListAsync(ct))
             .Select(p => ToPlanDto(p, counts.GetValueOrDefault(p.Id))).ToList();
     }
 
-    public async Task<PlatformPlanDto> UpdatePlanAsync(SubscriptionPlanId id, UpdatePlanRequestDto r, CancellationToken ct = default)
+    public async Task<PlatformPlanDto> CreatePlanAsync(CreatePlanRequestDto r, CancellationToken ct = default)
+    {
+        var id = SubscriptionPlanId.Normalize(r.Id);
+        if (!SubscriptionPlanId.IsValid(id))
+            throw new ValidationFailedException("رمز الباقة مطلوب: من 2 إلى 64 حرفاً إنجليزياً صغيراً أو رقماً أو - أو _ (مثل gold أو pos-plus).");
+        if (await _db.Set<PlanDefinition>().AnyAsync(p => p.Id == id, ct))
+            throw new ConflictException($"يوجد باقة بالرمز «{id}».");
+
+        var plan = new PlanDefinition
+        {
+            Id = id,
+            SortOrder = r.SortOrder ?? (await _db.Set<PlanDefinition>().MaxAsync(p => (int?)p.SortOrder, ct) ?? 0) + 1,
+        };
+        await ApplyAsync(plan, r, isNew: true, ct);
+        _db.Add(plan);
+        await _db.SaveChangesAsync(ct);
+        return ToPlanDto(plan, 0);
+    }
+
+    public async Task<PlatformPlanDto> UpdatePlanAsync(string id, UpdatePlanRequestDto r, CancellationToken ct = default)
+    {
+        id = SubscriptionPlanId.Normalize(id);
+        var plan = await _db.Set<PlanDefinition>().FirstOrDefaultAsync(p => p.Id == id, ct)
+            ?? throw new NotFoundException("الباقة غير موجودة.");
+        await ApplyAsync(plan, r, isNew: false, ct);
+        await _db.SaveChangesAsync(ct);
+        return ToPlanDto(plan, (await SubscriberCountsAsync(ct)).GetValueOrDefault(id));
+    }
+
+    /// <summary>
+    /// حذف باقة لم تُستخدم: لا اشتراك عليها (حالي أو سابق، في أي منشأة) ولا عملية دفع، وليست آخر باقة فعّالة.
+    /// الباقة المستخدمة تبقى لسجلات مشتركيها وتُعطَّل بدل الحذف.
+    /// </summary>
+    public async Task DeletePlanAsync(string id, CancellationToken ct = default)
+    {
+        id = SubscriptionPlanId.Normalize(id);
+        var plan = await _db.Set<PlanDefinition>().FirstOrDefaultAsync(p => p.Id == id, ct)
+            ?? throw new NotFoundException("الباقة غير موجودة.");
+        if (await _db.Set<Subscription>().IgnoreQueryFilters().AnyAsync(s => s.PlanType == id, ct)
+            || await _db.Set<OnlinePayment>().IgnoreQueryFilters().AnyAsync(p => p.PlanId == id, ct))
+            throw new ConflictException("الباقة مستخدمة في اشتراكات أو مدفوعات فلا تُحذف؛ عطّلها لإيقاف بيعها.");
+        if (plan.IsActive && !await _db.Set<PlanDefinition>().AnyAsync(p => p.IsActive && p.Id != id, ct))
+            throw new ValidationFailedException("لا يمكن حذف آخر باقة فعّالة.");
+        _db.Remove(plan);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>تحقق حقول الباقة وتطبيقها (الإنشاء والتعديل). في التعديل لا تُمسح التفاصيل التسويقية غير المرسلة.</summary>
+    private async Task ApplyAsync(PlanDefinition plan, UpdatePlanRequestDto r, bool isNew, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(r.NameAr) || string.IsNullOrWhiteSpace(r.NameEn))
             throw new ValidationFailedException("اسم الباقة بالعربية والإنجليزية مطلوب.");
         if (r.PriceMonthly < 0 || r.PriceYearly < 0) throw new ValidationFailedException("السعر لا يمكن أن يكون سالباً.");
         if (r.MaxUsers is <= 0 || r.MaxInvoicesPerMonth is <= 0 || r.Branches is <= 0)
             throw new ValidationFailedException("حدود الباقة يجب أن تكون أكبر من صفر (اتركها فارغة لغير المحدود).");
-
-        var plan = await _db.Set<PlanDefinition>().FirstOrDefaultAsync(p => p.Id == id, ct)
-            ?? throw new NotFoundException("الباقة غير موجودة.");
-        if (!r.IsActive && plan.IsActive && await _db.Set<PlanDefinition>().CountAsync(p => p.IsActive && p.Id != id, ct) == 0)
+        if (!isNew && !r.IsActive && plan.IsActive && !await _db.Set<PlanDefinition>().AnyAsync(p => p.IsActive && p.Id != plan.Id, ct))
             throw new ValidationFailedException("لا يمكن تعطيل آخر باقة فعّالة.");
 
         plan.NameAr = r.NameAr.Trim();
@@ -237,12 +282,10 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         {
             // باقة مُبرَزة واحدة على الأكثر
             if (r.IsPopular.Value)
-                foreach (var other in await _db.Set<PlanDefinition>().Where(p => p.IsPopular && p.Id != id).ToListAsync(ct))
+                foreach (var other in await _db.Set<PlanDefinition>().Where(p => p.IsPopular && p.Id != plan.Id).ToListAsync(ct))
                     other.IsPopular = false;
             plan.IsPopular = r.IsPopular.Value;
         }
         plan.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        return ToPlanDto(plan, (await SubscriberCountsAsync(ct)).GetValueOrDefault(id));
     }
 }

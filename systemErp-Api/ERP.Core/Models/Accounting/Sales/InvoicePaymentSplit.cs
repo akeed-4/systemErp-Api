@@ -10,5 +10,5 @@ public class InvoicePaymentSplit : BaseEntity
     public decimal Amount { get; set; }
     public string? Reference { get; set; }
 
-    public virtual Invoice Invoice { get; set; } = null!;
+    public virtual InvoiceBase Invoice { get; set; } = null!;
 }

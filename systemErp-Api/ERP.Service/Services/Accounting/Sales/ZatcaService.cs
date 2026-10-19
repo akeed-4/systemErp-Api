@@ -163,8 +163,9 @@ public class ZatcaService : IZatcaService
 
     public async Task<ZatcaSubmitResultDto> SubmitInvoiceAsync(Guid invoiceId, CancellationToken ct = default)
     {
-        var invoice = await _db.Set<Invoice>().Include(i => i.Items).FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
+        var invoice = await _db.Set<InvoiceBase>().FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
             ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        await _db.Entry(invoice).Collection(nameof(InvoiceBase<InvoiceItem>.Items)).LoadAsync(ct); // بنود جدول المستند (مبيعات/مرتجع/معارض)
         if (invoice.Status != "posted") throw new ConflictException(Messages.OnlyPostedInvoicesSubmitted);
         if (invoice.Kind is InvoiceKind.Purchase or InvoiceKind.PurchaseReturn) throw new ConflictException(Messages.PurchaseInvoicesNotSubmittedToZatca);
         // فاتورة قبلتها الهيئة لا تُرسل مرتين
@@ -239,7 +240,7 @@ public class ZatcaService : IZatcaService
 
     // ---------------- داخلي ----------------
 
-    private static ZatcaSubmitResultDto Result(Invoice invoice, bool success, string message) => new()
+    private static ZatcaSubmitResultDto Result(InvoiceBase invoice, bool success, string message) => new()
     {
         Success = success, Status = invoice.ZatcaStatus, QrCode = invoice.ZatcaQrCode,
         Message = string.IsNullOrEmpty(invoice.ZatcaValidationMessages) || success && invoice.ZatcaStatus != ZatcaSubmissionStatus.Warning
@@ -248,7 +249,7 @@ public class ZatcaService : IZatcaService
     };
 
     /// <summary>تعذّر الإرسال قبل حكم الهيئة: يُحفظ السبب على الفاتورة وتبقى حالتها كما هي.</summary>
-    private async Task<ZatcaSubmitResultDto> FailAsync(Invoice invoice, string reason, CancellationToken ct)
+    private async Task<ZatcaSubmitResultDto> FailAsync(InvoiceBase invoice, string reason, CancellationToken ct)
     {
         invoice.ZatcaValidationMessages = reason;
         await _db.SaveChangesAsync(ct);
@@ -274,7 +275,7 @@ public class ZatcaService : IZatcaService
     private static ZatcaParty Seller(Tenant t)
         => new(t.NameAr, t.VatNumber, t.CrNumber, t.ZatcaConfig.Street, t.ZatcaConfig.BuildingNumber, t.ZatcaConfig.District, t.City, t.ZatcaConfig.PostalCode, "SA");
 
-    private async Task<ZatcaDocument> DocumentAsync(Invoice invoice, Tenant tenant, long counter, string previousHash, CancellationToken ct)
+    private async Task<ZatcaDocument> DocumentAsync(InvoiceBase invoice, Tenant tenant, long counter, string previousHash, CancellationToken ct)
     {
         var typeCode = invoice.InvoiceType == InvoiceType.DebitNote ? ZatcaInvoiceXml.DebitNote
             : invoice.Kind == InvoiceKind.SalesReturn || invoice.InvoiceType == InvoiceType.CreditNote ? ZatcaInvoiceXml.CreditNote
@@ -286,11 +287,11 @@ public class ZatcaService : IZatcaService
             InvoiceType.Simplified => true,
             InvoiceType.TaxInvoice => false,
             _ => invoice.OriginalInvoiceId.HasValue
-                ? await _db.Set<Invoice>().AsNoTracking().Where(o => o.Id == invoice.OriginalInvoiceId).Select(o => (InvoiceType?)o.InvoiceType).FirstOrDefaultAsync(ct) != InvoiceType.TaxInvoice
+                ? await _db.Set<InvoiceBase>().AsNoTracking().Where(o => o.Id == invoice.OriginalInvoiceId).Select(o => (InvoiceType?)o.InvoiceType).FirstOrDefaultAsync(ct) != InvoiceType.TaxInvoice
                 : string.IsNullOrWhiteSpace(invoice.PartyVatNumber),
         };
 
-        var lines = invoice.Items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id).Select(i =>
+        var lines = invoice.Lines.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id).Select(i =>
         {
             var reason = VatExemptionReasons.Find(i.VatExemptionReasonCode);
             return new ZatcaLine(i.ItemName, i.Quantity, i.UnitPrice,

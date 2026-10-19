@@ -182,8 +182,8 @@ public class BooksIntegrityTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api, stock: 10, cost: 40); // افتتاحي بقيد مقابل الأرصدة الافتتاحية
-        Assert.Equal(201, (await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 3, unitPrice = 100, vatRate = 15 } } })).Status);
-        Assert.Equal(201, (await api.Post("/invoices", new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 5, unitPrice = 46, vatRate = 15 } } })).Status);
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 3, unitPrice = 100, vatRate = 15 } } })).Status);
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 5, unitPrice = 46, vatRate = 15 } } })).Status);
 
         var rec = (await api.Get("/reports/InventoryReconciliation")).Data!;
         var items = rec["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;

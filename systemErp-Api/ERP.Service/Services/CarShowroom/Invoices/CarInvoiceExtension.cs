@@ -142,7 +142,7 @@ public class CarInvoiceExtension : IInvoiceExtension
             PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
             PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
             RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
-            Notes = InvoiceService.ReturnNotes(original, r), Status = "posted",
+            Notes = TradeInvoiceEngine.ReturnNotes(original, r), Status = "posted",
         };
         if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
         var pool = original.Items.Where(i => i.ItemId == Guid.Empty).ToList();
@@ -173,7 +173,7 @@ public class CarInvoiceExtension : IInvoiceExtension
                 RevenueAccountCode = src.RevenueAccountCode, CostCenterId = src.CostCenterId,
             });
         }
-        if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) InvoiceService.MirrorOriginalSplits(dto, original);
+        if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) TradeInvoiceEngine.MirrorOriginalSplits(dto, original);
 
         var created = await create(dto, ct);
 

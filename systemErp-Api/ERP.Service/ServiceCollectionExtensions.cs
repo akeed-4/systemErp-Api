@@ -52,8 +52,12 @@ public static class ServiceCollectionExtensions
             foreach (var iface in impl.GetInterfaces().Where(i => !i.IsGenericType && i.Namespace?.StartsWith(contractsRoot) == true))
             {
                 if (iface == typeof(ITenantContext) || iface == typeof(ICurrentUser)) continue;
+                // العقود المشتركة لمستندات التجارة تُحقن بأنواعها (ISalesInvoiceService...) لا بالعقد العام
+                if (iface == typeof(ERP.Core.Contracts.Accounting.ITradeDocumentService) || iface == typeof(ERP.Core.Contracts.Accounting.ITradeReturnService)) continue;
                 services.AddScoped(iface, impl);
             }
+        // محرك الفواتير المشترك بين خدمات جداول الفواتير (التجارة العامة والمعارض)
+        services.AddScoped<ERP.Service.Services.Accounting.TradeInvoiceEngine>();
         return services;
     }
 }

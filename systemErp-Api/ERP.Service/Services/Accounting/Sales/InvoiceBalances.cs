@@ -20,7 +20,7 @@ internal static class InvoiceBalances
         DateTime? before = null)
     {
         if (invoiceIds.Count == 0) return new();
-        var documents = await db.Set<Invoice>().AsNoTracking()
+        var documents = await db.Set<InvoiceBase>().AsNoTracking()
             .Where(i => invoiceIds.Contains(i.Id) || (i.OriginalInvoiceId != null && invoiceIds.Contains(i.OriginalInvoiceId.Value) && i.Status == "posted"
                 && (before == null || i.IssueDate < before)))
             .Select(i => new { i.Id, i.OriginalInvoiceId, i.PaymentMethod, i.IsSplitPayment, i.GrandTotal }).ToListAsync(ct);

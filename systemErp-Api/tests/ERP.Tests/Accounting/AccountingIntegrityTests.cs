@@ -36,19 +36,19 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(200, locked.Status);
         Assert.StartsWith(lockDate.ToString("yyyy-MM-dd"), locked.Data!["booksLockedThrough"].S());
 
-        var rejected = await api.Post("/invoices", ServiceSale(inside));
+        var rejected = await api.PostInvoice(ServiceSale(inside));
         Assert.Equal(409, rejected.Status);
         Assert.Contains("locked period", rejected.Body!["message"].S());
-        Assert.Equal(409, (await api.Post("/invoices", ServiceSale(lockDate))).Status); // تاريخ الإقفال نفسه مقفل
+        Assert.Equal(409, (await api.PostInvoice(ServiceSale(lockDate))).Status); // تاريخ الإقفال نفسه مقفل
         Assert.Equal(409, (await api.Post("/journalentries", new { date = inside, description = "x",
             lines = new[] { new { accountCode = "1111", debit = 10m, credit = 0m }, new { accountCode = "31", debit = 0m, credit = 10m } } })).Status);
         Assert.Equal(409, (await api.Post("/stockmovements/adjust", new { itemId = product, type = "adjustment_in", quantity = 1, unitCost = 40, date = inside })).Status);
         Assert.Equal(0, await BalanceAsync(api, "1111"));
 
         // بعد تاريخ الإقفال يُرحَّل، وفتح الفترة يعيد السماح
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(lockDate.AddDays(1)))).Status);
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(lockDate.AddDays(1)))).Status);
         Assert.Equal(200, (await api.Put("/fiscalperiods/lock", new { lockedThrough = (DateTime?)null })).Status);
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(inside))).Status);
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(inside))).Status);
         Assert.Contains("PERIOD_LOCK_CHANGED", (await api.Get("/auditlogs?entityName=Tenant")).Data!["items"]!.AsArray().Select(x => x!["action"].S()));
     }
 
@@ -80,10 +80,10 @@ public class AccountingIntegrityTests : TestBase
     {
         var api = await NewTenantAsync();
         var lastYear = DateTime.UtcNow.Year - 1;
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(lastYear, 3, 10), price: 1000))).Status); // إيراد 1000
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(new DateTime(lastYear, 3, 10), price: 1000))).Status); // إيراد 1000
         Assert.Equal(200, (await api.Post("/journalentries", new { date = new DateTime(lastYear, 6, 1), description = "إيجار",
             lines = new[] { new { accountCode = "521", debit = 300m, credit = 0m }, new { accountCode = "1111", debit = 0m, credit = 300m } } })).Status);
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(price: 50))).Status); // السنة الحالية لا تدخل الإقفال
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(price: 50))).Status); // السنة الحالية لا تدخل الإقفال
 
         Assert.Equal(400, (await api.Post("/fiscalperiods/close-year", new { year = DateTime.UtcNow.Year })).Status); // لم تنتهِ
         var closed = await api.Post("/fiscalperiods/close-year", new { year = lastYear });
@@ -96,7 +96,7 @@ public class AccountingIntegrityTests : TestBase
 
         // السنة مقفلة: لا إقفال ثانٍ، لا ترحيل فيها، ولا فتح لها دون عكس قيد الإقفال
         Assert.Equal(409, (await api.Post("/fiscalperiods/close-year", new { year = lastYear })).Status);
-        Assert.Equal(409, (await api.Post("/invoices", ServiceSale(new DateTime(lastYear, 12, 31)))).Status);
+        Assert.Equal(409, (await api.PostInvoice(ServiceSale(new DateTime(lastYear, 12, 31)))).Status);
         Assert.Equal(409, (await api.Put("/fiscalperiods/lock", new { lockedThrough = (DateTime?)null })).Status);
         var status = (await api.Get("/fiscalperiods")).Data!;
         Assert.Equal(lastYear, Assert.Single(status["closedYears"]!.AsArray())!.GetValue<int>());
@@ -108,9 +108,9 @@ public class AccountingIntegrityTests : TestBase
     {
         var api = await NewTenantAsync();
         var (older, lastYear) = (DateTime.UtcNow.Year - 2, DateTime.UtcNow.Year - 1);
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(older, 5, 1), price: 200))).Status);
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(lastYear, 3, 10), price: 1000))).Status);
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(price: 50))).Status);
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(new DateTime(older, 5, 1), price: 200))).Status);
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(new DateTime(lastYear, 3, 10), price: 1000))).Status);
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(price: 50))).Status);
         var olderClosing = (await api.Post("/fiscalperiods/close-year", new { year = older })).Data!["journalEntryId"].S();
         var closing = (await api.Post("/fiscalperiods/close-year", new { year = lastYear })).Data!["journalEntryId"].S();
 
@@ -126,7 +126,7 @@ public class AccountingIntegrityTests : TestBase
         var status = (await api.Get("/fiscalperiods")).Data!;
         Assert.Equal(older, Assert.Single(status["closedYears"]!.AsArray())!.GetValue<int>());
         Assert.StartsWith($"{older}-12-31", status["booksLockedThrough"].S());
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(new DateTime(lastYear, 12, 31)))).Status); // السنة مفتوحة للتصحيح
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(new DateTime(lastYear, 12, 31)))).Status); // السنة مفتوحة للتصحيح
 
         // قائمة دخل السنة المُعاد فتحها: إيرادها مرة واحدة (عكس قيد الإقفال لا يُحسب إيراداً ثانياً) + التصحيح
         var reopened = (await api.Get($"/financialstatements/IncomeStatement?from={lastYear}-01-01&to={lastYear}-12-31")).Data!;
@@ -153,7 +153,7 @@ public class AccountingIntegrityTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api, stock: 0);
-        var purchase = await api.Post("/invoices", new
+        var purchase = await api.PostInvoice(new
         {
             kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash",
             items = new object[]
@@ -177,11 +177,11 @@ public class AccountingIntegrityTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api, stock: 0);
         object Purchase(decimal price) => new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 10, unitPrice = price, vatRate = 15 } } };
-        Assert.Equal(201, (await api.Post("/invoices", Purchase(40))).Status);
-        var second = await api.Post("/invoices", Purchase(50)); // المتوسط 45
+        Assert.Equal(201, (await api.PostInvoice(Purchase(40))).Status);
+        var second = await api.PostInvoice(Purchase(50)); // المتوسط 45
         Assert.Equal(201, second.Status);
 
-        var ret = await api.Post("/invoices/returns", new { originalInvoiceId = second.Data!["id"].S(), returnReason = "تالف", lines = new[] { new { itemId = product, quantity = 4 } } });
+        var ret = await api.PostReturn(new { originalInvoiceId = second.Data!["id"].S(), returnReason = "تالف", lines = new[] { new { itemId = product, quantity = 4 } } });
         Assert.Equal(200, ret.Status);
         Assert.Equal(200, ret.Data!["subtotal"].D()); // يُسترد بسعر الشراء 50
 
@@ -198,7 +198,7 @@ public class AccountingIntegrityTests : TestBase
     public async Task Foreign_currency_invoice_is_posted_in_the_base_currency_at_its_exchange_rate()
     {
         var api = await NewTenantAsync();
-        var usd = await api.Post("/invoices", ServiceSale(price: 100, currency: "USD", rate: 3.75m)); // 115 دولار
+        var usd = await api.PostInvoice(ServiceSale(price: 100, currency: "USD", rate: 3.75m)); // 115 دولار
         Assert.Equal(201, usd.Status);
         Assert.Equal(115, usd.Data!["grandTotal"].D()); // المستند بعملته
         Assert.Equal(431.25m, await BalanceAsync(api, "1111"));
@@ -206,7 +206,7 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(56.25m, await BalanceAsync(api, "213"));
 
         // العملة الأساسية لا تُحوَّل ولو أُرسل سعر صرف
-        var sar = await api.Post("/invoices", ServiceSale(price: 100, currency: "SAR", rate: 4));
+        var sar = await api.PostInvoice(ServiceSale(price: 100, currency: "SAR", rate: 4));
         Assert.Equal(1, sar.Data!["exchangeRate"].D());
         Assert.Equal(475, await BalanceAsync(api, "411"));
 
@@ -227,18 +227,18 @@ public class AccountingIntegrityTests : TestBase
 
         object Sale(string? code) => new { kind = "sales", invoiceType = "simplified", status = "posted", paymentMethod = "bank_transfer", paymentMethodCode = code,
             items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } } };
-        var chosen = await api.Post("/invoices", Sale("TR-BOX"));
+        var chosen = await api.PostInvoice(Sale("TR-BOX"));
         Assert.Equal(201, chosen.Status);
         Assert.Equal("TR-BOX", chosen.Data!["paymentMethodCode"].S());
         Assert.Equal(115, await BalanceAsync(api, "1111"));
         Assert.Equal(0, await BalanceAsync(api, "1112"));
 
         // بلا رمز: السلوك السابق (حساب النوع الافتراضي)
-        Assert.Equal(201, (await api.Post("/invoices", Sale(null))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Sale(null))).Status);
         Assert.Equal(115, await BalanceAsync(api, "1112"));
 
         // الدفع المتعدد: كل جزء على حساب طريقته
-        var split = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", status = "posted", paymentMethod = "cash", isSplitPayment = true,
+        var split = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", status = "posted", paymentMethod = "cash", isSplitPayment = true,
             paymentSplits = new object[] { new { method = "bank_transfer", paymentMethodCode = "TR-BOX", amount = 15 }, new { method = "bank_transfer", amount = 100 } },
             items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } } });
         Assert.Equal(201, split.Status);
@@ -251,7 +251,7 @@ public class AccountingIntegrityTests : TestBase
     {
         var api = await NewTenantAsync();
         // 02:00 بتوقيت المملكة يوم 5 يناير = 23:00 بالتوقيت العالمي يوم 4 يناير
-        var invoice = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", issueDate = "2026-01-05", issueTime = "02:00:00",
+        var invoice = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", issueDate = "2026-01-05", issueTime = "02:00:00",
             items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } } });
         Assert.Equal(201, invoice.Status);
         var tlv = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(invoice.Data!["zatcaQrCode"].S()));
@@ -284,19 +284,19 @@ public class AccountingIntegrityTests : TestBase
         object Line(string name, decimal price, decimal rate, string? category = null, string? reason = null) => new { itemName = name, quantity = 1, unitPrice = price, vatRate = rate, vatCategory = category, vatExemptionReasonCode = reason };
         object Sale(params object[] items) => new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items };
 
-        Assert.Equal(400, (await api.Post("/invoices", Sale(Line("معفى بضريبة", 30, 15, "exempt")))).Status); // غير الأساسي لا يحمل ضريبة
-        Assert.Equal(400, (await api.Post("/invoices", Sale(Line("معفى بلا سبب", 30, 0, "exempt")))).Status); // التصنيف غير الأساسي يحمل سببه
-        Assert.Equal(400, (await api.Post("/invoices", Sale(Line("سبب لا يطابق", 30, 0, "exempt", "VATEX-SA-32")))).Status);
-        Assert.Equal(400, (await api.Post("/invoices", Sale(Line("رمز مجهول", 30, 0, "exempt", "VATEX-XX")))).Status);
-        var sale = await api.Post("/invoices", Sale(Line("أساسي", 100, 15), Line("صفري محلي", 50, 0, "zero_rated", "VATEX-SA-35"), Line("تصدير", 70, 0, reason: "VATEX-SA-32"),
+        Assert.Equal(400, (await api.PostInvoice(Sale(Line("معفى بضريبة", 30, 15, "exempt")))).Status); // غير الأساسي لا يحمل ضريبة
+        Assert.Equal(400, (await api.PostInvoice(Sale(Line("معفى بلا سبب", 30, 0, "exempt")))).Status); // التصنيف غير الأساسي يحمل سببه
+        Assert.Equal(400, (await api.PostInvoice(Sale(Line("سبب لا يطابق", 30, 0, "exempt", "VATEX-SA-32")))).Status);
+        Assert.Equal(400, (await api.PostInvoice(Sale(Line("رمز مجهول", 30, 0, "exempt", "VATEX-XX")))).Status);
+        var sale = await api.PostInvoice(Sale(Line("أساسي", 100, 15), Line("صفري محلي", 50, 0, "zero_rated", "VATEX-SA-35"), Line("تصدير", 70, 0, reason: "VATEX-SA-32"),
             Line("معفى", 30, 0, "exempt", "VATEX-SA-29"), Line("خارج النطاق", 20, 0, "out_of_scope", "VATEX-SA-OOS")));
         Assert.Equal(201, sale.Status);
         Assert.Equal(new[] { "standard", "zero_rated", "zero_rated", "exempt", "out_of_scope" }, sale.Data!["items"]!.AsArray().Select(i => i!["vatCategory"].S()));
         Assert.Equal("VATEX-SA-32", sale.Data["items"]![2]!["vatExemptionReasonCode"].S());
-        Assert.Equal(201, (await api.Post("/invoices", new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { Line("إيجار", 200, 15) } })).Status);
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { Line("إيجار", 200, 15) } })).Status);
         // مرتجع كامل لفاتورة أساسية أخرى يُطرح من الإقرار
-        var other = await api.Post("/invoices", Sale(Line("أساسي", 400, 15)));
-        Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = other.Data!["id"].S(), returnReason = "x" })).Status);
+        var other = await api.PostInvoice(Sale(Line("أساسي", 400, 15)));
+        Assert.Equal(200, (await api.PostReturn(new { originalInvoiceId = other.Data!["id"].S(), returnReason = "x" })).Status);
 
         var from = DateTime.UtcNow.Date.AddDays(-1).ToString("yyyy-MM-dd"); var to = DateTime.UtcNow.Date.AddDays(1).ToString("yyyy-MM-dd");
         var vat = (await api.Get($"/reports/VatReturn?from={from}&to={to}")).Data!;
@@ -311,9 +311,9 @@ public class AccountingIntegrityTests : TestBase
     public async Task Accounting_reports_are_scoped_to_the_requested_module()
     {
         var api = await NewTenantAsync();
-        Assert.Equal(201, (await api.Post("/invoices", ServiceSale(price: 100))).Status);
+        Assert.Equal(201, (await api.PostInvoice(ServiceSale(price: 100))).Status);
         var (supplier, _) = await SeedSupplierAsync(api);
-        var purchase = await api.Post("/invoices", new
+        var purchase = await api.PostInvoice(new
         {
             kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, status = "posted",
             inventoryAccountCode = "1142",
@@ -326,7 +326,7 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(201, purchase.Status);
 
         var vehicle = (await api.Get("/vehicles")).Data!["items"]!.AsArray()[0]!;
-        var sale = await api.Post("/invoices", new
+        var sale = await api.PostInvoice(new
         {
             kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",
             vehicleLines = new[] { new { vehicleId = vehicle["id"].S(), unitPrice = 1500m, discount = 0m, vatMode = "standard_15" } },
@@ -390,7 +390,7 @@ public class AccountingIntegrityTests : TestBase
         object Sale() => new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } };
 
         // ست عمليات بيع متزامنة على مخزون 3: الناجح منها لا يتجاوز الرصيد، وكل ناجح ظهر أثره كاملاً
-        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => api.Post("/invoices", Sale())));
+        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => api.PostInvoice(Sale())));
         var sold = results.Count(r => r.Status == 201);
         Assert.InRange(sold, 1, 3);
         Assert.All(results.Where(r => r.Status != 201), r => Assert.Equal(409, r.Status));

@@ -5,7 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-/// <summary>فواتير البيع والشراء ومرتجعاتهما. الصلاحية تُحدَّد حسب نوع المستند (sales / sales-returns / purchases).</summary>
+/// <summary>
+/// فواتير معارض السيارات (جدول Invoice) بيعاً وشراءً ومرتجعاتهما، وأسباب الإعفاء الضريبي المشتركة. الصلاحية حسب نوع المستند
+/// (sales / sales-returns / purchases). فواتير التجارة العامة لها مساراتها: /sales-invoices، /purchase-invoices، /sales-returns، /purchase-returns.
+/// </summary>
 [Route("api/v1/invoices")]
 public class InvoicesController : ErpControllerBase
 {

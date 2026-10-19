@@ -14,7 +14,7 @@ public class AuditTrailInterceptor : SaveChangesInterceptor
     // المستندات والبيانات الأساسية والإعدادات. القيود والسندات وحركات المخزون تُسجَّل من خدماتها (الآلي منها كثير وليس فعل مستخدم).
     private static readonly HashSet<Type> Audited = new()
     {
-        typeof(Invoice), typeof(Quotation), typeof(CommercialOrder), typeof(DeliveryNote), typeof(CommercialContract), typeof(Agreement),
+        typeof(Invoice), typeof(SalesInvoice), typeof(PurchaseInvoice), typeof(SalesReturn), typeof(PurchaseReturn), typeof(Quotation), typeof(CommercialOrder), typeof(DeliveryNote), typeof(CommercialContract), typeof(Agreement),
         typeof(Product), typeof(ProductCategory), typeof(UnitOfMeasure), typeof(Customer), typeof(Supplier), typeof(BankEntity),
         typeof(Currency), typeof(PaymentMethodItem), typeof(Warehouse), typeof(Account), typeof(CostCenter), typeof(FixedAsset), typeof(Employee),
         typeof(User), typeof(UserRolePermission), typeof(Tenant), typeof(ZatcaConfig), typeof(CostingPolicy), typeof(PosInvoiceSettings),

@@ -138,7 +138,7 @@ public class AccountingReportService : IAccountingReportService
 
     public async Task<FinancialStatsDto> GetFinancialStatsAsync(CancellationToken ct = default)
     {
-        var invoices = await _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted").GroupBy(i => i.Kind)
+        var invoices = await _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Status == "posted").GroupBy(i => i.Kind)
             .Select(g => new { Kind = g.Key, Subtotal = g.Sum(i => i.Subtotal * i.ExchangeRate), Cost = g.Sum(i => i.TotalCost) }).ToListAsync(ct); // بالعملة الأساسية
         decimal Subtotal(InvoiceKind kind) => invoices.Where(i => i.Kind == kind).Sum(i => i.Subtotal);
         decimal Cost(InvoiceKind kind) => invoices.Where(i => i.Kind == kind).Sum(i => i.Cost);
@@ -258,8 +258,8 @@ public class AccountingReportService : IAccountingReportService
         var start = from.Date; var end = to.Date.AddDays(1);
         var moduleScope = ReportModuleScope.Normalize(module);
         var exportCodes = VatExemptionReasons.ExportCodes;
-        var lines = await (from item in _db.Set<InvoiceItem>().AsNoTracking()
-                           join i in _db.Set<Invoice>().AsNoTracking() on item.InvoiceId equals i.Id
+        var lines = await (from item in _db.Set<InvoiceItemBase>().AsNoTracking()
+                           join i in _db.Set<InvoiceBase>().AsNoTracking() on item.InvoiceId equals i.Id
                            where i.Status == "posted" && i.IssueDate >= start && i.IssueDate < end
                                  && (moduleScope == null || moduleScope.Contains(i.Module))
                            select new

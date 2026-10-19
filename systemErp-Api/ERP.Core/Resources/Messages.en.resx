@@ -333,6 +333,8 @@
   <data name="InvalidCostingMethod" xml:space="preserve"><value>Invalid costing method.</value></data>
   <data name="InvalidCredentials" xml:space="preserve"><value>Invalid sign-in credentials</value></data>
   <data name="InvalidDocumentType" xml:space="preserve"><value>Invalid document type.</value></data>
+  <data name="ShowroomInvoicesOnly" xml:space="preserve"><value>This endpoint is for car showroom invoices only (vehicle lines or a showroom document). General trade invoices use the sales, purchase and return endpoints.</value></data>
+  <data name="ShowroomInvoiceNotTradeDocument" xml:space="preserve"><value>A car showroom invoice (vehicle lines, a showroom document, or a return of a showroom invoice) is created from the showroom screens, not as a general trade invoice.</value></data>
   <data name="InvalidFieldValue" xml:space="preserve"><value>Invalid value in field {0}</value></data>
   <data name="InvalidIntegrationId" xml:space="preserve"><value>Invalid integration ID: {0}</value></data>
   <data name="InvalidInvoiceType" xml:space="preserve"><value>Invalid invoice type.</value></data>

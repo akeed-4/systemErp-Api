@@ -40,8 +40,8 @@ public class TenantIsolationTests : TestBase
         var a = await NewTenantAsync(); var b = await NewTenantAsync();
         var pa = await SeedProductAsync(a); var pb = await SeedProductAsync(b);
         object Inv(Guid p) => new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = p, quantity = 1, unitPrice = 100, vatRate = 15 } } };
-        Assert.Equal("SINV-000001", (await a.Post("/invoices", Inv(pa))).Data!["invoiceNumber"].S());
-        Assert.Equal("SINV-000001", (await b.Post("/invoices", Inv(pb))).Data!["invoiceNumber"].S());
-        Assert.Equal("SINV-000002", (await a.Post("/invoices", Inv(pa))).Data!["invoiceNumber"].S());
+        Assert.Equal("SINV-000001", (await a.PostInvoice(Inv(pa))).Data!["invoiceNumber"].S());
+        Assert.Equal("SINV-000001", (await b.PostInvoice(Inv(pb))).Data!["invoiceNumber"].S());
+        Assert.Equal("SINV-000002", (await a.PostInvoice(Inv(pa))).Data!["invoiceNumber"].S());
     }
 }

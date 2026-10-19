@@ -10,15 +10,15 @@ public class PosSaleReturnService : IPosSaleReturnService
 {
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
-    private readonly IInvoiceService _invoices;
+    private readonly ISalesReturnService _returns;
     private readonly INumberSequenceService _numbers;
     private readonly ITransactionRunner _tx;
     private readonly IAccountingPostingService _posting;
 
-    public PosSaleReturnService(ErpDbContext db, ICurrentUser user, IInvoiceService invoices, INumberSequenceService numbers, ITransactionRunner tx,
+    public PosSaleReturnService(ErpDbContext db, ICurrentUser user, ISalesReturnService returns, INumberSequenceService numbers, ITransactionRunner tx,
         IAccountingPostingService posting)
     {
-        _db = db; _user = user; _invoices = invoices; _numbers = numbers; _tx = tx; _posting = posting;
+        _db = db; _user = user; _returns = returns; _numbers = numbers; _tx = tx; _posting = posting;
     }
 
     public Task<PosSalesReturnDto> CreateAsync(CreatePosReturnRequestDto r, CancellationToken ct = default)
@@ -60,7 +60,7 @@ public class PosSaleReturnService : IPosSaleReturnService
             if (r.RefundMethod == PosRefundMethod.StoreCredit && tx.CustomerId == null)
                 throw new ValidationFailedException(Messages.StoreCreditRequiresCustomer);
 
-            var creditNote = await _invoices.CreateReturnAsync(new CreateReturnInvoiceRequestDto
+            var creditNote = await _returns.CreateFromInvoiceAsync(new CreateReturnInvoiceRequestDto
             {
                 OriginalInvoiceId = tx.InvoiceId.Value, ReturnReason = r.ReturnReason, RefundPaymentMethod = refundMethod,
                 Lines = wanted.Select(l => new ReturnLineDto { ItemId = l.ItemId, Quantity = l.ReturnQuantity }).ToList(),

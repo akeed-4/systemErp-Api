@@ -7,7 +7,7 @@ using ERP.Service.Services.Shared;
 namespace ERP.Service.Services.POS;
 
 /// <summary>
-/// بيع نقطة البيع. لا يبني قيوداً ولا حركات مخزون بنفسه: يحوّل السلة إلى فاتورة مبيعات عبر IInvoiceService
+/// بيع نقطة البيع. لا يبني قيوداً ولا حركات مخزون بنفسه: يحوّل السلة إلى فاتورة مبيعات عبر ISalesInvoiceService
 /// (مخزون + قيد + QR)، ثم يحفظ ما هو خاص بالكاشير (الوردية، الكوبون، الولاء، الباقي) — كل ذلك في معاملة واحدة.
 /// </summary>
 public class PosSaleService : IPosSaleService
@@ -16,13 +16,14 @@ public class PosSaleService : IPosSaleService
 
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
-    private readonly IInvoiceService _invoices;
+    private readonly ISalesInvoiceService _invoices;
+    private readonly ISalesReturnService _returns;
     private readonly ITransactionRunner _tx;
     private readonly IAccountingPostingService _posting;
 
-    public PosSaleService(ErpDbContext db, ICurrentUser user, IInvoiceService invoices, ITransactionRunner tx, IAccountingPostingService posting)
+    public PosSaleService(ErpDbContext db, ICurrentUser user, ISalesInvoiceService invoices, ISalesReturnService returns, ITransactionRunner tx, IAccountingPostingService posting)
     {
-        _db = db; _user = user; _invoices = invoices; _tx = tx; _posting = posting;
+        _db = db; _user = user; _invoices = invoices; _returns = returns; _tx = tx; _posting = posting;
     }
 
     public Task<PosTransactionDto> CheckoutAsync(CheckoutRequestDto r, CancellationToken ct = default)
@@ -330,7 +331,7 @@ public class PosSaleService : IPosSaleService
             t.Status = PosTransactionStatus.Voided;
             await _db.SaveChangesAsync(token);
             if (t.InvoiceId.HasValue)
-                await _invoices.CreateReturnAsync(new CreateReturnInvoiceRequestDto
+                await _returns.CreateFromInvoiceAsync(new CreateReturnInvoiceRequestDto
                 {
                     OriginalInvoiceId = t.InvoiceId.Value, ReturnReason = string.Format(Messages.PosVoidReturnReason, t.InvoiceNumber),
                 }, token);

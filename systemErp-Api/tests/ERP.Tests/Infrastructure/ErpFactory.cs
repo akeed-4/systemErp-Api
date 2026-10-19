@@ -133,6 +133,63 @@ public class Client
     public Task<Res> Put(string path, object body) => SendAsync(HttpMethod.Put, path, body);
     public Task<Res> Delete(string path) => SendAsync(HttpMethod.Delete, path);
 
+    // ---------------- مسارات الفواتير: لكل جدول مساره ----------------
+    private static readonly string[] InvoiceRoutes = { "/sales-invoices", "/purchase-invoices", "/sales-returns", "/purchase-returns", "/invoices" };
+    /// <summary>مسار كل مستند أُنشئ أو عُثر عليه (المعرّفات فريدة عبر الجداول).</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> InvoiceRouteOf = new();
+
+    /// <summary>مسار مستند تجارة عامة بنوعه (sales / purchase / sales_return / purchase_return).</summary>
+    public static string TradePath(string? kind) => kind switch
+    {
+        "purchase" => "/purchase-invoices", "sales_return" => "/sales-returns", "purchase_return" => "/purchase-returns", _ => "/sales-invoices",
+    };
+
+    /// <summary>مسار طلب فاتورة: أسطر السيارات ودفعاتها لفواتير المعارض (/invoices)، وغيرها بمسار نوعها.</summary>
+    private static string RouteFor(object body)
+    {
+        var node = System.Text.Json.JsonSerializer.SerializeToNode(body, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        bool Has(string name) => node?[name] is JsonArray { Count: > 0 };
+        return Has("vehicleLines") || Has("vehicleBatches") ? "/invoices" : TradePath(node?["kind"]?.GetValue<string>());
+    }
+
+    private Res Remember(Res r, string route)
+    {
+        if (r.Data?["id"]?.GetValue<string>() is { } id) InvoiceRouteOf[id] = route;
+        return r;
+    }
+
+    /// <summary>ينشئ فاتورة على مسار جدولها.</summary>
+    public async Task<Res> PostInvoice(object body)
+    {
+        var route = RouteFor(body);
+        return Remember(await Post(route, body), route);
+    }
+
+    public Task<Res> PreviewInvoiceJournal(object body) => Post(RouteFor(body) + "/PreviewJournal", body);
+
+    /// <summary>مرتجع من فاتورة أصلية: على مسار مرتجع جدول أصلها.</summary>
+    public async Task<Res> PostReturn(object body)
+    {
+        var node = System.Text.Json.JsonSerializer.SerializeToNode(body, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var original = await InvoicePath(node?["originalInvoiceId"]?.ToString() ?? string.Empty);
+        var route = original.StartsWith("/sales-invoices/") ? "/sales-returns" : original.StartsWith("/purchase-invoices/") ? "/purchase-returns" : "/invoices";
+        return Remember(await Post(route == "/invoices" ? "/invoices/returns" : route + "/from-invoice", body), route);
+    }
+
+    /// <summary>مسار مستند موجود بمعرّفه في جدوله (+ اللاحقة مثل /post)؛ غير الموجود يبقى على /invoices فيُرجع 404.</summary>
+    public async Task<string> InvoicePath(string id, string suffix = "")
+    {
+        if (!InvoiceRouteOf.TryGetValue(id, out var route))
+        {
+            route = "/invoices";
+            foreach (var candidate in InvoiceRoutes)
+                if ((await Get($"{candidate}/{id}")).Status != 404) { route = candidate; InvoiceRouteOf[id] = candidate; break; }
+        }
+        return $"{route}/{id}{suffix}";
+    }
+
+    public Task<string> InvoicePath(Guid id, string suffix = "") => InvoicePath(id.ToString(), suffix);
+
     public async Task<Res> SendAsync(HttpMethod method, string path, object? body = null, bool anonymous = false)
     {
         var req = new HttpRequestMessage(method, "/api/v1" + path);

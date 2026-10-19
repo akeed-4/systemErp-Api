@@ -22,9 +22,17 @@ public class ErpDbContext : DbContext
     /// <summary>تُقرأ من نفس نسخة الـ DbContext لكل طلب حتى يُعاد تقييم مرشّح الاستعلام ولا يتجمّد على أول منشأة.</summary>
     public Guid CurrentTenantId => _tenant.TenantId ?? Guid.Empty;
 
+    /// <summary>
+    /// جذور الوراثة بنمط TPC (جدول فعلي مستقل لكل نوع مشتق، ولا جدول للجذر): المفتاح ومرشّح المنشأة على الجذر وحده،
+    /// والاستعلام عن الجذر يجمع جداوله كلها. الفواتير: Invoice (المعارض) وجداول التجارة العامة الأربعة، وكذلك بنودها.
+    /// </summary>
+    private static readonly Type[] TpcRoots = { typeof(InvoiceBase), typeof(InvoiceItemBase) };
+
     private static readonly Type[] EntityTypes = typeof(BaseEntity).Assembly.GetTypes()
         .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(BaseEntity).IsAssignableFrom(t))
         .ToArray();
+
+    private static bool IsTpcDerived(Type t) => TpcRoots.Any(root => root != t && root.IsAssignableFrom(t));
 
     // (تابع، مفتاح أجنبي، أساسي) - علاقات بدون خاصية ملاحة تحتاج قيداً صريحاً في قاعدة البيانات.
     private static readonly (Type Dependent, string Fk, Type Principal)[] References =
@@ -50,7 +58,7 @@ public class ErpDbContext : DbContext
         (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.FixedAssetId), typeof(FixedAsset)),
         (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.CostCenterId), typeof(CostCenter)),
         (typeof(FixedAssetDepreciation), nameof(FixedAssetDepreciation.WarehouseId), typeof(Warehouse)),
-        (typeof(VoucherAllocation), nameof(VoucherAllocation.InvoiceId), typeof(Invoice)),
+        // VoucherAllocation.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه؛ يُتحقق منه برمجياً.
         (typeof(PayrollLine), nameof(PayrollLine.EmployeeId), typeof(Employee)),
         (typeof(Employee), nameof(Employee.CostCenterId), typeof(CostCenter)),
         (typeof(Employee), nameof(Employee.DepartmentId), typeof(Department)),
@@ -69,7 +77,7 @@ public class ErpDbContext : DbContext
         (typeof(StockTransfer), nameof(StockTransfer.FromWarehouseId), typeof(Warehouse)),
         (typeof(StockTransfer), nameof(StockTransfer.ToWarehouseId), typeof(Warehouse)),
         (typeof(StockTransferItem), nameof(StockTransferItem.ItemId), typeof(Product)),
-        (typeof(Invoice), nameof(Invoice.WarehouseId), typeof(Warehouse)),
+        (typeof(InvoiceBase), nameof(InvoiceBase.WarehouseId), typeof(Warehouse)),
         (typeof(PosInvoiceSettings), nameof(PosInvoiceSettings.WarehouseId), typeof(Warehouse)),
         (typeof(PasswordResetOtp), nameof(PasswordResetOtp.UserId), typeof(User)),
         (typeof(InventoryCountApproval), nameof(InventoryCountApproval.InventoryCountId), typeof(InventoryCount)),
@@ -102,7 +110,7 @@ public class ErpDbContext : DbContext
         (typeof(Warehouse), nameof(Warehouse.Code)),
         (typeof(Account), nameof(Account.Code)),
         (typeof(CostCenter), nameof(CostCenter.Code)),
-        (typeof(Invoice), nameof(Invoice.InvoiceNumber)),
+        (typeof(InvoiceBase), nameof(InvoiceBase.InvoiceNumber)), // فريد في كل جدول فواتير
         (typeof(JournalEntry), nameof(JournalEntry.EntryNumber)),
         (typeof(Voucher), nameof(Voucher.VoucherNumber)),
         (typeof(Quotation), nameof(Quotation.QuotationNumber)),
@@ -141,9 +149,13 @@ public class ErpDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        foreach (var type in EntityTypes)
+        foreach (var root in TpcRoots)
+            modelBuilder.Entity(root).UseTpcMappingStrategy();
+
+        foreach (var type in TpcRoots.Concat(EntityTypes))
         {
             var entity = modelBuilder.Entity(type);
+            if (IsTpcDerived(type)) continue; // يرث المفتاح والفهرس والمرشّح من جذره
             entity.HasKey(nameof(BaseEntity.Id));
             entity.HasIndex(nameof(BaseEntity.TenantId));
             typeof(ErpDbContext).GetMethod(nameof(ApplyTenantFilter), BindingFlags.NonPublic | BindingFlags.Instance)!
@@ -240,7 +252,9 @@ public class ErpDbContext : DbContext
         // رصيد واحد لكل صنف في كل مستودع
         modelBuilder.Entity<WarehouseStock>().Property(s => s.RowVersion).IsRowVersion();
         modelBuilder.Entity<WarehouseStock>().HasIndex(s => new { s.TenantId, s.ItemId, s.WarehouseId }).IsUnique();
-        modelBuilder.Entity<InvoiceItem>().Property(i => i.VatCategory).HasDefaultValue(VatCategory.Standard);
+        modelBuilder.Entity<InvoiceItemBase>().Property(i => i.VatCategory).HasDefaultValue(VatCategory.Standard);
+        // توزيع السند يُقرأ بفاتورته (المرجع بلا قيد لأن الفاتورة في أحد جداول InvoiceBase)
+        modelBuilder.Entity<VoucherAllocation>().HasIndex(a => a.InvoiceId);
         modelBuilder.Entity<Product>().Property(p => p.VatCategory).HasDefaultValue(VatCategory.Standard);
 
         // شواصي الدفعة وبطاقات فاتورة الشراء تُقرأ جماعياً بمعرّف الدفعة/الفاتورة

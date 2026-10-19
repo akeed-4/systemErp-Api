@@ -309,7 +309,7 @@ public class ChargePostingAndTaxTests : TestBase
         // الفاتورة: السيارة على إيراد السيارات، الإضافة على إيراد الإضافات، والرسم يقفل حساب المدفوعات نيابة عن العملاء (لا يدخل المبيعات)
         var done = await api.Post($"/carsalescontracts/{id}/complete");
         Assert.Equal(200, done.Status);
-        Assert.Equal(59375, (await api.Get($"/invoices/{done.Data!["invoiceId"].S()}")).Data!["grandTotal"].D());
+        Assert.Equal(59375, (await api.Get(await api.InvoicePath(done.Data!["invoiceId"].S(), ""))).Data!["grandTotal"].D());
         Assert.Equal(50000, await BalanceAsync(api, "412"));
         Assert.Equal(1500, await BalanceAsync(api, "413"));
         Assert.Equal(0, await BalanceAsync(api, "116")); // أقفلته الفاتورة تماماً

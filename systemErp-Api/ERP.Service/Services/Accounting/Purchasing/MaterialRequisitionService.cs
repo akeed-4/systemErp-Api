@@ -7,10 +7,10 @@ namespace ERP.Service.Services.Accounting;
 public class MaterialRequisitionService : CrudService<MaterialRequisition, MaterialRequisitionDto, CreateMaterialRequisitionDto, UpdateMaterialRequisitionDto>, IMaterialRequisitionService
 {
     private readonly INumberSequenceService _numbers;
-    private readonly IInvoiceService _invoices;
+    private readonly IPurchaseInvoiceService _invoices;
     private readonly ICurrentUser _user;
 
-    public MaterialRequisitionService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, ICurrentUser user) : base(db)
+    public MaterialRequisitionService(ErpDbContext db, INumberSequenceService numbers, IPurchaseInvoiceService invoices, ICurrentUser user) : base(db)
     {
         _numbers = numbers; _invoices = invoices; _user = user;
     }

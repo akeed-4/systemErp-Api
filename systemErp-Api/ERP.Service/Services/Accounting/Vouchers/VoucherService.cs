@@ -189,7 +189,7 @@ public class VoucherService : IVoucherService
 
         var ids = r.Allocations.Select(a => a.InvoiceId).ToList();
         var kind = r.Type == VoucherType.Receipt ? InvoiceKind.Sales : InvoiceKind.Purchase;
-        var invoices = await _db.Set<Invoice>().AsNoTracking().Where(i => ids.Contains(i.Id))
+        var invoices = await _db.Set<InvoiceBase>().AsNoTracking().Where(i => ids.Contains(i.Id))
             .Select(i => new { i.Id, i.InvoiceNumber, i.Kind, i.Status, i.PartyId }).ToDictionaryAsync(i => i.Id, ct);
         var balances = await InvoiceBalances.ForAsync(_db, ids, voucherId, ct);
         foreach (var a in r.Allocations)
@@ -208,7 +208,7 @@ public class VoucherService : IVoucherService
         if (r.Allocations.Count > 0)
         {
             var invoiceIds = r.Allocations.Select(a => a.InvoiceId).ToList();
-            var modules = await _db.Set<Invoice>().AsNoTracking().Where(i => invoiceIds.Contains(i.Id))
+            var modules = await _db.Set<InvoiceBase>().AsNoTracking().Where(i => invoiceIds.Contains(i.Id))
                 .Select(i => i.Module).Distinct().ToListAsync(ct);
             if (modules.Count > 1) throw new ValidationFailedException("لا يمكن توزيع السند على فواتير من وحدات مختلفة.");
             if (modules.Count == 1) return modules[0];

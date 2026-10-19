@@ -333,6 +333,8 @@
   <data name="InvalidCostingMethod" xml:space="preserve"><value>طريقة التكلفة غير صالحة.</value></data>
   <data name="InvalidCredentials" xml:space="preserve"><value>بيانات الدخول غير صحيحة</value></data>
   <data name="InvalidDocumentType" xml:space="preserve"><value>نوع المستند غير صالح.</value></data>
+  <data name="ShowroomInvoicesOnly" xml:space="preserve"><value>هذا المسار لفواتير المعارض فقط (أسطر سيارات أو مستند معرض). فواتير التجارة العامة تُنشأ من مسارات المبيعات والمشتريات ومرتجعاتها.</value></data>
+  <data name="ShowroomInvoiceNotTradeDocument" xml:space="preserve"><value>فاتورة المعارض (أسطر سيارات أو مستند معرض أو مرتجع لفاتورة معرض) تُنشأ من شاشات المعارض لا من فواتير التجارة العامة.</value></data>
   <data name="InvalidFieldValue" xml:space="preserve"><value>قيمة غير صالحة في الحقل {0}</value></data>
   <data name="InvalidIntegrationId" xml:space="preserve"><value>رقم تكامل غير صالح: {0}</value></data>
   <data name="InvalidInvoiceType" xml:space="preserve"><value>نوع الفاتورة غير صالح.</value></data>

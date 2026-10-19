@@ -75,12 +75,12 @@ public class ZatcaIntegrationTests : TestBase
         var (api, product) = await OnboardedAsync();
 
         // بلا الخيار: الفاتورة تُرحَّل ولا تُرسل
-        var silent = await api.Post("/invoices", Simplified(product, send: false));
+        var silent = await api.PostInvoice(Simplified(product, send: false));
         Assert.Equal(201, silent.Status);
         Assert.Equal("not_submitted", silent.Data!["zatcaStatus"].S());
         Assert.Null(silent.Data["zatcaHash"]);
 
-        var first = await api.Post("/invoices", Simplified(product, send: true));
+        var first = await api.PostInvoice(Simplified(product, send: true));
         Assert.Equal(201, first.Status);
         Assert.Equal("posted", first.Data!["status"].S());
         Assert.Equal("reported", first.Data["zatcaStatus"].S());
@@ -90,7 +90,7 @@ public class ZatcaIntegrationTests : TestBase
         Assert.True(Convert.FromBase64String(first.Data["zatcaQrCode"].S()).Length > 250);
 
         // الضريبية تُعتمد وتُحفظ نسختها المختومة، وتجزئة السابقة تربطها بالفاتورة التي قبلها
-        var second = await api.Post("/invoices", Standard(product, send: true));
+        var second = await api.PostInvoice(Standard(product, send: true));
         Assert.Equal(201, second.Status);
         Assert.Equal("cleared", second.Data!["zatcaStatus"].S());
         Assert.Equal("2", Icv(second.Data));
@@ -98,16 +98,16 @@ public class ZatcaIntegrationTests : TestBase
         Assert.Contains("name=\"0100000\"", second.Data["zatcaUblXml"].S());
 
         // الإرسال اليدوي لاحقاً لفاتورة لم تُرسل، وإعادة إرساله لا تكرر الفاتورة في السلسلة
-        var manual = await api.Post($"/invoices/{silent.Data["id"].S()}/SubmitZatca");
+        var manual = await api.Post(await api.InvoicePath(silent.Data["id"].S(), "/SubmitZatca"));
         Assert.True(manual.Data!["success"]!.GetValue<bool>());
         Assert.Equal("reported", manual.Data["status"].S());
-        var again = await api.Post($"/invoices/{silent.Data["id"].S()}/SubmitZatca");
+        var again = await api.Post(await api.InvoicePath(silent.Data["id"].S(), "/SubmitZatca"));
         Assert.True(again.Data!["success"]!.GetValue<bool>());
-        Assert.Equal("3", Icv((await api.Get($"/invoices/{silent.Data["id"].S()}")).Data!));
+        Assert.Equal("3", Icv((await api.Get(await api.InvoicePath(silent.Data["id"].S(), ""))).Data!));
 
         // المرتجع إشعار دائن يتبع نوع فاتورته، ويُرسل بإعداد المنشأة حين لا تحدد الشاشة
         await api.Put("/company/ZatcaConfig", new { isEnabled = true, environment = "sandbox", autoSubmitOnInvoiceSave = true, street = "طريق الملك فهد", buildingNumber = "1234", district = "العليا", postalCode = "12345", phase = "phase2" });
-        var credit = await api.Post("/invoices/returns", new { originalInvoiceId = first.Data["id"].S(), returnReason = "إرجاع بضاعة" });
+        var credit = await api.PostReturn(new { originalInvoiceId = first.Data["id"].S(), returnReason = "إرجاع بضاعة" });
         Assert.Equal(200, credit.Status);
         Assert.Equal("reported", credit.Data!["zatcaStatus"].S());
         Assert.Contains(">381<", credit.Data["zatcaUblXml"].S());
@@ -121,14 +121,14 @@ public class ZatcaIntegrationTests : TestBase
         var (api, product) = await OnboardedAsync();
 
         // رفض الهيئة: الفاتورة تبقى مرحّلة وسبب الرفض محفوظ عليها
-        var rejected = await api.Post("/invoices", Simplified(product, send: true, buyer: FakeZatcaApiClient.RejectedBuyer));
+        var rejected = await api.PostInvoice(Simplified(product, send: true, buyer: FakeZatcaApiClient.RejectedBuyer));
         Assert.Equal(201, rejected.Status);
         Assert.Equal("posted", rejected.Data!["status"].S());
         Assert.Equal("rejected", rejected.Data["zatcaStatus"].S());
         Assert.Contains("BR-KSA-TEST", rejected.Data["zatcaValidationMessages"].S());
 
         // تحذير: مقبولة مع حفظ التحذير
-        var warned = await api.Post("/invoices", Simplified(product, send: true, buyer: FakeZatcaApiClient.WarnedBuyer));
+        var warned = await api.PostInvoice(Simplified(product, send: true, buyer: FakeZatcaApiClient.WarnedBuyer));
         Assert.Equal("warning", warned.Data!["zatcaStatus"].S());
         Assert.Contains("BR-KSA-WARN", warned.Data["zatcaValidationMessages"].S());
         // المرفوضة حلقة في السلسلة: التالية تحمل تجزئتها
@@ -139,7 +139,7 @@ public class ZatcaIntegrationTests : TestBase
         JsonNode offline;
         try
         {
-            offline = (await api.Post("/invoices", Simplified(product, send: true))).Data!;
+            offline = (await api.PostInvoice(Simplified(product, send: true))).Data!;
         }
         finally
         {
@@ -149,9 +149,9 @@ public class ZatcaIntegrationTests : TestBase
         Assert.Equal("not_submitted", offline["zatcaStatus"].S());
         Assert.False(string.IsNullOrEmpty(offline["zatcaValidationMessages"].S()));
 
-        var resent = await api.Post($"/invoices/{offline["id"].S()}/SubmitZatca");
+        var resent = await api.Post(await api.InvoicePath(offline["id"].S(), "/SubmitZatca"));
         Assert.True(resent.Data!["success"]!.GetValue<bool>());
-        var stored = (await api.Get($"/invoices/{offline["id"].S()}")).Data!;
+        var stored = (await api.Get(await api.InvoicePath(offline["id"].S(), ""))).Data!;
         Assert.Equal("reported", stored["zatcaStatus"].S());
         Assert.Equal("3", Icv(stored));
         Assert.Equal(warned.Data["zatcaHash"].S(), stored["zatcaPih"].S());
@@ -169,10 +169,10 @@ public class ZatcaIntegrationTests : TestBase
         var rep = await owner.LoginAsAsync(NewHttp(), email, "Passw0rd!");
 
         // المالك أرسل فاتورة: عدّاد وحدته 1
-        Assert.Equal("1", Icv((await owner.Post("/invoices", Simplified(product, send: true))).Data!));
+        Assert.Equal("1", Icv((await owner.PostInvoice(Simplified(product, send: true))).Data!));
 
         // مستخدم غير مربوط: فاتورته تُرحَّل ولا تُرسل، والسبب محفوظ عليها
-        var unsent = await rep.Post("/invoices", Simplified(product, send: true));
+        var unsent = await rep.PostInvoice(Simplified(product, send: true));
         Assert.Equal(201, unsent.Status);
         Assert.Equal("not_submitted", unsent.Data!["zatcaStatus"].S());
         Assert.Contains("مندوب", unsent.Data["zatcaValidationMessages"].S());
@@ -192,18 +192,18 @@ public class ZatcaIntegrationTests : TestBase
         Assert.Equal(2, (await owner.Get("/company/ZatcaUnits")).Data!.AsArray().Count);
 
         // يرسل بوحدته: سلسلته مستقلة تبدأ من 1
-        var resent = await rep.Post($"/invoices/{unsent.Data["id"].S()}/SubmitZatca");
+        var resent = await rep.Post(await rep.InvoicePath(unsent.Data["id"].S(), "/SubmitZatca"));
         Assert.True(resent.Data!["success"]!.GetValue<bool>());
-        var stored = (await rep.Get($"/invoices/{unsent.Data["id"].S()}")).Data!;
+        var stored = (await rep.Get(await rep.InvoicePath(unsent.Data["id"].S(), ""))).Data!;
         Assert.Equal("1", Icv(stored));
-        Assert.Equal("2", Icv((await owner.Post("/invoices", Simplified(product, send: true))).Data!));
+        Assert.Equal("2", Icv((await owner.PostInvoice(Simplified(product, send: true))).Data!));
 
         // المالك يوقف ربط المستخدم فيتوقف إرساله، ثم يعيد ربطه فتكمل سلسلته
         var unitId = mine[0]!["id"].S();
         Assert.Equal(200, (await owner.Delete($"/company/ZatcaUnits/{unitId}")).Status);
-        Assert.Equal("not_submitted", (await rep.Post("/invoices", Simplified(product, send: true))).Data!["zatcaStatus"].S());
+        Assert.Equal("not_submitted", (await rep.PostInvoice(Simplified(product, send: true))).Data!["zatcaStatus"].S());
         Assert.Equal(200, (await owner.Post("/company/ZatcaOnboard", new { otp = FakeZatcaApiClient.Otp, userId = repId })).Status);
-        Assert.Equal("2", Icv((await rep.Post("/invoices", Simplified(product, send: true))).Data!));
+        Assert.Equal("2", Icv((await rep.PostInvoice(Simplified(product, send: true))).Data!));
     }
 
     [Fact]
@@ -211,16 +211,16 @@ public class ZatcaIntegrationTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api, stock: 10);
-        var invoice = await api.Post("/invoices", Simplified(product, send: true));
+        var invoice = await api.PostInvoice(Simplified(product, send: true));
         Assert.Equal(201, invoice.Status);
         Assert.Equal("posted", invoice.Data!["status"].S());
         Assert.Equal("not_submitted", invoice.Data["zatcaStatus"].S());
-        Assert.False((await api.Post($"/invoices/{invoice.Data["id"].S()}/SubmitZatca")).Data!["success"]!.GetValue<bool>());
+        Assert.False((await api.Post(await api.InvoicePath(invoice.Data["id"].S(), "/SubmitZatca"))).Data!["success"]!.GetValue<bool>());
 
         // مفعَّل بلا ربط: السبب يُحفظ على الفاتورة
         await api.Put("/company/ZatcaConfig", new { isEnabled = true, environment = "sandbox" });
-        var failed = await api.Post($"/invoices/{invoice.Data["id"].S()}/SubmitZatca");
+        var failed = await api.Post(await api.InvoicePath(invoice.Data["id"].S(), "/SubmitZatca"));
         Assert.False(failed.Data!["success"]!.GetValue<bool>());
-        Assert.False(string.IsNullOrEmpty((await api.Get($"/invoices/{invoice.Data["id"].S()}")).Data!["zatcaValidationMessages"].S()));
+        Assert.False(string.IsNullOrEmpty((await api.Get(await api.InvoicePath(invoice.Data["id"].S(), ""))).Data!["zatcaValidationMessages"].S()));
     }
 }

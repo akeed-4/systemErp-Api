@@ -20,7 +20,7 @@ public class DevExtremeListLoadTests : TestBase
         var product = await SeedProductAsync(api, stock: 50);
         var (customer, _) = await SeedCustomerAsync(api);
         foreach (var qty in new[] { 1, 2, 3 })
-            await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = qty == 3 ? "credit" : "cash", partyId = qty == 3 ? customer : (Guid?)null,
+            await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = qty == 3 ? "credit" : "cash", partyId = qty == 3 ? customer : (Guid?)null,
                 items = new[] { new { itemId = product, quantity = qty, unitPrice = 100, vatRate = 15 } } });
         return api;
     }
@@ -52,7 +52,7 @@ public class DevExtremeListLoadTests : TestBase
     public async Task Invoice_load_combines_domain_filters_with_devextreme_options()
     {
         var api = await SeededAsync();
-        var top = await api.Get("/invoices/load?kind=sales&" + Q(("sort", "[{\"selector\":\"grandTotal\",\"desc\":true}]"), ("take", "1"), ("requireTotalCount", "true"),
+        var top = await api.Get("/sales-invoices/load?" + Q(("sort", "[{\"selector\":\"grandTotal\",\"desc\":true}]"), ("take", "1"), ("requireTotalCount", "true"),
             ("totalSummary", "[{\"selector\":\"grandTotal\",\"summaryType\":\"sum\"}]")).TrimStart('?'));
         Assert.Equal(200, top.Status);
         Assert.Equal(3, top.Body!["totalCount"]!.GetValue<int>());
@@ -62,14 +62,14 @@ public class DevExtremeListLoadTests : TestBase
         Assert.NotEmpty(first["items"]!.AsArray());
         Assert.Equal(690, top.Body["summary"]![0].D()); // الملخص على كل الفواتير المفلترة لا على الصفحة
 
-        var none = await api.Get("/invoices/load?kind=purchase&" + Q(("requireTotalCount", "true")).TrimStart('?'));
+        var none = await api.Get("/purchase-invoices/load?" + Q(("requireTotalCount", "true")).TrimStart('?'));
         Assert.Equal(0, none.Body!["totalCount"]!.GetValue<int>());
 
-        var credit = await api.Get("/invoices/load?kind=sales&" + Q(("filter", "[\"partyName\",\"contains\",\"آجل\"]"), ("requireTotalCount", "true")).TrimStart('?'));
+        var credit = await api.Get("/sales-invoices/load?" + Q(("filter", "[\"partyName\",\"contains\",\"آجل\"]"), ("requireTotalCount", "true")).TrimStart('?'));
         Assert.Equal(1, credit.Body!["totalCount"]!.GetValue<int>());
 
         var today = DateTime.UtcNow.Date;
-        var dated = await api.Get("/invoices/load?kind=sales&" + Q(("filter", $"[[\"issueDate\",\">=\",\"{today.AddDays(-1):yyyy-MM-dd}\"],\"and\",[\"issueDate\",\"<\",\"{today.AddDays(2):yyyy-MM-dd}\"]]"),
+        var dated = await api.Get("/sales-invoices/load?" + Q(("filter", $"[[\"issueDate\",\">=\",\"{today.AddDays(-1):yyyy-MM-dd}\"],\"and\",[\"issueDate\",\"<\",\"{today.AddDays(2):yyyy-MM-dd}\"]]"),
             ("requireTotalCount", "true")).TrimStart('?'));
         Assert.Equal(3, dated.Body!["totalCount"]!.GetValue<int>());
     }
@@ -105,8 +105,8 @@ public class DevExtremeListLoadTests : TestBase
     {
         var api = await SeededAsync();
         Assert.Equal(400, (await api.Get("/customers/load" + Q(("filter", "[\"noSuchField\",\"=\",1]")))).Status);
-        Assert.Equal(400, (await api.Get("/invoices/load?kind=sales&" + Q(("sort", "[{\"selector\":\"noSuchField\"}]")).TrimStart('?'))).Status);
+        Assert.Equal(400, (await api.Get("/sales-invoices/load?" + Q(("sort", "[{\"selector\":\"noSuchField\"}]")).TrimStart('?'))).Status);
         Assert.Equal(401, (await new Client(NewHttp()).Get("/customers/load")).Status);
-        Assert.Equal(401, (await new Client(NewHttp()).Get("/invoices/load?kind=sales")).Status);
+        Assert.Equal(401, (await new Client(NewHttp()).Get("/sales-invoices/load")).Status);
     }
 }

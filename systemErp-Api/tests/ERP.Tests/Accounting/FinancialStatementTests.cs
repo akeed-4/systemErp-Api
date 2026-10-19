@@ -20,7 +20,7 @@ public class FinancialStatementTests : TestBase
             lines = new[] { new { accountCode = debit, debit = amount, credit = 0m }, new { accountCode = credit, debit = 0m, credit = amount } } };
         Assert.Equal(200, (await api.Post("/journalentries", Entry("1111", "31", 1000))).Status);  // رأس مال نقداً: تمويلي
         Assert.Equal(200, (await api.Post("/journalentries", Entry("121", "1111", 300))).Status);  // شراء أصل ثابت: استثماري
-        Assert.Equal(201, (await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted",
             items = new[] { new { itemId = item, quantity = 3, unitPrice = 50, vatRate = 15 } } })).Status);
 
         var from = DateTime.UtcNow.Date.AddDays(-2).ToString("yyyy-MM-dd"); var to = DateTime.UtcNow.Date.AddDays(2).ToString("yyyy-MM-dd");

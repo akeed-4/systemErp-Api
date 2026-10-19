@@ -73,7 +73,7 @@ public class OnlinePaymentTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         var (customer, account) = await SeedCustomerAsync(api);
-        var inv = await api.Post("/invoices", new
+        var inv = await api.PostInvoice(new
         {
             kind = "sales", invoiceType = "simplified", paymentMethod = "credit", partyId = customer, status = "posted",
             items = new[] { new { itemId = product, quantity = 2, unitPrice = 100, vatRate = 15 } },

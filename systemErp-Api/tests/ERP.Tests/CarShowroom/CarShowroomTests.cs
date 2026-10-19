@@ -172,7 +172,7 @@ public class CarShowroomTests : TestBase
         var done = await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "invoiced" });
         Assert.Equal(200, done.Status);
         Assert.Equal("sold", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
-        var invoice = (await api.Get($"/invoices/{done.Data!["invoiceId"].S()}")).Data!;
+        var invoice = (await api.Get(await api.InvoicePath(done.Data!["invoiceId"].S(), ""))).Data!;
         Assert.Equal(115000, invoice["grandTotal"].D()); Assert.Equal(15000, invoice["vatTotal"].D()); Assert.Equal(83000, invoice["totalCost"].D());
 
         var accounts = (await api.Get("/accounts?pageSize=500")).Data!["items"]!.AsArray();
@@ -199,7 +199,7 @@ public class CarShowroomTests : TestBase
         foreach (var s in new[] { "approved", "allocated" }) await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = s });
         await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "delivered", handoverProtocolNumber = "H", handoverSignee = "م", handoverSigneeNationalId = "2" });
         var done = await api.Post($"/carsalescontracts/{id}/AdvanceStatus", new { targetStatus = "invoiced" });
-        var inv = (await api.Get($"/invoices/{done.Data!["invoiceId"].S()}")).Data!;
+        var inv = (await api.Get(await api.InvoicePath(done.Data!["invoiceId"].S(), ""))).Data!;
         // الهامش 10000 → الضريبة 10000 × 15/115 = 1304.35 مضمَّنة: الإيراد 58695.65 والعميل يدفع 60000
         Assert.Equal(1304.35m, inv["vatTotal"].D()); Assert.Equal(58695.65m, inv["subtotal"].D()); Assert.Equal(60000, inv["grandTotal"].D());
         var report = (await api.Get("/reports/car/ZatcaMarginTax")).Data!.AsArray();
@@ -263,7 +263,7 @@ public class CarShowroomTests : TestBase
         Assert.Equal("HO-" + r.Data["contractNumber"].S(), r.Data["handoverProtocolNumber"].S()); // بيانات التسليم الافتراضية من العقد
         Assert.Equal("شركة النور", r.Data["handoverSignee"].S());
         Assert.Equal("sold", (await api.Get($"/vehicles/{vid}")).Data!["status"].S());
-        Assert.Equal(57500, (await api.Get($"/invoices/{r.Data["invoiceId"].S()}")).Data!["grandTotal"].D());
+        Assert.Equal(57500, (await api.Get(await api.InvoicePath(r.Data["invoiceId"].S(), ""))).Data!["grandTotal"].D());
 
         Assert.Equal(1, (await api.Get("/carsalescontracts?cycleType=corporate")).Data!["totalCount"].D());
         Assert.Equal(0, (await api.Get("/carsalescontracts?cycleType=individual")).Data!["totalCount"].D());

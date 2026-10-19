@@ -8,9 +8,9 @@ namespace ERP.Service.Services.Accounting;
 public class CommercialContractService : CrudService<CommercialContract, CommercialContractDto, CreateCommercialContractDto, UpdateCommercialContractDto>, ICommercialContractService
 {
     private readonly INumberSequenceService _numbers;
-    private readonly IInvoiceService _invoices;
+    private readonly ISalesInvoiceService _invoices;
 
-    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices) : base(db)
+    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices) : base(db)
     {
         _numbers = numbers; _invoices = invoices;
     }

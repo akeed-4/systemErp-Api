@@ -14,7 +14,7 @@ public class CrudCompletenessTests : TestBase
         var api = await NewTenantAsync();
         var (customer, account) = await SeedCustomerAsync(api);
         var product = await SeedProductAsync(api);
-        await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "credit", partyId = customer, items = new[] { new { itemId = product, quantity = 5, unitPrice = 100, vatRate = 15 } } });
+        await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "credit", partyId = customer, items = new[] { new { itemId = product, quantity = 5, unitPrice = 100, vatRate = 15 } } });
         var v = await api.Post("/vouchers", new { type = "receipt", amount = 100, partyName = "عميل", partyAccountCode = account, treasuryAccountCode = "1111", paymentMethod = "cash" });
         var id = v.Data!["id"].S();
 
@@ -34,35 +34,35 @@ public class CrudCompletenessTests : TestBase
         var product = await SeedProductAsync(api);
         object Body(decimal qty, string status) => new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status, items = new[] { new { itemId = product, quantity = qty, unitPrice = 100, vatRate = 15 } } };
 
-        var draft = await api.Post("/invoices", Body(1, "draft"));
+        var draft = await api.PostInvoice(Body(1, "draft"));
         var id = draft.Data!["id"].S(); var number = draft.Data["invoiceNumber"].S();
-        var upd = await api.Put($"/invoices/{id}", Body(3, "draft"));
+        var upd = await api.Put(await api.InvoicePath(id, ""), Body(3, "draft"));
         Assert.Equal(200, upd.Status);
         Assert.Equal(number, upd.Data!["invoiceNumber"].S()); Assert.Equal(345, upd.Data["grandTotal"].D()); Assert.Single(upd.Data["items"]!.AsArray());
         Assert.Equal(10, (await api.Get($"/products/{product}")).Data!["currentStock"].D()); // لا أثر بعد
 
-        var posted = await api.Put($"/invoices/{id}", Body(2, "posted"));
+        var posted = await api.Put(await api.InvoicePath(id, ""), Body(2, "posted"));
         Assert.Equal("posted", posted.Data!["status"].S()); Assert.Equal(230, posted.Data["grandTotal"].D());
         Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         Assert.StartsWith("SINV-", posted.Data["invoiceNumber"].S()); // صُرف الرقم المتسلسل عند الترحيل
         // المرحّلة قبل إرسالها للهيئة تُعدَّل: يُعكس قيدها وحركاتها ويُعاد ترحيلها بنفس رقمها (ولا تعود مسودة)
         var serial = posted.Data["invoiceNumber"].S();
-        var entryBefore = (await api.Get($"/invoices/{id}/journal")).Data!["entryNumber"].S();
-        var edited = await api.Put($"/invoices/{id}", Body(5, "posted"));
+        var entryBefore = (await api.Get(await api.InvoicePath(id, "/journal"))).Data!["entryNumber"].S();
+        var edited = await api.Put(await api.InvoicePath(id, ""), Body(5, "posted"));
         // القيد نفسه يُعدَّل في مكانه بنفس رقمه (لا قيد عكسي ولا قيد جديد)
-        var entryAfter = (await api.Get($"/invoices/{id}/journal")).Data!;
+        var entryAfter = (await api.Get(await api.InvoicePath(id, "/journal"))).Data!;
         Assert.Equal(entryBefore, entryAfter["entryNumber"].S()); Assert.Equal(575, entryAfter["grandTotal"].D());
         Assert.Equal(200, edited.Status);
         Assert.Equal("posted", edited.Data!["status"].S()); Assert.Equal(serial, edited.Data["invoiceNumber"].S()); Assert.Equal(575, edited.Data["grandTotal"].D());
         Assert.Equal(5, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
-        var again = await api.Put($"/invoices/{id}", Body(1, "draft"));
+        var again = await api.Put(await api.InvoicePath(id, ""), Body(1, "draft"));
         Assert.Equal("posted", again.Data!["status"].S()); Assert.Equal(serial, again.Data["invoiceNumber"].S());
         Assert.Equal(9, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
         var stock = (await api.Get("/reports/InventoryReconciliation")).Data!["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;
         Assert.Equal(0, stock["difference"].D());
         Assert.Equal(9 * 40m, stock["ledgerValue"].D());
-        Assert.Equal(404, (await api.Put($"/invoices/{Guid.NewGuid()}", Body(1, "draft"))).Status);
+        Assert.Equal(404, (await api.Put(await api.InvoicePath(Guid.NewGuid(), ""), Body(1, "draft"))).Status);
     }
 
     [Fact]
@@ -74,13 +74,13 @@ public class CrudCompletenessTests : TestBase
         object Purchase(decimal price) => new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier,
             items = new[] { new { itemId = product, quantity = 10, unitPrice = price, vatRate = 15 } } };
 
-        var purchase = await api.Post("/invoices", Purchase(7)); // المتوسط 6
+        var purchase = await api.PostInvoice(Purchase(7)); // المتوسط 6
         Assert.Equal(201, purchase.Status);
         var id = purchase.Data!["id"].S();
         Assert.Equal(6m, (await api.Get($"/products/{product}")).Data!["averageCost"].D());
 
         // التعديل لسعر 9: يُستعاد متوسط ما قبل الشراء (5) ثم يُشترى بـ 9 → (50 + 90) / 20 = 7
-        var edited = await api.Put($"/invoices/{id}", Purchase(9));
+        var edited = await api.Put(await api.InvoicePath(id, ""), Purchase(9));
         Assert.Equal(200, edited.Status);
         Assert.Equal(purchase.Data["invoiceNumber"].S(), edited.Data!["invoiceNumber"].S());
         var p = (await api.Get($"/products/{product}")).Data!;
@@ -90,9 +90,9 @@ public class CrudCompletenessTests : TestBase
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
         // بيع بعد الشراء ثم تعديل الشراء: مسموح، وفرق التكلفة بقيد إعادة تقييم فيبقى حساب المخزون = قيمة الأصناف
-        Assert.Equal(201, (await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash",
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash",
             items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } })).Status);
-        Assert.Equal(200, (await api.Put($"/invoices/{id}", Purchase(8))).Status);
+        Assert.Equal(200, (await api.Put(await api.InvoicePath(id, ""), Purchase(8))).Status);
         Assert.Equal(19, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         stock = (await api.Get("/reports/InventoryReconciliation")).Data!["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;
         Assert.Equal(0, stock["difference"].D());
@@ -104,7 +104,7 @@ public class CrudCompletenessTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
-        var linked = await api.Post("/invoices", new
+        var linked = await api.PostInvoice(new
         {
             kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
             referenceType = "car_sales_contract", referenceId = Guid.NewGuid(),
@@ -112,12 +112,12 @@ public class CrudCompletenessTests : TestBase
         });
         var id = linked.Data!["id"].S();
 
-        Assert.Equal(409, (await api.Put($"/invoices/{id}", new
+        Assert.Equal(409, (await api.Put(await api.InvoicePath(id, ""), new
         {
             kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
             items = new[] { new { itemId = product, quantity = 2, unitPrice = 100, vatRate = 15 } },
         })).Status);
-        Assert.Equal(409, (await api.Delete($"/invoices/{id}")).Status);
+        Assert.Equal(409, (await api.Delete(await api.InvoicePath(id, ""))).Status);
     }
 
     [Fact]
@@ -180,15 +180,15 @@ public class CrudCompletenessTests : TestBase
         var product = await SeedProductAsync(api);
         await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentType = "sales", actionType = "create", minAmountTrigger = 1, isActive = true,
             steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } });
-        var draft = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+        var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
             items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
         var id = draft.Data!["id"].S();
         var check = await api.Post("/approvals/check", new { documentType = "sales", actionType = "create", documentId = id, documentNumber = draft.Data["invoiceNumber"].S(), documentAmount = 115 });
         Assert.True(check.Data!["approvalRequired"]!.GetValue<bool>());
 
-        Assert.Equal(409, (await api.Post($"/invoices/{id}/post")).Status);
+        Assert.Equal(409, (await api.Post(await api.InvoicePath(id, "/post"))).Status);
         Assert.Equal(200, (await api.Post($"/approvals/{check.Data["request"]!["id"].S()}/approve", new { comment = "ok" })).Status);
-        Assert.Equal("posted", (await api.Post($"/invoices/{id}/post")).Data!["status"].S());
+        Assert.Equal("posted", (await api.Post(await api.InvoicePath(id, "/post"))).Data!["status"].S());
     }
 
     [Fact]

@@ -18,7 +18,7 @@ public class DevExtremeReportTests : TestBase
         var product = await SeedProductAsync(api, stock: 50);
         var (customer, _) = await SeedCustomerAsync(api);
         foreach (var qty in new[] { 1, 2, 3 })
-            await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = qty == 3 ? "credit" : "cash", partyId = qty == 3 ? customer : (Guid?)null,
+            await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = qty == 3 ? "credit" : "cash", partyId = qty == 3 ? customer : (Guid?)null,
                 items = new[] { new { itemId = product, quantity = qty, unitPrice = 100, vatRate = 15 } } });
         return api;
     }

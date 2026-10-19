@@ -39,7 +39,7 @@ public class AccountingGapsTests : TestBase
         Assert.Equal(500, await BalanceAsync(api, "33"));    // مقابل حساب الأرصدة الافتتاحية
 
         // الحركة تُضاف مرة واحدة فوق الافتتاحي
-        Assert.Equal(201, (await api.Post("/invoices", CreditSale(id, 100))).Status);
+        Assert.Equal(201, (await api.PostInvoice(CreditSale(id, 100))).Status);
         Assert.Equal(615, (await api.Get($"/customers/{id}")).Data!["currentBalance"].D());
 
         // تعديل الافتتاحي يعكس قيده ويرحّل الجديد
@@ -66,10 +66,10 @@ public class AccountingGapsTests : TestBase
         var api = await NewTenantAsync();
         var (customer, account) = await SeedCustomerAsync(api);
         var (otherCustomer, _) = await SeedCustomerAsync(api, name: "عميل آخر");
-        var old = (await api.Post("/invoices", CreditSale(customer, 200, DateTime.UtcNow.AddDays(-100)))).Data!["id"].S(); // 230 عمرها 100 يوم
-        var recent = (await api.Post("/invoices", CreditSale(customer, 100))).Data!["id"].S();                             // 115
-        var foreign = (await api.Post("/invoices", CreditSale(otherCustomer, 100))).Data!["id"].S();
-        Assert.Equal(230, (await api.Get($"/invoices/{old}")).Data!["amountDue"].D());
+        var old = (await api.PostInvoice(CreditSale(customer, 200, DateTime.UtcNow.AddDays(-100)))).Data!["id"].S(); // 230 عمرها 100 يوم
+        var recent = (await api.PostInvoice(CreditSale(customer, 100))).Data!["id"].S();                             // 115
+        var foreign = (await api.PostInvoice(CreditSale(otherCustomer, 100))).Data!["id"].S();
+        Assert.Equal(230, (await api.Get(await api.InvoicePath(old, ""))).Data!["amountDue"].D());
 
         // توزيع مرفوض: فاتورة طرف آخر، أكثر من المتبقي، أكثر من مبلغ السند
         Assert.Equal(400, (await api.Post("/vouchers", Receipt(account, 50, new { invoiceId = foreign, amount = 50 }))).Status);
@@ -80,8 +80,8 @@ public class AccountingGapsTests : TestBase
         var voucher = await api.Post("/vouchers", Receipt(account, 300, new { invoiceId = old, amount = 230 }, new { invoiceId = recent, amount = 70 }));
         Assert.True(voucher.Success);
         Assert.Equal(new[] { 230m, 70m }, voucher.Data!["allocations"]!.AsArray().Select(a => a!["amount"].D()));
-        Assert.Equal(0, (await api.Get($"/invoices/{old}")).Data!["amountDue"].D());
-        Assert.Equal(45, (await api.Get($"/invoices/{recent}")).Data!["amountDue"].D());
+        Assert.Equal(0, (await api.Get(await api.InvoicePath(old, ""))).Data!["amountDue"].D());
+        Assert.Equal(45, (await api.Get(await api.InvoicePath(recent, ""))).Data!["amountDue"].D());
         var open = Assert.Single((await api.Get($"/vouchers/OpenInvoices?partyAccountCode={account}")).Data!.AsArray())!;
         Assert.Equal(recent, open["id"].S()); Assert.Equal(45, open["amountDue"].D());
 
@@ -94,13 +94,13 @@ public class AccountingGapsTests : TestBase
 
         // حذف السند يعيد المتبقي على فواتيره، والقديمة تعود لشريحة ما فوق 90 يوماً
         Assert.Equal(200, (await api.Delete($"/vouchers/{voucher.Data["id"].S()}")).Status);
-        Assert.Equal(230, (await api.Get($"/invoices/{old}")).Data!["amountDue"].D());
+        Assert.Equal(230, (await api.Get(await api.InvoicePath(old, ""))).Data!["amountDue"].D());
         row = (await api.Get("/reports/Aging?type=receivable")).Data!["rows"]!.AsArray().Single(r => r!["partyId"].G() == customer)!;
         Assert.Equal(230, row["over90"].D()); Assert.Equal(115, row["days0To30"].D());
 
         // مرتجع آجل يُنقص المتبقي على فاتورته
-        Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = recent, returnReason = "x" })).Status);
-        Assert.Equal(0, (await api.Get($"/invoices/{recent}")).Data!["amountDue"].D());
+        Assert.Equal(200, (await api.PostReturn(new { originalInvoiceId = recent, returnReason = "x" })).Status);
+        Assert.Equal(0, (await api.Get(await api.InvoicePath(recent, ""))).Data!["amountDue"].D());
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class AccountingGapsTests : TestBase
         var api = await NewTenantAsync();
         var c = await api.Post("/customers", new { nameAr = "عميل", phone = "050", city = "الرياض", creditLimit = 100000, creditPeriodDays = 30, status = "active", openingBalance = 500 });
         var (customer, account) = (c.Data!["id"].G(), c.Data["accountCode"].S());
-        var invoice = (await api.Post("/invoices", CreditSale(customer, 100, DateTime.UtcNow.Date.AddDays(-40)))).Data!["id"].S(); // 115
+        var invoice = (await api.PostInvoice(CreditSale(customer, 100, DateTime.UtcNow.Date.AddDays(-40)))).Data!["id"].S(); // 115
         Assert.True((await api.Post("/vouchers", Receipt(account, 115, new { invoiceId = invoice, amount = 115 }))).Success);  // سداد اليوم
 
         Row(await AgingAsync(api, DateTime.UtcNow.Date.AddDays(-10)), out var past);
@@ -239,7 +239,7 @@ public class AccountingGapsTests : TestBase
     {
         var api = await NewTenantAsync();
         var north = await SeedCostCenterAsync(api, "N"); var south = await SeedCostCenterAsync(api, "S");
-        var invoice = await api.Post("/invoices", new
+        var invoice = await api.PostInvoice(new
         {
             kind = "sales", invoiceType = "simplified", paymentMethod = "cash",
             items = new object[]
@@ -255,7 +255,7 @@ public class AccountingGapsTests : TestBase
         JsonNode Revenue(string code) => lines.Single(l => l!["accountCode"].S() == code && l["credit"].D() > 0)!;
         Assert.Equal(100, Revenue("412")["credit"].D()); Assert.Equal(north, Revenue("412")["costCenterId"].G());
         Assert.Equal(250, Revenue("411")["credit"].D()); Assert.Equal(south, Revenue("411")["costCenterId"].G()); // سطرا الجنوب مجمَّعان
-        Assert.Equal(400, (await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash",
+        Assert.Equal(400, (await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash",
             items = new[] { new { itemName = "x", quantity = 1, unitPrice = 10, vatRate = 15, revenueAccountCode = "9999" } } })).Status); // حساب غير موجود
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
@@ -331,7 +331,7 @@ public class AccountingGapsTests : TestBase
     {
         var api = await NewTenantAsync();
         var (customer, account) = await SeedCustomerAsync(api);
-        var invoice = (await api.Post("/invoices", CreditSale(customer, 100))).Data!["id"].S();
+        var invoice = (await api.PostInvoice(CreditSale(customer, 100))).Data!["id"].S();
         var voucher = (await api.Post("/vouchers", Receipt(account, 115, new { invoiceId = invoice, amount = 115 }))).Data!["id"].S();
         Assert.Equal(200, (await api.Delete($"/vouchers/{voucher}")).Status);
         var entry = (await api.Post("/journalentries", new { date = DateTime.UtcNow, description = "x",
@@ -339,7 +339,7 @@ public class AccountingGapsTests : TestBase
         Assert.Equal(200, (await api.Post($"/journalentries/{entry}/reverse")).Status);
 
         async Task<List<string>> Actions(string entity, string id) => (await api.Get($"/auditlogs?entityName={entity}&entityId={id}")).Data!["items"]!.AsArray().Select(x => x!["action"].S()).ToList();
-        Assert.Contains("INVOICE_POSTED", await Actions("Invoice", invoice));
+        Assert.Contains("INVOICE_POSTED", await Actions("SalesInvoice", invoice)); // يُسجَّل باسم جدول المستند
         var voucherActions = await Actions("Voucher", voucher);
         Assert.Contains("VOUCHER_CREATED", voucherActions); Assert.Contains("VOUCHER_DELETED", voucherActions);
         var entryActions = await Actions("JournalEntry", entry);
@@ -351,7 +351,7 @@ public class AccountingGapsTests : TestBase
     {
         var api = await NewTenantAsync();
         var (customer, account) = await SeedCustomerAsync(api);
-        Assert.Equal(201, (await api.Post("/invoices", CreditSale(customer, 1000))).Status);           // ذمم 1150، إيراد 1000، ضريبة 150
+        Assert.Equal(201, (await api.PostInvoice(CreditSale(customer, 1000))).Status);           // ذمم 1150، إيراد 1000، ضريبة 150
         Assert.True((await api.Post("/vouchers", Receipt(account, 400))).Success);                      // نقد 400
         Assert.Equal(200, (await api.Post("/journalentries", new { date = DateTime.UtcNow, description = "رأس المال",
             lines = new[] { new { accountCode = "1111", debit = 5000m, credit = 0m }, new { accountCode = "31", debit = 0m, credit = 5000m } } })).Status);

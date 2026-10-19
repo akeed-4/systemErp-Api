@@ -143,7 +143,7 @@ public class PosTests : TestBase
         await OpenShiftAsync(api);
         Assert.Equal(409, (await api.Post("/pos/transactions/checkout", Cash(product, 5, 10000))).Status);
         Assert.Equal(0, (await api.Get("/pos/transactions")).Data!["totalCount"].D());
-        Assert.Equal(0, (await api.Get("/invoices")).Data!["totalCount"].D());
+        Assert.Equal(0, (await api.Get("/sales-invoices")).Data!["totalCount"].D());
         Assert.Equal(2, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
         Assert.Equal(0, (await api.Get("/pos/shifts/active")).Data!["totalGross"].D());
     }
@@ -156,7 +156,7 @@ public class PosTests : TestBase
         var product = await SeedProductAsync(api);
         await OpenShiftAsync(api);
         var tx = await api.Post("/pos/transactions/checkout", Cash(product, 2, 230));
-        var invoice = (await api.Get($"/invoices/{tx.Data!["invoiceId"].S()}")).Data!;
+        var invoice = (await api.Get(await api.InvoicePath(tx.Data!["invoiceId"].S(), ""))).Data!;
 
         Assert.Equal("pos_transaction", invoice["referenceType"].S()); Assert.Equal(tx.Data["invoiceNumber"].S(), invoice["invoiceNumber"].S());
         Assert.Equal(230, invoice["grandTotal"].D()); Assert.Equal(80, invoice["totalCost"].D());

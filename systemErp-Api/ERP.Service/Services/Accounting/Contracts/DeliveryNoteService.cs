@@ -9,12 +9,13 @@ public class DeliveryNoteService : IDeliveryNoteService
     private readonly ErpDbContext _db;
     private readonly INumberSequenceService _numbers;
     private readonly ICommercialContractService _contracts;
-    private readonly IInvoiceService _invoices;
+    private readonly ISalesInvoiceService _sales;
+    private readonly IPurchaseInvoiceService _purchases;
     private readonly ITransactionRunner _tx;
 
-    public DeliveryNoteService(ErpDbContext db, INumberSequenceService numbers, ICommercialContractService contracts, IInvoiceService invoices, ITransactionRunner tx)
+    public DeliveryNoteService(ErpDbContext db, INumberSequenceService numbers, ICommercialContractService contracts, ISalesInvoiceService sales, IPurchaseInvoiceService purchases, ITransactionRunner tx)
     {
-        _db = db; _numbers = numbers; _contracts = contracts; _invoices = invoices; _tx = tx;
+        _db = db; _numbers = numbers; _contracts = contracts; _sales = sales; _purchases = purchases; _tx = tx;
     }
 
     public async Task<PagedResult<DeliveryNoteDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
@@ -226,7 +227,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             var ids = lines.Select(x => x.Item.ItemId).Distinct().ToList();
             var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync(token);
             var sales = note.Type == "sales_delivery";
-            var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
+            var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,

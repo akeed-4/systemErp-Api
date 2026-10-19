@@ -34,7 +34,7 @@ public class VehicleBatchTests : TestBase
     {
         var api = await NewTenantAsync();
         var (supplier, _) = await SeedSupplierAsync(api);
-        var first = await api.Post("/invoices", Purchase(supplier, "draft", Batch(50000, Array.Empty<object>(), generateCount: 3)));
+        var first = await api.PostInvoice(Purchase(supplier, "draft", Batch(50000, Array.Empty<object>(), generateCount: 3)));
         Assert.Equal(201, first.Status);
         var batch = first.Data!["vehicleBatches"]![0]!;
         Assert.Equal(3, batch["quantity"].D());                       // الكمية = عدد الشواصي
@@ -45,7 +45,7 @@ public class VehicleBatchTests : TestBase
 
         // دفعة تجمع المولَّد واليدوي، وفاتورة ثانية لا تكرر أرقام الأولى
         var real = Client.NewVin('1');
-        var second = await api.Post("/invoices", Purchase(supplier, "draft", Batch(50000, new[] { Chassis(real) }, generateCount: 2)));
+        var second = await api.PostInvoice(Purchase(supplier, "draft", Batch(50000, new[] { Chassis(real) }, generateCount: 2)));
         Assert.Equal(201, second.Status);
         var secondVins = ChassisOf(second).Select(c => c["vin"].S()).ToList();
         Assert.Equal(3, secondVins.Count); Assert.Contains(real, secondVins);
@@ -58,7 +58,7 @@ public class VehicleBatchTests : TestBase
         Assert.Equal(6, (await VehiclesAsync(api, "draft")).Count);
         Assert.Equal(0, await BalanceAsync(api, "1142")); // المسودة بلا قيد
 
-        Assert.Equal(400, (await api.Post("/invoices", Purchase(supplier, "draft", Batch(50000, Array.Empty<object>())))).Status); // دفعة بلا شواصي
+        Assert.Equal(400, (await api.PostInvoice(Purchase(supplier, "draft", Batch(50000, Array.Empty<object>())))).Status); // دفعة بلا شواصي
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class VehicleBatchTests : TestBase
         var inStock = Client.NewVin('2');
         Assert.Equal(201, (await api.Post("/vehicles", new { chassisNumber = inStock, brandNameAr = "تويوتا", modelNameAr = "يارس", year = 2024, sellingPrice = 1 })).Status);
         var inDraft = Client.NewVin('3');
-        var draft = await api.Post("/invoices", Purchase(supplier, "draft", Batch(1000, new[] { Chassis(inDraft) })));
+        var draft = await api.PostInvoice(Purchase(supplier, "draft", Batch(1000, new[] { Chassis(inDraft) })));
         var good = Client.NewVin('4');
 
         // صفوف استيراد: سليم، صيغة خاطئة، مكرر في الملف، موجود في المخزون، موجود في مسودة أخرى، فارغ
@@ -83,11 +83,11 @@ public class VehicleBatchTests : TestBase
         Assert.Empty((await api.Post("/vehicles/ValidateChassis", new { vins = new[] { inDraft }, invoiceId = draft.Data["id"].S() })).Data!.AsArray());
 
         // الحفظ يطبّق التحقق نفسه: داخل الدفعة، بين دفعات الفاتورة، ومع سيارات المنشأة
-        Assert.Equal(400, (await api.Post("/invoices", Purchase(supplier, "draft", Batch(1000, new[] { Chassis(good), Chassis(good) })))).Status);
-        Assert.Equal(400, (await api.Post("/invoices", Purchase(supplier, "draft", Batch(1000, new[] { Chassis(good) }), Batch(2000, new[] { Chassis(good) }, model: "كورولا")))).Status);
-        Assert.Equal(400, (await api.Post("/invoices", Purchase(supplier, "draft", Batch(1000, new[] { Chassis("BAD") })))).Status);
-        Assert.Equal(409, (await api.Post("/invoices", Purchase(supplier, "draft", Batch(1000, new[] { Chassis(inStock) })))).Status);
-        Assert.Equal(409, (await api.Post("/invoices", Purchase(supplier, "posted", Batch(1000, new[] { Chassis(inDraft) })))).Status);
+        Assert.Equal(400, (await api.PostInvoice(Purchase(supplier, "draft", Batch(1000, new[] { Chassis(good), Chassis(good) })))).Status);
+        Assert.Equal(400, (await api.PostInvoice(Purchase(supplier, "draft", Batch(1000, new[] { Chassis(good) }), Batch(2000, new[] { Chassis(good) }, model: "كورولا")))).Status);
+        Assert.Equal(400, (await api.PostInvoice(Purchase(supplier, "draft", Batch(1000, new[] { Chassis("BAD") })))).Status);
+        Assert.Equal(409, (await api.PostInvoice(Purchase(supplier, "draft", Batch(1000, new[] { Chassis(inStock) })))).Status);
+        Assert.Equal(409, (await api.PostInvoice(Purchase(supplier, "posted", Batch(1000, new[] { Chassis(inDraft) })))).Status);
         Assert.Single(await VehiclesAsync(api, "draft")); // لم يُحفظ شيء من المرفوض
     }
 
@@ -98,7 +98,7 @@ public class VehicleBatchTests : TestBase
         var (supplier, _) = await SeedSupplierAsync(api);
         var a = Client.NewVin('1'); var b = Client.NewVin('2'); var c = Client.NewVin('3'); var d = Client.NewVin('4');
 
-        var draft = await api.Post("/invoices", Purchase(supplier, "draft", Batch(40000, new[] { Chassis(a), Chassis(b), Chassis(c) })));
+        var draft = await api.PostInvoice(Purchase(supplier, "draft", Batch(40000, new[] { Chassis(a), Chassis(b), Chassis(c) })));
         Assert.Equal(201, draft.Status);
         var id = draft.Data!["id"].S();
         var cards = (await VehiclesAsync(api, "draft")).ToDictionary(v => v!["chassisNumber"].S(), v => v!["id"].S());
@@ -107,7 +107,7 @@ public class VehicleBatchTests : TestBase
         Assert.Equal(409, (await api.Put($"/vehicles/{cards[a]}", new { chassisNumber = a, brandNameAr = "تويوتا", modelNameAr = "كامري", year = 2025, sellingPrice = 1 })).Status); // تُدار من الفاتورة
 
         // تعديل المسودة: حذف شاسيه، إضافة آخر، وتغيير لون وسعر: البطاقات تتبع
-        var edited = await api.Put($"/invoices/{id}", Purchase(supplier, "draft", Batch(41000, new[] { Chassis(a, color: "أسود", engine: "ENG-1"), Chassis(b), Chassis(d) })));
+        var edited = await api.Put(await api.InvoicePath(id, ""), Purchase(supplier, "draft", Batch(41000, new[] { Chassis(a, color: "أسود", engine: "ENG-1"), Chassis(b), Chassis(d) })));
         Assert.Equal(200, edited.Status);
         var after = (await VehiclesAsync(api, "draft")).ToDictionary(v => v!["chassisNumber"].S(), v => v!);
         Assert.Equal(new[] { a, b, d }.OrderBy(x => x), after.Keys.OrderBy(x => x));
@@ -116,13 +116,13 @@ public class VehicleBatchTests : TestBase
         Assert.Equal(41000, after[a]["purchasePrice"].D());
 
         // حذف المسودة يحذف بطاقاتها ويحرر شواصيها
-        Assert.Equal(200, (await api.Delete($"/invoices/{id}")).Status);
+        Assert.Equal(200, (await api.Delete(await api.InvoicePath(id, ""))).Status);
         Assert.Empty(await VehiclesAsync(api, "draft"));
 
         // مسودة جديدة بالشواصي نفسها ثم ترحيلها: البطاقات تدخل المخزون والقيد بإجمالي السطر
-        var again = await api.Post("/invoices", Purchase(supplier, "draft", Batch(40000, new[] { Chassis(a), Chassis(b), Chassis(c) })));
+        var again = await api.PostInvoice(Purchase(supplier, "draft", Batch(40000, new[] { Chassis(a), Chassis(b), Chassis(c) })));
         Assert.Equal(201, again.Status);
-        var posted = await api.Post($"/invoices/{again.Data!["id"].S()}/post", new { });
+        var posted = await api.Post(await api.InvoicePath(again.Data!["id"].S(), "/post"), new { });
         Assert.Equal(200, posted.Status);
         Assert.Equal("posted", posted.Data!["status"].S());
         Assert.Single(posted.Data["items"]!.AsArray());                                  // بند واحد للدفعة لا بند لكل سيارة
@@ -139,7 +139,7 @@ public class VehicleBatchTests : TestBase
 
         // تعديل المرحّلة: تعود بطاقاتها مسودة، تُطابَق مع الشواصي الجديدة (الباقي يحتفظ ببطاقته) ثم يُعاد الترحيل بنفس الرقم
         var cardOfA = stock.First(v => v!["chassisNumber"].S() == a)!["id"].S();
-        var repost = await api.Put($"/invoices/{again.Data["id"].S()}", Purchase(supplier, "draft", Batch(45000, new[] { Chassis(a), Chassis(d) })));
+        var repost = await api.Put(await api.InvoicePath(again.Data["id"].S(), ""), Purchase(supplier, "draft", Batch(45000, new[] { Chassis(a), Chassis(d) })));
         Assert.Equal(200, repost.Status);
         Assert.Equal("posted", repost.Data!["status"].S()); Assert.Equal(posted.Data["invoiceNumber"].S(), repost.Data["invoiceNumber"].S());
         var restocked = (await VehiclesAsync(api)).ToDictionary(v => v!["chassisNumber"].S(), v => v!);
@@ -160,7 +160,7 @@ public class VehicleBatchTests : TestBase
         var a = Client.NewVin('5'); var b = Client.NewVin('6'); var special = Client.NewVin('7');
 
         // سعر الوحدة 50000 بخصم 1000، وشاسيه بسعر خاص 52000: الإجمالي = 49000 × 2 + 51000
-        var inv = await api.Post("/invoices", Purchase(supplier, "posted", Batch(50000, new[] { Chassis(a), Chassis(b), Chassis(special, price: 52000) }, discount: 1000)));
+        var inv = await api.PostInvoice(Purchase(supplier, "posted", Batch(50000, new[] { Chassis(a), Chassis(b), Chassis(special, price: 52000) }, discount: 1000)));
         Assert.Equal(201, inv.Status);
         var batch = inv.Data!["vehicleBatches"]![0]!;
         Assert.Equal(3, batch["quantity"].D());
@@ -170,14 +170,14 @@ public class VehicleBatchTests : TestBase
         var cars = (await VehiclesAsync(api)).ToDictionary(v => v!["chassisNumber"].S(), v => v!);
         Assert.Equal(49000, cars[a]["purchasePrice"].D()); Assert.Equal(51000, cars[special]["purchasePrice"].D());
         Assert.Equal(149000, await BalanceAsync(api, "1142"));
-        Assert.Equal(400, (await api.Post("/invoices", Purchase(supplier, "draft", Batch(50000, new[] { Chassis(Client.NewVin('8'), price: 500) }, discount: 1000)))).Status); // سعر خاص أقل من الخصم
+        Assert.Equal(400, (await api.PostInvoice(Purchase(supplier, "draft", Batch(50000, new[] { Chassis(Client.NewVin('8'), price: 500) }, discount: 1000)))).Status); // سعر خاص أقل من الخصم
 
         // مرتجع جزئي: الشاسيه ذو السعر الخاص وشاسيه عادي
-        var ret = await api.Post("/invoices/returns", new { originalInvoiceId = inv.Data["id"].S(), returnReason = "عيب مصنعي", vehicleIds = new[] { cars[special]["id"].S(), cars[a]["id"].S() } });
+        var ret = await api.PostReturn(new { originalInvoiceId = inv.Data["id"].S(), returnReason = "عيب مصنعي", vehicleIds = new[] { cars[special]["id"].S(), cars[a]["id"].S() } });
         Assert.Equal(200, ret.Status);
         Assert.Equal(100000, ret.Data!["subtotal"].D());           // 51000 + 49000
         Assert.Equal(115000, ret.Data["grandTotal"].D());
-        var after = await api.Get($"/invoices/{inv.Data["id"].S()}");
+        var after = await api.Get(await api.InvoicePath(inv.Data["id"].S(), ""));
         Assert.Equal(2, after.Data!["vehicleBatches"]![0]!["returnedQuantity"].D());              // الكمية والإجمالي ينقصان بقدر المرتجع
         Assert.Equal(100000, after.Data["vehicleBatches"]![0]!["returnedTotal"].D());
         Assert.Equal(2, ChassisOf(after).Count(ch => ch["isReturned"]!.GetValue<bool>()));
@@ -185,8 +185,8 @@ public class VehicleBatchTests : TestBase
         Assert.Single(await VehiclesAsync(api), v => v!["status"].S() == "available");
 
         // لا يُرجَع الشاسيه مرتين، والباقي يُرجَع
-        Assert.Equal(409, (await api.Post("/invoices/returns", new { originalInvoiceId = inv.Data["id"].S(), returnReason = "x", vehicleIds = new[] { cars[a]["id"].S() } })).Status);
-        Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = inv.Data["id"].S(), returnReason = "x" })).Status);
+        Assert.Equal(409, (await api.PostReturn(new { originalInvoiceId = inv.Data["id"].S(), returnReason = "x", vehicleIds = new[] { cars[a]["id"].S() } })).Status);
+        Assert.Equal(200, (await api.PostReturn(new { originalInvoiceId = inv.Data["id"].S(), returnReason = "x" })).Status);
         Assert.Equal(0, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
         var (dr, cr) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(dr, cr);
     }
@@ -196,7 +196,7 @@ public class VehicleBatchTests : TestBase
     {
         var api = await NewTenantAsync();
         var (supplier, _) = await SeedSupplierAsync(api);
-        var inv = await api.Post("/invoices", Purchase(supplier, "posted", Batch(30000, Array.Empty<object>(), generateCount: 2)));
+        var inv = await api.PostInvoice(Purchase(supplier, "posted", Batch(30000, Array.Empty<object>(), generateCount: 2)));
         Assert.Equal(201, inv.Status);
         var cars = await VehiclesAsync(api);
         Assert.Equal(2, cars.Count);
@@ -206,7 +206,7 @@ public class VehicleBatchTests : TestBase
         // الشاسيه المؤقت لا يُباع
         object Sale(string vehicleId) => new { cycleType = "individual", buyerName = "مشتري", buyerNationalIdOrCr = "1010101010", buyerPhone = "0550000000", vehicleId, sellingPrice = 40000, vatMode = "standard_15", paymentMethod = "cash", condition = "new" };
         Assert.Equal(409, (await api.Post("/carsalescontracts", Sale(first))).Status);
-        Assert.Equal(400, (await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted", vehicleLines = new[] { new { vehicleId = first, unitPrice = 40000, discount = 0 } } })).Status);
+        Assert.Equal(400, (await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted", vehicleLines = new[] { new { vehicleId = first, unitPrice = 40000, discount = 0 } } })).Status);
 
         // الاستبدال: الرقم الحقيقي فقط، غير مكرر، ولشاسيه مؤقت فقط
         var real = Client.NewVin('9');
@@ -218,7 +218,7 @@ public class VehicleBatchTests : TestBase
         var card = (await api.Get($"/vehicles/{first}")).Data!;
         Assert.Equal(real, card["chassisNumber"].S()); Assert.False(card["isTemporaryChassis"]!.GetValue<bool>());
         // الفاتورة المرحّلة تعرض الرقم الحقيقي
-        var line = ChassisOf(await api.Get($"/invoices/{inv.Data!["id"].S()}")).First(c => c["vehicleId"].S() == first);
+        var line = ChassisOf(await api.Get(await api.InvoicePath(inv.Data!["id"].S(), ""))).First(c => c["vehicleId"].S() == first);
         Assert.Equal(real, line["vin"].S()); Assert.False(line["isTemporaryChassis"]!.GetValue<bool>());
         Assert.Equal(409, (await api.Post("/vehicles/ReplaceChassis", new[] { new { vehicleId = first, chassisNumber = Client.NewVin('8') } })).Status); // لم يعد مؤقتاً
         Assert.Equal(400, (await api.Post("/vehicles/ReplaceChassis", new[] { new { vehicleId = second, chassisNumber = real } })).Status);             // موجود
@@ -231,7 +231,7 @@ public class VehicleBatchTests : TestBase
     {
         var api = await NewTenantAsync();
         var (supplier, _) = await SeedSupplierAsync(api);
-        Assert.Equal(201, (await api.Post("/invoices", Purchase(supplier, "posted", Batch(30000, Array.Empty<object>(), generateCount: 1)))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, "posted", Batch(30000, Array.Empty<object>(), generateCount: 1)))).Status);
         var car = (await VehiclesAsync(api))[0]!;
         var id = car["id"].S();
         object Sale(bool allow) => new
@@ -241,10 +241,10 @@ public class VehicleBatchTests : TestBase
         };
 
         // بلا تأكيد: مرفوض كما كان
-        Assert.Equal(400, (await api.Post("/invoices", Sale(false))).Status);
+        Assert.Equal(400, (await api.PostInvoice(Sale(false))).Status);
 
         // بعد تأكيد المستخدم: تُباع والسطر يحمل علامة الشاسيه المؤقت
-        var sold = await api.Post("/invoices", Sale(true));
+        var sold = await api.PostInvoice(Sale(true));
         Assert.Equal(201, sold.Status);
         var line = sold.Data!["vehicleLines"]!.AsArray()[0]!;
         Assert.Equal(car["chassisNumber"].S(), line["vin"].S());
@@ -254,7 +254,7 @@ public class VehicleBatchTests : TestBase
         // الرقم الحقيقي يُدخل بعد البيع ويظهر في فاتورة البيع
         var real = Client.NewVin('7');
         Assert.Equal(200, (await api.Post("/vehicles/ReplaceChassis", new[] { new { vehicleId = id, chassisNumber = real } })).Status);
-        var after = (await api.Get($"/invoices/{sold.Data["id"].S()}")).Data!["vehicleLines"]!.AsArray()[0]!;
+        var after = (await api.Get(await api.InvoicePath(sold.Data["id"].S(), ""))).Data!["vehicleLines"]!.AsArray()[0]!;
         Assert.Equal(real, after["vin"].S());
         Assert.False(after["isTemporaryChassis"]!.GetValue<bool>());
     }
@@ -264,7 +264,7 @@ public class VehicleBatchTests : TestBase
     {
         var api = await NewTenantAsync();
         var (supplier, _) = await SeedSupplierAsync(api);
-        var inv = await api.Post("/invoices", Purchase(supplier, "posted", Batch(30000, new[] { Chassis(Client.NewVin('1')), Chassis(Client.NewVin('2')), Chassis(Client.NewVin('3'), price: 60000) })));
+        var inv = await api.PostInvoice(Purchase(supplier, "posted", Batch(30000, new[] { Chassis(Client.NewVin('1')), Chassis(Client.NewVin('2')), Chassis(Client.NewVin('3'), price: 60000) })));
         Assert.Equal(201, inv.Status);
         var ids = ChassisOf(inv).Select(c => c["vehicleId"].S()).ToArray();
         var freight = (await api.Get("/expensetypes?pageSize=200")).Data!["items"]!.AsArray().First(t => t!["code"].S() == "FREIGHT")!["id"].S();
@@ -285,7 +285,7 @@ public class VehicleBatchTests : TestBase
         // 300 شاسيه حقيقي + 200 مؤقت يولّدها السرفر
         var real = Enumerable.Range(0, 300).Select(i => Chassis("1HGCM82633B" + i.ToString("D6"))).ToArray();
         var watch = Stopwatch.StartNew();
-        var inv = await api.Post("/invoices", Purchase(supplier, "posted", Batch(20000, real, generateCount: 200)));
+        var inv = await api.PostInvoice(Purchase(supplier, "posted", Batch(20000, real, generateCount: 200)));
         watch.Stop();
         Assert.Equal(201, inv.Status);
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(30), $"حفظ وترحيل 500 سيارة استغرق {watch.Elapsed.TotalSeconds:0.0} ثانية");

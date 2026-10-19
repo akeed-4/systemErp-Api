@@ -30,10 +30,10 @@ public class ReportQueryTests : TestBase
         var product = await SeedProductAsync(api);
         var (customer, account) = await SeedCustomerAsync(api);
         var (supplier, _) = await SeedSupplierAsync(api);
-        Assert.Equal(201, (await api.Post("/invoices", Sale(product, 2, "cash"))).Status);
-        Assert.Equal(201, (await api.Post("/invoices", Sale(product, 3, "credit", customer))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Sale(product, 2, "cash"))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Sale(product, 3, "credit", customer))).Status);
         await api.Post("/vouchers", new { type = "receipt", amount = 100, partyName = "عميل", partyAccountCode = account, treasuryAccountCode = "1111", paymentMethod = "cash" });
-        await api.Post("/invoices", new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, items = new[] { new { itemId = product, quantity = 4, unitPrice = 50, vatRate = 15 } } });
+        await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, items = new[] { new { itemId = product, quantity = 4, unitPrice = 50, vatRate = 15 } } });
         return (api, product, account);
     }
 

@@ -1820,7 +1820,7 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("FixedAssetDepreciation");
                 });
 
-            modelBuilder.Entity("ERP.Core.Models.Accounting.Invoice", b =>
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceBase", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2040,10 +2040,12 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId", "InvoiceNumber")
                         .IsUnique();
 
-                    b.ToTable("Invoice");
+                    b.ToTable((string)null);
+
+                    b.UseTpcMappingStrategy();
                 });
 
-            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceItem", b =>
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceItemBase", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2129,11 +2131,11 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InvoiceId");
-
                     b.HasIndex("TenantId");
 
-                    b.ToTable("InvoiceItem");
+                    b.ToTable((string)null);
+
+                    b.UseTpcMappingStrategy();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoicePaymentSplit", b =>
@@ -9034,6 +9036,86 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("WarehouseStock");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Invoice", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
+
+                    b.ToTable("Invoice");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseInvoice", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
+
+                    b.ToTable("PurchaseInvoice");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseReturn", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
+
+                    b.ToTable("PurchaseReturn");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesInvoice", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
+
+                    b.ToTable("SalesInvoice");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesReturn", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
+
+                    b.ToTable("SalesReturn");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceItem", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceItemBase");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoiceItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseInvoiceItem", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceItemBase");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("PurchaseInvoiceItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseReturnItem", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceItemBase");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("PurchaseReturnItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesInvoiceItem", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceItemBase");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("SalesInvoiceItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesReturnItem", b =>
+                {
+                    b.HasBaseType("ERP.Core.Models.Accounting.InvoiceItemBase");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("SalesReturnItem");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.AgreementItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.Agreement", "Agreement")
@@ -9226,7 +9308,7 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("ERP.Core.Models.Accounting.Invoice", b =>
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceBase", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
                         .WithMany()
@@ -9234,20 +9316,9 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceItem", b =>
-                {
-                    b.HasOne("ERP.Core.Models.Accounting.Invoice", "Invoice")
-                        .WithMany("Items")
-                        .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Invoice");
-                });
-
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoicePaymentSplit", b =>
                 {
-                    b.HasOne("ERP.Core.Models.Accounting.Invoice", "Invoice")
+                    b.HasOne("ERP.Core.Models.Accounting.InvoiceBase", "Invoice")
                         .WithMany("PaymentSplits")
                         .HasForeignKey("InvoiceId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -9352,12 +9423,6 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.VoucherAllocation", b =>
                 {
-                    b.HasOne("ERP.Core.Models.Accounting.Invoice", null)
-                        .WithMany()
-                        .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("ERP.Core.Models.Accounting.Voucher", "Voucher")
                         .WithMany("Allocations")
                         .HasForeignKey("VoucherId")
@@ -9998,6 +10063,61 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.Invoice", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseInvoiceItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseInvoice", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseReturnItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseReturn", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesInvoiceItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.SalesInvoice", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesReturnItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.SalesReturn", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.Agreement", b =>
                 {
                     b.Navigation("Items");
@@ -10029,15 +10149,9 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Items");
                 });
 
-            modelBuilder.Entity("ERP.Core.Models.Accounting.Invoice", b =>
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceBase", b =>
                 {
-                    b.Navigation("Items");
-
                     b.Navigation("PaymentSplits");
-
-                    b.Navigation("VehicleBatches");
-
-                    b.Navigation("VehicleLines");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.JournalEntry", b =>
@@ -10137,6 +10251,35 @@ namespace ERP.Service.Data.Migrations
             modelBuilder.Entity("ERP.Core.Models.Shared.UserRolePermission", b =>
                 {
                     b.Navigation("Permissions");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Invoice", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("VehicleBatches");
+
+                    b.Navigation("VehicleLines");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseInvoice", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseReturn", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesInvoice", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SalesReturn", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

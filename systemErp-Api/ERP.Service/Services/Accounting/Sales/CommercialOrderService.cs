@@ -7,11 +7,12 @@ namespace ERP.Service.Services.Accounting;
 public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrderDto, CreateCommercialOrderDto, UpdateCommercialOrderDto>, ICommercialOrderService
 {
     private readonly INumberSequenceService _numbers;
-    private readonly IInvoiceService _invoices;
+    private readonly ISalesInvoiceService _sales;
+    private readonly IPurchaseInvoiceService _purchases;
 
-    public CommercialOrderService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices) : base(db)
+    public CommercialOrderService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService sales, IPurchaseInvoiceService purchases) : base(db)
     {
-        _numbers = numbers; _invoices = invoices;
+        _numbers = numbers; _sales = sales; _purchases = purchases;
     }
 
     protected override string Label => Messages.LabelOrder;
@@ -124,7 +125,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
             if (o.Status is "cancelled" or "draft") throw new ConflictException(Messages.ConfirmOrderFirst);
 
             var sales = o.Type == "sales_order";
-            var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
+            var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(o.PartyVatNumber) : InvoiceType.TaxInvoice,

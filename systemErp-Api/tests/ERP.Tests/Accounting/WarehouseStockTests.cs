@@ -43,17 +43,17 @@ public class WarehouseStockTests : TestBase
         var branch = await NewWarehouseAsync(api, "WH-B");
         var before = await OnHandAsync(api, item, main);
 
-        var toDefault = await api.Post("/invoices", Purchase(item, 10, 20));
+        var toDefault = await api.PostInvoice(Purchase(item, 10, 20));
         Assert.Equal(201, toDefault.Status);
         Assert.Equal(main, toDefault.Data!["warehouseId"].G());
-        Assert.Equal(201, (await api.Post("/invoices", Purchase(item, 4, 20, branch))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 4, 20, branch))).Status);
 
         Assert.Equal(before + 10, await OnHandAsync(api, item, main));
         Assert.Equal(4, await OnHandAsync(api, item, branch));
 
         // البيع من مستودع لا يصرف من رصيد مستودع آخر
-        Assert.Equal(409, (await api.Post("/invoices", Sale(item, 5, branch))).Status);
-        Assert.Equal(201, (await api.Post("/invoices", Sale(item, 3, branch))).Status);
+        Assert.Equal(409, (await api.PostInvoice(Sale(item, 5, branch))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Sale(item, 3, branch))).Status);
         Assert.Equal(1, await OnHandAsync(api, item, branch));
 
         // مجموع المستودعات = رصيد الصنف
@@ -68,7 +68,7 @@ public class WarehouseStockTests : TestBase
         var item = await SeedProductAsync(api);
         var main = await DefaultWarehouseAsync(api);
         var branch = await NewWarehouseAsync(api, "WH-T");
-        Assert.Equal(201, (await api.Post("/invoices", Purchase(item, 10, 20))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 10, 20))).Status);
         var product = (await api.Get($"/products/{item}")).Data!;
         var mainBefore = await OnHandAsync(api, item, main);
         var (debit, credit) = Totals(await api.Get("/reports/TrialBalance"));
@@ -88,9 +88,9 @@ public class WarehouseStockTests : TestBase
         Assert.Equal((debit, credit), Totals(await api.Get("/reports/TrialBalance")));
 
         // المرتجع يعود إلى مستودع فاتورته
-        var sale = await api.Post("/invoices", Sale(item, 2, branch));
+        var sale = await api.PostInvoice(Sale(item, 2, branch));
         Assert.Equal(201, sale.Status);
-        Assert.Equal(200, (await api.Post("/invoices/returns", new { originalInvoiceId = sale.Data!["id"].S(), returnReason = "x" })).Status);
+        Assert.Equal(200, (await api.PostReturn(new { originalInvoiceId = sale.Data!["id"].S(), returnReason = "x" })).Status);
         Assert.Equal(6, await OnHandAsync(api, item, branch));
     }
 

@@ -24,7 +24,7 @@ public class PartyAgingService : IPartyAgingService
         var kind = receivable ? InvoiceKind.Sales : InvoiceKind.Purchase;
         var parties = await PartiesAsync(receivable, ct);
 
-        var invoices = await _db.Set<Invoice>().AsNoTracking()
+        var invoices = await _db.Set<InvoiceBase>().AsNoTracking()
             .Where(i => i.Kind == kind && i.Status == "posted" && i.PartyId != null && i.IssueDate < end)
             .Select(i => new { i.Id, PartyId = i.PartyId!.Value, i.IssueDate, i.ExchangeRate }).ToListAsync(ct);
         var balances = await InvoiceBalances.ForAsync(_db, invoices.Select(i => i.Id).ToList(), null, ct, before: end);
@@ -92,7 +92,7 @@ public class PartyAgingService : IPartyAgingService
 
         var kind = customerId.HasValue ? InvoiceKind.Sales : InvoiceKind.Purchase;
         var partyId = customerId ?? supplierId;
-        var invoices = await _db.Set<Invoice>().AsNoTracking()
+        var invoices = await _db.Set<InvoiceBase>().AsNoTracking()
             .Where(i => i.Kind == kind && i.Status == "posted" && i.PartyId == partyId)
             .OrderBy(i => i.IssueDate).ThenBy(i => i.InvoiceNumber)
             .Select(i => new OpenInvoiceDto { Id = i.Id, InvoiceNumber = i.InvoiceNumber, IssueDate = i.IssueDate, GrandTotal = i.GrandTotal, CurrencyCode = i.CurrencyCode })

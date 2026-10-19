@@ -7,12 +7,13 @@ namespace ERP.Service.Services.Accounting;
 public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuotationDto, UpdateQuotationDto>, IQuotationService
 {
     private readonly INumberSequenceService _numbers;
-    private readonly IInvoiceService _invoices;
+    private readonly ISalesInvoiceService _sales;
+    private readonly IPurchaseInvoiceService _purchases;
     private readonly ICommercialOrderService _orders;
 
-    public QuotationService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, ICommercialOrderService orders) : base(db)
+    public QuotationService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService sales, IPurchaseInvoiceService purchases, ICommercialOrderService orders) : base(db)
     {
-        _numbers = numbers; _invoices = invoices; _orders = orders;
+        _numbers = numbers; _sales = sales; _purchases = purchases; _orders = orders;
     }
 
     protected override string Label => Messages.LabelQuotation;
@@ -77,7 +78,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
             if (q.Status == "rejected") throw new ConflictException(Messages.CannotConvertRejectedQuotation);
 
             var sales = q.Type == "sales_quotation";
-            var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
+            var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(q.PartyVatNumber) : InvoiceType.TaxInvoice,

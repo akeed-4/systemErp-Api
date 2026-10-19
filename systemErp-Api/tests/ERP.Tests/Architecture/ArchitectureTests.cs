@@ -59,7 +59,8 @@ public class ArchitectureTests
         Assert.NotEmpty(entities);
         Assert.All(entities, e =>
         {
-            Assert.True(e.GetQueryFilter() != null, $"{e.ClrType.Name} بلا مرشّح منشأة");
+            // وراثة TPC (الفواتير وبنودها): المرشّح على الجذر ويسري على جداوله كلها
+            Assert.True(e.GetRootType().GetQueryFilter() != null, $"{e.ClrType.Name} بلا مرشّح منشأة");
             Assert.Contains(e.GetIndexes(), i => i.Properties.First().Name == nameof(BaseEntity.TenantId));
         });
     }
@@ -90,7 +91,7 @@ public class ArchitectureTests
             "ApprovalPolicies", "Approvals", "Notifications",
             // المحاسبة مشتركة بين كل الوحدات
             "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",
-            // الفواتير محرّك واحد لفواتير التجارة وفواتير السيارات
+            // فواتير المعارض (Invoice) وأسباب الإعفاء الضريبي المشتركة؛ مستندات التجارة العامة لها controllers موسومة بوحدتها
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون
             "Banks", "Currencies", "Customers", "PaymentMethods", "Suppliers", "ProductCategories", "Products", "UnitsOfMeasure", "Warehouses",

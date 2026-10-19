@@ -31,7 +31,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     // ================= إنشاء عمليات الدفع =================
     public async Task<OnlinePaymentDto> CreateInvoicePaymentLinkAsync(CreateInvoicePaymentLinkDto r, CancellationToken ct = default)
     {
-        var inv = await _db.Set<Invoice>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == r.InvoiceId, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        var inv = await _db.Set<InvoiceBase>().AsNoTracking().FirstOrDefaultAsync(i => i.Id == r.InvoiceId, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
         if (inv.Kind != InvoiceKind.Sales || inv.Status != "posted") throw new ConflictException(Messages.PaymentLinkPostedSalesOnly);
         if (inv.PartyId == null) throw new ValidationFailedException(Messages.InvoiceWithoutRegisteredCustomer);
         var customer = await _db.Set<Customer>().AsNoTracking().FirstAsync(c => c.Id == inv.PartyId, ct);
@@ -212,7 +212,7 @@ public class OnlinePaymentService : IOnlinePaymentService
         {
             case OnlinePaymentPurpose.InvoicePayment:
             {
-                var inv = await _db.Set<Invoice>().AsNoTracking().FirstAsync(i => i.Id == p.ReferenceId, ct);
+                var inv = await _db.Set<InvoiceBase>().AsNoTracking().FirstAsync(i => i.Id == p.ReferenceId, ct);
                 var customer = await _db.Set<Customer>().AsNoTracking().FirstAsync(c => c.Id == inv.PartyId, ct);
                 var settlement = await SettlementAccountAsync(ct);
                 var voucher = await _vouchers.CreateAsync(new CreateVoucherDto

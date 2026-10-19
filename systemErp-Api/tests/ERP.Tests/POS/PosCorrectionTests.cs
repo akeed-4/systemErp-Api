@@ -38,8 +38,8 @@ public class PosCorrectionTests : TestBase
         var kept = (await api.Get($"/pos/transactions/{id}")).Data!;
         Assert.Equal("voided", kept["status"].S());
         var invoiceId = kept["invoiceId"].S();
-        Assert.Equal("posted", (await api.Get($"/invoices/{invoiceId}")).Data!["status"].S());
-        var creditNote = Assert.Single((await api.Get("/invoices?kind=sales_return")).Data!["items"]!.AsArray())!;
+        Assert.Equal("posted", (await api.Get(await api.InvoicePath(invoiceId, ""))).Data!["status"].S());
+        var creditNote = Assert.Single((await api.Get("/sales-returns")).Data!["items"]!.AsArray())!;
         Assert.Equal(invoiceId, creditNote["originalInvoiceId"].S()); Assert.Equal(230, creditNote["grandTotal"].D());
         Assert.Equal(405, (await api.Delete($"/pos/transactions/{id}")).Status);
     }
@@ -54,7 +54,7 @@ public class PosCorrectionTests : TestBase
         var id = tx.Data!["id"].S();
         Assert.Equal(405, (await api.Put($"/pos/transactions/{id}", new { customerName = "أحمد", customerPhone = "0500000000", customerTaxNumber = "300000000000003" })).Status);
         var invoiceId = (await api.Get($"/pos/transactions/{id}")).Data!["invoiceId"].S();
-        Assert.Equal(409, (await api.Delete($"/invoices/{invoiceId}")).Status);
+        Assert.Equal(409, (await api.Delete(await api.InvoicePath(invoiceId, ""))).Status);
     }
 
     [Fact]
@@ -118,11 +118,11 @@ public class PosCorrectionTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
-        var inv = await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 2, unitPrice = 100, vatRate = 15 } } });
+        var inv = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 2, unitPrice = 100, vatRate = 15 } } });
         var id = inv.Data!["id"].S();
-        var ret = await api.Post("/invoices/returns", new { originalInvoiceId = id, returnReason = "x", refundPaymentMethod = "cash", lines = new[] { new { itemId = product, quantity = 1 } } });
+        var ret = await api.PostReturn(new { originalInvoiceId = id, returnReason = "x", refundPaymentMethod = "cash", lines = new[] { new { itemId = product, quantity = 1 } } });
         Assert.Equal(200, ret.Status);
-        Assert.Equal(409, (await api.Delete($"/invoices/{id}")).Status);
+        Assert.Equal(409, (await api.Delete(await api.InvoicePath(id, ""))).Status);
     }
 
     // ---------- حركات المخزون ----------
@@ -136,7 +136,7 @@ public class PosCorrectionTests : TestBase
         Assert.Equal(200, upd.Status);
         Assert.Equal(15, await StockAsync(api, product));
 
-        await api.Post("/invoices", new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 12, unitPrice = 100, vatRate = 15 } } });
+        await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 12, unitPrice = 100, vatRate = 15 } } });
         Assert.Equal(3, await StockAsync(api, product));
         // خفض الرصيد الافتتاحي تحت المباع يُرفض، وكذلك حذفه
         Assert.Equal(409, (await api.Put($"/stockmovements/{opening}", new { itemId = product, type = "adjustment_in", quantity = 5, unitCost = 40, referenceNumber = "OPEN" })).Status);

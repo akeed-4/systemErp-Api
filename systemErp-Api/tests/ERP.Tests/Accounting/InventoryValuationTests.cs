@@ -40,7 +40,7 @@ public class InventoryValuationTests : TestBase
         var costs = new List<decimal>();
         for (var i = 0; i < 3; i++)
         {
-            var sale = await api.Post("/invoices", Sale(product, 1));
+            var sale = await api.PostInvoice(Sale(product, 1));
             Assert.Equal(201, sale.Status);
             costs.Add(sale.Data!["totalCost"].D());
         }
@@ -58,7 +58,7 @@ public class InventoryValuationTests : TestBase
         await AssertReconciledAsync(api, 15 * 70m); // الرصيد القديم أُعيد تسعيره بآخر سعر ودخل فرقه في القيد
 
         var (supplier, _) = await SeedSupplierAsync(api);
-        var purchase = await api.Post("/invoices", new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier,
+        var purchase = await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier,
             items = new[] { new { itemId = product, quantity = 5, unitPrice = 30, vatRate = 15 } } });
         Assert.Equal(201, purchase.Status); // شراء بأقل من التكلفة: الرصيد كله ينخفض إلى 30، والفرق إلى فروق الأسعار
         await AssertReconciledAsync(api, 20 * 30m);
@@ -71,7 +71,7 @@ public class InventoryValuationTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api, stock: 10, cost: 40);
         Assert.Equal(200, (await api.Post("/stockmovements/adjust", new { itemId = product, type = "adjustment_in", quantity = 10, unitCost = 60, referenceNumber = "L2" })).Status);
-        Assert.Equal(600m, (await api.Post("/invoices", Sale(product, 12))).Data!["totalCost"].D()); // متوسط 50
+        Assert.Equal(600m, (await api.PostInvoice(Sale(product, 12))).Data!["totalCost"].D()); // متوسط 50
         await AssertReconciledAsync(api, 400m);
 
         // FIFO: الباقي 8 من الدفعة الثانية بـ 60 = 480، والفرق 80 بقيد إعادة تقييم
@@ -98,7 +98,7 @@ public class InventoryValuationTests : TestBase
         Assert.Equal(200, (await api.Put("/costing/policy", Policy("standard"))).Status);
 
         var (supplier, _) = await SeedSupplierAsync(api);
-        Assert.Equal(201, (await api.Post("/invoices", new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier,
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier,
             items = new[] { new { itemId = product, quantity = 10, unitPrice = 50, vatRate = 15 } } })).Status);
         await AssertReconciledAsync(api, 450m);
         Assert.Equal(50m, await BalanceAsync(api, "513")); // فرق التكلفة المعيارية على حسابه في السياسة
@@ -107,7 +107,7 @@ public class InventoryValuationTests : TestBase
         await AssertReconciledAsync(api, 480m);
         Assert.Equal(20m, await BalanceAsync(api, "513")); // 50 − 30 إعادة تقييم
 
-        Assert.Equal(192m, (await api.Post("/invoices", Sale(product, 4))).Data!["totalCost"].D());
+        Assert.Equal(192m, (await api.PostInvoice(Sale(product, 4))).Data!["totalCost"].D());
         await AssertReconciledAsync(api, 288m);
     }
 
@@ -119,7 +119,7 @@ public class InventoryValuationTests : TestBase
         var adjust = await api.Post("/stockmovements/adjust", new { itemId = product, type = "adjustment_in", quantity = 10, unitCost = 40,
             referenceNumber = "OPEN", date = DateTime.UtcNow.Date.AddDays(-2) });
         Assert.Equal(200, adjust.Status);
-        Assert.Equal(200m, (await api.Post("/invoices", Sale(product, 5))).Data!["totalCost"].D());
+        Assert.Equal(200m, (await api.PostInvoice(Sale(product, 5))).Data!["totalCost"].D());
         await AssertReconciledAsync(api, 200m);
 
         // تكلفة الإضافة تُصحَّح إلى 60: الباقي 5 × 60 = 300، وتكلفة المبيعات المرحّلة لا تتغير

@@ -77,7 +77,7 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
     {
         if (await Db.Set<StockMovement>().AnyAsync(m => m.ItemId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteProductWithMovements);
-        if (await Db.Set<InvoiceItem>().AnyAsync(i => i.ItemId == e.Id, ct))
+        if (await Db.Set<InvoiceItemBase>().AnyAsync(i => i.ItemId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteProductUsedInInvoices);
     }
 

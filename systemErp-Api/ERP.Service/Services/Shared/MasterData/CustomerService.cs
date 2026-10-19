@@ -69,7 +69,7 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
 
     protected override async Task OnDeletingAsync(Customer e, CancellationToken ct)
     {
-        if (await Db.Set<Invoice>().AnyAsync(i => i.PartyId == e.Id, ct))
+        if (await Db.Set<InvoiceBase>().AnyAsync(i => i.PartyId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteCustomerWithInvoices);
         var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
         if (acc != null)

@@ -106,7 +106,7 @@ public class SalesCycleTests : TestBase
         var done = await api.Post($"/carsalescontracts/{id}/complete");
         Assert.Equal(200, done.Status);
         Assert.Equal(40500, done.Data!["costPrice"].D());
-        var invoice = (await api.Get($"/invoices/{done.Data["invoiceId"].S()}")).Data!;
+        var invoice = (await api.Get(await api.InvoicePath(done.Data["invoiceId"].S(), ""))).Data!;
         Assert.Equal(59375, invoice["grandTotal"].D());
         Assert.Equal(7725, invoice["vatTotal"].D());
         Assert.Equal(3, invoice["items"]!.AsArray().Count);
@@ -167,7 +167,7 @@ public class SalesCycleTests : TestBase
         lines = (await api.Get($"/additionalcharges?documentType=car_sales_contract&documentId={id}")).Data!.AsArray();
         Assert.Equal(450, lines.Single()!["amount"].D());
         var done = await api.Post($"/carsalescontracts/{id}/complete");
-        Assert.Equal(57500, (await api.Get($"/invoices/{done.Data!["invoiceId"].S()}")).Data!["grandTotal"].D());
+        Assert.Equal(57500, (await api.Get(await api.InvoicePath(done.Data!["invoiceId"].S(), ""))).Data!["grandTotal"].D());
     }
 
     [Fact]

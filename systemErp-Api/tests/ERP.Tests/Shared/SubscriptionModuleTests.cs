@@ -12,7 +12,7 @@ public class SubscriptionModuleTests : TestBase
     public SubscriptionModuleTests(ErpFactory f) : base(f) { }
 
     private static readonly string[] Shared = { "/customers", "/suppliers", "/paymentmethods", "/banks", "/accounts", "/journalentries", "/vouchers", "/products", "/invoices?kind=sales" };
-    private static readonly string[] Trade = { "/quotations", "/agreements", "/commercialorders", "/commercialcontracts", "/deliverynotes", "/materialrequisitions" };
+    private static readonly string[] Trade = { "/purchase-invoices", "/purchase-returns", "/quotations", "/agreements", "/commercialorders", "/commercialcontracts", "/deliverynotes", "/materialrequisitions" };
     private static readonly string[] Car = { "/vehicles", "/carbrands", "/carprocurementorders", "/carsalescontracts" };
     private static readonly string[] Pos = { "/pos/transactions", "/pos/shifts", "/pos/settings", "/pos/offers" };
 

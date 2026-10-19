@@ -131,13 +131,14 @@ public class InventoryReportService : IInventoryReportService
 
     private IQueryable<CommercialTradeRowDto> CommercialTradeQuery(ReportQueryDto q)
     {
-        var inv = _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted");
+        var inv = _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Status == "posted");
+        var items = _db.Set<InvoiceItemBase>().AsNoTracking(); // بنود كل جداول الفواتير (البند يشير إلى رأس جدوله)
         if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
         if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate < q.EndExclusive());
         return inv.Select(i => new CommercialTradeRowDto
         {
             Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,
-            ItemsCount = i.Items.Count, Subtotal = i.Subtotal, DiscountTotal = i.DiscountTotal, VatTotal = i.VatTotal, GrandTotal = i.GrandTotal,
+            ItemsCount = items.Count(it => it.InvoiceId == i.Id), Subtotal = i.Subtotal, DiscountTotal = i.DiscountTotal, VatTotal = i.VatTotal, GrandTotal = i.GrandTotal,
             CogsTotal = i.TotalCost, GrossProfit = i.GrossProfit,
             GrossProfitMarginPercent = i.Subtotal == 0 ? 0m : Math.Round(i.GrossProfit / i.Subtotal * 100, 2),
             ZatcaStatus = i.ZatcaStatus,

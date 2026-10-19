@@ -1,7 +1,6 @@
 using System.Text;
 using DevExtreme.AspNet.Data.ResponseModel;
 using ERP.Core.Contracts.Accounting;
-using ERP.Core.Contracts.CarShowroom;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
 
@@ -15,16 +14,16 @@ public class InvoiceService : IInvoiceService
     private readonly INumberSequenceService _numbers;
     private readonly IZatcaService _zatca;
     private readonly ITransactionRunner _tx;
-    private readonly IVehicleService _vehicles;
     private readonly ERP.Core.Contracts.Shared.IAuditService _audit;
-    private readonly ICostVisibility _carCost;
+    /// <summary>امتدادات الوحدات (المعارض...) على دورة الفاتورة: منطقها خارج هذه الخدمة.</summary>
+    private readonly IReadOnlyList<IInvoiceExtension> _extensions;
 
     public InvoiceService(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
-        INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, IVehicleService vehicles, ERP.Core.Contracts.Shared.IAuditService audit,
-        ICostVisibility carCost)
+        INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit,
+        IEnumerable<IInvoiceExtension> extensions)
     {
-        _audit = audit; _carCost = carCost;
-        _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx; _vehicles = vehicles;
+        _audit = audit; _extensions = extensions.ToList();
+        _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx;
     }
 
     // ---------------- القراءة ----------------
@@ -46,10 +45,9 @@ public class InvoiceService : IInvoiceService
             .OrderByDescending(i => i.IssueDate).ThenByDescending(i => i.InvoiceNumber)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).AsSplitQuery().ToListAsync(ct);
         var due = await InvoiceBalances.ForAsync(_db, items.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, ct);
-        var showCarCost = await _carCost.CanViewAsync(ct);
         return new PagedResult<InvoiceDto>
         {
-            Items = items.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0, showCarCost)).ToList(),
+            Items = await MaskAsync(items.Select(i => (i, ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList(), ct),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
@@ -63,8 +61,7 @@ public class InvoiceService : IInvoiceService
         return EntityLoader.LoadAsync(q.Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).Include(i => i.VehicleBatches).AsSplitQuery(), options, async (page, token) =>
         {
             var due = await InvoiceBalances.ForAsync(_db, page.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, token);
-            var showCarCost = await _carCost.CanViewAsync(token);
-            return page.Select(i => ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0, showCarCost)).ToList();
+            return await MaskAsync(page.Select(i => (i, ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList(), token);
         }, ct, EntityLoader.Desc(nameof(Invoice.IssueDate)), EntityLoader.Desc(nameof(Invoice.InvoiceNumber)));
     }
 
@@ -72,32 +69,22 @@ public class InvoiceService : IInvoiceService
     {
         var invoice = await _db.Set<Invoice>().AsNoTracking().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).Include(i => i.VehicleBatches).AsSplitQuery()
             .FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
-        var dto = ToDto(invoice, invoice.Status == "posted" ? await InvoiceBalances.DueAsync(_db, id, ct) : 0, await _carCost.CanViewAsync(ct));
-        await VehicleBatchLines.FillAsync(_db, invoice, dto, ct);
-        return dto;
+        var dto = ToDto(invoice, invoice.Status == "posted" ? await InvoiceBalances.DueAsync(_db, id, ct) : 0);
+        foreach (var ext in _extensions) await ext.FillAsync(invoice, dto, ct);
+        return (await MaskAsync(new() { (invoice, dto) }, ct))[0];
     }
 
-    private static InvoiceDto ToDto(Invoice invoice, decimal amountDue, bool showCarCost)
+    private static InvoiceDto ToDto(Invoice invoice, decimal amountDue)
     {
         var dto = Mapper.Map<InvoiceDto>(invoice);
         dto.AmountDue = amountDue;
-        if (!showCarCost && IsCarInvoice(invoice))
-        {
-            // تكلفة السيارات وربحها لمن يملك صلاحية car-cost-view فقط
-            dto.TotalCost = 0; dto.GrossProfit = 0;
-            foreach (var item in dto.Items) item.UnitCost = 0;
-            foreach (var line in dto.VehicleLines) line.UnitCost = 0;
-        }
         return dto;
     }
 
-    private static bool IsCarInvoice(Invoice invoice)
-        => invoice.VehicleLines.Count > 0 || invoice.ReferenceType?.StartsWith("car_", StringComparison.Ordinal) == true;
-
-    /// <summary>قيد بيع السيارة يُظهر تكلفتها (تكلفة المبيعات)، فيتبع الصلاحية نفسها.</summary>
-    private async Task EnsureCarCostVisibleAsync(bool isCarSale, CancellationToken ct)
+    private async Task<List<InvoiceDto>> MaskAsync(List<(Invoice Invoice, InvoiceDto Dto)> rows, CancellationToken ct)
     {
-        if (isCarSale && !await _carCost.CanViewAsync(ct)) throw new ForbiddenException();
+        foreach (var ext in _extensions) await ext.MaskAsync(rows, ct);
+        return rows.Select(x => x.Dto).ToList();
     }
 
     // ---------------- الإنشاء ----------------
@@ -111,8 +98,7 @@ public class InvoiceService : IInvoiceService
             // المسودة برقم مؤقت؛ الرقم المتسلسل يُصرف عند الترحيل فلا يترك حذف مسودة فجوة في تسلسل الفواتير
             invoice.InvoiceNumber = DraftPrefix + invoice.Id.ToString("N")[..10].ToUpperInvariant();
             _db.Add(invoice);
-            // بطاقات شواصي الدفعات تُنشأ مع الفاتورة بحالة «مسودة» في حفظ واحد
-            if (invoice.VehicleBatches.Count > 0) await VehicleBatchLines.SyncDraftVehiclesAsync(_db, invoice, removeAll: false, token);
+            foreach (var ext in _extensions) await ext.OnSavingAsync(invoice, deleting: false, token);
             await _db.SaveChangesAsync(token);
             if (!draft) await FinalizeAsync(invoice, token);
             return await GetAsync(invoice.Id, token);
@@ -159,8 +145,7 @@ public class InvoiceService : IInvoiceService
                 invoice.VehicleBatches.Add(batch);
                 _db.Add(batch); // معرّفها محدَّد مسبقاً (تشير إليه شواصيها)، فتُضاف صراحةً
             }
-            // بطاقات المسودة تُطابَق مع الشواصي الجديدة: يُحدَّث الباقي ويُضاف الجديد ويُحذف المحذوف
-            if (invoice.Kind == InvoiceKind.Purchase) await VehicleBatchLines.SyncDraftVehiclesAsync(_db, invoice, removeAll: false, token);
+            foreach (var ext in _extensions) await ext.OnSavingAsync(invoice, deleting: false, token);
             await _db.SaveChangesAsync(token);
 
             // المرحّلة تعود مرحّلة دائماً (بنفس رقمها) بقيد وحركات مخزنية جديدة
@@ -182,8 +167,6 @@ public class InvoiceService : IInvoiceService
         if (invoice.Kind is not (InvoiceKind.Sales or InvoiceKind.Purchase) || invoice.IsReturn || invoice.OriginalInvoiceId.HasValue)
             throw new ConflictException(Messages.PostedInvoiceLocked);
         if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted) throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
-        // فاتورة عقد بيع السيارة / أمر الشراء: يُعدَّل مستندها المصدر
-        if (invoice.ReferenceType?.StartsWith("car_", StringComparison.Ordinal) == true) throw new ConflictException(Messages.InvoiceFromSourceDocument);
         // فاتورة نقطة بيع/عقد: مجاميع مستندها المصدر (الوردية، العقد) تتبعها، فتُعدَّل من ذلك المستند
         if (invoice.ReferenceType is not (null or "quotation" or "sales_order" or "purchase_order" or "material_requisition"))
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
@@ -208,7 +191,7 @@ public class InvoiceService : IInvoiceService
             if (await _db.Set<Invoice>().AnyAsync(i => i.OriginalInvoiceId == invoice.Id, ct)) throw new ConflictException(Messages.PostedInvoiceDeleteHasReturns);
             if (await _db.Set<VoucherAllocation>().AnyAsync(a => a.InvoiceId == invoice.Id, ct)) throw new ConflictException(Messages.PostedInvoiceDeleteHasPayments);
         }
-        if (invoice.VehicleLines.Count > 0) await UnpostVehiclesAsync(invoice, ct);
+        foreach (var ext in _extensions) await ext.OnUnpostingAsync(invoice, ct);
         // التعديل: يبقى القيد ويُستبدل في مكانه بنفس رقمه عند إعادة الترحيل (FinalizeAsync). الحذف: يُعكس القيد فيبقى أثره في السجل.
         if (forDelete && invoice.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, reason, ct);
 
@@ -237,51 +220,6 @@ public class InvoiceService : IInvoiceService
         // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف
         await InventoryValuation.PostRevaluationAsync(_db, _posting, reversalChange + originalStockChange, reason, invoice.Id, ct);
         if (forDelete) invoice.JournalEntryId = null;
-    }
-
-    /// <summary>
-    /// يعيد سيارات الفاتورة المرحّلة لحالتها قبل الترحيل: البيع ← «متاحة» من جديد، وشراء الدفعات ← بطاقات «مسودة» تُطابَق
-    /// مع الشواصي بعد التعديل (فتبقى نفس البطاقات ومصاريفها)، وشراء الأسطر القديمة ← تُحذف بطاقاتها فتُنشأ عند إعادة الترحيل.
-    /// السيارة التي بيعت أو حُجزت أو دخلت عقداً أو أمر شراء بعد الشراء، أو فاتورة عليها مرتجع سيارات، لا تُعاد.
-    /// </summary>
-    private async Task UnpostVehiclesAsync(Invoice invoice, CancellationToken ct)
-    {
-        if (await _db.Set<Invoice>().AnyAsync(i => i.OriginalInvoiceId == invoice.Id, ct)) throw new ConflictException(Messages.PostedVehicleInvoiceHasReturns);
-        var ids = invoice.VehicleLines.Where(l => l.VehicleId.HasValue).Select(l => l.VehicleId!.Value).Distinct().ToList();
-        var vehicles = await _db.Set<Vehicle>().Where(v => ids.Contains(v.Id)).ToListAsync(ct);
-
-        if (invoice.Kind == InvoiceKind.Sales)
-        {
-            foreach (var v in vehicles.Where(v => v.Status == VehicleStatus.Sold)) v.Status = VehicleStatus.Available;
-            await _db.SaveChangesAsync(ct);
-            return;
-        }
-
-        var busy = vehicles.FirstOrDefault(v => v.Status != VehicleStatus.Available);
-        if (busy == null)
-        {
-            var linked = await _db.Set<CarSalesContract>().AsNoTracking().Where(c => ids.Contains(c.VehicleId)).Select(c => (Guid?)c.VehicleId).FirstOrDefaultAsync(ct)
-                ?? await _db.Set<CarProcurementOrderVin>().AsNoTracking().Where(o => o.VehicleId.HasValue && ids.Contains(o.VehicleId.Value)).Select(o => o.VehicleId).FirstOrDefaultAsync(ct);
-            busy = linked.HasValue ? vehicles.First(v => v.Id == linked) : null;
-        }
-        if (busy != null) throw new ConflictException(string.Format(Messages.PostedPurchaseVehicleInUse, busy.ChassisNumber));
-
-        var batchIds = invoice.VehicleLines.Where(l => l.BatchId.HasValue && l.VehicleId.HasValue).Select(l => l.VehicleId!.Value).ToHashSet();
-        foreach (var v in vehicles.Where(v => batchIds.Contains(v.Id)))
-        {
-            v.Status = VehicleStatus.Draft; // تعود بطاقة مسودة للفاتورة نفسها، ويحدّثها التعديل بالشاسيه
-            v.ReceivedAt = null;
-        }
-        var legacy = vehicles.Where(v => !batchIds.Contains(v.Id)).ToList();
-        if (legacy.Count > 0)
-        {
-            var legacyIds = legacy.Select(v => v.Id).ToList();
-            if (await _db.Set<AdditionalChargeAllocation>().AnyAsync(a => legacyIds.Contains(a.VehicleId), ct))
-                throw new ConflictException(string.Format(Messages.DraftVehicleHasCharges, legacy[0].ChassisNumber));
-            foreach (var l in invoice.VehicleLines.Where(l => l.VehicleId.HasValue && legacyIds.Contains(l.VehicleId.Value))) l.VehicleId = null;
-            _db.RemoveRange(legacy);
-        }
-        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default)
@@ -327,8 +265,8 @@ public class InvoiceService : IInvoiceService
                 .FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, token) ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
             if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
             if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
-            var originalVehicleLines = await _db.Set<InvoiceVehicleLine>().AsNoTracking().Where(l => l.InvoiceId == original.Id).OrderBy(l => l.LineNo).ToListAsync(token);
-            if (originalVehicleLines.Count > 0) return await CreateVehicleReturnAsync(r, original, originalVehicleLines, token);
+            foreach (var ext in _extensions)
+                if (await ext.CreateReturnAsync(r, original, CreateAsync, token) is { } extensionReturn) return extensionReturn;
 
             var previouslyReturned = (await _db.Set<InvoiceItem>().AsNoTracking()
                     .Where(i => _db.Set<Invoice>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"))
@@ -379,103 +317,11 @@ public class InvoiceService : IInvoiceService
             return await CreateAsync(dto, token);
         }, ct), ct);
 
-    private static string ReturnNotes(Invoice original, CreateReturnInvoiceRequestDto r)
+    internal static string ReturnNotes(Invoice original, CreateReturnInvoiceRequestDto r)
         => string.IsNullOrWhiteSpace(r.Notes) ? $"مرتجع من الفاتورة {original.InvoiceNumber}" : $"مرتجع من الفاتورة {original.InvoiceNumber}: {r.Notes.Trim()}";
 
-    /// <summary>
-    /// مرتجع فاتورة سيارات: يختار المستخدم المركبات المرتجعة (أو كلها). شراء ← المركبة يجب أن تكون متاحة وتخرج من المخزون (مشطوبة)،
-    /// بيع ← المركبة يجب أن تكون مباعة وتعود متاحة. القيد من بنود السيارات نفسها (بتكلفتها في البيع)، ولا تُرجَع مركبة مرتين.
-    /// </summary>
-    private async Task<InvoiceDto> CreateVehicleReturnAsync(CreateReturnInvoiceRequestDto r, Invoice original, List<InvoiceVehicleLine> originalLines, CancellationToken ct)
-    {
-        var isSales = original.Kind == InvoiceKind.Sales;
-        var alreadyReturned = (await _db.Set<InvoiceVehicleLine>().AsNoTracking()
-                .Where(l => l.VehicleId != null && _db.Set<Invoice>().Any(inv => inv.Id == l.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"))
-                .Select(l => l.VehicleId!.Value).ToListAsync(ct)).ToHashSet();
-
-        var chosen = r.VehicleIds.Count == 0
-            ? originalLines.Where(l => l.VehicleId.HasValue && !alreadyReturned.Contains(l.VehicleId.Value)).ToList()
-            : r.VehicleIds.Distinct().Select(id => originalLines.FirstOrDefault(l => l.VehicleId == id) ?? throw new ValidationFailedException(Messages.ReturnVehicleNotInOriginal)).ToList();
-        if (chosen.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
-
-        var vehicleIds = chosen.Select(l => l.VehicleId!.Value).ToList();
-        var vehicles = await _db.Set<Vehicle>().Where(v => vehicleIds.Contains(v.Id)).ToDictionaryAsync(v => v.Id, ct);
-        foreach (var l in chosen)
-        {
-            if (alreadyReturned.Contains(l.VehicleId!.Value)) throw new ConflictException(string.Format(Messages.ReturnVehicleAlreadyReturned, l.Vin));
-            if (!vehicles.TryGetValue(l.VehicleId.Value, out var v)) throw new ValidationFailedException(Messages.ReturnVehicleNotInOriginal);
-            var expected = isSales ? VehicleStatus.Sold : VehicleStatus.Available;
-            if (v.Status != expected) throw new ConflictException(string.Format(isSales ? Messages.ReturnVehicleNotSold : Messages.ReturnVehicleNotAvailable, v.ChassisNumber));
-        }
-
-        var dto = new CreateInvoiceDto
-        {
-            Kind = isSales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
-            InvoiceType = isSales ? InvoiceType.CreditNote : InvoiceType.DebitNote,
-            IsReturn = true, OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.ReturnReason,
-            PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber,
-            PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber, PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
-            WarehouseId = original.WarehouseId,
-            PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
-            PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
-            PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
-            RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
-            Notes = ReturnNotes(original, r), Status = "posted",
-        };
-        if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
-        var pool = original.Items.Where(i => i.ItemId == Guid.Empty).ToList();
-        // شواصي الدفعات: بند مرتجع لكل (مواصفات، سعر) بكمية الشواصي المختارة، من بند الدفعة في الفاتورة الأصلية
-        foreach (var group in chosen.Where(l => l.BatchId != null).GroupBy(l => (Name: VehicleBatchLines.Spec(l), l.UnitPrice)))
-        {
-            var src = pool.FirstOrDefault(i => i.ItemName == group.Key.Name && i.UnitPrice == group.Key.UnitPrice)
-                ?? throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
-            var count = group.Count();
-            dto.Items.Add(new InvoiceItemDto
-            {
-                ItemId = Guid.Empty, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = count,
-                UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, Discount = count * group.First().Discount, VatRate = src.VatRate,
-                VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode,
-                RevenueAccountCode = src.RevenueAccountCode, CostCenterId = src.CostCenterId,
-            });
-        }
-        foreach (var l in chosen.Where(l => l.BatchId == null))
-        {
-            var name = VehicleInvoiceLines.Describe(l);
-            var src = pool.FirstOrDefault(i => i.ItemName == name) ?? throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
-            pool.Remove(src);
-            dto.Items.Add(new InvoiceItemDto
-            {
-                ItemId = Guid.Empty, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = 1,
-                UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, Discount = src.Discount, VatRate = src.VatRate,
-                VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode, VatAmountOverride = src.VatAmountOverride,
-                RevenueAccountCode = src.RevenueAccountCode, CostCenterId = src.CostCenterId,
-            });
-        }
-        if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) MirrorOriginalSplits(dto, original);
-
-        var created = await CreateAsync(dto, ct);
-
-        // أسطر المرتجع تتبّع المركبات (لمنع إرجاعها مرة ثانية) وتتغير حالة المركبة
-        var ret = await _db.Set<Invoice>().Include(i => i.VehicleLines).Include(i => i.VehicleBatches).FirstAsync(i => i.Id == created.Id, ct);
-        var no = 1;
-        foreach (var l in chosen)
-        {
-            ret.VehicleLines.Add(new InvoiceVehicleLine
-            {
-                LineNo = no++, VehicleId = l.VehicleId, Vin = l.Vin, TempRef = l.TempRef, BrandId = l.BrandId, ModelId = l.ModelId, TrimId = l.TrimId,
-                BrandNameAr = l.BrandNameAr, ModelNameAr = l.ModelNameAr, TrimNameAr = l.TrimNameAr, Year = l.Year,
-                ColorExterior = l.ColorExterior, ColorInterior = l.ColorInterior, EngineNumber = l.EngineNumber, CustomsCardNumber = l.CustomsCardNumber,
-                VatMode = l.VatMode, UnitPrice = l.UnitPrice, Discount = l.Discount, VatAmount = l.VatAmount, TotalBeforeVat = l.TotalBeforeVat,
-                TotalAfterVat = l.TotalAfterVat, UnitCost = l.UnitCost, IsTemporaryChassis = l.IsTemporaryChassis, PriceOverride = l.PriceOverride,
-            });
-            vehicles[l.VehicleId!.Value].Status = isSales ? VehicleStatus.Available : VehicleStatus.WrittenOff;
-        }
-        await _db.SaveChangesAsync(ct);
-        return created;
-    }
-
     /// <summary>بلا طريقة ردّ محددة: فاتورة دُفعت بأكثر من طريقة يُردّ مرتجعها بالتوزيع نفسه (بنسبة قيمة المرتجع).</summary>
-    private static void MirrorOriginalSplits(CreateInvoiceDto dto, Invoice original)
+    internal static void MirrorOriginalSplits(CreateInvoiceDto dto, Invoice original)
     {
         if (original.PaymentSplits.Count == 0 || original.GrandTotal <= 0) return;
         var returned = DocumentPricing.Price(
@@ -503,7 +349,7 @@ public class InvoiceService : IInvoiceService
             if (wasPosted) await UnpostForEditAsync(invoice, token, forDelete: true);
             else EnsureNotLinkedToAnotherDocument(invoice);
             await ReleaseSourceAsync(invoice, token);
-            if (invoice.Kind == InvoiceKind.Purchase) await VehicleBatchLines.SyncDraftVehiclesAsync(_db, invoice, removeAll: true, token); // بطاقات المسودة تُحذف معها
+            foreach (var ext in _extensions) await ext.OnSavingAsync(invoice, deleting: true, token);
             await _audit.LogAsync(wasPosted ? "INVOICE_POSTED_DELETED" : "INVOICE_DRAFT_DELETED", nameof(Invoice), invoice.Id.ToString(), $"حذف {(wasPosted ? $"{invoice.InvoiceNumber} المرحّلة" : "مسودة")} {DescribeKind(invoice.Kind)} بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
             _db.RemoveRange(invoice.Items);
             _db.RemoveRange(invoice.PaymentSplits);
@@ -551,7 +397,6 @@ public class InvoiceService : IInvoiceService
     public async Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto r, CancellationToken ct = default)
     {
         if (_db.Database.CurrentTransaction != null) throw new InvalidOperationException(Messages.JournalPreviewInsideTransaction);
-        await EnsureCarCostVisibleAsync(r.VehicleLines.Count > 0 && r.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn, ct);
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {
@@ -576,7 +421,7 @@ public class InvoiceService : IInvoiceService
     public async Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default)
     {
         var invoice = await _db.Set<Invoice>().AsNoTracking().Include(i => i.VehicleLines).Include(i => i.VehicleBatches).FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException(Messages.InvoiceNotFound);
-        await EnsureCarCostVisibleAsync(IsCarInvoice(invoice) && invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn, ct);
+        foreach (var ext in _extensions) await ext.EnsureJournalVisibleAsync(invoice, ct);
         if (invoice.JournalEntryId == null) throw new ConflictException(Messages.InvoiceNotPostedUsePreview);
         return await JournalOfAsync(invoice, ct);
     }
@@ -622,12 +467,12 @@ public class InvoiceService : IInvoiceService
     private async Task<Invoice> BuildAsync(CreateInvoiceDto r, CancellationToken ct)
     {
         if (r.ItemsDerivedFromVehicles) r.Items.Clear(); // إعادة تنفيذ بعد تعارض تزامن: البنود تُشتق من جديد
-        // سيارات الفاتورة: دفعات (شراء: سطر لكل دفعة بشواصيها) أو أسطر مستقلة (بيع، وشراء سيارة سيارة). كلاهما يشتق r.Items ويتحقق
-        List<InvoiceVehicleBatch>? vehicleBatches = null;
-        List<InvoiceVehicleLine>? vehicleLines;
-        if (r.VehicleBatches.Count > 0) (vehicleBatches, vehicleLines) = await VehicleBatchLines.ResolveAsync(_db, _vehicles, r, ct);
-        else vehicleLines = r.VehicleLines.Count > 0 ? await VehicleInvoiceLines.ResolveAsync(_db, r, ct) : null;
-        r.ItemsDerivedFromVehicles = vehicleLines != null;
+        // أسطر الوحدات (سيارات المعارض...) تشتق r.Items وتتحقق منها
+        IInvoiceExtension? owner = null;
+        Func<Invoice, CancellationToken, Task>? attachLines = null;
+        foreach (var ext in _extensions)
+            if ((attachLines = await ext.ResolveAsync(r, ct)) != null) { owner = ext; break; }
+        r.ItemsDerivedFromVehicles = attachLines != null;
         await ApplyProductVatDefaultsAsync(r, ct);
         var errors = new List<string>();
         if (!Enum.IsDefined(r.Kind)) errors.Add(Messages.InvalidDocumentType);
@@ -662,17 +507,11 @@ public class InvoiceService : IInvoiceService
         invoice.Uuid = Guid.NewGuid();
         invoice.Status = "draft";
         invoice.IsReturn = isReturn;
-        var isShowroomInvoice = vehicleLines != null;
-        if (!isShowroomInvoice && r.ReferenceId.HasValue)
-        {
-            isShowroomInvoice = r.ReferenceType switch
-            {
-                "car_sales_contract" => await _db.Set<CarSalesContract>().AnyAsync(c => c.Id == r.ReferenceId, ct),
-                "car_procurement_order" => await _db.Set<CarProcurementOrder>().AnyAsync(o => o.Id == r.ReferenceId, ct),
-                _ => false,
-            };
-        }
-        invoice.Module = isShowroomInvoice ? PlatformModules.CarShowroom : PlatformModules.Accounting;
+        var module = owner?.Module;
+        if (module == null && r.ReferenceId.HasValue)
+            foreach (var ext in _extensions)
+                if (await ext.OwnsReferenceAsync(r.ReferenceType, r.ReferenceId.Value, ct)) { module = ext.Module; break; }
+        invoice.Module = module ?? PlatformModules.Accounting;
         // تاريخ ووقت الإصدار بتوقيت المملكة (كما يُطبعان)، ويُحوَّلان للتوقيت العالمي في رمز QR
         invoice.IssueDate = r.IssueDate == default ? SaudiTime.Now : r.IssueDate;
         invoice.IssueTime = string.IsNullOrWhiteSpace(r.IssueTime) ? SaudiTime.Now.ToString("HH:mm:ss") : r.IssueTime;
@@ -715,17 +554,7 @@ public class InvoiceService : IInvoiceService
             });
         }
 
-        invoice.VehicleLines.Clear();
-        if (vehicleLines != null) foreach (var vl in vehicleLines) invoice.VehicleLines.Add(vl);
-        invoice.VehicleBatches.Clear();
-        if (vehicleBatches != null) foreach (var batch in vehicleBatches) invoice.VehicleBatches.Add(batch);
-        if (vehicleLines != null) // حسابات السيارات من إعدادات المعرض عند عدم تحديدها من العميل
-        {
-            var car = await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct);
-            if (string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)) invoice.InventoryAccountCode = car.VehicleInventoryAccount;
-            if (isSales && string.IsNullOrWhiteSpace(invoice.RevenueAccountCode)) invoice.RevenueAccountCode = car.CarSalesRevenueAccount;
-            if (isSales && string.IsNullOrWhiteSpace(invoice.CogsAccountCode)) invoice.CogsAccountCode = car.CarCogsAccount;
-        }
+        if (attachLines != null) await attachLines(invoice, ct);
 
         // الطرف
         if (r.PartyId.HasValue)
@@ -854,8 +683,7 @@ public class InvoiceService : IInvoiceService
             invoice.InvoiceNumber = invoice.ReferenceType == "pos_transaction" && invoice.Kind == InvoiceKind.Sales
                 ? await _numbers.NextAsync("pos_invoice", "POS-", ct) // ترقيم نقاط البيع مستقل ومتسلسل
                 : await _numbers.NextAsync(KeyFor(invoice.Kind), PrefixFor(invoice.Kind), ct);
-        if (!preview) await VehicleInvoiceLines.OnPostingAsync(_db, _vehicles, invoice, ct); // شراء: إنشاء المركبات، بيع: تحويلها Sold
-        if (!preview && invoice.Kind == InvoiceKind.Purchase) await VehicleBatchLines.OnPostingAsync(_db, _posting, invoice, ct); // دفعات: البطاقات من مسودة إلى المخزون
+        if (!preview) foreach (var ext in _extensions) await ext.OnPostingAsync(invoice, ct); // سجلات الوحدات (إنشاء المركبات وبيعها...)
         var isSales = invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
 

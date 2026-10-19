@@ -3,10 +3,9 @@ using ERP.Core.Contracts.Accounting;
 using ERP.Core.Contracts.CarShowroom;
 using ERP.Core.DTOs.CarShowroom;
 using ERP.Service.Data;
-using ERP.Service.Services.CarShowroom;
 using ERP.Service.Services.Shared;
 
-namespace ERP.Service.Services.Accounting;
+namespace ERP.Service.Services.CarShowroom;
 
 /// <summary>تحقق جماعي من أرقام الشاسيه: الصيغة، التكرار داخل القائمة، والوجود في المنشأة باستعلام واحد.</summary>
 internal static class ChassisCheck

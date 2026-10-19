@@ -1,13 +1,12 @@
 using ERP.Core.Contracts.CarShowroom;
 using ERP.Core.DTOs.CarShowroom;
 using ERP.Service.Data;
-using ERP.Service.Services.CarShowroom;
 using ERP.Service.Services.Shared;
 
-namespace ERP.Service.Services.Accounting;
+namespace ERP.Service.Services.CarShowroom;
 
 /// <summary>
-/// منطق أسطر السيارات داخل فواتير الشراء/البيع، يستدعيه InvoiceService عند البناء والترحيل وإلغاء الترحيل.
+/// منطق أسطر السيارات داخل فواتير الشراء/البيع، يستدعيه CarInvoiceExtension (امتداد الفاتورة) عند البناء والترحيل وإلغاء الترحيل.
 /// لا يحسب قيودًا بنفسه: يشتق InvoiceItem لكل سيارة فيمرّ الأثر المحاسبي عبر محرك الفوترة والترحيل المركزي.
 /// إنشاء المركبات يمرّ عبر IVehicleService.CreateAsync (نفس تحقق VIN والماركة/الموديل/الفئة والتسعير).
 /// </summary>

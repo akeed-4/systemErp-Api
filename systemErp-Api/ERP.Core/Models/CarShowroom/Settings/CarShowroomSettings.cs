@@ -65,4 +65,6 @@ public class CarShowroomSettings : BaseEntity
     public string PurchaseCancellationLossAccount { get; set; } = "530";
     public string SupplierClaimsAccount { get; set; } = "118";
     public string ForfeitedDepositsAccount { get; set; } = "423";
+    /// <summary>تكاليف استيراد مدفوعة مقدماً لسيارات لم تصل: تُقيَّد عند الدفع وتُقفل بسحبها في سند التكاليف الإضافية.</summary>
+    public string ImportCostsClearingAccount { get; set; } = "1144";
 }

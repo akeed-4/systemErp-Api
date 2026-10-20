@@ -16,7 +16,8 @@ public class LandedCostVoucher : BaseEntity
     public string VoucherNumber { get; set; } = string.Empty;
     /// <summary>تاريخ فاتورة المورد؛ سعر الصرف سعر هذا التاريخ.</summary>
     public DateTime Date { get; set; }
-    public Guid SupplierId { get; set; }
+    /// <summary>مورد الفاتورة؛ فارغ فقط حين تكون كل الأسطر مسحوبة من تكاليف استيراد مقدمة (لا مستحق لأحد).</summary>
+    public Guid? SupplierId { get; set; }
     public string SupplierName { get; set; } = string.Empty;
     public string? SupplierInvoiceNumber { get; set; }
     public string CurrencyCode { get; set; } = "SAR";

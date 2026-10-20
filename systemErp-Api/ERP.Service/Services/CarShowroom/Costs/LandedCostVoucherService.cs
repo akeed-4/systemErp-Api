@@ -131,6 +131,7 @@ public class LandedCostVoucherService : ILandedCostVoucherService
         {
             var voucher = await Vouchers.FirstOrDefaultAsync(v => v.Id == id, token) ?? throw new NotFoundException(Messages.LandedCostVoucherNotFound);
             if (voucher.Status != LandedCostVoucherStatus.Draft) throw new ConflictException(Messages.LandedCostVoucherNotDraft);
+            var advanceIds = await RecheckPullsAsync(voucher, token);
 
             var matches = await MatchAsync(voucher, token);
             var affected = voucher.Lines.SelectMany(l => l.Allocations).Select(a => a.VehicleId)
@@ -148,6 +149,8 @@ public class LandedCostVoucherService : ILandedCostVoucherService
 
             var types = await TypesAsync(voucher.Lines.Select(l => l.ExpenseTypeId), token);
             var charges = new List<AdditionalChargeLine>();
+            var fromAdvances = new HashSet<AdditionalChargeLine>();
+            var advances = await _db.Set<ImportCostAdvance>().AsNoTracking().Where(a => advanceIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, token);
             // مستحق رُحِّل سابقاً من حقول أمر الشراء ويحل السند محله: يُعكس أثره في قيد السند
             var replacedPosted = matches.Values.Where(l => l.Source == ChargeSource.OrderFields && l.JournalEntryId != null).ToList();
             foreach (var line in voucher.Lines.OrderBy(l => l.LineNo))
@@ -165,6 +168,14 @@ public class LandedCostVoucherService : ILandedCostVoucherService
                     SupplierInvoiceNumber = voucher.SupplierInvoiceNumber,
                 };
                 foreach (var a in line.Allocations) charge.Allocations.Add(new AdditionalChargeAllocation { VehicleId = a.VehicleId, Amount = a.Amount });
+                // مسحوب من تكلفة مقدمة: بسعر صرفها ومورّدها، ودائنه حساب التسوية لا مورد السند
+                if (line.ImportCostAdvanceId is { } advanceId && advances.TryGetValue(advanceId, out var advance))
+                {
+                    charge.ExchangeRate = advance.ExchangeRate; charge.SupplierId = advance.SupplierId; charge.SupplierName = advance.SupplierName;
+                    charge.SupplierInvoiceNumber = advance.SupplierInvoiceNumber;
+                    charge.Notes = $"مسحوب من تكاليف الاستيراد المقدمة {advance.Number}";
+                    fromAdvances.Add(charge);
+                }
 
                 // الفعلي يحل محل التقديري المقابل؛ القيمتان والفرق يُحفظان على سطر السند
                 if (matches.TryGetValue(line, out var replaced))
@@ -182,7 +193,9 @@ public class LandedCostVoucherService : ILandedCostVoucherService
             await _db.SaveChangesAsync(token);
             await VehicleCostLedger.RecomputeAsync(_db, affected, token);
             await _db.SaveChangesAsync(token);
-            voucher.JournalEntryId = await ChargePosting.PostVoucherAsync(_db, _posting, voucher, charges, replacedPosted, token);
+            voucher.JournalEntryId = await ChargePosting.PostVoucherAsync(_db, _posting, voucher, charges, replacedPosted, token, fromAdvances);
+            await _db.SaveChangesAsync(token);
+            await ImportCostAdvances.RefreshAsync(_db, advanceIds, token);
             await _db.SaveChangesAsync(token);
             await SoldVehicleAdjustments.RecordAsync(_db, _numbers, _user.Name, SoldVehicleAdjustments.Deltas(costBefore, costAfter, sold),
                 $"سند التكاليف الإضافية {voucher.VoucherNumber}", "landed_cost_voucher", null, voucher.JournalEntryId, token);
@@ -235,6 +248,10 @@ public class LandedCostVoucherService : ILandedCostVoucherService
             }
             voucher.Status = LandedCostVoucherStatus.Cancelled;
             await _db.SaveChangesAsync(token);
+            // ما سُحب من تكاليف مقدمة يعود لرصيدها (المسوّى مشتق من السندات المعتمدة فقط)
+            var advanceIds = voucher.Lines.Where(l => l.ImportCostAdvanceId.HasValue).Select(l => l.ImportCostAdvanceId!.Value).Distinct().ToList();
+            await ImportCostAdvances.RefreshAsync(_db, advanceIds, token);
+            await _db.SaveChangesAsync(token);
             await _audit.LogAsync("LANDED_COST_VOUCHER_CANCELLED", nameof(LandedCostVoucher), voucher.Id.ToString(), $"إلغاء سند {voucher.VoucherNumber}", token);
             return await GetAsync(id, token);
         }, ct);
@@ -271,13 +288,56 @@ public class LandedCostVoucherService : ILandedCostVoucherService
         return dto;
     }
 
+    /// <summary>
+    /// عند الاعتماد: يعيد التحقق من الأسطر المسحوبة (قد يكون سند آخر اعتُمد على الرصيد نفسه بعد حفظ المسودة)، ويعيد حساب تكلفتها
+    /// بالمسوّى الحالي فيأخذ مُقفِل الرصيد بقية التكلفة تماماً، ويُعاد توزيع ما تغيّر. يُرجع معرّفات المستندات المسحوب منها.
+    /// </summary>
+    private async Task<List<Guid>> RecheckPullsAsync(LandedCostVoucher voucher, CancellationToken ct)
+    {
+        var pulled = voucher.Lines.Where(l => l.ImportCostAdvanceId.HasValue).OrderBy(l => l.LineNo).ToList();
+        if (pulled.Count == 0) return new();
+        var advances = await ImportCostAdvances.ValidateAsync(_db,
+            pulled.Select(l => new ImportCostAdvances.Pull(l.LineNo, l.ImportCostAdvanceId!.Value, l.Amount)).ToList(),
+            voucher.ProcurementOrderId, voucher.CurrencyCode, voucher.Id, ct);
+        var settled = await ImportCostAdvances.SettledAsync(_db, advances.Keys.ToList(), voucher.Id, ct);
+        foreach (var line in pulled)
+        {
+            var advance = advances[line.ImportCostAdvanceId!.Value];
+            var (doneAmount, doneCost) = settled.GetValueOrDefault(advance.Id);
+            var cost = ImportCostAdvances.CostOf(advance, line.Amount, doneAmount, doneCost);
+            settled[advance.Id] = (doneAmount + line.Amount, doneCost + cost);
+            if (cost == line.CostAmount) continue;
+            if (line.AllocationMethod == ChargeAllocationMethod.Manual)
+                throw new ConflictException(string.Format(Messages.LineMessage, line.LineNo, Messages.ImportCostAdvanceResaveVoucher));
+            var allocations = line.Allocations.ToList();
+            var weights = await ChargeShares.LoadAsync(_db, allocations.Select(a => a.VehicleId).ToList(), ct);
+            var shares = ChargeShares.Compute(line.AllocationMethod, cost, allocations.Select(a => weights[a.VehicleId]).ToList());
+            for (var k = 0; k < allocations.Count; k++) allocations[k].Amount = shares[k];
+            line.CostAmount = cost;
+        }
+        voucher.BaseCostTotal = voucher.Lines.Sum(l => l.CostAmount);
+        return advances.Keys.ToList();
+    }
+
     /// <summary>يتحقق من الطلب ويبني السند بأسطره وحصصه محسوبةً (بلا رقم ولا حفظ).</summary>
     private async Task<LandedCostVoucher> BuildAsync(CreateLandedCostVoucherDto d, CancellationToken ct)
     {
         if (d.Lines.Count == 0) throw new ValidationFailedException(Messages.LandedCostVoucherNeedsLines);
-        var supplier = await _db.Set<Supplier>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == d.SupplierId, ct)
-            ?? throw new ValidationFailedException(Messages.SupplierNotFound);
         var (currency, rate) = await ChargeShares.ResolveCurrencyAsync(_db, d.CurrencyCode, d.ExchangeRate, ct);
+
+        // أسطر مسحوبة من تكاليف استيراد مقدمة: من أمر شراء السند وبعملته وضمن رصيدها، ونوعها نوع المستند
+        var pulls = d.Lines.Select((l, i) => (Line: l, No: i + 1)).Where(x => x.Line.ImportCostAdvanceId.HasValue)
+            .Select(x => new ImportCostAdvances.Pull(x.No, x.Line.ImportCostAdvanceId!.Value, x.Line.Amount)).ToList();
+        var advances = await ImportCostAdvances.ValidateAsync(_db, pulls, d.ProcurementOrderId, currency, null, ct);
+        var settled = await ImportCostAdvances.SettledAsync(_db, advances.Keys.ToList(), null, ct);
+        foreach (var src in d.Lines.Where(l => l.ImportCostAdvanceId.HasValue)) src.ExpenseTypeId = advances[src.ImportCostAdvanceId!.Value].ExpenseTypeId;
+
+        // المورد للمستحق عليه؛ سند كل أسطره مسحوبة لا مستحق فيه لأحد
+        Supplier? supplier = null;
+        if (d.SupplierId.HasValue)
+            supplier = await _db.Set<Supplier>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == d.SupplierId, ct)
+                ?? throw new ValidationFailedException(Messages.SupplierNotFound);
+        else if (d.Lines.Any(l => !l.ImportCostAdvanceId.HasValue)) throw new ValidationFailedException(Messages.LandedCostVoucherSupplierRequired);
 
         string? orderNumber = null;
         var defaultVehicles = d.VehicleIds.Distinct().ToList();
@@ -295,7 +355,7 @@ public class LandedCostVoucherService : ILandedCostVoucherService
 
         var voucher = new LandedCostVoucher
         {
-            Date = d.Date ?? SaudiTime.Today, SupplierId = supplier.Id, SupplierName = supplier.NameAr,
+            Date = d.Date ?? SaudiTime.Today, SupplierId = supplier?.Id, SupplierName = supplier?.NameAr ?? string.Empty,
             SupplierInvoiceNumber = string.IsNullOrWhiteSpace(d.SupplierInvoiceNumber) ? null : d.SupplierInvoiceNumber.Trim(),
             CurrencyCode = currency, ExchangeRate = rate, ProcurementOrderId = d.ProcurementOrderId, ProcurementOrderNumber = orderNumber,
             Notes = string.IsNullOrWhiteSpace(d.Notes) ? null : d.Notes.Trim(), Status = LandedCostVoucherStatus.Draft,
@@ -311,6 +371,8 @@ public class LandedCostVoucherService : ILandedCostVoucherService
             if (src.Amount <= 0) throw new ValidationFailedException(Line(Messages.ChargeAmountMustBePositive));
             if (src.VatAmount < 0) throw new ValidationFailedException(Line(Messages.ChargeVatCannotBeNegative));
             if (src.VatAmount > 0 && (type.IsInputTax || type.VatCategory != VatCategory.Standard)) throw new ValidationFailedException(Line(Messages.ChargeVatNotAllowedForType));
+            var advance = src.ImportCostAdvanceId.HasValue ? advances[src.ImportCostAdvanceId.Value] : null;
+            if (advance != null && src.VatAmount != 0) throw new ValidationFailedException(Line(Messages.ImportCostAdvanceLineVatNotAllowed));
 
             var treatment = src.Treatment ?? type.DefaultTreatment;
             if (treatment != type.DefaultTreatment)
@@ -323,8 +385,16 @@ public class LandedCostVoucherService : ILandedCostVoucherService
             if (vehicleIds.Count == 0) throw new ValidationFailedException(string.Format(Messages.LandedCostVoucherNeedsVehicles, n));
             if (vehicleIds.Distinct().Count() != vehicleIds.Count) throw new ValidationFailedException(Line(Messages.ChargeVehicleRepeated));
 
-            var baseAmount = DocumentPricing.Round(src.Amount * rate);
-            var costAmount = ChargeShares.CostAmount(type, baseAmount, DocumentPricing.Round(src.VatAmount * rate));
+            // المسحوب بسعر صرف المستند المقدم (دُفع به) وتكلفته نسبته من تكلفته، فلا فرق صرف ولا ضريبة ثانية
+            var baseAmount = DocumentPricing.Round(src.Amount * (advance?.ExchangeRate ?? rate));
+            decimal costAmount;
+            if (advance != null)
+            {
+                var (doneAmount, doneCost) = settled.GetValueOrDefault(advance.Id);
+                costAmount = ImportCostAdvances.CostOf(advance, src.Amount, doneAmount, doneCost);
+                settled[advance.Id] = (doneAmount + src.Amount, doneCost + costAmount);
+            }
+            else costAmount = ChargeShares.CostAmount(type, baseAmount, DocumentPricing.Round(src.VatAmount * rate));
             var method = src.AllocationMethod ?? type.DefaultAllocationMethod;
             decimal[] shares;
             try { shares = ChargeShares.Compute(method, costAmount, vehicleIds.Select(id => weights[id]).ToList(), src.Allocations.Select(a => a.Amount).ToList()); }
@@ -333,9 +403,10 @@ public class LandedCostVoucherService : ILandedCostVoucherService
             var line = new LandedCostVoucherLine
             {
                 LineNo = n, ExpenseTypeId = type.Id, ExpenseTypeCode = type.Code, ExpenseTypeNameAr = type.NameAr,
-                Description = string.IsNullOrWhiteSpace(src.Description) ? null : src.Description.Trim(),
+                Description = !string.IsNullOrWhiteSpace(src.Description) ? src.Description.Trim() : advance?.Description,
                 Amount = src.Amount, VatAmount = src.VatAmount, BaseAmount = baseAmount, CostAmount = costAmount,
                 Treatment = treatment, AllocationMethod = method, ReplacesLineId = src.ReplacesLineId,
+                ImportCostAdvanceId = advance?.Id, ImportCostAdvanceNumber = advance?.Number,
             };
             for (var k = 0; k < vehicleIds.Count; k++) line.Allocations.Add(new LandedCostVoucherAllocation { VehicleId = vehicleIds[k], Amount = shares[k] });
             voucher.Lines.Add(line);

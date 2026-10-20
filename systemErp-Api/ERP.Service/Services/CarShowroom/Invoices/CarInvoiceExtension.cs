@@ -193,7 +193,14 @@ public class CarInvoiceExtension : IInvoiceExtension
             });
             vehicles[l.VehicleId!.Value].Status = isSales ? VehicleStatus.Available : VehicleStatus.WrittenOff;
         }
+        // كمرتجع العقد: السيارة تعود بتكلفتها وقت البيع، ومصاريف ما بعد البيع تبقى على تكلفة المبيعات ولا تُحسب مرة ثانية
+        if (isSales) await SoldVehicleAdjustments.ExpenseLateChargesAsync(_db, vehicleIds, ct);
         await _db.SaveChangesAsync(ct);
+        if (isSales)
+        {
+            await VehicleCostLedger.RecomputeAsync(_db, vehicleIds, ct);
+            await _db.SaveChangesAsync(ct);
+        }
         return created;
     }
 
@@ -211,6 +218,11 @@ public class CarInvoiceExtension : IInvoiceExtension
 
         if (invoice.Kind == InvoiceKind.Sales)
         {
+            // مصروف وصل بعد البيع قُيِّد على تكلفة المبيعات: إعادة الترحيل بالتكلفة الحالية تحسبه مرتين، والحذف يعيد السيارة بتكلفة لا يقابلها المخزون؛ التصحيح بمرتجع
+            var late = await _db.Set<AdditionalChargeAllocation>().AsNoTracking()
+                .Where(a => ids.Contains(a.VehicleId) && a.PostedToCogs && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Capitalize)
+                .Select(a => (Guid?)a.VehicleId).FirstOrDefaultAsync(ct);
+            if (late.HasValue) throw new ConflictException(string.Format(Messages.PostedSaleVehicleHasLateCharges, vehicles.First(v => v.Id == late).ChassisNumber));
             foreach (var v in vehicles.Where(v => v.Status == VehicleStatus.Sold)) v.Status = VehicleStatus.Available;
             await _db.SaveChangesAsync(ct);
             return;

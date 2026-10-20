@@ -269,14 +269,7 @@ public class CarSaleService : ICarSaleService
             vehicle.Status = VehicleStatus.Available;
 
             // مصاريف ما بعد البيع: بقيت على تكلفة المبيعات، فتخرج من تكلفة السيارة وتصير مصروفاً
-            var lateLines = (await _db.Set<AdditionalChargeAllocation>().Include(a => a.Line)
-                .Where(a => a.VehicleId == vehicle.Id && a.PostedToCogs && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Capitalize)
-                .ToListAsync(token)).Select(a => a.Line).Distinct().ToList();
-            foreach (var line in lateLines)
-            {
-                line.Treatment = ChargeTreatment.Expense;
-                line.Notes = string.IsNullOrWhiteSpace(line.Notes) ? "مصروف بعد البيع: بقي مصروفاً عند مرتجع البيع" : $"{line.Notes} - بقي مصروفاً عند مرتجع البيع";
-            }
+            await SoldVehicleAdjustments.ExpenseLateChargesAsync(_db, new[] { vehicle.Id }, token);
 
             // رسوم على العميل رُدّت له وكان المعرض دفعها فعلاً نيابة عنه: لم يعد من يتحملها غير المعرض
             var contractLines = await SalesCharges.ContractLines(_db, c.Id)

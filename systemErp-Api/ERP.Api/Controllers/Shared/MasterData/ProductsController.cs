@@ -12,4 +12,9 @@ public class ProductsController : CrudController<ProductDto, CreateProductDto, U
     [HttpPost("import")]
     public async Task<IActionResult> Import([FromBody] List<CreateProductDto> items, CancellationToken ct)
         => Success(await _products.ImportAsync(items, ct));
+
+    /// <summary>هل دخل الصنف حركة أو مستنداً (يقفل تكلفته المعيارية في الواجهة لمن لا يملك صلاحية إعادة التقييم).</summary>
+    [HttpGet("{id:guid}/usage")]
+    public async Task<IActionResult> Usage(Guid id, CancellationToken ct)
+        => Success(new { used = await _products.IsUsedAsync(id, ct) });
 }

@@ -22,7 +22,7 @@ internal static class ChargePosting
         => DefaultAccounts.EnsureAsync(db, ct, s.VehicleInventoryAccount, s.VehiclesInTransitAccount, s.CarSalesRevenueAccount, s.CarCogsAccount,
             s.AccruedChargesAccount, s.TammWalletAccount, s.CustomerRechargeAccount, s.AddOnRevenueAccount, s.AddOnCostAccount, s.VehicleExpenseAccount,
             s.CustomerDepositsAccount, s.PrepaidExpensesAccount, s.PurchaseCancellationLossAccount, s.SupplierClaimsAccount, s.ForfeitedDepositsAccount,
-            DefaultAccounts.InputVat);
+            s.ImportCostsClearingAccount, DefaultAccounts.InputVat);
 
     /// <summary>أسطر المدين لمصروف واحد. <paramref name="mark"/> يسجّل على كل حصة هل قُيِّدت على «في الطريق».</summary>
     private static async Task<List<PostingLine>> DebitsAsync(ErpDbContext db, AdditionalChargeLine line, ExpenseType? type, CarShowroomSettings s, bool mark, CancellationToken ct)
@@ -156,19 +156,32 @@ internal static class ChargePosting
     /// قيد واحد لسند التكاليف الإضافية: مدين أسطره حسب معالجتها، ودائن المورد. سطر مستحق من حقول أمر الشراء رُحِّل سابقاً
     /// (مخزون مقابل مستحقات) وحلّ السند محله يُعكس أثره في القيد نفسه. يُرجع معرّف القيد أو null إن لم يكن ما يُرحَّل.
     /// </summary>
+    /// <param name="fromAdvances">أسطر مسحوبة من تكاليف استيراد مقدمة: دائنها «تكاليف استيراد تحت التسوية» لا المورد (دُفعت سابقاً).</param>
     public static async Task<Guid?> PostVoucherAsync(ErpDbContext db, IAccountingPostingService posting, LandedCostVoucher voucher,
-        IReadOnlyList<AdditionalChargeLine> charges, IEnumerable<AdditionalChargeLine> replacedPosted, CancellationToken ct)
+        IReadOnlyList<AdditionalChargeLine> charges, IEnumerable<AdditionalChargeLine> replacedPosted, CancellationToken ct,
+        IReadOnlySet<AdditionalChargeLine>? fromAdvances = null)
     {
         var s = await SalesCharges.SettingsAsync(db, ct);
         var typeIds = charges.Select(c => c.ExpenseTypeId).Distinct().ToList();
         var types = await db.Set<ExpenseType>().AsNoTracking().Where(t => typeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, ct);
         var lines = new List<PostingLine>();
-        foreach (var charge in charges) lines.AddRange(await DebitsAsync(db, charge, types.GetValueOrDefault(charge.ExpenseTypeId), s, mark: true, ct));
-        var payable = lines.Sum(l => l.Debit - l.Credit);
-        if (payable <= 0) return null;
+        decimal settled = 0;
+        foreach (var charge in charges)
+        {
+            var debits = await DebitsAsync(db, charge, types.GetValueOrDefault(charge.ExpenseTypeId), s, mark: true, ct);
+            lines.AddRange(debits);
+            if (fromAdvances?.Contains(charge) == true) settled += debits.Sum(l => l.Debit - l.Credit);
+        }
+        var total = lines.Sum(l => l.Debit - l.Credit);
+        if (total <= 0) return null;
 
-        var supplierAccount = await db.Set<Supplier>().AsNoTracking().Where(x => x.Id == voucher.SupplierId).Select(x => x.AccountCode).FirstOrDefaultAsync(ct);
-        lines.Add(new(string.IsNullOrWhiteSpace(supplierAccount) ? s.AccruedChargesAccount : supplierAccount, 0, payable));
+        if (settled > 0) lines.Add(new(s.ImportCostsClearingAccount, 0, settled, "تسوية تكاليف استيراد مدفوعة مقدماً"));
+        var payable = total - settled;
+        if (payable > 0)
+        {
+            var supplierAccount = await db.Set<Supplier>().AsNoTracking().Where(x => x.Id == voucher.SupplierId).Select(x => x.AccountCode).FirstOrDefaultAsync(ct);
+            lines.Add(new(string.IsNullOrWhiteSpace(supplierAccount) ? s.AccruedChargesAccount : supplierAccount, 0, payable));
+        }
         foreach (var replaced in replacedPosted.Where(l => l.JournalEntryId != null && l.CostAmount > 0))
         {
             lines.Add(new(s.AccruedChargesAccount, replaced.CostAmount, 0, $"إقفال مستحق {replaced.ExpenseTypeNameAr} حلّ السند محله"));
@@ -184,7 +197,7 @@ internal static class ChargePosting
             .Select(g => new PostingLine(g.Key.AccountCode, g.Sum(l => l.Debit), g.Sum(l => l.Credit), g.Key.Notes)).ToList();
         var posted = await posting.PostAsync(new GenericPostingRequest
         {
-            Date = voucher.Date, Description = $"سند تكاليف إضافية {voucher.VoucherNumber} - {voucher.SupplierName}",
+            Date = voucher.Date, Description = $"سند تكاليف إضافية {voucher.VoucherNumber} - {voucher.SupplierName}".TrimEnd(' ', '-'),
             SourceType = VoucherSource, SourceId = voucher.Id, SourceNumber = voucher.VoucherNumber, Lines = merged,
         }, ct);
         foreach (var charge in charges) charge.JournalEntryId = posted.JournalEntryId;

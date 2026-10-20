@@ -4441,6 +4441,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ImportCostsClearingAccount")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("MarginBasis")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -4655,6 +4659,130 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("ExpenseType");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.CarShowroom.ImportCostAdvance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("CostAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("ExpenseTypeCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ExpenseTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ExpenseTypeNameAr")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("InputVatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("PaymentAccountCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PaymentMethodCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProcurementOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProcurementOrderNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("SettledAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("SettledCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SupplierInvoiceNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SupplierName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpenseTypeId");
+
+                    b.HasIndex("ProcurementOrderId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("ImportCostAdvance");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.LandedCostVoucher", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4709,7 +4837,7 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<Guid>("SupplierId")
+                    b.Property<Guid?>("SupplierId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SupplierInvoiceNumber")
@@ -4829,6 +4957,12 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("ImportCostAdvanceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ImportCostAdvanceNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("LineNo")
                         .HasColumnType("int");
 
@@ -4865,6 +4999,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ExpenseTypeId");
+
+                    b.HasIndex("ImportCostAdvanceId");
 
                     b.HasIndex("TenantId");
 
@@ -9556,6 +9692,26 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.CarShowroom.ImportCostAdvance", b =>
+                {
+                    b.HasOne("ERP.Core.Models.CarShowroom.ExpenseType", null)
+                        .WithMany()
+                        .HasForeignKey("ExpenseTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarProcurementOrder", null)
+                        .WithMany()
+                        .HasForeignKey("ProcurementOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.LandedCostVoucher", b =>
                 {
                     b.HasOne("ERP.Core.Models.CarShowroom.CarProcurementOrder", null)
@@ -9566,8 +9722,7 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Shared.Supplier", null)
                         .WithMany()
                         .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.LandedCostVoucherAllocation", b =>
@@ -9594,6 +9749,11 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("ExpenseTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.ImportCostAdvance", null)
+                        .WithMany()
+                        .HasForeignKey("ImportCostAdvanceId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ERP.Core.Models.CarShowroom.LandedCostVoucher", "Voucher")
                         .WithMany("Lines")

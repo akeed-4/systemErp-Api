@@ -17,6 +17,13 @@ public class LandedCostVoucherLine : BaseEntity
     public ChargeTreatment Treatment { get; set; }
     public ChargeAllocationMethod AllocationMethod { get; set; }
 
+    /// <summary>
+    /// تكلفة الاستيراد المقدمة التي سُحب منها هذا السطر: يُقيَّد دائناً على حساب التسوية بدل المورد، بسعر صرفها وبلا ضريبة
+    /// (ضريبتها قُيِّدت عند دفعها). فارغ = سطر عادي على المورد.
+    /// </summary>
+    public Guid? ImportCostAdvanceId { get; set; }
+    public string? ImportCostAdvanceNumber { get; set; }
+
     /// <summary>السطر التقديري المحدَّد يدوياً ليحل هذا السطر محله؛ فارغ = يُطابَق تلقائياً بالنوع.</summary>
     public Guid? ReplacesLineId { get; set; }
     // تُسجَّل عند الاعتماد: القيمتان والفرق

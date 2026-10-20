@@ -36,6 +36,40 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
             throw new ConflictException(Messages.SupplierCodeInUse);
     }
 
+    // ---------- الاستيراد من Excel ----------
+    public async Task<PartyImportPreviewDto> PreviewImportAsync(List<PartyImportRowInput<CreateSupplierDto>> rows, CancellationToken ct = default)
+        => PartyImport.Summarize(await CheckImportAsync(rows, ct));
+
+    public async Task<ImportResultDto> ImportRowsAsync(List<PartyImportRowInput<CreateSupplierDto>> rows, CancellationToken ct = default)
+        => await PartyImport.SaveAsync(rows, await CheckImportAsync(rows, ct), CreateAsync, s => s.Id, Label, ct);
+
+    /// <summary>الهاتف اختياري للمورد (وما أُدخل يُفحص)، والآيبان بصيغته وخانتي تحققه.</summary>
+    private async Task<List<PartyImportRowDto>> CheckImportAsync(List<PartyImportRowInput<CreateSupplierDto>> rows, CancellationToken ct)
+    {
+        var existing = await Db.Set<Supplier>().AsNoTracking()
+            .Select(s => new PartyImport.PartyRecord(s.Code, s.NameAr, s.VatNumber, s.CrNumber, s.Phone)).ToListAsync(ct);
+        return PartyImport.Check(rows, existing,
+            d =>
+            {
+                d.Code = d.Code?.Trim() ?? string.Empty; d.NameAr = d.NameAr?.Trim() ?? string.Empty;
+                d.VatNumber = d.VatNumber?.Trim(); d.CrNumber = d.CrNumber?.Trim();
+                return new PartyImport.PartyRecord(d.Code, d.NameAr, d.VatNumber, d.CrNumber, d.Phone);
+            },
+            (d, phone) => d.Phone = phone,
+            d =>
+            {
+                var errors = PartyImport.CommonErrors(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo, d.IdType, d.IdNumber);
+                if (d.PaymentTermsDays < 0) errors.Add(Messages.PaymentTermsCannotBeNegative);
+                if (!string.IsNullOrWhiteSpace(d.Iban))
+                {
+                    d.Iban = PartyImport.NormalizeIban(d.Iban);
+                    if (!PartyImport.IsValidIban(d.Iban)) errors.Add(string.Format(Messages.ImportIbanInvalid, d.Iban));
+                }
+                return errors;
+            },
+            phoneRequired: false);
+    }
+
     protected override async Task OnCreatingAsync(Supplier e, CreateSupplierDto d, CancellationToken ct)
     {
         e.Country = PartyValidation.NormalizeCountry(e.Country);

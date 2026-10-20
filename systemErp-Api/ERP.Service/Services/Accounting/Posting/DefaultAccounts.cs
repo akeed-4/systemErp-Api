@@ -46,6 +46,7 @@ public static class DefaultAccounts
     public const string PurchasedServices = "524";   // خدمات ومصروفات مشتراة بفاتورة (بنود غير مخزنية)
     // حسابات معرض السيارات: افتراضيات إعدادات المعرض (CarShowroomSettings) فقط؛ القيود تقرأ الحساب من الإعدادات.
     public const string VehiclesInTransit = "1143";
+    public const string ImportCostsClearing = "1144";
     public const string CustomerRecharge = "116";
     public const string PrepaidExpenses = "117";
     public const string SupplierClaims = "118";
@@ -71,6 +72,7 @@ public static class DefaultAccounts
         ("1141", "مخزون البضاعة",                   "Merchandise Inventory",     AccountCategory.Asset,     "114"),
         ("1142", "مخزون السيارات",                  "Vehicle Inventory",         AccountCategory.Asset,     "114"),
         ("1143", "سيارات في الطريق",                "Vehicles in Transit",       AccountCategory.Asset,     "114"),
+        ("1144", "تكاليف استيراد تحت التسوية",      "Import Costs Under Settlement", AccountCategory.Asset, "114"),
         ("115",  "سلف وقروض الموظفين",              "Employee Loans and Advances", AccountCategory.Asset,   "11"),
         ("116",  "مدفوعات نيابة عن العملاء",        "Disbursements on Behalf of Customers", AccountCategory.Asset, "11"),
         ("117",  "مصروفات مدفوعة مقدماً",           "Prepaid Expenses",          AccountCategory.Asset,     "11"),

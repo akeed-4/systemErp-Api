@@ -14,6 +14,7 @@ public class CarBrandService : CrudService<CarBrand, CarBrandDto, CreateCarBrand
 
     protected override async Task ValidateAsync(CreateCarBrandDto d, CarBrand? existing, CancellationToken ct)
     {
+        d.NameAr = (d.NameAr ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(d.NameAr)) throw new ValidationFailedException(Messages.BrandArabicNameRequired);
         if (await Db.Set<CarBrand>().AnyAsync(b => b.NameAr == d.NameAr && (existing == null || b.Id != existing.Id), ct))
             throw new ConflictException(Messages.BrandAlreadyExists);

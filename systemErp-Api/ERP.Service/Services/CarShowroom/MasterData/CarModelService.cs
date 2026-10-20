@@ -17,6 +17,7 @@ public class CarModelService : CrudService<CarModel, CarModelDto, CreateCarModel
 
     protected override async Task ValidateAsync(CreateCarModelDto d, CarModel? existing, CancellationToken ct)
     {
+        d.NameAr = (d.NameAr ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(d.NameAr)) throw new ValidationFailedException(Messages.ModelArabicNameRequired);
         if (!await Db.Set<CarBrand>().AnyAsync(b => b.Id == d.BrandId, ct)) throw new ValidationFailedException(Messages.BrandNotFound);
         if (d.AgentId.HasValue && !await Db.Set<CarAgent>().AnyAsync(a => a.Id == d.AgentId, ct)) throw new ValidationFailedException(Messages.AgentNotFound);

@@ -73,6 +73,7 @@
   <data name="BaseUnitNotFound" xml:space="preserve"><value>وحدة الأساس غير موجودة.</value></data>
   <data name="BookValueRange" xml:space="preserve"><value>القيمة الدفترية بين صفر وتكلفة الشراء.</value></data>
   <data name="BrandAlreadyExists" xml:space="preserve"><value>الماركة مسجّلة مسبقاً.</value></data>
+  <data name="AgentAlreadyExistsForBrand" xml:space="preserve"><value>الوكيل مسجّل مسبقاً لهذه الماركة.</value></data>
   <data name="BrandAndModelRequiredChooseOrType" xml:space="preserve"><value>الماركة والموديل مطلوبان (اختر من القوائم أو اكتب الاسم).</value></data>
   <data name="BrandAndModelRequiredPerLine" xml:space="preserve"><value>الماركة والموديل مطلوبان لكل بند.</value></data>
   <data name="BrandArabicNameRequired" xml:space="preserve"><value>اسم الماركة بالعربية مطلوب.</value></data>
@@ -141,6 +142,7 @@
   <data name="CannotDeleteModelWithVehicles" xml:space="preserve"><value>لا يمكن حذف موديل عليه مركبات.</value></data>
   <data name="CannotDeleteProductUsedInInvoices" xml:space="preserve"><value>لا يمكن حذف صنف مستخدم في فواتير.</value></data>
   <data name="CannotDeleteProductWithMovements" xml:space="preserve"><value>لا يمكن حذف صنف له حركات مخزون.</value></data>
+  <data name="StandardCostLockedForUsedItem" xml:space="preserve"><value>الصنف «{0}» استُخدم في حركات مخزنية أو مستندات؛ لا تتغير تكلفته المعيارية إلا بصلاحية «تعديل التكلفة المعيارية لصنف مستخدم» وتُرحَّل بقيد إعادة تقييم.</value></data>
   <data name="CannotDeleteReservedOrSoldVehicle" xml:space="preserve"><value>لا يمكن حذف مركبة محجوزة أو مباعة.</value></data>
   <data name="CannotDeleteSupplierWithEntries" xml:space="preserve"><value>لا يمكن حذف مورد عليه حركات محاسبية.</value></data>
   <data name="CannotDeleteSupplierWithRequisitions" xml:space="preserve"><value>لا يمكن حذف مورد له طلبات شراء.</value></data>
@@ -239,6 +241,19 @@
   <data name="CurrencyPrefix" xml:space="preserve"><value>العملة: </value></data>
   <data name="CurrentPasswordIncorrect" xml:space="preserve"><value>كلمة المرور الحالية غير صحيحة.</value></data>
   <data name="CustomerCodeInUse" xml:space="preserve"><value>كود العميل مستخدم مسبقاً.</value></data>
+  <data name="ImportPhoneRequired" xml:space="preserve"><value>رقم الهاتف مطلوب.</value></data>
+  <data name="ImportPhoneInvalid" xml:space="preserve"><value>رقم الهاتف «{0}» غير صحيح: جوال سعودي (05XXXXXXXX)، أو هاتف ثابت (01XXXXXXXX)، أو رقم موحّد، أو رقم دولي يبدأ بـ +.</value></data>
+  <data name="ImportIbanInvalid" xml:space="preserve"><value>الآيبان «{0}» غير صحيح (الصيغة أو الطول أو خانتا التحقق).</value></data>
+  <data name="ImportCodeExists" xml:space="preserve"><value>الكود «{0}» مسجّل مسبقاً لـ «{1}».</value></data>
+  <data name="ImportCodeRepeatedInFile" xml:space="preserve"><value>الكود «{0}» مكرر في الملف (الصف {1}).</value></data>
+  <data name="ImportVatExists" xml:space="preserve"><value>الرقم الضريبي {0} مسجّل مسبقاً لـ «{1}».</value></data>
+  <data name="ImportVatRepeatedInFile" xml:space="preserve"><value>الرقم الضريبي {0} مكرر في الملف (الصف {1}).</value></data>
+  <data name="ImportCrExists" xml:space="preserve"><value>السجل التجاري {0} مسجّل مسبقاً لـ «{1}».</value></data>
+  <data name="ImportCrRepeatedInFile" xml:space="preserve"><value>السجل التجاري {0} مكرر في الملف (الصف {1}).</value></data>
+  <data name="ImportPhoneExists" xml:space="preserve"><value>الهاتف {0} مسجّل لـ «{1}».</value></data>
+  <data name="ImportPhoneRepeatedInFile" xml:space="preserve"><value>الهاتف {0} مكرر في الملف (الصف {1}).</value></data>
+  <data name="ImportNameExists" xml:space="preserve"><value>يوجد مسجّل بالاسم نفسه «{0}».</value></data>
+  <data name="ImportNameRepeatedInFile" xml:space="preserve"><value>الاسم «{0}» مكرر في الملف (الصف {1}).</value></data>
   <data name="CustomerNameRequired" xml:space="preserve"><value>اسم العميل مطلوب.</value></data>
   <data name="CustomerNotFound" xml:space="preserve"><value>العميل غير موجود.</value></data>
   <data name="CustomerNotLinkedToAccount" xml:space="preserve"><value>العميل غير مربوط بحساب في شجرة الحسابات.</value></data>
@@ -1024,6 +1039,22 @@
   <data name="OrderItemsLockedByCharges" xml:space="preserve"><value>لا تُعدَّل بنود الأمر بعد تسجيل مصاريف على سياراته في الطريق؛ ألغِ المصاريف أولاً.</value></data>
   <data name="LabelLandedCostVoucher" xml:space="preserve"><value>سند التكاليف الإضافية</value></data>
   <data name="LandedCostVoucherNotFound" xml:space="preserve"><value>سند التكاليف الإضافية غير موجود.</value></data>
+  <data name="ImportCostAdvanceNotFound" xml:space="preserve"><value>مستند تكاليف الاستيراد المقدمة غير موجود.</value></data>
+  <data name="ImportCostAdvanceNotDraft" xml:space="preserve"><value>لا يُعدَّل ولا يُعتمد ولا يُحذف إلا مستند تكاليف استيراد بحالة مسودة.</value></data>
+  <data name="ImportCostAdvanceValuesInvalid" xml:space="preserve"><value>المبلغ يجب أن يكون أكبر من صفر والضريبة لا تكون سالبة.</value></data>
+  <data name="ImportCostAdvanceTypeNotAllowed" xml:space="preserve"><value>نوع المصروف ضريبة مدخلات بالكامل (مثل ضريبة الاستيراد) ولا تكلفة فيه تُوزَّع على السيارات؛ اختر نوع مصروف آخر.</value></data>
+  <data name="ImportCostAdvancePaymentMethodRequired" xml:space="preserve"><value>اختر طريقة الدفع (بنك أو صندوق) التي دُفعت منها التكلفة.</value></data>
+  <data name="ImportCostAdvanceAlreadyCancelled" xml:space="preserve"><value>مستند تكاليف الاستيراد ملغى مسبقاً.</value></data>
+  <data name="ImportCostAdvanceHasSettlements" xml:space="preserve"><value>سُحب من المستند في سند تكاليف إضافية؛ لا يُلغى (ألغِ السند أو ارفع السطر من مسودته أولاً).</value></data>
+  <data name="ImportCostAdvanceNotOpen" xml:space="preserve"><value>المستند {0} ليس مفتوحاً للتسوية (مسودة أو ملغى أو مسوّى بالكامل).</value></data>
+  <data name="ImportCostAdvanceOrderMismatch" xml:space="preserve"><value>المستند {0} تابع لأمر الشراء {1}؛ لا يُسحب إلا في سند على الأمر نفسه.</value></data>
+  <data name="ImportCostAdvanceCurrencyMismatch" xml:space="preserve"><value>المستند {0} بعملة {1}؛ لا يُسحب إلا في سند بالعملة نفسها.</value></data>
+  <data name="ImportCostAdvanceExceedsRemaining" xml:space="preserve"><value>المسحوب من المستند {0} يتجاوز رصيده المتبقي ({1}).</value></data>
+  <data name="ImportCostAdvanceLineVatNotAllowed" xml:space="preserve"><value>السطر المسحوب من تكلفة مقدمة بلا ضريبة (قُيِّدت ضريبته عند الدفع).</value></data>
+  <data name="ImportCostAdvanceResaveVoucher" xml:space="preserve"><value>تغيّرت تكلفة السطر المسحوب بعد تسوية سابقة وتوزيعه يدوي؛ افتح السند وأعد حفظه ثم اعتمده.</value></data>
+  <data name="LandedCostVoucherSupplierRequired" xml:space="preserve"><value>المورد مطلوب لأسطر السند غير المسحوبة من تكاليف استيراد مقدمة.</value></data>
+  <data name="ImportCostAdvanceApproved" xml:space="preserve"><value>اعتُمد مستند تكاليف الاستيراد ورُحِّل قيد الدفع.</value></data>
+  <data name="ImportCostAdvanceCancelled" xml:space="preserve"><value>أُلغي مستند تكاليف الاستيراد وعُكس قيده.</value></data>
   <data name="LandedCostVoucherNeedsLines" xml:space="preserve"><value>السند يحتاج سطراً واحداً على الأقل.</value></data>
   <data name="LandedCostVoucherNeedsVehicles" xml:space="preserve"><value>السطر {0}: حدّد سيارة واحدة على الأقل للتوزيع.</value></data>
   <data name="LandedCostVoucherNotDraft" xml:space="preserve"><value>السند ليس مسودة؛ لا يُعدَّل ولا يُحذف.</value></data>
@@ -1094,6 +1125,8 @@
   <data name="PostedInvoiceEditZatcaSubmitted" xml:space="preserve"><value>أُرسلت الفاتورة لهيئة الزكاة فلا تُعدَّل؛ صحّحها بمرتجع (إشعار دائن/مدين).</value></data>
   <data name="PostedVehicleInvoiceHasReturns" xml:space="preserve"><value>على فاتورة السيارات مرتجع مرحّل؛ لا تُعدَّل حتى لا تتعارض حالة السيارات المرتجعة.</value></data>
   <data name="PostedPurchaseVehicleInUse" xml:space="preserve"><value>السيارة {0} من هذه الفاتورة بيعت أو حُجزت أو دخلت عقداً أو أمر شراء؛ لا تُعدَّل فاتورة شرائها.</value></data>
+  <data name="PostedSaleVehicleHasLateCharges" xml:space="preserve"><value>السيارة {0} من هذه الفاتورة حُمّل عليها مصروف بعد بيعها (على تكلفة المبيعات)؛ لا تُعدَّل فاتورة بيعها ولا تُحذف، وصحّحها بمرتجع.</value></data>
+  <data name="SaleVehicleCostChangedSinceDraft" xml:space="preserve"><value>تغيّرت تكلفة السيارة {0} منذ حفظ المسودة وتتغير بها ضريبة هامش الربح؛ افتح المسودة واحفظها من جديد ثم رحّلها.</value></data>
   <data name="PostedInvoiceEditReason" xml:space="preserve"><value>تعديل الفاتورة {0}</value></data>
   <data name="PostedInvoiceDeleteReason" xml:space="preserve"><value>حذف الفاتورة {0}</value></data>
   <data name="PostedInvoiceDeleteHasReturns" xml:space="preserve"><value>على الفاتورة مرتجعات مرحّلة؛ احذف المرتجعات أولاً ثم الفاتورة.</value></data>

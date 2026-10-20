@@ -14,6 +14,7 @@ public class CarColorService : CrudService<CarColor, CarColorDto, CreateCarColor
 
     protected override async Task ValidateAsync(CreateCarColorDto d, CarColor? existing, CancellationToken ct)
     {
+        d.NameAr = (d.NameAr ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(d.NameAr)) throw new ValidationFailedException(Messages.ColorNameRequired);
         if (!string.IsNullOrWhiteSpace(d.Hex) && !System.Text.RegularExpressions.Regex.IsMatch(d.Hex, "^#[0-9a-fA-F]{6}$"))
             throw new ValidationFailedException(Messages.ColorValueFormat);

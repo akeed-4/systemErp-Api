@@ -12,6 +12,11 @@ public class CreateLandedCostVoucherLineDto
     public ChargeTreatment? Treatment { get; set; }
     /// <summary>السطر التقديري الذي يحل هذا السطر محله؛ فارغ = مطابقة تلقائية بالنوع.</summary>
     public Guid? ReplacesLineId { get; set; }
+    /// <summary>
+    /// تكلفة استيراد مقدمة يُسحب منها السطر (من أمر شراء السند وبعملته): نوعه نوعها، وبلا ضريبة، والمبلغ لا يتجاوز رصيدها،
+    /// ويُقيَّد دائناً على حساب التسوية بدل المورد.
+    /// </summary>
+    public Guid? ImportCostAdvanceId { get; set; }
     /// <summary>سيارات هذا السطر؛ فارغة = سيارات السند (VehicleIds). المبالغ تُرسل في التوزيع اليدوي فقط.</summary>
     public List<AdditionalChargeAllocationDto> Allocations { get; set; } = new();
 }
@@ -19,7 +24,8 @@ public class CreateLandedCostVoucherLineDto
 public class CreateLandedCostVoucherDto
 {
     public DateTime? Date { get; set; }
-    public Guid SupplierId { get; set; }
+    /// <summary>مطلوب ما لم تكن كل الأسطر مسحوبة من تكاليف استيراد مقدمة.</summary>
+    public Guid? SupplierId { get; set; }
     public string? SupplierInvoiceNumber { get; set; }
     /// <summary>فارغ = العملة الأساسية.</summary>
     public string? CurrencyCode { get; set; }
@@ -51,6 +57,8 @@ public class LandedCostVoucherLineDto
     public ChargeTreatment Treatment { get; set; }
     public ChargeAllocationMethod AllocationMethod { get; set; }
     public Guid? ReplacesLineId { get; set; }
+    public Guid? ImportCostAdvanceId { get; set; }
+    public string? ImportCostAdvanceNumber { get; set; }
     public Guid? ReplacedLineId { get; set; }
     public decimal? EstimatedAmount { get; set; }
     public decimal? Variance { get; set; }
@@ -65,7 +73,7 @@ public class LandedCostVoucherDto
     public DateTime? UpdatedAt { get; set; }
     public string VoucherNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
-    public Guid SupplierId { get; set; }
+    public Guid? SupplierId { get; set; }
     public string SupplierName { get; set; } = string.Empty;
     public string? SupplierInvoiceNumber { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;

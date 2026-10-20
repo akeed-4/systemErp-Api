@@ -94,6 +94,10 @@ public class ErpDbContext : DbContext
         (typeof(VehicleCostAdjustment), nameof(VehicleCostAdjustment.VehicleId), typeof(Vehicle)),
         (typeof(PrepaidExpense), nameof(PrepaidExpense.ExpenseTypeId), typeof(ExpenseType)),
         (typeof(PrepaidExpense), nameof(PrepaidExpense.SupplierId), typeof(Supplier)),
+        (typeof(ImportCostAdvance), nameof(ImportCostAdvance.ProcurementOrderId), typeof(CarProcurementOrder)),
+        (typeof(ImportCostAdvance), nameof(ImportCostAdvance.ExpenseTypeId), typeof(ExpenseType)),
+        (typeof(ImportCostAdvance), nameof(ImportCostAdvance.SupplierId), typeof(Supplier)),
+        (typeof(LandedCostVoucherLine), nameof(LandedCostVoucherLine.ImportCostAdvanceId), typeof(ImportCostAdvance)),
     };
 
     // فهارس فريدة على مستوى المنشأة (TenantId + الخاصية).
@@ -139,6 +143,7 @@ public class ErpDbContext : DbContext
         (typeof(TammOperation), nameof(TammOperation.OperationNumber)),
         (typeof(VehicleCostAdjustment), nameof(VehicleCostAdjustment.AdjustmentNumber)),
         (typeof(PrepaidExpense), nameof(PrepaidExpense.Number)),
+        (typeof(ImportCostAdvance), nameof(ImportCostAdvance.Number)),
         (typeof(User), nameof(User.Email)),
     };
 

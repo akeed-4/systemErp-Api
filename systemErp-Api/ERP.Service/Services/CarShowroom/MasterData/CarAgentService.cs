@@ -15,6 +15,7 @@ public class CarAgentService : CrudService<CarAgent, CarAgentDto, CreateCarAgent
     protected override async Task ValidateAsync(CreateCarAgentDto d, CarAgent? existing, CancellationToken ct)
     {
         var errors = new List<string>();
+        d.NameAr = (d.NameAr ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.AgentArabicNameRequired);
         if (!string.IsNullOrWhiteSpace(d.VatNumber) && !SaudiVat.IsValid(d.VatNumber)) errors.Add(Messages.VatNumberInvalid);
         if (!string.IsNullOrWhiteSpace(d.Email) && !d.Email.Contains('@')) errors.Add(Messages.EmailInvalid);
@@ -25,6 +26,8 @@ public class CarAgentService : CrudService<CarAgent, CarAgentDto, CreateCarAgent
                 ?? throw new ValidationFailedException(Messages.BrandNotFound);
             d.Brand = string.IsNullOrWhiteSpace(d.Brand) ? brand.NameAr : d.Brand;
         }
+        if (await Db.Set<CarAgent>().AnyAsync(a => a.NameAr == d.NameAr && a.BrandId == d.BrandId && (existing == null || a.Id != existing.Id), ct))
+            throw new ConflictException(Messages.AgentAlreadyExistsForBrand);
     }
 
     protected override async Task OnDeletingAsync(CarAgent e, CancellationToken ct)

@@ -6,7 +6,11 @@ namespace ERP.Service.Services.Shared;
 public class ProductService : CrudService<Product, ProductDto, CreateProductDto, UpdateProductDto>, IProductService
 {
     private readonly IAccountingPostingService _posting;
-    public ProductService(ErpDbContext db, IAccountingPostingService posting) : base(db) => _posting = posting;
+    private readonly IPermissionService _permissions;
+    public ProductService(ErpDbContext db, IAccountingPostingService posting, IPermissionService permissions) : base(db)
+    {
+        _posting = posting; _permissions = permissions;
+    }
     protected override string Label => Messages.LabelProduct;
     protected override bool Transactional => true;
 
@@ -61,6 +65,11 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         e.AverageCost = o.GetValue<decimal>(nameof(Product.AverageCost));
         e.LastPurchaseCost = o.GetValue<decimal>(nameof(Product.LastPurchaseCost));
 
+        // التكلفة المعيارية لصنف دخل حركة أو مستنداً لا يغيّرها إلا صاحب صلاحية إعادة التقييم
+        if (e.StandardCost != o.GetValue<decimal?>(nameof(Product.StandardCost)) && await IsUsedAsync(e.Id, ct)
+            && !await _permissions.HasPermissionAsync(PermissionService.ItemStandardCostScreenId, ScreenAction.Edit, ct))
+            throw new ForbiddenException(string.Format(Messages.StandardCostLockedForUsedItem, e.NameAr));
+
         // بالتكلفة المعيارية: تغيير المعيارية يعيد تسعير الرصيد القائم بها فوراً، وفرق قيمته قيد إعادة تقييم
         if (e.StandardCost is not { } standard || standard == e.AverageCost) return;
         var method = await Db.Set<CostingPolicy>().AsNoTracking().Select(p => (CostingMethod?)p.Method).FirstOrDefaultAsync(ct);
@@ -80,6 +89,16 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         if (await Db.Set<InvoiceItemBase>().AnyAsync(i => i.ItemId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteProductUsedInInvoices);
     }
+
+    /// <summary>الصنف «مستخدم» إن دخل حركة مخزنية أو فاتورة (أو مرتجعها) أو نقطة بيع أو سند تسليم أو جرداً.</summary>
+    public async Task<bool> IsUsedAsync(Guid id, CancellationToken ct = default)
+        => await Db.Set<StockMovement>().AnyAsync(m => m.ItemId == id, ct)
+            || await Db.Set<InvoiceItemBase>().AnyAsync(i => i.ItemId == id, ct)
+            || await Db.Set<PosTransactionItem>().AnyAsync(i => i.ItemId == id, ct)
+            || await Db.Set<PosSalesReturnItem>().AnyAsync(i => i.ItemId == id, ct)
+            || await Db.Set<DeliveryNoteItem>().AnyAsync(i => i.ItemId == id, ct)
+            || await Db.Set<DeliveryReturnItem>().AnyAsync(i => i.ItemId == id, ct)
+            || await Db.Set<InventoryCountLine>().AnyAsync(l => l.ItemId == id, ct);
 
     public override async Task<ProductDto> UpdateAsync(Guid id, UpdateProductDto dto, CancellationToken ct = default)
     {

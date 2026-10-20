@@ -160,11 +160,24 @@ internal static class VehicleInvoiceLines
         }
         else if (invoice.Kind == InvoiceKind.Sales)
         {
+            var tax = await CarTax.LoadAsync(db, ct);
+            var items = invoice.Lines.Where(i => i.ItemId == Guid.Empty).ToList();
             foreach (var l in lines)
             {
                 var v = await db.Set<Vehicle>().FirstOrDefaultAsync(x => x.Id == l.VehicleId, ct)
                     ?? throw new ValidationFailedException(string.Format(Messages.LineVehicleNotFound, l.LineNo));
                 if (v.Status != VehicleStatus.Available) throw new ConflictException(string.Format(Messages.LineVehicleNoLongerAvailable, l.LineNo, v.ChassisNumber));
+                // تكلفة المبيعات = تكلفة السيارة لحظة الترحيل (مسودة حُفظت قبل مصروف أُضيف لها تبقي فرقه في المخزون)؛ تُحفظ على السطر فلا تتغير بعدها
+                if (l.UnitCost != v.TotalCost)
+                {
+                    // هامش الربح على التكلفة الكلية: تغيّر التكلفة يغيّر الضريبة وإجمالي العميل، فلا تُغيَّر أرقام الفاتورة بصمت
+                    if (tax.Calculate(v.PurchasePrice, v.TotalCost, DocumentPricing.Round(l.UnitPrice - l.Discount), l.VatMode).VatAmount != l.VatAmount)
+                        throw new ConflictException(string.Format(Messages.SaleVehicleCostChangedSinceDraft, v.ChassisNumber));
+                    var name = Describe(l);
+                    var item = items.FirstOrDefault(i => i.ItemName == name);
+                    if (item != null) { item.UnitCost = v.TotalCost; items.Remove(item); }
+                    l.UnitCost = v.TotalCost;
+                }
                 v.Status = VehicleStatus.Sold;
             }
         }

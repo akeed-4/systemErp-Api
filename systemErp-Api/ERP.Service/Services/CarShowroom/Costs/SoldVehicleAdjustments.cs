@@ -52,6 +52,22 @@ internal static class SoldVehicleAdjustments
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// مرتجع البيع: مصاريف وصلت بعد البيع حُمّلت على تكلفة المبيعات فتبقى مصروفاً هناك، فتخرج من تكلفة السيارة العائدة للمخزون
+    /// (وإلا حُسبت مرة ثانية عند بيعها من جديد). لا قيد هنا: أثرها المحاسبي على تكلفة المبيعات قائم. يعيد المتصل اشتقاق التكلفة بعد الحفظ.
+    /// </summary>
+    public static async Task ExpenseLateChargesAsync(ErpDbContext db, IReadOnlyCollection<Guid> vehicleIds, CancellationToken ct)
+    {
+        var lateLines = (await db.Set<AdditionalChargeAllocation>().Include(a => a.Line)
+            .Where(a => vehicleIds.Contains(a.VehicleId) && a.PostedToCogs && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Capitalize)
+            .ToListAsync(ct)).Select(a => a.Line).Distinct().ToList();
+        foreach (var line in lateLines)
+        {
+            line.Treatment = ChargeTreatment.Expense;
+            line.Notes = string.IsNullOrWhiteSpace(line.Notes) ? "مصروف بعد البيع: بقي مصروفاً عند مرتجع البيع" : $"{line.Notes} - بقي مصروفاً عند مرتجع البيع";
+        }
+    }
+
     /// <summary>فرق ما يدخل تكلفة كل سيارة بين حالتين (قبل/بعد) للسيارات المباعة فقط.</summary>
     public static Dictionary<Guid, decimal> Deltas(IReadOnlyDictionary<Guid, decimal> before, IReadOnlyDictionary<Guid, decimal> after, IEnumerable<Guid> soldIds)
         => soldIds.Distinct().ToDictionary(id => id, id => after.GetValueOrDefault(id) - before.GetValueOrDefault(id));

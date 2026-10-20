@@ -17,6 +17,7 @@ public class CarTrimService : CrudService<CarTrim, CarTrimDto, CreateCarTrimDto,
 
     protected override async Task ValidateAsync(CreateCarTrimDto d, CarTrim? existing, CancellationToken ct)
     {
+        d.NameAr = (d.NameAr ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(d.NameAr)) throw new ValidationFailedException(Messages.TrimArabicNameRequired);
         if (!await Db.Set<CarModel>().AnyAsync(m => m.Id == d.ModelId, ct)) throw new ValidationFailedException(Messages.ModelNotFound);
         if (await Db.Set<CarTrim>().AnyAsync(t => t.ModelId == d.ModelId && t.NameAr == d.NameAr && (existing == null || t.Id != existing.Id), ct))

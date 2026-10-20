@@ -24,6 +24,7 @@ public class CarShowroomSettingsDto
     public string? PurchaseCancellationLossAccount { get; set; }
     public string? SupplierClaimsAccount { get; set; }
     public string? ForfeitedDepositsAccount { get; set; }
+    public string? ImportCostsClearingAccount { get; set; }
 }
 
 public class TammWalletTopUpDto

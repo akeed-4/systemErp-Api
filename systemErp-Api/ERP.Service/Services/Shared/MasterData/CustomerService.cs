@@ -37,6 +37,36 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
             throw new ConflictException(Messages.CustomerCodeInUse);
     }
 
+    // ---------- الاستيراد من Excel ----------
+    public async Task<PartyImportPreviewDto> PreviewImportAsync(List<PartyImportRowInput<CreateCustomerDto>> rows, CancellationToken ct = default)
+        => PartyImport.Summarize(await CheckImportAsync(rows, ct));
+
+    public async Task<ImportResultDto> ImportRowsAsync(List<PartyImportRowInput<CreateCustomerDto>> rows, CancellationToken ct = default)
+        => await PartyImport.SaveAsync(rows, await CheckImportAsync(rows, ct), CreateAsync, c => c.Id, Label, ct);
+
+    /// <summary>الهاتف إلزامي للعميل؛ والتكرار يُفحص مع العملاء المسجّلين وداخل الملف.</summary>
+    private async Task<List<PartyImportRowDto>> CheckImportAsync(List<PartyImportRowInput<CreateCustomerDto>> rows, CancellationToken ct)
+    {
+        var existing = await Db.Set<Customer>().AsNoTracking()
+            .Select(c => new PartyImport.PartyRecord(c.Code, c.NameAr, c.VatNumber, c.CrNumber, c.Phone)).ToListAsync(ct);
+        return PartyImport.Check(rows, existing,
+            d =>
+            {
+                d.Code = d.Code?.Trim() ?? string.Empty; d.NameAr = d.NameAr?.Trim() ?? string.Empty;
+                d.VatNumber = d.VatNumber?.Trim(); d.CrNumber = d.CrNumber?.Trim();
+                return new PartyImport.PartyRecord(d.Code, d.NameAr, d.VatNumber, d.CrNumber, d.Phone);
+            },
+            (d, phone) => d.Phone = phone ?? string.Empty,
+            d =>
+            {
+                var errors = PartyImport.CommonErrors(d.NameAr, d.VatNumber, d.Email, d.OpeningBalance, d.Country, d.BuildingNo, d.PostalCode, d.AdditionalNo, d.IdType, d.IdNumber);
+                if (d.CreditLimit < 0) errors.Add(Messages.CreditLimitCannotBeNegative);
+                if (d.CreditPeriodDays < 0) errors.Add(Messages.CreditPeriodCannotBeNegative);
+                return errors;
+            },
+            phoneRequired: true);
+    }
+
     protected override async Task OnCreatingAsync(Customer e, CreateCustomerDto d, CancellationToken ct)
     {
         e.Country = PartyValidation.NormalizeCountry(e.Country);

@@ -174,7 +174,7 @@ public class ZatcaService : IZatcaService
 
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
         var config = tenant.ZatcaConfig;
-        if (!config.IsEnabled) return Result(invoice, success: false, Messages.ZatcaNotEnabled);
+        if (!config.IsEnabled) return await FailAsync(invoice, Messages.ZatcaNotEnabled, ct);
         // الفاتورة تُرسل بوحدة المستخدم الذي يرسلها؛ غير المربوط لا يرسل
         var senderId = _user.UserId;
         var unitId = await _db.Set<ZatcaUnit>().AsNoTracking().Where(u => u.UserId == senderId && u.IsActive).Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
@@ -186,20 +186,31 @@ public class ZatcaService : IZatcaService
         {
             var chain = await _db.Set<ZatcaUnit>().FirstAsync(u => u.Id == unitId, ct); // تُقرأ داخل القفل: العدّاد كما تركه الإرسال السابق
 
-            var document = await DocumentAsync(invoice, tenant, chain.Counter + 1, chain.LastHash ?? ZatcaInvoiceXml.FirstPreviousHash, ct);
+            ZatcaDocument document;
             ZatcaSignedInvoice signed;
-            using (var key = ECDsa.Create())
+            ZatcaApiResult response;
+            try
             {
-                key.ImportFromPem(Reveal(chain.PrivateKeyPem));
-                signed = ZatcaSigner.Sign(document, chain.CertificatePem, key, DateTime.UtcNow);
-            }
+                document = await DocumentAsync(invoice, tenant, chain.Counter + 1, chain.LastHash ?? ZatcaInvoiceXml.FirstPreviousHash, ct);
+                using (var key = ECDsa.Create())
+                {
+                    key.ImportFromPem(Reveal(chain.PrivateKeyPem));
+                    signed = ZatcaSigner.Sign(document, chain.CertificatePem, key, DateTime.UtcNow);
+                }
 
-            var submission = new ZatcaSubmission(signed.Hash, signed.Uuid, signed.Xml);
-            var secret = Reveal(chain.SecretKey);
-            var baseUrl = BaseUrl(config, chain.Environment); // الوحدة ترسل للبيئة التي صدرت شهادتها منها
-            var response = document.IsSimplified
-                ? await _api.ReportAsync(baseUrl, chain.BinarySecurityToken, secret, submission, ct)
-                : await _api.ClearAsync(baseUrl, chain.BinarySecurityToken, secret, submission, ct);
+                var submission = new ZatcaSubmission(signed.Hash, signed.Uuid, signed.Xml);
+                var secret = Reveal(chain.SecretKey);
+                var baseUrl = BaseUrl(config, chain.Environment); // الوحدة ترسل للبيئة التي صدرت شهادتها منها
+                response = document.IsSimplified
+                    ? await _api.ReportAsync(baseUrl, chain.BinarySecurityToken, secret, submission, ct)
+                    : await _api.ClearAsync(baseUrl, chain.BinarySecurityToken, secret, submission, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // تعذّر تجهيز الفاتورة أو توقيعها أو إرسالها قبل أي حكم (بيانات ناقصة، شهادة تالفة…): السلسلة لم تتغيّر،
+                // ويُحفظ السبب على الفاتورة ليظهر للمستخدم بدل رسالة عامة
+                return await FailAsync(invoice, string.Format(Messages.ZatcaSubmitFailed, ex.Message), ct);
+            }
 
             // لا حكم من الهيئة (انقطاع أو خطأ خادم): السلسلة لا تتقدّم، ويُعاد الإرسال لاحقاً بالعدّاد نفسه
             if (!response.Reached)

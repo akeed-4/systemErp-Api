@@ -986,6 +986,7 @@
   <data name="ZatcaAlreadySubmitted" xml:space="preserve"><value>The invoice has already been submitted to ZATCA.</value></data>
 
   <data name="ZatcaUnreachable" xml:space="preserve"><value>Could not reach ZATCA; the invoice was not sent and can be resent: {0}</value></data>
+  <data name="ZatcaSubmitFailed" xml:space="preserve"><value>Could not prepare or send the invoice to ZATCA: {0}</value></data>
 
   <data name="ZatcaRejected" xml:space="preserve"><value>ZATCA rejected the invoice.</value></data>
 
@@ -1123,6 +1124,7 @@
   <data name="ChassisReplaced" xml:space="preserve"><value>{0} chassis number(s) replaced</value></data>
   <data name="OrderPartiallyReceivedLocked" xml:space="preserve"><value>Part of the order has been received into stock; the order cannot be edited or rejected until receipt is complete.</value></data>
   <data name="PostedInvoiceEditZatcaSubmitted" xml:space="preserve"><value>The invoice was sent to ZATCA and cannot be edited; correct it with a return (credit/debit note).</value></data>
+  <data name="InvoiceSentToZatcaCannotBeDeleted" xml:space="preserve"><value>Invoice {0} cannot be deleted because it was sent to ZATCA; invoices sent to ZATCA can never be deleted. To correct it, issue a return (credit note) against it.</value></data>
   <data name="PostedVehicleInvoiceHasReturns" xml:space="preserve"><value>This vehicle invoice has a posted return; it cannot be edited without conflicting with the returned vehicles.</value></data>
   <data name="PostedPurchaseVehicleInUse" xml:space="preserve"><value>Vehicle {0} from this invoice was sold, reserved, or linked to a contract or purchase order; its purchase invoice cannot be edited.</value></data>
   <data name="PostedSaleVehicleHasLateCharges" xml:space="preserve"><value>Vehicle {0} on this invoice received a charge after it was sold (posted to cost of sales); its sales invoice cannot be edited or deleted. Correct it with a return.</value></data>

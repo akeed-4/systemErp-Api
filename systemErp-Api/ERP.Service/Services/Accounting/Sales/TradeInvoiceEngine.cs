@@ -442,6 +442,9 @@ public class TradeInvoiceEngine
         => _tx.RunAsync(async token =>
         {
             var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            // ما وصل للهيئة لا يُحذف أبداً، مقبولاً أو مرفوضاً: صار حلقة في سلسلة التجزئة والعدّاد، ويُصحَّح بمرتجع فقط
+            if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted || invoice.ZatcaHash != null)
+                throw new ConflictException(string.Format(Messages.InvoiceSentToZatcaCannotBeDeleted, invoice.InvoiceNumber));
             // المرحّلة (قبل إرسالها للهيئة) تُحذف: يُعكس قيدها وحركاتها وتعود سياراتها؛ المسودة تُحذف مباشرة
             var wasPosted = invoice.Status == "posted";
             if (wasPosted) await UnpostForEditAsync(invoice, token, forDelete: true);

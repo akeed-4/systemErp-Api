@@ -14,6 +14,8 @@ public partial class CreateVoucherDto
     public string PartyAccountCode { get; set; } = string.Empty;
     public string TreasuryAccountCode { get; set; } = string.Empty;
     public string PaymentMethod { get; set; } = "cash";
+    /// <summary>رمز طريقة الدفع المختارة: يحدّد حساب الخزينة ونوع الدفع في السرفر (يُقدَّم على TreasuryAccountCode).</summary>
+    public string? PaymentMethodCode { get; set; }
     public bool IsSplitPayment { get; set; }
     public string? ReferenceNumber { get; set; }
     public string Notes { get; set; } = string.Empty;

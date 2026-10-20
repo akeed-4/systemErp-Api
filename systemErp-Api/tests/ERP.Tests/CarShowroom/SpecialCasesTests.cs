@@ -283,6 +283,28 @@ public class SpecialCasesTests : TestBase
         await AssertBalancedAsync(api);
     }
 
+    [Fact]
+    public async Task A_deposit_received_by_several_methods_is_refunded_back_to_each_method_account()
+    {
+        var api = await NewTenantAsync();
+        var (customer, _) = await SeedCustomerAsync(api, name: "علي");
+        Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "CASH", nameAr = "نقد", type = "cash", linkedAccountCode = "1111", status = "active" })).Status);
+        Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "BANK", nameAr = "تحويل", type = "bank", linkedAccountCode = "1112", status = "active" })).Status);
+        var car = await SeedCarAsync(api);
+        var voucher = await api.Post("/vouchers", new
+        {
+            type = "receipt", amount = 1000, partyName = "علي", paymentMethod = "cash", depositVehicleId = car, depositCustomerId = customer, isSplitPayment = true,
+            paymentSplits = new[] { new { method = "cash", paymentMethodCode = "CASH", amount = 600m }, new { method = "bank_transfer", paymentMethodCode = "BANK", amount = 400m } },
+        });
+        Assert.True(voucher.Success);
+        Assert.Equal(600, await BalanceAsync(api, "1111")); Assert.Equal(400, await BalanceAsync(api, "1112"));
+
+        var reservation = (await api.Get($"/vehiclereservations?vehicleId={car}&status=active")).Data!["items"]!.AsArray().Single()!;
+        Assert.Equal(200, (await api.Post($"/vehiclereservations/{reservation["id"].S()}/cancel", new { reason = "تراجع العميل", depositAction = "refund" })).Status);
+        Assert.Equal(0, await BalanceAsync(api, "1111")); Assert.Equal(0, await BalanceAsync(api, "1112")); Assert.Equal(0, await BalanceAsync(api, "216"));
+        await AssertBalancedAsync(api);
+    }
+
     // ───────── اشتراك تم السنوي: مدفوع مقدماً وإطفاء شهري ─────────
     [Fact]
     public async Task Prepaid_subscription_is_amortized_monthly_and_never_twice_for_the_same_month()

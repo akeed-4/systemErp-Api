@@ -116,4 +116,25 @@ public class UserService : IUserService
         user.IsActive = false;
         await _db.SaveChangesAsync(ct);
     }
+
+    public async Task ActivateAsync(Guid id, CancellationToken ct = default)
+    {
+        var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException(Messages.UserNotFound);
+        if (user.IsActive) return;
+        var sub = await _db.Set<Subscription>().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);
+        if (user.Role != UserRole.Employee && sub != null
+            && await _db.Set<User>().CountAsync(u => u.IsActive && u.Role != UserRole.Employee, ct) >= sub.MaxUsers)
+            throw new ConflictException(Messages.UserLimitReached);
+        user.IsActive = true;
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task ResetPasswordAsync(Guid id, string password, CancellationToken ct = default)
+    {
+        if (password is null || password.Length < 8) throw new ValidationFailedException(Messages.PasswordMin8);
+        var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException(Messages.UserNotFound);
+        if (user.Role == UserRole.Owner && user.Id != _current.UserId) throw new ConflictException(Messages.CannotDeactivateOwner);
+        user.PasswordHash = _hasher.HashPassword(user, password);
+        await _db.SaveChangesAsync(ct);
+    }
 }

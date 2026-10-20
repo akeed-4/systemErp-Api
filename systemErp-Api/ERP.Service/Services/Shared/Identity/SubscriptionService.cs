@@ -18,4 +18,16 @@ public class SubscriptionService : ISubscriptionService
         var sub = await _db.Set<Subscription>().AsNoTracking().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);
         return sub == null ? null : SubscriptionCatalog.ToDto(sub);
     }
+
+    public async Task<SubscriptionUsageDto> GetUsageAsync(CancellationToken ct = default)
+    {
+        var sub = await _db.Set<Subscription>().AsNoTracking().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);
+        return new SubscriptionUsageDto
+        {
+            Users = await _db.Set<User>().CountAsync(u => u.IsActive && u.Role != UserRole.Employee, ct),
+            MaxUsers = sub?.MaxUsers ?? 0,
+            Warehouses = await _db.Set<Warehouse>().CountAsync(w => w.Status == "active", ct),
+            MaxWarehouses = sub?.MaxBranches ?? 0,
+        };
+    }
 }

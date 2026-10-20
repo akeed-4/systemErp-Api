@@ -22,6 +22,8 @@ public partial class CreateAdditionalChargeLineDto
     public ChargeAllocationMethod? AllocationMethod { get; set; }
     /// <summary>حساب الدفع (بنك/صندوق) لمصروف دُفع بلا مورد؛ فارغ = حساب المستحقات.</summary>
     public string? PaymentAccountCode { get; set; }
+    /// <summary>طريقة الدفع المختارة (جدول طرق الدفع): حسابها المرتبط يُقدَّم على PaymentAccountCode.</summary>
+    public string? PaymentMethodCode { get; set; }
     public Guid? SupplierId { get; set; }
     public string? SupplierInvoiceNumber { get; set; }
     public string? Notes { get; set; }

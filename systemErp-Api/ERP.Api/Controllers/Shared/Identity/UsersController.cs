@@ -28,4 +28,30 @@ public class UsersController : ErpControllerBase
         await _users.DeactivateAsync(id, ct);
         return Success(Messages.UserDeactivated);
     }
+
+    [HttpPost("{id:guid}/deactivate")]
+    public async Task<IActionResult> DeactivatePost(Guid id, CancellationToken ct)
+    {
+        await _users.DeactivateAsync(id, ct);
+        return Success(Messages.UserDeactivated);
+    }
+
+    [HttpPost("{id:guid}/activate")]
+    public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
+    {
+        await _users.ActivateAsync(id, ct);
+        return Success(Messages.UserUpdated);
+    }
+
+    [HttpPost("{id:guid}/reset-password")]
+    public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetUserPasswordDto body, CancellationToken ct)
+    {
+        await _users.ResetPasswordAsync(id, body.Password, ct);
+        return Success(Messages.UserUpdated);
+    }
+}
+
+public class ResetUserPasswordDto
+{
+    public string Password { get; set; } = string.Empty;
 }

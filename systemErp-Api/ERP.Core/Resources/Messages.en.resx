@@ -567,6 +567,10 @@
   <data name="PaymentLinkCreated" xml:space="preserve"><value>Payment link created</value></data>
   <data name="PaymentLinkPostedSalesOnly" xml:space="preserve"><value>A payment link is for a posted sales invoice only.</value></data>
   <data name="PaymentMethodCodeInUse" xml:space="preserve"><value>The payment method code is already in use.</value></data>
+  <data name="WarehouseLimitReached" xml:space="preserve"><value>You have reached the warehouse limit of your plan.</value></data>
+  <data name="PosCreditNotMixed" xml:space="preserve"><value>A POS credit sale must cover the full amount and cannot be mixed with other payment methods.</value></data>
+  <data name="PaymentMethodNotAvailable" xml:space="preserve"><value>Payment method {0} does not exist or is inactive.</value></data>
+  <data name="PaymentMethodNotImmediate" xml:space="preserve"><value>Payment method {0} is a credit method and cannot be used here; choose a cash or bank method.</value></data>
   <data name="PaymentMethodPrefix" xml:space="preserve"><value>Payment method: </value></data>
   <data name="PaymentMethodTypePrefix" xml:space="preserve"><value>Payment method type: </value></data>
   <data name="PaymentNotFound" xml:space="preserve"><value>Payment not found</value></data>

@@ -164,7 +164,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     }
 
     /// <summary>فاتورة ضريبية للمستخلص عبر محرك الفوترة المركزي (بند خدمة بلا مخزون) وربطها بالمستخلص والعقد.</summary>
-    public async Task<InvoiceDto> BillMilestoneAsync(Guid contractId, Guid milestoneId, CancellationToken ct = default)
+    public async Task<InvoiceDto> BillMilestoneAsync(Guid contractId, Guid milestoneId, DateTime? date = null, CancellationToken ct = default)
         => await new TransactionRunner(Db).RunAsync(async token =>
         {
             var c = await Db.Set<CommercialContract>().Include(x => x.Milestones).FirstOrDefaultAsync(x => x.Id == contractId, token)
@@ -182,6 +182,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
             {
                 Kind = InvoiceKind.Sales, InvoiceType = TradeHelper.InvoiceTypeFor(c.PartyVatNumber),
+                IssueDate = date?.Date ?? default,
                 PartyId = c.PartyId, PartyName = c.PartyName, PartyVatNumber = c.PartyVatNumber, PartyPhone = c.PartyPhone, PartyEmail = c.PartyEmail,
                 PaymentMethod = PaymentMethod.Credit, Status = "posted",
                 Notes = $"مستخلص رقم {m.MilestoneNumber} - عقد {c.ContractNumber}",

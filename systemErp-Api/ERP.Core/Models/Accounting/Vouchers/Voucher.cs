@@ -17,6 +17,8 @@ public class Voucher : BaseEntity
     public string TreasuryAccountCode { get; set; } = string.Empty;
     
     public string PaymentMethod { get; set; } = "cash";
+    /// <summary>رمز طريقة الدفع المختارة (جدول طرق الدفع)؛ حساب الخزينة ونوع الدفع منها. فارغ = سند قديم بحسابه المرسل.</summary>
+    public string? PaymentMethodCode { get; set; }
     public bool IsSplitPayment { get; set; }
     public string? ReferenceNumber { get; set; }
     public string Notes { get; set; } = string.Empty;

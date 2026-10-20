@@ -28,3 +28,12 @@ public partial class SubscriptionDto
     /// <summary>فترة تجريبية مجانية انتهت بلا سداد: النظام محجوب حتى يُدفع الاشتراك.</summary>
     public bool TrialEnded { get; set; }
 }
+
+/// <summary>استخدام الاشتراك مقابل حدوده: المستخدمون الفعّالون (بلا حسابات بوابة الموظف) والمستودعات الفعّالة مقابل الفروع.</summary>
+public class SubscriptionUsageDto
+{
+    public int Users { get; set; }
+    public int MaxUsers { get; set; }
+    public int Warehouses { get; set; }
+    public int MaxWarehouses { get; set; }
+}

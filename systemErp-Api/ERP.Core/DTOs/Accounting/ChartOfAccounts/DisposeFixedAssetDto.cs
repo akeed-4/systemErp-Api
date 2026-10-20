@@ -8,5 +8,7 @@ public class DisposeFixedAssetDto
     public decimal Proceeds { get; set; }
     /// <summary>حساب الخزينة/البنك المستلم للمتحصَّل؛ إلزامي إن كان المتحصَّل أكبر من صفر.</summary>
     public string? TreasuryAccountCode { get; set; }
+    /// <summary>طريقة الدفع المختارة (جدول طرق الدفع): حسابها المرتبط يُقدَّم على TreasuryAccountCode.</summary>
+    public string? PaymentMethodCode { get; set; }
     public string? Notes { get; set; }
 }

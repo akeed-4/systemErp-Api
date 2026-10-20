@@ -31,6 +31,8 @@ public class TammWalletTopUpDto
     public decimal Amount { get; set; }
     /// <summary>حساب البنك/الصندوق الذي شُحنت منه المحفظة.</summary>
     public string TreasuryAccountCode { get; set; } = string.Empty;
+    /// <summary>طريقة الدفع المختارة (جدول طرق الدفع): حسابها المرتبط يُقدَّم على TreasuryAccountCode.</summary>
+    public string? PaymentMethodCode { get; set; }
     public DateTime? Date { get; set; }
     public string? Reference { get; set; }
     public string? Notes { get; set; }

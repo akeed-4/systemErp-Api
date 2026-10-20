@@ -10,5 +10,6 @@ public interface ICommercialContractService : ICrudService<CommercialContractDto
     Task<ContractStageCatalogDto> GetStageCatalogAsync(CancellationToken ct = default);
     Task<CommercialContractDto> AdvanceStageAsync(Guid id, AdvanceStageRequestDto request, CancellationToken ct = default);
     /// <summary>يفوتر مستخلصاً: فاتورة ضريبية + قيد (مدينون / إيراد / ضريبة مخرجات) + تحديث إجماليات العقد.</summary>
-    Task<InvoiceDto> BillMilestoneAsync(Guid contractId, Guid milestoneId, CancellationToken ct = default);
+    /// <param name="date">تاريخ الفاتورة (فارغ = اليوم).</param>
+    Task<InvoiceDto> BillMilestoneAsync(Guid contractId, Guid milestoneId, DateTime? date = null, CancellationToken ct = default);
 }

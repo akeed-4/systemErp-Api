@@ -27,6 +27,8 @@ public partial class PosTransactionDto
     public decimal PaidMada { get; set; }
     public decimal PaidApplePay { get; set; }
     public decimal ChangeAmount { get; set; }
+    /// <summary>طرق الدفع المختارة من جدول طرق الدفع (فارغة للعمليات القديمة بالأنواع الثابتة).</summary>
+    public List<PosPaymentLineDto> Payments { get; set; } = new();
     public int PointsEarned { get; set; }
     public string QrCodeBase64 { get; set; } = string.Empty;
     public ZatcaSubmissionStatus ZatcaStatus { get; set; } = ZatcaSubmissionStatus.NotSubmitted;

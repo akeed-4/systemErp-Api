@@ -310,6 +310,8 @@ public class TradeInvoiceEngine
                 ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
             if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
             if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
+            if (r.RefundPaymentMethod.HasValue)
+                r.RefundPaymentMethod = await PaymentMethodRules.MethodForAsync(_db, r.RefundPaymentMethod.Value, r.RefundPaymentMethodCode, token);
             if (original is Invoice car)
                 foreach (var ext in _extensions)
                     if (await ext.CreateReturnAsync(r, car, CreateAsync<TReturn>, token) is { } extensionReturn) return extensionReturn;
@@ -360,12 +362,41 @@ public class TradeInvoiceEngine
             var retGross = dto.Items.Sum(i => i.Quantity * i.UnitPrice - i.Discount);
             dto.InvoiceDiscount = origGross == 0 ? 0 : DocumentPricing.Round(original.InvoiceDiscount * retGross / origGross);
 
-            if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
+            if (r.RefundSplits.Count > 0) await ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
+            else if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
             return await CreateAsync<TReturn>(dto, token);
         }, ct), ct);
 
     internal static string ReturnNotes(InvoiceBase original, CreateReturnInvoiceRequestDto r)
         => string.IsNullOrWhiteSpace(r.Notes) ? $"مرتجع من الفاتورة {original.InvoiceNumber}" : $"مرتجع من الفاتورة {original.InvoiceNumber}: {r.Notes.Trim()}";
+
+    /// <summary>
+    /// رد المرتجع بأكثر من طريقة: المبالغ المدخلة تُوزَّع بنسبتها على إجمالي المرتجع المحسوب في السرفر (والكسر على آخر سطر)،
+    /// فلا يفشل الحفظ لفرق تقريب بين تقدير الشاشة والإجمالي الفعلي. كل طريقة تُعتمد (فعّالة) ونوع الدفع من نوعها.
+    /// يُستدعى بعد اكتمال أسطر المرتجع وخصمه.
+    /// </summary>
+    internal static async Task ApplyRefundSplitsAsync(ErpDbContext db, CreateInvoiceDto dto, List<InvoicePaymentSplitDto> splits, CancellationToken ct)
+    {
+        var lines = splits.Where(s => s.Amount > 0).ToList();
+        if (lines.Count == 0) return;
+        var total = DocumentPricing.Price(
+            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride)).ToList(), dto.InvoiceDiscount).GrandTotal;
+        var entered = lines.Sum(s => s.Amount);
+        dto.PaymentSplits.Clear();
+        var allocated = 0m;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var s = lines[i];
+            var amount = i == lines.Count - 1 ? total - allocated : DocumentPricing.Round(s.Amount * total / entered);
+            allocated += amount;
+            var method = await PaymentMethodRules.MethodForAsync(db, s.Method, s.PaymentMethodCode, ct);
+            if (amount > 0) dto.PaymentSplits.Add(new InvoicePaymentSplitDto { Method = method, PaymentMethodCode = s.PaymentMethodCode, Amount = amount, Reference = s.Reference });
+        }
+        if (dto.PaymentSplits.Count == 0) return;
+        dto.IsSplitPayment = true;
+        dto.PaymentMethod = dto.PaymentSplits.Any(s => s.Method == PaymentMethod.Credit) ? PaymentMethod.Credit : dto.PaymentSplits[0].Method;
+        dto.PaymentMethodCode = null;
+    }
 
     /// <summary>بلا طريقة ردّ محددة: فاتورة دُفعت بأكثر من طريقة يُردّ مرتجعها بالتوزيع نفسه (بنسبة قيمة المرتجع).</summary>
     internal static void MirrorOriginalSplits(CreateInvoiceDto dto, InvoiceBase original)
@@ -669,7 +700,9 @@ public class TradeInvoiceEngine
             throw new ValidationFailedException(Messages.PartyVatNumberInvalid);
         if (r.Kind == InvoiceKind.Sales && r.InvoiceType == InvoiceType.TaxInvoice) ValidateTaxInvoiceBuyer(invoice, domesticParty);
 
-        // الدفع
+        // الدفع: الطريقة المختارة تُعتمد (فعّالة) ونوعها يحدّد نوع الدفع. المرتجع يرث طرق فاتورته (وطريقة الرد تُعتمد في CreateReturnAsync).
+        if (!isReturn && !r.IsSplitPayment)
+            invoice.PaymentMethod = await PaymentMethodRules.MethodForAsync(_db, r.PaymentMethod, r.PaymentMethodCode, ct);
         invoice.PaymentSplits.Clear();
         if (r.IsSplitPayment)
         {
@@ -678,7 +711,10 @@ public class TradeInvoiceEngine
             if (Math.Abs(r.PaymentSplits.Sum(s => s.Amount) - invoice.GrandTotal) > 0.005m)
                 throw new ValidationFailedException(Messages.SplitPaymentsMustEqualInvoiceTotal);
             foreach (var s in r.PaymentSplits)
-                invoice.PaymentSplits.Add(new InvoicePaymentSplit { Method = s.Method, PaymentMethodCode = s.PaymentMethodCode, Amount = s.Amount, Reference = s.Reference });
+            {
+                var method = isReturn ? s.Method : await PaymentMethodRules.MethodForAsync(_db, s.Method, s.PaymentMethodCode, ct);
+                invoice.PaymentSplits.Add(new InvoicePaymentSplit { Method = method, PaymentMethodCode = s.PaymentMethodCode, Amount = s.Amount, Reference = s.Reference });
+            }
         }
         var hasCredit = invoice.PaymentMethod == PaymentMethod.Credit || invoice.PaymentSplits.Any(s => s.Method == PaymentMethod.Credit);
         if (hasCredit && !r.PartyId.HasValue)

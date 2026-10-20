@@ -19,6 +19,13 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
             throw new ConflictException(Messages.WarehouseCodeInUse);
         if (existing is { IsDefault: true } && !d.IsDefault)
             throw new ConflictException(Messages.SetAnotherDefaultWarehouse);
+        // حد الاشتراك: المستودعات الفعّالة لا تتجاوز عدد الفروع (عند الإضافة أو إعادة تفعيل مستودع موقوف)
+        if (d.Status == "active" && existing?.Status != "active")
+        {
+            var sub = await Db.Set<Subscription>().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);
+            if (sub != null && await Db.Set<Warehouse>().CountAsync(w => w.Status == "active", ct) >= sub.MaxBranches)
+                throw new ConflictException(Messages.WarehouseLimitReached);
+        }
     }
 
     protected override async Task OnCreatingAsync(Warehouse e, CreateWarehouseDto d, CancellationToken ct)

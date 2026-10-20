@@ -17,6 +17,8 @@ public partial class VoucherDto
     public string PartyAccountCode { get; set; } = string.Empty;
     public string TreasuryAccountCode { get; set; } = string.Empty;
     public string PaymentMethod { get; set; } = "cash";
+    /// <summary>رمز طريقة الدفع المختارة؛ فارغ = سند قديم.</summary>
+    public string? PaymentMethodCode { get; set; }
     public bool IsSplitPayment { get; set; }
     public string? ReferenceNumber { get; set; }
     public string Notes { get; set; } = string.Empty;

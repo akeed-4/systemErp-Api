@@ -11,6 +11,8 @@ public class CreateEmployeeLoanDto
     public string? Reason { get; set; }
     /// <summary>حساب الصرف؛ فارغ = الصندوق.</summary>
     public string? PaymentAccountCode { get; set; }
+    /// <summary>طريقة الدفع المختارة (جدول طرق الدفع): حسابها المرتبط يُقدَّم على PaymentAccountCode.</summary>
+    public string? PaymentMethodCode { get; set; }
 }
 
 /// <summary>إعادة جدولة الأقساط المتبقية.</summary>

@@ -32,10 +32,14 @@ public class SettleCancelledChargesDto
 public class CancelVehicleReservationDto
 {
     public string? Reason { get; set; }
+    /// <summary>تاريخ قيد رد/مصادرة العربون (فارغ = اليوم).</summary>
+    public DateTime? Date { get; set; }
     /// <summary>لحجز عليه عربون مفتوح: refund | forfeit. فارغ = سياسة إعدادات المعرض.</summary>
     public string? DepositAction { get; set; }
     /// <summary>حساب البنك/الصندوق الذي يُرد منه العربون؛ فارغ = الحساب الذي قُبض فيه.</summary>
     public string? RefundTreasuryAccountCode { get; set; }
+    /// <summary>طريقة الرد المختارة (جدول طرق الدفع): حسابها المرتبط يُقدَّم على RefundTreasuryAccountCode.</summary>
+    public string? RefundPaymentMethodCode { get; set; }
 }
 
 public class ReturnCarSaleDto
@@ -44,6 +48,8 @@ public class ReturnCarSaleDto
     public PaymentMethod? RefundPaymentMethod { get; set; }
     /// <summary>رمز طريقة الرد المؤسَّسة (يُرحَّل على حسابها) مع RefundPaymentMethod.</summary>
     public string? RefundPaymentMethodCode { get; set; }
+    /// <summary>الرد بأكثر من طريقة (يُقدَّم على RefundPaymentMethod)، موزَّعاً بنسبته على إجمالي المرتجع.</summary>
+    public List<ERP.Core.DTOs.Accounting.InvoicePaymentSplitDto> RefundSplits { get; set; } = new();
     /// <summary>هل تُرد للعميل الرسوم والإضافات المحمّلة عليه؟ فارغ = إعداد المعرض.</summary>
     public bool? RefundCustomerCharges { get; set; }
     public DateTime? ReturnDate { get; set; }
@@ -60,6 +66,8 @@ public class CreatePrepaidExpenseDto
     public Guid? SupplierId { get; set; }
     /// <summary>حساب الدفع (بنك/صندوق/رصيد تم) إن لم يكن لمورد.</summary>
     public string? PaymentAccountCode { get; set; }
+    /// <summary>طريقة الدفع المختارة (جدول طرق الدفع): حسابها المرتبط يُقدَّم على PaymentAccountCode.</summary>
+    public string? PaymentMethodCode { get; set; }
 }
 
 public class PrepaidExpenseAmortizationDto

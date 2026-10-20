@@ -3230,6 +3230,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PaymentMethodCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ReceivedOrPaidBy")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -6178,6 +6181,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("PaymentMethod")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PaymentsJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("PointsEarned")

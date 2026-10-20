@@ -1,6 +1,7 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.Contracts.CarShowroom;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 using ERP.Service.Services.Shared;
 
 namespace ERP.Service.Services.CarShowroom;
@@ -152,7 +153,7 @@ public class VehicleReservationService : IVehicleReservationService
     /// </summary>
     private async Task SettleDepositAsync(VehicleReservation reservation, CancelVehicleReservationDto? request, CancellationToken ct)
     {
-        var voucher = await _db.Set<Voucher>().FirstOrDefaultAsync(v => v.Id == reservation.DepositVoucherId, ct);
+        var voucher = await _db.Set<Voucher>().Include(v => v.PaymentSplits).FirstOrDefaultAsync(v => v.Id == reservation.DepositVoucherId, ct);
         reservation.DepositVoucherId = null;
         if (voucher == null || voucher.DepositStatus != "open") return;
 
@@ -164,18 +165,27 @@ public class VehicleReservationService : IVehicleReservationService
         await ChargePosting.EnsureAccountsAsync(_db, settings, ct);
 
         var refund = action == "refund";
-        var counter = settings.ForfeitedDepositsAccount;
-        if (refund)
+        var lines = new List<PostingLine> { new(settings.CustomerDepositsAccount, voucher.Amount, 0) };
+        if (!refund) lines.Add(new(settings.ForfeitedDepositsAccount, 0, voucher.Amount));
+        else
         {
-            counter = string.IsNullOrWhiteSpace(request?.RefundTreasuryAccountCode) ? voucher.TreasuryAccountCode : request!.RefundTreasuryAccountCode!.Trim();
-            if (string.IsNullOrWhiteSpace(counter)) throw new ValidationFailedException(Messages.TreasuryAccountRequired);
+            // الرد بالطريقة المختارة، وإلا بما قُبض به: حساب السند، أو حسابات طرق عربون قُبض بأكثر من طريقة وبمبالغها
+            var chosen = await PaymentMethodRules.AccountForAsync(_db, request?.RefundPaymentMethodCode, request?.RefundTreasuryAccountCode, ct);
+            if (!string.IsNullOrWhiteSpace(chosen)) lines.Add(new(chosen.Trim(), 0, voucher.Amount));
+            else if (voucher.IsSplitPayment && voucher.PaymentSplits.Count > 0)
+            {
+                var methods = await _db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct);
+                lines.AddRange(voucher.PaymentSplits.Select(s => new PostingLine(TreasuryResolver.Resolve(s.Method, methods, code: s.PaymentMethodCode), 0, s.Amount)));
+            }
+            else if (!string.IsNullOrWhiteSpace(voucher.TreasuryAccountCode)) lines.Add(new(voucher.TreasuryAccountCode, 0, voucher.Amount));
+            else throw new ValidationFailedException(Messages.TreasuryAccountRequired);
         }
         await _posting.PostAsync(new GenericPostingRequest
         {
-            Date = SaudiTime.Today,
+            Date = request?.Date?.Date ?? SaudiTime.Today,
             Description = (refund ? "رد عربون " : "مصادرة عربون ") + $"{voucher.VoucherNumber} - {voucher.PartyName} (إلغاء حجز)",
             SourceType = refund ? "car_deposit_refund" : "car_deposit_forfeit", SourceId = voucher.Id, SourceNumber = voucher.VoucherNumber,
-            Lines = new List<PostingLine> { new(settings.CustomerDepositsAccount, voucher.Amount, 0), new(counter, 0, voucher.Amount) },
+            Lines = lines,
         }, ct);
         voucher.DepositStatus = refund ? "refunded" : "forfeited";
         await _audit.LogAsync(refund ? "DEPOSIT_REFUNDED" : "DEPOSIT_FORFEITED", nameof(Voucher), voucher.Id.ToString(), $"{voucher.VoucherNumber}: {voucher.Amount:0.00}", ct);

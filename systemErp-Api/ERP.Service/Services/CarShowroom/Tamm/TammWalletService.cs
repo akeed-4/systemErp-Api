@@ -47,7 +47,7 @@ public class TammWalletService : ITammWalletService
         => _tx.RunAsync(async token =>
         {
             if (d.Amount <= 0) throw new ValidationFailedException(Messages.TammWalletAmountInvalid);
-            var treasury = d.TreasuryAccountCode?.Trim();
+            var treasury = (await PaymentMethodRules.AccountForAsync(_db, d.PaymentMethodCode, d.TreasuryAccountCode, token))?.Trim();
             if (string.IsNullOrWhiteSpace(treasury)) throw new ValidationFailedException(Messages.TammWalletTreasuryRequired);
             var settings = await SalesCharges.SettingsAsync(_db, token);
             await ChargePosting.EnsureAccountsAsync(_db, settings, token);

@@ -173,7 +173,8 @@ public class CarInvoiceExtension : IInvoiceExtension
                 RevenueAccountCode = src.RevenueAccountCode, CostCenterId = src.CostCenterId,
             });
         }
-        if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) TradeInvoiceEngine.MirrorOriginalSplits(dto, original);
+        if (r.RefundSplits.Count > 0) await TradeInvoiceEngine.ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, ct);
+        else if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) TradeInvoiceEngine.MirrorOriginalSplits(dto, original);
 
         var created = await create(dto, ct);
 

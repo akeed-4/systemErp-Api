@@ -54,6 +54,7 @@ public class PrepaidExpenseService : IPrepaidExpenseService
             var settings = await SalesCharges.SettingsAsync(_db, token);
             await ChargePosting.EnsureAccountsAsync(_db, settings, token);
 
+            if (!d.SupplierId.HasValue) d.PaymentAccountCode = await PaymentMethodRules.AccountForAsync(_db, d.PaymentMethodCode, d.PaymentAccountCode, token);
             string credit;
             if (d.SupplierId.HasValue)
                 credit = await _db.Set<Supplier>().AsNoTracking().Where(s => s.Id == d.SupplierId).Select(s => s.AccountCode).FirstOrDefaultAsync(token)

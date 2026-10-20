@@ -40,9 +40,10 @@ public class PosSaleService : IPosSaleService
                 (cart.Lines, cart.Products, cart.LineDiscounts, cart.Coupon, cart.CouponDiscount, cart.Customer, cart.Loyalty, cart.LoyaltyDiscount, cart.PointsUsed, cart.Priced);
             var total = priced.GrandTotal;
 
-            // 6) الدفع
-            var (cash, card, mada, apple, change) = ResolvePayment(r, total, customer);
-            var method = EffectiveMethod(r.PaymentMethod, cash, card, mada, apple);
+            // 6) الدفع: بطرق جدول طرق الدفع إن أُرسلت، وإلا بالأنواع الثابتة (واجهات قديمة)
+            var configured = r.Payments.Count > 0 ? await ResolveConfiguredPaymentAsync(r.Payments, total, customer, token) : null;
+            var (cash, card, mada, apple, change) = configured?.Buckets ?? ResolvePayment(r, total, customer);
+            var method = configured?.Method ?? EffectiveMethod(r.PaymentMethod, cash, card, mada, apple);
 
             // 6ب) دفع إلكتروني مكتمل عبر Paymob: يطابق الإجمالي ويُستهلك مرة واحدة
             OnlinePayment? online = null;
@@ -76,7 +77,8 @@ public class PosSaleService : IPosSaleService
                     Discount = lineDiscounts[i], VatRate = products[l.ItemId].VatRate,
                 }).ToList(),
             };
-            ApplyPaymentToInvoice(invoiceDto, method, cash, card + mada + apple, total);
+            if (configured != null) configured.ApplyTo(invoiceDto);
+            else ApplyPaymentToInvoice(invoiceDto, method, cash, card + mada + apple, total);
             if (online != null) invoiceDto.SettlementAccountCode = await OnlinePaymentService.SettlementAccountAsync(_db, token);
             var invoice = await _invoices.CreateAsync(invoiceDto, token);
 
@@ -91,7 +93,7 @@ public class PosSaleService : IPosSaleService
                 CouponDiscount = couponDiscount, CouponCode = coupon?.Code, LoyaltyDiscount = loyaltyDiscount, LoyaltyPointsRedeemed = pointsUsed,
                 TotalDiscount = lineDiscounts.Sum() + couponDiscount + loyaltyDiscount,
                 VatAmount = priced.VatTotal, GrandTotal = total, PaymentMethod = method,
-                PaidCash = cash, PaidCard = card, PaidMada = mada, PaidApplePay = apple, ChangeAmount = change,
+                PaidCash = cash, PaidCard = card, PaidMada = mada, PaidApplePay = apple, ChangeAmount = change, PaymentsJson = configured?.Json,
                 PointsEarned = pointsEarned, QrCodeBase64 = invoice.ZatcaQrCode ?? string.Empty,
                 ZatcaStatus = invoice.ZatcaStatus, ZatcaUuid = invoice.Uuid.ToString(), InvoiceId = invoice.Id,
                 Status = PosTransactionStatus.Completed,
@@ -127,7 +129,7 @@ public class PosSaleService : IPosSaleService
             }
 
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<PosTransactionDto>(pos);
+            return ToDto(pos);
         }, ct);
 
     private sealed record CartPricing(
@@ -266,6 +268,70 @@ public class PosSaleService : IPosSaleService
         }
     }
 
+    /// <summary>الدفع بطرق جدول طرق الدفع: الأرصدة لدرج الوردية، ونوع العملية، وأسطر دفع الفاتورة برموزها، وما يُحفظ للإيصال.</summary>
+    private sealed record ConfiguredPayment(
+        (decimal Cash, decimal Card, decimal Mada, decimal Apple, decimal Change) Buckets, PosPaymentMethod Method, List<InvoicePaymentSplitDto> Splits, string Json)
+    {
+        public void ApplyTo(CreateInvoiceDto dto)
+        {
+            dto.PaymentMethod = Splits[0].Method;
+            if (Splits.Count == 1) { dto.PaymentMethodCode = Splits[0].PaymentMethodCode; return; }
+            dto.IsSplitPayment = true;
+            dto.PaymentSplits = Splits;
+        }
+    }
+
+    /// <summary>
+    /// يعتمد طرق الدفع المختارة (فعّالة) ويوزّعها: النقد لدرج الوردية والباقي يُرد منه فقط، والبطاقة/البنك/الشيك لمبيعات البطاقات،
+    /// والآجل كامل المبلغ لعميل مسجّل ولا يُخلط بغيره (ليبقى الإلغاء وتسوية الوردية صحيحين).
+    /// </summary>
+    private async Task<ConfiguredPayment> ResolveConfiguredPaymentAsync(List<PosPaymentLineDto> lines, decimal total, Customer? customer, CancellationToken ct)
+    {
+        if (lines.Any(l => l.Amount <= 0)) throw new ValidationFailedException(Messages.SplitPaymentsNeedPositiveAmounts);
+        var chosen = new List<(PosPaymentLineDto Line, PaymentMethodItem Method)>();
+        foreach (var l in lines)
+            chosen.Add((l, await PaymentMethodRules.RequireAsync(_db, l.PaymentMethodCode, ct) ?? throw new ValidationFailedException(Messages.InvalidPaymentMethod)));
+        foreach (var (l, m) in chosen) { l.PaymentMethodCode = m.Code; l.NameAr = m.NameAr; l.NameEn = m.NameEn; l.Type = m.Type; }
+        var json = System.Text.Json.JsonSerializer.Serialize(lines);
+
+        if (chosen.Any(x => x.Method.Type == "credit"))
+        {
+            if (chosen.Count > 1) throw new ValidationFailedException(Messages.PosCreditNotMixed);
+            if (customer == null) throw new ValidationFailedException(Messages.CreditSaleRequiresCustomer);
+            var split = new InvoicePaymentSplitDto { Method = PaymentMethod.Credit, PaymentMethodCode = chosen[0].Method.Code, Amount = total };
+            return new((0, 0, 0, 0, 0), PosPaymentMethod.Credit, new() { split }, json);
+        }
+
+        var paid = chosen.Sum(x => x.Line.Amount);
+        var cashIn = chosen.Where(x => x.Method.Type == "cash").Sum(x => x.Line.Amount);
+        if (paid < total) throw new ValidationFailedException(Messages.PaymentsBelowTotal);
+        var change = DocumentPricing.Round(paid - total);
+        if (change > cashIn) throw new ValidationFailedException(Messages.ChangeFromCashOnly);
+
+        // الباقي يُخصم من أسطر النقد بالترتيب، فيُرحَّل على كل طريقة ما بقي فيها فعلاً
+        var splits = new List<InvoicePaymentSplitDto>();
+        var changeLeft = change;
+        foreach (var (l, m) in chosen)
+        {
+            var amount = l.Amount;
+            if (m.Type == "cash" && changeLeft > 0) { var cut = Math.Min(changeLeft, amount); amount -= cut; changeLeft -= cut; }
+            if (amount > 0) splits.Add(new InvoicePaymentSplitDto { Method = PaymentMethodRules.MethodOf(m.Type), PaymentMethodCode = m.Code, Amount = DocumentPricing.Round(amount), Reference = l.Reference });
+        }
+        var cash = DocumentPricing.Round(cashIn - change);
+        var nonCash = DocumentPricing.Round(paid - cashIn);
+        var method = cash > 0 && nonCash > 0 ? PosPaymentMethod.Split : cash > 0 ? PosPaymentMethod.Cash : PosPaymentMethod.Card;
+        return new((cash, nonCash, 0, 0, change), method, splits, json);
+    }
+
+    /// <summary>عملية نقطة البيع للواجهة، مع طرق الدفع المحفوظة.</summary>
+    private static PosTransactionDto ToDto(PosTransaction t)
+    {
+        var dto = Mapper.Map<PosTransactionDto>(t);
+        if (!string.IsNullOrWhiteSpace(t.PaymentsJson))
+            try { dto.Payments = System.Text.Json.JsonSerializer.Deserialize<List<PosPaymentLineDto>>(t.PaymentsJson) ?? new(); } catch { /* سجل تالف: يُعرض بالأرصدة */ }
+        return dto;
+    }
+
     /// <summary>«مقسّم» سُدِّد كله بطريقة واحدة هو دفع بتلك الطريقة: يُحفظ ويُرحَّل ويظهر في التقارير كذلك.</summary>
     private static PosPaymentMethod EffectiveMethod(PosPaymentMethod requested, decimal cash, decimal card, decimal mada, decimal apple)
     {
@@ -335,7 +401,7 @@ public class PosSaleService : IPosSaleService
                 {
                     OriginalInvoiceId = t.InvoiceId.Value, ReturnReason = string.Format(Messages.PosVoidReturnReason, t.InvoiceNumber),
                 }, token);
-            return Mapper.Map<PosTransactionDto>(t);
+            return ToDto(t);
         }, ct);
 
     public async Task<PagedResult<PosTransactionDto>> ListAsync(Guid? shiftId, PaginationParams p, CancellationToken ct = default)
@@ -354,17 +420,17 @@ public class PosSaleService : IPosSaleService
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
         return new PagedResult<PosTransactionDto>
         {
-            Items = items.Select(Mapper.Map<PosTransactionDto>).ToList(),
+            Items = items.Select(ToDto).ToList(),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
 
     public async Task<PosTransactionDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<PosTransactionDto>(await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id, ct)
+        => ToDto(await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id, ct)
             ?? throw new NotFoundException(Messages.TransactionNotFound));
 
     public async Task<PosTransactionDto> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default)
-        => Mapper.Map<PosTransactionDto>(await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items)
+        => ToDto(await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items)
             .FirstOrDefaultAsync(t => t.InvoiceNumber == invoiceNumber, ct) ?? throw new NotFoundException(Messages.NoTransactionWithNumber));
 
     public async Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default)

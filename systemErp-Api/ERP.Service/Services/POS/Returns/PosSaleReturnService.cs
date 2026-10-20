@@ -51,6 +51,10 @@ public class PosSaleReturnService : IPosSaleReturnService
                     throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.NameAr, remaining));
             }
 
+            // طريقة رد من جدول طرق الدفع: نوعها يحدّد أثر الوردية (النقد من الدرج، الآجل رصيد للعميل) وحسابها يُرحَّل عليه
+            var refundChoice = await PaymentMethodRules.RequireAsync(_db, r.RefundPaymentMethodCode, token);
+            if (refundChoice != null)
+                r.RefundMethod = refundChoice.Type switch { "cash" => PosRefundMethod.Cash, "credit" => PosRefundMethod.StoreCredit, _ => PosRefundMethod.Card };
             var refundMethod = r.RefundMethod switch
             {
                 PosRefundMethod.Cash => PaymentMethod.Cash,
@@ -62,7 +66,7 @@ public class PosSaleReturnService : IPosSaleReturnService
 
             var creditNote = await _returns.CreateFromInvoiceAsync(new CreateReturnInvoiceRequestDto
             {
-                OriginalInvoiceId = tx.InvoiceId.Value, ReturnReason = r.ReturnReason, RefundPaymentMethod = refundMethod,
+                OriginalInvoiceId = tx.InvoiceId.Value, ReturnReason = r.ReturnReason, RefundPaymentMethod = refundMethod, RefundPaymentMethodCode = refundChoice?.Code,
                 Lines = wanted.Select(l => new ReturnLineDto { ItemId = l.ItemId, Quantity = l.ReturnQuantity }).ToList(),
             }, token);
 

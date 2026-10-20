@@ -94,7 +94,7 @@ public class ArchitectureTests
             // فواتير المعارض (Invoice) وأسباب الإعفاء الضريبي المشتركة؛ مستندات التجارة العامة لها controllers موسومة بوحدتها
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون
-            "Banks", "Currencies", "Customers", "PaymentMethods", "Suppliers", "ProductCategories", "Products", "UnitsOfMeasure", "Warehouses",
+            "Banks", "Currencies", "Customers", "PaymentMethods", "PaymentMethodOptions", "Suppliers", "ProductCategories", "Products", "UnitsOfMeasure", "Warehouses",
             "Costing", "InventoryCountApprovals", "InventoryCounts", "StockMovements", "StockTransfers", "FinancialStatements",
         };
         var controllers = Api.GetTypes()

@@ -14,6 +14,7 @@ public class PermissionService : IPermissionService
     {
         new() { Id = "dashboard", NameAr = "لوحة المؤشرات والملخص المالي", NameEn = "Dashboard & Summary" },
         new() { Id = "master-data", NameAr = "البيانات الرئيسية (العملاء/الموردين/الأصناف)", NameEn = "Master Data & Entities" },
+        new() { Id = "warehouses", NameAr = "المستودعات", NameEn = "Warehouses" },
         new() { Id = "sales", NameAr = "فواتير المبيعات ونقاط البيع (POS)", NameEn = "Sales Invoices & POS" },
         new() { Id = "sales-returns", NameAr = "مرتجع المبيعات والإشعارات الدائنة", NameEn = "Sales Returns & Credit Notes" },
         new() { Id = "purchases", NameAr = "فواتير المشتريات وتكلفة المخزون", NameEn = "Purchase Invoices" },

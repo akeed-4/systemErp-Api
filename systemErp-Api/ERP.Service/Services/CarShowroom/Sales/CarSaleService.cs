@@ -234,6 +234,8 @@ public class CarSaleService : ICarSaleService
             var settings = await SalesCharges.SettingsAsync(_db, token);
             await ChargePosting.EnsureAccountsAsync(_db, settings, token);
             var refundCharges = r.RefundCustomerCharges ?? settings.RefundCustomerChargesOnReturn;
+            if (r.RefundPaymentMethod.HasValue)
+                r.RefundPaymentMethod = await PaymentMethodRules.MethodForAsync(_db, r.RefundPaymentMethod.Value, r.RefundPaymentMethodCode, token);
 
             // بند السيارة يحمل ضريبتها المحسوبة بنمطها؛ الباقي رسوم وإضافات على العميل
             var vehicleItem = original.Items.FirstOrDefault(i => i.VatAmountOverride.HasValue) ?? original.Items.OrderByDescending(i => i.UnitCost).First();
@@ -260,6 +262,7 @@ public class CarSaleService : ICarSaleService
                 }).ToList(),
             };
             if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
+            if (r.RefundSplits.Count > 0) await TradeInvoiceEngine.ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
             var creditNote = await _invoices.CreateAsync(dto, token);
 
             var vehicle = await _db.Set<Vehicle>().FirstAsync(v => v.Id == c.VehicleId, token);
@@ -441,7 +444,7 @@ public class CarSaleService : ICarSaleService
     private static decimal Total(CarSalesContract c) => c.TotalWithVat + c.CustomerChargesNet + c.CustomerChargesVat;
 
     private static string? PackSplits(List<InvoicePaymentSplitDto>? splits)
-        => splits == null || splits.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(splits.Where(x => x.Amount > 0).Select(x => new { x.Method, x.Amount, x.Reference }));
+        => splits == null || splits.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(splits.Where(x => x.Amount > 0).Select(x => new { x.Method, x.PaymentMethodCode, x.Amount, x.Reference }));
 
     private static List<InvoicePaymentSplitDto> UnpackSplits(string? json)
     {
@@ -556,6 +559,10 @@ public class CarSaleService : ICarSaleService
         if ((c.DownPaymentAmount ?? 0) < 0) errors.Add(Messages.DownPaymentCannotBeNegative);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
+        // طرق الدفع المختارة تُعتمد (فعّالة)؛ ونوعها يحدّد نوع الدفع حين تُفوتر
+        await PaymentMethodRules.RequireAsync(_db, c.PaymentMethodCode, ct);
+        foreach (var split in UnpackSplits(c.PaymentSplitsJson))
+            await PaymentMethodRules.RequireAsync(_db, split.PaymentMethodCode, ct);
         if (c.CustomerId.HasValue && !await _db.Set<Customer>().AnyAsync(x => x.Id == c.CustomerId, ct))
             throw new ValidationFailedException(Messages.CustomerNotFound);
         if (c.FinancingBankId.HasValue && !await _db.Set<BankEntity>().AnyAsync(x => x.Id == c.FinancingBankId, ct))

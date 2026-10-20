@@ -206,6 +206,7 @@ public class AdditionalChargeService : IAdditionalChargeService
         var baseAmount = DocumentPricing.Round(d.Amount * rate);
         var costAmount = ChargeShares.CostAmount(type, baseAmount, DocumentPricing.Round(d.VatAmount * rate));
 
+        if (!d.SupplierId.HasValue) d.PaymentAccountCode = await PaymentMethodRules.AccountForAsync(_db, d.PaymentMethodCode, d.PaymentAccountCode, ct);
         if (!string.IsNullOrWhiteSpace(d.PaymentAccountCode) && !await _db.Set<Account>().AnyAsync(a => a.Code == d.PaymentAccountCode.Trim(), ct))
             throw new ValidationFailedException(Messages.ChargePaymentAccountInvalid);
         Supplier? supplier = null;

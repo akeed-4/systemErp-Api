@@ -12,4 +12,8 @@ public interface IUserService
     Task<UserDto> UpdateProfileAsync(UpdateProfileDto request, CancellationToken ct = default);
     Task<OperationResultDto> ChangePasswordAsync(ChangePasswordRequestDto request, CancellationToken ct = default);
     Task DeactivateAsync(Guid id, CancellationToken ct = default);
+    /// <summary>تفعيل مستخدم موقوف (ضمن حد مستخدمي الاشتراك).</summary>
+    Task ActivateAsync(Guid id, CancellationToken ct = default);
+    /// <summary>تعيين كلمة مرور جديدة لمستخدم من الإدارة.</summary>
+    Task ResetPasswordAsync(Guid id, string password, CancellationToken ct = default);
 }

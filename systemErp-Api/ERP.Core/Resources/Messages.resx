@@ -567,6 +567,10 @@
   <data name="PaymentLinkCreated" xml:space="preserve"><value>تم إنشاء رابط الدفع</value></data>
   <data name="PaymentLinkPostedSalesOnly" xml:space="preserve"><value>رابط الدفع لفاتورة مبيعات مرحّلة فقط.</value></data>
   <data name="PaymentMethodCodeInUse" xml:space="preserve"><value>كود طريقة الدفع مستخدم مسبقاً.</value></data>
+  <data name="WarehouseLimitReached" xml:space="preserve"><value>بلغت حد المستودعات في اشتراكك.</value></data>
+  <data name="PosCreditNotMixed" xml:space="preserve"><value>البيع الآجل في نقطة البيع يكون بكامل المبلغ ولا يُخلط بطرق دفع أخرى.</value></data>
+  <data name="PaymentMethodNotAvailable" xml:space="preserve"><value>طريقة الدفع {0} غير موجودة أو موقوفة.</value></data>
+  <data name="PaymentMethodNotImmediate" xml:space="preserve"><value>طريقة الدفع {0} آجلة ولا تصلح هنا؛ اختر طريقة نقدية أو بنكية.</value></data>
   <data name="PaymentMethodPrefix" xml:space="preserve"><value>طريقة الدفع: </value></data>
   <data name="PaymentMethodTypePrefix" xml:space="preserve"><value>نوع طريقة الدفع: </value></data>
   <data name="PaymentNotFound" xml:space="preserve"><value>عملية الدفع غير موجودة</value></data>

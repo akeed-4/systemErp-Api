@@ -22,4 +22,9 @@ public class CheckoutRequestDto
     public decimal PaidApplePay { get; set; }
     /// <summary>دفع إلكتروني مكتمل عبر Paymob (بطاقة/مدى/Apple Pay) يُستهلك في هذه العملية.</summary>
     public Guid? OnlinePaymentId { get; set; }
+    /// <summary>
+    /// الدفع بطرق جدول طرق الدفع (تُقدَّم على PaymentMethod و Paid*): كل سطر يُرحَّل على حساب طريقته،
+    /// والنقد يدخل درج الوردية والبطاقة/البنك في مبيعات البطاقات. الآجل لا يُخلط بغيره.
+    /// </summary>
+    public List<PosPaymentLineDto> Payments { get; set; } = new();
 }

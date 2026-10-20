@@ -214,7 +214,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             return Mapper.Map<DeliveryReturnNoteDto>(await _db.Set<DeliveryReturnNote>().AsNoTracking().Include(n => n.Items).FirstAsync(n => n.Id == ret.Id, token));
         }, ct);
 
-    public Task<InvoiceDto> CreateInvoiceAsync(Guid deliveryNoteId, CancellationToken ct = default)
+    public Task<InvoiceDto> CreateInvoiceAsync(Guid deliveryNoteId, DateTime? date = null, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
@@ -230,6 +230,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
+                IssueDate = date?.Date ?? default,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,
                 PartyId = note.PartyId, PartyName = note.PartyName, PartyVatNumber = note.PartyTaxNumber, PartyPhone = note.PartyPhone,
                 WarehouseId = note.WarehouseId,
@@ -248,7 +249,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             return invoice;
         }, ct);
 
-    public Task<InvoiceDto> CreateMilestoneInvoiceAsync(Guid deliveryNoteId, Guid milestoneId, CancellationToken ct = default)
+    public Task<InvoiceDto> CreateMilestoneInvoiceAsync(Guid deliveryNoteId, Guid milestoneId, DateTime? date = null, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
@@ -258,7 +259,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (note.ContractId == null) throw new ValidationFailedException(Messages.DeliveryNoteNotLinkedToContract);
             if (note.Type != "sales_delivery") throw new ConflictException(Messages.MilestoneBillingSalesOnly);
 
-            var invoice = await _contracts.BillMilestoneAsync(note.ContractId.Value, milestoneId, token);
+            var invoice = await _contracts.BillMilestoneAsync(note.ContractId.Value, milestoneId, date, token);
             note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced;
             await _db.SaveChangesAsync(token);
             return invoice;

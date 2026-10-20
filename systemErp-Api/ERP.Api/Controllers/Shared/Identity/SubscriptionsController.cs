@@ -16,5 +16,8 @@ public class SubscriptionsController : ErpControllerBase
     [HttpGet("current")]
     public async Task<IActionResult> Current(CancellationToken ct) => Success(await _subscriptions.GetCurrentAsync(ct));
 
+    [HttpGet("usage")]
+    public async Task<IActionResult> Usage(CancellationToken ct) => Success(await _subscriptions.GetUsageAsync(ct));
+
     // الاشتراك والتجديد والترقية بالدفع فقط: POST /payments/subscription (لا تفعيل ذاتي بلا دفع).
 }

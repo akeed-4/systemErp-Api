@@ -47,6 +47,7 @@ public class EmployeeLoanService : IEmployeeLoanService
                 ?? throw new ValidationFailedException(Messages.LeaveEmployeeNotFound);
             if (employee.Status != EmployeeStatuses.Active) throw new ValidationFailedException(Messages.LoanEmployeeNotActive);
 
+            r.PaymentAccountCode = await PaymentMethodRules.AccountForAsync(_db, r.PaymentMethodCode, r.PaymentAccountCode, token);
             var paymentAccount = string.IsNullOrWhiteSpace(r.PaymentAccountCode) ? DefaultAccounts.Cash : r.PaymentAccountCode.Trim();
             await DefaultAccounts.EnsureAsync(_db, token, DefaultAccounts.EmployeeLoans);
             if (!await _db.Set<Account>().AnyAsync(a => a.Code == paymentAccount, token))

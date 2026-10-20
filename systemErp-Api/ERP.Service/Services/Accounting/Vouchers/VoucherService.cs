@@ -49,6 +49,7 @@ public class VoucherService : IVoucherService
         => _tx.RunAsync(async token =>
         {
             await PrepareDepositAsync(r, null, token);
+            await ApplyPaymentMethodsAsync(r, token);
             Validate(r);
             await PrepareAllocationsAsync(r, null, token);
             var voucher = Mapper.Map<Voucher>(r);
@@ -75,6 +76,7 @@ public class VoucherService : IVoucherService
                 ?? throw new NotFoundException(Messages.VoucherNotFound);
             if (r.Type != voucher.Type) throw new ConflictException(Messages.CannotChangeVoucherType);
             await PrepareDepositAsync(r, voucher, token);
+            await ApplyPaymentMethodsAsync(r, token);
             Validate(r);
             await PrepareAllocationsAsync(r, voucher.Id, token);
 
@@ -153,6 +155,29 @@ public class VoucherService : IVoucherService
         if (stillHeld) return;
         vehicle.Status = ERP.Core.Models.CarShowroom.VehicleStatus.Available;
         await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// اعتماد طرق الدفع المختارة: طريقة السند (غير المجزأ) تحدّد حساب الخزينة ونوع الدفع، وكل دفعة مجزأة نوعها من طريقتها.
+    /// السند تحصيل/صرف فوري فلا تُقبل فيه طريقة آجلة.
+    /// </summary>
+    private async Task ApplyPaymentMethodsAsync(CreateVoucherDto r, CancellationToken ct)
+    {
+        if (r.IsSplitPayment)
+        {
+            r.PaymentMethodCode = null;
+            foreach (var s in r.PaymentSplits.Where(s => !string.IsNullOrWhiteSpace(s.PaymentMethodCode)))
+            {
+                await PaymentMethodRules.AccountForAsync(_db, s.PaymentMethodCode, null, ct);
+                s.Method = await PaymentMethodRules.MethodForAsync(_db, s.Method, s.PaymentMethodCode, ct);
+            }
+            return;
+        }
+        var chosen = await PaymentMethodRules.RequireAsync(_db, r.PaymentMethodCode, ct);
+        if (chosen == null) return;
+        r.TreasuryAccountCode = (await PaymentMethodRules.AccountForAsync(_db, chosen.Code, r.TreasuryAccountCode, ct))!;
+        r.PaymentMethodCode = chosen.Code;
+        r.PaymentMethod = chosen.Type switch { "cash" => "cash", "card" => "bank_card", "cheque" => "cheque", _ => "bank_transfer" };
     }
 
     private static void Validate(CreateVoucherDto r)

@@ -30,6 +30,8 @@ public class PosTransaction : BaseEntity
     public decimal PaidMada { get; set; }
     public decimal PaidApplePay { get; set; }
     public decimal ChangeAmount { get; set; }
+    /// <summary>طرق الدفع المختارة من جدول طرق الدفع (JSON لقائمة PosPaymentLineDto)؛ فارغ = عملية بالأنواع الثابتة.</summary>
+    public string? PaymentsJson { get; set; }
     public int PointsEarned { get; set; }
 
     public string QrCodeBase64 { get; set; } = string.Empty;

@@ -23,12 +23,13 @@ public class TradeInvoiceEngine
     private readonly ERP.Core.Contracts.Shared.IAuditService _audit;
     /// <summary>امتدادات الوحدات (المعارض) على دورة فواتيرها: تعمل على جدول Invoice وحده، ومنطقها خارج المحرك.</summary>
     private readonly IReadOnlyList<IInvoiceExtension> _extensions;
+    private readonly IApprovalService _approvals;
 
     public TradeInvoiceEngine(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
         INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit,
-        IEnumerable<IInvoiceExtension> extensions)
+        IEnumerable<IInvoiceExtension> extensions, IApprovalService approvals)
     {
-        _audit = audit; _extensions = extensions.ToList();
+        _audit = audit; _extensions = extensions.ToList(); _approvals = approvals;
         _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx;
     }
 
@@ -130,9 +131,29 @@ public class TradeInvoiceEngine
             _db.Add(invoice);
             await OnSavingAsync(invoice, deleting: false, token);
             await _db.SaveChangesAsync(token);
-            if (!draft) await FinalizeAsync(invoice, token);
+            // سياسة اعتماد منطبقة: تبقى مسودة بطلبها، والترحيل عند الموافقة
+            if (!draft && !(r.ApplyApprovalPolicy && await RequiresApprovalAsync(invoice, token))) await FinalizeAsync(invoice, token);
             return await GetAsync<T>(invoice.Id, token);
         }, ct), ct);
+
+    /// <summary>يقيّم سياسات «إنشاء» نوع المستند وينشئ طلب الاعتماد داخل معاملة الإنشاء (يُلغى معها إن فشلت).</summary>
+    private async Task<bool> RequiresApprovalAsync(InvoiceBase invoice, CancellationToken ct)
+    {
+        var documentType = invoice.Kind switch
+        {
+            InvoiceKind.Sales => "sales",
+            InvoiceKind.Purchase => "purchase",
+            InvoiceKind.SalesReturn => "sales_return",
+            _ => "purchase_return",
+        };
+        var check = await _approvals.CheckAndCreateAsync(new ApprovalCheckRequestDto
+        {
+            DocumentType = documentType, ActionType = "create", DocumentId = invoice.Id,
+            DocumentNumber = invoice.InvoiceNumber, DocumentAmount = invoice.GrandTotal,
+            DocumentDataSnapshot = System.Text.Json.JsonSerializer.Serialize(ToDto(invoice, invoice.GrandTotal)),
+        }, ct);
+        return check.ApprovalRequired;
+    }
 
     public async Task<InvoiceDto> UpdateAsync<T>(Guid id, UpdateInvoiceDto r, CancellationToken ct) where T : InvoiceBase, new()
         => await SendToZatcaIfRequestedAsync<T>(await _tx.RunAsync(async token =>

@@ -2,6 +2,11 @@ namespace ERP.Core.DTOs.Accounting;
 
 public partial class CreateInvoiceDto
 {
+    /// <summary>
+    /// إنشاء بترحيل من شاشة المستند: تُقيَّم سياسات الاعتماد داخل معاملة الإنشاء نفسها؛ إن انطبقت سياسة تبقى مسودة
+    /// بطلب اعتماد، وإلا تُرحَّل فوراً. أي فشل في الترحيل (رصيد غير كافٍ...) يلغي الفاتورة كلها فلا تُحفظ مسودة يتيمة.
+    /// </summary>
+    public bool ApplyApprovalPolicy { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
     public Guid Uuid { get; set; }
     public DateTime IssueDate { get; set; }

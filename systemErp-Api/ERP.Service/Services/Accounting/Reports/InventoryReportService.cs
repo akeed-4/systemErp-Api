@@ -16,6 +16,7 @@ public class InventoryReportService : IInventoryReportService
     {
         public Guid Id { get; set; }
         public Guid ItemId { get; set; }
+        public Guid? WarehouseId { get; set; }
         public DateTime Date { get; set; }
         public DateTime CreatedAt { get; set; }
         public StockMovementType Type { get; set; }
@@ -39,7 +40,7 @@ public class InventoryReportService : IInventoryReportService
         var transfer = q.WarehouseId.HasValue ? 1 : 0;
         return Movements(q).Select(m => new SignedMovement
         {
-            Id = m.Id, ItemId = m.ItemId, Date = m.Date, CreatedAt = m.CreatedAt, Type = m.Type, Quantity = m.Quantity,
+            Id = m.Id, ItemId = m.ItemId, WarehouseId = m.WarehouseId, Date = m.Date, CreatedAt = m.CreatedAt, Type = m.Type, Quantity = m.Quantity,
             UnitCost = m.UnitCost, UnitPrice = m.UnitPrice, ReferenceNumber = m.ReferenceNumber,
             Sign = m.Type == StockMovementType.InPurchase || m.Type == StockMovementType.AdjustmentIn ? 1
                 : m.Type == StockMovementType.TransferIn ? transfer
@@ -115,9 +116,31 @@ public class InventoryReportService : IInventoryReportService
         if (q.DateFrom.HasValue) period = period.Where(m => m.Date >= q.DateFrom);
         if (q.DateTo.HasValue) period = period.Where(m => m.Date < q.EndExclusive());
 
+        period = q.MovementType switch
+        {
+            "sales_return" => period.Where(m => m.ReferenceNumber.StartsWith("SRET-")),
+            "purchase_return" => period.Where(m => m.ReferenceNumber.StartsWith("PRET-")),
+            "purchase" => period.Where(m => m.Type == StockMovementType.InPurchase && !m.ReferenceNumber.StartsWith("SRET-") && !m.ReferenceNumber.StartsWith("PRET-")),
+            "sales" => period.Where(m => m.Type == StockMovementType.OutSales && !m.ReferenceNumber.StartsWith("SRET-") && !m.ReferenceNumber.StartsWith("PRET-")),
+            "adjustment" => period.Where(m => m.Type == StockMovementType.AdjustmentIn || m.Type == StockMovementType.AdjustmentOut),
+            "transfer" => period.Where(m => m.Type == StockMovementType.TransferIn || m.Type == StockMovementType.TransferOut),
+            _ => period,
+        };
+        var warehouses = _db.Set<Warehouse>().AsNoTracking();
+
         return period.Select(m => new DetailedItemLedgerEntryDto
         {
-            Id = m.Id, ItemId = m.ItemId, Date = m.Date, CreatedAt = m.CreatedAt, DocType = m.Type.ToString(), DocNumber = m.ReferenceNumber,
+            Id = m.Id, ItemId = m.ItemId, Date = m.Date, CreatedAt = m.CreatedAt, DocNumber = m.ReferenceNumber,
+            // المرتجعات تُعرف ببادئة رقم مستندها (كما في ملخص حركة الأصناف)
+            DocType = m.ReferenceNumber.StartsWith("SRET-") ? "sales_return"
+                : m.ReferenceNumber.StartsWith("PRET-") ? "purchase_return"
+                : m.Type == StockMovementType.InPurchase ? "purchase"
+                : m.Type == StockMovementType.OutSales ? "sales"
+                : m.Type == StockMovementType.AdjustmentIn ? "adjustment_in"
+                : m.Type == StockMovementType.AdjustmentOut ? "adjustment_out"
+                : m.Type == StockMovementType.TransferIn ? "transfer_in" : "transfer_out",
+            WarehouseId = m.WarehouseId,
+            WarehouseName = warehouses.Where(w => w.Id == m.WarehouseId).Select(w => w.NameAr).FirstOrDefault(),
             QuantityIn = m.Sign > 0 ? m.Quantity : 0m, QuantityOut = m.Sign < 0 ? m.Quantity : 0m,
             UnitCost = m.UnitCost, UnitPrice = m.UnitPrice, TotalValue = Math.Round(m.Quantity * m.UnitCost, 2),
             RunningStockBalance = all
@@ -135,6 +158,8 @@ public class InventoryReportService : IInventoryReportService
         var items = _db.Set<InvoiceItemBase>().AsNoTracking(); // بنود كل جداول الفواتير (البند يشير إلى رأس جدوله)
         if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
         if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate < q.EndExclusive());
+        if (!string.IsNullOrWhiteSpace(q.DocType) && Enum.TryParse<InvoiceKind>(q.DocType.Replace("_", ""), true, out var kind))
+            inv = inv.Where(i => i.Kind == kind);
         return inv.Select(i => new CommercialTradeRowDto
         {
             Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,

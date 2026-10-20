@@ -100,10 +100,14 @@ public class ReportQueryTests : TestBase
         var ledger = await RowsAsync(api, $"/reports/ItemLedger?itemId={product}");
         Assert.Equal(new[] { 10m, 8m, 5m, 9m }, ledger.Select(r => r!["runningStockBalance"].D()));
         Assert.Equal(new[] { 400m, 320m, 200m, 400m }, ledger.Select(r => r!["runningStockValue"].D()));
-        Assert.Equal("AdjustmentIn", ledger[0]!["docType"].S()); Assert.Equal(10, ledger[0]!["quantityIn"].D()); Assert.Equal(2, ledger[1]!["quantityOut"].D());
+        Assert.Equal("adjustment_in", ledger[0]!["docType"].S()); Assert.Equal(10, ledger[0]!["quantityIn"].D()); Assert.Equal(2, ledger[1]!["quantityOut"].D());
         var page = await RowsAsync(api, $"/reports/ItemLedger?itemId={product}&" + Q(("skip", "3"), ("take", "1")));
         Assert.Equal(9, Assert.Single(page)!["runningStockBalance"].D());
         Assert.Empty(await RowsAsync(api, $"/reports/ItemLedger?itemId={product}&dateFrom=2100-01-01"));
+        // نوع الحركة: التسويات وحدها (والرصيد الجاري يبقى محسوباً على كل الحركات)
+        var adjustments = await RowsAsync(api, $"/reports/ItemLedger?itemId={product}&movementType=adjustment");
+        Assert.All(adjustments, r => Assert.StartsWith("adjustment_", r!["docType"].S()));
+        Assert.Equal(10, adjustments[0]!["runningStockBalance"].D());
         Assert.Equal(400, (await api.Get("/reports/ItemLedger")).Status);
 
         var summary = Assert.Single(await RowsAsync(api, $"/reports/ItemMovements?itemId={product}"));

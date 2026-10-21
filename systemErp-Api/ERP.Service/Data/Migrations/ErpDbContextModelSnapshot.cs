@@ -4505,6 +4505,218 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("CarShowroomSettings");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarStageDefinition", b =>
+                {
+                    b.Property<string>("WorkflowType")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("DescAr")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("DescEn")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.HasKey("WorkflowType", "Id");
+
+                    b.HasIndex("WorkflowType", "Number")
+                        .IsUnique();
+
+                    b.ToTable("CarStageDefinition", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            WorkflowType = "procurement",
+                            Id = "requisition",
+                            Color = "indigo",
+                            DescAr = "تسجيل وتحديد الاحتياج من ماركات وموديلات السيارات لتغذية صالة العرض والمخازن.",
+                            DescEn = "Recording the required car brands and models to stock the showroom and warehouses.",
+                            Icon = "post_add",
+                            IsActive = true,
+                            NameAr = "طلب بضاعة سيارات",
+                            NameEn = "Requisition",
+                            Number = 1
+                        },
+                        new
+                        {
+                            WorkflowType = "procurement",
+                            Id = "requisition_approved",
+                            Color = "blue",
+                            DescAr = "المراجعة الإدارية والمالية وتدقيق الميزانية المخصصة وتوقيع اعتماد طلب الشراء.",
+                            DescEn = "Administrative and financial review, budget check, and sign-off of the purchase request.",
+                            Icon = "verified",
+                            IsActive = true,
+                            NameAr = "تدقيق واعتماد طلب البضاعة",
+                            NameEn = "Requisition Approval",
+                            Number = 2
+                        },
+                        new
+                        {
+                            WorkflowType = "procurement",
+                            Id = "rfq",
+                            Color = "purple",
+                            DescAr = "إرسال واستقبال طلبات التسعير من الوكلاء المعتمدين والموزعين للمفاضلة التنافسية.",
+                            DescEn = "Sending and receiving price requests from authorized agents and distributors for comparison.",
+                            Icon = "request_quote",
+                            IsActive = true,
+                            NameAr = "عروض أسعار الموردين (RFQ)",
+                            NameEn = "Supplier Quotations (RFQ)",
+                            Number = 3
+                        },
+                        new
+                        {
+                            WorkflowType = "procurement",
+                            Id = "rfq_approved",
+                            Color = "amber",
+                            DescAr = "اختيار العرض الأنسب سعراً ومواصفات وتوقيع قرار الاعتماد.",
+                            DescEn = "Selecting the best offer on price and specifications and signing the approval.",
+                            Icon = "published_with_changes",
+                            IsActive = true,
+                            NameAr = "فحص واعتماد عرض السعر المقبول",
+                            NameEn = "Quotation Approval",
+                            Number = 4
+                        },
+                        new
+                        {
+                            WorkflowType = "procurement",
+                            Id = "purchase_order",
+                            Color = "cyan",
+                            DescAr = "إصدار أمر الشراء الرسمي الملزم قانونياً للوكيل مع تحديد شروط الدفع والتسليم.",
+                            DescEn = "Issuing the legally binding purchase order to the agent with payment and delivery terms.",
+                            Icon = "shopping_cart_checkout",
+                            IsActive = true,
+                            NameAr = "أمر الشراء الرسمي (PO)",
+                            NameEn = "Purchase Order (PO)",
+                            Number = 5
+                        },
+                        new
+                        {
+                            WorkflowType = "procurement",
+                            Id = "vin_received",
+                            Color = "emerald",
+                            DescAr = "استلام السيارات فعلياً ومطابقة أرقام الشواسي والمحركات والبطاقات الجمركية وإدخال المخزن.",
+                            DescEn = "Physically receiving the cars, matching VINs, engine numbers, and customs cards, and stocking them.",
+                            Icon = "local_shipping",
+                            IsActive = true,
+                            NameAr = "استلام الشواسي VIN وإدخال المخزن",
+                            NameEn = "VIN Receiving & Inspection",
+                            Number = 6
+                        },
+                        new
+                        {
+                            WorkflowType = "procurement",
+                            Id = "invoiced",
+                            Color = "teal",
+                            DescAr = "استلام فاتورة المورد الضريبية ومطابقتها وترحيل القيد المحاسبي ومرتجع الشراء.",
+                            DescEn = "Receiving and matching the supplier tax invoice, posting the journal entry, and purchase returns.",
+                            Icon = "receipt_long",
+                            IsActive = true,
+                            NameAr = "الفوترة النهائية وإقفال الدورة",
+                            NameEn = "Invoicing & Closing",
+                            Number = 7
+                        },
+                        new
+                        {
+                            WorkflowType = "sales_contract",
+                            Id = "drafts",
+                            Color = "slate",
+                            DescAr = "إنشاء طلب بيع سيارة جديد، تسجيل بيانات المشتري، واختيار نوع دورة البيع (نقدي / تأجيري / شركات).",
+                            DescEn = "Creating a new car sale request, recording buyer details, and choosing the sales cycle (cash / lease / corporate).",
+                            Icon = "post_add",
+                            IsActive = true,
+                            NameAr = "طلبات ومسودات العقود",
+                            NameEn = "Contract Drafts",
+                            Number = 1
+                        },
+                        new
+                        {
+                            WorkflowType = "sales_contract",
+                            Id = "approvals",
+                            Color = "indigo",
+                            DescAr = "المراجعة الائتمانية وتدقيق المستندات والموافقة البنكية أو سداد الدفعة الأولى واعتماد العقد رسمياً.",
+                            DescEn = "Credit review, document checks, bank approval or down payment, and formal contract approval.",
+                            Icon = "verified",
+                            IsActive = true,
+                            NameAr = "تدقيق واعتماد العقود",
+                            NameEn = "Contract Approvals",
+                            Number = 2
+                        },
+                        new
+                        {
+                            WorkflowType = "sales_contract",
+                            Id = "allocation",
+                            Color = "blue",
+                            DescAr = "ربط العقد المعتمد برقم شاسي VIN محدد من المستودع، وبدء فحص الجودة والتجهيز الفني PDI.",
+                            DescEn = "Linking the approved contract to a specific VIN from the warehouse and starting the PDI inspection.",
+                            Icon = "pin",
+                            IsActive = true,
+                            NameAr = "تخصيص الشواسي وتجهيز PDI",
+                            NameEn = "VIN Allocation & PDI",
+                            Number = 3
+                        },
+                        new
+                        {
+                            WorkflowType = "sales_contract",
+                            Id = "delivery",
+                            Color = "emerald",
+                            DescAr = "تسليم السيارة للمشتري رسمياً وتوقيع محضر الاستلام والفحص النهائي واستلام المفاتيح.",
+                            DescEn = "Formally handing the car to the buyer, signing the handover record, final inspection, and key handover.",
+                            Icon = "how_to_reg",
+                            IsActive = true,
+                            NameAr = "تسليم المركبة ومحضر الاستلام",
+                            NameEn = "Delivery & Handover",
+                            Number = 4
+                        },
+                        new
+                        {
+                            WorkflowType = "sales_contract",
+                            Id = "invoicing",
+                            Color = "purple",
+                            DescAr = "إصدار الفاتورة الضريبية النهائية وتطبيق ضريبة القيمة المضافة (15% أو هامش الربح) وترحيل القيد.",
+                            DescEn = "Issuing the final tax invoice, applying VAT (15% or margin scheme), and posting the journal entry.",
+                            Icon = "receipt_long",
+                            IsActive = true,
+                            NameAr = "الفوترة والترحيل المالي",
+                            NameEn = "Invoicing & Financial Posting",
+                            Number = 5
+                        });
+                });
+
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarTrim", b =>
                 {
                     b.Property<Guid>("Id")

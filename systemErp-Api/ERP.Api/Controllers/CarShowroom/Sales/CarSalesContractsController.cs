@@ -45,6 +45,9 @@ public class CarSalesContractsController : ErpControllerBase
         return parsed;
     }
 
+    /// <summary>مراحل عقود البيع الخمس (الأسماء والأيقونات والألوان) لشاشات الواجهة وقوائمها.</summary>
+    [HttpGet("stages")] public async Task<IActionResult> Stages(CancellationToken ct) => Success(await _service.GetStagesAsync(ct));
+
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _service.GetAsync(id, ct));
 
     /// <summary>فاتورة العقد وإشعاراته الدائنة بحالة الهيئة (إعادة الإرسال عبر POST /invoices/{id}/SubmitZatca).</summary>

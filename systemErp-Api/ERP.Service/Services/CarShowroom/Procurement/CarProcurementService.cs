@@ -68,6 +68,9 @@ public class CarProcurementService : ICarProcurementService
             .Include(o => o.Items).Include(o => o.ReceivedVins).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == id, ct)
             ?? throw new NotFoundException(Messages.ProcurementOrderNotFound));
 
+    public Task<List<CarStageDefinitionDto>> GetStagesAsync(CancellationToken ct = default)
+        => CarStageCatalog.ListAsync(_db, CarStageDefinition.Procurement, ct);
+
     public Task<CarProcurementOrderDto> CreateAsync(CreateCarProcurementOrderDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {

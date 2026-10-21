@@ -30,6 +30,23 @@ public class CarShowroomTests : TestBase
     }
 
     [Fact]
+    public async Task Stage_catalogs_follow_the_server_workflow_order()
+    {
+        var api = await NewTenantAsync();
+        var procurement = await api.Get("/carprocurementorders/stages");
+        Assert.Equal(200, procurement.Status);
+        Assert.Equal(new[] { "requisition", "requisition_approved", "rfq", "rfq_approved", "purchase_order", "vin_received", "invoiced" },
+            procurement.Data!.AsArray().Select(s => s!["id"].S()).ToArray());
+        Assert.Equal(1, procurement.Data![0]!["stepNumber"]!.GetValue<int>());
+
+        var contracts = await api.Get("/carsalescontracts/stages");
+        Assert.Equal(200, contracts.Status);
+        Assert.Equal(new[] { "drafts", "approvals", "allocation", "delivery", "invoicing" },
+            contracts.Data!.AsArray().Select(s => s!["id"].S()).ToArray());
+        Assert.False(string.IsNullOrEmpty(contracts.Data![0]!["description"].S()));
+    }
+
+    [Fact]
     public async Task Master_data_is_hierarchical_and_protected_from_orphaning()
     {
         var api = await NewTenantAsync();

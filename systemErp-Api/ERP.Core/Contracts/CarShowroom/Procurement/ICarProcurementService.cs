@@ -11,6 +11,8 @@ public interface ICarProcurementService
     /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
     Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, string? purchaseCycle = null, CancellationToken ct = default);
     Task<CarProcurementOrderDto> GetAsync(Guid id, CancellationToken ct = default);
+    /// <summary>مراحل دورة الشراء السبع بأسمائها وأيقوناتها كما تعرضها الواجهة.</summary>
+    Task<List<CarStageDefinitionDto>> GetStagesAsync(CancellationToken ct = default);
     Task<CarProcurementOrderDto> CreateAsync(CreateCarProcurementOrderDto request, CancellationToken ct = default);
     /// <summary>تعديل بيانات الأمر غير المرحلية (بنود، شحن، جمارك...) قبل الفوترة.</summary>
     Task<CarProcurementOrderDto> UpdateAsync(Guid id, UpdateCarProcurementOrderDto request, CancellationToken ct = default);

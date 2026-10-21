@@ -11,6 +11,8 @@ public interface ICarSaleService
     /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
     Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CarSalesCycleType? cycleType = null, CancellationToken ct = default);
     Task<CarSalesContractDto> GetAsync(Guid id, CancellationToken ct = default);
+    /// <summary>مراحل عقود البيع الخمس بأسمائها وأيقوناتها كما تعرضها الواجهة.</summary>
+    Task<List<CarStageDefinitionDto>> GetStagesAsync(CancellationToken ct = default);
     Task<CarSalesContractDto> CreateAsync(CreateCarSalesContractDto request, CancellationToken ct = default);
     /// <summary>تعديل العقد قبل الفوترة؛ السعر والضريبة يُحسبان في السرفر.</summary>
     Task<CarSalesContractDto> UpdateAsync(Guid id, UpdateCarSalesContractDto request, CancellationToken ct = default);

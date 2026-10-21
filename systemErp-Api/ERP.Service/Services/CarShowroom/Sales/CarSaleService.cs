@@ -85,6 +85,9 @@ public class CarSaleService : ICarSaleService
             ?? throw new NotFoundException(Messages.SalesContractNotFound));
     }
 
+    public Task<List<CarStageDefinitionDto>> GetStagesAsync(CancellationToken ct = default)
+        => CarStageCatalog.ListAsync(_db, CarStageDefinition.SalesContract, ct);
+
     public Task<CarSalesContractDto> CreateAsync(CreateCarSalesContractDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {

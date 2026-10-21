@@ -212,6 +212,22 @@ public class ErpDbContext : DbContext
             e.HasData(ContractStageCatalogSeed.All);
         });
 
+        modelBuilder.Entity<CarStageDefinition>(e =>
+        {
+            e.ToTable("CarStageDefinition");
+            e.HasKey(s => new { s.WorkflowType, s.Id });
+            e.Property(s => s.WorkflowType).HasMaxLength(64);
+            e.Property(s => s.Id).HasMaxLength(64);
+            e.Property(s => s.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(s => s.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(s => s.DescAr).HasMaxLength(1000).IsRequired();
+            e.Property(s => s.DescEn).HasMaxLength(1000).IsRequired();
+            e.Property(s => s.Icon).HasMaxLength(100).IsRequired();
+            e.Property(s => s.Color).HasMaxLength(50).IsRequired();
+            e.HasIndex(s => new { s.WorkflowType, s.Number }).IsUnique();
+            e.HasData(CarStageCatalogSeed.All);
+        });
+
         // القيم المعدّدة كنصوص مقروءة في قاعدة البيانات.
         foreach (var et in modelBuilder.Model.GetEntityTypes())
             foreach (var p in et.GetProperties())

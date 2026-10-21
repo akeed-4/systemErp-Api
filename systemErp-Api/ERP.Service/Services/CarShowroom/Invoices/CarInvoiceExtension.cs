@@ -143,6 +143,7 @@ public class CarInvoiceExtension : IInvoiceExtension
             PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
             RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
             Notes = TradeInvoiceEngine.ReturnNotes(original, r), Status = "posted",
+            SendToZatca = TradeInvoiceEngine.ReturnSendsToZatca(original),
         };
         if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
         var pool = original.Items.Where(i => i.ItemId == Guid.Empty).ToList();

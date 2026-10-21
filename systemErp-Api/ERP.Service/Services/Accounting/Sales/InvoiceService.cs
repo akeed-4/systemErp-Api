@@ -33,6 +33,7 @@ public class InvoiceService : IInvoiceService
     public Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default) => _engine.PostDraftAsync<Invoice>(id, ct);
     public Task DeleteAsync(Guid id, CancellationToken ct = default) => _engine.DeleteAsync<Invoice>(id, ct);
     public Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default) => _engine.SubmitToZatcaAsync<Invoice>(id, ct);
+    public Task<InvoiceDto> SubmitToZatcaIfRequestedAsync(Guid id, CancellationToken ct = default) => _engine.SubmitIfRequestedAsync<Invoice>(id, ct);
     public Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto request, CancellationToken ct = default) => _engine.PreviewJournalAsync<Invoice>(request, ct);
     public Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default) => _engine.GetJournalAsync<Invoice>(id, ct);
 }

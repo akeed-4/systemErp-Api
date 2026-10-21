@@ -133,8 +133,8 @@ public class CarSaleService : ICarSaleService
             return ToDto(contract);
         }, ct);
 
-    public Task<CarSalesContractDto> AdvanceStatusAsync(Guid id, AdvanceSalesContractRequestDto r, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    public async Task<CarSalesContractDto> AdvanceStatusAsync(Guid id, AdvanceSalesContractRequestDto r, CancellationToken ct = default)
+        => await SendToZatcaAsync(await _tx.RunAsync(async token =>
         {
             await LoadCostVisibilityAsync(token);
             var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
@@ -157,10 +157,10 @@ public class CarSaleService : ICarSaleService
             await _audit.LogAsync("STATUS_ADVANCED", nameof(CarSalesContract), c.Id.ToString(), $"من {from} إلى {c.Status}", token);
             await _db.SaveChangesAsync(token);
             return ToDto(c);
-        }, ct);
+        }, ct), ct);
 
-    public Task<CarSalesContractDto> CompleteAsync(Guid id, CompleteSalesContractRequestDto? h, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    public async Task<CarSalesContractDto> CompleteAsync(Guid id, CompleteSalesContractRequestDto? h, CancellationToken ct = default)
+        => await SendToZatcaAsync(await _tx.RunAsync(async token =>
         {
             await LoadCostVisibilityAsync(token);
             var current = await _db.Set<CarSalesContract>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
@@ -186,16 +186,16 @@ public class CarSaleService : ICarSaleService
                 status = last.Status;
             }
             return last;
-        }, ct);
+        }, ct), ct);
 
-    public Task<CarSalesContractDto> QuickSaleAsync(QuickSaleRequestDto r, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    public async Task<CarSalesContractDto> QuickSaleAsync(QuickSaleRequestDto r, CancellationToken ct = default)
+        => await SendToZatcaAsync(await _tx.RunAsync(async token =>
         {
             var created = await CreateAsync(r.Contract, token);
             var done = await CompleteAsync(created.Id, r.Handover, token);
             await _audit.LogAsync("QUICK_SALE", nameof(CarSalesContract), created.Id.ToString(), $"بيع سريع: عقد {done.ContractNumber} — VIN {done.Vin}", token);
             return done;
-        }, ct);
+        }, ct), ct);
 
     public Task<CarSalesContractDto> CancelAsync(Guid id, string? reason, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -223,8 +223,8 @@ public class CarSaleService : ICarSaleService
     /// مصاريف وصلت بعد البيع (حُمّلت على تكلفة المبيعات) تبقى مصروفاً ولا تعود للمخزون. الرسوم المحمّلة على العميل تُرد له أو لا حسب
     /// إعداد المعرض (أو اختيار المرتجع)؛ وما رُدّ منها وكان المعرض دفعه فعلاً (رسوم تم غير مستردة) يتحول لمصروف على المعرض.
     /// </summary>
-    public Task<CarSalesContractDto> ReturnAsync(Guid id, ReturnCarSaleDto r, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    public async Task<CarSalesContractDto> ReturnAsync(Guid id, ReturnCarSaleDto r, CancellationToken ct = default)
+        => await SendToZatcaAsync(await _tx.RunAsync(async token =>
         {
             await LoadCostVisibilityAsync(token);
             var c = await _db.Set<CarSalesContract>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.SalesContractNotFound);
@@ -251,6 +251,7 @@ public class CarSaleService : ICarSaleService
                 PaymentMethod = r.RefundPaymentMethod ?? (original.PaymentMethod == PaymentMethod.Credit ? PaymentMethod.Credit : PaymentMethod.Cash),
                 PaymentMethodCode = r.RefundPaymentMethod == null ? null : r.RefundPaymentMethodCode,
                 CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate, Status = "posted",
+                SendToZatca = TradeInvoiceEngine.ReturnSendsToZatca(original),
                 Notes = $"مرتجع بيع سيارة - عقد {c.ContractNumber} - VIN {c.Vin} - {r.Reason.Trim()}",
                 ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
                 RevenueAccountCode = original.RevenueAccountCode, CogsAccountCode = original.CogsAccountCode, InventoryAccountCode = original.InventoryAccountCode,
@@ -300,7 +301,34 @@ public class CarSaleService : ICarSaleService
                 $"مرتجع عقد {c.ContractNumber} بإشعار دائن {creditNote.InvoiceNumber}" + (refundCharges ? " مع رد الرسوم المحمّلة على العميل" : " دون رد الرسوم المحمّلة على العميل"), token);
             await _db.SaveChangesAsync(token);
             return ToDto(c);
-        }, ct);
+        }, ct), ct);
+
+    /// <summary>
+    /// المحرك لا يرسل للهيئة فاتورة أُنشئت داخل معاملة العقد (قد تُلغى معه)، فتُرسل هنا بعد اكتمالها: فاتورة العقد وإشعاره الدائن
+    /// المطلوب إرسالهما ولم يُرسلا، الأصل قبل المرتجع. الرفض أو تعذّر الاتصال يُحفظ على الفاتورة ولا يُفشل العقد (يُعاد من الشاشة).
+    /// </summary>
+    private async Task<CarSalesContractDto> SendToZatcaAsync(CarSalesContractDto contract, CancellationToken ct)
+    {
+        if (_db.Database.CurrentTransaction != null) return contract; // داخل معاملة أوسع (البيع السريع): تُرسل عند اكتمالها
+        var pending = await ContractDocuments(contract.Id)
+            .Where(i => i.SendToZatca && i.Status == "posted" && i.ZatcaStatus == ZatcaSubmissionStatus.NotSubmitted)
+            .Select(i => i.Id).ToListAsync(ct);
+        foreach (var invoiceId in pending) await _invoices.SubmitToZatcaIfRequestedAsync(invoiceId, ct);
+        return contract;
+    }
+
+    /// <summary>فاتورة العقد وإشعاراته الدائنة بحالة الهيئة (لعرضها وإعادة إرسالها من تفاصيل العقد).</summary>
+    public async Task<List<InvoiceDto>> GetZatcaDocumentsAsync(Guid id, CancellationToken ct = default)
+    {
+        var ids = await ContractDocuments(id).Select(i => i.Id).ToListAsync(ct);
+        var documents = new List<InvoiceDto>();
+        foreach (var invoiceId in ids) documents.Add(await _invoices.GetAsync(invoiceId, ct));
+        return documents;
+    }
+
+    private IQueryable<Invoice> ContractDocuments(Guid contractId) => _db.Set<Invoice>().AsNoTracking()
+        .Where(i => i.ReferenceType == "car_sales_contract" && i.ReferenceId == contractId && (i.Kind == InvoiceKind.Sales || i.Kind == InvoiceKind.SalesReturn))
+        .OrderBy(i => i.IsReturn).ThenBy(i => i.InvoiceNumber);
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {

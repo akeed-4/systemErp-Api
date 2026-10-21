@@ -22,6 +22,8 @@ public interface IInvoiceService
     /// <summary>حذف مسودة فقط (رقمها مؤقت فلا فجوة في التسلسل). الفاتورة المرحّلة لا تُحذف.</summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default);
+    /// <summary>يرسل للهيئة فاتورة أُنشئت داخل معاملة وحدة أخرى بعد اكتمالها، إن طُلب إرسالها ولم تُرسل (الرفض يُحفظ عليها ولا يُرمى).</summary>
+    Task<InvoiceDto> SubmitToZatcaIfRequestedAsync(Guid id, CancellationToken ct = default);
     /// <summary>معاينة القيد (مخزون/تكلفة إيرادات/ضريبة/دفع) الذي سيُنشأ عند ترحيل هذه الفاتورة — بلا أي أثر محفوظ.</summary>
     Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto request, CancellationToken ct = default);
     /// <summary>القيد الفعلي لفاتورة مرحّلة.</summary>

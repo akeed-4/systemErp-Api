@@ -320,6 +320,20 @@ public class TradeInvoiceEngine
     }
 
     /// <summary>
+    /// إرسال فاتورة أنشأتها وحدة داخل معاملتها (عقد بيع السيارة) بعد اكتمال تلك المعاملة، بقواعد الإرسال التلقائي نفسها:
+    /// المطلوب إرسالها ولم تُرسل بعد فقط، والرفض أو تعذّر الاتصال يُحفظ على الفاتورة ولا يُفشل العملية.
+    /// </summary>
+    public async Task<InvoiceDto> SubmitIfRequestedAsync<T>(Guid id, CancellationToken ct) where T : InvoiceBase, new()
+        => await SendToZatcaIfRequestedAsync<T>(await GetAsync<T>(id, ct), ct);
+
+    /// <summary>
+    /// المرتجع يتبع فاتورته في الإرسال للهيئة: طُلب إرسالها أو وصلتها فعلاً. الإشعار الدائن لفاتورة في سلسلة الهيئة يلزم أن يصلها،
+    /// وفاتورة لم تُطلب لها لا يُرسل مرتجعها.
+    /// </summary>
+    public static bool ReturnSendsToZatca(InvoiceBase original)
+        => original.SendToZatca || original.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted;
+
+    /// <summary>
     /// مرتجع (إشعار دائن/مدين) لفاتورة مرحّلة من جدول <typeparamref name="TOriginal"/>، يُنشأ في جدول <typeparamref name="TReturn"/>
     /// (مبيعات ← مرتجع مبيعات، مشتريات ← مرتجع مشتريات، والمعارض في جدولها).
     /// </summary>

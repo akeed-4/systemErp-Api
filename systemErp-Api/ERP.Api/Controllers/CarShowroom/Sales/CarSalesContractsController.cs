@@ -47,6 +47,10 @@ public class CarSalesContractsController : ErpControllerBase
 
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _service.GetAsync(id, ct));
 
+    /// <summary>فاتورة العقد وإشعاراته الدائنة بحالة الهيئة (إعادة الإرسال عبر POST /invoices/{id}/SubmitZatca).</summary>
+    [HttpGet("{id:guid}/ZatcaDocuments")]
+    public async Task<IActionResult> ZatcaDocuments(Guid id, CancellationToken ct) => Success(await _service.GetZatcaDocumentsAsync(id, ct));
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateCarSalesContractDto dto, CancellationToken ct)
     {

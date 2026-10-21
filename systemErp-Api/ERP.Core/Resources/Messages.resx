@@ -134,6 +134,12 @@
   <data name="CannotDeleteConvertedQuotation" xml:space="preserve"><value>لا يمكن حذف عرض تم تحويله.</value></data>
   <data name="CannotDeleteConvertedRequisition" xml:space="preserve"><value>لا يمكن حذف طلب تم تحويله.</value></data>
   <data name="CannotDeleteCostCenterWithEntries" xml:space="preserve"><value>لا يمكن حذف مركز تكلفة عليه حركات.</value></data>
+  <data name="CannotDeleteCostCenterInUse" xml:space="preserve"><value>لا يمكن حذف مركز التكلفة لأنه مستخدم في {0}. يمكنك إيقافه بدلاً من حذفه.</value></data>
+  <data name="CostCenterUsageFixedAssets" xml:space="preserve"><value>الأصول الثابتة</value></data>
+  <data name="CostCenterUsageEmployees" xml:space="preserve"><value>بيانات الموظفين</value></data>
+  <data name="CostCenterUsagePayroll" xml:space="preserve"><value>مسيّرات الرواتب</value></data>
+  <data name="CostCenterUsageContracts" xml:space="preserve"><value>العقود التجارية</value></data>
+  <data name="CostCenterUsageInvoices" xml:space="preserve"><value>بنود الفواتير</value></data>
   <data name="CannotDeleteCustomerWithEntries" xml:space="preserve"><value>لا يمكن حذف عميل عليه حركات محاسبية.</value></data>
   <data name="CannotDeleteCustomerWithInvoices" xml:space="preserve"><value>لا يمكن حذف عميل له فواتير.</value></data>
   <data name="CannotDeleteDefaultWarehouse" xml:space="preserve"><value>لا يمكن حذف المستودع الافتراضي.</value></data>

@@ -22,9 +22,24 @@ public class CostCenterService : CrudService<CostCenter, CostCenterDto, CreateCo
             throw new ConflictException(Messages.CostCenterCodeInUse);
     }
 
+    /// <summary>
+    /// المركز المستخدم لا يُحذف: القيود أولاً، ثم كل مستند يشير إليه (بعضها بلا قيد قاعدة بيانات كبنود الفواتير والعقود والمسيّرات)
+    /// برسالة تسمّي موضع الاستخدام، ويُقترح إيقافه بدلاً من الحذف.
+    /// </summary>
     protected override async Task OnDeletingAsync(CostCenter entity, CancellationToken ct)
     {
-        if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.CostCenterId == entity.Id, ct))
+        var id = entity.Id;
+        if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.CostCenterId == id, ct))
             throw new ConflictException(Messages.CannotDeleteCostCenterWithEntries);
+
+        string? usage =
+            await Db.Set<FixedAsset>().AnyAsync(a => a.CostCenterId == id, ct)
+                || await Db.Set<FixedAssetDepreciation>().AnyAsync(d => d.CostCenterId == id, ct) ? Messages.CostCenterUsageFixedAssets
+            : await Db.Set<Employee>().AnyAsync(e => e.CostCenterId == id, ct) ? Messages.CostCenterUsageEmployees
+            : await Db.Set<PayrollLine>().AnyAsync(p => p.CostCenterId == id, ct) ? Messages.CostCenterUsagePayroll
+            : await Db.Set<CommercialContract>().AnyAsync(c => c.CostCenterId == id, ct) ? Messages.CostCenterUsageContracts
+            : await Db.Set<InvoiceItemBase>().AnyAsync(i => i.CostCenterId == id, ct) ? Messages.CostCenterUsageInvoices
+            : null;
+        if (usage != null) throw new ConflictException(string.Format(Messages.CannotDeleteCostCenterInUse, usage));
     }
 }

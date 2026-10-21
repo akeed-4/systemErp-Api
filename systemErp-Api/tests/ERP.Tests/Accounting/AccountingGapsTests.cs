@@ -175,6 +175,28 @@ public class AccountingGapsTests : TestBase
     }
 
     [Fact]
+    public async Task Cost_centers_can_be_edited_and_only_unused_ones_deleted()
+    {
+        var api = await NewTenantAsync();
+        var used = await SeedCostCenterAsync(api, "MNT");
+        var unused = await SeedCostCenterAsync(api, "TMP");
+        Assert.Equal(201, (await api.Post("/fixedassets", Asset("FA-1", used, 12000, 10))).Status);
+
+        // التعديل: الاسم والحالة، والكود لا يتكرر
+        var edited = await api.Put($"/costcenters/{used}", new { code = "MNT", nameAr = "الصيانة", nameEn = "Maintenance", isActive = false });
+        Assert.Equal(200, edited.Status);
+        Assert.Equal("الصيانة", edited.Data!["nameAr"].S()); Assert.False(edited.Data["isActive"]!.GetValue<bool>());
+        Assert.Equal(409, (await api.Put($"/costcenters/{unused}", new { code = "MNT", nameAr = "مكرر", nameEn = "Dup", isActive = true })).Status);
+
+        // الحذف: المستخدم في أصل ثابت يُرفض برسالة تسمّي موضع الاستخدام، وغير المستخدم يُحذف
+        var blocked = await api.Delete($"/costcenters/{used}");
+        Assert.Equal(409, blocked.Status);
+        Assert.Contains("الأصول الثابتة", blocked.Body!["message"].S());
+        Assert.Equal(200, (await api.Delete($"/costcenters/{unused}")).Status);
+        Assert.Equal(404, (await api.Get($"/costcenters/{unused}")).Status);
+    }
+
+    [Fact]
     public async Task Disposing_an_asset_removes_it_from_the_books_and_books_the_gain_or_loss()
     {
         var api = await NewTenantAsync();

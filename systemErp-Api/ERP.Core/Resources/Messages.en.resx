@@ -134,6 +134,12 @@
   <data name="CannotDeleteConvertedQuotation" xml:space="preserve"><value>A converted quotation cannot be deleted.</value></data>
   <data name="CannotDeleteConvertedRequisition" xml:space="preserve"><value>A converted requisition cannot be deleted.</value></data>
   <data name="CannotDeleteCostCenterWithEntries" xml:space="preserve"><value>Cannot delete a cost center that has entries.</value></data>
+  <data name="CannotDeleteCostCenterInUse" xml:space="preserve"><value>Cannot delete the cost center because it is used in {0}. You can deactivate it instead.</value></data>
+  <data name="CostCenterUsageFixedAssets" xml:space="preserve"><value>fixed assets</value></data>
+  <data name="CostCenterUsageEmployees" xml:space="preserve"><value>employee records</value></data>
+  <data name="CostCenterUsagePayroll" xml:space="preserve"><value>payroll runs</value></data>
+  <data name="CostCenterUsageContracts" xml:space="preserve"><value>commercial contracts</value></data>
+  <data name="CostCenterUsageInvoices" xml:space="preserve"><value>invoice lines</value></data>
   <data name="CannotDeleteCustomerWithEntries" xml:space="preserve"><value>A customer that has accounting entries cannot be deleted.</value></data>
   <data name="CannotDeleteCustomerWithInvoices" xml:space="preserve"><value>A customer that has invoices cannot be deleted.</value></data>
   <data name="CannotDeleteDefaultWarehouse" xml:space="preserve"><value>The default warehouse cannot be deleted.</value></data>

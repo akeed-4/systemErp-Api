@@ -34,5 +34,10 @@ public class PurchasePostingRequest
     public string? VarianceAccountCode { get; set; }
     public decimal VatAmount { get; set; }
     public List<PaymentPosting> Payments { get; set; } = new();
+    /// <summary>مركز المستند كله حين لا يُرسل توزيع على المراكز.</summary>
     public Guid? CostCenterId { get; set; }
+    /// <summary>
+    /// توزيع الصافي والخدمات والمخزون على مراكز تكلفة الأسطر (مجاميعها = مبالغ المستند)؛ فارغ = المستند كله على CostCenterId.
+    /// </summary>
+    public List<PurchaseCostCenterShare> CostCenterShares { get; set; } = new();
 }

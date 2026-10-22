@@ -1161,4 +1161,13 @@
   <data name="TenantDatabaseProvisioningFailed" xml:space="preserve"><value>The company was created but its dedicated database could not be provisioned; retry provisioning from the platform console.</value></data>
   <data name="TenantDatabaseModeInvalid" xml:space="preserve"><value>Invalid database type or billing cycle.</value></data>
   <data name="PlatformSettingsSaved" xml:space="preserve"><value>Platform settings saved</value></data>
+  <data name="CostCenterInactiveNamed" xml:space="preserve"><value>Cost center {0} is inactive; nothing can be posted to it.</value></data>
+  <data name="CostCenterParentNotFound" xml:space="preserve"><value>The parent cost center was not found.</value></data>
+  <data name="CostCenterParentInvalid" xml:space="preserve"><value>A cost center cannot be placed under itself or one of its sub-centers.</value></data>
+  <data name="CannotDeleteCostCenterWithChildren" xml:space="preserve"><value>Cannot delete a cost center that has sub-centers.</value></data>
+  <data name="CostCenterUsageVouchers" xml:space="preserve"><value>vouchers</value></data>
+  <data name="CostCenterRequiredForAccount" xml:space="preserve"><value>Account {0} - {1} requires a cost center.</value></data>
+  <data name="CostCenterNotAllowedForAccount" xml:space="preserve"><value>Account {0} - {1} does not use cost centers; remove the cost center from its line.</value></data>
+  <data name="CostCenterSharesMismatch" xml:space="preserve"><value>The cost center breakdown does not match the document totals.</value></data>
+  <data name="CostCenterPolicyInvalid" xml:space="preserve"><value>Invalid cost center setting for the account.</value></data>
 </root>

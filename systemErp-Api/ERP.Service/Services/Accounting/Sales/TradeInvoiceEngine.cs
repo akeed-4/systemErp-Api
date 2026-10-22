@@ -380,6 +380,7 @@ public class TradeInvoiceEngine
                 PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber, PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber,
                 PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
                 WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
+                CostCenterId = original.CostCenterId,
                 PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
                 PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
                 PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
@@ -686,6 +687,8 @@ public class TradeInvoiceEngine
         var products = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var missing = productIds.Where(id => !products.ContainsKey(id)).ToList();
         if (missing.Count > 0) throw new ValidationFailedException(Messages.ItemsNotFoundInInvoice);
+        // المراكز من المنشأة ونشطة قبل حفظ المسودة نفسها (المرتجع يتبع مراكز أصله ولو أُوقفت بعده)
+        await CostCenterRules.EnsureUsableAsync(_db, r.Items.Select(i => i.CostCenterId).Append(r.CostCenterId), ct, requireActive: !isReturn);
 
         var invoice = Mapper.Map<T>(r);
         invoice.Id = Guid.NewGuid();
@@ -730,7 +733,8 @@ public class TradeInvoiceEngine
             line.VatExemptionReasonCode = VatExemptionReasons.Find(src.VatExemptionReasonCode)?.Code;
             line.VatOverrideReason = isSales && !string.IsNullOrWhiteSpace(src.VatOverrideReason) ? src.VatOverrideReason.Trim() : null;
             line.VatRate = src.VatRate; line.VatAmount = pl.VatAmount; line.TotalBeforeVat = pl.Net; line.TotalAfterVat = pl.Total;
-            line.CostCenterId = src.CostCenterId;
+            // مركز الترويسة افتراضي فقط: يُحفظ المركز الفعلي على السطر فلا يغيّر تعديلُ الافتراضي لاحقاً أثرَ المستند
+            line.CostCenterId = src.CostCenterId ?? r.CostCenterId;
             line.RevenueAccountCode = isSales && !string.IsNullOrWhiteSpace(src.RevenueAccountCode) ? src.RevenueAccountCode.Trim() : null;
             invoice.AddLine(line);
         }
@@ -890,6 +894,7 @@ public class TradeInvoiceEngine
         var baseNet = baseTotal - baseVat;
         var payments = ToBase(await ResolvePaymentsAsync(invoice, ct), fx, invoice.GrandTotal, baseTotal);
         decimal totalCost = 0;
+        var stockByCenter = new CostCenterTotals(); // تغيّر قيمة المخزون لكل مركز تكلفة من أسطره
 
         Dictionary<Guid, decimal> originalCosts = new();
         if (invoice.Kind == InvoiceKind.SalesReturn && invoice.OriginalInvoiceId.HasValue)
@@ -915,11 +920,18 @@ public class TradeInvoiceEngine
             item.UnitCost = invoice.Kind == InvoiceKind.Purchase ? movement.UnitCost : recorded.UnitCost;
             // تغيّر القيمة الدفترية للصنف لا الكمية × التكلفة: حساب المخزون يبقى مساوياً لقيمة الأصناف بلا هللات تقريب
             // بإشارته: الإضافة بآخر سعر شراء أقل تُنقص قيمة الرصيد كله
-            totalCost += invoice.Kind is InvoiceKind.Purchase or InvoiceKind.SalesReturn ? recorded.ValueChange : -recorded.ValueChange;
+            var valueChange = invoice.Kind is InvoiceKind.Purchase or InvoiceKind.SalesReturn ? recorded.ValueChange : -recorded.ValueChange;
+            totalCost += valueChange;
+            stockByCenter.Add(item.CostCenterId, valueChange);
         }
         var stockCost = totalCost; // قيمة ما دخل/خرج من المخزون فعلاً (الأصناف المخزنية فقط)
+        var costByCenter = stockByCenter.Copy(); // تكلفة المبيعات لكل مركز: مخزون أسطره ثم تكلفة بنود خدماته
         foreach (var svc in invoice.Lines.Where(i => i.ItemId == Guid.Empty && i.UnitCost > 0))
-            totalCost += Math.Round(svc.Quantity * svc.UnitCost, 2);
+        {
+            var svcCost = Math.Round(svc.Quantity * svc.UnitCost, 2);
+            totalCost += svcCost;
+            costByCenter.Add(svc.CostCenterId, svcCost);
+        }
         invoice.TotalCost = totalCost; // بالعملة الأساسية
         invoice.GrossProfit = isSales ? (invoice.IsReturn ? -(baseNet - totalCost) : baseNet - totalCost) : 0;
 
@@ -959,6 +971,7 @@ public class TradeInvoiceEngine
                 NetAmount = baseNet, VatAmount = baseVat, CostAmount = totalCost, Payments = payments,
                 RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode,
                 RevenueLines = RevenueByLine(invoice, fx, baseNet),
+                CostLines = costByCenter.ToAmounts(),
             }, ct);
         else
             posted = await _posting.PostPurchaseAsync(new PurchasePostingRequest
@@ -968,7 +981,7 @@ public class TradeInvoiceEngine
                 NetAmount = baseNet, VatAmount = baseVat, Payments = payments,
                 ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount, VarianceAccountCode = varianceAccount,
                 InventoryAccountCode = invoice.InventoryAccountCode,
-                CostCenterId = invoice.Lines.Select(i => i.CostCenterId).FirstOrDefault(c => c.HasValue),
+                CostCenterShares = PurchaseShares(invoice, fx, baseNet, expenseAmount, inventoryAmount, stockByCenter),
             }, ct);
         invoice.JournalEntryId = posted.JournalEntryId;
 
@@ -1002,12 +1015,42 @@ public class TradeInvoiceEngine
         return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods, deposits, invoice.PaymentMethodCode), invoice.GrandTotal) };
     }
 
-    /// <summary>إيراد كل سطر على حسابه ومركز تكلفته بالعملة الأساسية؛ كسر التقريب على آخر سطر ليطابق صافي المستند.</summary>
-    private static List<RevenuePosting> RevenueByLine(InvoiceBase invoice, decimal fx, decimal baseNet)
+    /// <summary>صافي كل سطر بالعملة الأساسية؛ كسر التقريب على آخر سطر ليطابق صافي المستند.</summary>
+    private static List<(InvoiceItemBase Line, decimal Net)> LineNets(InvoiceBase invoice, decimal fx, decimal baseNet)
     {
-        var lines = invoice.Lines.Select(i => new RevenuePosting(i.RevenueAccountCode, i.CostCenterId, DocumentPricing.Round(i.TotalBeforeVat * fx))).ToList();
-        if (lines.Count > 0) lines[^1] = lines[^1] with { Amount = baseNet - lines.Take(lines.Count - 1).Sum(l => l.Amount) };
+        var lines = invoice.Lines.Select(i => (Line: i, Net: DocumentPricing.Round(i.TotalBeforeVat * fx))).ToList();
+        if (lines.Count > 0) lines[^1] = (lines[^1].Line, baseNet - lines.Take(lines.Count - 1).Sum(l => l.Net));
         return lines;
+    }
+
+    /// <summary>إيراد كل سطر على حسابه ومركز تكلفته بالعملة الأساسية.</summary>
+    private static List<RevenuePosting> RevenueByLine(InvoiceBase invoice, decimal fx, decimal baseNet)
+        => LineNets(invoice, fx, baseNet).Select(l => new RevenuePosting(l.Line.RevenueAccountCode, l.Line.CostCenterId, l.Net)).ToList();
+
+    /// <summary>
+    /// حصص مراكز التكلفة في قيد المشتريات: صافي كل مركز من أسطره، وخدماته بنسبة صافي بنود خدماته، ومخزونه تغيّر قيمة أصنافه
+    /// الفعلي (ومعه بنوده غير المخزنية حين يُحدَّد حساب مخزون صريح). مجاميع الحصص = مبالغ المستند تماماً، وفرق السعر لكل مركز ما يبقى.
+    /// </summary>
+    private static List<PurchaseCostCenterShare> PurchaseShares(InvoiceBase invoice, decimal fx, decimal baseNet, decimal expenseAmount,
+        decimal? inventoryAmount, CostCenterTotals stockByCenter)
+    {
+        var net = new CostCenterTotals();
+        var nonStock = new CostCenterTotals();
+        foreach (var (line, amount) in LineNets(invoice, fx, baseNet))
+        {
+            net.Add(line.CostCenterId, amount);
+            if (line.ItemId == Guid.Empty) nonStock.Add(line.CostCenterId, amount);
+        }
+        var expense = CostCenterTotals.Apportion(expenseAmount, nonStock);
+        CostCenterTotals? inventory = null;
+        if (inventoryAmount is { } total)
+        {
+            inventory = stockByCenter.Copy();
+            var nonStockInventory = CostCenterTotals.Apportion(total - stockByCenter.Total, nonStock);
+            foreach (var center in nonStockInventory.Centers) inventory.Add(center, nonStockInventory[center]);
+        }
+        return net.Centers.Union(expense.Centers).Union(inventory?.Centers ?? Enumerable.Empty<Guid?>())
+            .Select(c => new PurchaseCostCenterShare(c, net[c], expense[c], inventory?[c])).ToList();
     }
 
     /// <summary>يحوّل المدفوع إلى العملة الأساسية؛ السداد الكامل يطابق إجمالي المستند المحوَّل بلا كسر تقريب.</summary>

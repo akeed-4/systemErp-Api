@@ -10,6 +10,8 @@ public class Voucher : BaseEntity
     public decimal Amount { get; set; }
     /// <summary>ضريبة القيمة المضافة المتضمَّنة في المبلغ (مصروف أو إيراد مباشر بضريبة)؛ 0 لسداد الذمم.</summary>
     public decimal VatAmount { get; set; }
+    /// <summary>مركز تكلفة الحساب المقابل (مصروف أو إيراد مباشر)؛ يُحفظ مع السند وينتقل لسطر الحساب في قيده.</summary>
+    public Guid? CostCenterId { get; set; }
     public string AmountInWordsAr { get; set; } = string.Empty;
     
     public string PartyName { get; set; } = string.Empty;

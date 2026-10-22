@@ -24,6 +24,8 @@ public partial class InvoiceDto
     public string? PartyAddress { get; set; }
     /// <summary>المستودع الذي تدخل إليه/تخرج منه أصناف الفاتورة (الافتراضي عند عدم التحديد).</summary>
     public Guid? WarehouseId { get; set; }
+    /// <summary>مركز التكلفة الافتراضي للأسطر: يُنسخ لكل سطر بلا مركز عند الحفظ، فالمركز الفعلي محفوظ على السطر وقيده.</summary>
+    public Guid? CostCenterId { get; set; }
     public string? WarehouseName { get; set; }
     /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>
     public string? PartyStreet { get; set; }

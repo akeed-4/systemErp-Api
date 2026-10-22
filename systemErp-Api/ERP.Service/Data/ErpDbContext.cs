@@ -76,6 +76,7 @@ public class ErpDbContext : DbContext
         // VoucherAllocation.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه؛ يُتحقق منه برمجياً.
         (typeof(PayrollLine), nameof(PayrollLine.EmployeeId), typeof(Employee)),
         (typeof(Employee), nameof(Employee.CostCenterId), typeof(CostCenter)),
+        (typeof(CostCenter), nameof(CostCenter.ParentId), typeof(CostCenter)),
         (typeof(Employee), nameof(Employee.DepartmentId), typeof(Department)),
         (typeof(LeaveRequest), nameof(LeaveRequest.EmployeeId), typeof(Employee)),
         (typeof(LeaveRequest), nameof(LeaveRequest.LeaveTypeId), typeof(LeaveType)),
@@ -310,6 +311,9 @@ public class ErpDbContext : DbContext
         // توزيع السند يُقرأ بفاتورته (المرجع بلا قيد لأن الفاتورة في أحد جداول InvoiceBase)
         modelBuilder.Entity<VoucherAllocation>().HasIndex(a => a.InvoiceId);
         modelBuilder.Entity<Product>().Property(p => p.VatCategory).HasDefaultValue(VatCategory.Standard);
+        // الحسابات القائمة «اختياري» (سلوكها قبل الإعداد)، وتقارير المراكز تقرأ سطور القيود بمركزها
+        modelBuilder.Entity<Account>().Property(a => a.CostCenterPolicy).HasDefaultValue(CostCenterPolicy.Optional);
+        modelBuilder.Entity<JournalEntryLine>().HasIndex(l => new { l.TenantId, l.CostCenterId });
 
         // شواصي الدفعة وبطاقات فاتورة الشراء تُقرأ جماعياً بمعرّف الدفعة/الفاتورة
         modelBuilder.Entity<InvoiceVehicleLine>().HasIndex(l => l.BatchId);

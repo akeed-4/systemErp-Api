@@ -19,4 +19,5 @@ public partial class AccountDto
     public LinkedEntityType? LinkedEntityType { get; set; }
     public Guid? LinkedEntityId { get; set; }
     public string? Notes { get; set; }
+    public CostCenterPolicy CostCenterPolicy { get; set; } = CostCenterPolicy.Optional;
 }

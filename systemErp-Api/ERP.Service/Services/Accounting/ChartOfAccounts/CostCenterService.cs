@@ -20,6 +20,14 @@ public class CostCenterService : CrudService<CostCenter, CostCenterDto, CreateCo
             throw new ValidationFailedException(Messages.CodeAndArabicNameRequired);
         if (await Db.Set<CostCenter>().AnyAsync(c => c.Code == dto.Code && (existing == null || c.Id != existing.Id), ct))
             throw new ConflictException(Messages.CostCenterCodeInUse);
+        if (dto.ParentId is { } parentId)
+        {
+            // الأب من المنشأة نفسها (مرشّح المنشأة)، ولا يكون المركز نفسه ولا أحد فروعه فيدور الهرم
+            if (!await Db.Set<CostCenter>().AnyAsync(c => c.Id == parentId, ct))
+                throw new ValidationFailedException(Messages.CostCenterParentNotFound);
+            if (existing != null && (await CostCenterRules.ScopeAsync(Db, existing.Id, ct))!.Contains(parentId))
+                throw new ValidationFailedException(Messages.CostCenterParentInvalid);
+        }
     }
 
     /// <summary>
@@ -29,6 +37,8 @@ public class CostCenterService : CrudService<CostCenter, CostCenterDto, CreateCo
     protected override async Task OnDeletingAsync(CostCenter entity, CancellationToken ct)
     {
         var id = entity.Id;
+        if (await Db.Set<CostCenter>().AnyAsync(c => c.ParentId == id, ct))
+            throw new ConflictException(Messages.CannotDeleteCostCenterWithChildren);
         if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.CostCenterId == id, ct))
             throw new ConflictException(Messages.CannotDeleteCostCenterWithEntries);
 
@@ -38,7 +48,9 @@ public class CostCenterService : CrudService<CostCenter, CostCenterDto, CreateCo
             : await Db.Set<Employee>().AnyAsync(e => e.CostCenterId == id, ct) ? Messages.CostCenterUsageEmployees
             : await Db.Set<PayrollLine>().AnyAsync(p => p.CostCenterId == id, ct) ? Messages.CostCenterUsagePayroll
             : await Db.Set<CommercialContract>().AnyAsync(c => c.CostCenterId == id, ct) ? Messages.CostCenterUsageContracts
-            : await Db.Set<InvoiceItemBase>().AnyAsync(i => i.CostCenterId == id, ct) ? Messages.CostCenterUsageInvoices
+            : await Db.Set<InvoiceItemBase>().AnyAsync(i => i.CostCenterId == id, ct)
+                || await Db.Set<InvoiceBase>().AnyAsync(i => i.CostCenterId == id, ct) ? Messages.CostCenterUsageInvoices
+            : await Db.Set<Voucher>().AnyAsync(v => v.CostCenterId == id, ct) ? Messages.CostCenterUsageVouchers
             : null;
         if (usage != null) throw new ConflictException(string.Format(Messages.CannotDeleteCostCenterInUse, usage));
     }

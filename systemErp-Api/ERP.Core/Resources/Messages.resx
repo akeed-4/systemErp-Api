@@ -1161,4 +1161,13 @@
   <data name="TenantDatabaseProvisioningFailed" xml:space="preserve"><value>أُنشئت المنشأة لكن تعذّر تجهيز قاعدة بياناتها المستقلة؛ أعد التجهيز من لوحة المنصة.</value></data>
   <data name="TenantDatabaseModeInvalid" xml:space="preserve"><value>نوع قاعدة البيانات أو دورة الفوترة غير صالح.</value></data>
   <data name="PlatformSettingsSaved" xml:space="preserve"><value>تم حفظ إعدادات المنصة</value></data>
+  <data name="CostCenterInactiveNamed" xml:space="preserve"><value>مركز التكلفة {0} غير نشط؛ لا يُرحَّل عليه.</value></data>
+  <data name="CostCenterParentNotFound" xml:space="preserve"><value>المركز الأب غير موجود.</value></data>
+  <data name="CostCenterParentInvalid" xml:space="preserve"><value>لا يمكن جعل مركز التكلفة تابعاً لنفسه أو لأحد مراكزه الفرعية.</value></data>
+  <data name="CannotDeleteCostCenterWithChildren" xml:space="preserve"><value>لا يمكن حذف مركز تكلفة له مراكز فرعية.</value></data>
+  <data name="CostCenterUsageVouchers" xml:space="preserve"><value>السندات</value></data>
+  <data name="CostCenterRequiredForAccount" xml:space="preserve"><value>الحساب {0} - {1} يتطلب مركز تكلفة.</value></data>
+  <data name="CostCenterNotAllowedForAccount" xml:space="preserve"><value>الحساب {0} - {1} لا يُحلَّل بمراكز التكلفة؛ أزل مركز التكلفة من سطره.</value></data>
+  <data name="CostCenterSharesMismatch" xml:space="preserve"><value>توزيع مبالغ المستند على مراكز التكلفة لا يطابق إجمالياته.</value></data>
+  <data name="CostCenterPolicyInvalid" xml:space="preserve"><value>إعداد مركز التكلفة للحساب غير صالح.</value></data>
 </root>

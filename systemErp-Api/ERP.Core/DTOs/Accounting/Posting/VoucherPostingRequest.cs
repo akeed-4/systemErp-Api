@@ -16,4 +16,6 @@ public class VoucherPostingRequest
     public List<PaymentPosting> Treasury { get; set; } = new();
     /// <summary>الضريبة المتضمَّنة في المبلغ: مدخلات لسند الصرف ومخرجات لسند القبض؛ الطرف يُقيَّد بالصافي.</summary>
     public decimal VatAmount { get; set; }
+    /// <summary>مركز تكلفة سطر الحساب المقابل (المصروف أو الإيراد المباشر)؛ الخزينة والضريبة بلا مركز.</summary>
+    public Guid? CostCenterId { get; set; }
 }

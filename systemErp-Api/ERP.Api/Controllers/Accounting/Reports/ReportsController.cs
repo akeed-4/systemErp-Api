@@ -59,8 +59,8 @@ public class ReportsController : ErpControllerBase
 
     /// <summary>رأس كشف الحساب (الرصيد الافتتاحي والختامي) مع الحركات كاملة.</summary>
     [HttpGet("AccountStatement/{code}"), RequireScreen("reports")]
-    public async Task<IActionResult> Statement(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, CancellationToken ct)
-        => Success(await _accounting.GetAccountStatementAsync(code, from, to, module, ct));
+    public async Task<IActionResult> Statement(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, [FromQuery] Guid? costCenterId, CancellationToken ct)
+        => Success(await _accounting.GetAccountStatementAsync(code, from, to, module, costCenterId, ct));
 
     // ---------- تقارير قائمية (DevExtreme loadOptions) ----------
     [HttpGet("TrialBalance"), RequireScreen("reports")]
@@ -68,8 +68,8 @@ public class ReportsController : ErpControllerBase
         => Ok(await _accounting.LoadTrialBalanceAsync(from, to, loadOptions, module, ct));
 
     [HttpGet("AccountStatement/{code}/Entries"), RequireScreen("reports")]
-    public async Task<IActionResult> StatementEntries(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _accounting.LoadAccountStatementEntriesAsync(code, from, to, loadOptions, module, ct));
+    public async Task<IActionResult> StatementEntries(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, [FromQuery] Guid? costCenterId, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadAccountStatementEntriesAsync(code, from, to, loadOptions, module, costCenterId, ct));
 
     /// <summary>الأرصدة الحالية للحسابات بعمودي مدين/دائن (ميزان الأرصدة في شاشة التقارير).</summary>
     [HttpGet("AccountBalances"), RequireScreen("reports")]
@@ -78,8 +78,8 @@ public class ReportsController : ErpControllerBase
 
     /// <summary>دفتر اليومية: سطر لكل طرف مدين/دائن.</summary>
     [HttpGet("JournalLedger"), RequireScreen("reports")]
-    public async Task<IActionResult> JournalLedger([FromQuery] string? module, DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, module, ct));
+    public async Task<IActionResult> JournalLedger([FromQuery] string? module, [FromQuery] Guid? costCenterId, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, module, costCenterId, ct));
 
     [HttpGet("InventoryAudit"), RequireScreen("reports")]
     public async Task<IActionResult> Audit([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)

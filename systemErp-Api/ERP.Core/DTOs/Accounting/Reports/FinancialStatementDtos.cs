@@ -25,6 +25,8 @@ public class IncomeStatementDto
     public DateTime To { get; set; }
     public DateTime? CompareFrom { get; set; }
     public DateTime? CompareTo { get; set; }
+    /// <summary>مرشّح مركز التكلفة (يشمل فروعه)؛ فارغ = المنشأة كلها.</summary>
+    public Guid? CostCenterId { get; set; }
     public StatementSectionDto Revenue { get; set; } = new();
     public StatementSectionDto CostOfSales { get; set; } = new();
     public StatementSectionDto GrossProfit { get; set; } = new();

@@ -26,21 +26,30 @@ public class FinancialStatementService : IFinancialStatementService
     /// صافي (مدين − دائن) لكل حساب في [from, to] شاملاً اليومين؛ from الفارغ = منذ البداية.
     /// استبعاد الإقفال يشمل عكس قيد الإقفال (إعادة فتح السنة)، وإلا حُسب إيراد السنة ومصروفها مرتين.
     /// </summary>
-    private async Task<List<Movement>> NetByAccountAsync(DateTime? from, DateTime to, bool excludeYearClosing, string? module, CancellationToken ct)
+    private async Task<List<Movement>> NetByAccountAsync(DateTime? from, DateTime to, bool excludeYearClosing, string? module, CancellationToken ct,
+        List<Guid>? costCenters = null)
+    {
+        var q = from l in IncomeLines(@from, to, excludeYearClosing, module, costCenters)
+                group l by l.AccountCode into g
+                select new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) };
+        return (await q.ToListAsync(ct)).Select(m => new Movement(m.Code, m.Debit - m.Credit)).ToList();
+    }
+
+    /// <summary>سطور القيود في الفترة بمرشّحات التقرير؛ مرشّح المراكز (المركز وفروعه) يُبقي سطوره وحدها.</summary>
+    private IQueryable<JournalEntryLine> IncomeLines(DateTime? from, DateTime to, bool excludeYearClosing, string? module, List<Guid>? costCenters)
     {
         var end = to.Date.AddDays(1);
         var start = @from;
         var moduleScope = ReportModuleScope.Normalize(module);
         var entries = _db.Set<JournalEntry>().AsNoTracking();
-        var q = from l in _db.Set<JournalEntryLine>().AsNoTracking()
+        return from l in _db.Set<JournalEntryLine>().AsNoTracking()
                 join e in entries on l.JournalEntryId equals e.Id
                 where e.Date < end && (start == null || e.Date >= start)
                       && (!excludeYearClosing || (e.SourceType != YearClosingSource
                           && !(e.SourceType == ReversalSource && entries.Any(o => o.Id == e.SourceReferenceId && o.SourceType == YearClosingSource))))
                       && (moduleScope == null || moduleScope.Contains(e.Module))
-                group l by l.AccountCode into g
-                select new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) };
-        return (await q.ToListAsync(ct)).Select(m => new Movement(m.Code, m.Debit - m.Credit)).ToList();
+                      && (costCenters == null || (l.CostCenterId != null && costCenters.Contains(l.CostCenterId.Value)))
+                select l;
     }
 
     private Task<Dictionary<string, Account>> AccountsAsync(CancellationToken ct)
@@ -77,20 +86,22 @@ public class FinancialStatementService : IFinancialStatementService
     }
 
     // ---------------- قائمة الدخل ----------------
-    public async Task<IncomeStatementDto> GetIncomeStatementAsync(DateTime from, DateTime to, DateTime? compareFrom, DateTime? compareTo, string? module = null, CancellationToken ct = default)
+    public async Task<IncomeStatementDto> GetIncomeStatementAsync(DateTime from, DateTime to, DateTime? compareFrom, DateTime? compareTo, string? module = null,
+        Guid? costCenterId = null, CancellationToken ct = default)
     {
         EnsurePeriod(from, to);
         var compare = compareFrom.HasValue && compareTo.HasValue;
         if (compare) EnsurePeriod(compareFrom!.Value, compareTo!.Value);
 
         var accounts = await AccountsAsync(ct);
-        var current = await NetByAccountAsync(from.Date, to, excludeYearClosing: true, module, ct);
-        var previous = compare ? await NetByAccountAsync(compareFrom!.Value.Date, compareTo!.Value, excludeYearClosing: true, module, ct) : null;
-        static bool IsCostOfSales(Account a) => a.Type == AccountCategory.Expense && a.Code.StartsWith(CostOfSalesGroup, StringComparison.Ordinal);
+        var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
+        var current = await NetByAccountAsync(from.Date, to, excludeYearClosing: true, module, ct, centers);
+        var previous = compare ? await NetByAccountAsync(compareFrom!.Value.Date, compareTo!.Value, excludeYearClosing: true, module, ct, centers) : null;
 
         var statement = new IncomeStatementDto
         {
             From = from.Date, To = to.Date, CompareFrom = compare ? compareFrom!.Value.Date : null, CompareTo = compare ? compareTo!.Value.Date : null,
+            CostCenterId = costCenterId,
             Revenue = Section(accounts, current, previous, a => a.Type == AccountCategory.Revenue, -1),
             CostOfSales = Section(accounts, current, previous, IsCostOfSales, 1),
             OperatingExpenses = Section(accounts, current, previous, a => a.Type == AccountCategory.Expense && !IsCostOfSales(a), 1),
@@ -98,6 +109,52 @@ public class FinancialStatementService : IFinancialStatementService
         statement.GrossProfit = Total((statement.Revenue, 1), (statement.CostOfSales, -1));
         statement.NetProfit = Total((statement.GrossProfit, 1), (statement.OperatingExpenses, -1));
         return statement;
+    }
+
+    private static bool IsCostOfSales(Account a) => a.Type == AccountCategory.Expense && a.Code.StartsWith(CostOfSalesGroup, StringComparison.Ordinal);
+
+    // ---------------- أداء مراكز التكلفة ----------------
+    /// <summary>
+    /// إيرادات كل مركز وتكاليفه وصافيه في الفترة من سطور حسابات الدخل وحدها (بلا قيود الإقفال كقائمة الدخل).
+    /// ليس ميزان مراجعة: الطرف المقابل (الخزينة، الذمم، الضريبة) بلا مركز في الغالب، فلا يُعرض مدين المركز ودائنه متوازنين.
+    /// المرشّح يشمل المركز وفروعه؛ وبلا مرشّح تظهر حركة حسابات الدخل غير الموزَّعة على مراكز منفصلة.
+    /// </summary>
+    public async Task<CostCenterPerformanceDto> GetCostCenterPerformanceAsync(DateTime from, DateTime to, Guid? costCenterId = null, string? module = null,
+        CancellationToken ct = default)
+    {
+        EnsurePeriod(from, to);
+        var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
+        var accounts = await AccountsAsync(ct);
+        var movements = await (from l in IncomeLines(@from.Date, to, excludeYearClosing: true, module, centers)
+                               group l by new { l.CostCenterId, l.AccountCode } into g
+                               select new { g.Key.CostCenterId, g.Key.AccountCode, Net = g.Sum(x => x.Debit - x.Credit) }).ToListAsync(ct);
+
+        var report = new CostCenterPerformanceDto { From = from.Date, To = to.Date, CostCenterId = costCenterId };
+        var rows = new Dictionary<Guid, CostCenterPerformanceRowDto>();
+        foreach (var m in movements)
+        {
+            if (m.Net == 0 || !accounts.TryGetValue(m.AccountCode, out var account)
+                || account.Type is not (AccountCategory.Revenue or AccountCategory.Expense)) continue;
+            CostCenterPerformanceRowDto row;
+            if (m.CostCenterId is not { } id) row = report.Unassigned ??= new CostCenterPerformanceRowDto();
+            else if (!rows.TryGetValue(id, out row!)) rows[id] = row = new CostCenterPerformanceRowDto { CostCenterId = id };
+            if (account.Type == AccountCategory.Revenue) row.Revenue -= m.Net;
+            else if (IsCostOfSales(account)) row.CostOfSales += m.Net;
+            else row.OperatingExpenses += m.Net;
+        }
+
+        // المرشّح يُظهر المركز وفروعه ولو بلا حركة، فلا يُفهم غيابها على أنه خطأ
+        if (centers != null) foreach (var id in centers) rows.TryAdd(id, new CostCenterPerformanceRowDto { CostCenterId = id });
+        var ids = rows.Keys.ToList();
+        var info = await _db.Set<CostCenter>().AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
+        foreach (var (id, row) in rows)
+            if (info.TryGetValue(id, out var c)) { row.Code = c.Code; row.NameAr = c.NameAr; row.NameEn = c.NameEn; row.ParentId = c.ParentId; row.IsActive = c.IsActive; }
+        report.Rows = rows.Values.OrderBy(r => r.Code, StringComparer.Ordinal).ToList();
+        foreach (var row in report.Rows.Append(report.Unassigned).OfType<CostCenterPerformanceRowDto>()) row.Round();
+        report.TotalRevenue = report.Rows.Sum(r => r.Revenue);
+        report.TotalCosts = report.Rows.Sum(r => r.CostOfSales + r.OperatingExpenses);
+        report.NetResult = report.Rows.Sum(r => r.NetResult);
+        return report;
     }
 
     // ---------------- قائمة المركز المالي ----------------

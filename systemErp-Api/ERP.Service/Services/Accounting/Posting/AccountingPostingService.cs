@@ -11,6 +11,7 @@ namespace ERP.Service.Services.Accounting;
 public class AccountingPostingService : IAccountingPostingService
 {
     private const decimal Tolerance = 0.005m;
+    private const string ReversalSource = "reversal";
 
     private readonly ErpDbContext _db;
     private readonly INumberSequenceService _numbers;
@@ -156,7 +157,40 @@ public class AccountingPostingService : IAccountingPostingService
         if (parents.Count > 0)
             throw new ValidationFailedException(Messages.CannotPostToParentAccountPrefix + string.Join(", ", parents));
 
-        return new Prepared(lines, accounts, accounts.ToDictionary(a => a.Code), totalDebit, totalCredit);
+        var byCode = accounts.ToDictionary(a => a.Code);
+        lines = await ApplyCostCenterPolicyAsync(request, lines, byCode, ct);
+        return new Prepared(lines, accounts, byCode, totalDebit, totalCredit);
+    }
+
+    /// <summary>
+    /// مراكز التكلفة على الخادم لكل ترحيل: المركز موجود في المنشأة ونشط، والحساب الإلزامي لا يُرحَّل بلا مركز.
+    /// الحساب غير المحلَّل بمراكز: يُرفض مركزه في القيد اليدوي (اختيار صريح من المستخدم)، ويُسقط من قيد المستند
+    /// لأن المستند يمرّر مركز سطره لكل ما يخصّه ولا يعرف إعداد كل حساب.
+    /// قيدا العكس والإقفال صورة لحركات قائمة: يحملان مراكزها كما هي ولو تغيّر إعداد الحساب أو أُوقف المركز بعدها،
+    /// وإلا بقي أثر القيد الأصلي في تقارير المراكز أو تعذّر الإقفال.
+    /// </summary>
+    private async Task<List<PostingLine>> ApplyCostCenterPolicyAsync(GenericPostingRequest request, List<PostingLine> lines,
+        Dictionary<string, Account> byCode, CancellationToken ct)
+    {
+        if (request.SourceType is ReversalSource or FiscalPeriodService.ClosingSource) return lines;
+        var manual = IsManual(request.SourceType);
+        var result = new List<PostingLine>(lines.Count);
+        foreach (var line in lines)
+        {
+            var account = byCode[line.AccountCode];
+            switch (account.CostCenterPolicy)
+            {
+                case CostCenterPolicy.None when line.CostCenterId.HasValue:
+                    if (manual) throw new ValidationFailedException(string.Format(Messages.CostCenterNotAllowedForAccount, account.Code, account.NameAr));
+                    result.Add(line with { CostCenterId = null });
+                    continue;
+                case CostCenterPolicy.Required when !line.CostCenterId.HasValue:
+                    throw new ValidationFailedException(string.Format(Messages.CostCenterRequiredForAccount, account.Code, account.NameAr));
+            }
+            result.Add(line);
+        }
+        await CostCenterRules.EnsureUsableAsync(_db, result.Select(l => l.CostCenterId), ct, requireActive: !request.AllowInactiveCostCenters);
+        return result;
     }
 
     /// <summary>
@@ -204,15 +238,18 @@ public class AccountingPostingService : IAccountingPostingService
             lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
         lines.AddRange(RevenueLines(r));
         if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.OutputVat, 0, r.VatAmount));
-        if (r.CostAmount > 0)
+        foreach (var cost in CostLines(r))
         {
-            lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, r.CostAmount, 0));
-            lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, 0, r.CostAmount));
-        }
-        else if (r.CostAmount < 0) // تغيّر قيمة المخزون عكس الاتجاه المعتاد (إعادة تسعير الرصيد)
-        {
-            lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, -r.CostAmount, 0));
-            lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, 0, -r.CostAmount));
+            if (cost.Amount > 0)
+            {
+                lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, cost.Amount, 0, null, cost.CostCenterId));
+                lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, 0, cost.Amount, null, cost.CostCenterId));
+            }
+            else if (cost.Amount < 0) // تغيّر قيمة المخزون عكس الاتجاه المعتاد (إعادة تسعير الرصيد)
+            {
+                lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, -cost.Amount, 0, null, cost.CostCenterId));
+                lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, 0, -cost.Amount, null, cost.CostCenterId));
+            }
         }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
@@ -232,6 +269,33 @@ public class AccountingPostingService : IAccountingPostingService
             .Select(g => new PostingLine(g.Key.Account, 0, g.Sum(l => l.Amount), null, g.Key.CostCenterId));
     }
 
+    /// <summary>التكلفة موزّعة على مراكز أسطرها (مجمَّعة لكل مركز)، أو مبلغاً واحداً بلا مركز.</summary>
+    private static IEnumerable<CostCenterAmount> CostLines(SalePostingRequest r)
+    {
+        if (r.CostLines.Count == 0) return new[] { new CostCenterAmount(null, r.CostAmount) };
+        if (Math.Abs(r.CostLines.Sum(l => l.Amount) - r.CostAmount) > Tolerance)
+            throw new ValidationFailedException(Messages.CostCenterSharesMismatch);
+        return r.CostLines.GroupBy(l => l.CostCenterId).Select(g => new CostCenterAmount(g.Key, g.Sum(l => l.Amount)));
+    }
+
+    /// <summary>
+    /// حصص المراكز من مستند المشتريات (مجمَّعة لكل مركز، ومخزون كل حصة محسوماً)، أو حصة واحدة بمركز المستند.
+    /// مجاميع الحصص يجب أن تطابق مبالغ المستند وإلا اختلّ القيد بين المراكز.
+    /// </summary>
+    private static List<PurchaseCostCenterShare> PurchaseShares(PurchasePostingRequest r, decimal inventory)
+    {
+        if (r.CostCenterShares.Count == 0) return new() { new(r.CostCenterId, r.NetAmount, r.ExpenseAmount, inventory) };
+        var shares = r.CostCenterShares.GroupBy(s => s.CostCenterId)
+            .Select(g => new PurchaseCostCenterShare(g.Key, g.Sum(s => s.Net), g.Sum(s => s.Expense), g.Sum(s => s.Inventory ?? s.Net - s.Expense)))
+            .ToList();
+        if (shares.Any(s => s.Expense < 0)
+            || Math.Abs(shares.Sum(s => s.Net) - r.NetAmount) > Tolerance
+            || Math.Abs(shares.Sum(s => s.Expense) - r.ExpenseAmount) > Tolerance
+            || Math.Abs(shares.Sum(s => s.Inventory!.Value) - inventory) > Tolerance)
+            throw new ValidationFailedException(Messages.CostCenterSharesMismatch);
+        return shares;
+    }
+
     public Task<PostingResult> PostPurchaseAsync(PurchasePostingRequest r, CancellationToken ct = default)
     {
         var total = r.NetAmount + r.VatAmount;
@@ -243,16 +307,21 @@ public class AccountingPostingService : IAccountingPostingService
         if (r.ExpenseAmount < 0 || r.ExpenseAmount - r.NetAmount > Tolerance)
             throw new ValidationFailedException(Messages.PurchaseAmountsInvalid);
         var inventory = r.InventoryAmount ?? r.NetAmount - r.ExpenseAmount;
-        var variance = r.NetAmount - r.ExpenseAmount - inventory;
         var inventoryAccount = r.InventoryAccountCode ?? DefaultAccounts.Inventory;
         var varianceAccount = string.IsNullOrWhiteSpace(r.VarianceAccountCode) ? DefaultAccounts.PurchasePriceVariance : r.VarianceAccountCode;
 
+        // كل مركز بمخزونه وخدماته وفرق سعره: لا يُنسب مركز سطر لأسطر غيره
         var lines = new List<PostingLine>();
-        if (inventory > 0) lines.Add(new(inventoryAccount, inventory, 0, null, r.CostCenterId));
-        else if (inventory < 0) lines.Add(new(inventoryAccount, 0, -inventory, null, r.CostCenterId));
-        if (r.ExpenseAmount > 0) lines.Add(new(r.ExpenseAccountCode ?? DefaultAccounts.PurchasedServices, r.ExpenseAmount, 0, null, r.CostCenterId));
-        if (variance > 0) lines.Add(new(varianceAccount, variance, 0));
-        else if (variance < 0) lines.Add(new(varianceAccount, 0, -variance));
+        foreach (var share in PurchaseShares(r, inventory))
+        {
+            var shareInventory = share.Inventory!.Value;
+            var shareVariance = share.Net - share.Expense - shareInventory;
+            if (shareInventory > 0) lines.Add(new(inventoryAccount, shareInventory, 0, null, share.CostCenterId));
+            else if (shareInventory < 0) lines.Add(new(inventoryAccount, 0, -shareInventory, null, share.CostCenterId));
+            if (share.Expense > 0) lines.Add(new(r.ExpenseAccountCode ?? DefaultAccounts.PurchasedServices, share.Expense, 0, null, share.CostCenterId));
+            if (shareVariance > 0) lines.Add(new(varianceAccount, shareVariance, 0, null, share.CostCenterId));
+            else if (shareVariance < 0) lines.Add(new(varianceAccount, 0, -shareVariance, null, share.CostCenterId));
+        }
         if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, r.VatAmount, 0));
         foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, 0, p.Amount));
         if (payable > Tolerance)
@@ -278,12 +347,12 @@ public class AccountingPostingService : IAccountingPostingService
         if (r.Type == VoucherType.Receipt)
         {
             foreach (var t in r.Treasury) lines.Add(new(t.TreasuryAccountCode, t.Amount, 0));
-            lines.Add(new(party, 0, net));
+            lines.Add(new(party, 0, net, null, r.CostCenterId));
             if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.OutputVat, 0, r.VatAmount));
         }
         else
         {
-            lines.Add(new(party, net, 0));
+            lines.Add(new(party, net, 0, null, r.CostCenterId));
             if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, r.VatAmount, 0));
             foreach (var t in r.Treasury) lines.Add(new(t.TreasuryAccountCode, 0, t.Amount));
         }
@@ -309,7 +378,7 @@ public class AccountingPostingService : IAccountingPostingService
         {
             Date = original.Date, // العكس في فترة القيد نفسها فيُلغى أثره فيها
             Description = $"عكس القيد {original.EntryNumber}" + (string.IsNullOrWhiteSpace(reason) ? "" : $" - {reason}"),
-            Module = original.Module, SourceType = "reversal", SourceId = original.Id, SourceNumber = original.EntryNumber, Lines = lines,
+            Module = original.Module, SourceType = ReversalSource, SourceId = original.Id, SourceNumber = original.EntryNumber, Lines = lines,
         }, ct);
 
         original.Status = JournalEntryStatus.Reversed;
@@ -326,6 +395,7 @@ public class AccountingPostingService : IAccountingPostingService
             Description = string.IsNullOrWhiteSpace(description) ? $"{sourceType} {sourceNumber}" : description,
             SourceType = sourceType, SourceId = sourceId, SourceNumber = sourceNumber,
             Lines = reverse ? lines.Select(l => l with { Debit = l.Credit, Credit = l.Debit }).ToList() : lines,
+            AllowInactiveCostCenters = reverse,
         };
 
     private static string ResolveModule(string? module, string? sourceType)

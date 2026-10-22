@@ -60,18 +60,25 @@ public class AccountingReportService : IAccountingReportService
         public string Description { get; set; } = string.Empty;
         public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
+        public Guid? CostCenterId { get; set; }
+        public string? CostCenterCode { get; set; }
     }
 
-    private IQueryable<LedgerLine> AccountLines(string accountCode, string? module)
+    private IQueryable<CostCenter> CostCenters => _db.Set<CostCenter>().AsNoTracking();
+
+    /// <summary>حركات الحساب؛ مرشّح المراكز (المركز وفروعه) يجعل الكشف كشفَ الحساب في المركز، برصيده الافتتاحي والجاري فيه.</summary>
+    private IQueryable<LedgerLine> AccountLines(string accountCode, string? module, List<Guid>? costCenters)
     {
         var moduleScope = ReportModuleScope.Normalize(module);
         return from l in Lines
                join e in Entries on l.JournalEntryId equals e.Id
                where l.AccountCode == accountCode && (moduleScope == null || moduleScope.Contains(e.Module))
+                     && (costCenters == null || (l.CostCenterId != null && costCenters.Contains(l.CostCenterId.Value)))
                select new LedgerLine
                {
                    Id = l.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, EntryNumber = e.EntryNumber,
-                   Description = e.Description, ReferenceNumber = e.ReferenceNumber, Notes = l.Notes,
+                   Description = e.Description, ReferenceNumber = e.ReferenceNumber, Notes = l.Notes, CostCenterId = l.CostCenterId,
+                   CostCenterCode = CostCenters.Where(c => c.Id == l.CostCenterId).Select(c => c.Code).FirstOrDefault(),
                };
     }
 
@@ -90,32 +97,34 @@ public class AccountingReportService : IAccountingReportService
     /// حركات الحساب في الفترة، والرصيد الجاري لكل حركة يُحسب في قاعدة البيانات: مجموع كل ما سبقها (ومنه ما قبل الفترة)
     /// بترتيب التاريخ ثم رقم القيد ثم السطر.
     /// </summary>
-    private IQueryable<AccountLedgerEntryDto> StatementEntries(Account account, DateTime? from, DateTime? to, string? module)
+    private IQueryable<AccountLedgerEntryDto> StatementEntries(Account account, DateTime? from, DateTime? to, string? module, List<Guid>? costCenters)
     {
         var debitNature = account.IsDebitNature;
-        var all = AccountLines(account.Code, module);
+        var all = AccountLines(account.Code, module, costCenters);
         return InPeriod(all, from, to).Select(x => new AccountLedgerEntryDto
         {
             Id = x.Id, Date = x.Date, EntryNumber = x.EntryNumber, Description = string.IsNullOrWhiteSpace(x.Notes) ? x.Description : x.Notes!,
-            Debit = x.Debit, Credit = x.Credit, ReferenceNumber = x.ReferenceNumber,
+            Debit = x.Debit, Credit = x.Credit, ReferenceNumber = x.ReferenceNumber, CostCenterId = x.CostCenterId, CostCenterCode = x.CostCenterCode,
             RunningBalance = all.Where(p => p.Date < x.Date || (p.Date == x.Date
                     && (p.EntryNumber.CompareTo(x.EntryNumber) < 0 || (p.EntryNumber == x.EntryNumber && p.Id.CompareTo(x.Id) <= 0))))
                 .Sum(p => debitNature ? p.Debit - p.Credit : p.Credit - p.Debit),
         });
     }
 
-    public async Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, string? module = null, CancellationToken ct = default)
+    public async Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, string? module = null,
+        Guid? costCenterId = null, CancellationToken ct = default)
     {
         var account = await AccountAsync(accountCode, ct);
         var debitNature = account.IsDebitNature;
-        var all = AccountLines(account.Code, module);
+        var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
+        var all = AccountLines(account.Code, module, centers);
         var start = from?.Date;
         var opening = start.HasValue ? await all.Where(x => x.Date < start).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct) : 0m;
         var movement = await InPeriod(all, from, to).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct);
         return new AccountStatementDto
         {
-            AccountCode = account.Code, AccountNameAr = account.NameAr, OpeningBalance = opening, ClosingBalance = opening + movement,
-            Entries = await StatementEntries(account, from, to, module).OrderBy(x => x.Date).ThenBy(x => x.EntryNumber).ThenBy(x => x.Id).ToListAsync(ct),
+            AccountCode = account.Code, AccountNameAr = account.NameAr, OpeningBalance = opening, ClosingBalance = opening + movement, CostCenterId = costCenterId,
+            Entries = await StatementEntries(account, from, to, module, centers).OrderBy(x => x.Date).ThenBy(x => x.EntryNumber).ThenBy(x => x.Id).ToListAsync(ct),
         };
     }
 
@@ -314,8 +323,9 @@ public class AccountingReportService : IAccountingReportService
         => ReportLoader.LoadAsync(TrialBalanceQuery(from, to, module), options, nameof(TrialBalanceItemDto.AccountCode), ct,
             EntityLoader.Asc(nameof(TrialBalanceItemDto.AccountCode)));
 
-    public async Task<LoadResult> LoadAccountStatementEntriesAsync(string accountCode, DateTime? from, DateTime? to, DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
-        => await ReportLoader.LoadAsync(StatementEntries(await AccountAsync(accountCode, ct), from, to, module), options, nameof(AccountLedgerEntryDto.Id), ct,
+    public async Task<LoadResult> LoadAccountStatementEntriesAsync(string accountCode, DateTime? from, DateTime? to, DataSourceLoadOptions options, string? module = null,
+        Guid? costCenterId = null, CancellationToken ct = default)
+        => await ReportLoader.LoadAsync(StatementEntries(await AccountAsync(accountCode, ct), from, to, module, await CostCenterRules.ScopeAsync(_db, costCenterId, ct)), options, nameof(AccountLedgerEntryDto.Id), ct,
             EntityLoader.Asc(nameof(AccountLedgerEntryDto.Date)), EntityLoader.Asc(nameof(AccountLedgerEntryDto.EntryNumber)));
 
     public Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
@@ -354,17 +364,22 @@ public class AccountingReportService : IAccountingReportService
         return EntityLoader.LoadRowsAsync(rows, options, nameof(AccountBalanceRowDto.Id), ct, EntityLoader.Asc(nameof(AccountBalanceRowDto.Code)));
     }
 
-    public Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
+    public async Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, string? module = null, Guid? costCenterId = null, CancellationToken ct = default)
     {
         var moduleScope = ReportModuleScope.Normalize(module);
-        return EntityLoader.LoadRowsAsync(
+        var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
+        return await EntityLoader.LoadRowsAsync(
             from l in _db.Set<JournalEntryLine>().AsNoTracking()
             join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
-            where moduleScope == null || moduleScope.Contains(e.Module)
+            join c in CostCenters on l.CostCenterId equals (Guid?)c.Id into center
+            from c in center.DefaultIfEmpty()
+            where (moduleScope == null || moduleScope.Contains(e.Module))
+                  && (centers == null || (l.CostCenterId != null && centers.Contains(l.CostCenterId.Value)))
             select new JournalLedgerRowDto
             {
                 LineId = l.Id, EntryId = e.Id, EntryNumber = e.EntryNumber, Date = e.Date, Description = e.Description,
                 AccountCode = l.AccountCode, AccountName = l.AccountName, Debit = l.Debit, Credit = l.Credit, ReferenceType = e.ReferenceType,
+                CostCenterId = l.CostCenterId, CostCenterCode = c.Code, CostCenterName = c.NameAr,
             }, options, nameof(JournalLedgerRowDto.LineId), ct,
             EntityLoader.Desc(nameof(JournalLedgerRowDto.Date)), EntityLoader.Desc(nameof(JournalLedgerRowDto.EntryNumber)));
     }

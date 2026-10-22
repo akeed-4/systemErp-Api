@@ -16,6 +16,8 @@ public class Account : BaseEntity
     public LinkedEntityType? LinkedEntityType { get; set; }
     public Guid? LinkedEntityId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>هل يُحلَّل الحساب بمركز تكلفة عند الترحيل (غير مستخدم / اختياري / إلزامي).</summary>
+    public CostCenterPolicy CostCenterPolicy { get; set; } = CostCenterPolicy.Optional;
     /// <summary>رمز تزامن (rowversion): ترحيلان متزامنان على الحساب نفسه لا يُضيِّع أحدهما أثر الآخر على الرصيد.</summary>
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 

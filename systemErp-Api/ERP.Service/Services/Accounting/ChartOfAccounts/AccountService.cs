@@ -21,6 +21,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         if (string.IsNullOrWhiteSpace(dto.Code)) errors.Add(Messages.AccountCodeRequired);
         else if (!dto.Code.All(char.IsDigit)) errors.Add(Messages.AccountCodeDigitsOnly);
         if (string.IsNullOrWhiteSpace(dto.NameAr)) errors.Add(Messages.AccountArabicNameRequired);
+        if (dto.CostCenterPolicy is { } policy && !Enum.IsDefined(policy)) errors.Add(Messages.CostCenterPolicyInvalid);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<Account>().AnyAsync(a => a.Code == dto.Code && (existing == null || a.Id != existing.Id), ct))

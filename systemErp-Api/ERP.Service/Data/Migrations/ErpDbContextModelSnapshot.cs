@@ -36,6 +36,12 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("CostCenterPolicy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("Optional");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -922,6 +928,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -929,6 +938,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentId");
 
                     b.HasIndex("TenantId");
 
@@ -1829,6 +1840,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("CogsAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2504,6 +2518,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("JournalEntryId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "CostCenterId");
 
                     b.ToTable("JournalEntryLine");
                 });
@@ -3191,6 +3207,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("AmountInWordsAr")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -9615,6 +9634,14 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Contract");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.CostCenter", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteItem", b =>

@@ -15,4 +15,6 @@ public partial class CreateAccountDto
     public LinkedEntityType? LinkedEntityType { get; set; }
     public Guid? LinkedEntityId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>فارغ = يبقى إعداد الحساب كما هو عند التعديل، و«اختياري» عند الإنشاء.</summary>
+    public CostCenterPolicy? CostCenterPolicy { get; set; }
 }

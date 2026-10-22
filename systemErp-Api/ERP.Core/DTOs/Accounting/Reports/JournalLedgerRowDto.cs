@@ -13,4 +13,7 @@ public class JournalLedgerRowDto
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
     public string? ReferenceType { get; set; }
+    public Guid? CostCenterId { get; set; }
+    public string? CostCenterCode { get; set; }
+    public string? CostCenterName { get; set; }
 }

@@ -13,4 +13,6 @@ public class AccountLedgerEntryDto
     public decimal Credit { get; set; }
     public decimal RunningBalance { get; set; }
     public string? ReferenceNumber { get; set; }
+    public Guid? CostCenterId { get; set; }
+    public string? CostCenterCode { get; set; }
 }

@@ -15,4 +15,9 @@ public class GenericPostingRequest
     public Guid? SourceId { get; set; }
     public string? SourceNumber { get; set; }
     public List<PostingLine> Lines { get; set; } = new();
+    /// <summary>
+    /// مستند يردّ مستنداً سابقاً (مرتجع): مراكز أسطره من الأصل، فيُقبل المركز ولو أُوقف بعد الأصل حتى يُلغى الأثر في مركزه نفسه.
+    /// وجود المركز في المنشأة وإعداد الحساب يبقيان شرطاً.
+    /// </summary>
+    public bool AllowInactiveCostCenters { get; set; }
 }

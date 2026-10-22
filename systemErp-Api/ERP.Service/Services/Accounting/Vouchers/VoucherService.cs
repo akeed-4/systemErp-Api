@@ -255,7 +255,7 @@ public class VoucherService : IVoucherService
             Module = voucher.Module, Date = voucher.Date,
             Description = $"{(voucher.Type == VoucherType.Receipt ? "سند قبض" : "سند صرف")} {voucher.VoucherNumber} - {voucher.PartyName}",
             VoucherId = voucher.Id, VoucherNumber = voucher.VoucherNumber, Type = voucher.Type,
-            PartyAccountCode = r.PartyAccountCode, Treasury = treasury, VatAmount = r.VatAmount,
+            PartyAccountCode = r.PartyAccountCode, Treasury = treasury, VatAmount = r.VatAmount, CostCenterId = voucher.CostCenterId,
         }, token);
 
         voucher.JournalEntryId = posted.JournalEntryId;

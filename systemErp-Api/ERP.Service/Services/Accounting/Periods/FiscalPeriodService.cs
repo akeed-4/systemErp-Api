@@ -57,13 +57,14 @@ public class FiscalPeriodService : IFiscalPeriodService
             if (to >= SaudiTime.Today) throw new ValidationFailedException(string.Format(Messages.FiscalYearNotEnded, to));
             if ((await ClosedYearsAsync(token)).Contains(r.Year)) throw new ConflictException(string.Format(Messages.FiscalYearAlreadyClosed, r.Year));
 
-            // صافي حركة كل حساب إيراد/مصروف خلال السنة (من سطور القيود، لا من الأرصدة الجارية)
+            // صافي حركة كل حساب إيراد/مصروف خلال السنة (من سطور القيود، لا من الأرصدة الجارية)، لكل مركز تكلفة على حدة
+            // فيُقفل رصيد كل مركز أيضاً لا رصيد الحساب وحده
             var end = to.AddDays(1);
             var movements = await (from l in _db.Set<JournalEntryLine>().AsNoTracking()
                                    join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
                                    where e.Date >= @from && e.Date < end
-                                   group l by l.AccountCode into g
-                                   select new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) }).ToListAsync(token);
+                                   group l by new { l.AccountCode, l.CostCenterId } into g
+                                   select new { Code = g.Key.AccountCode, g.Key.CostCenterId, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) }).ToListAsync(token);
             var types = await _db.Set<Account>().AsNoTracking()
                 .Where(a => a.Type == AccountCategory.Revenue || a.Type == AccountCategory.Expense).ToDictionaryAsync(a => a.Code, a => a.Type, token);
 
@@ -73,7 +74,7 @@ public class FiscalPeriodService : IFiscalPeriodService
             {
                 var net = m.Debit - m.Credit; // موجب = رصيد مدين يُقفل بدائن، والعكس
                 if (net == 0) continue;
-                lines.Add(net > 0 ? new PostingLine(m.Code, 0, net) : new PostingLine(m.Code, -net, 0));
+                lines.Add(net > 0 ? new PostingLine(m.Code, 0, net, null, m.CostCenterId) : new PostingLine(m.Code, -net, 0, null, m.CostCenterId));
                 if (types[m.Code] == AccountCategory.Revenue) revenues -= net; else expenses += net;
             }
             var profit = revenues - expenses;

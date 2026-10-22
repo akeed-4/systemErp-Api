@@ -29,6 +29,8 @@ public class SalePostingRequest
     public decimal VatAmount { get; set; }
     /// <summary>تكلفة البضاعة المباعة (0 = بدون قيد تكلفة؛ السالب يعكس الاتجاه: مرتجع أعاد تسعير الرصيد بأقل من قيمته).</summary>
     public decimal CostAmount { get; set; }
+    /// <summary>توزيع التكلفة على مراكز تكلفة الأسطر (مجموعه = CostAmount). فارغ = سطر تكلفة واحد بلا مركز.</summary>
+    public List<CostCenterAmount> CostLines { get; set; } = new();
 
     public List<PaymentPosting> Payments { get; set; } = new();
     public Guid? CostCenterId { get; set; }

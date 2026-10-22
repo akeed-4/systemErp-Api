@@ -19,8 +19,23 @@ public class ErpDbContext : DbContext
         _tenant = tenant;
     }
 
+    /// <summary>للسياق الموجَّه بالمنشأة (<see cref="TenantErpDbContext"/>): النموذج نفسه بخيارات نوعه.</summary>
+    protected ErpDbContext(DbContextOptions options, ITenantContext tenant) : base(options)
+    {
+        _tenant = tenant;
+    }
+
     /// <summary>تُقرأ من نفس نسخة الـ DbContext لكل طلب حتى يُعاد تقييم مرشّح الاستعلام ولا يتجمّد على أول منشأة.</summary>
     public Guid CurrentTenantId => _tenant.TenantId ?? Guid.Empty;
+
+    /// <summary>
+    /// القاعدة المشتركة (الدليل): بيانات المنصة (الباقات، الوحدات، ربط القواعد) والقراءات العابرة للمنشآت
+    /// (الدخول، تفرّد البريد والرقم الضريبي، لوحة المنصة، إشعار الدفع). هنا هي نفسها؛ السياق الموجَّه يعيد سياقاً مستقلاً عليها.
+    /// </summary>
+    public virtual ErpDbContext Catalog => this;
+
+    /// <summary>نسخ سجلات الدليل بين القاعدتين: تُحفظ كما هي (المنشأة وتاريخ الإنشاء) بلا ختم جديد.</summary>
+    internal bool PreserveStamps { get; set; }
 
     /// <summary>
     /// جذور الوراثة بنمط TPC (جدول فعلي مستقل لكل نوع مشتق، ولا جدول للجذر): المفتاح ومرشّح المنشأة على الجذر وحده،
@@ -195,6 +210,24 @@ public class ErpDbContext : DbContext
             e.HasData(PlatformModules.Catalog);
         });
 
+        // ربط المنشأة بقاعدتها المستقلة (على مستوى المنصة، بلا مرشّح منشأة): يُقرأ ويُكتب على القاعدة المشتركة وحدها.
+        modelBuilder.Entity<TenantDatabase>(e =>
+        {
+            e.HasKey(d => d.TenantId);
+            e.Property(d => d.TenantId).ValueGeneratedNever();
+            e.Property(d => d.DatabaseName).HasMaxLength(128).IsRequired();
+            e.Property(d => d.ConnectionStringEncrypted).IsRequired();
+            e.Property(d => d.LastError).HasMaxLength(1000);
+        });
+
+        modelBuilder.Entity<PlatformSetting>(e =>
+        {
+            e.HasKey(s => s.Key);
+            e.Property(s => s.Key).HasMaxLength(64);
+            e.Property(s => s.Value).HasMaxLength(1000).IsRequired();
+            e.Property(s => s.UpdatedBy).HasMaxLength(256);
+        });
+
         modelBuilder.Entity<ContractStageDefinition>(e =>
         {
             e.ToTable("ContractStageDefinition");
@@ -312,6 +345,7 @@ public class ErpDbContext : DbContext
 
     private void StampEntities()
     {
+        if (PreserveStamps) return;
         var tenantId = _tenant.TenantId;
         var now = DateTime.UtcNow;
 

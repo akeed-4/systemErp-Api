@@ -65,7 +65,19 @@ public class ErpFactory : WebApplicationFactory<Program>
             using var conn = new SqlConnection(_master);
             conn.Open();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"IF DB_ID('{_database}') IS NOT NULL BEGIN ALTER DATABASE [{_database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_database}]; END";
+            // القاعدة المشتركة والقواعد المستقلة لمنشآت الاختبار (اسمها يبدأ باسمها: <اسم>_t<معرّف المنشأة>)
+            cmd.CommandText = $"""
+                DECLARE @name sysname, @sql nvarchar(max);
+                DECLARE dbs CURSOR LOCAL FAST_FORWARD FOR
+                    SELECT name FROM sys.databases WHERE name = '{_database}' OR name LIKE '{_database}[_]t%';
+                OPEN dbs; FETCH NEXT FROM dbs INTO @name;
+                WHILE @@FETCH_STATUS = 0
+                BEGIN
+                    SET @sql = N'ALTER DATABASE ' + QUOTENAME(@name) + N' SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ' + QUOTENAME(@name) + N';';
+                    EXEC (@sql);
+                    FETCH NEXT FROM dbs INTO @name;
+                END
+                """;
             cmd.ExecuteNonQuery();
         }
         catch { /* تنظيف اختياري */ }

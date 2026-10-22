@@ -10,7 +10,7 @@ public class SubscriptionService : ISubscriptionService
     public SubscriptionService(ErpDbContext db) => _db = db;
 
     public async Task<List<SubscriptionPlanDto>> GetPlansAsync(CancellationToken ct = default)
-        => (await _db.Set<PlanDefinition>().AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.SortOrder).ToListAsync(ct))
+        => (await _db.Catalog.Set<PlanDefinition>().AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.SortOrder).ToListAsync(ct))
             .Select(SubscriptionCatalog.ToDto).ToList();
 
     public async Task<SubscriptionDto?> GetCurrentAsync(CancellationToken ct = default)

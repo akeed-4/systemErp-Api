@@ -93,6 +93,34 @@ public class PlatformTenantSubscriptionDto
     /// <summary>الحالة الفعلية: الاشتراك الفعّال المنتهي تاريخه يُعرض منتهياً.</summary>
     public SubscriptionStatus? EffectiveStatus { get; set; }
     public int? DaysRemaining { get; set; }
+    /// <summary>قاعدة المنشأة: مشتركة (بلا سجل ربط) أو مستقلة، وحالة تجهيز المستقلة. لا يُعاد نص الاتصال أبداً.</summary>
+    public TenantDatabaseMode DatabaseMode { get; set; } = TenantDatabaseMode.Shared;
+    public TenantDatabaseStatus? DatabaseStatus { get; set; }
+}
+
+/// <summary>إعدادات المنصة التي يغيّرها مديرها من اللوحة.</summary>
+public class PlatformSettingsDto
+{
+    /// <summary>قاعدة المنشأة المسجّلة من التسجيل العام (الذي لا يحمل الخيار): مشتركة أو مستقلة تُجهَّز تلقائياً.</summary>
+    public TenantDatabaseMode DefaultDatabaseMode { get; set; } = TenantDatabaseMode.Shared;
+    /// <summary>false = لم يغيّره مدير بعد والقيمة من إعدادات الخادم.</summary>
+    public bool IsCustomized { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+public class UpdatePlatformSettingsDto
+{
+    public TenantDatabaseMode DefaultDatabaseMode { get; set; } = TenantDatabaseMode.Shared;
+}
+
+/// <summary>
+/// إنشاء منشأة من مدير المنصة: بيانات التسجيل نفسها + نوع قاعدة البيانات. لا يقبله إلا مسار المنصة؛
+/// التسجيل العام يستقبل <see cref="CompanyRegistrationRequestDto"/> الذي لا يحمل هذا الحقل.
+/// </summary>
+public class PlatformCreateTenantRequestDto : CompanyRegistrationRequestDto
+{
+    public TenantDatabaseMode DatabaseMode { get; set; } = TenantDatabaseMode.Shared;
 }
 
 public class PlatformSummaryDto

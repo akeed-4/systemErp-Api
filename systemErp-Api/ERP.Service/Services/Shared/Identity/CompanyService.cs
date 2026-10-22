@@ -30,7 +30,7 @@ public class CompanyService : ICompanyService
         {
             if (!SaudiVat.IsValid(r.VatNumber))
                 throw new ValidationFailedException(Messages.SaudiVatNumberFormat);
-            if (await _db.Set<Tenant>().IgnoreQueryFilters().AnyAsync(x => x.VatNumber == r.VatNumber && x.Id != t.Id, ct))
+            if (await _db.Catalog.Set<Tenant>().IgnoreQueryFilters().AnyAsync(x => x.VatNumber == r.VatNumber && x.Id != t.Id, ct))
                 throw new ConflictException(Messages.VatNumberAlreadyRegistered);
         }
 

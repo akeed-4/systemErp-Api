@@ -140,6 +140,7 @@ public class ArchitectureTests
             ["PlatformSubscriptionService.cs"] = 8, // + حذف الباقة: لا اشتراك ولا دفع عليها في أي منشأة
             ["UserService.cs"] = 1,
             ["OnlinePaymentService.cs"] = 4,
+            ["TenantOnboarding.cs"] = 2, // تفرّد الرقم الضريبي والبريد عند إنشاء منشأة (التسجيل العام وإنشاء مدير المنصة)
         };
 
         var root = new DirectoryInfo(AppContext.BaseDirectory);

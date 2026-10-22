@@ -31,12 +31,16 @@ public class AuthService : IAuthService
     private readonly IConfiguration _config;
     private readonly ILogger<AuthService> _log;
     private readonly IEmailSender _email;
+    private readonly TenantDatabaseProvisioner _databases;
+    private readonly IOptionsMonitor<PlatformOptions> _platform;
 
     public AuthService(ErpDbContext db, ITenantContext tenant, ITenantProvisioningService provisioning, ITransactionRunner tx,
-        IJwtTokenService tokens, IPasswordHasher<User> hasher, IConfiguration config, ILogger<AuthService> log, IEmailSender email)
+        IJwtTokenService tokens, IPasswordHasher<User> hasher, IConfiguration config, ILogger<AuthService> log, IEmailSender email,
+        TenantDatabaseProvisioner databases, IOptionsMonitor<PlatformOptions> platform)
     {
         _db = db; _tenant = tenant; _provisioning = provisioning; _tx = tx;
         _tokens = tokens; _hasher = hasher; _config = config; _log = log; _email = email;
+        _databases = databases; _platform = platform;
     }
 
     public async Task<AuthResultDto> LoginAsync(LoginRequestDto request, CancellationToken ct = default)
@@ -75,7 +79,7 @@ public class AuthService : IAuthService
     /// <summary>البحث بالبريد عبر كل المنشآت: مقارنة مكشوفة على العمود تخدم فهرس Email مباشرة.</summary>
     private async Task<List<User>> FindByEmailAsync(string email, CancellationToken ct)
     {
-        return await _db.Set<User>().IgnoreQueryFilters().AsNoTracking()
+        return await _db.Catalog.Set<User>().IgnoreQueryFilters().AsNoTracking()
             .Where(u => u.Email == email && u.IsActive)
             .OrderByDescending(u => u.LastLoginAt)
             .ToListAsync(ct);
@@ -91,7 +95,7 @@ public class AuthService : IAuthService
         var variants = PhoneCandidates(input);
         if (variants.Count == 0) return [];
 
-        return await _db.Set<User>().IgnoreQueryFilters().AsNoTracking()
+        return await _db.Catalog.Set<User>().IgnoreQueryFilters().AsNoTracking()
             .Where(u => u.IsActive && variants.Contains(u.Phone))
             .OrderByDescending(u => u.LastLoginAt)
             .ToListAsync(ct);
@@ -120,66 +124,40 @@ public class AuthService : IAuthService
         return set.ToList();
     }
 
-    public Task<AuthResultDto> RegisterCompanyAsync(CompanyRegistrationRequestDto r, CancellationToken ct = default)
-        => _tx.RunAsync(async token =>
+    /// <summary>
+    /// التسجيل العام: لا يحمل نوع قاعدة البيانات (الطلب نفسه لا يعرف الحقل)، وتُتبع القيمة التي اختارها مدير المنصة
+    /// من لوحته (وإلا Platform:DefaultDatabaseMode، المشتركة افتراضياً). المستقلة تُجهَّز بعد تأكيد التسجيل في الدليل.
+    /// </summary>
+    public async Task<AuthResultDto> RegisterCompanyAsync(CompanyRegistrationRequestDto r, CancellationToken ct = default)
+    {
+        TenantOnboarding.Validate(r);
+        var email = r.AdminEmail.Trim().ToLower();
+        var tenant = TenantOnboarding.NewTenant(r, email);
+        var dedicated = (await TenantOnboarding.DefaultDatabaseModeAsync(_db, _platform.CurrentValue, ct)).Mode == TenantDatabaseMode.Dedicated;
+        // المنشأة الجديدة تُضبط قبل المعاملة: اتصالها يُفتح على القاعدة المشتركة (لا ربط لها بعد) مهما كان رمز المتصل
+        _tenant.SetTenant(tenant.Id);
+
+        var result = await _tx.RunAsync(async token =>
         {
-            ValidateRegistration(r);
-            var email = r.AdminEmail.Trim().ToLower();
-
-            if (await _db.Set<Tenant>().IgnoreQueryFilters().AnyAsync(t => t.VatNumber == r.VatNumber, token))
-                throw new ConflictException(Messages.VatNumberAlreadyRegistered);
-            if (await _db.Set<User>().IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email, token))
-                throw new ConflictException(Messages.EmailAlreadyRegistered);
-
-            var tenant = new Tenant
-            {
-                Code = $"T-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}",
-                NameAr = r.CompanyNameAr.Trim(),
-                NameEn = string.IsNullOrWhiteSpace(r.CompanyNameEn) ? r.CompanyNameAr.Trim() : r.CompanyNameEn.Trim(),
-                VatNumber = r.VatNumber,
-                CrNumber = r.CrNumber,
-                Address = r.Address,
-                City = string.IsNullOrWhiteSpace(r.City) ? "Riyadh" : r.City,
-                Phone = r.Phone,
-                Email = string.IsNullOrWhiteSpace(r.Email) ? email : r.Email,
-            };
-            tenant.Id = Guid.NewGuid();
-            tenant.TenantId = tenant.Id;
-            _tenant.SetTenant(tenant.Id);
+            await TenantOnboarding.EnsureUniqueAsync(_db, r, email, token);
             _db.Add(tenant);
 
             // فترة تجريبية مجانية على الباقة المختارة؛ بعد انتهائها يُحجب النظام حتى سداد الاشتراك (POST /payments/subscription)
             var plan = await SubscriptionCatalog.GetAsync(_db, r.PlanId, forSale: true, token);
             _db.Add(SubscriptionCatalog.NewTrial(plan, r.BillingCycle));
 
-            var admin = new User
-            {
-                Name = r.AdminName.Trim(),
-                Email = email,
-                Phone = r.AdminPhone,
-                Role = UserRole.Owner,
-                AvatarInitials = Initials(r.AdminName),
-                LastLoginAt = DateTime.UtcNow,
-            };
-            admin.PasswordHash = _hasher.HashPassword(admin, r.Password);
+            var admin = TenantOnboarding.NewOwner(r, email, _hasher);
             _db.Add(admin);
+            if (dedicated) _db.Add(_databases.NewBinding(tenant.Id));
 
             await _db.SaveChangesAsync(token);
-            await _provisioning.SeedAsync(tenant.Id, tenant.Currency, token);
+            if (!dedicated) await _provisioning.SeedAsync(tenant.Id, tenant.Currency, token);
 
             return Build(admin, tenant, string.Format(Messages.CompanyRegisteredWithTrial, tenant.NameAr));
         }, ct);
 
-    private static void ValidateRegistration(CompanyRegistrationRequestDto r)
-    {
-        var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(r.CompanyNameAr)) errors.Add(Messages.CompanyArabicNameRequired);
-        if (!SaudiVat.IsValid(r.VatNumber))
-            errors.Add(Messages.SaudiVatNumberFormat);
-        if (string.IsNullOrWhiteSpace(r.AdminName)) errors.Add(Messages.AdminNameRequired);
-        if (string.IsNullOrWhiteSpace(r.AdminEmail) || !r.AdminEmail.Contains('@')) errors.Add(Messages.AdminEmailInvalid);
-        if (r.Password is null || r.Password.Length < MinPasswordLength) errors.Add(string.Format(Messages.PasswordMinLength, MinPasswordLength));
-        if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+        if (dedicated) await _databases.EnsureReadyAsync(tenant.Id, ct);
+        return result;
     }
 
     private AuthResultDto Build(User user, Tenant tenant, string message)
@@ -203,7 +181,7 @@ public class AuthService : IAuthService
         var id = request.Identifier?.Trim().ToLower() ?? string.Empty;
         if (id.Length == 0) throw new ValidationFailedException(Messages.EnterEmailOrMobile);
 
-        var user = await _db.Set<User>().IgnoreQueryFilters()
+        var user = await _db.Catalog.Set<User>().IgnoreQueryFilters().AsNoTracking()
             .Where(u => u.IsActive && (u.Email.ToLower() == id || u.Phone == id)).FirstOrDefaultAsync(ct);
 
         // لا نكشف وجود الحساب من عدمه: الاستجابة نفسها في الحالتين، مع رمز فقط للحساب الموجود.
@@ -309,10 +287,14 @@ public class AuthService : IAuthService
     private async Task<(User User, UserInvite Invite)> FindInviteAsync(string? token, CancellationToken ct)
     {
         var hash = InviteTokens.Hash(token?.Trim() ?? string.Empty);
-        var invite = await _db.Set<UserInvite>().IgnoreQueryFilters().FirstOrDefaultAsync(i => i.TokenHash == hash && i.UsedAt == null, ct);
-        if (invite == null || invite.ExpiresAt < DateTime.UtcNow) throw new ValidationFailedException(Messages.InviteInvalidOrExpired);
+        // الدعوة تُعرف من الدليل، ثم تُقرأ (وتُعدَّل) من قاعدة منشأتها
+        var found = await _db.Catalog.Set<UserInvite>().IgnoreQueryFilters().AsNoTracking()
+            .Where(i => i.TokenHash == hash && i.UsedAt == null).Select(i => new { i.Id, i.TenantId }).FirstOrDefaultAsync(ct)
+            ?? throw new ValidationFailedException(Messages.InviteInvalidOrExpired);
 
-        _tenant.SetTenant(invite.TenantId);
+        _tenant.SetTenant(found.TenantId);
+        var invite = await _db.Set<UserInvite>().FirstOrDefaultAsync(i => i.Id == found.Id && i.UsedAt == null, ct);
+        if (invite == null || invite.ExpiresAt < DateTime.UtcNow) throw new ValidationFailedException(Messages.InviteInvalidOrExpired);
         var user = await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == invite.UserId && u.IsActive, ct)
             ?? throw new ValidationFailedException(Messages.InviteInvalidOrExpired);
         return (user, invite);
@@ -320,7 +302,7 @@ public class AuthService : IAuthService
 
     private async Task<PasswordResetOtp> FindValidOtpAsync(Guid userId, string code, bool markAttempt, CancellationToken ct)
     {
-        var user = await _db.Set<User>().IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct)
+        var user = await _db.Catalog.Set<User>().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct)
             ?? throw new ValidationFailedException(Messages.OtpInvalidOrExpired);
         _tenant.SetTenant(user.TenantId);
 

@@ -1154,4 +1154,11 @@
   <data name="LeaveNotifyCancelledTitle" xml:space="preserve"><value>Your leave request {0} was cancelled</value></data>
   <data name="LeaveNotifyBody" xml:space="preserve"><value>{0} from {1} to {2}</value></data>
   <data name="PortalLeaveResubmittedTitle" xml:space="preserve"><value>{0} resubmitted a leave request after completing it</value></data>
+  <data name="TenantCreated" xml:space="preserve"><value>Company created</value></data>
+  <data name="TenantDatabaseProvisioned" xml:space="preserve"><value>Company database provisioned</value></data>
+  <data name="TenantDatabaseNotReady" xml:space="preserve"><value>The company database is still being provisioned; try again shortly or contact the platform administrator.</value></data>
+  <data name="TenantDatabaseIsShared" xml:space="preserve"><value>The company runs on the shared database; its database type cannot change after creation.</value></data>
+  <data name="TenantDatabaseProvisioningFailed" xml:space="preserve"><value>The company was created but its dedicated database could not be provisioned; retry provisioning from the platform console.</value></data>
+  <data name="TenantDatabaseModeInvalid" xml:space="preserve"><value>Invalid database type or billing cycle.</value></data>
+  <data name="PlatformSettingsSaved" xml:space="preserve"><value>Platform settings saved</value></data>
 </root>

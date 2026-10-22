@@ -61,7 +61,8 @@ public static class SubscriptionCatalog
     public static async Task<SubscriptionPlanDto> GetAsync(ErpDbContext db, string id, bool forSale, CancellationToken ct = default)
     {
         id = SubscriptionPlanId.Normalize(id);
-        var plan = await db.Set<PlanDefinition>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct)
+        // كتالوج الباقات على مستوى المنصة: من القاعدة المشتركة دائماً (نسخة القاعدة المستقلة لا تتبع تعديلات المنصة)
+        var plan = await db.Catalog.Set<PlanDefinition>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new ValidationFailedException("الباقة غير موجودة.");
         if (forSale && !plan.IsActive) throw new ValidationFailedException("هذه الباقة غير متاحة حالياً.");
         return ToDto(plan);

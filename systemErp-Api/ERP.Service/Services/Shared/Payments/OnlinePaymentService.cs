@@ -121,9 +121,9 @@ public class OnlinePaymentService : IOnlinePaymentService
     /// <summary>صفحة العودة من Paymob (بلا دخول): المعرّف عشوائي غير قابل للتخمين، والمعروض أقل قدر ممكن.</summary>
     public async Task<PublicPaymentStatusDto> GetPublicStatusAsync(Guid id, CancellationToken ct = default)
     {
-        var p = await _db.Set<OnlinePayment>().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
+        var p = await _db.Catalog.Set<OnlinePayment>().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException(Messages.PaymentNotFound);
-        var company = await _db.Set<Tenant>().IgnoreQueryFilters().AsNoTracking().Where(t => t.Id == p.TenantId).Select(t => t.NameAr).FirstOrDefaultAsync(ct);
+        var company = await _db.Catalog.Set<Tenant>().IgnoreQueryFilters().AsNoTracking().Where(t => t.Id == p.TenantId).Select(t => t.NameAr).FirstOrDefaultAsync(ct);
         return new PublicPaymentStatusDto
         {
             Status = p.Status, Amount = p.Amount, Currency = p.Currency, Description = p.Description,
@@ -143,14 +143,15 @@ public class OnlinePaymentService : IOnlinePaymentService
         var merchantRef = order.ValueKind == JsonValueKind.Object && order.TryGetProperty("merchant_order_id", out var mref) ? mref.ToString() : null;
         var specialRef = obj.TryGetProperty("special_reference", out var sref) ? sref.ToString() : null;
 
-        var found = await _db.Set<OnlinePayment>().IgnoreQueryFilters().AsNoTracking()
+        // الإشعار يسبق معرفة المنشأة: يُعرف الدفع وسرّه من الدليل، وما بعده على قاعدة منشأته
+        var found = await _db.Catalog.Set<OnlinePayment>().IgnoreQueryFilters().AsNoTracking()
             .Where(p => (orderId != null && p.ProviderOrderId == orderId) || p.SpecialReference == merchantRef || p.SpecialReference == specialRef)
             .Select(p => new { p.Id, p.TenantId, p.Purpose }).FirstOrDefaultAsync(ct);
         if (found == null) return true; // عملية لا تخصنا: لا أثر
 
         var secret = found.Purpose == OnlinePaymentPurpose.Subscription
             ? _platform.HmacSecret
-            : _secrets.Unprotect(await _db.Set<PaymentGatewaySettings>().IgnoreQueryFilters().AsNoTracking()
+            : _secrets.Unprotect(await _db.Catalog.Set<PaymentGatewaySettings>().IgnoreQueryFilters().AsNoTracking()
                 .Where(s => s.TenantId == found.TenantId).Select(s => s.HmacSecretEncrypted).FirstOrDefaultAsync(ct) ?? string.Empty);
         if (!PaymobHmac.Verify(obj, hmac, secret)) return false;
 

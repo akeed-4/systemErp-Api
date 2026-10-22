@@ -9,6 +9,13 @@ public interface IPlatformSubscriptionService
     Task<PlatformSummaryDto> SummaryAsync(CancellationToken ct = default);
     Task<List<PlatformTenantSubscriptionDto>> ListTenantsAsync(CancellationToken ct = default);
     Task<List<SubscriptionDto>> HistoryAsync(Guid tenantId, CancellationToken ct = default);
+    /// <summary>منشأة جديدة باشتراك فعّال ومالك، على القاعدة المشتركة أو بقاعدة مستقلة تُجهَّز لها.</summary>
+    Task<PlatformTenantSubscriptionDto> CreateTenantAsync(PlatformCreateTenantRequestDto request, CancellationToken ct = default);
+    Task<PlatformSettingsDto> GetSettingsAsync(CancellationToken ct = default);
+    /// <summary>يغيّر نوع قاعدة المنشآت الجديدة من التسجيل العام فقط؛ لا يمسّ قاعدة أي منشأة قائمة.</summary>
+    Task<PlatformSettingsDto> UpdateSettingsAsync(UpdatePlatformSettingsDto request, CancellationToken ct = default);
+    /// <summary>إعادة تجهيز قاعدة منشأة مستقلة لم يكتمل تجهيزها (لا يغيّر نوع قاعدة أي منشأة ولا ينقل بياناتها).</summary>
+    Task<PlatformTenantSubscriptionDto> ProvisionDatabaseAsync(Guid tenantId, CancellationToken ct = default);
     Task<SubscriptionDto> ChangePlanAsync(Guid tenantId, PlatformChangePlanRequestDto request, CancellationToken ct = default);
     Task<SubscriptionDto> ExtendAsync(Guid tenantId, PlatformExtendRequestDto request, CancellationToken ct = default);
     Task<SubscriptionDto> SetModulesAsync(Guid tenantId, PlatformSetModulesRequestDto request, CancellationToken ct = default);

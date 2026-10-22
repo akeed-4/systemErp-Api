@@ -148,7 +148,8 @@ app.MapControllers();
 if (app.Configuration.GetValue<bool>("Database:AutoMigrate"))
 {
     using var scope = app.Services.CreateScope();
-    scope.ServiceProvider.GetRequiredService<ErpDbContext>().Database.Migrate();
+    // المهاجرات مسجّلة على ErpDbContext: تُطبَّق على القاعدة المشتركة (والمستقلة تُطبَّق عند تجهيزها)
+    scope.ServiceProvider.GetRequiredService<ErpDbContext>().Catalog.Database.Migrate();
 }
 
 app.Run();

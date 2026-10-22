@@ -56,11 +56,15 @@ public class EmployeePortalService : IEmployeePortalService
 
             var linked = employee.UserId == null ? null : await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == employee.UserId, tk);
             // البريد فريد عبر كل المنشآت (به يُعرف المستخدم عند الدخول)
+            // صاحب البريد يُعرف من الدليل (عبر المنشآت)، ويُقرأ للتعديل من قاعدة هذه المنشأة
+            var holder = linked?.Email == email ? null
+                : await _db.Catalog.Set<User>().IgnoreQueryFilters().AsNoTracking()
+                    .Where(u => u.Email.ToLower() == email).Select(u => new { u.Id, u.TenantId }).FirstOrDefaultAsync(tk);
+            if (holder != null && holder.TenantId != _db.CurrentTenantId) throw new ConflictException(Messages.EmailAlreadyRegistered);
             var owner = linked?.Email == email ? linked
-                : await _db.Set<User>().IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email.ToLower() == email, tk);
+                : holder == null ? null : await _db.Set<User>().FirstOrDefaultAsync(u => u.Id == holder.Id, tk);
             if (owner != null && owner.Id != linked?.Id)
             {
-                if (owner.TenantId != _db.CurrentTenantId) throw new ConflictException(Messages.EmailAlreadyRegistered);
                 if (await _db.Set<Employee>().AnyAsync(e => e.UserId == owner.Id && e.Id != employee.Id, tk))
                     throw new ConflictException(Messages.PortalUserLinkedToAnotherEmployee);
                 // حساب بوابة لم يُفعَّل بعد وتغيّر بريد الموظف: يُترك معطّلاً ويُربط الموظف بصاحب البريد الجديد

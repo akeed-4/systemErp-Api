@@ -20,14 +20,25 @@ public static class ServiceCollectionExtensions
         services.AddHttpContextAccessor();
 
         services.AddScoped<AuditTrailInterceptor>();
-        services.AddDbContext<ErpDbContext>((provider, options) =>
+        // قاعدة كل منشأة: المشتركة (DefaultConnection، وهي أيضاً دليل المنصة) أو المستقلة. الخدمات تحقن ErpDbContext
+        // كما هي فتحصل على السياق الموجَّه بالمنشأة؛ والمشتركة صراحةً عبر ErpDbContext.Catalog.
+        services.AddSingleton<ITenantConnectionResolver>(provider => new TenantConnectionResolver(
+            () => config.GetConnectionString("DefaultConnection") ?? string.Empty, configureDb,
+            provider.GetRequiredService<IDataProtectionProvider>()));
+        services.AddScoped<TenantConnectionInterceptor>();
+        services.AddScoped<TenantDirectoryMirror>();
+        services.AddScoped<TenantCatalogOptions>();
+        services.AddScoped<TenantDatabaseProvisioner>();
+        services.AddDbContext<TenantErpDbContext>((provider, options) =>
         {
             if (configureDb != null) configureDb(options);
             else
                 options.UseSqlServer(config.GetConnectionString("DefaultConnection"),
                     sql => sql.MigrationsAssembly(typeof(ErpDbContext).Assembly.FullName));
-            options.AddInterceptors(provider.GetRequiredService<AuditTrailInterceptor>());
+            options.AddInterceptors(provider.GetRequiredService<AuditTrailInterceptor>(),
+                provider.GetRequiredService<TenantDirectoryMirror>(), provider.GetRequiredService<TenantConnectionInterceptor>());
         });
+        services.AddScoped<ErpDbContext>(provider => provider.GetRequiredService<TenantErpDbContext>());
 
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
         services.Configure<PaymobOptions>(config.GetSection(PaymobOptions.Section));

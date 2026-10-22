@@ -1154,4 +1154,11 @@
   <data name="LeaveNotifyCancelledTitle" xml:space="preserve"><value>أُلغي طلب إجازتك {0}</value></data>
   <data name="LeaveNotifyBody" xml:space="preserve"><value>{0} من {1} إلى {2}</value></data>
   <data name="PortalLeaveResubmittedTitle" xml:space="preserve"><value>أعاد {0} إرسال طلب إجازة بعد استكماله</value></data>
+  <data name="TenantCreated" xml:space="preserve"><value>تم إنشاء المنشأة</value></data>
+  <data name="TenantDatabaseProvisioned" xml:space="preserve"><value>تم تجهيز قاعدة بيانات المنشأة</value></data>
+  <data name="TenantDatabaseNotReady" xml:space="preserve"><value>قاعدة بيانات المنشأة قيد التجهيز؛ أعد المحاولة بعد قليل أو تواصل مع إدارة المنصة.</value></data>
+  <data name="TenantDatabaseIsShared" xml:space="preserve"><value>المنشأة تعمل على قاعدة البيانات المشتركة، ولا يتغيّر نوع قاعدتها بعد إنشائها.</value></data>
+  <data name="TenantDatabaseProvisioningFailed" xml:space="preserve"><value>أُنشئت المنشأة لكن تعذّر تجهيز قاعدة بياناتها المستقلة؛ أعد التجهيز من لوحة المنصة.</value></data>
+  <data name="TenantDatabaseModeInvalid" xml:space="preserve"><value>نوع قاعدة البيانات أو دورة الفوترة غير صالح.</value></data>
+  <data name="PlatformSettingsSaved" xml:space="preserve"><value>تم حفظ إعدادات المنصة</value></data>
 </root>

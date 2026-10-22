@@ -45,7 +45,7 @@ public class UserService : IUserService
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         var email = r.Email.Trim().ToLower();
-        if (await _db.Set<User>().IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email, ct))
+        if (await _db.Catalog.Set<User>().IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email, ct))
             throw new ConflictException(Messages.EmailAlreadyRegistered);
 
         var sub = await _db.Set<Subscription>().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);

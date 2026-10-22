@@ -31,6 +31,24 @@ public class PlatformController : ErpControllerBase
     [HttpGet("tenants"), RequirePlatformAdmin]
     public async Task<IActionResult> Tenants(CancellationToken ct) => Success(await _platform.ListTenantsAsync(ct));
 
+    [HttpGet("settings"), RequirePlatformAdmin]
+    public async Task<IActionResult> Settings(CancellationToken ct) => Success(await _platform.GetSettingsAsync(ct));
+
+    /// <summary>نوع قاعدة المنشآت الجديدة من التسجيل العام (لمدير المنصة بصلاحية الإدارة)؛ لا يغيّر قاعدة منشأة قائمة.</summary>
+    [HttpPut("settings"), RequirePlatformAdmin]
+    public async Task<IActionResult> UpdateSettings([FromBody] UpdatePlatformSettingsDto request, CancellationToken ct)
+        => Success(await _platform.UpdateSettingsAsync(request, ct), Messages.PlatformSettingsSaved);
+
+    /// <summary>منشأة جديدة على القاعدة المشتركة أو بقاعدة مستقلة: هذا المسار وحده يقبل نوع القاعدة (لمدير المنصة بصلاحية الإدارة).</summary>
+    [HttpPost("tenants"), RequirePlatformAdmin]
+    public async Task<IActionResult> CreateTenant([FromBody] PlatformCreateTenantRequestDto request, CancellationToken ct)
+        => Success(await _platform.CreateTenantAsync(request, ct), Messages.TenantCreated);
+
+    /// <summary>إعادة تجهيز قاعدة منشأة مستقلة متعثّرة؛ لا يحوّل منشأة مشتركة ولا ينقل بياناتها.</summary>
+    [HttpPost("tenants/{tenantId:guid}/database/provision"), RequirePlatformAdmin]
+    public async Task<IActionResult> ProvisionDatabase(Guid tenantId, CancellationToken ct)
+        => Success(await _platform.ProvisionDatabaseAsync(tenantId, ct), Messages.TenantDatabaseProvisioned);
+
     [HttpGet("tenants/{tenantId:guid}/subscriptions"), RequirePlatformAdmin]
     public async Task<IActionResult> History(Guid tenantId, CancellationToken ct) => Success(await _platform.HistoryAsync(tenantId, ct));
 

@@ -118,6 +118,7 @@ internal static class VehicleInvoiceLines
             Unit = "سيارة", Quantity = 1, UnitPrice = l.TotalBeforeVat + l.Discount, Discount = l.Discount,
             VatRate = tax.RateFor(l.VatMode),
             VatAmountOverride = isSales ? l.VatAmount : null,
+            VatCategory = isSales ? CarVat.LineCategoryOf(l.VatMode) : null,
             UnitCost = isSales ? l.UnitCost : 0,
         }).ToList();
         return lines;

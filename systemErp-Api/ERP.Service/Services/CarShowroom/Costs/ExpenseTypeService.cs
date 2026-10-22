@@ -38,7 +38,8 @@ public class ExpenseTypeService : CrudService<ExpenseType, ExpenseTypeDto, Creat
         var errors = new List<string>();
         if (d.Code.Length == 0) errors.Add(Messages.ExpenseTypeCodeRequired);
         if (d.NameAr.Length == 0) errors.Add(Messages.ExpenseTypeNameRequired);
-        if (!Enum.IsDefined(d.Stage) || !Enum.IsDefined(d.DefaultTreatment) || !Enum.IsDefined(d.DefaultAllocationMethod) || !Enum.IsDefined(d.VatCategory))
+        if (!Enum.IsDefined(d.Stage) || !Enum.IsDefined(d.DefaultTreatment) || !Enum.IsDefined(d.DefaultAllocationMethod) || !Enum.IsDefined(d.VatCategory)
+            || d.VatCategory == VatCategory.MarginScheme) // هامش الربح لسطر السيارة وحده
             errors.Add(Messages.ExpenseTypeValuesInvalid);
         if (d.DefaultAmount < 0) errors.Add(Messages.ChargeAmountMustBePositive);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);

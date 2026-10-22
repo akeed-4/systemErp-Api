@@ -21,6 +21,11 @@ public abstract class InvoiceItemBase : BaseEntity
     public VatCategory VatCategory { get; set; } = VatCategory.Standard;
     /// <summary>سبب عدم الخضوع للنسبة الأساسية برمز هيئة الزكاة (VATEX-SA-…) للسطر الصفري/المعفى/خارج النطاق.</summary>
     public string? VatExemptionReasonCode { get; set; }
+    /// <summary>
+    /// سبب تجاوز التصنيف الضريبي للصنف في هذا السطر (بصلاحية invoice-tax-treatment-override). فارغ = التصنيف والنسبة لقطة من
+    /// تعريف الصنف وقت الإصدار؛ والقيمتان الأصلية والجديدة مسجلتان في سجل التدقيق.
+    /// </summary>
+    public string? VatOverrideReason { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
     public Guid? CostCenterId { get; set; }

@@ -11,6 +11,20 @@ public static class CarVat
     /// <summary>نمطا هامش الربح (profit_margin_15 و margin_scheme) يُعاملان معاملة واحدة.</summary>
     public static bool IsMarginScheme(VatMode mode) => mode is VatMode.ProfitMargin_15 or VatMode.MarginScheme;
 
+    /// <summary>التصنيف الضريبي المقابل لنمط ضريبة السيارة (للعرض قبل الإضافة للفاتورة، ولسطر هامش الربح فيها).</summary>
+    public static VatCategory CategoryOf(VatMode mode) => mode switch
+    {
+        VatMode.Exempt => VatCategory.Exempt,
+        _ when IsMarginScheme(mode) => VatCategory.MarginScheme,
+        _ => VatCategory.Standard,
+    };
+
+    /// <summary>
+    /// تصنيف بند الفاتورة المشتق من سطر السيارة: هامش الربح صريحاً (لا يُستنتج «أساسياً» من مبلغه ولا «صفرياً» عند البيع بخسارة)،
+    /// وغيره فارغ ليبقى على سلوكه السابق في المحرك.
+    /// </summary>
+    public static VatCategory? LineCategoryOf(VatMode mode) => IsMarginScheme(mode) ? VatCategory.MarginScheme : null;
+
     /// <summary>
     /// حساب ضريبة السيارة بنسبة الفئة «خاضع» من إعدادات المعرض (لا نسبة ثابتة في الكود).
     /// هامش الربح (المادة 49 من اللائحة التنفيذية): الضريبة مضمَّنة في الهامش = الهامش × النسبة ÷ (100 + النسبة)، ولا تُضاف على سعر العميل؛

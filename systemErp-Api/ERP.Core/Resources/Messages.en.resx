@@ -1139,4 +1139,9 @@
   <data name="PostedInvoiceDeleteReason" xml:space="preserve"><value>Invoice {0} deleted</value></data>
   <data name="PostedInvoiceDeleteHasReturns" xml:space="preserve"><value>The invoice has posted returns; delete the returns first.</value></data>
   <data name="PostedInvoiceDeleteHasPayments" xml:space="preserve"><value>Vouchers are allocated to this invoice; remove the allocation first, then delete the invoice.</value></data>
+  <data name="MarginSchemeItemNotAllowed" xml:space="preserve"><value>The margin scheme applies only to a qualifying used-car line in a showroom sales invoice and comes from the vehicle card; it cannot be chosen for another item or line.</value></data>
+  <data name="InvoiceTaxTreatmentOverrideForbidden" xml:space="preserve"><value>Changing an item tax treatment on an invoice line requires the tax treatment override permission.</value></data>
+  <data name="MarginSchemeNotSubmittedToZatca" xml:space="preserve"><value>Margin-scheme invoices for qualifying used cars are suspended from e-invoicing (Phase 2) by ZATCA and are not submitted.</value></data>
+  <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>The margin scheme applies to used cars only; set the vehicle condition to used first.</value></data>
+  <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>The margin scheme is not set on an item: it is set on the qualifying used vehicle card.</value></data>
 </root>

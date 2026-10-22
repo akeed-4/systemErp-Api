@@ -28,6 +28,7 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
         if (d.VatRate is < 0 or > 100) errors.Add(Messages.VatRateRange);
         if (!Enum.IsDefined(d.VatCategory)) errors.Add("التصنيف الضريبي غير صالح.");
+        else if (d.VatCategory == VatCategory.MarginScheme) errors.Add(Messages.ProductMarginSchemeNotAllowed); // من بطاقة السيارة وحدها
         else if (d.VatCategory == VatCategory.Standard) d.VatExemptionReasonCode = null;
         else
         {

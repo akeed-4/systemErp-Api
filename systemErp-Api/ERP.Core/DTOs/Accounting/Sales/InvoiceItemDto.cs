@@ -18,6 +18,11 @@ public partial class InvoiceItemDto
     public VatCategory? VatCategory { get; set; }
     /// <summary>سبب الإعفاء/الصفرية برمز الهيئة (VATEX-SA-…)؛ إلزامي في فاتورة المبيعات عند تحديد تصنيف غير أساسي.</summary>
     public string? VatExemptionReasonCode { get; set; }
+    /// <summary>
+    /// فاتورة المبيعات: سطر الصنف يأخذ تصنيفه ونسبته من تعريف الصنف ويُتجاهل ما يُرسل منهما، إلا إذا أُرسل هذا السبب
+    /// (تجاوز بصلاحية invoice-tax-treatment-override يُسجَّل في سجل التدقيق).
+    /// </summary>
+    public string? VatOverrideReason { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
     public Guid? CostCenterId { get; set; }

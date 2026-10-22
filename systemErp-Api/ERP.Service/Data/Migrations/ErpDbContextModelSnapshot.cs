@@ -2125,6 +2125,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("VatExemptionReasonCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("VatOverrideReason")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal>("VatRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");

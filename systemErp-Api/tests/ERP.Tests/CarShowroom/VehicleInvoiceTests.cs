@@ -225,6 +225,7 @@ public class VehicleInvoiceTests : TestBase
     {
         var body = (await api.Get($"/vehicles/{vehicleId}")).Data!.AsObject();
         body["vatMode"] = vatMode;
+        if (vatMode != "standard_15") body["condition"] = "used"; // هامش الربح للسيارة المستعملة وحدها (سيارة فاتورة الشراء تُنشأ جديدة)
         return await api.Put($"/vehicles/{vehicleId}", body);
     }
 

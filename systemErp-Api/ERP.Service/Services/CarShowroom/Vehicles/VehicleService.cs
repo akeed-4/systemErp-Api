@@ -89,6 +89,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
     protected override VehicleDto ToDto(Vehicle entity)
     {
         var dto = base.ToDto(entity);
+        dto.VatCategory = CarVat.CategoryOf(entity.VatMode);
         if (_canViewCost) return dto;
         dto.PurchasePrice = null; dto.AdditionalCosts = null; dto.PreparationCost = null; dto.TotalCost = null;
         // في هامش الربح الضريبة = الهامش × 15/115، فإظهارها يكشف التكلفة
@@ -220,8 +221,11 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
             throw new ConflictException(Messages.VehicleCostFieldsReadOnly);
         if (existing != null && existing.Status != VehicleStatus.Available && d.VatMode != existing.VatMode)
             throw new ConflictException(Messages.CannotChangeVatModeReservedOrSold);
-        if (CarVat.IsMarginScheme(d.VatMode) && (existing == null || !CarVat.IsMarginScheme(existing.VatMode))
-            && await PurchasedWithInputVatAsync(existing, d.ProcurementOrderId, ct))
+        // شروط هامش الربح (سيارة مستعملة مؤهلة): مستعملة، ولم تُخصم ضريبة مدخلات عند شرائها. بطاقة قديمة على حالها لا تُرفض عند تعديل غيرها
+        var marginChosen = CarVat.IsMarginScheme(d.VatMode) && (existing == null || !CarVat.IsMarginScheme(existing.VatMode));
+        if (CarVat.IsMarginScheme(d.VatMode) && d.Condition != VehicleCondition.Used && (marginChosen || existing!.Condition == VehicleCondition.Used))
+            throw new ValidationFailedException(Messages.MarginSchemeRequiresUsedVehicle);
+        if (marginChosen && await PurchasedWithInputVatAsync(existing, d.ProcurementOrderId, ct))
             throw new ValidationFailedException(Messages.MarginSchemeNotAllowedWithInputVat);
     }
 

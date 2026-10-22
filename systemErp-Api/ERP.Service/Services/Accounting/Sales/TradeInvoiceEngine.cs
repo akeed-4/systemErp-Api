@@ -24,12 +24,15 @@ public class TradeInvoiceEngine
     /// <summary>امتدادات الوحدات (المعارض) على دورة فواتيرها: تعمل على جدول Invoice وحده، ومنطقها خارج المحرك.</summary>
     private readonly IReadOnlyList<IInvoiceExtension> _extensions;
     private readonly IApprovalService _approvals;
+    private readonly ERP.Core.Contracts.Shared.IPermissionService _permissions;
+    /// <summary>تجاوزات التصنيف الضريبي التي أقرّها آخر بناء؛ تُسجَّل في سجل التدقيق بعد حفظ المستند.</summary>
+    private List<ItemTaxTreatment.Override> _taxOverrides = new();
 
     public TradeInvoiceEngine(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
         INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit,
-        IEnumerable<IInvoiceExtension> extensions, IApprovalService approvals)
+        IEnumerable<IInvoiceExtension> extensions, IApprovalService approvals, ERP.Core.Contracts.Shared.IPermissionService permissions)
     {
-        _audit = audit; _extensions = extensions.ToList(); _approvals = approvals;
+        _audit = audit; _extensions = extensions.ToList(); _approvals = approvals; _permissions = permissions;
         _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx;
     }
 
@@ -133,6 +136,7 @@ public class TradeInvoiceEngine
             await _db.SaveChangesAsync(token);
             // سياسة اعتماد منطبقة: تبقى مسودة بطلبها، والترحيل عند الموافقة
             if (!draft && !(r.ApplyApprovalPolicy && await RequiresApprovalAsync(invoice, token))) await FinalizeAsync(invoice, token);
+            await LogTaxOverridesAsync(invoice, token); // بعد الترحيل: برقم الفاتورة النهائي
             return await GetAsync<T>(invoice.Id, token);
         }, ct), ct);
 
@@ -206,6 +210,7 @@ public class TradeInvoiceEngine
 
             // المرحّلة تعود مرحّلة دائماً (بنفس رقمها) بقيد وحركات مخزنية جديدة
             if (wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase)) await FinalizeAsync(invoice, token);
+            await LogTaxOverridesAsync(invoice, token);
             if (wasPosted)
                 await _audit.LogAsync("INVOICE_POSTED_EDITED", typeof(T).Name, invoice.Id.ToString(),
                     $"تعديل {DescribeKind(invoice.Kind)} مرحّلة {invoice.InvoiceNumber}: عُكس قيدها وحركاتها وأُعيد ترحيلها بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
@@ -387,7 +392,8 @@ public class TradeInvoiceEngine
                 {
                     ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = l.Quantity,
                     UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, VatRate = src.VatRate,
-                    VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode, RevenueAccountCode = src.RevenueAccountCode,
+                    VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode, VatOverrideReason = src.VatOverrideReason,
+                    RevenueAccountCode = src.RevenueAccountCode,
                     Discount = src.Quantity == 0 ? 0 : Math.Round(src.Discount * l.Quantity / src.Quantity, 2),
                     CostCenterId = src.CostCenterId,
                 });
@@ -571,11 +577,25 @@ public class TradeInvoiceEngine
     }
 
     /// <summary>
-    /// التصنيف الضريبي يُعرَّف على الصنف: السطر المرتبط بصنف صفري أو معفى (بسببه) ولم يُحدَّد تصنيفه صراحةً يرثهما منه بنسبة صفر.
-    /// الصنف الخاضع أو القديم بلا تعريف يبقى على سلوكه السابق (نسبة السطر).
+    /// التصنيف الضريبي يُعرَّف على الصنف. فاتورة المبيعات: كل سطر صنف يأخذ تصنيفه ونسبته وسببه من تعريفه (أو من لقطته في النسخة
+    /// المحفوظة عند التعديل)، ولا يغيّره إلا تجاوز بسبب وصلاحية (<see cref="ItemTaxTreatment"/>).
+    /// المشتريات: السطر الذي لم يُحدَّد تصنيفه ويرتبط بصنف صفري أو معفى (بسببه) يرثهما منه، وغيره على نسبة سطره (ضريبة المورد).
     /// </summary>
     private async Task ApplyProductVatDefaultsAsync(CreateInvoiceDto r, CancellationToken ct)
     {
+        _taxOverrides = new();
+        if (r.Kind == InvoiceKind.Sales && !r.IsReturn)
+        {
+            var itemIds = r.Items.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct().ToList();
+            if (itemIds.Count == 0) return;
+            var products = await _db.Set<Product>().AsNoTracking().Where(p => itemIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+            var previous = r.ExistingInvoiceId is Guid existingId
+                ? await _db.Set<InvoiceItemBase>().AsNoTracking().Where(l => l.InvoiceId == existingId && l.ItemId != Guid.Empty).ToListAsync(ct)
+                : new List<InvoiceItemBase>();
+            _taxOverrides = await ItemTaxTreatment.ApplyAsync(r.Items, products, previous,
+                () => _permissions.HasPermissionAsync(PermissionService.InvoiceTaxTreatmentOverrideScreenId, ScreenAction.Edit, ct));
+            return;
+        }
         var ids = r.Items.Where(i => i.ItemId != Guid.Empty && i.VatCategory == null).Select(i => i.ItemId).Distinct().ToList();
         if (ids.Count == 0) return;
         var defined = await _db.Set<Product>().AsNoTracking()
@@ -589,6 +609,14 @@ public class TradeInvoiceEngine
             item.VatAmountOverride = null;
             item.VatExemptionReasonCode ??= p.VatExemptionReasonCode;
         }
+    }
+
+    /// <summary>كل تجاوز جديد للتصنيف الضريبي: سطر في سجل التدقيق بالقيمة الأصلية والجديدة والسبب.</summary>
+    private async Task LogTaxOverridesAsync(InvoiceBase invoice, CancellationToken ct)
+    {
+        foreach (var o in _taxOverrides)
+            await _audit.LogAsync("INVOICE_TAX_TREATMENT_OVERRIDE", invoice.GetType().Name, invoice.Id.ToString(), $"{invoice.InvoiceNumber} — {o.Describe()}", ct);
+        _taxOverrides = new();
     }
 
     /// <summary>
@@ -631,6 +659,10 @@ public class TradeInvoiceEngine
         // التصنيف الضريبي غير الأساسي لا يحمل ضريبة
         if (r.Items.Any(i => i.VatCategory is VatCategory.ZeroRated or VatCategory.Exempt or VatCategory.OutOfScope && (i.VatRate > 0 || i.VatAmountOverride > 0)))
             errors.Add(Messages.VatCategoryRateMismatch);
+        // هامش الربح لسطر سيارة مبيعات في فاتورة معرض وحده: ضريبته مبلغ ثابت (لا نسبة)
+        if (r.Items.Any(i => i.VatCategory == VatCategory.MarginScheme
+                && (!showroom || r.Kind is not (InvoiceKind.Sales or InvoiceKind.SalesReturn) || i.VatRate > 0 || i.ItemId != Guid.Empty)))
+            errors.Add(Messages.MarginSchemeItemNotAllowed);
         ValidateExemptionReasons(r, errors);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
@@ -691,6 +723,7 @@ public class TradeInvoiceEngine
             line.VatAmountOverride = src.VatAmountOverride;
             line.VatCategory = src.VatCategory ?? (src.VatRate > 0 || src.VatAmountOverride > 0 ? VatCategory.Standard : VatCategory.ZeroRated);
             line.VatExemptionReasonCode = VatExemptionReasons.Find(src.VatExemptionReasonCode)?.Code;
+            line.VatOverrideReason = isSales && !string.IsNullOrWhiteSpace(src.VatOverrideReason) ? src.VatOverrideReason.Trim() : null;
             line.VatRate = src.VatRate; line.VatAmount = pl.VatAmount; line.TotalBeforeVat = pl.Net; line.TotalAfterVat = pl.Total;
             line.CostCenterId = src.CostCenterId;
             line.RevenueAccountCode = isSales && !string.IsNullOrWhiteSpace(src.RevenueAccountCode) ? src.RevenueAccountCode.Trim() : null;
@@ -698,6 +731,9 @@ public class TradeInvoiceEngine
         }
 
         if (attachLines != null) await attachLines((Invoice)(object)invoice, ct);
+        // هامش ربح السيارات المستعملة المؤهلة: علّقت الهيئة إلزام الفوترة الإلكترونية (المرحلة الثانية) لها منذ مايو 2023 ولا رمز
+        // تصنيف لها في مواصفاتها، فلا تُرسل فاتورتها للهيئة (وتبقى بمتطلبات المرحلة الأولى: رمز QR المبسط)
+        if (invoice.Lines.Any(l => l.VatCategory == VatCategory.MarginScheme)) invoice.SendToZatca = false;
 
         // الطرف
         if (r.PartyId.HasValue)

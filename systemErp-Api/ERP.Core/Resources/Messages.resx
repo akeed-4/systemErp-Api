@@ -1139,4 +1139,9 @@
   <data name="PostedInvoiceDeleteReason" xml:space="preserve"><value>حذف الفاتورة {0}</value></data>
   <data name="PostedInvoiceDeleteHasReturns" xml:space="preserve"><value>على الفاتورة مرتجعات مرحّلة؛ احذف المرتجعات أولاً ثم الفاتورة.</value></data>
   <data name="PostedInvoiceDeleteHasPayments" xml:space="preserve"><value>وُزِّعت على الفاتورة سندات قبض/صرف؛ ألغِ توزيعها أولاً ثم احذف الفاتورة.</value></data>
+  <data name="MarginSchemeItemNotAllowed" xml:space="preserve"><value>نظام هامش الربح خاص بسطر سيارة مستعملة مؤهلة في فاتورة مبيعات المعرض ويُشتق من بطاقة السيارة؛ لا يُختار لصنف أو بند آخر.</value></data>
+  <data name="InvoiceTaxTreatmentOverrideForbidden" xml:space="preserve"><value>تغيير التصنيف الضريبي للصنف في الفاتورة عن تعريفه يتطلب صلاحية تجاوز التصنيف الضريبي.</value></data>
+  <data name="MarginSchemeNotSubmittedToZatca" xml:space="preserve"><value>فواتير هامش الربح للسيارات المستعملة المؤهلة معلَّق إلزامها بالفوترة الإلكترونية (المرحلة الثانية) من الهيئة، فلا تُرسل لها.</value></data>
+  <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>نظام هامش الربح للسيارات المستعملة فقط؛ غيّر حالة السيارة إلى مستعملة أولاً.</value></data>
+  <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>هامش الربح لا يُعرَّف على الصنف: يُحدَّد في بطاقة السيارة المستعملة المؤهلة.</value></data>
 </root>

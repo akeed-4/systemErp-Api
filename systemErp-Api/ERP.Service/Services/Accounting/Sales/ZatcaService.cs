@@ -168,6 +168,8 @@ public class ZatcaService : IZatcaService
         await _db.Entry(invoice).Collection(nameof(InvoiceBase<InvoiceItem>.Items)).LoadAsync(ct); // بنود جدول المستند (مبيعات/مرتجع/معارض)
         if (invoice.Status != "posted") throw new ConflictException(Messages.OnlyPostedInvoicesSubmitted);
         if (invoice.Kind is InvoiceKind.Purchase or InvoiceKind.PurchaseReturn) throw new ConflictException(Messages.PurchaseInvoicesNotSubmittedToZatca);
+        // هامش ربح السيارات المستعملة المؤهلة: علّقت الهيئة إلزامه بالمرحلة الثانية (مايو 2023) ولا تصنيف له في مواصفاتها
+        if (invoice.Lines.Any(l => l.VatCategory == VatCategory.MarginScheme)) throw new ConflictException(Messages.MarginSchemeNotSubmittedToZatca);
         // فاتورة قبلتها الهيئة لا تُرسل مرتين
         if (invoice.ZatcaStatus is ZatcaSubmissionStatus.Cleared or ZatcaSubmissionStatus.Reported or ZatcaSubmissionStatus.Warning)
             return Result(invoice, success: true, Messages.ZatcaAlreadySubmitted);

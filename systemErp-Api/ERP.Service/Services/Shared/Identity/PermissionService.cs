@@ -32,6 +32,7 @@ public class PermissionService : IPermissionService
         new() { Id = LandedCostApprovalScreenId, NameAr = "السيارات: اعتماد سند التكاليف الإضافية", NameEn = "Cars: Approve Landed Cost Vouchers" },
         new() { Id = SoldVehicleAdjustmentScreenId, NameAr = "السيارات: قيود التعديل على سيارات مباعة", NameEn = "Cars: Cost Adjustments on Sold Vehicles" },
         new() { Id = ItemStandardCostScreenId, NameAr = "الأصناف: تعديل التكلفة المعيارية لصنف مستخدم (إعادة تقييم)", NameEn = "Items: Change Standard Cost of a Used Item (Revaluation)" },
+        new() { Id = InvoiceTaxTreatmentOverrideScreenId, NameAr = "الفواتير: تجاوز التصنيف الضريبي للصنف في سطر الفاتورة", NameEn = "Invoices: Override Item Tax Treatment on a Line" },
     };
 
     public const string CarCostViewScreenId = "car-cost-view";
@@ -39,6 +40,7 @@ public class PermissionService : IPermissionService
     public const string LandedCostApprovalScreenId = "landed-cost-approval";
     public const string SoldVehicleAdjustmentScreenId = "sold-vehicle-adjustment";
     public const string ItemStandardCostScreenId = "item-standard-cost-revaluation";
+    public const string InvoiceTaxTreatmentOverrideScreenId = "invoice-tax-treatment-override";
 
     /// <summary>
     /// صلاحيات حسّاسة تُمنح صراحةً: للأدوار الإدارية والمحاسبية فقط افتراضياً، وغيابها من صلاحيات محفوظة قبل إضافتها
@@ -47,6 +49,7 @@ public class PermissionService : IPermissionService
     private static readonly HashSet<string> RestrictedScreens = new()
     {
         CarCostViewScreenId, ChargeTreatmentOverrideScreenId, LandedCostApprovalScreenId, SoldVehicleAdjustmentScreenId, ItemStandardCostScreenId,
+        InvoiceTaxTreatmentOverrideScreenId,
     };
 
     /// <summary>دور بوابة الموظف (UserRole.Employee): لا يملك أي شاشة، ويُحصر في مسارات الخدمة الذاتية.</summary>

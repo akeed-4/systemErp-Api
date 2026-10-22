@@ -449,6 +449,7 @@ public class CarSaleService : ICarSaleService
                     UnitPrice = net, UnitCost = c.CostPrice,
                     VatRate = tax.RateFor(c.VatMode),
                     VatAmountOverride = c.VatAmount, // الضريبة المحسوبة بنمط الاحتساب (قياسي/هامش الربح/معفى)
+                    VatCategory = CarVat.LineCategoryOf(c.VatMode),
                 },
             }.Concat(chargeItems).ToList(),
         }, ct);

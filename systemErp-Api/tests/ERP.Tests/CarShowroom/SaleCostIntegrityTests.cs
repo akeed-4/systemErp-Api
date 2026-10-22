@@ -33,7 +33,8 @@ public class SaleCostIntegrityTests : TestBase
     {
         var car = await api.Post("/vehicles", new
         {
-            chassisNumber = Client.NewVin('5'), brandNameAr = "تويوتا", modelNameAr = "يارس", year = 2024, condition = "new", purchasePrice = 40000, sellingPrice = 50000,
+            // هامش الربح للسيارة المستعملة وحدها
+            chassisNumber = Client.NewVin('5'), brandNameAr = "تويوتا", modelNameAr = "يارس", year = 2024, condition = vatMode == "standard_15" ? "new" : "used", purchasePrice = 40000, sellingPrice = 50000,
             vatMode, fuelType = "petrol", transmission = "automatic", colorExterior = "أبيض", colorInterior = "أسود", location = "المعرض",
         });
         Assert.Equal(201, car.Status);

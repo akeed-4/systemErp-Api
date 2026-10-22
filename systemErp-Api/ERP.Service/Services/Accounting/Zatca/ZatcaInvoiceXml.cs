@@ -197,13 +197,17 @@ public static class ZatcaInvoiceXml
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + text;
     }
 
-    /// <summary>رمز التصنيف الضريبي لدى الهيئة: S أساسي، Z صفري، E معفى، O خارج النطاق.</summary>
+    /// <summary>
+    /// رمز التصنيف الضريبي لدى الهيئة: S أساسي، Z صفري، E معفى، O خارج النطاق. هامش الربح بلا رمز في مواصفات الهيئة
+    /// (فاتورته لا تُرسل)، فلا يُخترع له رمز.
+    /// </summary>
     public static string CategoryCode(VatCategory category) => category switch
     {
+        VatCategory.Standard => "S",
         VatCategory.ZeroRated => "Z",
         VatCategory.Exempt => "E",
         VatCategory.OutOfScope => "O",
-        _ => "S",
+        _ => throw new ConflictException(Messages.MarginSchemeNotSubmittedToZatca),
     };
 
     private static void Party(XmlWriter w, ZatcaParty p, bool full)

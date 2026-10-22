@@ -7,7 +7,11 @@ public class VatReturnDto
     public DateTime FromDate { get; set; }
     public DateTime ToDate { get; set; }
     // المبالغ بالعملة الأساسية، صافية من المرتجعات، ومصنّفة بحسب التصنيف الضريبي لكل سطر
+    /// <summary>المبيعات الخاضعة للنسبة الأساسية، شاملةً سيارات هامش الربح (تفصيلها في <see cref="MarginSchemeSales"/>).</summary>
     public decimal StandardRatedSales { get; set; }
+    /// <summary>منها: سيارات مستعملة مؤهلة بنظام هامش الربح (صافي السعر بعد الضريبة المضمَّنة) وضريبتها على الهامش.</summary>
+    public decimal MarginSchemeSales { get; set; }
+    public decimal MarginSchemeVat { get; set; }
     /// <summary>مبيعات محلية خاضعة لنسبة الصفر (دون الصادرات).</summary>
     public decimal ZeroRatedSales { get; set; }
     /// <summary>الصادرات (سطور صفرية بسبب تصدير سلع أو خدمات).</summary>

@@ -297,7 +297,9 @@ public class AccountingReportService : IAccountingReportService
         return new VatReturnDto
         {
             FromDate = from, ToDate = to,
-            StandardRatedSales = Sum(true, VatCategory.Standard, false) + VoucherNet(VoucherType.Receipt), ZeroRatedSales = Sum(true, VatCategory.ZeroRated, false, exports: false),
+            // هامش الربح ضمن المبيعات الخاضعة (كما كان قبل تمييزه بتصنيف مستقل) ويُعرض تفصيله منفصلاً
+            StandardRatedSales = Sum(true, VatCategory.Standard, false) + Sum(true, VatCategory.MarginScheme, false) + VoucherNet(VoucherType.Receipt),
+            MarginSchemeSales = Sum(true, VatCategory.MarginScheme, false), MarginSchemeVat = Sum(true, VatCategory.MarginScheme, true), ZeroRatedSales = Sum(true, VatCategory.ZeroRated, false, exports: false),
             ExportSales = Sum(true, VatCategory.ZeroRated, false, exports: true),
             ExemptSales = Sum(true, VatCategory.Exempt, false), OutOfScopeSales = Sum(true, VatCategory.OutOfScope, false),
             OutputVat = outVat, OutputVatAdjustments = outAdjustments,

@@ -42,6 +42,8 @@ public partial class VehicleDto
     public decimal? VatAmount { get; set; }
     public decimal? PriceWithVat { get; set; }
     public VatMode VatMode { get; set; } = VatMode.Standard_15;
+    /// <summary>التصنيف الضريبي الذي ستحمله السيارة في فاتورة البيع (مشتق من نمط الضريبة) ليُعرف قبل إضافتها للفاتورة.</summary>
+    public VatCategory VatCategory { get; set; } = VatCategory.Standard;
     public decimal? MinSellingPrice { get; set; }
     public bool IsTemporaryChassis { get; set; }
     public VehicleStatus Status { get; set; } = VehicleStatus.Available;

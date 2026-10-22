@@ -433,7 +433,7 @@ public class CarSaleService : ICarSaleService
         var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
         {
             Kind = InvoiceKind.Sales,
-            InvoiceType = string.IsNullOrWhiteSpace(customer?.VatNumber) ? InvoiceType.Simplified : InvoiceType.TaxInvoice,
+            InvoiceType = customer?.IsVatRegistered == true ? InvoiceType.TaxInvoice : InvoiceType.Simplified, // من الحالة الضريبية للعميل (الافتراضي مبسطة)
             PartyId = c.CustomerId, PartyName = c.BuyerName, PartyVatNumber = customer?.VatNumber, PartyPhone = c.BuyerPhone, PartyEmail = c.BuyerEmail,
             PartyAddress = c.BuyerAddress, PaymentMethod = method, IsSplitPayment = splits.Count > 0, PaymentSplits = splits,
             PaymentMethodCode = splits.Count == 0 && method != PaymentMethod.Credit ? c.PaymentMethodCode : null,

@@ -10,6 +10,11 @@ public partial class SupplierDto
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public string? VatNumber { get; set; }
+    /// <summary>
+    /// مسجَّل في ضريبة القيمة المضافة (منشأة لها رقم ضريبي). يحدّد نوع فاتورة البيع في المعارض: ضريبية (B2B) للمسجَّل،
+    /// ومبسطة (B2C) لغيره وهي الافتراضي. المسجَّل يلزمه رقمه الضريبي.
+    /// </summary>
+    public bool IsVatRegistered { get; set; }
     public string? CrNumber { get; set; }
     /// <summary>نوع الهوية الأخرى المرسلة للهيئة بدل السجل التجاري: NAT هوية وطنية، IQA إقامة، PAS جواز، GCC، TIN، MOM، MLS، SAG، OTH.</summary>
     public string? IdType { get; set; }

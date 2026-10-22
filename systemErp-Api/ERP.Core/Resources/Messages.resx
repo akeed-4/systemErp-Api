@@ -1144,4 +1144,5 @@
   <data name="MarginSchemeNotSubmittedToZatca" xml:space="preserve"><value>فواتير هامش الربح للسيارات المستعملة المؤهلة معلَّق إلزامها بالفوترة الإلكترونية (المرحلة الثانية) من الهيئة، فلا تُرسل لها.</value></data>
   <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>نظام هامش الربح للسيارات المستعملة فقط؛ غيّر حالة السيارة إلى مستعملة أولاً.</value></data>
   <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>هامش الربح لا يُعرَّف على الصنف: يُحدَّد في بطاقة السيارة المستعملة المؤهلة.</value></data>
+  <data name="VatRegisteredPartyNeedsVatNumber" xml:space="preserve"><value>الطرف المسجَّل في ضريبة القيمة المضافة يلزمه رقمه الضريبي.</value></data>
 </root>

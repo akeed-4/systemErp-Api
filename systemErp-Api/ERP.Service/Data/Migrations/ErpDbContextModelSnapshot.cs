@@ -7484,6 +7484,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("IdType")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsVatRegistered")
+                        .HasColumnType("bit");
+
                     b.Property<string>("NameAr")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -8871,6 +8874,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("IdType")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsVatRegistered")
+                        .HasColumnType("bit");
 
                     b.Property<string>("NameAr")
                         .IsRequired()

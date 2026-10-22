@@ -1144,4 +1144,5 @@
   <data name="MarginSchemeNotSubmittedToZatca" xml:space="preserve"><value>Margin-scheme invoices for qualifying used cars are suspended from e-invoicing (Phase 2) by ZATCA and are not submitted.</value></data>
   <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>The margin scheme applies to used cars only; set the vehicle condition to used first.</value></data>
   <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>The margin scheme is not set on an item: it is set on the qualifying used vehicle card.</value></data>
+  <data name="VatRegisteredPartyNeedsVatNumber" xml:space="preserve"><value>A VAT-registered party needs its VAT number.</value></data>
 </root>

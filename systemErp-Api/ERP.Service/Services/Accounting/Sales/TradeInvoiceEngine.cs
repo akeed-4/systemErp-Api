@@ -736,12 +736,14 @@ public class TradeInvoiceEngine
         if (invoice.Lines.Any(l => l.VatCategory == VatCategory.MarginScheme)) invoice.SendToZatca = false;
 
         // الطرف
+        var vatRegisteredCustomer = false;
         if (r.PartyId.HasValue)
         {
             if (isSales)
             {
                 var c = await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == r.PartyId, ct)
                     ?? throw new ValidationFailedException(Messages.CustomerNotFound);
+                vatRegisteredCustomer = c.IsVatRegistered;
                 if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = c.NameAr;
                 invoice.PartyVatNumber ??= c.VatNumber; invoice.PartyCrNumber ??= c.CrNumber; invoice.PartyIdType ??= c.IdType; invoice.PartyIdNumber ??= c.IdNumber;
                 invoice.PartyPhone ??= c.Phone; invoice.PartyEmail ??= c.Email;
@@ -772,7 +774,10 @@ public class TradeInvoiceEngine
         var domesticParty = invoice.PartyCountry == "SA";
         if (domesticParty && !string.IsNullOrWhiteSpace(invoice.PartyVatNumber) && !SaudiVat.IsValid(invoice.PartyVatNumber))
             throw new ValidationFailedException(Messages.PartyVatNumberInvalid);
-        if (r.Kind == InvoiceKind.Sales && r.InvoiceType == InvoiceType.TaxInvoice) ValidateTaxInvoiceBuyer(invoice, domesticParty);
+        // فاتورة بيع المعارض: نوعها من الحالة الضريبية للعميل لا من الشاشة — ضريبية (B2B) للمسجَّل، ومبسطة (B2C) لغيره
+        // وللبيع بلا عميل (الافتراضي)
+        if (showroom && r.Kind == InvoiceKind.Sales) invoice.InvoiceType = vatRegisteredCustomer ? InvoiceType.TaxInvoice : InvoiceType.Simplified;
+        if (r.Kind == InvoiceKind.Sales && invoice.InvoiceType == InvoiceType.TaxInvoice) ValidateTaxInvoiceBuyer(invoice, domesticParty);
 
         // الدفع: الطريقة المختارة تُعتمد (فعّالة) ونوعها يحدّد نوع الدفع. المرتجع يرث طرق فاتورته (وطريقة الرد تُعتمد في CreateReturnAsync).
         if (!isReturn && !r.IsSplitPayment)

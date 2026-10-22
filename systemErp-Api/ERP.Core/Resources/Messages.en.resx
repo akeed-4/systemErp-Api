@@ -1170,4 +1170,7 @@
   <data name="CostCenterNotAllowedForAccount" xml:space="preserve"><value>Account {0} - {1} does not use cost centers; remove the cost center from its line.</value></data>
   <data name="CostCenterSharesMismatch" xml:space="preserve"><value>The cost center breakdown does not match the document totals.</value></data>
   <data name="CostCenterPolicyInvalid" xml:space="preserve"><value>Invalid cost center setting for the account.</value></data>
+  <data name="VatTreatmentInvalid" xml:space="preserve"><value>The invoice VAT treatment is invalid.</value></data>
+  <data name="VatTreatmentReasonRequired" xml:space="preserve"><value>A zero-rated or exempt sales invoice needs an exemption reason (ZATCA code).</value></data>
+  <data name="VatTreatmentReasonMismatch" xml:space="preserve"><value>The exemption reason does not match the invoice VAT treatment.</value></data>
 </root>

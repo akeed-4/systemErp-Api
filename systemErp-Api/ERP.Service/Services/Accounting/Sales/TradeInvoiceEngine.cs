@@ -381,6 +381,7 @@ public class TradeInvoiceEngine
                 PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
                 WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
                 CostCenterId = original.CostCenterId,
+                VatTreatment = original.VatTreatment, VatTreatmentReasonCode = original.VatTreatmentReasonCode, // المرتجع بمعالجة أصله
                 PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
                 PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
                 PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
@@ -656,7 +657,9 @@ public class TradeInvoiceEngine
                 if ((attachLines = await ext.ResolveAsync(r, ct)) != null) { owner = ext; break; }
         r.ItemsDerivedFromVehicles = attachLines != null;
         await ApplyProductVatDefaultsAsync(r, ct);
+        await EnsureVatTreatmentAllowedAsync(r, ct);
         var errors = new List<string>();
+        ApplyDocumentVatTreatment(r, errors);
         if (!Enum.IsDefined(r.Kind)) errors.Add(Messages.InvalidDocumentType);
         if (!Enum.IsDefined(r.InvoiceType)) errors.Add(Messages.InvalidInvoiceType);
         if (r.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
@@ -829,6 +832,48 @@ public class TradeInvoiceEngine
             invoice.Module = orig.Module;
         }
         return invoice;
+    }
+
+    /// <summary>
+    /// معالجة الفاتورة غير الأساسية (صفري / معفى / صادرات) تتغلّب على تصنيف كل سطر: الأسطر كلها بنسبة 0 وتصنيف المعالجة
+    /// وسببها، ويسقط مبلغ الضريبة الثابت (هامش الربح). تُطبَّق بعد اشتقاق أسطر السيارات وافتراضات الأصناف وقبل التسعير،
+    /// فالفاتورة والقيد والإقرار ورمز الهيئة كلها من الأسطر المحفوظة بعد الفرض.
+    /// </summary>
+    /// <summary>
+    /// اختيار معالجة غير أساسية يتجاوز تصنيف كل الأصناف دفعة واحدة، فيحتاج صلاحية تجاوز التصنيف الضريبي نفسها؛
+    /// المرتجع يرث معالجة أصله، وتعديل فاتورة بمعالجتها المحفوظة نفسها لا يُعدّ تجاوزاً جديداً.
+    /// </summary>
+    private async Task EnsureVatTreatmentAllowedAsync(CreateInvoiceDto r, CancellationToken ct)
+    {
+        if (r.VatTreatment == InvoiceVatTreatment.Standard || r.OriginalInvoiceId.HasValue) return;
+        if (r.ExistingInvoiceId is Guid id
+            && await _db.Set<InvoiceBase>().AsNoTracking().AnyAsync(i => i.Id == id && i.VatTreatment == r.VatTreatment, ct)) return;
+        if (!await _permissions.HasPermissionAsync(PermissionService.InvoiceTaxTreatmentOverrideScreenId, ScreenAction.Edit, ct))
+            throw new ForbiddenException(Messages.InvoiceTaxTreatmentOverrideForbidden);
+    }
+
+    private static void ApplyDocumentVatTreatment(CreateInvoiceDto r, List<string> errors)
+    {
+        if (!Enum.IsDefined(r.VatTreatment)) { errors.Add(Messages.VatTreatmentInvalid); return; }
+        if (r.VatTreatment == InvoiceVatTreatment.Standard) { r.VatTreatmentReasonCode = null; return; }
+
+        var category = r.VatTreatment == InvoiceVatTreatment.Exempt ? VatCategory.Exempt : VatCategory.ZeroRated;
+        var reason = VatExemptionReasons.Find(r.VatTreatmentReasonCode)
+            ?? (r.VatTreatment == InvoiceVatTreatment.Export ? VatExemptionReasons.Find("VATEX-SA-32") : null);
+        if (reason != null && (reason.Category != category || (r.VatTreatment == InvoiceVatTreatment.Export && !reason.IsExport)))
+        { errors.Add(Messages.VatTreatmentReasonMismatch); return; }
+        var isSales = r.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
+        if (isSales && reason == null) { errors.Add(Messages.VatTreatmentReasonRequired); return; }
+
+        r.VatTreatmentReasonCode = reason?.Code;
+        foreach (var item in r.Items)
+        {
+            item.VatCategory = category;
+            item.VatRate = 0;
+            item.VatAmountOverride = null;
+            item.VatOverrideReason = null; // قرار على مستوى المستند لا تجاوز لتصنيف صنف
+            item.VatExemptionReasonCode = reason?.Code;
+        }
     }
 
     /// <summary>

@@ -2020,6 +2020,15 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("VatTreatment")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("Standard");
+
+                    b.Property<string>("VatTreatmentReasonCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("WarehouseId")
                         .HasColumnType("uniqueidentifier");
 

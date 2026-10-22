@@ -1170,4 +1170,7 @@
   <data name="CostCenterNotAllowedForAccount" xml:space="preserve"><value>الحساب {0} - {1} لا يُحلَّل بمراكز التكلفة؛ أزل مركز التكلفة من سطره.</value></data>
   <data name="CostCenterSharesMismatch" xml:space="preserve"><value>توزيع مبالغ المستند على مراكز التكلفة لا يطابق إجمالياته.</value></data>
   <data name="CostCenterPolicyInvalid" xml:space="preserve"><value>إعداد مركز التكلفة للحساب غير صالح.</value></data>
+  <data name="VatTreatmentInvalid" xml:space="preserve"><value>المعالجة الضريبية للفاتورة غير صالحة.</value></data>
+  <data name="VatTreatmentReasonRequired" xml:space="preserve"><value>فاتورة المبيعات الصفرية أو المعفاة تحتاج سبب الإعفاء (رمز الهيئة).</value></data>
+  <data name="VatTreatmentReasonMismatch" xml:space="preserve"><value>سبب الإعفاء لا يطابق المعالجة الضريبية المختارة للفاتورة.</value></data>
 </root>

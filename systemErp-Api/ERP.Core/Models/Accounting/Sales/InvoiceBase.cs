@@ -48,6 +48,10 @@ public abstract class InvoiceBase : BaseEntity
     public bool IsSplitPayment { get; set; }
     public string CurrencyCode { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1.0m;
+    /// <summary>المعالجة الضريبية للفاتورة كلها؛ غير «أساسي» يجعل كل الأسطر صفرية/معفاة بنسبة 0.</summary>
+    public InvoiceVatTreatment VatTreatment { get; set; } = InvoiceVatTreatment.Standard;
+    /// <summary>سبب الهيئة (VATEX) لمعالجة الفاتورة غير الأساسية؛ يُنسخ لكل الأسطر.</summary>
+    public string? VatTreatmentReasonCode { get; set; }
     
     public decimal Subtotal { get; set; }
     public decimal ItemsDiscountTotal { get; set; }

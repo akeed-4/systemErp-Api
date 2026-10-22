@@ -311,6 +311,9 @@ public class ErpDbContext : DbContext
         // توزيع السند يُقرأ بفاتورته (المرجع بلا قيد لأن الفاتورة في أحد جداول InvoiceBase)
         modelBuilder.Entity<VoucherAllocation>().HasIndex(a => a.InvoiceId);
         modelBuilder.Entity<Product>().Property(p => p.VatCategory).HasDefaultValue(VatCategory.Standard);
+        // الفواتير القائمة «أساسي»: كل سطر بتصنيفه كما رُحِّل
+        foreach (var t in new[] { typeof(Invoice), typeof(SalesInvoice), typeof(PurchaseInvoice), typeof(SalesReturn), typeof(PurchaseReturn) })
+            modelBuilder.Entity(t).Property(nameof(InvoiceBase.VatTreatment)).HasDefaultValue(InvoiceVatTreatment.Standard);
         // الحسابات القائمة «اختياري» (سلوكها قبل الإعداد)، وتقارير المراكز تقرأ سطور القيود بمركزها
         modelBuilder.Entity<Account>().Property(a => a.CostCenterPolicy).HasDefaultValue(CostCenterPolicy.Optional);
         modelBuilder.Entity<JournalEntryLine>().HasIndex(l => new { l.TenantId, l.CostCenterId });

@@ -39,6 +39,14 @@ public class PlatformController : ErpControllerBase
     public async Task<IActionResult> UpdateSettings([FromBody] UpdatePlatformSettingsDto request, CancellationToken ct)
         => Success(await _platform.UpdateSettingsAsync(request, ct), Messages.PlatformSettingsSaved);
 
+    /// <summary>حساب Paymob الخاص بالمنصة لدفع اشتراكات المنشآت (الأسرار لا تُعاد).</summary>
+    [HttpGet("payment-gateway"), RequirePlatformAdmin]
+    public async Task<IActionResult> PaymentGateway(CancellationToken ct) => Success(await _platform.GetPaymobSettingsAsync(ct));
+
+    [HttpPut("payment-gateway"), RequirePlatformAdmin]
+    public async Task<IActionResult> UpdatePaymentGateway([FromBody] UpdatePlatformPaymobSettingsDto request, CancellationToken ct)
+        => Success(await _platform.UpdatePaymobSettingsAsync(request, ct), Messages.PlatformSettingsSaved);
+
     /// <summary>منشأة جديدة على القاعدة المشتركة أو بقاعدة مستقلة: هذا المسار وحده يقبل نوع القاعدة (لمدير المنصة بصلاحية الإدارة).</summary>
     [HttpPost("tenants"), RequirePlatformAdmin]
     public async Task<IActionResult> CreateTenant([FromBody] PlatformCreateTenantRequestDto request, CancellationToken ct)

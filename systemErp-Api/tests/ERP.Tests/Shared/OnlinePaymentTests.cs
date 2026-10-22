@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Services.Shared;
 using ERP.Tests.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace ERP.Tests;
 
@@ -169,5 +170,52 @@ public class OnlinePaymentTests : TestBase
         var current = (await api.Get("/subscriptions/current")).Data!;
         Assert.Equal("enterprise", current["planType"].S());
         Assert.Equal("active", current["status"].S());
+    }
+
+    [Fact]
+    public async Task Platform_paymob_account_saved_from_the_console_overrides_server_settings()
+    {
+        var owner = await NewTenantAsync();
+        Assert.Equal(403, (await owner.Get("/platform/payment-gateway")).Status);
+
+        var admin = await NewTenantAsync("شركة مدير المنصة");
+        var host = Factory.WithWebHostBuilder(b => b.UseSetting("Platform:AdminEmails:0", admin.Email));
+        var platform = await admin.LoginAsAsync(host.CreateClient(), admin.Email, "Passw0rd!");
+
+        var before = (await platform.Get("/platform/payment-gateway")).Data!;
+        Assert.Equal("platform-public", before["publicKey"].S()); // من إعدادات الخادم
+        Assert.True(before["isConfigured"]!.GetValue<bool>());
+        Assert.Equal(400, (await platform.Put("/platform/payment-gateway", new { baseUrl = "http://insecure", publicKey = "x", integrationIds = "1" })).Status);
+
+        const string newHmac = "console-hmac-secret";
+        try
+        {
+            var saved = await platform.Put("/platform/payment-gateway", new
+            {
+                baseUrl = "https://ksa.paymob.com", publicKey = "console-public", secretKey = "console-secret", hmacSecret = newHmac, integrationIds = "222",
+            });
+            Assert.Equal(200, saved.Status);
+            Assert.True(saved.Data!["isCustomized"]!.GetValue<bool>());
+            Assert.Null(saved.Data["secretKey"]); // الأسرار لا تُعاد
+
+            // الدفع التالي بحساب اللوحة، والإشعار يُتحقق منه بمفتاحها
+            var checkout = await owner.Post("/payments/subscription", new { planId = "enterprise", billingCycle = "monthly" });
+            Assert.Equal(200, checkout.Status);
+            Assert.Contains("publicKey=console-public", checkout.Data!["checkoutUrl"].S());
+            var (oldSigned, oldHmac) = Callback(OrderIdOf(checkout), 999 * 1.15m, FakePaymobClient.PlatformHmac);
+            Assert.Equal(401, (await owner.SendAsync(HttpMethod.Post, $"/payments/paymob/webhook?hmac={oldHmac}", oldSigned, anonymous: true)).Status);
+            var (body, hmac) = Callback(OrderIdOf(checkout), 999 * 1.15m, newHmac);
+            Assert.Equal(200, (await owner.SendAsync(HttpMethod.Post, $"/payments/paymob/webhook?hmac={hmac}", body, anonymous: true)).Status);
+            Assert.Equal("paid", (await owner.Get($"/payments/{checkout.Data["id"].S()}")).Data!["status"].S());
+        }
+        finally
+        {
+            // يعيد حساب المنصة لقيم الاختبار حتى لا تتأثر الاختبارات الأخرى على القاعدة نفسها
+            await platform.Put("/platform/payment-gateway", new
+            {
+                baseUrl = "https://ksa.paymob.com", publicKey = "platform-public", secretKey = "platform-secret",
+                hmacSecret = FakePaymobClient.PlatformHmac, integrationIds = "111",
+            });
+        }
     }
 }

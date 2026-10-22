@@ -113,8 +113,9 @@ if (!app.Environment.IsDevelopment()) app.UseHsts();
 
 if (app.Environment.IsProduction() && string.IsNullOrWhiteSpace(app.Configuration["DataProtection:KeysPath"]))
     app.Logger.LogWarning("DataProtection:KeysPath غير مضبوط: مفاتيح تشفير أسرار بوابات الدفع محفوظة على هذا السرفر فقط وتضيع عند نقله أو إعادة بنائه.");
-if (!paymob.IsConfigured)
-    app.Logger.LogWarning("إعدادات Paymob للمنصة ناقصة (SecretKey/PublicKey/HmacSecret/IntegrationIds/PublicApiUrl/FrontendUrl): سداد الاشتراكات (بعد الفترة التجريبية والتجديد) متوقف حتى تُستكمل.");
+// مفاتيح حساب المنصة قد تُحفظ من لوحة مدير المنصة؛ أما روابط الإشعار والعودة فمن هنا وحدها
+if (string.IsNullOrWhiteSpace(paymob.PublicApiUrl) || string.IsNullOrWhiteSpace(paymob.FrontendUrl))
+    app.Logger.LogWarning("Paymob:PublicApiUrl/FrontendUrl غير مضبوطين: كل الدفع الإلكتروني (الاشتراكات وروابط الفواتير ونقطة البيع) متوقف حتى يُضبطا.");
 
 // تنسيق الأرقام والتواريخ ثابت (ميلادي وأرقام لاتينية) مهما كانت إعدادات المنطقة في السرفر: سرفر بإعداد عربي (ar-SA)
 // يجعل التقويم الافتراضي هجرياً، فتخرج التواريخ المنسَّقة نصاً (الفترات، التقارير، المستندات) بالهجري.

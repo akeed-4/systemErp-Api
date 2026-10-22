@@ -114,6 +114,36 @@ public class UpdatePlatformSettingsDto
     public TenantDatabaseMode DefaultDatabaseMode { get; set; } = TenantDatabaseMode.Shared;
 }
 
+/// <summary>حساب Paymob الخاص بالمنصة لدفع الاشتراكات: المحفوظ من اللوحة، وإلا من إعدادات الخادم. الأسرار لا تُعاد أبداً.</summary>
+public class PlatformPaymobSettingsDto
+{
+    public string BaseUrl { get; set; } = string.Empty;
+    public string PublicKey { get; set; } = string.Empty;
+    public bool HasSecretKey { get; set; }
+    public bool HasHmacSecret { get; set; }
+    public string IntegrationIds { get; set; } = string.Empty;
+    /// <summary>المفاتيح والروابط مكتملة لاستقبال دفع الاشتراكات.</summary>
+    public bool IsConfigured { get; set; }
+    /// <summary>روابط الإشعار والعودة من إعدادات الخادم (Paymob:PublicApiUrl / Paymob:FrontendUrl).</summary>
+    public bool HasServerUrls { get; set; }
+    /// <summary>رابط الإشعارات الذي يُضبط في لوحة Paymob.</summary>
+    public string WebhookUrl { get; set; } = string.Empty;
+    /// <summary>false = لم يُحفظ من اللوحة بعد والقيم من إعدادات الخادم.</summary>
+    public bool IsCustomized { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+public class UpdatePlatformPaymobSettingsDto
+{
+    public string BaseUrl { get; set; } = "https://ksa.paymob.com";
+    public string PublicKey { get; set; } = string.Empty;
+    /// <summary>فارغ = يبقى المفتاح المحفوظ.</summary>
+    public string? SecretKey { get; set; }
+    public string? HmacSecret { get; set; }
+    public string IntegrationIds { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// إنشاء منشأة من مدير المنصة: بيانات التسجيل نفسها + نوع قاعدة البيانات. لا يقبله إلا مسار المنصة؛
 /// التسجيل العام يستقبل <see cref="CompanyRegistrationRequestDto"/> الذي لا يحمل هذا الحقل.

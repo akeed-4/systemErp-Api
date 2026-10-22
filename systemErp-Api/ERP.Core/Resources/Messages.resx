@@ -718,7 +718,7 @@
   <data name="StockTransferRecorded" xml:space="preserve"><value>تم تسجيل تحويل المخزون.</value></data>
   <data name="StoreCreditRequiresCustomer" xml:space="preserve"><value>الرصيد الدائن يتطلب عميلاً مسجّلاً.</value></data>
   <data name="SubAccountCodesExhausted" xml:space="preserve"><value>تم استهلاك جميع الأكواد الفرعية المتاحة تحت هذا الحساب.</value></data>
-  <data name="SubscriptionPaymentsNotConfigured" xml:space="preserve"><value>دفع الاشتراكات غير مهيأ على المنصة (Paymob:SecretKey/PublicKey/IntegrationIds).</value></data>
+  <data name="SubscriptionPaymentsNotConfigured" xml:space="preserve"><value>دفع الاشتراكات غير مهيأ على المنصة: أكمل حساب Paymob من لوحة المنصة (الإعدادات).</value></data>
   <data name="SupplierCodeInUse" xml:space="preserve"><value>كود المورد مستخدم مسبقاً.</value></data>
   <data name="SupplierNotFound" xml:space="preserve"><value>المورد غير موجود.</value></data>
   <data name="SystemMovementFromDocument" xml:space="preserve"><value>هذه حركة نظامية ناتجة عن مستند؛ عدّل المستند نفسه (أو أنشئ تسوية جديدة).</value></data>

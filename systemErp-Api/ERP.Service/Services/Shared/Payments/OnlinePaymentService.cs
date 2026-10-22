@@ -74,7 +74,7 @@ public class OnlinePaymentService : IOnlinePaymentService
             Purpose = OnlinePaymentPurpose.Subscription, Amount = total,
             Description = $"اشتراك {plan.NameAr} ({(r.BillingCycle == SubscriptionBillingCycle.Yearly ? "سنوي" : "شهري")})",
             PlanId = r.PlanId, BillingCycle = r.BillingCycle, CustomerName = company.NameAr, CustomerEmail = company.Email, CustomerPhone = company.Phone,
-        }, PlatformCredentials(), ct);
+        }, await PlatformCredentialsAsync(ct), ct);
     }
 
     private async Task<OnlinePaymentDto> CreateAsync(OnlinePayment p, PaymobCredentials creds, CancellationToken ct)
@@ -150,7 +150,7 @@ public class OnlinePaymentService : IOnlinePaymentService
         if (found == null) return true; // عملية لا تخصنا: لا أثر
 
         var secret = found.Purpose == OnlinePaymentPurpose.Subscription
-            ? _platform.HmacSecret
+            ? (await PlatformPaymob.ResolveAsync(_db, _platform, _secrets, ct)).Options.HmacSecret
             : _secrets.Unprotect(await _db.Catalog.Set<PaymentGatewaySettings>().IgnoreQueryFilters().AsNoTracking()
                 .Where(s => s.TenantId == found.TenantId).Select(s => s.HmacSecretEncrypted).FirstOrDefaultAsync(ct) ?? string.Empty);
         if (!PaymobHmac.Verify(obj, hmac, secret)) return false;
@@ -288,14 +288,16 @@ public class OnlinePaymentService : IOnlinePaymentService
         return new PaymobCredentials(s.BaseUrl, _secrets.Unprotect(s.SecretKeyEncrypted), s.PublicKey, _secrets.Unprotect(s.HmacSecretEncrypted), ParseIds(s.IntegrationIds));
     }
 
-    private PaymobCredentials PlatformCredentials()
+    /// <summary>حساب المنصة: المحفوظ من لوحة مدير المنصة، وإلا إعدادات الخادم.</summary>
+    private async Task<PaymobCredentials> PlatformCredentialsAsync(CancellationToken ct)
     {
-        var ids = ParseIds(_platform.IntegrationIds);
+        var (o, _) = await PlatformPaymob.ResolveAsync(_db, _platform, _secrets, ct);
+        var ids = ParseIds(o.IntegrationIds);
         // بلا مفتاح HMAC لا يُقبل أي إشعار، فيُخصم من العميل ولا يُفعَّل اشتراكه
-        if (string.IsNullOrWhiteSpace(_platform.SecretKey) || string.IsNullOrWhiteSpace(_platform.PublicKey)
-            || string.IsNullOrWhiteSpace(_platform.HmacSecret) || ids.Count == 0)
+        if (string.IsNullOrWhiteSpace(o.SecretKey) || string.IsNullOrWhiteSpace(o.PublicKey)
+            || string.IsNullOrWhiteSpace(o.HmacSecret) || ids.Count == 0)
             throw new ConflictException(Messages.SubscriptionPaymentsNotConfigured);
-        return new PaymobCredentials(_platform.BaseUrl, _platform.SecretKey, _platform.PublicKey, _platform.HmacSecret, ids);
+        return new PaymobCredentials(o.BaseUrl, o.SecretKey, o.PublicKey, o.HmacSecret, ids);
     }
 
     /// <summary>حساب تحصيلات بوابة الدفع للمنشأة (يُنشأ 1113 إن لم يوجد).</summary>
@@ -309,7 +311,7 @@ public class OnlinePaymentService : IOnlinePaymentService
         return code;
     }
 
-    private static List<long> ParseIds(string? csv)
+    internal static List<long> ParseIds(string? csv)
         => (csv ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(x => long.TryParse(x, out var n) ? n : throw new ValidationFailedException(string.Format(Messages.InvalidIntegrationId, x))).ToList();
 

@@ -18,9 +18,11 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
     private readonly IOptionsMonitor<PlatformOptions> _options;
     private readonly ICurrentUser _user;
     private readonly IAuditService _audit;
+    private readonly ISecretProtector _secrets;
+    private readonly PaymobOptions _paymob;
 
     public PlatformSubscriptionService(ErpDbContext db, ITenantContext tenant, IPasswordHasher<User> hasher, TenantDatabaseProvisioner databases,
-        IOptionsMonitor<PlatformOptions> options, ICurrentUser user, IAuditService audit)
+        IOptionsMonitor<PlatformOptions> options, ICurrentUser user, IAuditService audit, ISecretProtector secrets, IOptions<PaymobOptions> paymob)
     {
         _db = db;
         _tenant = tenant;
@@ -29,6 +31,8 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         _options = options;
         _user = user;
         _audit = audit;
+        _secrets = secrets;
+        _paymob = paymob.Value;
     }
 
     /// <summary>
@@ -111,6 +115,52 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         await _audit.LogAsync("PLATFORM_DEFAULT_DATABASE_MODE_CHANGED", nameof(PlatformSetting), PlatformSetting.DefaultDatabaseMode,
             $"{before} → {request.DefaultDatabaseMode}", ct);
         return await GetSettingsAsync(ct);
+    }
+
+    public async Task<PlatformPaymobSettingsDto> GetPaymobSettingsAsync(CancellationToken ct = default)
+    {
+        var (o, rows) = await PlatformPaymob.ResolveAsync(_db, _paymob, _secrets, ct);
+        var last = rows.OrderByDescending(r => r.UpdatedAt).FirstOrDefault();
+        var hasUrls = !string.IsNullOrWhiteSpace(o.PublicApiUrl) && !string.IsNullOrWhiteSpace(o.FrontendUrl);
+        return new PlatformPaymobSettingsDto
+        {
+            BaseUrl = o.BaseUrl, PublicKey = o.PublicKey, IntegrationIds = o.IntegrationIds,
+            HasSecretKey = !string.IsNullOrEmpty(o.SecretKey), HasHmacSecret = !string.IsNullOrEmpty(o.HmacSecret),
+            IsConfigured = o.IsConfigured, HasServerUrls = hasUrls,
+            WebhookUrl = string.IsNullOrWhiteSpace(o.PublicApiUrl) ? string.Empty : $"{o.PublicApiUrl.TrimEnd('/')}/api/v1/payments/paymob/webhook",
+            IsCustomized = last != null, UpdatedAt = last?.UpdatedAt, UpdatedBy = last?.UpdatedBy,
+        };
+    }
+
+    public async Task<PlatformPaymobSettingsDto> UpdatePaymobSettingsAsync(UpdatePlatformPaymobSettingsDto r, CancellationToken ct = default)
+    {
+        if (!Uri.TryCreate(r.BaseUrl?.Trim(), UriKind.Absolute, out var baseUri) || baseUri.Scheme != Uri.UriSchemeHttps)
+            throw new ValidationFailedException(Messages.PaymobUrlMustBeHttps);
+        var ids = OnlinePaymentService.ParseIds(r.IntegrationIds);
+
+        var rows = await Catalog.Set<PlatformSetting>().Where(s => PlatformSetting.PaymobKeys.Contains(s.Key)).ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        void Set(string key, string value)
+        {
+            var row = rows.FirstOrDefault(s => s.Key == key);
+            if (row == null) { Catalog.Add(row = new PlatformSetting { Key = key }); rows.Add(row); }
+            row.Value = value;
+            row.UpdatedAt = now;
+            row.UpdatedBy = _user.Email;
+        }
+        Set(PlatformSetting.PaymobBaseUrl, r.BaseUrl!.Trim().TrimEnd('/'));
+        Set(PlatformSetting.PaymobPublicKey, r.PublicKey.Trim());
+        Set(PlatformSetting.PaymobIntegrationIds, string.Join(",", ids));
+        // المفتاح السري يُحفظ مشفّراً، والحقل الفارغ يُبقي المحفوظ (أو قيمة الخادم إن لم يُحفظ شيء بعد)
+        if (!string.IsNullOrWhiteSpace(r.SecretKey)) Set(PlatformSetting.PaymobSecretKey, _secrets.Protect(r.SecretKey.Trim()));
+        if (!string.IsNullOrWhiteSpace(r.HmacSecret)) Set(PlatformSetting.PaymobHmacSecret, _secrets.Protect(r.HmacSecret.Trim()));
+        await Catalog.SaveChangesAsync(ct);
+
+        var changed = string.Join(", ", new[] { "BaseUrl", "PublicKey", "IntegrationIds" }
+            .Concat(string.IsNullOrWhiteSpace(r.SecretKey) ? Array.Empty<string>() : new[] { "SecretKey" })
+            .Concat(string.IsNullOrWhiteSpace(r.HmacSecret) ? Array.Empty<string>() : new[] { "HmacSecret" }));
+        await _audit.LogAsync("PLATFORM_PAYMOB_SETTINGS_CHANGED", nameof(PlatformSetting), "Paymob", changed, ct);
+        return await GetPaymobSettingsAsync(ct);
     }
 
     // ---------- إنشاء منشأة ونوع قاعدتها (لمدير المنصة وحده) ----------

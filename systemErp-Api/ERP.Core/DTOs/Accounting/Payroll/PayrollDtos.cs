@@ -121,3 +121,35 @@ public class PayrollRunDto
     public string? Notes { get; set; }
     public List<PayrollLineDto> Lines { get; set; } = new();
 }
+
+/// <summary>كشف راتب الموظف في مسير معتمد (مرحّل أو معكوس): سطره في المسير مع رقم المسير وشهره وحالته.</summary>
+public class MyPayslipDto : PayrollLineDto
+{
+    public Guid RunId { get; set; }
+    public string RunNumber { get; set; } = string.Empty;
+    public string Period { get; set; } = string.Empty;
+    public DateTime Date { get; set; }
+    /// <summary>posted | reversed (المسودة لا تظهر للموظف قبل اعتمادها).</summary>
+    public string Status { get; set; } = string.Empty;
+    /// <summary>حصة الموظف في التأمينات (%) كما في ملفه، لعرضها في الكشف.</summary>
+    public decimal EmployeeGosiRate { get; set; }
+}
+
+/// <summary>رواتب الموظف في البوابة: راتبه الحالي من ملفه، وكشوف رواتبه في المسيرات المعتمدة.</summary>
+public class MyPayrollDto
+{
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public string? JobTitle { get; set; }
+    public string? DepartmentName { get; set; }
+    public decimal BasicSalary { get; set; }
+    public decimal HousingAllowance { get; set; }
+    public decimal TransportAllowance { get; set; }
+    public decimal OtherAllowances { get; set; }
+    public decimal TotalSalary { get; set; }
+    public decimal EmployeeGosiRate { get; set; }
+    public string? BankName { get; set; }
+    /// <summary>الآيبان مخفياً عدا آخر أربعة أرقام.</summary>
+    public string? MaskedIban { get; set; }
+    public List<MyPayslipDto> Payslips { get; set; } = new();
+}

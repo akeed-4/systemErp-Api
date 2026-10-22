@@ -136,11 +136,87 @@ public class EmployeePortalService : IEmployeePortalService
                 .OrderBy(a => a.CreatedAt).ToListAsync(ct)).ToLookup(a => a.LeaveRequestId);
             foreach (var r in requests) r.Attachments = attachments[r.Id].ToList();
         }
+        if (requests.Count > 0)
+        {
+            var history = await LeaveService.HistoryAsync(_db, requests.Select(r => r.Id).ToList(), forEmployee: true, ct);
+            foreach (var r in requests) r.History = history[r.Id].ToList();
+        }
 
         return new MyLeaveOverviewDto
         {
             EmployeeId = me.Id, EmployeeCode = me.Code, EmployeeName = me.NameAr, JobTitle = me.JobTitle,
             Balance = await _leaves.GetBalanceAsync(me.Id, null, ct), LeaveTypes = types, Requests = requests,
+            TypeUsage = await TypeUsageAsync(me.Id, types, ct),
+        };
+    }
+
+    /// <summary>استهلاك الأنواع المحدودة سنوياً في السنة الحالية (بنفس قاعدة الحد في LeaveService: سنة بداية الإجازة).</summary>
+    private async Task<List<LeaveTypeUsageDto>> TypeUsageAsync(Guid employeeId, List<LeaveTypeDto> types, CancellationToken ct)
+    {
+        var limited = types.Where(t => !t.IsAnnual && t.MaxDaysPerYear != null).ToList();
+        if (limited.Count == 0) return new();
+        var year = SaudiTime.Today.Year;
+        var (from, to) = (new DateTime(year, 1, 1), new DateTime(year + 1, 1, 1));
+        var typeIds = limited.Select(t => t.Id).ToList();
+        var rows = await _db.Set<LeaveRequest>().AsNoTracking()
+            .Where(r => r.EmployeeId == employeeId && typeIds.Contains(r.LeaveTypeId) && LeaveStatuses.Reserving.Contains(r.Status)
+                && r.StartDate >= from && r.StartDate < to)
+            .Select(r => new { r.LeaveTypeId, r.Status, r.Days }).ToListAsync(ct);
+        return limited.Select(t =>
+        {
+            var used = rows.Where(r => r.LeaveTypeId == t.Id && r.Status == LeaveStatuses.Approved).Sum(r => r.Days);
+            var pending = rows.Where(r => r.LeaveTypeId == t.Id && r.Status != LeaveStatuses.Approved).Sum(r => r.Days);
+            return new LeaveTypeUsageDto
+            {
+                LeaveTypeId = t.Id, LeaveTypeName = t.NameAr, Year = year, MaxDaysPerYear = t.MaxDaysPerYear!.Value,
+                Used = used, Pending = pending, Remaining = Math.Max(0, t.MaxDaysPerYear!.Value - used - pending),
+            };
+        }).ToList();
+    }
+
+    public async Task<LeaveRequestDto> UpdateLeaveAsync(Guid id, UpdateMyLeaveRequestDto request, CancellationToken ct = default)
+    {
+        var me = await MeAsync(ct);
+        var status = await _db.Set<LeaveRequest>().AsNoTracking().Where(r => r.Id == id && r.EmployeeId == me.Id).Select(r => r.Status).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.LeaveRequestNotFound);
+        var updated = await _leaves.UpdateAsync(id, new UpdateLeaveRequestDto
+        {
+            EmployeeId = me.Id, LeaveTypeId = request.LeaveTypeId, StartDate = request.StartDate, EndDate = request.EndDate, Reason = request.Reason,
+        }, ct);
+        // إعادة إرسال بعد الاستكمال: يعود للمعتمدين
+        if (status == LeaveStatuses.NeedsInfo) await NotifyApproversAsync(updated, ct, resubmitted: true);
+        return updated;
+    }
+
+    /// <summary>
+    /// رواتب الموظف: راتبه الحالي من ملفه (الآيبان مخفي إلا آخر أربعة)، وسطره في كل مسير معتمد أو معكوس.
+    /// المسودة لا تظهر قبل اعتمادها، ولا يرى الموظف إلا سطره.
+    /// </summary>
+    public async Task<MyPayrollDto> GetPayrollAsync(CancellationToken ct = default)
+    {
+        var me = await MeAsync(ct);
+        var department = me.DepartmentId == null ? null
+            : await _db.Set<Department>().AsNoTracking().Where(d => d.Id == me.DepartmentId).Select(d => d.NameAr).FirstOrDefaultAsync(ct);
+        var slips = await (from line in _db.Set<PayrollLine>().AsNoTracking()
+                           join run in _db.Set<PayrollRun>().AsNoTracking() on line.PayrollRunId equals run.Id
+                           where line.EmployeeId == me.Id && (run.Status == "posted" || run.Status == "reversed")
+                           orderby run.Period descending, run.Date descending
+                           select new { line, run.Id, run.RunNumber, run.Period, run.Date, run.Status }).ToListAsync(ct);
+        var iban = me.Iban?.Replace(" ", string.Empty);
+        return new MyPayrollDto
+        {
+            EmployeeCode = me.Code, EmployeeName = me.NameAr, JobTitle = me.JobTitle, DepartmentName = department,
+            BasicSalary = me.BasicSalary, HousingAllowance = me.HousingAllowance, TransportAllowance = me.TransportAllowance, OtherAllowances = me.OtherAllowances,
+            TotalSalary = me.BasicSalary + me.HousingAllowance + me.TransportAllowance + me.OtherAllowances,
+            EmployeeGosiRate = me.EmployeeGosiRate, BankName = me.BankName,
+            MaskedIban = string.IsNullOrEmpty(iban) ? null : iban.Length <= 4 ? iban : new string('•', iban.Length - 4) + iban[^4..],
+            Payslips = slips.Select(s =>
+            {
+                var slip = Mapper.Map<MyPayslipDto>(s.line);
+                slip.RunId = s.Id; slip.RunNumber = s.RunNumber; slip.Period = s.Period; slip.Date = s.Date; slip.Status = s.Status;
+                slip.EmployeeGosiRate = me.EmployeeGosiRate;
+                return slip;
+            }).ToList(),
         };
     }
 
@@ -160,8 +236,8 @@ public class EmployeePortalService : IEmployeePortalService
         var me = await MeAsync(ct);
         var leave = await _db.Set<LeaveRequest>().AsNoTracking().FirstOrDefaultAsync(r => r.Id == id && r.EmployeeId == me.Id, ct)
             ?? throw new NotFoundException(Messages.LeaveRequestNotFound);
-        // إجازة معتمدة يلغيها من اعتمدها (شؤون الموظفين)، لا الموظف
-        if (leave.Status != LeaveStatuses.Pending) throw new ConflictException(Messages.LeaveRequestNotPending);
+        // إجازة معتمدة يلغيها من اعتمدها (شؤون الموظفين)، لا الموظف؛ والقائمة (معلّقة أو بانتظار الاستكمال) يلغيها صاحبها
+        if (!LeaveStatuses.Open.Contains(leave.Status)) throw new ConflictException(Messages.LeaveRequestNotPending);
         return await _leaves.CancelAsync(id, null, ct);
     }
 
@@ -223,7 +299,7 @@ public class EmployeePortalService : IEmployeePortalService
     }
 
     /// <summary>إشعار لكل من يملك اعتماد شؤون الموظفين بطلب جديد من البوابة. تعذّر الإشعار لا يُسقط الطلب.</summary>
-    private async Task NotifyApproversAsync(LeaveRequestDto leave, CancellationToken ct)
+    private async Task NotifyApproversAsync(LeaveRequestDto leave, CancellationToken ct, bool resubmitted = false)
     {
         try
         {
@@ -238,7 +314,7 @@ public class EmployeePortalService : IEmployeePortalService
                 await _notifications.NotifyAsync(new NotifyRequestDto
                 {
                     RecipientUserId = u.Id,
-                    Title = string.Format(Messages.PortalLeaveNotificationTitle, leave.EmployeeName),
+                    Title = string.Format(resubmitted ? Messages.PortalLeaveResubmittedTitle : Messages.PortalLeaveNotificationTitle, leave.EmployeeName),
                     Body = string.Format(Messages.PortalLeaveNotificationBody, leave.LeaveTypeName, leave.StartDate.ToString("yyyy-MM-dd"), leave.EndDate.ToString("yyyy-MM-dd"), leave.Days),
                     RelatedDocType = "leave_request", RelatedDocId = leave.Id, RelatedDocNumber = leave.RequestNumber,
                 }, ct);

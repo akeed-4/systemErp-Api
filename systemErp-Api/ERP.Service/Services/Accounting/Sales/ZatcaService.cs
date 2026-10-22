@@ -177,16 +177,38 @@ public class ZatcaService : IZatcaService
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
         var config = tenant.ZatcaConfig;
         if (!config.IsEnabled) return await FailAsync(invoice, Messages.ZatcaNotEnabled, ct);
-        // الفاتورة تُرسل بوحدة المستخدم الذي يرسلها؛ غير المربوط لا يرسل
-        var senderId = _user.UserId;
-        var unitId = await _db.Set<ZatcaUnit>().AsNoTracking().Where(u => u.UserId == senderId && u.IsActive).Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
-        if (unitId == null) return await FailAsync(invoice, string.Format(Messages.ZatcaUserNotLinked, _user.Name ?? _user.Email), ct);
 
-        var gate = Gates.GetOrAdd(unitId.Value, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(ct);
+        // الفاتورة تُرسل بوحدة المستخدم الذي يرسلها: مربوطة، مفعّلة، على البيئة الحالية، وشهادتها سارية
+        var senderId = _user.UserId;
+        var units = await _db.Set<ZatcaUnit>().AsNoTracking().Where(u => u.UserId == senderId)
+            .Select(u => new { u.Id, u.IsActive, u.Environment, u.CertificatePem }).ToListAsync(ct);
+        var unit = units.FirstOrDefault(u => u.IsActive);
+        if (unit == null)
+            return await PreCheckFailAsync(invoice, new[] { units.Count == 0 ? "NoActiveUnit" : "UnitDisabled" }, ct,
+                string.Format(Messages.ZatcaUserNotLinked, _user.Name ?? _user.Email));
+        if (string.IsNullOrWhiteSpace(config.CustomEndpointUrl) && unit.Environment != config.Environment)
+            return await PreCheckFailAsync(invoice, new[] { "UnitEnvMismatch" }, ct);
+        if (CertificateExpiry(unit.CertificatePem) is { } expiry && expiry < DateTime.UtcNow)
+            return await PreCheckFailAsync(invoice, new[] { "CertificateExpired" }, ct);
+
+        // بيانات الفاتورة التي ترفضها الهيئة حتماً: تُصحَّح قبل الإرسال
+        var simplifiedInvoice = await IsSimplifiedAsync(invoice, ct);
+        var dataProblems = DataChecks(invoice, tenant, simplifiedInvoice);
+        if (dataProblems.Count > 0) return await PreCheckFailAsync(invoice, dataProblems, ct);
+
+        // المبسطة تُبلَّغ خلال 24 ساعة من إصدارها: التأخير لا يمنع الإرسال لكنه يُنبَّه عليه
+        var overdue = simplifiedInvoice && IssuedAtUtc(invoice) < DateTime.UtcNow.AddHours(-24);
+
+        // قفل السلسلة: إرسال واحد لكل وحدة؛ انتظار طويل يعني إرسالاً عالقاً فيُطلب إعادة المحاولة بدل الانتظار
+        var gate = Gates.GetOrAdd(unit.Id, _ => new SemaphoreSlim(1, 1));
+        if (!await gate.WaitAsync(ChainWait, ct)) return await PreCheckFailAsync(invoice, new[] { "ChainBusy" }, ct);
         try
         {
+            var unitId = unit.Id;
             var chain = await _db.Set<ZatcaUnit>().FirstAsync(u => u.Id == unitId, ct); // تُقرأ داخل القفل: العدّاد كما تركه الإرسال السابق
+            // إعادة إرسال مرفوضة (بعد تصحيح إعدادات المنشأة أو شهادة الوحدة مثلاً): مستند جديد لدى الهيئة بمعرّف جديد،
+            // فالهيئة لا تقبل UUID مكرراً؛ ومحاولتها المرفوضة تبقى حلقة في السلسلة
+            if (invoice.ZatcaStatus == ZatcaSubmissionStatus.Rejected) invoice.Uuid = Guid.NewGuid();
 
             ZatcaDocument document;
             ZatcaSignedInvoice signed;
@@ -214,9 +236,16 @@ public class ZatcaService : IZatcaService
                 return await FailAsync(invoice, string.Format(Messages.ZatcaSubmitFailed, ex.Message), ct);
             }
 
-            // لا حكم من الهيئة (انقطاع أو خطأ خادم): السلسلة لا تتقدّم، ويُعاد الإرسال لاحقاً بالعدّاد نفسه
+            // لا حكم من الهيئة (مصادقة، رابط، ضغط، خادم، انقطاع): السلسلة لا تتقدّم، ويُعاد الإرسال لاحقاً بالعدّاد نفسه.
+            // الحالة وطريقة معالجتها من طبقة HTTP في القاموس (انقطاع الاتصال بلا رمز = الخدمة غير متاحة)
             if (!response.Reached)
-                return await FailAsync(invoice, string.Format(Messages.ZatcaUnreachable, response.Message), ct);
+            {
+                var status = response.HttpStatus == 0 ? 503 : response.HttpStatus;
+                var http = ZatcaErrorDictionary.ResolveHttp(status);
+                var failed = await FailAsync(invoice, $"{Explain(http)}\n{string.Format(Messages.ZatcaUnreachable, response.Message)}", ct,
+                    new List<ZatcaIssueDto> { IssueDto($"HTTP {status}", http with { Chain = ZatcaChainEffect.Keep }, response.Message) });
+                return failed;
+            }
 
             // الفاتورة المرفوضة تبقى حلقة في السلسلة: عدّادها وتجزئتها يُحتسبان للفاتورة التالية
             chain.Counter = document.Counter;
@@ -234,16 +263,27 @@ public class ZatcaService : IZatcaService
             invoice.ZatcaStatus = !response.Accepted ? ZatcaSubmissionStatus.Rejected
                 : response.Warnings.Count > 0 ? ZatcaSubmissionStatus.Warning
                 : document.IsSimplified ? ZatcaSubmissionStatus.Reported : ZatcaSubmissionStatus.Cleared;
-            var notes = response.Errors.Concat(response.Warnings).ToList();
+            // رسائل الهيئة مشروحة من القاموس: كل رمز يتبعه عنوان حالته وطريقة معالجتها
+            var (errorLines, errorIssues) = ExplainMessages(response.Errors, warning: false);
+            var (warningLines, warningIssues) = ExplainMessages(response.Warnings, warning: true);
+            var notes = errorLines.Concat(warningLines).ToList();
+            var issues = errorIssues.Concat(warningIssues).ToList();
+            if (overdue)
+            {
+                notes.Add(Explain(ZatcaErrorDictionary.PreChecks["ReportingOverdue"]));
+                issues.Add(IssueDto("ReportingOverdue", ZatcaErrorDictionary.PreChecks["ReportingOverdue"]));
+            }
             invoice.ZatcaValidationMessages = notes.Count == 0 ? null : string.Join("\n", notes);
             await _db.SaveChangesAsync(ct);
 
             await _audit.LogAsync(response.Accepted ? "ZATCA_SUBMITTED" : "ZATCA_REJECTED", nameof(Invoice), invoice.Id.ToString(),
-                $"{invoice.InvoiceNumber}: {invoice.ZatcaStatus} (ICV {document.Counter} - {chain.UserName})", ct);
+                $"{invoice.InvoiceNumber}: {invoice.ZatcaStatus} (ICV {document.Counter} - {chain.UserName}, HTTP {response.HttpStatus})", ct);
 
-            return Result(invoice, response.Accepted, !response.Accepted ? Messages.ZatcaRejected
+            var submitted = Result(invoice, response.Accepted, !response.Accepted ? Messages.ZatcaRejected
                 : response.Warnings.Count > 0 ? Messages.ZatcaAcceptedWithWarnings
                 : document.IsSimplified ? Messages.ZatcaReported : Messages.ZatcaCleared);
+            submitted.Issues.AddRange(issues);
+            return submitted;
         }
         finally
         {
@@ -261,13 +301,37 @@ public class ZatcaService : IZatcaService
             : $"{message}\n{invoice.ZatcaValidationMessages}",
     };
 
-    /// <summary>تعذّر الإرسال قبل حكم الهيئة: يُحفظ السبب على الفاتورة وتبقى حالتها كما هي.</summary>
-    private async Task<ZatcaSubmitResultDto> FailAsync(InvoiceBase invoice, string reason, CancellationToken ct)
+    /// <summary>تعذّر الإرسال قبل حكم الهيئة: يُحفظ السبب على الفاتورة وتبقى حالتها كما هي (والسلسلة لم تُستهلك).</summary>
+    private async Task<ZatcaSubmitResultDto> FailAsync(InvoiceBase invoice, string reason, CancellationToken ct, List<ZatcaIssueDto>? issues = null)
     {
         invoice.ZatcaValidationMessages = reason;
         await _db.SaveChangesAsync(ct);
-        return new ZatcaSubmitResultDto { Success = false, Status = invoice.ZatcaStatus, Message = reason, QrCode = invoice.ZatcaQrCode };
+        return new ZatcaSubmitResultDto { Success = false, Status = invoice.ZatcaStatus, Message = reason, QrCode = invoice.ZatcaQrCode, Issues = issues ?? new() };
     }
+
+    /// <summary>أقصى انتظار لقفل سلسلة الوحدة قبل إعادة المحاولة (ChainBusy).</summary>
+    private static readonly TimeSpan ChainWait = TimeSpan.FromSeconds(30);
+
+    /// <summary>انتهاء شهادة الوحدة (فارغ إن تعذّرت قراءتها؛ عندها تحكم الهيئة).</summary>
+    private static DateTime? CertificateExpiry(string? pem)
+    {
+        if (string.IsNullOrWhiteSpace(pem)) return null;
+        try
+        {
+            var text = pem.Contains("BEGIN CERTIFICATE", StringComparison.Ordinal) ? pem
+                : $"-----BEGIN CERTIFICATE-----\n{pem.Trim()}\n-----END CERTIFICATE-----";
+            using var cert = System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromPem(text);
+            return cert.NotAfter.ToUniversalTime();
+        }
+        catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or FormatException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>وقت إصدار الفاتورة بالتوقيت العالمي (التاريخ والوقت محفوظان بتوقيت المملكة +3).</summary>
+    private static DateTime IssuedAtUtc(InvoiceBase invoice)
+        => invoice.IssueDate.Date.Add(TimeSpan.TryParse(invoice.IssueTime, CultureInfo.InvariantCulture, out var t) ? t : TimeSpan.Zero).AddHours(-3);
 
     /// <summary>المالك ومدير النظام يربطان غيرهما ويرون كل الوحدات.</summary>
     private bool IsAdmin => _user.RoleId is "owner" or "admin";
@@ -288,21 +352,102 @@ public class ZatcaService : IZatcaService
     private static ZatcaParty Seller(Tenant t)
         => new(t.NameAr, t.VatNumber, t.CrNumber, t.ZatcaConfig.Street, t.ZatcaConfig.BuildingNumber, t.ZatcaConfig.District, t.City, t.ZatcaConfig.PostalCode, "SA");
 
-    private async Task<ZatcaDocument> DocumentAsync(InvoiceBase invoice, Tenant tenant, long counter, string previousHash, CancellationToken ct)
-    {
-        var typeCode = invoice.InvoiceType == InvoiceType.DebitNote ? ZatcaInvoiceXml.DebitNote
+    private static string TypeCodeOf(InvoiceBase invoice)
+        => invoice.InvoiceType == InvoiceType.DebitNote ? ZatcaInvoiceXml.DebitNote
             : invoice.Kind == InvoiceKind.SalesReturn || invoice.InvoiceType == InvoiceType.CreditNote ? ZatcaInvoiceXml.CreditNote
             : ZatcaInvoiceXml.Invoice;
 
-        // الإشعار يتبع نوع فاتورته الأصلية (مبسطة أو ضريبية)؛ وبلا أصل: وجود رقم ضريبي للمشتري يجعله ضريبياً
-        var simplified = invoice.InvoiceType switch
+    /// <summary>الإشعار يتبع نوع فاتورته الأصلية (مبسطة أو ضريبية)؛ وبلا أصل: وجود رقم ضريبي للمشتري يجعله ضريبياً.</summary>
+    private async Task<bool> IsSimplifiedAsync(InvoiceBase invoice, CancellationToken ct) => invoice.InvoiceType switch
+    {
+        InvoiceType.Simplified => true,
+        InvoiceType.TaxInvoice => false,
+        _ => invoice.OriginalInvoiceId.HasValue
+            ? await _db.Set<InvoiceBase>().AsNoTracking().Where(o => o.Id == invoice.OriginalInvoiceId).Select(o => (InvoiceType?)o.InvoiceType).FirstOrDefaultAsync(ct) != InvoiceType.TaxInvoice
+            : string.IsNullOrWhiteSpace(invoice.PartyVatNumber),
+    };
+
+    // ---------------- قاموس الأخطاء: الفحوص المحلية وشرح ردود الهيئة ----------------
+
+    /// <summary>
+    /// فحوص البيانات قبل استدعاء الهيئة (طبقة PreChecks في <see cref="ZatcaErrorDictionary"/>): ما يُرفض حتماً لا يُرسل،
+    /// فلا يُستهلك ICV. تُجمع كلها ليُصحّحها المستخدم مرة واحدة.
+    /// </summary>
+    private static List<string> DataChecks(InvoiceBase invoice, Tenant tenant, bool simplified)
+    {
+        var keys = new List<string>();
+        var z = tenant.ZatcaConfig;
+        if (!SaudiVat.IsValid(tenant.VatNumber)) keys.Add("SellerVatInvalid");
+        if (string.IsNullOrWhiteSpace(z.Street) || !Digits(z.BuildingNumber, 4) || string.IsNullOrWhiteSpace(z.District)
+            || string.IsNullOrWhiteSpace(tenant.City) || !Digits(z.PostalCode, 5))
+            keys.Add("SellerAddressMissing");
+        if (string.IsNullOrWhiteSpace(tenant.CrNumber)) keys.Add("SellerCrMissing");
+
+        if (!simplified)
         {
-            InvoiceType.Simplified => true,
-            InvoiceType.TaxInvoice => false,
-            _ => invoice.OriginalInvoiceId.HasValue
-                ? await _db.Set<InvoiceBase>().AsNoTracking().Where(o => o.Id == invoice.OriginalInvoiceId).Select(o => (InvoiceType?)o.InvoiceType).FirstOrDefaultAsync(ct) != InvoiceType.TaxInvoice
-                : string.IsNullOrWhiteSpace(invoice.PartyVatNumber),
-        };
+            var domestic = string.IsNullOrWhiteSpace(invoice.PartyCountry) || invoice.PartyCountry.Trim().ToUpperInvariant() == "SA";
+            if (string.IsNullOrWhiteSpace(invoice.PartyName)) keys.Add("BuyerNameMissing");
+            if (domestic && !SaudiVat.IsValid(invoice.PartyVatNumber)) keys.Add("BuyerVatInvalid");
+            if (string.IsNullOrWhiteSpace(invoice.PartyStreet) || string.IsNullOrWhiteSpace(invoice.PartyCity)
+                || domestic && (!Digits(invoice.PartyBuildingNo, 4) || string.IsNullOrWhiteSpace(invoice.PartyDistrict) || !Digits(invoice.PartyPostalCode, 5)))
+                keys.Add("BuyerAddressMissing");
+        }
+
+        if (!invoice.Lines.Any()) keys.Add("NoLines");
+        else if (invoice.GrandTotal <= 0) keys.Add("ZeroOrNegativeTotal");
+        if (invoice.Lines.Any(l => l.VatCategory is VatCategory.ZeroRated or VatCategory.Exempt or VatCategory.OutOfScope
+                && VatExemptionReasons.Find(l.VatExemptionReasonCode) == null))
+            keys.Add("ExemptionReasonMissing");
+
+        if (TypeCodeOf(invoice) != ZatcaInvoiceXml.Invoice)
+        {
+            if (string.IsNullOrWhiteSpace(invoice.OriginalInvoiceNumber)) keys.Add("NoteWithoutReference");
+            if (string.IsNullOrWhiteSpace(invoice.ReturnReason) && string.IsNullOrWhiteSpace(invoice.Notes)) keys.Add("NoteWithoutReason");
+        }
+        return keys;
+    }
+
+    private static bool Digits(string? value, int length) => value?.Trim() is { } v && v.Length == length && v.All(char.IsAsciiDigit);
+
+    /// <summary>حالة من القاموس كما تُعرض وتُحفظ: العنوان ثم طريقة المعالجة.</summary>
+    private static string Explain(ZatcaIssue issue) => $"{issue.Title} — {issue.Fix}";
+
+    private static ZatcaIssueDto IssueDto(string code, ZatcaIssue issue, string? message = null) => new()
+    {
+        Code = code, Title = issue.Title, Fix = issue.Fix, Message = message,
+        Kind = issue.Kind.ToString().ToLowerInvariant(), ChainConsumed = issue.Chain == ZatcaChainEffect.Consumed,
+    };
+
+    /// <summary>فشل فحص محلي (لم يُرسل شيء للهيئة): السبب بعناوين القاموس وحلولها، والسلسلة على حالها.</summary>
+    private Task<ZatcaSubmitResultDto> PreCheckFailAsync(InvoiceBase invoice, IReadOnlyCollection<string> keys, CancellationToken ct, string? detail = null)
+    {
+        var issues = keys.Select(k => IssueDto(k, ZatcaErrorDictionary.PreChecks[k], detail)).ToList();
+        var text = string.Join("\n", keys.Select(k => Explain(ZatcaErrorDictionary.PreChecks[k])));
+        return FailAsync(invoice, detail == null ? text : $"{text}\n{detail}", ct, issues);
+    }
+
+    /// <summary>
+    /// رسائل التحقق من الهيئة («الرمز: النص») مشروحة من القاموس: كل رسالة يتبعها عنوان حالتها وطريقة معالجتها.
+    /// </summary>
+    private static (List<string> Lines, List<ZatcaIssueDto> Issues) ExplainMessages(IEnumerable<string> messages, bool warning)
+    {
+        var lines = new List<string>();
+        var issues = new List<ZatcaIssueDto>();
+        foreach (var m in messages)
+        {
+            var colon = m.IndexOf(':');
+            var code = colon > 0 && !m[..colon].Contains(' ') ? m[..colon].Trim() : null;
+            var issue = ZatcaErrorDictionary.Resolve(code, warning);
+            lines.Add($"{m}\n  ↳ {Explain(issue)}");
+            issues.Add(IssueDto(code ?? string.Empty, issue, m));
+        }
+        return (lines, issues);
+    }
+
+    private async Task<ZatcaDocument> DocumentAsync(InvoiceBase invoice, Tenant tenant, long counter, string previousHash, CancellationToken ct)
+    {
+        var typeCode = TypeCodeOf(invoice);
+        var simplified = await IsSimplifiedAsync(invoice, ct);
 
         var lines = invoice.Lines.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id).Select(i =>
         {

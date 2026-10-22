@@ -24,10 +24,11 @@ public class LeaveAttachmentService : ILeaveAttachmentService
 
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
+    private readonly IAuditService _audit;
 
-    public LeaveAttachmentService(ErpDbContext db, ICurrentUser user)
+    public LeaveAttachmentService(ErpDbContext db, ICurrentUser user, IAuditService audit)
     {
-        _db = db; _user = user;
+        _db = db; _user = user; _audit = audit;
     }
 
     public async Task<List<LeaveAttachmentDto>> ListAsync(Guid leaveRequestId, Guid? ownerEmployeeId = null, CancellationToken ct = default)
@@ -60,6 +61,7 @@ public class LeaveAttachmentService : ILeaveAttachmentService
         _db.Add(attachment);
         leave.AttachmentCount++;
         await _db.SaveChangesAsync(ct);
+        await LeaveService.LogEventAsync(_audit, leave, LeaveService.Events.AttachmentAdded, attachment.FileName, ct);
         return new LeaveAttachmentDto
         {
             Id = attachment.Id, CreatedAt = attachment.CreatedAt, LeaveRequestId = leaveRequestId, FileName = attachment.FileName,
@@ -69,11 +71,14 @@ public class LeaveAttachmentService : ILeaveAttachmentService
 
     public async Task<LeaveAttachmentFileDto> GetFileAsync(Guid leaveRequestId, Guid attachmentId, Guid? ownerEmployeeId = null, CancellationToken ct = default)
     {
-        await FindLeaveAsync(leaveRequestId, ownerEmployeeId, tracked: false, ct);
-        return await _db.Set<LeaveAttachment>().AsNoTracking().Where(a => a.Id == attachmentId && a.LeaveRequestId == leaveRequestId)
+        var leave = await FindLeaveAsync(leaveRequestId, ownerEmployeeId, tracked: false, ct);
+        var file = await _db.Set<LeaveAttachment>().AsNoTracking().Where(a => a.Id == attachmentId && a.LeaveRequestId == leaveRequestId)
                 .Select(a => new LeaveAttachmentFileDto { FileName = a.FileName, ContentType = a.ContentType, Content = a.Content })
                 .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException(Messages.LeaveAttachmentNotFound);
+        // التقرير الطبي بيانات حساسة: اطلاع غير صاحبه عليه يُسجَّل في سجل التدقيق
+        if (ownerEmployeeId == null) await LeaveService.LogEventAsync(_audit, leave, LeaveService.Events.AttachmentViewed, file.FileName, ct);
+        return file;
     }
 
     public async Task DeleteAsync(Guid leaveRequestId, Guid attachmentId, Guid? ownerEmployeeId = null, CancellationToken ct = default)
@@ -81,11 +86,12 @@ public class LeaveAttachmentService : ILeaveAttachmentService
         var leave = await FindLeaveAsync(leaveRequestId, ownerEmployeeId, tracked: true, ct);
         EnsureOwnerMayChange(leave, ownerEmployeeId);
         // يُحذف بالمعرّف دون تحميل المحتوى
-        var exists = await _db.Set<LeaveAttachment>().AnyAsync(a => a.Id == attachmentId && a.LeaveRequestId == leaveRequestId, ct);
-        if (!exists) throw new NotFoundException(Messages.LeaveAttachmentNotFound);
+        var name = await _db.Set<LeaveAttachment>().Where(a => a.Id == attachmentId && a.LeaveRequestId == leaveRequestId).Select(a => a.FileName).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.LeaveAttachmentNotFound);
         _db.Remove(new LeaveAttachment { Id = attachmentId, TenantId = leave.TenantId });
         leave.AttachmentCount = Math.Max(0, leave.AttachmentCount - 1);
         await _db.SaveChangesAsync(ct);
+        await LeaveService.LogEventAsync(_audit, leave, LeaveService.Events.AttachmentDeleted, name, ct);
     }
 
     internal static IQueryable<LeaveAttachmentDto> Metadata(IQueryable<LeaveAttachment> attachments)
@@ -102,9 +108,9 @@ public class LeaveAttachmentService : ILeaveAttachmentService
             ?? throw new NotFoundException(Messages.LeaveRequestNotFound);
     }
 
-    /// <summary>الموظف يعدّل مرفقات طلبه ما دام معلّقاً؛ بعد البتّ فيه تبقى كما اعتُمد عليها.</summary>
+    /// <summary>الموظف يعدّل مرفقات طلبه ما دام قائماً (معلّقاً أو معاداً للاستكمال)؛ بعد البتّ فيه تبقى كما اعتُمد عليها.</summary>
     private static void EnsureOwnerMayChange(LeaveRequest leave, Guid? ownerEmployeeId)
     {
-        if (ownerEmployeeId != null && leave.Status != LeaveStatuses.Pending) throw new ConflictException(Messages.LeaveRequestNotPending);
+        if (ownerEmployeeId != null && !LeaveStatuses.Open.Contains(leave.Status)) throw new ConflictException(Messages.LeaveRequestNotPending);
     }
 }

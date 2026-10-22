@@ -10,6 +10,21 @@ public abstract class TestBase
     protected TestBase(ErpFactory factory) => Factory = factory;
 
     protected HttpClient NewHttp() => Factory.CreateClient();
+
+    /// <summary>ملف PDF صغير صالح (توقيع %PDF) للمرفقات.</summary>
+    protected static readonly byte[] SmallPdf = "%PDF-1.4 medical report"u8.ToArray();
+
+    /// <summary>رفع ملف (multipart) إلى مسار API باسم الحقل file، ويعيد رمز الحالة.</summary>
+    protected async Task<int> UploadFileAsync(Client api, string path, string fileName, byte[] content)
+    {
+        var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(content);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        form.Add(file, "file", fileName);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1" + path) { Content = form };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", api.Token);
+        return (int)(await NewHttp().SendAsync(request)).StatusCode;
+    }
     protected async Task<Client> NewTenantAsync(string name = "شركة اختبار") => await new Client(NewHttp()).RegisterAsync(name);
 
     protected async Task<Client> NewTenantWithModulesAsync(params string[] modules)

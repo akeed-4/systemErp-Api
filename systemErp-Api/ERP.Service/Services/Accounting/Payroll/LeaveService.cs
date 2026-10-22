@@ -5,27 +5,50 @@ using ERP.Core.Contracts.Shared;
 using ERP.Core.DTOs.Accounting;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
+using Microsoft.Extensions.Logging;
 
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
-/// طلبات الإجازات: طلب ← اعتماد/رفض ← إلغاء. الإجازة السنوية لا تتجاوز الرصيد المتاح، والأنواع ذات الحد السنوي
-/// لا تتجاوزه، ولا تتداخل إجازتان لموظف. إجازة منقوصة الأجر تدخل خصماً في مسير شهرها، فلا يتغيّر وضعها بعد
-/// ترحيل ذلك المسير إلا بعكسه.
+/// طلبات الإجازات: طلب ← (طلب استكمال ← إعادة إرسال) ← اعتماد/رفض ← إلغاء. الإجازة السنوية لا تتجاوز الرصيد المتاح،
+/// والأنواع ذات الحد السنوي لا تتجاوزه، ولا تتداخل إجازتان لموظف؛ والطلب المعاد للاستكمال يبقى حاجزاً لأيامه فلا
+/// تُحتسب مرتين عند إعادة إرساله أو تعديله (يُعدَّل الطلب نفسه). إجازة منقوصة الأجر تدخل خصماً في مسير شهرها، فلا
+/// يتغيّر وضعها بعد ترحيل ذلك المسير إلا بعكسه. كل انتقال يُسجَّل في سجل التدقيق (ومنه سجل حالات الطلب)،
+/// وقرارات شؤون الموظفين تُشعر الموظف صاحب الطلب.
 /// </summary>
 public class LeaveService : ILeaveService
 {
     private const int MaxLeaveDays = 366;
+
+    /// <summary>أحداث سجل الطلب في سجل التدقيق (EntityName = LeaveRequest).</summary>
+    public static class Events
+    {
+        public const string Submit = "submit";
+        public const string Update = "update";
+        public const string Return = "return";
+        public const string Resubmit = "resubmit";
+        public const string Approve = "approve";
+        public const string Reject = "reject";
+        public const string Cancel = "cancel";
+        public const string AttachmentAdded = "attachment_add";
+        public const string AttachmentDeleted = "attachment_delete";
+        public const string AttachmentViewed = "attachment_view";
+        /// <summary>تظهر للموظف في سجل طلبه (فتح شؤون الموظفين للمرفق يبقى في سجل التدقيق وحده).</summary>
+        public static readonly string[] Visible = { Submit, Update, Return, Resubmit, Approve, Reject, Cancel, AttachmentAdded, AttachmentDeleted };
+    }
 
     private readonly ErpDbContext _db;
     private readonly INumberSequenceService _numbers;
     private readonly ITransactionRunner _tx;
     private readonly ICurrentUser _user;
     private readonly IAuditService _audit;
+    private readonly INotificationService _notifications;
+    private readonly ILogger<LeaveService> _log;
 
-    public LeaveService(ErpDbContext db, INumberSequenceService numbers, ITransactionRunner tx, ICurrentUser user, IAuditService audit)
+    public LeaveService(ErpDbContext db, INumberSequenceService numbers, ITransactionRunner tx, ICurrentUser user, IAuditService audit,
+        INotificationService notifications, ILogger<LeaveService> log)
     {
-        _db = db; _numbers = numbers; _tx = tx; _user = user; _audit = audit;
+        _db = db; _numbers = numbers; _tx = tx; _user = user; _audit = audit; _notifications = notifications; _log = log;
     }
 
     public Task<LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default)
@@ -44,18 +67,76 @@ public class LeaveService : ILeaveService
             leave.RequestNumber = await _numbers.NextAsync("leave_request", "LV-", token);
             _db.Add(leave);
             await _db.SaveChangesAsync(token);
+            await LogAsync(leave, Events.Submit, leave.Reason, token);
             return Mapper.Map<LeaveRequestDto>(leave);
         }, ct);
 
+    /// <summary>
+    /// تعديل طلب لم يُبتّ فيه (معلّق أو معاد للاستكمال). المعاد للاستكمال يعود معلّقاً بإعادة إرساله؛ والطلب نفسه
+    /// يُعدَّل فلا تُحتسب أيامه مرتين.
+    /// </summary>
     public Task<LeaveRequestDto> UpdateAsync(Guid id, UpdateLeaveRequestDto request, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var leave = await FindAsync(id, token);
-            if (leave.Status != LeaveStatuses.Pending) throw new ConflictException(Messages.LeaveRequestNotPending);
+            if (!LeaveStatuses.Open.Contains(leave.Status)) throw new ConflictException(Messages.LeaveRequestNotPending);
+            var resubmitted = leave.Status == LeaveStatuses.NeedsInfo;
             await FillAsync(leave, request, token);
             await _db.SaveChangesAsync(token);
+            await LogAsync(leave, resubmitted ? Events.Resubmit : Events.Update, leave.Reason, token);
             return Mapper.Map<LeaveRequestDto>(leave);
         }, ct);
+
+    /// <summary>طلب استكمال: يعيد الطلب المعلّق لصاحبه بسبب مكتوب (تقرير طبي ناقص مثلاً) ليعدّله ويعيد إرساله.</summary>
+    public Task<LeaveRequestDto> ReturnForInfoAsync(Guid id, string? note, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            if (string.IsNullOrWhiteSpace(note)) throw new ValidationFailedException(Messages.LeaveReturnNoteRequired);
+            var leave = await FindAsync(id, token);
+            if (leave.Status != LeaveStatuses.Pending) throw new ConflictException(Messages.LeaveRequestNotPending);
+            return await DecideAsync(leave, LeaveStatuses.NeedsInfo, note, Events.Return, token);
+        }, ct);
+
+    public async Task<List<LeaveHistoryEntryDto>> GetHistoryAsync(Guid id, Guid? ownerEmployeeId = null, CancellationToken ct = default)
+    {
+        if (!await _db.Set<LeaveRequest>().AnyAsync(r => r.Id == id && (ownerEmployeeId == null || r.EmployeeId == ownerEmployeeId), ct))
+            throw new NotFoundException(Messages.LeaveRequestNotFound);
+        return (await HistoryAsync(_db, new[] { id }, ownerEmployeeId != null, ct))[id].ToList();
+    }
+
+    /// <summary>
+    /// سجل حالات طلبات الإجازة من سجل التدقيق (لا جدول مكرر). للموظف تُستبعد أحداث الاطلاع الداخلية.
+    /// الملاحظة بعد « — » في تفاصيل الحدث.
+    /// </summary>
+    internal static async Task<ILookup<Guid, LeaveHistoryEntryDto>> HistoryAsync(ErpDbContext db, IReadOnlyCollection<Guid> ids, bool forEmployee, CancellationToken ct)
+    {
+        var keys = ids.Select(i => i.ToString()).ToList();
+        var rows = await db.Set<AuditLog>().AsNoTracking()
+            .Where(a => a.EntityName == nameof(LeaveRequest) && a.EntityId != null && keys.Contains(a.EntityId)
+                && (!forEmployee || Events.Visible.Contains(a.Action)))
+            .OrderBy(a => a.Timestamp).Select(a => new { a.EntityId, a.Action, a.PerformedBy, a.Timestamp, a.Details })
+            .ToListAsync(ct);
+        return rows.ToLookup(a => Guid.Parse(a.EntityId!), a =>
+        {
+            var at = a.Details.IndexOf(NoteSeparator, StringComparison.Ordinal);
+            return new LeaveHistoryEntryDto
+            {
+                Action = a.Action, PerformedBy = a.PerformedBy, At = a.Timestamp,
+                Note = at < 0 ? null : a.Details[(at + NoteSeparator.Length)..],
+            };
+        });
+    }
+
+    private const string NoteSeparator = " — ";
+
+    /// <summary>حدث على الطلب في سجل التدقيق: ملخص الطلب ثم الملاحظة (إن وُجدت) بعد الفاصل.</summary>
+    internal Task LogAsync(LeaveRequest leave, string action, string? note, CancellationToken ct)
+        => LogEventAsync(_audit, leave, action, note, ct);
+
+    internal static Task LogEventAsync(IAuditService audit, LeaveRequest leave, string action, string? note, CancellationToken ct)
+        => audit.LogAsync(action, nameof(LeaveRequest), leave.Id.ToString(),
+            $"{leave.RequestNumber} {leave.EmployeeName}: {leave.LeaveTypeName} {leave.StartDate:yyyy-MM-dd} → {leave.EndDate:yyyy-MM-dd} ({leave.Days})"
+            + (string.IsNullOrWhiteSpace(note) ? string.Empty : NoteSeparator + note.Trim()), ct);
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
@@ -75,27 +156,31 @@ public class LeaveService : ILeaveService
             if (leave.Status != LeaveStatuses.Pending) throw new ConflictException(Messages.LeaveRequestNotPending);
             var employee = await _db.Set<Employee>().AsNoTracking().FirstOrDefaultAsync(e => e.Id == leave.EmployeeId, token)
                 ?? throw new NotFoundException(Messages.LeaveEmployeeNotFound);
+            // نوع يلزمه مستند (الإجازة المرضية وتقريرها الطبي): لا يُعتمد بلا مرفق
+            if (leave.AttachmentCount == 0
+                && await _db.Set<LeaveType>().AsNoTracking().AnyAsync(t => t.Id == leave.LeaveTypeId && t.RequiresAttachment, token))
+                throw new ValidationFailedException(Messages.LeaveAttachmentRequiredToApprove);
             // الرصيد والحد يُتحقق منهما مجدداً: قد تكون طلبات أخرى اعتُمدت منذ تقديم الطلب
             await EnsureWithinLimitsAsync(leave, employee, token);
             await EnsurePayrollOpenAsync(leave, token);
-            return await DecideAsync(leave, LeaveStatuses.Approved, note, "approve", token);
+            return await DecideAsync(leave, LeaveStatuses.Approved, note, Events.Approve, token);
         }, ct);
 
     public Task<LeaveRequestDto> RejectAsync(Guid id, string? note, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var leave = await FindAsync(id, token);
-            if (leave.Status != LeaveStatuses.Pending) throw new ConflictException(Messages.LeaveRequestNotPending);
-            return await DecideAsync(leave, LeaveStatuses.Rejected, note, "reject", token);
+            if (!LeaveStatuses.Open.Contains(leave.Status)) throw new ConflictException(Messages.LeaveRequestNotPending);
+            return await DecideAsync(leave, LeaveStatuses.Rejected, note, Events.Reject, token);
         }, ct);
 
     public Task<LeaveRequestDto> CancelAsync(Guid id, string? note, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var leave = await FindAsync(id, token);
-            if (leave.Status is not (LeaveStatuses.Pending or LeaveStatuses.Approved)) throw new ConflictException(Messages.LeaveRequestAlreadyClosed);
+            if (!LeaveStatuses.Reserving.Contains(leave.Status)) throw new ConflictException(Messages.LeaveRequestAlreadyClosed);
             if (leave.Status == LeaveStatuses.Approved) await EnsurePayrollOpenAsync(leave, token);
-            return await DecideAsync(leave, LeaveStatuses.Cancelled, note, "cancel", token);
+            return await DecideAsync(leave, LeaveStatuses.Cancelled, note, Events.Cancel, token);
         }, ct);
 
     public async Task<LeaveBalanceDto> GetBalanceAsync(Guid employeeId, DateTime? asOf, CancellationToken ct = default)
@@ -110,7 +195,7 @@ public class LeaveService : ILeaveService
         var today = SaudiTime.Today;
         var employees = await _db.Set<Employee>().AsNoTracking().Where(e => e.Status == EmployeeStatuses.Active).OrderBy(e => e.Code).ToListAsync(ct);
         var requests = (await _db.Set<LeaveRequest>().AsNoTracking()
-                .Where(r => r.IsAnnual && (r.Status == LeaveStatuses.Approved || r.Status == LeaveStatuses.Pending)).ToListAsync(ct))
+                .Where(r => r.IsAnnual && LeaveStatuses.Reserving.Contains(r.Status)).ToListAsync(ct))
             .ToLookup(r => r.EmployeeId);
         return employees.Select(e => LeaveBalances.Compute(e, today, requests[e.Id])).ToList();
     }
@@ -123,7 +208,7 @@ public class LeaveService : ILeaveService
     private Task<List<LeaveRequest>> AnnualRequestsAsync(Guid employeeId, Guid? exceptId, CancellationToken ct)
         => _db.Set<LeaveRequest>().AsNoTracking()
             .Where(r => r.EmployeeId == employeeId && r.IsAnnual && r.Id != exceptId
-                && (r.Status == LeaveStatuses.Approved || r.Status == LeaveStatuses.Pending))
+                && LeaveStatuses.Reserving.Contains(r.Status))
             .ToListAsync(ct);
 
     /// <summary>يتحقق من الطلب وينسخ بيانات الموظف ونوع الإجازة إليه.</summary>
@@ -150,7 +235,7 @@ public class LeaveService : ILeaveService
         leave.Status = LeaveStatuses.Pending;
 
         if (await _db.Set<LeaveRequest>().AnyAsync(o => o.EmployeeId == employee.Id && o.Id != leave.Id
-                && (o.Status == LeaveStatuses.Pending || o.Status == LeaveStatuses.Approved) && o.StartDate <= end && o.EndDate >= start, ct))
+                && LeaveStatuses.Reserving.Contains(o.Status) && o.StartDate <= end && o.EndDate >= start, ct))
             throw new ConflictException(Messages.LeaveOverlaps);
         await EnsureWithinLimitsAsync(leave, employee, ct, type.MaxDaysPerYear);
     }
@@ -173,7 +258,7 @@ public class LeaveService : ILeaveService
         var yearEnd = yearStart.AddYears(1);
         var used = await _db.Set<LeaveRequest>().AsNoTracking()
             .Where(o => o.EmployeeId == employee.Id && o.LeaveTypeId == leave.LeaveTypeId && o.Id != leave.Id
-                && (o.Status == LeaveStatuses.Pending || o.Status == LeaveStatuses.Approved) && o.StartDate >= yearStart && o.StartDate < yearEnd)
+                && LeaveStatuses.Reserving.Contains(o.Status) && o.StartDate >= yearStart && o.StartDate < yearEnd)
             .SumAsync(o => (int?)o.Days, ct) ?? 0;
         if (used + leave.Days > maxDaysPerYear)
             throw new ValidationFailedException(string.Format(Messages.LeaveTypeLimitExceeded, maxDaysPerYear, Math.Max(0, maxDaysPerYear.Value - used)));
@@ -198,8 +283,40 @@ public class LeaveService : ILeaveService
         leave.DecidedAt = DateTime.UtcNow;
         leave.DecisionNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
         await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync(action, nameof(LeaveRequest), leave.Id.ToString(),
-            $"{leave.RequestNumber} {leave.EmployeeName}: {leave.LeaveTypeName} {leave.StartDate:yyyy-MM-dd} → {leave.EndDate:yyyy-MM-dd} ({leave.Days})", ct);
+        await LogAsync(leave, action, leave.DecisionNote, ct);
+        await NotifyEmployeeAsync(leave, action, ct);
         return Mapper.Map<LeaveRequestDto>(leave);
+    }
+
+    /// <summary>
+    /// يُشعر الموظف صاحب الطلب (إن كان له حساب بوابة) بقرار شؤون الموظفين: اعتماد، رفض، طلب استكمال، أو إلغاء.
+    /// إلغاء الموظف طلبه بنفسه لا يُشعره. تعذّر الإشعار لا يُسقط القرار.
+    /// </summary>
+    private async Task NotifyEmployeeAsync(LeaveRequest leave, string action, CancellationToken ct)
+    {
+        try
+        {
+            var userId = await _db.Set<Employee>().AsNoTracking().Where(e => e.Id == leave.EmployeeId).Select(e => e.UserId).FirstOrDefaultAsync(ct);
+            if (userId == null || userId == _user.UserId) return;
+            var title = action switch
+            {
+                Events.Approve => Messages.LeaveNotifyApprovedTitle,
+                Events.Reject => Messages.LeaveNotifyRejectedTitle,
+                Events.Return => Messages.LeaveNotifyNeedsInfoTitle,
+                _ => Messages.LeaveNotifyCancelledTitle,
+            };
+            await _notifications.NotifyAsync(new NotifyRequestDto
+            {
+                RecipientUserId = userId.Value,
+                Title = string.Format(title, leave.RequestNumber),
+                Body = string.Format(Messages.LeaveNotifyBody, leave.LeaveTypeName, leave.StartDate.ToString("yyyy-MM-dd"), leave.EndDate.ToString("yyyy-MM-dd"))
+                    + (leave.DecisionNote == null ? string.Empty : NoteSeparator + leave.DecisionNote),
+                RelatedDocType = "leave_request", RelatedDocId = leave.Id, RelatedDocNumber = leave.RequestNumber,
+            }, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogError(ex, "تعذّر إشعار الموظف بقرار طلب الإجازة {RequestNumber}.", leave.RequestNumber);
+        }
     }
 }

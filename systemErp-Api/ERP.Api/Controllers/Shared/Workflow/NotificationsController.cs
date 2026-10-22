@@ -10,22 +10,23 @@ public class NotificationsController : ErpControllerBase
     private readonly INotificationService _notifications;
     public NotificationsController(INotificationService notifications) => _notifications = notifications;
 
-    [HttpGet] public async Task<IActionResult> Mine(CancellationToken ct) => Success(await _notifications.ListMineAsync(ct));
+    // إشعارات المستخدم نفسه (مقيّدة بصاحب الجلسة في الخدمة): متاحة للموظف في بوابته أيضاً؛ إنشاء الإشعارات لا
+    [HttpGet, EmployeeSelfService] public async Task<IActionResult> Mine(CancellationToken ct) => Success(await _notifications.ListMineAsync(ct));
 
     [HttpPost]
     public async Task<IActionResult> Notify([FromBody] NotifyRequestDto request, CancellationToken ct)
         => Success(await _notifications.NotifyAsync(request, ct));
 
-    [HttpGet("{id:guid}")]
+    [HttpGet("{id:guid}"), EmployeeSelfService]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _notifications.GetAsync(id, ct));
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _notifications.DeleteAsync(id, ct); return Success(Messages.Done); }
 
-    [HttpPost("{id:guid}/read")]
+    [HttpPost("{id:guid}/read"), EmployeeSelfService]
     public async Task<IActionResult> Read(Guid id, CancellationToken ct) { await _notifications.MarkAsReadAsync(id, ct); return Success(Messages.Done); }
 
-    [HttpPost("ReadAll")]
+    [HttpPost("ReadAll"), EmployeeSelfService]
     public async Task<IActionResult> ReadAll(CancellationToken ct) { await _notifications.MarkAllAsReadAsync(ct); return Success(Messages.Done); }
 
     [HttpDelete]

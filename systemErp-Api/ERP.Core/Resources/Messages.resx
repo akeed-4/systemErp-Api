@@ -1145,4 +1145,13 @@
   <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>نظام هامش الربح للسيارات المستعملة فقط؛ غيّر حالة السيارة إلى مستعملة أولاً.</value></data>
   <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>هامش الربح لا يُعرَّف على الصنف: يُحدَّد في بطاقة السيارة المستعملة المؤهلة.</value></data>
   <data name="VatRegisteredPartyNeedsVatNumber" xml:space="preserve"><value>الطرف المسجَّل في ضريبة القيمة المضافة يلزمه رقمه الضريبي.</value></data>
+  <data name="LeaveReturnNoteRequired" xml:space="preserve"><value>اكتب ما يلزم الموظف استكماله (سبب طلب الاستكمال).</value></data>
+  <data name="LeaveAttachmentRequiredToApprove" xml:space="preserve"><value>هذا النوع من الإجازات لا يُعتمد بلا مرفق (تقرير طبي مثلاً): اطلب من الموظف استكماله.</value></data>
+  <data name="LeaveReturnedForInfo" xml:space="preserve"><value>أُعيد الطلب للموظف لاستكماله.</value></data>
+  <data name="LeaveNotifyApprovedTitle" xml:space="preserve"><value>اعتُمد طلب إجازتك {0}</value></data>
+  <data name="LeaveNotifyRejectedTitle" xml:space="preserve"><value>رُفض طلب إجازتك {0}</value></data>
+  <data name="LeaveNotifyNeedsInfoTitle" xml:space="preserve"><value>طلب إجازتك {0} يحتاج استكمالاً</value></data>
+  <data name="LeaveNotifyCancelledTitle" xml:space="preserve"><value>أُلغي طلب إجازتك {0}</value></data>
+  <data name="LeaveNotifyBody" xml:space="preserve"><value>{0} من {1} إلى {2}</value></data>
+  <data name="PortalLeaveResubmittedTitle" xml:space="preserve"><value>أعاد {0} إرسال طلب إجازة بعد استكماله</value></data>
 </root>

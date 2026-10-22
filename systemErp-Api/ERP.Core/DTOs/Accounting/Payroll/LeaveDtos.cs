@@ -8,6 +8,8 @@ public class CreateLeaveTypeDto
     public bool IsAnnual { get; set; }
     public decimal PayPercent { get; set; } = 100;
     public int? MaxDaysPerYear { get; set; }
+    /// <summary>يلزم الطلب مرفق (تقرير طبي مثلاً) قبل اعتماده.</summary>
+    public bool RequiresAttachment { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -94,6 +96,8 @@ public class CreateMyLeaveRequestDto
 public class MyLeaveRequestDto : LeaveRequestDto
 {
     public List<LeaveAttachmentDto> Attachments { get; set; } = new();
+    /// <summary>سجل حالات الطلب وتواريخها.</summary>
+    public List<LeaveHistoryEntryDto> History { get; set; } = new();
 }
 
 /// <summary>كل ما تعرضه بوابة الموظف: بياناته المختصرة ورصيده وأنواع الإجازات المتاحة وطلباته.</summary>
@@ -106,6 +110,8 @@ public class MyLeaveOverviewDto
     public LeaveBalanceDto Balance { get; set; } = new();
     public List<LeaveTypeDto> LeaveTypes { get; set; } = new();
     public List<MyLeaveRequestDto> Requests { get; set; } = new();
+    /// <summary>الأنواع المحدودة سنوياً (المرضية مثلاً): المستخدم والمتبقي في السنة الحالية.</summary>
+    public List<LeaveTypeUsageDto> TypeUsage { get; set; } = new();
 }
 
 /// <summary>
@@ -148,4 +154,30 @@ public class LeaveBalanceDto
     public decimal Balance { get; set; }
     /// <summary>الرصيد بعد طرح الطلبات المعلّقة.</summary>
     public decimal Available { get; set; }
+}
+
+/// <summary>حدث في سجل طلب الإجازة (من سجل التدقيق): تقديم، تعديل، طلب استكمال، إعادة إرسال، اعتماد، رفض، إلغاء، مرفق.</summary>
+public class LeaveHistoryEntryDto
+{
+    public string Action { get; set; } = string.Empty;
+    public string PerformedBy { get; set; } = string.Empty;
+    public DateTime At { get; set; }
+    public string? Note { get; set; }
+}
+
+/// <summary>استهلاك نوع إجازة محدود في السنة الحالية: الحد، والمعتمد، والقائم (معلّق أو بانتظار الاستكمال)، والمتبقي.</summary>
+public class LeaveTypeUsageDto
+{
+    public Guid LeaveTypeId { get; set; }
+    public string LeaveTypeName { get; set; } = string.Empty;
+    public int Year { get; set; }
+    public int MaxDaysPerYear { get; set; }
+    public int Used { get; set; }
+    public int Pending { get; set; }
+    public int Remaining { get; set; }
+}
+
+/// <summary>إعادة إرسال/تعديل الموظف طلبه القائم (معلّقاً أو بانتظار الاستكمال).</summary>
+public class UpdateMyLeaveRequestDto : CreateMyLeaveRequestDto
+{
 }

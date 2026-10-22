@@ -1145,4 +1145,13 @@
   <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>The margin scheme applies to used cars only; set the vehicle condition to used first.</value></data>
   <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>The margin scheme is not set on an item: it is set on the qualifying used vehicle card.</value></data>
   <data name="VatRegisteredPartyNeedsVatNumber" xml:space="preserve"><value>A VAT-registered party needs its VAT number.</value></data>
+  <data name="LeaveReturnNoteRequired" xml:space="preserve"><value>Write what the employee needs to complete (reason for the request).</value></data>
+  <data name="LeaveAttachmentRequiredToApprove" xml:space="preserve"><value>This leave type cannot be approved without an attachment (e.g. a medical report): ask the employee to complete it.</value></data>
+  <data name="LeaveReturnedForInfo" xml:space="preserve"><value>The request was returned to the employee for completion.</value></data>
+  <data name="LeaveNotifyApprovedTitle" xml:space="preserve"><value>Your leave request {0} was approved</value></data>
+  <data name="LeaveNotifyRejectedTitle" xml:space="preserve"><value>Your leave request {0} was rejected</value></data>
+  <data name="LeaveNotifyNeedsInfoTitle" xml:space="preserve"><value>Your leave request {0} needs more information</value></data>
+  <data name="LeaveNotifyCancelledTitle" xml:space="preserve"><value>Your leave request {0} was cancelled</value></data>
+  <data name="LeaveNotifyBody" xml:space="preserve"><value>{0} from {1} to {2}</value></data>
+  <data name="PortalLeaveResubmittedTitle" xml:space="preserve"><value>{0} resubmitted a leave request after completing it</value></data>
 </root>

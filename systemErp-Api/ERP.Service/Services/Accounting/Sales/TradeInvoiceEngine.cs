@@ -175,7 +175,10 @@ public class TradeInvoiceEngine
 
             r.ExistingInvoiceId = id; // شواصي هذه المسودة المحفوظة ليست تكراراً
             var fresh = await BuildAsync<T>(r, token); // نفس تحقق الإنشاء وحساب الأرقام في السرفر
-            var (keepId, keepTenant, keepCreated, keepNumber, keepUuid) = (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, invoice.Uuid);
+            // المرفوضة من الهيئة: تُعاد بعد التصحيح كمستند جديد لديها (معرّف UUID جديد، فالهيئة لا تقبل تكراره) وبرقمها نفسه؛
+            // ومحاولتها المرفوضة تبقى حلقة في السلسلة ومسجّلة في سجل التدقيق. حالة الهيئة وبصمتها تُصفَّر مع البناء الجديد
+            var wasRejected = invoice.ZatcaStatus == ZatcaSubmissionStatus.Rejected;
+            var (keepId, keepTenant, keepCreated, keepNumber, keepUuid) = (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, wasRejected ? fresh.Uuid : invoice.Uuid);
             var (keepRefType, keepRefId) = (invoice.ReferenceType, invoice.ReferenceId); // ارتباط المرحّلة بمستندها التجاري يبقى
             var keepEntry = invoice.JournalEntryId; // قيد المرحّلة يُستبدل في مكانه عند إعادة الترحيل
 
@@ -212,8 +215,8 @@ public class TradeInvoiceEngine
             if (wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase)) await FinalizeAsync(invoice, token);
             await LogTaxOverridesAsync(invoice, token);
             if (wasPosted)
-                await _audit.LogAsync("INVOICE_POSTED_EDITED", typeof(T).Name, invoice.Id.ToString(),
-                    $"تعديل {DescribeKind(invoice.Kind)} مرحّلة {invoice.InvoiceNumber}: عُكس قيدها وحركاتها وأُعيد ترحيلها بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
+                await _audit.LogAsync(wasRejected ? "INVOICE_ZATCA_REJECTED_EDITED" : "INVOICE_POSTED_EDITED", typeof(T).Name, invoice.Id.ToString(),
+                    $"تعديل {DescribeKind(invoice.Kind)} مرحّلة {invoice.InvoiceNumber}{(wasRejected ? $" بعد رفض الهيئة (معرّف جديد {invoice.Uuid})" : string.Empty)}: عُكس قيدها وحركاتها وأُعيد ترحيلها بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
             return await GetAsync<T>(id, token);
         }, ct), ct);
 
@@ -233,7 +236,9 @@ public class TradeInvoiceEngine
     {
         if (invoice.Kind is not (InvoiceKind.Sales or InvoiceKind.Purchase) || invoice.IsReturn || invoice.OriginalInvoiceId.HasValue)
             throw new ConflictException(Messages.PostedInvoiceLocked);
-        if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted) throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
+        // المرسلة للهيئة لا تُعدَّل، إلا المرفوضة: تُصحَّح وتُعاد بمعرّف جديد (الحذف ممنوع لها أيضاً: صارت حلقة في السلسلة)
+        if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted && (forDelete || invoice.ZatcaStatus != ZatcaSubmissionStatus.Rejected))
+            throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
         // فاتورة نقطة بيع/عقد: مجاميع مستندها المصدر (الوردية، العقد) تتبعها، فتُعدَّل من ذلك المستند
         if (invoice.ReferenceType is not (null or "quotation" or "sales_order" or "purchase_order" or "material_requisition"))
             throw new ConflictException(Messages.InvoiceFromSourceDocument);

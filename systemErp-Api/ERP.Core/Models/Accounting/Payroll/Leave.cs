@@ -12,6 +12,8 @@ public class LeaveType : BaseEntity
     public decimal PayPercent { get; set; } = 100;
     /// <summary>أقصى أيام في السنة الميلادية لهذا النوع؛ فارغ = بلا حد.</summary>
     public int? MaxDaysPerYear { get; set; }
+    /// <summary>يلزم الطلب مرفق (تقرير طبي مثلاً) قبل اعتماده.</summary>
+    public bool RequiresAttachment { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -59,4 +61,11 @@ public static class LeaveStatuses
     public const string Approved = "approved";
     public const string Rejected = "rejected";
     public const string Cancelled = "cancelled";
+    /// <summary>أعادته شؤون الموظفين للموظف لاستكماله (تقرير طبي مثلاً) بسبب مكتوب؛ يعدّله ويعيد إرساله فيصير معلّقاً.</summary>
+    public const string NeedsInfo = "needs_info";
+
+    /// <summary>طلب قائم يحجز أيامه: معلّق أو بانتظار الاستكمال أو معتمد (للتداخل والحد السنوي والرصيد).</summary>
+    public static readonly string[] Reserving = { Pending, NeedsInfo, Approved };
+    /// <summary>طلب لم يُبتّ فيه بعد: يعدّله صاحبه ويُعدّ أيامه «معلّقة» في الرصيد.</summary>
+    public static readonly string[] Open = { Pending, NeedsInfo };
 }

@@ -9,13 +9,13 @@ public class LeaveTypeService : CrudService<LeaveType, LeaveTypeDto, CreateLeave
 {
     /// <summary>
     /// الأنواع المعتادة في نظام العمل السعودي، تُنشأ للمنشأة عند أول قراءة وتبقى قابلة للتعديل.
-    /// الإجازة المرضية على شريحتين: 30 يوماً بأجر كامل ثم 60 يوماً بثلاثة أرباع الأجر.
+    /// الإجازة المرضية على شريحتين: 30 يوماً بأجر كامل ثم 60 يوماً بثلاثة أرباع الأجر، ولا تُعتمد بلا تقرير طبي مرفق.
     /// </summary>
     private static readonly LeaveType[] Defaults =
     {
         new() { Code = "annual", NameAr = "إجازة سنوية", NameEn = "Annual leave", IsAnnual = true, PayPercent = 100 },
-        new() { Code = "sick", NameAr = "إجازة مرضية (أجر كامل)", NameEn = "Sick leave (full pay)", PayPercent = 100, MaxDaysPerYear = 30 },
-        new() { Code = "sick_75", NameAr = "إجازة مرضية (75% من الأجر)", NameEn = "Sick leave (75% pay)", PayPercent = 75, MaxDaysPerYear = 60 },
+        new() { Code = "sick", NameAr = "إجازة مرضية (أجر كامل)", NameEn = "Sick leave (full pay)", PayPercent = 100, MaxDaysPerYear = 30, RequiresAttachment = true },
+        new() { Code = "sick_75", NameAr = "إجازة مرضية (75% من الأجر)", NameEn = "Sick leave (75% pay)", PayPercent = 75, MaxDaysPerYear = 60, RequiresAttachment = true },
         new() { Code = "unpaid", NameAr = "إجازة بدون أجر", NameEn = "Unpaid leave", PayPercent = 0 },
         new() { Code = "maternity", NameAr = "إجازة وضع", NameEn = "Maternity leave", PayPercent = 100, MaxDaysPerYear = 84 },
         new() { Code = "paternity", NameAr = "إجازة مولود", NameEn = "Paternity leave", PayPercent = 100, MaxDaysPerYear = 3 },
@@ -34,7 +34,7 @@ public class LeaveTypeService : CrudService<LeaveType, LeaveTypeDto, CreateLeave
         if (!await Db.Set<LeaveType>().AnyAsync(ct))
         {
             foreach (var t in Defaults)
-                Db.Add(new LeaveType { Code = t.Code, NameAr = t.NameAr, NameEn = t.NameEn, IsAnnual = t.IsAnnual, PayPercent = t.PayPercent, MaxDaysPerYear = t.MaxDaysPerYear });
+                Db.Add(new LeaveType { Code = t.Code, NameAr = t.NameAr, NameEn = t.NameEn, IsAnnual = t.IsAnnual, PayPercent = t.PayPercent, MaxDaysPerYear = t.MaxDaysPerYear, RequiresAttachment = t.RequiresAttachment });
             await SaveAsync(ct);
         }
         return await base.ListAsync(p, ct);

@@ -89,8 +89,9 @@ public class ZatcaApiClient : IZatcaApiClient
             var body = await response.Content.ReadAsStringAsync(ct);
             using var json = Parse(body);
 
-            // 200 مقبولة، 202 مقبولة بتحذيرات، 400 مرفوضة، 409 سبق إرسالها؛ ما عداها (مصادقة، خادم) ليس حكماً على الفاتورة
-            var verdict = status is 200 or 202 or 400 ;
+            // حكم الهيئة على الفاتورة (يستهلك ICV): ما يعدّه قاموس الأخطاء مستهلِكاً للسلسلة (200، 202، 400، 422).
+            // ما عداه (مصادقة، رابط، ضغط، خادم، أو رمز غير معروف) ليس حكماً: تبقى السلسلة ويُعاد الإرسال بالبيانات نفسها
+            var verdict = ZatcaErrorDictionary.Http.TryGetValue(status, out var http) && http.Chain == ZatcaChainEffect.Consumed;
             var result = new ZatcaApiResult
             {
                 Reached = verdict, HttpStatus = status, Accepted = status is 200 or 202 or 409,
@@ -98,7 +99,7 @@ public class ZatcaApiClient : IZatcaApiClient
                 ClearedInvoice = json == null ? null : Text(json.RootElement, "clearedInvoice"),
                 Message = verdict ? null : Describe(json, body, status),
             };
-            if (status == 400 && result.Errors.Count == 0) result.Errors.Add(Describe(json, body, status));
+            if (verdict && !result.Accepted && result.Errors.Count == 0) result.Errors.Add(Describe(json, body, status));
             return result;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)

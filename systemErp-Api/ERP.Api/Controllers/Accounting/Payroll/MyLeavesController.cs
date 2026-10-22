@@ -26,6 +26,11 @@ public class MyLeavesController : ErpControllerBase
         return Created($"{Request.Path}/{created.Id}", ApiResponse<LeaveRequestDto>.Ok(created, Messages.CreatedSuccessfully).WithStatus(201));
     }
 
+    /// <summary>تعديل الطلب القائم، أو إعادة إرسال طلب أُعيد للاستكمال (يعود معلّقاً).</summary>
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateMyLeaveRequestDto dto, CancellationToken ct)
+        => Success(await _portal.UpdateLeaveAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
         => Success(await _portal.CancelLeaveAsync(id, ct), Messages.LeaveCancelled);
@@ -67,4 +72,15 @@ internal static class LeaveAttachmentUpload
         await file.CopyToAsync(buffer, ct);
         return (file.FileName, buffer.ToArray());
     }
+}
+
+/// <summary>بوابة الموظف: راتبه الحالي وكشوف رواتبه في المسيرات المعتمدة (سطره وحده).</summary>
+[Route("api/v1/me/payroll"), EmployeeSelfService, RequireModule(PlatformModules.Hr)]
+public class MyPayrollController : ErpControllerBase
+{
+    private readonly IEmployeePortalService _portal;
+    public MyPayrollController(IEmployeePortalService portal) => _portal = portal;
+
+    [HttpGet]
+    public async Task<IActionResult> Get(CancellationToken ct) => Success(await _portal.GetPayrollAsync(ct));
 }

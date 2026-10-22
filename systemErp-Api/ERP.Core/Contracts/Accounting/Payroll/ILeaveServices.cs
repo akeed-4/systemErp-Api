@@ -20,6 +20,10 @@ public interface ILeaveService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<LeaveRequestDto> ApproveAsync(Guid id, string? note, CancellationToken ct = default);
     Task<LeaveRequestDto> RejectAsync(Guid id, string? note, CancellationToken ct = default);
+    /// <summary>طلب استكمال: يعيد الطلب المعلّق لصاحبه بسبب مكتوب ليعدّله ويعيد إرساله.</summary>
+    Task<LeaveRequestDto> ReturnForInfoAsync(Guid id, string? note, CancellationToken ct = default);
+    /// <summary>سجل حالات الطلب وتواريخها (من سجل التدقيق)؛ ownerEmployeeId يقيّده بطلبات ذلك الموظف.</summary>
+    Task<List<LeaveHistoryEntryDto>> GetHistoryAsync(Guid id, Guid? ownerEmployeeId = null, CancellationToken ct = default);
     /// <summary>إلغاء طلب معلّق أو معتمد؛ إجازة منقوصة الأجر دخلت مسيراً مرحّلاً لا تُلغى قبل عكسه.</summary>
     Task<LeaveRequestDto> CancelAsync(Guid id, string? note, CancellationToken ct = default);
     Task<LeaveBalanceDto> GetBalanceAsync(Guid employeeId, DateTime? asOf, CancellationToken ct = default);
@@ -55,6 +59,10 @@ public interface IEmployeePortalService
     Task<LeaveRequestDto> CreateLeaveAsync(CreateMyLeaveRequestDto request, CancellationToken ct = default);
     /// <summary>يلغي الموظف طلبه ما دام معلّقاً.</summary>
     Task<LeaveRequestDto> CancelLeaveAsync(Guid id, CancellationToken ct = default);
+    /// <summary>يعدّل الموظف طلبه القائم، أو يعيد إرسال طلب أُعيد له للاستكمال.</summary>
+    Task<LeaveRequestDto> UpdateLeaveAsync(Guid id, UpdateMyLeaveRequestDto request, CancellationToken ct = default);
+    /// <summary>راتب الموظف الحالي وكشوف رواتبه في المسيرات المعتمدة.</summary>
+    Task<MyPayrollDto> GetPayrollAsync(CancellationToken ct = default);
     Task<LeaveAttachmentDto> AddAttachmentAsync(Guid leaveRequestId, string fileName, byte[] content, CancellationToken ct = default);
     Task<LeaveAttachmentFileDto> GetAttachmentAsync(Guid leaveRequestId, Guid attachmentId, CancellationToken ct = default);
     Task DeleteAttachmentAsync(Guid leaveRequestId, Guid attachmentId, CancellationToken ct = default);

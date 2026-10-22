@@ -125,9 +125,12 @@ public class HrEmployeePortalTests : TestBase
         Assert.Equal(200, (await me.Get("/auth/me")).Status);
 
         // شاشات النظام مغلقة كلها: ما يحمل صلاحية شاشة وما لا يحملها
-        foreach (var path in new[] { "/employees", "/leaverequests/balances", $"/leaverequests/balance/{id}", "/leavetypes", "/customers", "/auth/users", "/notifications", "/company", "/invoices" })
+        foreach (var path in new[] { "/employees", "/leaverequests/balances", $"/leaverequests/balance/{id}", "/leavetypes", "/customers", "/auth/users", "/company", "/invoices", "/payroll" })
             Assert.Equal(403, (await me.Get(path)).Status);
         Assert.Equal(403, (await me.Post("/leaverequests", new { employeeId = id })).Status);
+        // إشعاراته هو متاحة له (قراءة)، وإنشاء الإشعارات مغلق
+        Assert.Equal(200, (await me.Get("/notifications")).Status);
+        Assert.Equal(403, (await me.Post("/notifications", new { title = "x" })).Status);
         Assert.Equal(403, (await me.Post($"/employees/{id}/portal-access/invite")).Status);
 
         // إيقاف الدخول يمنع تسجيل الدخول، وإعادة الدعوة تعيده بكلمة مروره

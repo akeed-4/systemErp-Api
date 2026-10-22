@@ -88,6 +88,15 @@ public class LeaveRequestsController : ErpControllerBase
     public async Task<IActionResult> Reject(Guid id, [FromBody] LeaveDecisionDto? decision, CancellationToken ct)
         => Success(await _leaves.RejectAsync(id, decision?.Note, ct), Messages.LeaveRejected);
 
+    /// <summary>طلب استكمال: يعيد الطلب لصاحبه بسبب مكتوب (تقرير طبي ناقص مثلاً).</summary>
+    [HttpPost("{id:guid}/return"), RequireScreen("hr", ScreenAction.Approve)]
+    public async Task<IActionResult> Return(Guid id, [FromBody] LeaveDecisionDto? decision, CancellationToken ct)
+        => Success(await _leaves.ReturnForInfoAsync(id, decision?.Note, ct), Messages.LeaveReturnedForInfo);
+
+    /// <summary>سجل حالات الطلب وتواريخها ومن قام بها.</summary>
+    [HttpGet("{id:guid}/history")]
+    public async Task<IActionResult> History(Guid id, CancellationToken ct) => Success(await _leaves.GetHistoryAsync(id, ct: ct));
+
     [HttpPost("{id:guid}/cancel"), RequireScreen("hr", ScreenAction.Edit)]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] LeaveDecisionDto? decision, CancellationToken ct)
         => Success(await _leaves.CancelAsync(id, decision?.Note, ct), Messages.LeaveCancelled);

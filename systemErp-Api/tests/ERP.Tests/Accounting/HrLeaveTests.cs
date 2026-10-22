@@ -133,6 +133,8 @@ public class HrLeaveTests : TestBase
         {
             var r = await RequestAsync(api, employee, types[type], month.AddDays(fromDay - 1), month.AddDays(toDay - 1));
             Assert.Equal(201, r.Status);
+            // الإجازة المرضية لا تُعتمد بلا تقرير طبي مرفق
+            if (type.StartsWith("sick")) Assert.Equal(200, await UploadFileAsync(api, $"/leaverequests/{r.Data!["id"].S()}/attachments", "report.pdf", SmallPdf));
             Assert.Equal(200, (await api.Post($"/leaverequests/{r.Data!["id"].S()}/approve", new { })).Status);
             return r.Data["id"].S();
         }

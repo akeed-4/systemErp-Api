@@ -45,7 +45,7 @@ public static class LeaveBalances
         var start = AccrualStart(e);
         var relevant = annualRequests.Where(r => r.IsAnnual && r.StartDate.Date >= start).ToList();
         var taken = relevant.Where(r => r.Status == LeaveStatuses.Approved).Sum(r => (decimal)r.Days);
-        var pending = relevant.Where(r => r.Status == LeaveStatuses.Pending).Sum(r => (decimal)r.Days);
+        var pending = relevant.Where(r => LeaveStatuses.Open.Contains(r.Status)).Sum(r => (decimal)r.Days); // معلّق أو بانتظار الاستكمال
         var accrued = Math.Round(Accrued(e, asOf), 2);
         var balance = e.OpeningLeaveBalance + accrued - taken;
         return new LeaveBalanceDto

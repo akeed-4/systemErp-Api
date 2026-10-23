@@ -43,11 +43,10 @@ public class FinancialStatementService : IFinancialStatementService
         var moduleScope = ReportModuleScope.Normalize(module);
         var entries = _db.Set<JournalEntry>().AsNoTracking();
         return from l in _db.Set<JournalEntryLine>().AsNoTracking()
-                join e in entries on l.JournalEntryId equals e.Id
+                join e in ReportModuleScope.Entries(entries, moduleScope) on l.JournalEntryId equals e.Id
                 where e.Date < end && (start == null || e.Date >= start)
                       && (!excludeYearClosing || (e.SourceType != YearClosingSource
                           && !(e.SourceType == ReversalSource && entries.Any(o => o.Id == e.SourceReferenceId && o.SourceType == YearClosingSource))))
-                      && (moduleScope == null || moduleScope.Contains(e.Module))
                       && (costCenters == null || (l.CostCenterId != null && costCenters.Contains(l.CostCenterId.Value)))
                 select l;
     }
@@ -228,9 +227,8 @@ public class FinancialStatementService : IFinancialStatementService
         var moduleScope = ReportModuleScope.Normalize(module);
         var lines = _db.Set<JournalEntryLine>().AsNoTracking();
         var cashEntryIds = from l in lines
-                           join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
+                           join e in ReportModuleScope.Entries(_db.Set<JournalEntry>().AsNoTracking(), moduleScope) on l.JournalEntryId equals e.Id
                            where e.Date >= @from && e.Date < end && l.AccountCode.StartsWith(DefaultAccounts.Banks)
-                                 && (moduleScope == null || moduleScope.Contains(e.Module))
                            select e.Id;
         var counterparts = await lines.Where(l => cashEntryIds.Contains(l.JournalEntryId) && !l.AccountCode.StartsWith(DefaultAccounts.Banks))
             .GroupBy(l => l.AccountCode).Select(g => new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) }).ToListAsync(ct);

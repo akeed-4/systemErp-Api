@@ -233,9 +233,14 @@ public class AccountingPostingService : IAccountingPostingService
         var receivable = total - payments.Sum(p => p.Amount);
 
         var lines = new List<PostingLine>();
-        foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, p.Amount, 0));
-        if (receivable > Tolerance)
-            lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
+        if (!string.IsNullOrWhiteSpace(r.PartyAccountCode))
+            lines.AddRange(ThroughParty(r.PartyAccountCode, total, payments, partyIsDebit: true));
+        else
+        {
+            foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, p.Amount, 0));
+            if (receivable > Tolerance)
+                lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
+        }
         lines.AddRange(RevenueLines(r));
         if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.OutputVat, 0, r.VatAmount));
         foreach (var cost in CostLines(r))
@@ -323,13 +328,32 @@ public class AccountingPostingService : IAccountingPostingService
             else if (shareVariance < 0) lines.Add(new(varianceAccount, 0, -shareVariance, null, share.CostCenterId));
         }
         if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, r.VatAmount, 0));
-        foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, 0, p.Amount));
-        if (payable > Tolerance)
-            lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartySupplier), 0, payable));
+        if (!string.IsNullOrWhiteSpace(r.PartyAccountCode))
+            lines.AddRange(ThroughParty(r.PartyAccountCode, total, payments, partyIsDebit: false));
+        else
+        {
+            foreach (var p in payments) lines.Add(new(p.TreasuryAccountCode, 0, p.Amount));
+            if (payable > Tolerance)
+                lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartySupplier), 0, payable));
+        }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
         request.ReplaceEntryId = r.ReplaceEntryId;
         return PostAsync(request, ct);
+    }
+
+    /// <summary>
+    /// مستند طرف معروف (عميل/مورد) يُقيَّد كاملاً على حسابه ثم يُسدَّد المدفوع منه: صافي الطرف هو الآجل وحده كما كان،
+    /// لكن حركته تظهر في ميزان المراجعة وكشف حسابه ولو دُفع المستند كله نقداً.
+    /// </summary>
+    private static IEnumerable<PostingLine> ThroughParty(string party, decimal total, List<PaymentPosting> payments, bool partyIsDebit)
+    {
+        yield return partyIsDebit ? new(party, total, 0) : new(party, 0, total);
+        foreach (var p in payments)
+        {
+            yield return partyIsDebit ? new(party, 0, p.Amount) : new(party, p.Amount, 0);
+            yield return partyIsDebit ? new(p.TreasuryAccountCode, p.Amount, 0) : new(p.TreasuryAccountCode, 0, p.Amount);
+        }
     }
 
     public Task<PostingResult> PostVoucherAsync(VoucherPostingRequest r, CancellationToken ct = default)

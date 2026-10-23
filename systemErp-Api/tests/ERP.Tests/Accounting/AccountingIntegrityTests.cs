@@ -381,6 +381,53 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(1000, income["costOfSales"]!["total"].D());
     }
 
+    [Fact]
+    public async Task Cash_purchase_from_a_known_supplier_moves_through_the_supplier_account()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, code) = await SeedSupplierAsync(api);
+        var purchase = await api.PostInvoice(new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, status = "posted",
+            items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } },
+        });
+        Assert.Equal(201, purchase.Status);
+
+        var row = (await api.Get("/reports/TrialBalance?module=accounting")).Data!.AsArray().FirstOrDefault(r => r!["accountCode"]!.S() == code);
+        Assert.NotNull(row);
+        Assert.Equal(115, row!["periodCredit"].D()); // الفاتورة كاملة على المورد
+        Assert.Equal(115, row["periodDebit"].D());   // والمدفوع نقداً سُدِّد من حسابه
+        Assert.Equal(0, row["closingCredit"].D());
+        Assert.Equal(0, await BalanceAsync(api, code));
+    }
+
+    [Fact]
+    public async Task Party_opening_balances_appear_in_every_module_trial_balance()
+    {
+        var api = await NewTenantAsync();
+        var supplier = await api.Post("/suppliers", new { nameAr = "مورد معرض", phone = "050", city = "جدة", status = "active", vatNumber = Client.NewVat(), openingBalance = 700 });
+        var code = supplier.Data!["accountCode"].S();
+        Assert.StartsWith("211", code);
+
+        foreach (var module in new[] { "accounting", "car_showroom" })
+        {
+            var trial = await api.Get($"/reports/TrialBalance?module={module}");
+            var row = trial.Data!.AsArray().FirstOrDefault(r => r!["accountCode"]!.S() == code);
+            Assert.NotNull(row);
+            Assert.Equal(700, row!["closingCredit"].D());
+            var (d, c) = Totals(trial); Assert.Equal(d, c);
+            var position = (await api.Get($"/reports/BalanceSheet?module={module}")).Data!;
+            Assert.Contains(position["liabilities"]!.AsArray(), l => l!["accountCode"]!.S() == code);
+            Assert.True(position["isBalanced"]!.GetValue<bool>());
+        }
+
+        // تعديل الافتتاحي يعكس قيده القديم: العكس يتبعه في كل وحدة فلا يُعدّ القديم مرتين
+        var id = supplier.Data["id"].S();
+        Assert.Equal(200, (await api.Put($"/suppliers/{id}", new { nameAr = "مورد معرض", phone = "050", city = "جدة", status = "active", vatNumber = supplier.Data["vatNumber"].S(), openingBalance = 400 })).Status);
+        var showroom = await api.Get("/reports/TrialBalance?module=car_showroom");
+        Assert.Equal(400, showroom.Data!.AsArray().First(r => r!["accountCode"]!.S() == code)!["closingCredit"].D());
+    }
+
     // ---------- التزامن ----------
     [Fact]
     public async Task Concurrent_sales_never_lose_a_balance_update_or_oversell_stock()

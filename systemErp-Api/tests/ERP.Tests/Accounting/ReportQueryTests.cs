@@ -34,6 +34,7 @@ public class ReportQueryTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 3, "credit", customer))).Status);
         await api.Post("/vouchers", new { type = "receipt", amount = 100, partyName = "عميل", partyAccountCode = account, treasuryAccountCode = "1111", paymentMethod = "cash" });
         await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, items = new[] { new { itemId = product, quantity = 4, unitPrice = 50, vatRate = 15 } } });
+        await MarkSalesReportedToZatcaAsync(api); // التقرير التجاري يعدّ المبيعات المُبلَّغة للهيئة فقط
         return (api, product, account);
     }
 
@@ -91,6 +92,27 @@ public class ReportQueryTests : TestBase
 
         // تقارير المخزون والتجارة: الواجهة ترسل dateTo بتاريخ اليوم بلا وقت
         Assert.Equal(3, (await RowsAsync(api, $"/reports/TradeCommercial?dateFrom={today}&dateTo={today}")).Count);
+    }
+
+    [Fact]
+    public async Task Trade_report_counts_posted_purchases_and_only_zatca_accepted_sales_per_module()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        var (supplier, _) = await SeedSupplierAsync(api);
+        Assert.Equal(201, (await api.PostInvoice(Sale(product, 1, "cash"))).Status);
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier,
+            items = new[] { new { itemId = product, quantity = 2, unitPrice = 50, vatRate = 15 } } })).Status);
+
+        // البيع لم يُرسل للهيئة بعد: المشتريات المرحّلة وحدها
+        var purchase = Assert.Single(await RowsAsync(api, "/reports/TradeCommercial?module=accounting"));
+        Assert.Equal("purchase", purchase!["type"].S());
+
+        await MarkSalesReportedToZatcaAsync(api);
+        var rows = await RowsAsync(api, "/reports/TradeCommercial?module=accounting");
+        Assert.Equal(2, rows.Count);
+        Assert.Contains(rows, r => r!["type"].S() == "sales" && r["grossProfit"].D() == 60); // 100 − تكلفة 40
+        Assert.Empty(await RowsAsync(api, "/reports/TradeCommercial?module=car_showroom")); // فواتير المحاسبة لا تظهر في المعارض
     }
 
     [Fact]

@@ -160,6 +160,12 @@ public class InventoryReportService : IInventoryReportService
         if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate < q.EndExclusive());
         if (!string.IsNullOrWhiteSpace(q.DocType) && Enum.TryParse<InvoiceKind>(q.DocType.Replace("_", ""), true, out var kind))
             inv = inv.Where(i => i.Kind == kind);
+        var moduleScope = ReportModuleScope.Normalize(q.Module);
+        if (moduleScope != null) inv = inv.Where(i => moduleScope.Contains(i.Module));
+        // المبيعات ومرتجعاتها بعد قبول الهيئة فقط (معتمدة أو مُبلَّغة، أو مقبولة بتحذيرات)، وعليها يُحسب الربح؛ المشتريات كل المرحّل
+        inv = inv.Where(i => (i.Kind != InvoiceKind.Sales && i.Kind != InvoiceKind.SalesReturn)
+            || i.ZatcaStatus == ZatcaSubmissionStatus.Cleared || i.ZatcaStatus == ZatcaSubmissionStatus.Reported
+            || i.ZatcaStatus == ZatcaSubmissionStatus.Warning);
         return inv.Select(i => new CommercialTradeRowDto
         {
             Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,

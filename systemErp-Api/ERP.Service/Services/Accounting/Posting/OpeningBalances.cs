@@ -9,7 +9,7 @@ namespace ERP.Service.Services.Accounting;
 /// </summary>
 internal static class OpeningBalances
 {
-    private const string SourceType = "opening_balance";
+    public const string SourceType = "opening_balance";
 
     /// <summary>
     /// يستبدل قيد الرصيد الافتتاحي للطرف بقيمته الحالية: يعكس القيد السابق إن وُجد ويرحّل الجديد.

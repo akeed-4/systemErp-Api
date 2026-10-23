@@ -17,6 +17,9 @@ public class ReportQueryDto
     /// <summary>التقرير التجاري: نوع المستند (sales, purchase, sales_return, purchase_return)؛ فارغ = الكل.</summary>
     public string? DocType { get; set; }
 
+    /// <summary>التقرير التجاري: وحدات النظام (accounting,pos أو car_showroom)؛ فارغ = كل الوحدات.</summary>
+    public string? Module { get; set; }
+
     /// <summary>بداية اليوم التالي لـ DateTo: المستندات تحمل وقتها، فالفترة تشمل يوم نهايتها كاملاً بشرط Date &lt; هذه القيمة.</summary>
     public DateTime? EndExclusive() => DateTo?.Date.AddDays(1);
 }

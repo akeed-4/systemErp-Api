@@ -23,8 +23,7 @@ public class AccountingReportService : IAccountingReportService
         var moduleScope = ReportModuleScope.Normalize(module);
         var hasStart = start.HasValue;
         var lines = from l in Lines
-                    join e in Entries on l.JournalEntryId equals e.Id
-                    where moduleScope == null || moduleScope.Contains(e.Module)
+                    join e in ReportModuleScope.Entries(Entries, moduleScope) on l.JournalEntryId equals e.Id
                     select new { l.AccountCode, l.Debit, l.Credit, e.Date };
         if (end.HasValue) lines = lines.Where(l => l.Date < end);
 
@@ -71,8 +70,8 @@ public class AccountingReportService : IAccountingReportService
     {
         var moduleScope = ReportModuleScope.Normalize(module);
         return from l in Lines
-               join e in Entries on l.JournalEntryId equals e.Id
-               where l.AccountCode == accountCode && (moduleScope == null || moduleScope.Contains(e.Module))
+               join e in ReportModuleScope.Entries(Entries, moduleScope) on l.JournalEntryId equals e.Id
+               where l.AccountCode == accountCode
                      && (costCenters == null || (l.CostCenterId != null && costCenters.Contains(l.CostCenterId.Value)))
                select new LedgerLine
                {
@@ -187,8 +186,8 @@ public class AccountingReportService : IAccountingReportService
         var end = date.AddDays(1);
         var moduleScope = ReportModuleScope.Normalize(module);
         var movements = from l in Lines
-                        join e in Entries on l.JournalEntryId equals e.Id
-                        where e.Date < end && (moduleScope == null || moduleScope.Contains(e.Module))
+                        join e in ReportModuleScope.Entries(Entries, moduleScope) on l.JournalEntryId equals e.Id
+                        where e.Date < end
                         group l by l.AccountCode into g
                         select new { Code = g.Key, Net = g.Sum(x => x.Debit) - g.Sum(x => x.Credit) };
         // صف لكل حساب له رصيد: هذا حجم القائمة نفسها
@@ -346,8 +345,7 @@ public class AccountingReportService : IAccountingReportService
         else
         {
             var totals = from line in Lines
-                         join entry in Entries on line.JournalEntryId equals entry.Id
-                         where moduleScope.Contains(entry.Module)
+                         join entry in ReportModuleScope.Entries(Entries, moduleScope) on line.JournalEntryId equals entry.Id
                          group line by line.AccountCode into grouped
                          select new { Code = grouped.Key, Debit = grouped.Sum(x => x.Debit), Credit = grouped.Sum(x => x.Credit) };
             rows = from total in totals
@@ -370,11 +368,10 @@ public class AccountingReportService : IAccountingReportService
         var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
         return await EntityLoader.LoadRowsAsync(
             from l in _db.Set<JournalEntryLine>().AsNoTracking()
-            join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
+            join e in ReportModuleScope.Entries(Entries, moduleScope) on l.JournalEntryId equals e.Id
             join c in CostCenters on l.CostCenterId equals (Guid?)c.Id into center
             from c in center.DefaultIfEmpty()
-            where (moduleScope == null || moduleScope.Contains(e.Module))
-                  && (centers == null || (l.CostCenterId != null && centers.Contains(l.CostCenterId.Value)))
+            where (centers == null || (l.CostCenterId != null && centers.Contains(l.CostCenterId.Value)))
             select new JournalLedgerRowDto
             {
                 LineId = l.Id, EntryId = e.Id, EntryNumber = e.EntryNumber, Date = e.Date, Description = e.Description,

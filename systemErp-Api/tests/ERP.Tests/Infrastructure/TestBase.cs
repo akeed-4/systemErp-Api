@@ -1,3 +1,7 @@
+using ERP.Core.Models.Shared;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace ERP.Tests.Infrastructure;
 
 [CollectionDefinition("api")]
@@ -65,6 +69,17 @@ public abstract class TestBase
         var s = await api.Post("/suppliers", new { nameAr = name, phone = "050", city = "جدة", status = "active", vatNumber = Client.NewVat() });
         Assert.Equal(201, s.Status);
         return (s.Data!["id"].G(), s.Data["accountCode"].S());
+    }
+
+    /// <summary>يعلّم فواتير بيع المنشأة ومرتجعاتها مُبلَّغة للهيئة: لا محاكي لهيئة الزكاة في الاختبارات.</summary>
+    protected async Task MarkSalesReportedToZatcaAsync(Client api)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
+        var docs = await db.Set<ERP.Core.Models.Accounting.InvoiceBase>().IgnoreQueryFilters()
+            .Where(i => i.TenantId == api.TenantId && (i.Kind == InvoiceKind.Sales || i.Kind == InvoiceKind.SalesReturn)).ToListAsync();
+        foreach (var d in docs) d.ZatcaStatus = ZatcaSubmissionStatus.Reported;
+        await db.SaveChangesAsync();
     }
 
     protected static (decimal Debit, decimal Credit) Totals(Res trialBalance)

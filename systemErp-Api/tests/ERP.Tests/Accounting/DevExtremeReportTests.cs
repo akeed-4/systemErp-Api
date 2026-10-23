@@ -20,7 +20,6 @@ public class DevExtremeReportTests : TestBase
         foreach (var qty in new[] { 1, 2, 3 })
             await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = qty == 3 ? "credit" : "cash", partyId = qty == 3 ? customer : (Guid?)null,
                 items = new[] { new { itemId = product, quantity = qty, unitPrice = 100, vatRate = 15 } } });
-        await MarkSalesReportedToZatcaAsync(api); // التقرير التجاري يعدّ المبيعات المُبلَّغة للهيئة فقط
         return api;
     }
 

@@ -162,10 +162,7 @@ public class InventoryReportService : IInventoryReportService
             inv = inv.Where(i => i.Kind == kind);
         var moduleScope = ReportModuleScope.Normalize(q.Module);
         if (moduleScope != null) inv = inv.Where(i => moduleScope.Contains(i.Module));
-        // المبيعات ومرتجعاتها بعد قبول الهيئة فقط (معتمدة أو مُبلَّغة، أو مقبولة بتحذيرات)، وعليها يُحسب الربح؛ المشتريات كل المرحّل
-        inv = inv.Where(i => (i.Kind != InvoiceKind.Sales && i.Kind != InvoiceKind.SalesReturn)
-            || i.ZatcaStatus == ZatcaSubmissionStatus.Cleared || i.ZatcaStatus == ZatcaSubmissionStatus.Reported
-            || i.ZatcaStatus == ZatcaSubmissionStatus.Warning);
+        // كل فاتورة مرحّلة تدخل كما في القيد، مرتبطة بالهيئة أم لا: الإيراد صافيها قبل الضريبة والضريبة عمود مستقل
         return inv.Select(i => new CommercialTradeRowDto
         {
             Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,

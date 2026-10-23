@@ -380,7 +380,6 @@
   <data name="Invoiced" xml:space="preserve"><value>تمت الفوترة</value></data>
   <data name="InvoiceDeleted" xml:space="preserve"><value>تم حذف الفاتورة</value></data>
   <data name="InvoiceDiscountCannotBeNegative" xml:space="preserve"><value>خصم الفاتورة لا يكون سالباً.</value></data>
-  <data name="InvoiceDiscountNotSupportedWithVehicles" xml:space="preserve"><value>خصم الفاتورة غير مدعوم مع أسطر السيارات؛ استخدم خصم السطر.</value></data>
   <data name="InvoiceDiscountRange" xml:space="preserve"><value>خصم الفاتورة يجب أن يكون بين صفر وإجمالي الأسطر.</value></data>
   <data name="InvoiceFromSourceDocument" xml:space="preserve"><value>الفاتورة ناتجة عن مستند مصدر (نقطة بيع/عقد/أمر شراء)؛ عدّلها أو أعكسها من ذلك المستند.</value></data>
   <data name="InvoiceFullyPaid" xml:space="preserve"><value>الفاتورة مسددة بالكامل.</value></data>

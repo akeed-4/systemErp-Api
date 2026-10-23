@@ -13,13 +13,13 @@ namespace ERP.Service.Services.CarShowroom;
 internal static class VehicleInvoiceLines
 {
     /// <summary>يتحقق من أسطر السيارات ويحسب أرقامها ويستبدل r.Items ببنود مشتقة. لا أثر جانبي على قاعدة البيانات.</summary>
-    public static async Task<List<InvoiceVehicleLine>> ResolveAsync(ErpDbContext db, CreateInvoiceDto r, CancellationToken ct)
+    public static async Task<List<InvoiceVehicleLine>> ResolveAsync(ErpDbContext db, CreateInvoiceDto r, decimal invoiceDiscount, CancellationToken ct)
     {
         var isSales = r.Kind == InvoiceKind.Sales;
         if (!isSales && r.Kind != InvoiceKind.Purchase)
             throw new ValidationFailedException(Messages.VehicleLinesOnlyForPurchaseAndSales);
         if (r.Items.Count > 0) throw new ValidationFailedException(Messages.DoNotMixItemAndVehicleLines);
-        if (r.InvoiceDiscount != 0) throw new ValidationFailedException(Messages.InvoiceDiscountNotSupportedWithVehicles);
+        var shares = SpreadInvoiceDiscount(invoiceDiscount, r.VehicleLines.Select(d => DocumentPricing.Round(d.UnitPrice - d.Discount)).ToList());
 
         var draft = string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
         var tax = await CarTax.LoadAsync(db, ct); // نسبة الضريبة وأساس هامش الربح من إعدادات المعرض
@@ -42,7 +42,7 @@ internal static class VehicleInvoiceLines
                 BrandNameAr = (d.BrandNameAr ?? string.Empty).Trim(), ModelNameAr = (d.ModelNameAr ?? string.Empty).Trim(), TrimNameAr = d.TrimNameAr?.Trim(),
                 Year = d.Year, ColorExterior = (d.ColorExterior ?? string.Empty).Trim(), ColorInterior = (d.ColorInterior ?? string.Empty).Trim(),
                 EngineNumber = d.EngineNumber?.Trim(), CustomsCardNumber = d.CustomsCardNumber?.Trim(),
-                VatMode = d.VatMode, UnitPrice = d.UnitPrice, Discount = d.Discount,
+                VatMode = d.VatMode, UnitPrice = d.UnitPrice, Discount = d.Discount, InvoiceDiscountShare = shares[i],
             };
 
             if (d.UnitPrice < 0 || d.Discount < 0 || d.Discount > d.UnitPrice) errors.Add(string.Format(Messages.LinePriceOrDiscountInvalid, n));
@@ -62,7 +62,7 @@ internal static class VehicleInvoiceLines
                 line.EngineNumber = v.EngineNumber; line.CustomsCardNumber = v.CustomsCardNumber;
                 line.UnitCost = v.TotalCost; line.VehicleId = v.Id;
                 line.VatMode = v.VatMode; // نمط الضريبة من بطاقة المركبة لا من العميل
-                if (v.MinSellingPrice.HasValue && d.UnitPrice - d.Discount < v.MinSellingPrice)
+                if (v.MinSellingPrice.HasValue && d.UnitPrice - d.Discount - shares[i] < v.MinSellingPrice)
                     errors.Add(string.Format(Messages.LinePriceBelowMinimum, n, v.MinSellingPrice));
             }
             else
@@ -83,7 +83,7 @@ internal static class VehicleInvoiceLines
                 }
             }
 
-            var net = DocumentPricing.Round(d.UnitPrice - d.Discount);
+            var net = DocumentPricing.Round(d.UnitPrice - d.Discount) - shares[i];
             if (isSales)
             {
                 // هامش الربح: الضريبة مضمَّنة في السعر فيصير الإيراد = السعر − الضريبة ويبقى إجمالي العميل = السعر
@@ -114,14 +114,37 @@ internal static class VehicleInvoiceLines
         {
             ItemId = Guid.Empty,
             ItemName = Describe(l),
-            // سعر البند = صافي السطر قبل الضريبة + الخصم (يساوي سعر السطر إلا في هامش الربح حيث تُطرح الضريبة المضمَّنة)
-            Unit = "سيارة", Quantity = 1, UnitPrice = l.TotalBeforeVat + l.Discount, Discount = l.Discount,
+            // سعر البند = صافي السطر قبل الضريبة + الخصم (يساوي سعر السطر إلا في هامش الربح حيث تُطرح الضريبة المضمَّنة)؛
+            // خصم البند يحمل حصة السيارة من خصم الفاتورة، فلا يوزّعه محرك التسعير مرة ثانية
+            Unit = "سيارة", Quantity = 1, UnitPrice = l.TotalBeforeVat + l.Discount + l.InvoiceDiscountShare, Discount = l.Discount + l.InvoiceDiscountShare,
             VatRate = tax.RateFor(l.VatMode),
             VatAmountOverride = isSales ? l.VatAmount : null,
             VatCategory = isSales ? CarVat.LineCategoryOf(l.VatMode) : null,
             UnitCost = isSales ? l.UnitCost : 0,
         }).ToList();
         return lines;
+    }
+
+    /// <summary>
+    /// يوزّع خصم الفاتورة على السيارات بنسبة صافي كل منها (كما يوزّعه DocumentPricing على البنود)، وآخر سيارة بصافٍ تأخذ كسر التقريب.
+    /// التوزيع على السيارات لا على البنود: حصة كل سيارة تدخل في تكلفتها (الشراء) وفي ضريبتها وهامش ربحها (البيع).
+    /// </summary>
+    internal static decimal[] SpreadInvoiceDiscount(decimal invoiceDiscount, IReadOnlyList<decimal> nets)
+    {
+        var shares = new decimal[nets.Count];
+        if (invoiceDiscount == 0) return shares;
+        var total = nets.Sum(n => Math.Max(0, n));
+        if (invoiceDiscount < 0 || invoiceDiscount > total) throw new ValidationFailedException(Messages.InvoiceDiscountRange);
+        var last = -1;
+        for (var i = 0; i < nets.Count; i++) if (nets[i] > 0) last = i;
+        var allocated = 0m;
+        for (var i = 0; i < nets.Count; i++)
+        {
+            if (nets[i] <= 0) continue;
+            shares[i] = i == last ? invoiceDiscount - allocated : DocumentPricing.Round(invoiceDiscount * nets[i] / total);
+            allocated += shares[i];
+        }
+        return shares;
     }
 
     internal static string Describe(InvoiceVehicleLine l)
@@ -172,7 +195,7 @@ internal static class VehicleInvoiceLines
                 if (l.UnitCost != v.TotalCost)
                 {
                     // هامش الربح على التكلفة الكلية: تغيّر التكلفة يغيّر الضريبة وإجمالي العميل، فلا تُغيَّر أرقام الفاتورة بصمت
-                    if (tax.Calculate(v.PurchasePrice, v.TotalCost, DocumentPricing.Round(l.UnitPrice - l.Discount), l.VatMode).VatAmount != l.VatAmount)
+                    if (tax.Calculate(v.PurchasePrice, v.TotalCost, DocumentPricing.Round(l.UnitPrice - l.Discount) - l.InvoiceDiscountShare, l.VatMode).VatAmount != l.VatAmount)
                         throw new ConflictException(string.Format(Messages.SaleVehicleCostChangedSinceDraft, v.ChassisNumber));
                     var name = Describe(l);
                     var item = items.FirstOrDefault(i => i.ItemName == name);

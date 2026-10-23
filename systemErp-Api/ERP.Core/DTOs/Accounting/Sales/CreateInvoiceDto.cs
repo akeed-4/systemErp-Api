@@ -89,4 +89,7 @@ public partial class CreateInvoiceDto
     /// <summary>داخلي: البنود اشتُقّت من أسطر السيارات (تُعاد اشتقاقها إن أُعيد تنفيذ الطلب بعد تعارض تزامن).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool ItemsDerivedFromVehicles { get; set; }
+    /// <summary>داخلي: خصم الفاتورة المنقول إلى أسطر السيارات (يُصفَّر InvoiceDiscount بعده)، ليُعاد توزيعه إن أُعيد تنفيذ الطلب.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public decimal? VehicleInvoiceDiscount { get; set; }
 }

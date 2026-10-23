@@ -380,7 +380,6 @@
   <data name="Invoiced" xml:space="preserve"><value>Invoiced successfully</value></data>
   <data name="InvoiceDeleted" xml:space="preserve"><value>Invoice deleted</value></data>
   <data name="InvoiceDiscountCannotBeNegative" xml:space="preserve"><value>The invoice discount cannot be negative.</value></data>
-  <data name="InvoiceDiscountNotSupportedWithVehicles" xml:space="preserve"><value>Invoice discount is not supported with vehicle lines; use a line discount.</value></data>
   <data name="InvoiceDiscountRange" xml:space="preserve"><value>The invoice discount must be between zero and the lines total.</value></data>
   <data name="InvoiceFromSourceDocument" xml:space="preserve"><value>The invoice originates from a source document (POS/contract/purchase order); edit or reverse it from that document.</value></data>
   <data name="InvoiceFullyPaid" xml:space="preserve"><value>The invoice is fully paid.</value></data>

@@ -73,12 +73,11 @@ internal static class VehicleBatchLines
     /// بند لكل دفعة بسعرها، وبند لكل سعر خاص مختلف فيها (فيبقى الإجمالي = مجموع أسعار الشواصي بلا كسور تقريب).
     /// </summary>
     public static async Task<(List<InvoiceVehicleBatch> Batches, List<InvoiceVehicleLine> Lines)> ResolveAsync(
-        ErpDbContext db, IVehicleService vehicles, CreateInvoiceDto r, CancellationToken ct)
+        ErpDbContext db, IVehicleService vehicles, CreateInvoiceDto r, decimal invoiceDiscount, CancellationToken ct)
     {
         if (r.Kind != InvoiceKind.Purchase) throw new ValidationFailedException(Messages.BatchesOnlyForPurchase);
         if (r.VehicleLines.Count > 0) throw new ValidationFailedException(Messages.DoNotMixBatchesAndVehicleLines);
         if (r.Items.Count > 0) throw new ValidationFailedException(Messages.DoNotMixItemAndVehicleLines);
-        if (r.InvoiceDiscount != 0) throw new ValidationFailedException(Messages.InvoiceDiscountNotSupportedWithVehicles);
 
         var tax = await CarTax.LoadAsync(db, ct); // نسبة الفئة «خاضع» من إعدادات المعرض (يحددها المحاسب)
         var errors = new List<string>();
@@ -112,6 +111,10 @@ internal static class VehicleBatchLines
             throw new ValidationFailedException(messages[0], messages);
         }
 
+        // خصم الفاتورة على الشواصي بنسبة صافي كل منها، فيدخل في ثمن شراء كل سيارة
+        var shares = VehicleInvoiceLines.SpreadInvoiceDiscount(invoiceDiscount,
+            r.VehicleBatches.SelectMany(d => d.Chassis.Select(c => DocumentPricing.Round((c.PriceOverride ?? d.UnitPrice) - d.Discount))).ToList());
+
         var batches = new List<InvoiceVehicleBatch>();
         var lines = new List<InvoiceVehicleLine>();
         var items = new List<InvoiceItemDto>();
@@ -133,7 +136,8 @@ internal static class VehicleBatchLines
                 var vin = ChassisCheck.Normalize(c.Vin);
                 var price = c.PriceOverride ?? d.UnitPrice;
                 if (price < d.Discount) throw new ValidationFailedException(string.Format(Messages.BatchChassisPriceInvalid, b + 1, vin));
-                var net = DocumentPricing.Round(price - d.Discount);
+                var share = shares[lineNo];
+                var net = DocumentPricing.Round(price - d.Discount) - share;
                 var vat = DocumentPricing.Round(net * rate / 100m);
                 lines.Add(new InvoiceVehicleLine
                 {
@@ -146,7 +150,7 @@ internal static class VehicleBatchLines
                     CustomsCardNumber = string.IsNullOrWhiteSpace(c.CustomsCardNumber) ? null : c.CustomsCardNumber.Trim(),
                     Notes = string.IsNullOrWhiteSpace(c.Notes) ? null : c.Notes.Trim(),
                     VatMode = d.VatMode, UnitPrice = price, PriceOverride = c.PriceOverride.HasValue && c.PriceOverride != d.UnitPrice ? c.PriceOverride : null,
-                    Discount = d.Discount, TotalBeforeVat = net, VatAmount = vat, TotalAfterVat = net + vat,
+                    Discount = d.Discount, InvoiceDiscountShare = share, TotalBeforeVat = net, VatAmount = vat, TotalAfterVat = net + vat,
                 });
             }
 
@@ -155,12 +159,14 @@ internal static class VehicleBatchLines
             foreach (var group in lines.Where(l => l.BatchId == batch.Id).GroupBy(l => l.UnitPrice).OrderByDescending(g => g.Key == d.UnitPrice).ThenBy(g => g.Key))
             {
                 var count = group.Count();
-                var net = DocumentPricing.Round(count * group.Key - count * d.Discount);
+                // خصم البند يحمل حصص شواصيه من خصم الفاتورة، فلا يوزّعه محرك التسعير مرة ثانية
+                var discount = count * d.Discount + group.Sum(l => l.InvoiceDiscountShare);
+                var net = DocumentPricing.Round(count * group.Key - discount);
                 batch.TotalBeforeVat += net;
                 batch.VatAmount += DocumentPricing.Round(net * rate / 100m);
                 items.Add(new InvoiceItemDto
                 {
-                    ItemId = Guid.Empty, ItemName = name, Unit = "سيارة", Quantity = count, UnitPrice = group.Key, Discount = count * d.Discount, VatRate = rate,
+                    ItemId = Guid.Empty, ItemName = name, Unit = "سيارة", Quantity = count, UnitPrice = group.Key, Discount = discount, VatRate = rate,
                 });
             }
             batch.TotalAfterVat = batch.TotalBeforeVat + batch.VatAmount;

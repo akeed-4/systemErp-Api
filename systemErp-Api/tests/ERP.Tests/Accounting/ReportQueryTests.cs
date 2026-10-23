@@ -34,7 +34,6 @@ public class ReportQueryTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 3, "credit", customer))).Status);
         await api.Post("/vouchers", new { type = "receipt", amount = 100, partyName = "عميل", partyAccountCode = account, treasuryAccountCode = "1111", paymentMethod = "cash" });
         await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, items = new[] { new { itemId = product, quantity = 4, unitPrice = 50, vatRate = 15 } } });
-        await MarkSalesReportedToZatcaAsync(api); // التقرير التجاري يعدّ المبيعات المُبلَّغة للهيئة فقط
         return (api, product, account);
     }
 
@@ -95,7 +94,7 @@ public class ReportQueryTests : TestBase
     }
 
     [Fact]
-    public async Task Trade_report_counts_posted_purchases_and_only_zatca_accepted_sales_per_module()
+    public async Task Trade_report_counts_every_posted_sale_net_of_vat_whether_or_not_sent_to_zatca()
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
@@ -104,14 +103,21 @@ public class ReportQueryTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier,
             items = new[] { new { itemId = product, quantity = 2, unitPrice = 50, vatRate = 15 } } })).Status);
 
-        // البيع لم يُرسل للهيئة بعد: المشتريات المرحّلة وحدها
-        var purchase = Assert.Single(await RowsAsync(api, "/reports/TradeCommercial?module=accounting"));
-        Assert.Equal("purchase", purchase!["type"].S());
+        async Task AssertSaleAsync()
+        {
+            var rows = await RowsAsync(api, "/reports/TradeCommercial?module=accounting");
+            Assert.Equal(2, rows.Count);
+            var sale = Assert.Single(rows, r => r!["type"].S() == "sales")!;
+            // الإيراد صافي قبل الضريبة والربح عليه (100 − تكلفة 40)، والضريبة مستقلة
+            Assert.Equal(100, sale["subtotal"].D()); Assert.Equal(15, sale["vatTotal"].D()); Assert.Equal(60, sale["grossProfit"].D());
+            var tb = await RowsAsync(api, "/reports/TrialBalance");
+            decimal Credit(string code) => tb.Where(r => r!["accountCode"].S() == code).Sum(r => r!["periodCredit"].D());
+            Assert.Equal(100, Credit("411")); Assert.Equal(15, Credit("213"));
+        }
 
+        await AssertSaleAsync(); // غير مرتبطة بالهيئة
         await MarkSalesReportedToZatcaAsync(api);
-        var rows = await RowsAsync(api, "/reports/TradeCommercial?module=accounting");
-        Assert.Equal(2, rows.Count);
-        Assert.Contains(rows, r => r!["type"].S() == "sales" && r["grossProfit"].D() == 60); // 100 − تكلفة 40
+        await AssertSaleAsync(); // مرتبطة: الأرقام نفسها
         Assert.Empty(await RowsAsync(api, "/reports/TradeCommercial?module=car_showroom")); // فواتير المحاسبة لا تظهر في المعارض
     }
 

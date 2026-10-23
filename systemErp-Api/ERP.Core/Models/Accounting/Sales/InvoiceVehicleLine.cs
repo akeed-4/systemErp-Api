@@ -31,6 +31,8 @@ public class InvoiceVehicleLine : BaseEntity
     public decimal UnitPrice { get; set; }
     public decimal Discount { get; set; }
     // تُحسب في السرفر دائمًا
+    /// <summary>حصة السيارة من خصم الفاتورة (موزَّع بنسبة صافيها)؛ مطروحة من صافيها فتدخل في تكلفتها وضريبتها.</summary>
+    public decimal InvoiceDiscountShare { get; set; }
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }

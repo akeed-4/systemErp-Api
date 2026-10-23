@@ -56,6 +56,54 @@ public class VehicleInvoiceTests : TestBase
     }
 
     [Fact]
+    public async Task Invoice_discount_is_spread_over_vehicles_and_reaches_cost_vat_and_journal()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        var v1 = Client.NewVin('1'); var v2 = Client.NewVin('2');
+        object PurchaseWithDiscount(decimal invoiceDiscount) => new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier, status = "posted",
+            inventoryAccountCode = "1142", invoiceDiscount, vehicleLines = new[] { Line(v1, 100000), Line(v2, 60000) },
+        };
+
+        Assert.Equal(400, (await api.PostInvoice(PurchaseWithDiscount(170000))).Status); // أكبر من صافي الأسطر
+
+        // 16000 بنسبة الصافي: 10000 على الأولى و6000 على الثانية
+        var p = await api.PostInvoice(PurchaseWithDiscount(16000));
+        Assert.Equal(201, p.Status);
+        Assert.Equal(16000, p.Data!["invoiceDiscount"].D());
+        Assert.Equal(144000, p.Data["subtotal"].D());
+        Assert.Equal(21600, p.Data["vatTotal"].D());
+        Assert.Equal(165600, p.Data["grandTotal"].D());
+        var cars = (await api.Get("/vehicles")).Data!["items"]!.AsArray().ToDictionary(v => v!["chassisNumber"].S(), v => v!);
+        Assert.Equal(90000, cars[v1]["totalCost"].D());
+        Assert.Equal(54000, cars[v2]["totalCost"].D());
+        Assert.Equal(144000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D()); // المخزون = مجموع تكلفة السيارات
+        Assert.Equal(165600, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+
+        // البيع: 10000 على سعرين 120000 و80000 ← 6000 و4000، والضريبة على الصافي بعد الخصم
+        var s = await api.PostInvoice(new
+        {
+            kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted", invoiceDiscount = 10000,
+            revenueAccountCode = "412", cogsAccountCode = "512", inventoryAccountCode = "1142",
+            vehicleLines = new[]
+            {
+                new { vehicleId = cars[v1]["id"].S(), unitPrice = 120000m, discount = 0m, vatMode = "standard_15" },
+                new { vehicleId = cars[v2]["id"].S(), unitPrice = 80000m, discount = 0m, vatMode = "standard_15" },
+            },
+        });
+        Assert.Equal(201, s.Status);
+        Assert.Equal(10000, s.Data!["invoiceDiscount"].D());
+        Assert.Equal(190000, s.Data["subtotal"].D());
+        Assert.Equal(28500, s.Data["vatTotal"].D());
+        Assert.Equal(218500, s.Data["grandTotal"].D());
+        var shares = s.Data["vehicleLines"]!.AsArray().Select(l => l!["invoiceDiscountShare"].D()).OrderBy(x => x).ToArray();
+        Assert.Equal(new[] { 4000m, 6000m }, shares);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
+    [Fact]
     public async Task Purchase_invoice_validates_vins_and_rejects_duplicates()
     {
         var api = await NewTenantAsync();

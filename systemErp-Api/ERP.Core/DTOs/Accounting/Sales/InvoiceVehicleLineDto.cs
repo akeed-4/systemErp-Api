@@ -22,6 +22,8 @@ public class InvoiceVehicleLineDto
     public VatMode VatMode { get; set; } = VatMode.Standard_15;
     public decimal UnitPrice { get; set; }
     public decimal Discount { get; set; }
+    /// <summary>حصة السيارة من خصم الفاتورة (محسوبة في السرفر).</summary>
+    public decimal InvoiceDiscountShare { get; set; }
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }

@@ -28,13 +28,17 @@ public class CarInvoiceExtension : IInvoiceExtension
     // سيارات الفاتورة: دفعات (شراء: سطر لكل دفعة بشواصيها) أو أسطر مستقلة (بيع، وشراء سيارة سيارة). كلاهما يشتق r.Items ويتحقق
     public async Task<Func<Invoice, CancellationToken, Task>?> ResolveAsync(CreateInvoiceDto r, CancellationToken ct)
     {
+        if (r.VehicleBatches.Count == 0 && r.VehicleLines.Count == 0) return null;
+        // خصم الفاتورة يوزَّع هنا على السيارات (فيدخل في تكلفة كل سيارة وضريبتها) وتحمله البنود المشتقة،
+        // فيُصفَّر في الطلب كي لا يوزّعه محرك التسعير مرة ثانية؛ ويُحفظ لإعادة التنفيذ بعد تعارض تزامن
+        var invoiceDiscount = r.VehicleInvoiceDiscount ??= r.InvoiceDiscount;
+        r.InvoiceDiscount = 0;
         if (r.VehicleBatches.Count > 0)
         {
-            var (batches, lines) = await VehicleBatchLines.ResolveAsync(_db, _vehicles, r, ct);
+            var (batches, lines) = await VehicleBatchLines.ResolveAsync(_db, _vehicles, r, invoiceDiscount, ct);
             return (invoice, token) => AttachAsync(invoice, lines, batches, token);
         }
-        if (r.VehicleLines.Count == 0) return null;
-        var vehicleLines = await VehicleInvoiceLines.ResolveAsync(_db, r, ct);
+        var vehicleLines = await VehicleInvoiceLines.ResolveAsync(_db, r, invoiceDiscount, ct);
         return (invoice, token) => AttachAsync(invoice, vehicleLines, null, token);
     }
 
@@ -44,6 +48,10 @@ public class CarInvoiceExtension : IInvoiceExtension
         foreach (var vl in lines) invoice.VehicleLines.Add(vl);
         invoice.VehicleBatches.Clear();
         if (batches != null) foreach (var batch in batches) invoice.VehicleBatches.Add(batch);
+        // خصم الفاتورة محمول في خصم البنود؛ يُعرض في الرأس خصمَ فاتورة لا خصمَ أصناف (الصافي والإجمالي لا يتغيران)
+        var invoiceDiscount = lines.Sum(l => l.InvoiceDiscountShare);
+        invoice.InvoiceDiscount = invoiceDiscount;
+        invoice.ItemsDiscountTotal -= invoiceDiscount;
         // حسابات السيارات من إعدادات المعرض عند عدم تحديدها من العميل
         var isSales = invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
         var car = await SalesCharges.SettingsAsync(_db, ct);
@@ -156,7 +164,7 @@ public class CarInvoiceExtension : IInvoiceExtension
             dto.Items.Add(new InvoiceItemDto
             {
                 ItemId = Guid.Empty, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = count,
-                UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, Discount = count * group.First().Discount, VatRate = src.VatRate,
+                UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, Discount = group.Sum(l => l.Discount + l.InvoiceDiscountShare), VatRate = src.VatRate,
                 VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode,
                 RevenueAccountCode = src.RevenueAccountCode, CostCenterId = src.CostCenterId,
             });
@@ -189,7 +197,7 @@ public class CarInvoiceExtension : IInvoiceExtension
                 LineNo = no++, VehicleId = l.VehicleId, Vin = l.Vin, TempRef = l.TempRef, BrandId = l.BrandId, ModelId = l.ModelId, TrimId = l.TrimId,
                 BrandNameAr = l.BrandNameAr, ModelNameAr = l.ModelNameAr, TrimNameAr = l.TrimNameAr, Year = l.Year,
                 ColorExterior = l.ColorExterior, ColorInterior = l.ColorInterior, EngineNumber = l.EngineNumber, CustomsCardNumber = l.CustomsCardNumber,
-                VatMode = l.VatMode, UnitPrice = l.UnitPrice, Discount = l.Discount, VatAmount = l.VatAmount, TotalBeforeVat = l.TotalBeforeVat,
+                VatMode = l.VatMode, UnitPrice = l.UnitPrice, Discount = l.Discount, InvoiceDiscountShare = l.InvoiceDiscountShare, VatAmount = l.VatAmount, TotalBeforeVat = l.TotalBeforeVat,
                 TotalAfterVat = l.TotalAfterVat, UnitCost = l.UnitCost, IsTemporaryChassis = l.IsTemporaryChassis, PriceOverride = l.PriceOverride,
             });
             vehicles[l.VehicleId!.Value].Status = isSales ? VehicleStatus.Available : VehicleStatus.WrittenOff;

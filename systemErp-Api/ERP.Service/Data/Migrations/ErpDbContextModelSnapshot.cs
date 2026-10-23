@@ -2330,6 +2330,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("EngineNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("InvoiceDiscountShare")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uniqueidentifier");
 

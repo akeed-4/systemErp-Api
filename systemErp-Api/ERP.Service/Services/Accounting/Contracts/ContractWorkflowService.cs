@@ -174,7 +174,9 @@ public class ContractWorkflowService : IContractWorkflowService
             }
             else
             {
+                // تُحفظ الموافقة أولاً (في المعاملة نفسها) ليراها شرط «موافقة الاثنين» في الانتقال
                 _db.Add(record);
+                await _db.SaveChangesAsync(token);
                 approvals.Add(record);
                 // اكتمال الموافقتين في الجولة: ينتقل العقد للاعتماد تلقائياً عبر الانتقال نفسه
                 if (Approved(approvals, "legal") && Approved(approvals, "financial"))

@@ -19,7 +19,7 @@ public class PosTransactionsController : ErpControllerBase
     [HttpGet("ByInvoice/{invoiceNumber}")]
     public async Task<IActionResult> ByInvoice(string invoiceNumber, CancellationToken ct) => Success(await _sales.GetByInvoiceNumberAsync(invoiceNumber, ct));
 
-    [HttpPost("{id:guid}/void")]
+    [HttpPost("{id:guid}/void"), RequireScreen("sales", ScreenAction.Cancel, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Void(Guid id, CancellationToken ct) => Success(await _sales.VoidAsync(id, ct), Messages.TransactionVoided);
 
     [HttpPost("checkout")]

@@ -84,7 +84,7 @@ public class LeaveRequestsController : ErpControllerBase
     public async Task<IActionResult> Approve(Guid id, [FromBody] LeaveDecisionDto? decision, CancellationToken ct)
         => Success(await _leaves.ApproveAsync(id, decision?.Note, ct), Messages.LeaveApproved);
 
-    [HttpPost("{id:guid}/reject"), RequireScreen("hr", ScreenAction.Approve)]
+    [HttpPost("{id:guid}/reject"), RequireScreen("hr", ScreenAction.Reject, Legacy = ScreenAction.Approve)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] LeaveDecisionDto? decision, CancellationToken ct)
         => Success(await _leaves.RejectAsync(id, decision?.Note, ct), Messages.LeaveRejected);
 
@@ -97,7 +97,7 @@ public class LeaveRequestsController : ErpControllerBase
     [HttpGet("{id:guid}/history")]
     public async Task<IActionResult> History(Guid id, CancellationToken ct) => Success(await _leaves.GetHistoryAsync(id, ct: ct));
 
-    [HttpPost("{id:guid}/cancel"), RequireScreen("hr", ScreenAction.Edit)]
+    [HttpPost("{id:guid}/cancel"), RequireScreen("hr", ScreenAction.Cancel, Legacy = ScreenAction.Edit)]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] LeaveDecisionDto? decision, CancellationToken ct)
         => Success(await _leaves.CancelAsync(id, decision?.Note, ct), Messages.LeaveCancelled);
 }

@@ -43,6 +43,7 @@ public class UserService : IUserService
         if (r.Password is null || r.Password.Length < 8) errors.Add(Messages.PasswordMin8);
         if (r.Role == UserRole.Owner) errors.Add(Messages.CannotCreateSecondOwner);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+        var role = await ResolveCustomRoleAsync(r.CustomRoleId, ct);
 
         var email = r.Email.Trim().ToLower();
         if (await _db.Catalog.Set<User>().IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email, ct))
@@ -55,7 +56,7 @@ public class UserService : IUserService
 
         var user = new User
         {
-            Name = r.Name.Trim(), Email = email, Phone = r.Phone, Role = r.Role,
+            Name = r.Name.Trim(), Email = email, Phone = r.Phone, Role = role?.BaseRole ?? r.Role, CustomRoleId = role?.Id,
             JobTitle = r.JobTitle, Department = r.Department, AvatarInitials = AuthService.Initials(r.Name),
         };
         user.PasswordHash = _hasher.HashPassword(user, r.Password!);
@@ -72,12 +73,24 @@ public class UserService : IUserService
         if (r.Role == UserRole.Owner && user.Role != UserRole.Owner)
             throw new ConflictException(Messages.CannotAssignOwnerRole);
         if (string.IsNullOrWhiteSpace(r.Name)) throw new ValidationFailedException(Messages.NameRequired);
+        // المالك يبقى مالكاً بلا دور مخصّص؛ والدور المخصّص المعطّل يبقى لمن عليه أصلاً ولا يُسند لغيره
+        var role = user.Role == UserRole.Owner ? null : await ResolveCustomRoleAsync(r.CustomRoleId, ct, keepFor: user.CustomRoleId);
 
-        user.Name = r.Name.Trim(); user.Phone = r.Phone; user.Role = r.Role;
+        user.Name = r.Name.Trim(); user.Phone = r.Phone; user.Role = role?.BaseRole ?? r.Role; user.CustomRoleId = role?.Id;
         user.JobTitle = r.JobTitle; user.Department = r.Department; user.IsActive = r.IsActive;
         user.AvatarInitials = AuthService.Initials(user.Name);
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<UserDto>(user);
+    }
+
+    /// <summary>الدور المخصّص المسند (null = الدور الأساسي وحده). الدور المعطّل لا يُسند إلا لمن عليه أصلاً.</summary>
+    private async Task<RoleDefinition?> ResolveCustomRoleAsync(Guid? id, CancellationToken ct, Guid? keepFor = null)
+    {
+        if (id == null) return null;
+        var role = await _db.Set<RoleDefinition>().AsNoTracking().FirstOrDefaultAsync(r => r.Id == id && !r.IsSystem, ct)
+            ?? throw new ValidationFailedException(Messages.RoleNotFound);
+        if (!role.IsActive && role.Id != keepFor) throw new ConflictException(Messages.RoleDisabledCannotAssign);
+        return role;
     }
 
     public async Task<UserDto> UpdateProfileAsync(UpdateProfileDto r, CancellationToken ct = default)

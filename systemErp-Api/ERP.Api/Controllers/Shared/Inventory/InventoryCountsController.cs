@@ -33,7 +33,7 @@ public class InventoryCountsController : CrudController<InventoryCountDto, Creat
     public async Task<IActionResult> Withdraw(Guid id, CancellationToken ct)
         => Success(await _counts.WithdrawAsync(id, ct), Messages.InventoryCountWithdrawn);
 
-    [HttpPost("{id:guid}/cancel"), RequireScreen("inventory-counts", ScreenAction.Edit)]
+    [HttpPost("{id:guid}/cancel"), RequireScreen("inventory-counts", ScreenAction.Cancel, Legacy = ScreenAction.Edit)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
         => Success(await _counts.CancelAsync(id, ct), Messages.InventoryCountCancelled);
 }

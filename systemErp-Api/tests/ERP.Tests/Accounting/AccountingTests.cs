@@ -303,16 +303,16 @@ public class AccountingTests : TestBase
     {
         var api = await NewTenantAsync();
         var (customer, _) = await SeedCustomerAsync(api);
+        // الصيانة الشهرية مسار مبسط بفوترة مباشرة: تُحفظ وتُعتمد «ساري» مباشرة (الرمز القديم maintenance يُحوَّل لنوعها)
         var ct = await api.Post("/commercialcontracts", new { title = "عقد صيانة", contractType = "maintenance", partyName = "عميل", partyId = customer, contractValue = 1000, vatRate = 15,
             milestones = new[] { new { title = "دفعة 1", percentage = 50 }, new { title = "دفعة 2", percentage = 50 } }, clauses = Array.Empty<object>() });
         Assert.Equal(1150, ct.Data!["totalValueWithVat"].D());
+        Assert.Equal("active", ct.Data["stage"].S());
+        Assert.Equal("monthly_maintenance", ct.Data["contractType"].S());
         var id = ct.Data["id"].S(); var m1 = ct.Data["milestones"]![0]!["id"].S();
         Assert.Equal(500, ct.Data["milestones"]![0]!["amount"].D());
 
-        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill")).Status); // قبل التنفيذ
-        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "final_closed" })).Status); // تخطي مراحل
-        foreach (var s in new[] { "legal_review", "approved_signed", "active_execution" })
-            Assert.Equal(200, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = s })).Status);
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "closed" })).Status); // لا انتقال ساري ← مغلق
 
         var bill = await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill");
         Assert.Equal(200, bill.Status); Assert.Equal(575, bill.Data!["grandTotal"].D());
@@ -321,9 +321,8 @@ public class AccountingTests : TestBase
         Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill")).Status);
         Assert.Equal(575, (await api.Get($"/customers/{customer}")).Data!["currentBalance"].D());
         // إغلاق العقد ممنوع وفيه مستخلص غير مفوتر
-        await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "milestone_billing" });
-        await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "initial_inspection" });
-        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "final_closed" })).Status);
+        Assert.Equal(200, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "initial_acceptance" })).Status);
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "closed" })).Status);
     }
 
     [Fact]

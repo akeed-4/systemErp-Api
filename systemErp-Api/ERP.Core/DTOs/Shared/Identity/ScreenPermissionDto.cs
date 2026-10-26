@@ -11,4 +11,9 @@ public class ScreenPermissionDto
     public bool CanEdit { get; set; }
     public bool CanDelete { get; set; }
     public bool CanApprove { get; set; }
+    /// <summary>
+    /// كل الإجراءات الممنوحة برموزها (view, create, approve, post, print...). عند القراءة تُملأ دائماً (وتُشتق للسجلات القديمة)؛
+    /// وعند الحفظ إن أُرسلت تُعتمد هي وتُضبط الأعمدة الخمسة منها، وإلا يبقى الحفظ بالأعمدة الخمسة كما كان (عملاء قدامى).
+    /// </summary>
+    public List<string>? Actions { get; set; }
 }

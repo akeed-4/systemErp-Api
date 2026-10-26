@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-[Route("api/v1/vouchers"), RequireScreen("vouchers")]
+[Route("api/v1/vouchers"), RequireScreen("vouchers"), ScopedRecord("voucher")]
 public class VouchersController : ErpControllerBase
 {
     private readonly IVoucherService _vouchers;

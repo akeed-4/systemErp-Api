@@ -8,9 +8,13 @@ public partial class CommercialContractDto
     public DateTime? UpdatedAt { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
-    public string ContractType { get; set; } = "supply";
+    public string ContractType { get; set; } = "supply_materials";
     public string Stage { get; set; } = "draft";
     public ContractStatus Status { get; set; } = ContractStatus.Draft;
+    /// <summary>متى دخل العقد حالته الحالية، وجولة المراجعة، وهل يمشي مبسطاً (للقراءة فقط).</summary>
+    public DateTime? StageChangedAt { get; set; }
+    public int ReviewRound { get; set; }
+    public bool IsSimplified { get; set; }
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }
     public string PartyName { get; set; } = string.Empty;
@@ -37,6 +41,7 @@ public partial class CommercialContractDto
     public bool AutoRenew { get; set; }
     public string Currency { get; set; } = "SAR";
     public Guid? CostCenterId { get; set; }
+    public decimal AdvancePercent { get; set; }
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }
     public DateTime? RetentionReleaseDate { get; set; }
@@ -47,6 +52,10 @@ public partial class CommercialContractDto
     public string? SignedByCompany { get; set; }
     public string? SignedByParty { get; set; }
     public DateTime? SignedDate { get; set; }
+    public string? GuaranteeNumber { get; set; }
+    public string? GuaranteeBank { get; set; }
+    public decimal? GuaranteeAmount { get; set; }
+    public DateTime? GuaranteeExpiry { get; set; }
     public List<ContractMilestoneDto> Milestones { get; set; } = new();
     public List<ContractClauseDto> Clauses { get; set; } = new();
     public List<ContractItemDto> Items { get; set; } = new();

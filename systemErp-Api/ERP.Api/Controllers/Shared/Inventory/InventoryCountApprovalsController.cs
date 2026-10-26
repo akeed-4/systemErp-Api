@@ -25,7 +25,7 @@ public class InventoryCountApprovalsController : ErpControllerBase
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
         => Success(await _approvals.ApproveAsync(id, decision, ct), Messages.InventoryCountApproved);
 
-    [HttpPost("{id:guid}/reject"), RequireScreen("inventory-counts", ScreenAction.Approve)]
+    [HttpPost("{id:guid}/reject"), RequireScreen("inventory-counts", ScreenAction.Reject, Legacy = ScreenAction.Approve)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
         => Success(await _approvals.RejectAsync(id, decision, ct), Messages.InventoryCountRejected);
 }

@@ -1,8 +1,12 @@
 
 namespace ERP.Core.Models.Accounting;
 
-public class MaterialRequisition : BaseEntity
+public class MaterialRequisition : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string RequisitionNumber { get; set; } = string.Empty;
     public DateTime RequestDate { get; set; }
     public DateTime RequiredDate { get; set; }

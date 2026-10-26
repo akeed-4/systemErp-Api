@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-[Route("api/v1/commercialorders"), RequireScreen("sales")]
+[Route("api/v1/commercialorders"), RequireScreen("sales"), ScopedRecord("commercial-order")]
 [RequireModule(PlatformModules.Accounting)]
 public class CommercialOrdersController : CrudController<CommercialOrderDto, CreateCommercialOrderDto, UpdateCommercialOrderDto>
 {

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.CarShowroom;
 
-[Route("api/v1/carsalescontracts"), RequireScreen("car-showroom")]
+[Route("api/v1/carsalescontracts"), RequireScreen("car-showroom"), ScopedRecord("car-sales-contract")]
 [RequireModule(PlatformModules.CarShowroom)]
 public class CarSalesContractsController : ErpControllerBase
 {
@@ -77,7 +77,8 @@ public class CarSalesContractsController : ErpControllerBase
     [HttpPost("{id:guid}/AdvanceStatus")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceSalesContractRequestDto dto, CancellationToken ct)
     {
-        await Require(dto.TargetStatus == SalesContractStatus.Approved ? ScreenAction.Approve : ScreenAction.Edit, ct);
+        if (dto.TargetStatus == SalesContractStatus.Approved) await _permissions.AuthorizeRecordAsync("car-showroom", ScreenAction.Approve, "car-sales-contract", id, ct: ct);
+        else await Require(ScreenAction.Edit, ct);
         return Success(await _service.AdvanceStatusAsync(id, dto, ct), Messages.ContractAdvanced);
     }
 
@@ -85,14 +86,14 @@ public class CarSalesContractsController : ErpControllerBase
     [HttpPost("{id:guid}/complete")]
     public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteSalesContractRequestDto? dto, CancellationToken ct)
     {
-        await Require(ScreenAction.Approve, ct);
+        await _permissions.AuthorizeRecordAsync("car-showroom", ScreenAction.Approve, "car-sales-contract", id, ct: ct);
         return Success(await _service.CompleteAsync(id, dto, ct), Messages.ContractCompletedAndInvoiced);
     }
 
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] RejectProcurementRequestDto dto, CancellationToken ct)
     {
-        await Require(ScreenAction.Approve, ct);
+        await Require(ScreenAction.Cancel, ct, ScreenAction.Approve);
         return Success(await _service.CancelAsync(id, dto.Reason, ct), Messages.ContractCancelled);
     }
 
@@ -107,8 +108,8 @@ public class CarSalesContractsController : ErpControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _service.DeleteAsync(id, ct); return Success(Messages.Deleted); }
 
-    private async Task Require(ScreenAction action, CancellationToken ct)
+    private async Task Require(ScreenAction action, CancellationToken ct, ScreenAction? legacy = null)
     {
-        if (!await _permissions.HasPermissionAsync("car-showroom", action, ct)) throw new ForbiddenException();
+        if (!await _permissions.HasPermissionAsync("car-showroom", action, legacy, ct)) throw new ForbiddenException();
     }
 }

@@ -45,7 +45,7 @@ public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, U
     public async Task<IActionResult> CalculateVat([FromBody] CalculateCarVatRequestDto request, CancellationToken ct)
         => Success(await _vehicles.CalculateVatAsync(request, ct));
 
-    [HttpPost("import")]
+    [HttpPost("import"), RequireScreen("car-showroom", ScreenAction.Import, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Import([FromBody] List<CreateVehicleDto> items, CancellationToken ct)
         => Success(await _vehicles.ImportAsync(items, ct));
 

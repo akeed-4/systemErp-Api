@@ -1,8 +1,12 @@
 namespace ERP.Core.Models.CarShowroom;
 
 /// <summary>عقد بيع سيارة - يمر بدورة مبيعات معتمدة من 5 مراحل (SalesContractStatus).</summary>
-public class CarSalesContract : BaseEntity
+public class CarSalesContract : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public CarSalesCycleType CycleType { get; set; }
     public DateTime Date { get; set; }

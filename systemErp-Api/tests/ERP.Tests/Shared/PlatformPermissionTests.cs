@@ -32,7 +32,9 @@ public class PlatformPermissionTests : TestBase
     /// <summary>يعيد إرسال شبكة صلاحيات المستخدم كما هي مع ضبط سطر المنصة (يُضاف إن لم يكن ضمن الشبكة).</summary>
     private static async Task<Res> SaveWithPlatformAsync(Client by, Guid userId, bool view, bool edit)
     {
-        var grid = (await by.Get($"/permissions?userId={userId}")).Data!.AsArray();
+        var read = await by.Get($"/permissions?userId={userId}");
+        if (read.Status != 200) return read; // من لا يقرأ شبكة الصلاحيات لا يحفظها أصلاً
+        var grid = read.Data!.AsArray();
         var permissions = grid.Where(p => p!["screenId"].S() != Screen).Select(p => (object)new
         {
             screenId = p!["screenId"].S(),

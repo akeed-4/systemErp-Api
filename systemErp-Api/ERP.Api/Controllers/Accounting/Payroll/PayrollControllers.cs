@@ -57,7 +57,7 @@ public class AttendanceController : ErpControllerBase
     public async Task<IActionResult> SaveDay([FromBody] SaveAttendanceDayDto request, CancellationToken ct)
         => Success(await _attendance.SaveDayAsync(request, ct), Messages.UpdatedSuccessfully);
 
-    [HttpPost("import")]
+    [HttpPost("import"), RequireScreen("hr", ScreenAction.Import, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Import([FromBody] List<AttendanceImportRowDto> rows, CancellationToken ct) => Success(await _attendance.ImportAsync(rows, ct));
 
     /// <summary>ملخص الشهر (period = yyyy-MM) لكل موظف له سجلات، مع أثره المتوقع على المسير.</summary>
@@ -100,10 +100,10 @@ public class PayrollController : ErpControllerBase
     [HttpGet("{id:guid}/wagefile")]
     public async Task<IActionResult> WageFile(Guid id, CancellationToken ct) => Success(await _payroll.GetWageFileAsync(id, ct));
 
-    [HttpPost("post")]
+    [HttpPost("post"), RequireScreen("hr", ScreenAction.Post, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Post([FromBody] PayrollRunRequestDto request, CancellationToken ct)
         => Success(await _payroll.PostAsync(request, ct), Messages.PayrollPosted);
 
-    [HttpPost("{id:guid}/reverse")]
+    [HttpPost("{id:guid}/reverse"), RequireScreen("hr", ScreenAction.Cancel, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _payroll.ReverseAsync(id, ct), Messages.PayrollReversed);
 }

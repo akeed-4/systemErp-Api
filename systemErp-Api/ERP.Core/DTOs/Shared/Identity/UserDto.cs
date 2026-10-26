@@ -10,6 +10,7 @@ public partial class UserDto
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.Owner;
+    public Guid? CustomRoleId { get; set; }
     public string? AvatarInitials { get; set; }
     public string? AvatarUrl { get; set; }
     public string? JobTitle { get; set; }

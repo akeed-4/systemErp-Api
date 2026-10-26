@@ -31,7 +31,7 @@ public class EmployeeLoansController : ErpControllerBase
     public async Task<IActionResult> Reschedule(Guid id, [FromBody] RescheduleEmployeeLoanDto dto, CancellationToken ct)
         => Success(await _loans.RescheduleAsync(id, dto, ct), Messages.UpdatedSuccessfully);
 
-    [HttpPost("{id:guid}/cancel"), RequireScreen("hr", ScreenAction.Delete)]
+    [HttpPost("{id:guid}/cancel"), RequireScreen("hr", ScreenAction.Cancel, Legacy = ScreenAction.Delete)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _loans.CancelAsync(id, ct), Messages.LoanCancelled);
 }
 
@@ -55,6 +55,6 @@ public class EndOfServiceController : ErpControllerBase
     public async Task<IActionResult> Post([FromBody] EndOfServiceRequestDto request, CancellationToken ct)
         => Success(await _service.PostAsync(request, ct), Messages.EndOfServicePosted);
 
-    [HttpPost("{id:guid}/reverse"), RequireScreen("hr", ScreenAction.Approve)]
+    [HttpPost("{id:guid}/reverse"), RequireScreen("hr", ScreenAction.Cancel, Legacy = ScreenAction.Approve)]
     public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _service.ReverseAsync(id, ct), Messages.EndOfServiceReversed);
 }

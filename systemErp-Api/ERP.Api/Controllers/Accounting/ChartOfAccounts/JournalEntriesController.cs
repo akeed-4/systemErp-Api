@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-[Route("api/v1/journalentries"), RequireScreen("accounts")]
+[Route("api/v1/journalentries"), RequireScreen("accounts"), ScopedRecord("journal-entry")]
 public class JournalEntriesController : ErpControllerBase
 {
     private readonly IJournalService _journal;
@@ -27,6 +27,6 @@ public class JournalEntriesController : ErpControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _journal.DeleteManualAsync(id, ct); return Success(Messages.JournalEntryDeleted); }
 
-    [HttpPost("{id:guid}/reverse")]
+    [HttpPost("{id:guid}/reverse"), RequireScreen("accounts", ScreenAction.Cancel, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _journal.ReverseAsync(id, ct), Messages.JournalEntryReversed);
 }

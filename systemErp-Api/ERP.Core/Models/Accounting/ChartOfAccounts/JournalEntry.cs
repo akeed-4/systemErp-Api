@@ -1,8 +1,12 @@
 
 namespace ERP.Core.Models.Accounting;
 
-public class JournalEntry : BaseEntity
+public class JournalEntry : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string Module { get; set; } = "accounting";
     public string EntryNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }

@@ -20,9 +20,9 @@ public abstract class TradeDocumentsControllerBase : ErpControllerBase
         _documents = documents; _permissions = permissions; _screen = screen;
     }
 
-    protected async Task Require(ScreenAction action, CancellationToken ct)
+    protected async Task Require(ScreenAction action, CancellationToken ct, ScreenAction? legacy = null)
     {
-        if (!await _permissions.HasPermissionAsync(_screen, action, ct)) throw new ForbiddenException();
+        if (!await _permissions.HasPermissionAsync(_screen, action, legacy, ct)) throw new ForbiddenException();
     }
 
     [HttpGet]
@@ -67,7 +67,7 @@ public abstract class TradeDocumentsControllerBase : ErpControllerBase
     public async Task<IActionResult> Post(Guid id, CancellationToken ct)
     {
         await _documents.GetAsync(id, ct); // غير موجود في جدول هذا النوع ← 404
-        await Require(ScreenAction.Edit, ct);
+        await Require(ScreenAction.Post, ct, ScreenAction.Edit);
         return Success(await _documents.PostDraftAsync(id, ct), Messages.InvoicePosted);
     }
 
@@ -121,28 +121,28 @@ public abstract class TradeReturnsControllerBase : TradeDocumentsControllerBase
     }
 }
 
-[Route("api/v1/sales-invoices")]
+[Route("api/v1/sales-invoices"), ScopedRecord("sales-invoice")]
 [RequireModule(PlatformModules.Accounting, PlatformModules.Pos)]
 public class SalesInvoicesController : TradeDocumentsControllerBase
 {
     public SalesInvoicesController(ISalesInvoiceService service, IPermissionService permissions) : base(service, permissions, "sales") { }
 }
 
-[Route("api/v1/purchase-invoices")]
+[Route("api/v1/purchase-invoices"), ScopedRecord("purchase-invoice")]
 [RequireModule(PlatformModules.Accounting)]
 public class PurchaseInvoicesController : TradeDocumentsControllerBase
 {
     public PurchaseInvoicesController(IPurchaseInvoiceService service, IPermissionService permissions) : base(service, permissions, "purchases") { }
 }
 
-[Route("api/v1/sales-returns")]
+[Route("api/v1/sales-returns"), ScopedRecord("sales-return")]
 [RequireModule(PlatformModules.Accounting, PlatformModules.Pos)]
 public class SalesReturnsController : TradeReturnsControllerBase
 {
     public SalesReturnsController(ISalesReturnService service, IPermissionService permissions) : base(service, permissions, "sales-returns") { }
 }
 
-[Route("api/v1/purchase-returns")]
+[Route("api/v1/purchase-returns"), ScopedRecord("purchase-return")]
 [RequireModule(PlatformModules.Accounting)]
 public class PurchaseReturnsController : TradeReturnsControllerBase
 {

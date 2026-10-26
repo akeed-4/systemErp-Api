@@ -14,11 +14,11 @@ public class FiscalPeriodsController : ErpControllerBase
 
     [HttpGet] public async Task<IActionResult> Get(CancellationToken ct) => Success(await _periods.GetAsync(ct));
 
-    [HttpPut("lock")]
+    [HttpPut("lock"), RequireScreen("accounts", ScreenAction.Close, Legacy = ScreenAction.Edit)]
     public async Task<IActionResult> SetLock([FromBody] SetPeriodLockDto dto, CancellationToken ct)
         => Success(await _periods.SetLockAsync(dto, ct), Messages.PeriodLockSaved);
 
-    [HttpPost("close-year")]
+    [HttpPost("close-year"), RequireScreen("accounts", ScreenAction.Close, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> CloseYear([FromBody] CloseYearRequestDto dto, CancellationToken ct)
         => Success(await _periods.CloseYearAsync(dto, ct), Messages.FiscalYearClosed);
 }

@@ -54,7 +54,7 @@ public class VehicleReservationsController : ErpControllerBase
         => Success(await _service.ExtendAsync(id, dto, ct), Messages.UpdatedSuccessfully);
 
     [HttpPost("{id:guid}/cancel")]
-    [RequireScreen("car-showroom", ScreenAction.Edit)]
+    [RequireScreen("car-showroom", ScreenAction.Cancel, Legacy = ScreenAction.Edit)]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelVehicleReservationDto? dto, CancellationToken ct)
         => Success(await _service.CancelAsync(id, dto, ct), Messages.ReservationCancelled);
 }

@@ -12,18 +12,18 @@ namespace ERP.Service.Services.POS;
 /// </summary>
 public class PosSaleService : IPosSaleService
 {
-    private static readonly HashSet<string> ManualDiscountRoles = new() { "owner", "admin", "general_manager", "chief_accountant" };
-
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
     private readonly ISalesInvoiceService _invoices;
     private readonly ISalesReturnService _returns;
     private readonly ITransactionRunner _tx;
     private readonly IAccountingPostingService _posting;
+    private readonly IPermissionService _permissions;
 
-    public PosSaleService(ErpDbContext db, ICurrentUser user, ISalesInvoiceService invoices, ISalesReturnService returns, ITransactionRunner tx, IAccountingPostingService posting)
+    public PosSaleService(ErpDbContext db, ICurrentUser user, ISalesInvoiceService invoices, ISalesReturnService returns, ITransactionRunner tx,
+        IAccountingPostingService posting, IPermissionService permissions)
     {
-        _db = db; _user = user; _invoices = invoices; _returns = returns; _tx = tx; _posting = posting;
+        _db = db; _user = user; _invoices = invoices; _returns = returns; _tx = tx; _posting = posting; _permissions = permissions;
     }
 
     public Task<PosTransactionDto> CheckoutAsync(CheckoutRequestDto r, CancellationToken ct = default)
@@ -150,7 +150,8 @@ public class PosSaleService : IPosSaleService
                 }).ToList();
             if (lines.Count == 0) throw new ValidationFailedException(Messages.CartEmpty);
             if (lines.Any(l => l.Quantity <= 0 || l.ManualDiscount < 0)) throw new ValidationFailedException(Messages.QtyPositiveDiscountsNonNegative);
-            if (lines.Any(l => l.ManualDiscount > 0) && !ManualDiscountRoles.Contains(_user.RoleId ?? string.Empty))
+            // الخصم اليدوي صلاحية مستقلة على المبيعات (افتراضها القديم عمود الاعتماد: الأدوار الإدارية فقط)
+            if (lines.Any(l => l.ManualDiscount > 0) && !await _permissions.HasPermissionAsync("sales", ScreenAction.Discount, ScreenAction.Approve, token))
                 throw new ForbiddenException(Messages.ManualLineDiscountAdminOnly);
 
             var ids = lines.Select(l => l.ItemId).ToList();

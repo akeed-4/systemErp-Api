@@ -9,10 +9,13 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
 {
     private readonly INumberSequenceService _numbers;
     private readonly ISalesInvoiceService _invoices;
+    private readonly ICurrentUser _user;
+    private readonly IPermissionService _permissions;
 
-    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices) : base(db)
+    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices, ICurrentUser user,
+        IPermissionService permissions) : base(db)
     {
-        _numbers = numbers; _invoices = invoices;
+        _numbers = numbers; _invoices = invoices; _user = user; _permissions = permissions;
     }
 
     protected override string Label => Messages.LabelContract;
@@ -27,25 +30,28 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             .ThenBy(stage => stage.Number)
             .ToListAsync(ct);
 
-        return new(
-            definitions.Where(stage => stage.WorkflowType == "general").Select(ToStageDto).ToArray(),
-            definitions.Where(stage => stage.WorkflowType == "normal_purchasing").Select(ToStageDto).ToArray());
+        // دورة واحدة لكل الأنواع؛ قائمة دورة المشتريات القديمة تبقى فارغة حتى تُحدَّث الواجهة (المرحلة 4)
+        return new(definitions.Select(ToStageDto).ToArray(), Array.Empty<ContractStageDefinitionDto>());
     }
 
-    private async Task<string[]> StagesFor(string contractType, CancellationToken ct)
+    /// <summary>ملخص الحالة القديم (ContractStatus) المشتق من حالة العقد.</summary>
+    public static ContractStatus StatusFor(string stage) => stage switch
     {
-        var workflowType = contractType == "normal_purchasing" ? "normal_purchasing" : "general";
-        return await Db.Set<ContractStageDefinition>()
-            .AsNoTracking()
-            .Where(stage => stage.IsActive && stage.WorkflowType == workflowType)
-            .OrderBy(stage => stage.Number)
-            .Select(stage => stage.Id)
-            .ToArrayAsync(ct);
-    }
+        ContractStageDefinition.Draft => ContractStatus.Draft,
+        ContractStageDefinition.Review or ContractStageDefinition.Approval => ContractStatus.UnderReview,
+        ContractStageDefinition.Active or ContractStageDefinition.InitialAcceptance => ContractStatus.Active,
+        ContractStageDefinition.Closed => ContractStatus.Completed,
+        ContractStageDefinition.Suspended => ContractStatus.Suspended,
+        ContractStageDefinition.Cancelled => ContractStatus.Terminated,
+        _ => ContractStatus.Draft,
+    };
 
     private static ContractStageDefinitionDto ToStageDto(ContractStageDefinition stage)
         => new(stage.Id, stage.WorkflowType, stage.Number, stage.NameAr, stage.NameEn, stage.DescAr, stage.DescEn,
-            stage.Icon, stage.BadgeColor, stage.HeaderColor);
+            stage.Icon, stage.BadgeColor, stage.HeaderColor,
+            PermissionStore.ParseActions(stage.AllowedActions).Select(PermissionCatalog.Code).ToList(),
+            null,
+            stage.ShortNameAr, stage.ShortNameEn, stage.Phase, stage.SlaDays);
 
     protected override IQueryable<CommercialContract> ApplySearch(IQueryable<CommercialContract> q, string t)
         => q.Where(c => c.ContractNumber.Contains(t) || c.Title.Contains(t) || c.PartyName.Contains(t));
@@ -70,7 +76,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (d.LatePenaltyPerDay < 0) errors.Add(Messages.DailyPenaltyCannotBeNegative);
         if (d.DurationMonths is < 1) errors.Add(Messages.ContractMinimumOneMonth);
         if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.ContractItemsInvalid);
-        if (existing != null && existing.Stage == "final_closed") errors.Add(Messages.CannotEditClosedContract);
+        if (existing != null && existing.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled) errors.Add(Messages.CannotEditClosedContract);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
     }
@@ -78,20 +84,51 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     protected override async Task OnCreatingAsync(CommercialContract e, CreateCommercialContractDto d, CancellationToken ct)
     {
         e.ContractNumber = await _numbers.NextAsync("commercial_contract", "CON-", ct);
-        var stages = await StagesFor(e.ContractType, ct);
-        if (stages.Length == 0) throw new InvalidOperationException($"No active contract stages configured for workflow '{e.ContractType}'.");
-        e.Stage = stages[0];
-        e.Status = ContractStatus.Draft;
+        var type = await ResolveTypeAsync(e, ct);
+        e.ReviewRound = 1;
         e.TotalInvoiced = 0; e.TotalCollected = 0;
         Recalculate(e);
+
+        // الحالة يحددها النظام لا المستخدم: المسار المبسط (من النوع أو لأن القيمة دون حد التبسيط) يُحفظ ويُعتمد مباشرة «ساري»،
+        // ويلزمه ما يلزم الاعتماد: صلاحية الاعتماد وحد اعتماد يغطي قيمة العقد. وإلا يبدأ «مسودة».
+        e.IsSimplified = ContractTypeCodes.IsSimplified(type, e.ContractValue);
+        if (e.IsSimplified)
+        {
+            if (!await _permissions.HasPermissionAsync(PermissionCatalog.CommercialContractsScreenId, ScreenAction.Approve, ct))
+                throw new ForbiddenException(string.Format(Messages.ContractTransitionNoPermission, PermissionCatalog.Action(ScreenAction.Approve).NameAr));
+            await _permissions.EnsureApprovalLimitAsync(e.TotalValueWithVat, ct);
+        }
+        e.Stage = e.IsSimplified ? ContractStageDefinition.Active : ContractStageDefinition.Draft;
+        e.Status = StatusFor(e.Stage);
+        e.StageChangedAt = DateTime.UtcNow;
+        if (e.IsSimplified) e.SignedDate ??= SaudiTime.Today;
+        Db.Add(new ContractStatusLog
+        {
+            ContractId = e.Id, ToStatus = e.Stage, At = DateTime.UtcNow, UserId = _user.UserId, UserName = _user.Name ?? "system",
+            Note = e.IsSimplified ? Messages.ContractSimplifiedActivated : null,
+        });
     }
 
-    protected override Task OnUpdatingAsync(CommercialContract e, UpdateCommercialContractDto d, CancellationToken ct)
+    /// <summary>نوع العقد من جدول الأنواع (الرموز القديمة تُحوَّل لنظائرها)؛ نوع غير معروف أو معطّل يُرفض.</summary>
+    private async Task<ContractTypeDefinition> ResolveTypeAsync(CommercialContract e, CancellationToken ct)
     {
+        e.ContractType = ContractTypeCodes.Normalize(e.ContractType);
+        var code = e.ContractType;
+        return await Db.Set<ContractTypeDefinition>().AsNoTracking().FirstOrDefaultAsync(t => t.Code == code && t.IsActive, ct)
+            ?? throw new ValidationFailedException(string.Format(Messages.ContractTypeUnknown, code));
+    }
+
+    protected override async Task OnUpdatingAsync(CommercialContract e, UpdateCommercialContractDto d, CancellationToken ct)
+    {
+        // التعديل في المسودة فقط (يفحصه المتحكم مع الصلاحية)؛ تغيّر النوع أو القيمة لا يغيّر المسار المثبت عند الإنشاء
+        await ResolveTypeAsync(e, ct);
         var o = Db.Entry(e).OriginalValues;
         e.ContractNumber = o.GetValue<string>(nameof(CommercialContract.ContractNumber));
         e.Stage = o.GetValue<string>(nameof(CommercialContract.Stage));
         e.Status = o.GetValue<ContractStatus>(nameof(CommercialContract.Status));
+        e.StageChangedAt = o.GetValue<DateTime?>(nameof(CommercialContract.StageChangedAt));
+        e.ReviewRound = o.GetValue<int>(nameof(CommercialContract.ReviewRound));
+        e.IsSimplified = o.GetValue<bool>(nameof(CommercialContract.IsSimplified));
         e.TotalInvoiced = o.GetValue<decimal>(nameof(CommercialContract.TotalInvoiced));
         e.TotalCollected = o.GetValue<decimal>(nameof(CommercialContract.TotalCollected));
 
@@ -105,7 +142,6 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             if (entry.State == EntityState.Modified) entry.CurrentValues.SetValues(entry.OriginalValues);
         }
         Recalculate(e);
-        return Task.CompletedTask;
     }
 
     protected override async Task OnDeletingAsync(CommercialContract e, CancellationToken ct)
@@ -138,31 +174,6 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         c.RemainingBalance = c.TotalValueWithVat - c.TotalInvoiced;
     }
 
-    public async Task<CommercialContractDto> AdvanceStageAsync(Guid id, AdvanceStageRequestDto r, CancellationToken ct = default)
-    {
-        var c = await Includes(Db.Set<CommercialContract>()).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException(Messages.ContractNotFound);
-        var stages = await StagesFor(c.ContractType, ct);
-        var target = Array.IndexOf(stages, r.Stage);
-        var current = Array.IndexOf(stages, c.Stage);
-        if (target < 0) throw new ValidationFailedException(string.Format(Messages.InvalidStageForContractType, string.Join(" | ", stages)));
-        if (target <= current) throw new ConflictException(Messages.CannotGoBackOrRepeatStage);
-        if (target > current + 1) throw new ConflictException(Messages.CannotSkipStages);
-
-        c.Stage = r.Stage;
-        if (r.Stage == "active_execution" && c.Status is ContractStatus.Draft or ContractStatus.UnderReview) c.Status = ContractStatus.Active;
-        else if (r.Stage == "legal_review" && c.Status == ContractStatus.Draft) c.Status = ContractStatus.UnderReview;
-        else if (r.Stage == "final_closed")
-        {
-            if (c.Milestones.Any(m => m.Status is ContractMilestoneStatus.Pending or ContractMilestoneStatus.Due))
-                throw new ConflictException(Messages.CannotCloseContractWithUnbilledMilestones);
-            c.Status = ContractStatus.Completed;
-        }
-        if (!string.IsNullOrWhiteSpace(r.Notes)) c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? r.Notes : $"{c.Notes}\n{r.Notes}";
-        await Db.SaveChangesAsync(ct);
-        return ToDto(c);
-    }
-
     /// <summary>فاتورة ضريبية للمستخلص عبر محرك الفوترة المركزي (بند خدمة بلا مخزون) وربطها بالمستخلص والعقد.</summary>
     public async Task<InvoiceDto> BillMilestoneAsync(Guid contractId, Guid milestoneId, DateTime? date = null, CancellationToken ct = default)
         => await new TransactionRunner(Db).RunAsync(async token =>
@@ -172,9 +183,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             var m = c.Milestones.FirstOrDefault(x => x.Id == milestoneId) ?? throw new NotFoundException(Messages.MilestoneNotFound);
 
             if (m.Status is ContractMilestoneStatus.Invoiced or ContractMilestoneStatus.Paid) throw new ConflictException(Messages.MilestoneAlreadyBilled);
-            var stages = await StagesFor(c.ContractType, token);
-            var activeIndex = Array.IndexOf(stages, c.ContractType == "normal_purchasing" ? "normal_milestone_invoice" : "active_execution");
-            if (Array.IndexOf(stages, c.Stage) < activeIndex)
+            if (c.Stage is not (ContractStageDefinition.Active or ContractStageDefinition.InitialAcceptance))
                 throw new ConflictException(Messages.MilestonesBilledOnlyWhenActive);
             if (c.PartyId == null) throw new ValidationFailedException(Messages.LinkContractToCustomerBeforeBilling);
             if (m.Amount <= 0) throw new ValidationFailedException(Messages.MilestoneAmountMustBePositive);
@@ -198,8 +207,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             m.InvoicedAt = DateTime.UtcNow; m.InvoiceId = invoice.Id; m.InvoiceNumber = invoice.InvoiceNumber;
             c.TotalInvoiced += invoice.GrandTotal;
             c.RemainingBalance = c.TotalValueWithVat - c.TotalInvoiced;
-            var billingIdx = Array.IndexOf(stages, c.ContractType == "normal_purchasing" ? "normal_milestone_invoice" : "milestone_billing");
-            if (Array.IndexOf(stages, c.Stage) < billingIdx) c.Stage = stages[billingIdx];
+            // الفوترة مستند داخل «ساري» وليست مرحلة: لا تغيّر حالة العقد
             await Db.SaveChangesAsync(token);
             return invoice;
         }, ct);

@@ -1,8 +1,12 @@
 
 namespace ERP.Core.Models.Accounting;
 
-public class Quotation : BaseEntity
+public class Quotation : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string QuotationNumber { get; set; } = string.Empty;
     public string Type { get; set; } = "sales_quotation"; // sales_quotation, purchase_quotation
     /// <summary>العميل/المورد المرتبط (اختياري) - يحدّد حساب الذمم عند الفوترة.</summary>

@@ -9,8 +9,12 @@ public static class ProcurementSources
 }
 
 /// <summary>أمر توريد وشراء سيارات - يمر بدورة الشراء المعتمدة من 7 مراحل (ProcurementStage).</summary>
-public class CarProcurementOrder : BaseEntity
+public class CarProcurementOrder : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string OrderNumber { get; set; } = string.Empty;
     public ProcurementStage Stage { get; set; } = ProcurementStage.Requisition;
     public DateTime Date { get; set; }

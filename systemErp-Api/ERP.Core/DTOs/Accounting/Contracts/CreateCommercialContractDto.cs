@@ -4,7 +4,7 @@ public partial class CreateCommercialContractDto
 {
     public string ContractNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
-    public string ContractType { get; set; } = "supply";
+    public string ContractType { get; set; } = "supply_materials";
     public string Stage { get; set; } = "draft";
     public ContractStatus Status { get; set; } = ContractStatus.Draft;
     public Guid? PartyId { get; set; }
@@ -33,6 +33,7 @@ public partial class CreateCommercialContractDto
     public bool AutoRenew { get; set; }
     public string Currency { get; set; } = "SAR";
     public Guid? CostCenterId { get; set; }
+    public decimal AdvancePercent { get; set; }
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }
     public DateTime? RetentionReleaseDate { get; set; }
@@ -43,6 +44,10 @@ public partial class CreateCommercialContractDto
     public string? SignedByCompany { get; set; }
     public string? SignedByParty { get; set; }
     public DateTime? SignedDate { get; set; }
+    public string? GuaranteeNumber { get; set; }
+    public string? GuaranteeBank { get; set; }
+    public decimal? GuaranteeAmount { get; set; }
+    public DateTime? GuaranteeExpiry { get; set; }
     public List<ContractMilestoneDto> Milestones { get; set; } = new();
     public List<ContractClauseDto> Clauses { get; set; } = new();
     public List<ContractItemDto> Items { get; set; } = new();

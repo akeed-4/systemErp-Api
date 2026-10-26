@@ -8,7 +8,11 @@ namespace ERP.Api.Controllers.Shared;
 public class ApprovalsController : ErpControllerBase
 {
     private readonly IApprovalService _approvals;
-    public ApprovalsController(IApprovalService approvals) => _approvals = approvals;
+    private readonly IPermissionService _permissions;
+    public ApprovalsController(IApprovalService approvals, IPermissionService permissions)
+    {
+        _approvals = approvals; _permissions = permissions;
+    }
 
     [HttpPost("check"), RequireScreen("dashboard")]
     public async Task<IActionResult> Check([FromBody] ApprovalCheckRequestDto request, CancellationToken ct)
@@ -24,11 +28,15 @@ public class ApprovalsController : ErpControllerBase
     [HttpDelete("{id:guid}"), RequireScreen("dashboard", ScreenAction.View)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _approvals.CancelAsync(id, ct), Messages.RequestWithdrawn);
 
+    /// <summary>الاعتماد لا يتجاوز حد اعتماد المستخدم (مبلغ المستند في الطلب).</summary>
     [HttpPost("{id:guid}/approve"), RequireScreen("approval-policies", ScreenAction.Approve)]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
-        => Success(await _approvals.ApproveAsync(id, decision, ct));
+    {
+        await _permissions.EnsureApprovalLimitAsync((await _approvals.GetAsync(id, ct)).DocumentAmount, ct);
+        return Success(await _approvals.ApproveAsync(id, decision, ct));
+    }
 
-    [HttpPost("{id:guid}/reject"), RequireScreen("approval-policies", ScreenAction.Approve)]
+    [HttpPost("{id:guid}/reject"), RequireScreen("approval-policies", ScreenAction.Reject, Legacy = ScreenAction.Approve)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
         => Success(await _approvals.RejectAsync(id, decision, ct));
 }

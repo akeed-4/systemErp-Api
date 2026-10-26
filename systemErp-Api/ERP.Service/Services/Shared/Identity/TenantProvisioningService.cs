@@ -56,6 +56,12 @@ public class TenantProvisioningService : ITenantProvisioningService
             _db.Add(type);
         }
 
+        foreach (var type in ContractTypeSeed.Build())
+        {
+            type.TenantId = tenantId;
+            _db.Add(type);
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 }

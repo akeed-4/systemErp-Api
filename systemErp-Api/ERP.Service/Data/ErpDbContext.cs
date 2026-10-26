@@ -114,6 +114,11 @@ public class ErpDbContext : DbContext
         (typeof(ImportCostAdvance), nameof(ImportCostAdvance.ExpenseTypeId), typeof(ExpenseType)),
         (typeof(ImportCostAdvance), nameof(ImportCostAdvance.SupplierId), typeof(Supplier)),
         (typeof(LandedCostVoucherLine), nameof(LandedCostVoucherLine.ImportCostAdvanceId), typeof(ImportCostAdvance)),
+        (typeof(ContractApproval), nameof(ContractApproval.ContractId), typeof(CommercialContract)),
+        (typeof(ContractStatusLog), nameof(ContractStatusLog.ContractId), typeof(CommercialContract)),
+        (typeof(ContractInvoice), nameof(ContractInvoice.ContractId), typeof(CommercialContract)),
+        (typeof(ContractAttachment), nameof(ContractAttachment.ContractId), typeof(CommercialContract)),
+        // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
 
     // فهارس فريدة على مستوى المنشأة (TenantId + الخاصية).
@@ -179,7 +184,7 @@ public class ErpDbContext : DbContext
             if (IsTpcDerived(type)) continue; // يرث المفتاح والفهرس والمرشّح من جذره
             entity.HasKey(nameof(BaseEntity.Id));
             entity.HasIndex(nameof(BaseEntity.TenantId));
-            typeof(ErpDbContext).GetMethod(nameof(ApplyTenantFilter), BindingFlags.NonPublic | BindingFlags.Instance)!
+            typeof(ErpDbContext).GetMethod(FilterMethodFor(type), BindingFlags.NonPublic | BindingFlags.Instance)!
                 .MakeGenericMethod(type).Invoke(this, new object[] { modelBuilder });
 
             // الخصائص المعقّدة (كائنات قيمة غير BaseEntity) تُخزَّن كأعمدة داخل جدول المالك.
@@ -242,9 +247,48 @@ public class ErpDbContext : DbContext
             e.Property(s => s.Icon).HasMaxLength(100).IsRequired();
             e.Property(s => s.BadgeColor).HasMaxLength(300).IsRequired();
             e.Property(s => s.HeaderColor).HasMaxLength(200).IsRequired();
+            e.Property(s => s.AllowedActions).HasMaxLength(300).IsRequired();
+            e.Property(s => s.ShortNameAr).HasMaxLength(50).IsRequired();
+            e.Property(s => s.ShortNameEn).HasMaxLength(50).IsRequired();
+            e.Property(s => s.Phase).HasMaxLength(20).IsRequired();
             e.HasIndex(s => new { s.WorkflowType, s.Number }).IsUnique();
             e.HasData(ContractStageCatalogSeed.All);
         });
+
+        // انتقالات حالات العقد: كتالوج عام يُزرع مع الترحيل ويُعدَّل من قاعدة البيانات
+        modelBuilder.Entity<ContractTransition>(e =>
+        {
+            e.ToTable("ContractTransition");
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Id).ValueGeneratedNever();
+            e.Property(t => t.FromStatus).HasMaxLength(64).IsRequired();
+            e.Property(t => t.ToStatus).HasMaxLength(64).IsRequired();
+            e.Property(t => t.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(t => t.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(t => t.RequiredActions).HasMaxLength(200).IsRequired();
+            e.Property(t => t.Condition).HasMaxLength(64);
+            e.Property(t => t.Tone).HasMaxLength(16).IsRequired();
+            e.HasIndex(t => new { t.FromStatus, t.ToStatus }).IsUnique();
+            e.HasData(ContractTransitionSeed.All);
+        });
+
+        // أنواع العقود لكل منشأة: الرمز فريد ويُحفظ في CommercialContract.ContractType
+        modelBuilder.Entity<ContractTypeDefinition>(e =>
+        {
+            e.Property(t => t.Code).HasMaxLength(64).IsRequired();
+            e.Property(t => t.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(t => t.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(t => t.Workflow).HasMaxLength(16).IsRequired();
+            e.Property(t => t.Billing).HasMaxLength(16).IsRequired();
+            e.HasIndex(t => new { t.TenantId, t.Code }).IsUnique();
+        });
+        modelBuilder.Entity<ContractApproval>().HasIndex(a => new { a.TenantId, a.ContractId, a.Round });
+        modelBuilder.Entity<ContractStatusLog>().HasIndex(l => new { l.TenantId, l.ContractId });
+        modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.ContractId });
+        // بيان الاستلام لا يُفوتر مرتين (فوترة بعد الاستلام)
+        modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.DeliveryNoteId, i.Kind }).IsUnique()
+            .HasFilter("[DeliveryNoteId] IS NOT NULL AND [Kind] <> N'credit_note'");
+        modelBuilder.Entity<ContractAttachment>().HasIndex(a => new { a.TenantId, a.ContractId });
 
         modelBuilder.Entity<CarStageDefinition>(e =>
         {
@@ -275,6 +319,30 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<User>().HasIndex(u => u.Phone);
 
         modelBuilder.Entity<Account>().Ignore(a => a.Children);
+
+        // الصلاحيات: رمز الدور فريد في المنشأة، وسجل التغييرات يُقرأ بالأحدث أولاً
+        modelBuilder.Entity<RoleDefinition>(e =>
+        {
+            e.Property(r => r.Code).HasMaxLength(64).IsRequired();
+            e.Property(r => r.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(r => r.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(r => r.Description).HasMaxLength(1000);
+            e.Property(r => r.UpdatedBy).HasMaxLength(256);
+            e.HasIndex(r => new { r.TenantId, r.Code }).IsUnique();
+        });
+        modelBuilder.Entity<PermissionChangeLog>(e =>
+        {
+            e.Property(l => l.ChangedByName).HasMaxLength(256);
+            e.Property(l => l.TargetType).HasMaxLength(16);
+            e.Property(l => l.TargetId).HasMaxLength(64);
+            e.Property(l => l.TargetName).HasMaxLength(256);
+            e.Property(l => l.Permission).HasMaxLength(128);
+            e.Property(l => l.OldValue).HasMaxLength(1000);
+            e.Property(l => l.NewValue).HasMaxLength(1000);
+            e.HasIndex(l => new { l.TenantId, l.Timestamp });
+        });
+        modelBuilder.Entity<UserRolePermission>().Property(p => p.Scope).HasDefaultValue(DataScope.All);
+        modelBuilder.Entity<ScreenPermissionItem>().Property(p => p.Actions).HasMaxLength(1000);
 
         foreach (var (dep, fk, principal) in References)
             modelBuilder.Entity(dep).HasOne(principal).WithMany().HasForeignKey(fk).OnDelete(DeleteBehavior.Restrict);
@@ -337,6 +405,60 @@ public class ErpDbContext : DbContext
 
     private void ApplyTenantFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity
         => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+
+    // ---------- نطاق الوصول ----------
+    // المستندات ذات النطاق (IScopedRecord) يُضاف لمرشّح منشأتها نطاق المستخدم، ويبقى معطّلاً (ScopeMode = 0) ما لم يفعّله
+    // مرشّح ScopedRecord في طلبات القراءة؛ فالترحيل والأرصدة والتقارير الداخلية لا تتأثر به.
+
+    /// <summary>نطاق الطلب الحالي (null = كل السجلات).</summary>
+    public DataScopeFilter? ActiveDataScope { get; private set; }
+    public int ScopeMode { get; private set; }
+    public Guid ScopeUserId { get; private set; }
+    public List<Guid> ScopeWarehouseIds { get; private set; } = new();
+    public List<Guid> ScopeUserIds { get; private set; } = new();
+
+    public void ApplyDataScope(DataScopeFilter? scope)
+    {
+        ActiveDataScope = scope;
+        ScopeMode = scope == null ? 0 : (int)scope.Scope;
+        ScopeUserId = scope?.UserId ?? Guid.Empty;
+        ScopeWarehouseIds = scope?.WarehouseIds.ToList() ?? new List<Guid>();
+        ScopeUserIds = scope == null ? new List<Guid>() : scope.DepartmentUserIds.Append(scope.UserId).Distinct().ToList();
+    }
+
+    /// <summary>يعطّل النطاق مؤقتاً (قراءة سجل لفحص صلاحيته) ويعيده عند التخلّص.</summary>
+    public IDisposable SuspendDataScope()
+    {
+        var saved = ActiveDataScope;
+        ApplyDataScope(null);
+        return new ScopeRestorer(() => ApplyDataScope(saved));
+    }
+
+    private sealed class ScopeRestorer(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
+    }
+
+    private static string FilterMethodFor(Type type)
+    {
+        if (!typeof(IScopedRecord).IsAssignableFrom(type)) return nameof(ApplyTenantFilter);
+        return type.GetProperty("WarehouseId")?.PropertyType == typeof(Guid?) ? nameof(ApplyBranchScopedFilter) : nameof(ApplyScopedFilter);
+    }
+
+    /// <summary>مستند بلا مستودع: نطاق «فروع محددة» لا يقيّده.</summary>
+    private void ApplyScopedFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity, IScopedRecord
+        => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId && (ScopeMode == 0 || ScopeMode == 1
+            || (ScopeMode == 2 && e.CreatedByUserId != null && ScopeUserIds.Contains(e.CreatedByUserId.Value))
+            || (ScopeMode == 3 && e.CreatedByUserId == ScopeUserId)
+            || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId))));
+
+    /// <summary>مستند بمستودع (فرع): المستند بلا مستودع لا يتبع فرعاً فيظهر لكل الفروع.</summary>
+    private void ApplyBranchScopedFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity, IScopedRecord
+        => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId && (ScopeMode == 0
+            || (ScopeMode == 1 && (EF.Property<Guid?>(e, "WarehouseId") == null || ScopeWarehouseIds.Contains(EF.Property<Guid?>(e, "WarehouseId")!.Value)))
+            || (ScopeMode == 2 && e.CreatedByUserId != null && ScopeUserIds.Contains(e.CreatedByUserId.Value))
+            || (ScopeMode == 3 && e.CreatedByUserId == ScopeUserId)
+            || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId))));
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {

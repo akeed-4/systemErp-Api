@@ -1,8 +1,12 @@
 
 namespace ERP.Core.Models.Accounting;
 
-public class DeliveryNote : BaseEntity
+public class DeliveryNote : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string DeliveryNumber { get; set; } = string.Empty;
     public string Type { get; set; } = "sales_delivery"; // sales_delivery | purchase_delivery
     public Guid? ContractId { get; set; }

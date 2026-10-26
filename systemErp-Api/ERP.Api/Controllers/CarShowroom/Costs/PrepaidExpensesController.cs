@@ -27,7 +27,7 @@ public class PrepaidExpensesController : ErpControllerBase
     }
 
     [HttpPost("{id:guid}/cancel")]
-    [RequireScreen("car-showroom", ScreenAction.Approve)]
+    [RequireScreen("car-showroom", ScreenAction.Cancel, Legacy = ScreenAction.Approve)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _service.CancelAsync(id, ct), Messages.UpdatedSuccessfully);
 
     /// <summary>ترحيل إطفاء الشهر (period بصيغة yyyy-MM، فارغ = الشهر الحالي). آمن للتكرار: الشهر لا يُطفأ مرتين.</summary>

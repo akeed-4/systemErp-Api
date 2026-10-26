@@ -35,12 +35,12 @@ public class FixedAssetsController : CrudController<FixedAssetDto, CreateFixedAs
     public async Task<IActionResult> PreviewDepreciation([FromBody] DepreciationRunRequestDto request, CancellationToken ct)
         => Success(await _depreciation.PreviewAsync(request, ct));
 
-    [HttpPost("depreciation/post")]
+    [HttpPost("depreciation/post"), RequireScreen("accounts", ScreenAction.Post, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> PostDepreciation([FromBody] DepreciationRunRequestDto request, CancellationToken ct)
         => Success(await _depreciation.PostAsync(request, ct), Messages.DepreciationPosted);
 
     /// <summary>عكس ترحيل إهلاك بقيده: يعيد أرصدة الأصول ويحذف سجلات الفترة.</summary>
-    [HttpPost("depreciation/{journalEntryId:guid}/reverse")]
+    [HttpPost("depreciation/{journalEntryId:guid}/reverse"), RequireScreen("accounts", ScreenAction.Cancel, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> ReverseDepreciation(Guid journalEntryId, CancellationToken ct)
     {
         await _depreciation.ReverseRunAsync(journalEntryId, ct);

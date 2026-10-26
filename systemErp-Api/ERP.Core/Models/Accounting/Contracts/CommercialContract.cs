@@ -5,14 +5,26 @@ namespace ERP.Core.Models.Accounting;
 /// العقود التجارية العامة - تمر بدورة معتمدة من 7 مراحل (انظر Stage)
 /// تنتهي بفوترة المستخلصات (<see cref="ContractMilestone"/>) عبر محرك المحاسبة المركزي.
 /// </summary>
-public class CommercialContract : BaseEntity
+public class CommercialContract : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
-    public string ContractType { get; set; } = "supply"; // supply | sla_service | maintenance | construction | lease | consulting | normal_purchasing | ...
-    /// <summary>draft | legal_review | approved_signed | active_execution | milestone_billing | initial_inspection | final_closed، أو مراحل دورة الشراء العادية: normal_agreement | normal_delivery | normal_delivery_return | normal_milestone_invoice</summary>
+    /// <summary>رمز نوع العقد (ContractTypeDefinition.Code): يحدّد المسار (كامل/مبسط) وطريقة الفوترة.</summary>
+    public string ContractType { get; set; } = "supply_materials";
+    /// <summary>حالة العقد (ContractStageDefinition): draft | review | approval | active | initial_acceptance | closed | suspended | cancelled. لا تتغير إلا عبر دالة الانتقال.</summary>
     public string Stage { get; set; } = "draft";
+    /// <summary>ملخص قديم للحالة يُشتق من <see cref="Stage"/> (للتوافق مع الشاشات والتقارير القائمة).</summary>
     public ContractStatus Status { get; set; } = ContractStatus.Draft;
+    /// <summary>متى دخل العقد حالته الحالية (لحساب التأخر عن المدة المستهدفة للحالة).</summary>
+    public DateTime? StageChangedAt { get; set; }
+    /// <summary>جولة المراجعة الحالية: تزيد مع كل إعادة للمسودة فتُلغى موافقات الجولة السابقة.</summary>
+    public int ReviewRound { get; set; } = 1;
+    /// <summary>عقد بمسار مبسط (من نوعه أو لأن قيمته دون حد التبسيط) يُثبَّت عند الإنشاء.</summary>
+    public bool IsSimplified { get; set; }
     /// <summary>العميل/المورد المرتبط (اختياري) - يحدّد حساب الذمم عند الفوترة.</summary>
     public Guid? PartyId { get; set; }
     /// <summary>customer | supplier</summary>
@@ -46,6 +58,8 @@ public class CommercialContract : BaseEntity
     public bool AutoRenew { get; set; }
     public string Currency { get; set; } = "SAR";
     public Guid? CostCenterId { get; set; }
+    /// <summary>نسبة الدفعة المقدمة من قيمة العقد؛ تُخصم بالنسبة نفسها من كل فاتورة مرحلية.</summary>
+    public decimal AdvancePercent { get; set; }
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }
     public DateTime? RetentionReleaseDate { get; set; }
@@ -56,6 +70,11 @@ public class CommercialContract : BaseEntity
     public string? SignedByCompany { get; set; }
     public string? SignedByParty { get; set; }
     public DateTime? SignedDate { get; set; }
+    /// <summary>الضمان البنكي (شرط التفعيل لأنواع العقود التي تتطلبه).</summary>
+    public string? GuaranteeNumber { get; set; }
+    public string? GuaranteeBank { get; set; }
+    public decimal? GuaranteeAmount { get; set; }
+    public DateTime? GuaranteeExpiry { get; set; }
 
     public virtual ICollection<ContractMilestone> Milestones { get; set; } = new List<ContractMilestone>();
     public virtual ICollection<ContractClause> Clauses { get; set; } = new List<ContractClause>();

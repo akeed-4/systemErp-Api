@@ -55,6 +55,9 @@ public class AuditTrailInterceptor : SaveChangesInterceptor
         var logs = new List<AuditLog>();
         foreach (var entry in db.ChangeTracker.Entries<BaseEntity>().ToList())
         {
+            // منشئ المستند ذي النطاق يُختم هنا مرة واحدة (نطاق «السجلات التي أنشأها» و«القسم»)
+            if (entry.State == EntityState.Added && entry.Entity is IScopedRecord { CreatedByUserId: null } scoped)
+                scoped.CreatedByUserId = _user.UserId;
             if (!Audited.Contains(entry.Entity.GetType())) continue;
             var details = entry.State switch
             {

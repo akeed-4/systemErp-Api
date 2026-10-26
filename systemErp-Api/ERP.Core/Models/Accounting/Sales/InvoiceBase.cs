@@ -7,8 +7,12 @@ namespace ERP.Core.Models.Accounting;
 /// التجارة العامة: SalesInvoice، PurchaseInvoice، SalesReturn، PurchaseReturn. المعارض: Invoice (بكل أنواعها).
 /// المنطق المشترك (البناء، الترحيل، الضريبة، الأرصدة) يعمل على هذا النوع، فيُستعلم عن الجداول كلها معاً بـ Set&lt;InvoiceBase&gt;.
 /// </summary>
-public abstract class InvoiceBase : BaseEntity
+public abstract class InvoiceBase : BaseEntity, IScopedRecord
 {
+    /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
+    public Guid? CreatedByUserId { get; set; }
+    /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
+    public Guid? AssignedToUserId { get; set; }
     public string Module { get; set; } = "accounting";
     public string InvoiceNumber { get; set; } = string.Empty;
     public Guid Uuid { get; set; } = Guid.NewGuid();

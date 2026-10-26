@@ -34,7 +34,7 @@ public class AdditionalChargesController : ErpControllerBase
         => Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
 
     [HttpPost("{id:guid}/cancel")]
-    [RequireScreen("car-showroom", ScreenAction.Edit)]
+    [RequireScreen("car-showroom", ScreenAction.Cancel, Legacy = ScreenAction.Edit)]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] ChargeActionReasonDto? dto, CancellationToken ct)
         => Success(await _service.CancelAsync(id, dto?.Reason, ct), Messages.ChargeLineCancelled);
 

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-[Route("api/v1/deliverynotes"), RequireScreen("sales")]
+[Route("api/v1/deliverynotes"), RequireScreen("sales"), ScopedRecord("delivery-note")]
 [RequireModule(PlatformModules.Accounting)]
 public class DeliveryNotesController : ErpControllerBase
 {

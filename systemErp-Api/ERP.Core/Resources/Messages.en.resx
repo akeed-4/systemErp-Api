@@ -1172,4 +1172,74 @@
   <data name="VatTreatmentInvalid" xml:space="preserve"><value>The invoice VAT treatment is invalid.</value></data>
   <data name="VatTreatmentReasonRequired" xml:space="preserve"><value>A zero-rated or exempt sales invoice needs an exemption reason (ZATCA code).</value></data>
   <data name="VatTreatmentReasonMismatch" xml:space="preserve"><value>The exemption reason does not match the invoice VAT treatment.</value></data>
+  <data name="PermissionReasonNoPermission" xml:space="preserve"><value>Missing permission "{0}" on "{1}".</value></data>
+  <data name="PermissionReasonOutOfScope" xml:space="preserve"><value>The record is outside the user's scope ({0}).</value></data>
+  <data name="PermissionReasonStage" xml:space="preserve"><value>Stage "{0}" does not allow "{1}".</value></data>
+  <data name="PermissionReasonLimit" xml:space="preserve"><value>Amount {0:N2} exceeds the approval limit {1:N2}.</value></data>
+  <data name="PermissionReasonRoleDisabled" xml:space="preserve"><value>The user's role "{0}" is disabled.</value></data>
+  <data name="PermissionReasonUserInactive" xml:space="preserve"><value>The user account is disabled.</value></data>
+  <data name="PermissionCheckRecordNotFound" xml:space="preserve"><value>Record not found.</value></data>
+  <data name="PermissionStepUserActive" xml:space="preserve"><value>User is active.</value></data>
+  <data name="PermissionStepGranted" xml:space="preserve"><value>Permission granted (source: {0}).</value></data>
+  <data name="PermissionStepFullAccess" xml:space="preserve"><value>Full access (owner/admin).</value></data>
+  <data name="PermissionStepScopeOk" xml:space="preserve"><value>Record is within scope ({0}).</value></data>
+  <data name="PermissionStepStageOk" xml:space="preserve"><value>Stage "{0}" allows the action.</value></data>
+  <data name="PermissionStepLimitOk" xml:space="preserve"><value>Amount {0:N2} is within the approval limit {1:N2}.</value></data>
+  <data name="PermissionStepNoLimit" xml:space="preserve"><value>No approval limit.</value></data>
+  <data name="PermissionStepNotApplicable" xml:space="preserve"><value>Not applicable.</value></data>
+  <data name="PermissionSourceRole" xml:space="preserve"><value>role</value></data>
+  <data name="PermissionSourceDirect" xml:space="preserve"><value>direct permission</value></data>
+  <data name="PermissionSourceDefault" xml:space="preserve"><value>role default</value></data>
+  <data name="ScopeAll" xml:space="preserve"><value>All branches</value></data>
+  <data name="ScopeBranches" xml:space="preserve"><value>Specific branches</value></data>
+  <data name="ScopeDepartment" xml:space="preserve"><value>Department</value></data>
+  <data name="ScopeOwn" xml:space="preserve"><value>Records they created</value></data>
+  <data name="ScopeAssigned" xml:space="preserve"><value>Records assigned to them</value></data>
+  <data name="UnknownPermissionAction" xml:space="preserve"><value>Unknown action: {0}</value></data>
+  <data name="UnknownRecordType" xml:space="preserve"><value>Unknown record type: {0}</value></data>
+  <data name="UnknownRole" xml:space="preserve"><value>Unknown role: {0}</value></data>
+  <data name="RoleNotFound" xml:space="preserve"><value>Role not found.</value></data>
+  <data name="RoleNameRequired" xml:space="preserve"><value>Role name is required.</value></data>
+  <data name="RoleNameDuplicate" xml:space="preserve"><value>A role with the same name already exists.</value></data>
+  <data name="FullAccessRoleLocked" xml:space="preserve"><value>Owner/admin roles have full access: their permissions cannot be edited and they cannot be disabled.</value></data>
+  <data name="RoleDisabledCannotAssign" xml:space="preserve"><value>A disabled role cannot be assigned to a user.</value></data>
+  <data name="RoleSaved" xml:space="preserve"><value>Role saved.</value></data>
+  <data name="RoleCopied" xml:space="preserve"><value>Role copied with its permissions.</value></data>
+  <data name="RoleStatusChanged" xml:space="preserve"><value>Role status updated.</value></data>
+  <data name="PermissionsResetToRole" xml:space="preserve"><value>User reset to role permissions.</value></data>
+  <data name="RecordAssigned" xml:space="preserve"><value>Record assigned.</value></data>
+  <data name="NegativeApprovalLimit" xml:space="preserve"><value>The approval limit cannot be negative.</value></data>
+  <data name="ContractRejectedToDraft" xml:space="preserve"><value>Contract returned to draft.</value></data>
+  <data name="ContractTransitionNotAllowed" xml:space="preserve"><value>The contract cannot move from "{0}" to "{1}": this transition is not allowed.</value></data>
+  <data name="ContractTransitionNoPermission" xml:space="preserve"><value>You do not have the "{0}" permission on contracts.</value></data>
+  <data name="ContractNoteRequired" xml:space="preserve"><value>The action "{0}" requires a reason.</value></data>
+  <data name="ContractConditionsMissing" xml:space="preserve"><value>Cannot "{0}" before completing: {1}.</value></data>
+  <data name="ContractMissingTitle" xml:space="preserve"><value>contract title</value></data>
+  <data name="ContractMissingParty" xml:space="preserve"><value>a linked party (customer or supplier)</value></data>
+  <data name="ContractMissingDates" xml:space="preserve"><value>start and end dates</value></data>
+  <data name="ContractMissingValue" xml:space="preserve"><value>contract value</value></data>
+  <data name="ContractMissingItems" xml:space="preserve"><value>contract items (at least one)</value></data>
+  <data name="ContractMissingLegalApproval" xml:space="preserve"><value>legal reviewer approval</value></data>
+  <data name="ContractMissingFinancialApproval" xml:space="preserve"><value>financial reviewer approval</value></data>
+  <data name="ContractMissingSignedCopy" xml:space="preserve"><value>the signed contract copy (attachment)</value></data>
+  <data name="ContractMissingGuarantee" xml:space="preserve"><value>bank guarantee details (number, amount and expiry)</value></data>
+  <data name="ContractGuaranteeExpired" xml:space="preserve"><value>a valid bank guarantee (the recorded one has expired)</value></data>
+  <data name="ContractMissingReceipts" xml:space="preserve"><value>receiving all quantities (remaining: {0})</value></data>
+  <data name="ContractMissingInvoicing" xml:space="preserve"><value>invoicing every receipt (not invoiced: {0})</value></data>
+  <data name="ContractMissingMilestones" xml:space="preserve"><value>invoicing every milestone (not invoiced: {0})</value></data>
+  <data name="ContractMissingRetentionRelease" xml:space="preserve"><value>releasing the retention</value></data>
+  <data name="ContractReviewOnlyInReview" xml:space="preserve"><value>Review decisions are recorded only while the contract is in "Review".</value></data>
+  <data name="ContractReviewKindInvalid" xml:space="preserve"><value>Invalid review kind: legal or financial.</value></data>
+  <data name="ContractReviewDecisionInvalid" xml:space="preserve"><value>Invalid review decision: approve or return.</value></data>
+  <data name="ContractAlreadyReviewed" xml:space="preserve"><value>The {0} approval was already recorded in the current review round.</value></data>
+  <data name="ContractReviewLegal" xml:space="preserve"><value>legal</value></data>
+  <data name="ContractReviewFinancial" xml:space="preserve"><value>financial</value></data>
+  <data name="ContractTypeUnknown" xml:space="preserve"><value>Unknown or disabled contract type: {0}</value></data>
+  <data name="ContractSigningClosed" xml:space="preserve"><value>Signing and guarantee details can only be changed before the contract is activated.</value></data>
+  <data name="ContractAttachmentKindInvalid" xml:space="preserve"><value>Invalid attachment kind: signed_copy, guarantee or other.</value></data>
+  <data name="ContractAttachmentNotFound" xml:space="preserve"><value>Attachment not found.</value></data>
+  <data name="ContractMoved" xml:space="preserve"><value>Contract moved to "{0}".</value></data>
+  <data name="ContractReviewRecorded" xml:space="preserve"><value>Review decision recorded.</value></data>
+  <data name="ContractSigningSaved" xml:space="preserve"><value>Signing and guarantee details saved.</value></data>
+  <data name="ContractSimplifiedActivated" xml:space="preserve"><value>Simplified contract: saved and activated directly.</value></data>
 </root>

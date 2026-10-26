@@ -32,7 +32,7 @@ public class PaymentsController : ErpControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _payments.GetAsync(id, ct));
 
-    [HttpPost("{id:guid}/cancel"), RequireScreen("sales", ScreenAction.Edit)]
+    [HttpPost("{id:guid}/cancel"), RequireScreen("sales", ScreenAction.Cancel, Legacy = ScreenAction.Edit)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _payments.CancelAsync(id, ct), Messages.PaymentCancelled);
 
     /// <summary>صفحة نتيجة الدفع للعميل بعد العودة من Paymob (بلا دخول).</summary>

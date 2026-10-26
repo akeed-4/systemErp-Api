@@ -400,6 +400,13 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("AdvancePercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("AutoRenew")
                         .HasColumnType("bit");
 
@@ -421,6 +428,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -430,6 +440,22 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("GuaranteeAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("GuaranteeBank")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("GuaranteeExpiry")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GuaranteeNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsSimplified")
+                        .HasColumnType("bit");
 
                     b.Property<decimal>("LatePenaltyPerDay")
                         .HasPrecision(18, 4)
@@ -491,6 +517,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("RevenueAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("ReviewRound")
+                        .HasColumnType("int");
+
                     b.Property<string>("ScopeOfWork")
                         .HasColumnType("nvarchar(max)");
 
@@ -506,6 +535,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Stage")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("StageChangedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("datetime2");
@@ -626,11 +658,17 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("AgreementNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("ConvertedInvoiceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("ExpectedDeliveryDate")
                         .HasColumnType("datetime2");
@@ -773,6 +811,110 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("CommercialOrderItem");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractApproval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Round")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId", "Round");
+
+                    b.ToTable("ContractApproval");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId");
+
+                    b.ToTable("ContractAttachment");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractClause", b =>
                 {
                     b.Property<Guid>("Id")
@@ -809,6 +951,82 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("ContractClause");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractInvoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AdvanceDeduction")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DeliveryNoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid?>("RelatedInvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("RetentionAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("ReturnNoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId");
+
+                    b.HasIndex("TenantId", "DeliveryNoteId", "Kind")
+                        .IsUnique()
+                        .HasFilter("[DeliveryNoteId] IS NOT NULL AND [Kind] <> N'credit_note'");
+
+                    b.ToTable("ContractInvoice");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractMilestone", b =>
@@ -901,6 +1119,340 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("ContractMilestone");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractStatusLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FromStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("TransitionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId");
+
+                    b.ToTable("ContractStatusLog");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractTransition", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Condition")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FromStatus")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RequiredActions")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("RequiresNote")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Tone")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromStatus", "ToStatus")
+                        .IsUnique();
+
+                    b.ToTable("ContractTransition", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Condition = "complete_data",
+                            FromStatus = "draft",
+                            IsActive = true,
+                            NameAr = "إرسال للمراجعة",
+                            NameEn = "Submit for review",
+                            RequiredActions = "submit",
+                            RequiresNote = false,
+                            SortOrder = 1,
+                            ToStatus = "review",
+                            Tone = "primary"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Condition = "both_reviews",
+                            FromStatus = "review",
+                            IsActive = true,
+                            NameAr = "موافقة المراجعة",
+                            NameEn = "Approve review",
+                            RequiredActions = "legal_review,financial_review",
+                            RequiresNote = false,
+                            SortOrder = 1,
+                            ToStatus = "approval",
+                            Tone = "primary"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            FromStatus = "review",
+                            IsActive = true,
+                            NameAr = "إعادة للمسودة",
+                            NameEn = "Return to draft",
+                            RequiredActions = "legal_review,financial_review",
+                            RequiresNote = true,
+                            SortOrder = 2,
+                            ToStatus = "draft",
+                            Tone = "neutral"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Condition = "signed_guarantee_limit",
+                            FromStatus = "approval",
+                            IsActive = true,
+                            NameAr = "اعتماد وتفعيل",
+                            NameEn = "Approve & activate",
+                            RequiredActions = "approve",
+                            RequiresNote = false,
+                            SortOrder = 1,
+                            ToStatus = "active",
+                            Tone = "primary"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            FromStatus = "approval",
+                            IsActive = true,
+                            NameAr = "رفض الاعتماد",
+                            NameEn = "Reject approval",
+                            RequiredActions = "approve",
+                            RequiresNote = true,
+                            SortOrder = 2,
+                            ToStatus = "draft",
+                            Tone = "neutral"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Condition = "all_received",
+                            FromStatus = "active",
+                            IsActive = true,
+                            NameAr = "استلام أولي",
+                            NameEn = "Initial acceptance",
+                            RequiredActions = "inspect",
+                            RequiresNote = false,
+                            SortOrder = 1,
+                            ToStatus = "initial_acceptance",
+                            Tone = "primary"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            FromStatus = "active",
+                            IsActive = true,
+                            NameAr = "إيقاف",
+                            NameEn = "Suspend",
+                            RequiredActions = "approve",
+                            RequiresNote = true,
+                            SortOrder = 2,
+                            ToStatus = "suspended",
+                            Tone = "danger"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            FromStatus = "suspended",
+                            IsActive = true,
+                            NameAr = "استئناف",
+                            NameEn = "Resume",
+                            RequiredActions = "approve",
+                            RequiresNote = true,
+                            SortOrder = 1,
+                            ToStatus = "active",
+                            Tone = "primary"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Condition = "all_billed_retention_released",
+                            FromStatus = "initial_acceptance",
+                            IsActive = true,
+                            NameAr = "إغلاق نهائي",
+                            NameEn = "Close",
+                            RequiredActions = "approve",
+                            RequiresNote = false,
+                            SortOrder = 1,
+                            ToStatus = "closed",
+                            Tone = "primary"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            FromStatus = "draft",
+                            IsActive = true,
+                            NameAr = "إلغاء",
+                            NameEn = "Cancel",
+                            RequiredActions = "approve",
+                            RequiresNote = true,
+                            SortOrder = 9,
+                            ToStatus = "cancelled",
+                            Tone = "danger"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            FromStatus = "review",
+                            IsActive = true,
+                            NameAr = "إلغاء",
+                            NameEn = "Cancel",
+                            RequiredActions = "approve",
+                            RequiresNote = true,
+                            SortOrder = 9,
+                            ToStatus = "cancelled",
+                            Tone = "danger"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            FromStatus = "approval",
+                            IsActive = true,
+                            NameAr = "إلغاء",
+                            NameEn = "Cancel",
+                            RequiredActions = "approve",
+                            RequiresNote = true,
+                            SortOrder = 9,
+                            ToStatus = "cancelled",
+                            Tone = "danger"
+                        });
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractTypeDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Billing")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("RequiresGuarantee")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("SimpleLimit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Workflow")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("ContractTypeDefinition");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.CostCenter", b =>
                 {
                     b.Property<Guid>("Id")
@@ -955,6 +1507,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("ContractId")
                         .HasColumnType("uniqueidentifier");
 
@@ -963,6 +1518,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
@@ -1837,6 +2395,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CogsAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -1845,6 +2406,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CurrencyCode")
                         .IsRequired()
@@ -2422,8 +2986,14 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
@@ -2732,11 +3302,17 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ApprovedBy")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("ConvertedInvoiceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Department")
                         .IsRequired()
@@ -3050,11 +3626,17 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("ConvertedInvoiceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
@@ -3221,11 +3803,17 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
@@ -3837,6 +4425,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ApprovalNotes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("BillOfLadingNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -3855,6 +4446,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int?>("CreditDays")
                         .HasColumnType("int");
@@ -4123,6 +4717,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("AllocatedVin")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("AuthorizedSignatoryId")
                         .HasColumnType("nvarchar(max)");
 
@@ -4194,6 +4791,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("CustomerChargesNet")
                         .HasPrecision(18, 4)
@@ -7142,6 +7742,11 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("AllowedActions")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("BadgeColor")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -7183,6 +7788,24 @@ namespace ERP.Service.Data.Migrations
                     b.Property<int>("Number")
                         .HasColumnType("int");
 
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ShortNameAr")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ShortNameEn")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("SlaDays")
+                        .HasColumnType("int");
+
                     b.Property<string>("WorkflowType")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -7199,156 +7822,150 @@ namespace ERP.Service.Data.Migrations
                         new
                         {
                             Id = "draft",
+                            AllowedActions = "edit,delete,submit",
                             BadgeColor = "bg-slate-700 text-slate-200 border-slate-600",
-                            DescAr = "صياغة بنود التوريد والخدمات والاتفاقية والشروط الفنية",
-                            DescEn = "Drafting supply and service clauses, the agreement, and technical terms",
+                            DescAr = "صياغة البنود والكميات والأسعار والشروط",
+                            DescEn = "Drafting items, quantities, prices and terms",
                             HeaderColor = "from-slate-700 to-slate-800",
                             Icon = "edit_document",
                             IsActive = true,
                             NameAr = "مسودة وصياغة العقد",
                             NameEn = "Contract Drafting",
                             Number = 1,
-                            WorkflowType = "general"
+                            Phase = "pre_signing",
+                            ShortNameAr = "مسودة",
+                            ShortNameEn = "Draft",
+                            SlaDays = 7,
+                            WorkflowType = "contract"
                         },
                         new
                         {
-                            Id = "legal_review",
+                            Id = "review",
+                            AllowedActions = "legal_review,financial_review",
                             BadgeColor = "bg-amber-950 text-amber-300 border-amber-800",
-                            DescAr = "تدقيق البنود، الشروط الجزائية، واعتماد الجدوى والمخاطر",
-                            DescEn = "Reviewing clauses, penalties, feasibility, and risks",
+                            DescAr = "موافقة المراجع القانوني والمراجع المالي معاً",
+                            DescEn = "Approval by both the legal and the financial reviewer",
                             HeaderColor = "from-amber-700 to-amber-800",
                             Icon = "gavel",
                             IsActive = true,
                             NameAr = "المراجعة القانونية والمالية",
                             NameEn = "Legal and Financial Review",
                             Number = 2,
-                            WorkflowType = "general"
+                            Phase = "pre_signing",
+                            ShortNameAr = "مراجعة",
+                            ShortNameEn = "Review",
+                            SlaDays = 5,
+                            WorkflowType = "contract"
                         },
                         new
                         {
-                            Id = "approved_signed",
+                            Id = "approval",
+                            AllowedActions = "approve",
                             BadgeColor = "bg-blue-950 text-blue-300 border-blue-800",
-                            DescAr = "توقيع الأطراف، إيداع الضمانات الابتدائية، وتفعيل العقد",
-                            DescEn = "Signing by the parties, depositing initial guarantees, and activating the contract",
+                            DescAr = "اعتماد صاحب الصلاحية بعد النسخة الموقعة والضمان البنكي",
+                            DescEn = "Authorized approval after the signed copy and bank guarantee",
                             HeaderColor = "from-blue-700 to-blue-800",
                             Icon = "draw",
                             IsActive = true,
-                            NameAr = "الاعتماد والتوقيع الرسمي",
+                            NameAr = "الاعتماد والتوقيع",
                             NameEn = "Approval and Signing",
                             Number = 3,
-                            WorkflowType = "general"
+                            Phase = "pre_signing",
+                            ShortNameAr = "اعتماد",
+                            ShortNameEn = "Approval",
+                            SlaDays = 3,
+                            WorkflowType = "contract"
                         },
                         new
                         {
-                            Id = "active_execution",
+                            Id = "active",
+                            AllowedActions = "receive,post,inspect,approve",
                             BadgeColor = "bg-emerald-950 text-emerald-300 border-emerald-800",
-                            DescAr = "إصدار أوامر العمل، تنفيذ التوريد، ومتابعة الجدول الزمني",
-                            DescEn = "Issuing work orders, fulfilling supply, and tracking the schedule",
+                            DescAr = "الاستلامات والمرتجعات والفواتير المرحلية",
+                            DescEn = "Receipts, returns and progress invoices",
                             HeaderColor = "from-emerald-700 to-emerald-800",
                             Icon = "engineering",
                             IsActive = true,
                             NameAr = "ساري وقيد التنفيذ",
                             NameEn = "Active Execution",
                             Number = 4,
-                            WorkflowType = "general"
+                            Phase = "execution",
+                            ShortNameAr = "ساري",
+                            ShortNameEn = "Active",
+                            WorkflowType = "contract"
                         },
                         new
                         {
-                            Id = "milestone_billing",
-                            BadgeColor = "bg-purple-950 text-purple-300 border-purple-800",
-                            DescAr = "إصدار فواتير المستخلصات الضريبية والقيود المحاسبية الآلية",
-                            DescEn = "Issuing tax invoices for milestones and automated accounting entries",
-                            HeaderColor = "from-purple-700 to-purple-800",
-                            Icon = "receipt_long",
-                            IsActive = true,
-                            NameAr = "المستخلصات والفوترة ZATCA",
-                            NameEn = "Milestone Billing (ZATCA)",
-                            Number = 5,
-                            WorkflowType = "general"
-                        },
-                        new
-                        {
-                            Id = "initial_inspection",
+                            Id = "initial_acceptance",
+                            AllowedActions = "receive,post,approve",
                             BadgeColor = "bg-cyan-950 text-cyan-300 border-cyan-800",
-                            DescAr = "فحص مخرجات العقد، اعتماد محاضر الاستلام وإغلاق الملاحظات",
-                            DescEn = "Inspecting contract deliverables, approving acceptance records, and closing remarks",
+                            DescAr = "فحص المخرجات واعتماد محاضر الاستلام والفوترة النهائية",
+                            DescEn = "Inspecting deliverables, acceptance records and final billing",
                             HeaderColor = "from-cyan-700 to-cyan-800",
                             Icon = "checklist",
                             IsActive = true,
-                            NameAr = "الفحص والاستلام الأولي",
-                            NameEn = "Initial Inspection and Acceptance",
-                            Number = 6,
-                            WorkflowType = "general"
+                            NameAr = "الاستلام الأولي",
+                            NameEn = "Initial Acceptance",
+                            Number = 5,
+                            Phase = "closing",
+                            ShortNameAr = "استلام",
+                            ShortNameEn = "Acceptance",
+                            SlaDays = 14,
+                            WorkflowType = "contract"
                         },
                         new
                         {
-                            Id = "final_closed",
+                            Id = "closed",
+                            AllowedActions = "post",
                             BadgeColor = "bg-teal-950 text-teal-300 border-teal-800",
-                            DescAr = "الإفراج عن ضمان حسن التنفيذ، التسوية الختامية والمخالصة",
-                            DescEn = "Releasing the performance bond, final settlement, and clearance",
+                            DescAr = "الإفراج عن المحتجز والتسوية الختامية",
+                            DescEn = "Retention release and final settlement",
                             HeaderColor = "from-teal-700 to-teal-800",
                             Icon = "verified",
                             IsActive = true,
-                            NameAr = "الإغلاق والتسليم النهائي",
-                            NameEn = "Final Handover and Closure",
+                            NameAr = "الإغلاق النهائي",
+                            NameEn = "Final Closure",
+                            Number = 6,
+                            Phase = "closing",
+                            ShortNameAr = "مغلق",
+                            ShortNameEn = "Closed",
+                            WorkflowType = "contract"
+                        },
+                        new
+                        {
+                            Id = "suspended",
+                            AllowedActions = "approve",
+                            BadgeColor = "bg-orange-950 text-orange-300 border-orange-800",
+                            DescAr = "تنفيذ العقد موقوف بقرار مسبب",
+                            DescEn = "Execution suspended by a reasoned decision",
+                            HeaderColor = "from-orange-700 to-orange-800",
+                            Icon = "pause_circle",
+                            IsActive = true,
+                            NameAr = "موقوف مؤقتاً",
+                            NameEn = "Suspended",
                             Number = 7,
-                            WorkflowType = "general"
+                            Phase = "side",
+                            ShortNameAr = "موقوف",
+                            ShortNameEn = "Suspended",
+                            WorkflowType = "contract"
                         },
                         new
                         {
-                            Id = "normal_agreement",
-                            BadgeColor = "bg-indigo-950 text-indigo-300 border-indigo-800",
-                            DescAr = "صياغة اتفاقية الشراء وتفاصيل البنود والكميات والأطراف",
-                            DescEn = "Drafting the purchase agreement, line details, quantities, and parties",
-                            HeaderColor = "from-indigo-700 to-indigo-800",
-                            Icon = "description",
+                            Id = "cancelled",
+                            AllowedActions = "",
+                            BadgeColor = "bg-rose-950 text-rose-300 border-rose-800",
+                            DescAr = "أُلغي قبل أن يصبح سارياً",
+                            DescEn = "Cancelled before becoming active",
+                            HeaderColor = "from-rose-700 to-rose-800",
+                            Icon = "cancel",
                             IsActive = true,
-                            NameAr = "اتفاقية شراء وتفاصيل الاتفاقية",
-                            NameEn = "Purchase Agreement Details",
-                            Number = 1,
-                            WorkflowType = "normal_purchasing"
-                        },
-                        new
-                        {
-                            Id = "normal_delivery",
-                            BadgeColor = "bg-blue-950 text-blue-300 border-blue-800",
-                            DescAr = "استلام المواد والخدمات وإصدار محضر وبيان التسليم",
-                            DescEn = "Receiving goods and services and issuing a delivery receipt",
-                            HeaderColor = "from-blue-700 to-blue-800",
-                            Icon = "local_shipping",
-                            IsActive = true,
-                            NameAr = "التسليم (بيان الاستلام)",
-                            NameEn = "Delivery (Receipt Note)",
-                            Number = 2,
-                            WorkflowType = "normal_purchasing"
-                        },
-                        new
-                        {
-                            Id = "normal_delivery_return",
-                            BadgeColor = "bg-amber-950 text-amber-300 border-amber-800",
-                            DescAr = "تسجيل المرتجعات والإشعارات المدينة المرتبطة ببيان التسليم",
-                            DescEn = "Recording returns and debit notes linked to the delivery receipt",
-                            HeaderColor = "from-amber-700 to-amber-800",
-                            Icon = "assignment_return",
-                            IsActive = true,
-                            NameAr = "مرتجع من بيان تسليم",
-                            NameEn = "Delivery Return",
-                            Number = 3,
-                            WorkflowType = "normal_purchasing"
-                        },
-                        new
-                        {
-                            Id = "normal_milestone_invoice",
-                            BadgeColor = "bg-emerald-950 text-emerald-300 border-emerald-800",
-                            DescAr = "إصدار الفاتورة المرحلية وترحيل القيود المحاسبية التلقائية",
-                            DescEn = "Issuing the milestone tax invoice and posting automated accounting entries",
-                            HeaderColor = "from-emerald-700 to-emerald-800",
-                            Icon = "receipt_long",
-                            IsActive = true,
-                            NameAr = "فاتورة مرحلية (ضريبية ZATCA)",
-                            NameEn = "Milestone Invoice (ZATCA Tax Invoice)",
-                            Number = 4,
-                            WorkflowType = "normal_purchasing"
+                            NameAr = "ملغي قبل التفعيل",
+                            NameEn = "Cancelled",
+                            Number = 8,
+                            Phase = "side",
+                            ShortNameAr = "ملغي",
+                            ShortNameEn = "Cancelled",
+                            WorkflowType = "contract"
                         });
                 });
 
@@ -8164,6 +8781,69 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("PaymentMethodItem");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.PermissionChangeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangedByName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("OldValue")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Permission")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("TargetId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TargetName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Timestamp");
+
+                    b.ToTable("PermissionChangeLog");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.PlanDefinition", b =>
                 {
                     b.Property<string>("Id")
@@ -8561,11 +9241,73 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("ProductCategory");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.RoleDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BaseRole")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("RoleDefinition");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.ScreenPermissionItem", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actions")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<bool>("CanApprove")
                         .HasColumnType("bit");
@@ -9279,6 +10021,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("CustomRoleId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Department")
                         .HasColumnType("nvarchar(max)");
 
@@ -9373,10 +10118,23 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("ApprovalLimit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("RoleId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("All");
+
+                    b.Property<string>("ScopeWarehouseIds")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("TenantId")
@@ -9627,6 +10385,24 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractApproval", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractAttachment", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractClause", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.CommercialContract", "Contract")
@@ -9638,6 +10414,15 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Contract");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractInvoice", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractMilestone", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.CommercialContract", "Contract")
@@ -9647,6 +10432,15 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Contract");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractStatusLog", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CostCenter", b =>

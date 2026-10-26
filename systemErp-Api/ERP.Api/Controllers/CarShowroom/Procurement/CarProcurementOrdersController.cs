@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.CarShowroom;
 
-[Route("api/v1/carprocurementorders"), RequireScreen("car-showroom")]
+[Route("api/v1/carprocurementorders"), RequireScreen("car-showroom"), ScopedRecord("car-procurement-order")]
 [RequireModule(PlatformModules.CarShowroom)]
 public class CarProcurementOrdersController : ErpControllerBase
 {
@@ -63,14 +63,15 @@ public class CarProcurementOrdersController : ErpControllerBase
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceProcurementRequestDto dto, CancellationToken ct)
     {
         var isApprovalStage = dto.TargetStage is ProcurementStage.RequisitionApproved or ProcurementStage.RfqApproved;
-        await Require(isApprovalStage ? ScreenAction.Approve : ScreenAction.Edit, ct);
+        if (isApprovalStage) await _permissions.AuthorizeRecordAsync("car-showroom", ScreenAction.Approve, "car-procurement-order", id, ct: ct);
+        else await Require(ScreenAction.Edit, ct);
         return Success(await _service.AdvanceStageAsync(id, dto, ct), Messages.OrderAdvanced);
     }
 
     [HttpPost("{id:guid}/reject")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectProcurementRequestDto dto, CancellationToken ct)
     {
-        await Require(ScreenAction.Approve, ct);
+        await Require(ScreenAction.Reject, ct, ScreenAction.Approve);
         return Success(await _service.RejectAsync(id, dto, ct), Messages.OrderRejected);
     }
 
@@ -85,8 +86,8 @@ public class CarProcurementOrdersController : ErpControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _service.DeleteAsync(id, ct); return Success(Messages.Deleted); }
 
-    private async Task Require(ScreenAction action, CancellationToken ct)
+    private async Task Require(ScreenAction action, CancellationToken ct, ScreenAction? legacy = null)
     {
-        if (!await _permissions.HasPermissionAsync("car-showroom", action, ct)) throw new ForbiddenException();
+        if (!await _permissions.HasPermissionAsync("car-showroom", action, legacy, ct)) throw new ForbiddenException();
     }
 }

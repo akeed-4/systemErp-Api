@@ -22,6 +22,13 @@ public class LeaveAttachmentService : ILeaveAttachmentService
         ("image/png", new[] { ".png" }, new byte[] { 0x89, 0x50, 0x4E, 0x47 }),
     };
 
+    /// <summary>نوع المحتوى من الامتداد وتوقيع الملف معاً (PDF/JPEG/PNG)، أو null إن لم يكن مسموحاً. يُستخدم لمرفقات العقود أيضاً.</summary>
+    public static string? ContentTypeOf(string fileName, byte[] content)
+    {
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        return Allowed.FirstOrDefault(t => t.Extensions.Contains(extension) && content.AsSpan().StartsWith(t.Signature)).ContentType;
+    }
+
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
     private readonly IAuditService _audit;

@@ -25,9 +25,9 @@ public class InvoicesController : ErpControllerBase
         InvoiceKind.Sales => "sales", InvoiceKind.SalesReturn => "sales-returns", _ => "purchases",
     };
 
-    private async Task Require(InvoiceKind kind, ScreenAction action, CancellationToken ct)
+    private async Task Require(InvoiceKind kind, ScreenAction action, CancellationToken ct, ScreenAction? legacy = null)
     {
-        if (!await _permissions.HasPermissionAsync(ScreenFor(kind), action, ct)) throw new ForbiddenException();
+        if (!await _permissions.HasPermissionAsync(ScreenFor(kind), action, legacy, ct)) throw new ForbiddenException();
     }
 
     /// <summary>أسباب الإعفاء/الصفرية برموز هيئة الزكاة لاختيارها على سطر الفاتورة.</summary>
@@ -85,7 +85,7 @@ public class InvoicesController : ErpControllerBase
     [HttpPost("{id:guid}/post")]
     public async Task<IActionResult> Post(Guid id, CancellationToken ct)
     {
-        await Require((await _invoices.GetAsync(id, ct)).Kind, ScreenAction.Edit, ct);
+        await Require((await _invoices.GetAsync(id, ct)).Kind, ScreenAction.Post, ct, ScreenAction.Edit);
         return Success(await _invoices.PostDraftAsync(id, ct), Messages.InvoicePosted);
     }
 

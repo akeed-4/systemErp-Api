@@ -1172,4 +1172,74 @@
   <data name="VatTreatmentInvalid" xml:space="preserve"><value>المعالجة الضريبية للفاتورة غير صالحة.</value></data>
   <data name="VatTreatmentReasonRequired" xml:space="preserve"><value>فاتورة المبيعات الصفرية أو المعفاة تحتاج سبب الإعفاء (رمز الهيئة).</value></data>
   <data name="VatTreatmentReasonMismatch" xml:space="preserve"><value>سبب الإعفاء لا يطابق المعالجة الضريبية المختارة للفاتورة.</value></data>
+  <data name="PermissionReasonNoPermission" xml:space="preserve"><value>لا توجد الصلاحية «{0}» على «{1}».</value></data>
+  <data name="PermissionReasonOutOfScope" xml:space="preserve"><value>السجل خارج نطاق المستخدم ({0}).</value></data>
+  <data name="PermissionReasonStage" xml:space="preserve"><value>المرحلة «{0}» لا تسمح بإجراء «{1}».</value></data>
+  <data name="PermissionReasonLimit" xml:space="preserve"><value>المبلغ {0:N2} يتجاوز حد الاعتماد {1:N2}.</value></data>
+  <data name="PermissionReasonRoleDisabled" xml:space="preserve"><value>دور المستخدم «{0}» معطّل.</value></data>
+  <data name="PermissionReasonUserInactive" xml:space="preserve"><value>حساب المستخدم معطّل.</value></data>
+  <data name="PermissionCheckRecordNotFound" xml:space="preserve"><value>السجل غير موجود.</value></data>
+  <data name="PermissionStepUserActive" xml:space="preserve"><value>المستخدم نشط.</value></data>
+  <data name="PermissionStepGranted" xml:space="preserve"><value>الصلاحية ممنوحة (المصدر: {0}).</value></data>
+  <data name="PermissionStepFullAccess" xml:space="preserve"><value>صلاحيات كاملة (مالك/مدير).</value></data>
+  <data name="PermissionStepScopeOk" xml:space="preserve"><value>السجل ضمن النطاق ({0}).</value></data>
+  <data name="PermissionStepStageOk" xml:space="preserve"><value>المرحلة «{0}» تسمح بالإجراء.</value></data>
+  <data name="PermissionStepLimitOk" xml:space="preserve"><value>المبلغ {0:N2} ضمن حد الاعتماد {1:N2}.</value></data>
+  <data name="PermissionStepNoLimit" xml:space="preserve"><value>بلا حد اعتماد.</value></data>
+  <data name="PermissionStepNotApplicable" xml:space="preserve"><value>لا ينطبق.</value></data>
+  <data name="PermissionSourceRole" xml:space="preserve"><value>الدور</value></data>
+  <data name="PermissionSourceDirect" xml:space="preserve"><value>صلاحية مباشرة</value></data>
+  <data name="PermissionSourceDefault" xml:space="preserve"><value>افتراضي الدور</value></data>
+  <data name="ScopeAll" xml:space="preserve"><value>جميع الفروع</value></data>
+  <data name="ScopeBranches" xml:space="preserve"><value>فروع محددة</value></data>
+  <data name="ScopeDepartment" xml:space="preserve"><value>القسم</value></data>
+  <data name="ScopeOwn" xml:space="preserve"><value>السجلات التي أنشأها</value></data>
+  <data name="ScopeAssigned" xml:space="preserve"><value>السجلات المسندة إليه</value></data>
+  <data name="UnknownPermissionAction" xml:space="preserve"><value>إجراء غير معروف: {0}</value></data>
+  <data name="UnknownRecordType" xml:space="preserve"><value>نوع سجل غير معروف: {0}</value></data>
+  <data name="UnknownRole" xml:space="preserve"><value>دور غير معروف: {0}</value></data>
+  <data name="RoleNotFound" xml:space="preserve"><value>الدور غير موجود.</value></data>
+  <data name="RoleNameRequired" xml:space="preserve"><value>اسم الدور مطلوب.</value></data>
+  <data name="RoleNameDuplicate" xml:space="preserve"><value>يوجد دور بالاسم نفسه.</value></data>
+  <data name="FullAccessRoleLocked" xml:space="preserve"><value>دور المالك/المدير بصلاحيات كاملة: لا تُعدَّل صلاحياته ولا يُعطَّل.</value></data>
+  <data name="RoleDisabledCannotAssign" xml:space="preserve"><value>لا يمكن إسناد دور معطّل لمستخدم.</value></data>
+  <data name="RoleSaved" xml:space="preserve"><value>تم حفظ الدور.</value></data>
+  <data name="RoleCopied" xml:space="preserve"><value>تم نسخ الدور بصلاحياته.</value></data>
+  <data name="RoleStatusChanged" xml:space="preserve"><value>تم تحديث حالة الدور.</value></data>
+  <data name="PermissionsResetToRole" xml:space="preserve"><value>أُعيد المستخدم إلى صلاحيات دوره.</value></data>
+  <data name="RecordAssigned" xml:space="preserve"><value>تم إسناد السجل.</value></data>
+  <data name="NegativeApprovalLimit" xml:space="preserve"><value>حد الاعتماد لا يكون سالباً.</value></data>
+  <data name="ContractRejectedToDraft" xml:space="preserve"><value>أُعيد العقد إلى المسودة.</value></data>
+  <data name="ContractTransitionNotAllowed" xml:space="preserve"><value>لا يمكن نقل العقد من «{0}» إلى «{1}»: هذا الانتقال غير مسموح.</value></data>
+  <data name="ContractTransitionNoPermission" xml:space="preserve"><value>لا تملك صلاحية «{0}» على العقود.</value></data>
+  <data name="ContractNoteRequired" xml:space="preserve"><value>الإجراء «{0}» يتطلب كتابة السبب.</value></data>
+  <data name="ContractConditionsMissing" xml:space="preserve"><value>لا يمكن «{0}» قبل استكمال: {1}.</value></data>
+  <data name="ContractMissingTitle" xml:space="preserve"><value>عنوان العقد</value></data>
+  <data name="ContractMissingParty" xml:space="preserve"><value>الطرف (العميل أو المورد) مربوطاً بسجله</value></data>
+  <data name="ContractMissingDates" xml:space="preserve"><value>تاريخا البداية والنهاية</value></data>
+  <data name="ContractMissingValue" xml:space="preserve"><value>قيمة العقد</value></data>
+  <data name="ContractMissingItems" xml:space="preserve"><value>بنود العقد (بند واحد على الأقل)</value></data>
+  <data name="ContractMissingLegalApproval" xml:space="preserve"><value>موافقة المراجع القانوني</value></data>
+  <data name="ContractMissingFinancialApproval" xml:space="preserve"><value>موافقة المراجع المالي</value></data>
+  <data name="ContractMissingSignedCopy" xml:space="preserve"><value>النسخة الموقعة من العقد (مرفق)</value></data>
+  <data name="ContractMissingGuarantee" xml:space="preserve"><value>بيانات الضمان البنكي (الرقم والمبلغ وتاريخ الانتهاء)</value></data>
+  <data name="ContractGuaranteeExpired" xml:space="preserve"><value>ضمان بنكي ساري (الضمان المسجل منتهٍ)</value></data>
+  <data name="ContractMissingReceipts" xml:space="preserve"><value>استلام كامل الكميات (المتبقي: {0})</value></data>
+  <data name="ContractMissingInvoicing" xml:space="preserve"><value>فوترة كل بيانات الاستلام (غير المفوتر: {0})</value></data>
+  <data name="ContractMissingMilestones" xml:space="preserve"><value>فوترة كل المستخلصات (غير المفوتر: {0})</value></data>
+  <data name="ContractMissingRetentionRelease" xml:space="preserve"><value>الإفراج عن المحتجز</value></data>
+  <data name="ContractReviewOnlyInReview" xml:space="preserve"><value>قرار المراجعة يُسجَّل والعقد في حالة «مراجعة» فقط.</value></data>
+  <data name="ContractReviewKindInvalid" xml:space="preserve"><value>نوع المراجعة غير صحيح: legal أو financial.</value></data>
+  <data name="ContractReviewDecisionInvalid" xml:space="preserve"><value>قرار المراجعة غير صحيح: approve أو return.</value></data>
+  <data name="ContractAlreadyReviewed" xml:space="preserve"><value>سبق تسجيل الموافقة {0} في جولة المراجعة الحالية.</value></data>
+  <data name="ContractReviewLegal" xml:space="preserve"><value>القانونية</value></data>
+  <data name="ContractReviewFinancial" xml:space="preserve"><value>المالية</value></data>
+  <data name="ContractTypeUnknown" xml:space="preserve"><value>نوع العقد غير معروف أو معطّل: {0}</value></data>
+  <data name="ContractSigningClosed" xml:space="preserve"><value>بيانات التوقيع والضمان تُعدَّل قبل تفعيل العقد فقط.</value></data>
+  <data name="ContractAttachmentKindInvalid" xml:space="preserve"><value>نوع المرفق غير صحيح: signed_copy أو guarantee أو other.</value></data>
+  <data name="ContractAttachmentNotFound" xml:space="preserve"><value>المرفق غير موجود.</value></data>
+  <data name="ContractMoved" xml:space="preserve"><value>تم نقل العقد إلى «{0}».</value></data>
+  <data name="ContractReviewRecorded" xml:space="preserve"><value>تم تسجيل قرار المراجعة.</value></data>
+  <data name="ContractSigningSaved" xml:space="preserve"><value>تم حفظ بيانات التوقيع والضمان.</value></data>
+  <data name="ContractSimplifiedActivated" xml:space="preserve"><value>عقد بمسار مبسط: حُفظ وفُعِّل مباشرة.</value></data>
 </root>

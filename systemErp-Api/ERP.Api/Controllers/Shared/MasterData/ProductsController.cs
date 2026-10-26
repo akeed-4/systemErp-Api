@@ -9,7 +9,7 @@ public class ProductsController : CrudController<ProductDto, CreateProductDto, U
     private readonly IProductService _products;
     public ProductsController(IProductService s) : base(s) => _products = s;
 
-    [HttpPost("import")]
+    [HttpPost("import"), RequireScreen("master-data", ScreenAction.Import, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Import([FromBody] List<CreateProductDto> items, CancellationToken ct)
         => Success(await _products.ImportAsync(items, ct));
 

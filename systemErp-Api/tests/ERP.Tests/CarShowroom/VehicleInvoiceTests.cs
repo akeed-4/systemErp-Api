@@ -219,6 +219,35 @@ public class VehicleInvoiceTests : TestBase
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
+    [Fact]
+    public async Task Purchase_return_takes_the_returned_vehicle_out_of_inventory_and_off_the_supplier_balance()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, supplierAccount) = await SeedSupplierAsync(api);
+        var p = await api.PostInvoice(Purchase(supplier, "posted", Line(Client.NewVin('1'), 100000), Line(Client.NewVin('2'), 60000)));
+        Assert.Equal(201, p.Status);
+        var cars = (await api.Get("/vehicles")).Data!["items"]!.AsArray().ToDictionary(v => v!["totalCost"].D(), v => v!["id"].S());
+
+        // مرتجع سيارة واحدة: تخرج من المخزون بتكلفتها وتُنقص رصيد المورد بقيمتها مع الضريبة
+        var ret = await api.PostReturn(new { originalInvoiceId = p.Data!["id"].S(), returnReason = "عيب", vehicleIds = new[] { cars[100000] } });
+        Assert.Equal(200, ret.Status);
+        Assert.Equal(60000, (await api.Get("/accounts/ByCode/1142")).Data!["balance"].D());
+        Assert.Equal(60000 * 1.15m, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+        Assert.Equal(60000 * 1.15m, (await api.Get($"/accounts/ByCode/{supplierAccount}")).Data!["balance"].D());
+        Assert.Equal(60000 * 0.15m, (await api.Get("/accounts/ByCode/1131")).Data!["balance"].D()); // ضريبة المدخلات تُعكس بقدر المرتجع
+        var retJournal = (await api.Get(await api.InvoicePath(ret.Data!["id"].S(), "/journal"))).Data!;
+        Assert.Equal(100000, Side(retJournal, "1142", "credit"));
+        Assert.Equal(15000, Side(retJournal, "1131", "credit"));
+        Assert.Equal(115000, Side(retJournal, supplierAccount, "debit"));
+        var statuses = (await api.Get("/vehicles")).Data!["items"]!.AsArray().ToDictionary(v => v!["id"].S(), v => v!["status"].S());
+        Assert.NotEqual("available", statuses[cars[100000]]);
+        Assert.Equal("available", statuses[cars[60000]]);
+
+        // لا تُرجَع السيارة مرتين
+        Assert.Equal(409, (await api.PostReturn(new { originalInvoiceId = p.Data["id"].S(), returnReason = "x", vehicleIds = new[] { cars[100000] } })).Status);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
     private static decimal Side(System.Text.Json.Nodes.JsonNode journal, string code, string side)
         => journal["lines"]!.AsArray().Where(l => l!["accountCode"].S() == code).Sum(l => l![side].D());
 

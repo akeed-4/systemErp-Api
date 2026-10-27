@@ -448,6 +448,111 @@ public class AccountingIntegrityTests : TestBase
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 
+    [Fact]
+    public async Task Posting_the_same_draft_concurrently_posts_it_once()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            items = new[] { new { itemId = product, quantity = 2, unitPrice = 100, vatRate = 15 } } });
+        var path = await api.InvoicePath(draft.Data!["id"].S(), "/post");
+        var entriesBefore = (await api.Get("/journalentries")).Data!["totalCount"].D();
+
+        // ضغطات اعتماد متزامنة على المسودة نفسها: واحدة تُرحِّل والباقي يُرفض، ولا يتكرر القيد أو صرف المخزون
+        var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => api.Post(path)));
+        Assert.Equal(1, results.Count(r => r.Status == 200));
+        Assert.Equal("posted", (await api.Get(await api.InvoicePath(draft.Data["id"].S(), ""))).Data!["status"].S());
+        Assert.Equal(8, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        Assert.Equal(230, await BalanceAsync(api, "1111"));
+        Assert.Equal(200, await BalanceAsync(api, "411"));
+        Assert.True((await api.Get("/journalentries")).Data!["totalCount"].D() - entriesBefore >= 1);
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+        // الطلبات الخاسرة تعارضٌ لا خطأ خادم
+        Assert.All(results.Where(r => r.Status != 200), r => Assert.Equal(409, r.Status));
+    }
+
+    [Fact]
+    public async Task Posting_the_same_purchase_draft_concurrently_posts_it_once()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        var (supplier, account) = await SeedSupplierAsync(api);
+        var draft = await api.PostInvoice(new { kind = "purchase", invoiceType = "simplified", paymentMethod = "credit", partyId = supplier, status = "draft",
+            items = new[] { new { itemId = product, quantity = 5, unitPrice = 40, vatRate = 15 } } });
+        var path = await api.InvoicePath(draft.Data!["id"].S(), "/post");
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => api.Post(path)));
+        Assert.Equal(1, results.Count(r => r.Status == 200));
+        Assert.All(results.Where(r => r.Status != 200), r => Assert.Equal(409, r.Status));
+        Assert.Equal(15, (await api.Get($"/products/{product}")).Data!["currentStock"].D()); // دخلت الكمية مرة واحدة
+        Assert.Equal(230, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+        Assert.Equal(230, await BalanceAsync(api, account));
+        Assert.Equal(30, await BalanceAsync(api, "1131"));
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
+    [Fact]
+    public async Task Posting_different_drafts_concurrently_issues_unique_numbers_without_gaps()
+    {
+        var api = await NewTenantAsync();
+        var ids = new List<string>();
+        for (var i = 0; i < 5; i++)
+            ids.Add((await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+                items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } } })).Data!["id"].S());
+
+        // أول ترحيل في المنشأة: عدّاد الأرقام يُنشأ تحت التزامن أيضاً
+        var results = await Task.WhenAll(ids.Select(async id => await api.Post(await api.InvoicePath(id, "/post"))));
+        Assert.All(results, r => Assert.Equal(200, r.Status));
+        var numbers = results.Select(r => long.Parse(r.Data!["invoiceNumber"].S()["SINV-".Length..])).OrderBy(n => n).ToList();
+        Assert.Equal(Enumerable.Range((int)numbers[0], ids.Count).Select(n => (long)n), numbers);
+        Assert.Equal(575, await BalanceAsync(api, "1111"));
+    }
+
+    [Fact]
+    public async Task A_number_collision_while_posting_is_a_conflict_that_rolls_the_whole_posting_back()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        object Sale(string status, int quantity) => new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status,
+            items = new[] { new { itemId = product, quantity, unitPrice = 100, vatRate = 15 } } };
+        var first = (await api.PostInvoice(Sale("posted", 1))).Data!["invoiceNumber"].S();
+        var draft = await api.PostInvoice(Sale("draft", 2));
+        var path = await api.InvoicePath(draft.Data!["id"].S(), "");
+        var entriesBefore = (await api.Get("/journalentries")).Data!["totalCount"].D();
+
+        // عدّاد أُرجع خطوة (استيراد/تعديل يدوي): الرقم التالي صُرف من قبل، والفهرس الفريد يمنع تكراره
+        await ShiftSequenceAsync(api, "sales_invoice", -1);
+        Assert.Equal(409, (await api.Post(path + "/post")).Status);
+
+        // تراجعت المعاملة كلها: لا ترحيل ولا رقم ولا مخزون ولا قيد ولا نقدية
+        var after = (await api.Get(path)).Data!;
+        Assert.Equal("draft", after["status"].S());
+        Assert.StartsWith("DRAFT-", after["invoiceNumber"].S());
+        Assert.Equal(9, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        Assert.Equal(entriesBefore, (await api.Get("/journalentries")).Data!["totalCount"].D());
+        Assert.Equal(115, await BalanceAsync(api, "1111"));
+
+        // بعد تصحيح العدّاد تُرحَّل بالرقم التالي مباشرة (لم يستهلك الفشل رقماً)
+        await ShiftSequenceAsync(api, "sales_invoice", 1);
+        var posted = await api.Post(path + "/post");
+        Assert.Equal(200, posted.Status);
+        Assert.Equal(long.Parse(first["SINV-".Length..]) + 1, long.Parse(posted.Data!["invoiceNumber"].S()["SINV-".Length..]));
+        Assert.Equal(7, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
+    private async Task ShiftSequenceAsync(Client api, string key, int delta)
+    {
+        await using var conn = new Microsoft.Data.SqlClient.SqlConnection(Factory.ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE NumberSequence SET LastValue = LastValue + @delta WHERE [Key] = @key AND TenantId = @tenant";
+        cmd.Parameters.AddWithValue("@delta", delta);
+        cmd.Parameters.AddWithValue("@key", key);
+        cmd.Parameters.AddWithValue("@tenant", api.TenantId);
+        Assert.Equal(1, await cmd.ExecuteNonQueryAsync());
+    }
+
     // ---------- الأمان ----------
     [Fact]
     public async Task Public_auth_endpoints_are_rate_limited()

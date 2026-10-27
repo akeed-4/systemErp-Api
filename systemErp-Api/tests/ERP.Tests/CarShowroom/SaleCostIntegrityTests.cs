@@ -153,6 +153,22 @@ public class SaleCostIntegrityTests : TestBase
     }
 
     [Fact]
+    public async Task Posting_the_same_car_sale_draft_concurrently_sells_the_car_once()
+    {
+        var api = await NewTenantAsync();
+        var car = await SeedCarAsync(api);
+        var draft = await api.PostInvoice(Sale("draft", car.Id, 50000));
+        Assert.Equal(201, draft.Status);
+        var path = await api.InvoicePath(draft.Data!["id"].S(), "/post");
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => api.Post(path)));
+        Assert.Equal(1, results.Count(r => r.Status == 200));
+        Assert.All(results.Where(r => r.Status != 200), r => Assert.Equal(409, r.Status));
+        Assert.Equal("posted", (await api.Get(await api.InvoicePath(draft.Data["id"].S()))).Data!["status"].S());
+        await AssertBooksAsync(api, car, 40000); // خرجت السيارة وتكلفتها مرة واحدة
+    }
+
+    [Fact]
     public async Task A_margin_scheme_draft_whose_vat_would_change_with_the_new_cost_must_be_saved_again()
     {
         var api = await NewTenantAsync();

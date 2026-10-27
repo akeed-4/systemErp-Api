@@ -37,6 +37,12 @@ public class ExceptionHandlingMiddleware
         {
             await Write(context, 409, Messages.RecordModifiedByAnotherUser);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
+        {
+            // فهرس فريد سبقت إليه عملية متزامنة (قيد المستند، رقم الفاتورة...): المعاملة تراجعت كلها، فهو تعارض لا خطأ خادم
+            _log.LogWarning(ex, "Unique constraint conflict for {Method} {Path}", context.Request.Method, context.Request.Path);
+            await Write(context, 409, Messages.RecordModifiedByAnotherUser);
+        }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
             context.Response.StatusCode = 499;

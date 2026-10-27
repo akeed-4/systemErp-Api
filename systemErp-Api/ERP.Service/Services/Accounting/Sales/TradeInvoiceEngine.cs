@@ -301,8 +301,12 @@ public class TradeInvoiceEngine
     public async Task<InvoiceDto> PostDraftAsync<T>(Guid id, CancellationToken ct) where T : InvoiceBase, new()
         => await SendToZatcaIfRequestedAsync<T>(await _tx.RunAsync(async token =>
         {
+            // حجز المسودة بتحديث مشروط يقفل صفّها حتى نهاية المعاملة: طلب ترحيل متزامن ينتظره ثم يجدها مرحّلة فيُرفض (409)
+            // بدل أن يقرأها الطلبان مسودةً فيُرحِّلانها معاً
+            var claimed = await _db.Set<T>().Where(i => i.Id == id && i.Status == "draft")
+                .ExecuteUpdateAsync(s => s.SetProperty(i => i.UpdatedAt, DateTime.UtcNow), token);
             var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
-            if (invoice.Status != "draft") throw new ConflictException(Messages.InvoiceAlreadyPostedOrCancelled);
+            if (claimed != 1 || invoice.Status != "draft") throw new ConflictException(Messages.InvoiceAlreadyPostedOrCancelled);
             // سير الموافقات: المسودة المعلّقة أو المرفوضة لا تُرحَّل (آخر طلب على المستند هو المرجع)
             var approval = await _db.Set<ApprovalRequest>().Where(r => r.DocumentId == id)
                 .OrderByDescending(r => r.CreatedAt).Select(r => r.Status).FirstOrDefaultAsync(token);

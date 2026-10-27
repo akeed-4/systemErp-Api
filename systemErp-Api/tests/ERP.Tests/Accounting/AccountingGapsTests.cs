@@ -104,6 +104,41 @@ public class AccountingGapsTests : TestBase
     }
 
     [Fact]
+    public async Task Supplier_payments_settle_purchase_invoices_partially_then_fully()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, account) = await SeedSupplierAsync(api);
+        object CreditPurchase(decimal price) => new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = supplier,
+            items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = price, vatRate = 15 } },
+        };
+        object Payment(decimal amount, params object[] allocations)
+            => new { type = "payment", amount, partyName = "مورد", partyAccountCode = account, treasuryAccountCode = "1111", paymentMethod = "cash", allocations };
+
+        var first = (await api.PostInvoice(CreditPurchase(200))).Data!["id"].S();  // 230
+        var second = (await api.PostInvoice(CreditPurchase(100))).Data!["id"].S(); // 115
+        Assert.Equal(345, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+
+        // سند الصرف لا يتجاوز المتبقي على فاتورة الشراء
+        Assert.Equal(400, (await api.Post("/vouchers", Payment(300, new { invoiceId = first, amount = 300 }))).Status);
+
+        // سداد جزئي ثم كامل
+        Assert.True((await api.Post("/vouchers", Payment(100, new { invoiceId = first, amount = 100 }))).Success);
+        Assert.Equal(130, (await api.Get(await api.InvoicePath(first, ""))).Data!["amountDue"].D());
+        Assert.Equal(245, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+        Assert.True((await api.Post("/vouchers", Payment(245, new { invoiceId = first, amount = 130 }, new { invoiceId = second, amount = 115 }))).Success);
+        Assert.Equal(0, (await api.Get(await api.InvoicePath(first, ""))).Data!["amountDue"].D());
+        Assert.Equal(0, (await api.Get(await api.InvoicePath(second, ""))).Data!["amountDue"].D());
+        Assert.Empty((await api.Get($"/vouchers/OpenInvoices?partyAccountCode={account}")).Data!.AsArray());
+        Assert.Equal(0, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+        Assert.Equal(0, await BalanceAsync(api, account));    // حساب المورد في الدفاتر يطابق رصيده
+        Assert.Equal(-345, await BalanceAsync(api, "1111")); // الصندوق نقص بمجموع السندين
+        Assert.Equal(45, await BalanceAsync(api, "1131"));   // ضريبة المدخلات من الفواتير لا من السداد
+        var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
+    }
+
+    [Fact]
     public async Task Aging_as_of_a_past_date_ignores_later_settlements_and_ties_to_the_party_ledger()
     {
         var api = await NewTenantAsync();

@@ -11,7 +11,7 @@ public sealed record ZatcaParty(
 
 /// <summary>سطر فاتورة: الصافي بعد كل الخصومات وقبل الضريبة، والخصم هو الفرق بين (الكمية × السعر) والصافي.</summary>
 public sealed record ZatcaLine(
-    string Name, decimal Quantity, decimal UnitPrice, decimal Allowance, decimal Net, decimal VatRate, decimal VatAmount,
+    string Name, decimal Quantity, decimal UnitPrice, decimal Allowance, decimal Net, decimal ExciseTaxAmount, decimal VatRate, decimal VatAmount,
     VatCategory Category, string? ExemptionCode, string? ExemptionReason);
 
 /// <summary>الفاتورة كما تُبنى منها وثيقة UBL: مستقلة عن قاعدة البيانات لتُبنى منها أيضاً فواتير فحص الامتثال.</summary>
@@ -173,6 +173,15 @@ public static class ZatcaInvoiceXml
                     Text(w, "ChargeIndicator", "false");
                     Text(w, "AllowanceChargeReason", "discount");
                     Amount(w, "Amount", l.Allowance, d.Currency);
+                    w.WriteEndElement();
+                }
+                if (l.ExciseTaxAmount > 0)
+                {
+                    w.WriteStartElement("cac", "AllowanceCharge", Cac);
+                    Text(w, "ChargeIndicator", "true");
+                    Text(w, "AllowanceChargeReason", "Excise tax");
+                    Amount(w, "Amount", l.ExciseTaxAmount, d.Currency);
+                    TaxCategory(w, "TaxCategory", l, withReason: true);
                     w.WriteEndElement();
                 }
                 w.WriteStartElement("cac", "TaxTotal", Cac);

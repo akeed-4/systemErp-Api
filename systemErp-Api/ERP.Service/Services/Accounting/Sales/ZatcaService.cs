@@ -454,7 +454,7 @@ public class ZatcaService : IZatcaService
             var reason = VatExemptionReasons.Find(i.VatExemptionReasonCode);
             return new ZatcaLine(i.ItemName, i.Quantity, i.UnitPrice,
                 Math.Max(0, DocumentPricing.Round(i.Quantity * i.UnitPrice) - i.TotalBeforeVat),
-                i.TotalBeforeVat, i.VatRate, i.VatAmount, i.VatCategory, reason?.Code, reason?.NameAr);
+                i.TotalBeforeVat + i.ExciseTaxAmount, i.ExciseTaxAmount, i.VatRate, i.VatAmount, i.VatCategory, reason?.Code, reason?.NameAr);
         }).ToList();
 
         return new ZatcaDocument
@@ -487,7 +487,7 @@ public class ZatcaService : IZatcaService
             Buyer = new ZatcaParty("عميل فحص الامتثال", SampleBuyerVat, null, "شارع الفحص", "1234", "حي الفحص", "الرياض", "12345", "SA"),
             Counter = counter, PreviousHash = previousHash,
             BillingReference = type == ZatcaInvoiceXml.Invoice ? null : "CMP-0001", NoteReason = type == ZatcaInvoiceXml.Invoice ? null : "فحص الامتثال",
-            Lines = new[] { new ZatcaLine("بند فحص الامتثال", 1, 100, 0, 100, 15, 15, VatCategory.Standard, null, null) },
+            Lines = new[] { new ZatcaLine("بند فحص الامتثال", 1, 100, 0, 100, 0, 15, 15, VatCategory.Standard, null, null) },
         };
     }
 

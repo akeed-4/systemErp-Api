@@ -11,5 +11,6 @@ public sealed record PricedDocument(
     decimal InvoiceDiscount,
     decimal DiscountTotal,
     decimal NetTotal,
+    decimal ExciseTaxTotal,
     decimal VatTotal,
     decimal GrandTotal);

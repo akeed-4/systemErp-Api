@@ -22,6 +22,7 @@ public class PosShift : BaseEntity
     /// <summary>الجزء النقدي من المرتجعات فقط - يدخل في حساب فرق الصندوق.</summary>
     public decimal TotalCashRefunds { get; set; }
     public decimal TotalDiscount { get; set; }
+    public decimal TotalExciseTax { get; set; }
     public decimal TotalVat { get; set; }
     public decimal TotalGross { get; set; }
 

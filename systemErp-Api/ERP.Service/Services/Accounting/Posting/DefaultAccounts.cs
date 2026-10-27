@@ -22,6 +22,7 @@ public static class DefaultAccounts
     public const string Payables = "211";        // الأب: حسابات الموردين الفرعية تحته
     public const string AccruedLandedCosts = "212"; // مستحقات جمارك وموانئ (تكاليف محمّلة على المركبات)
     public const string OutputVat = "213";
+    public const string OutputExcise = "217";
     public const string SalariesPayable = "214";          // رواتب مستحقة للموظفين (صافي المسير حتى صرفه)
     public const string SocialInsurancePayable = "215";   // تأمينات اجتماعية مستحقة (حصة الموظف والمنشأة حتى سدادها)
     public const string EmployeeLoans = "115";            // سلف وقروض الموظفين (ذمم مدينة حتى خصمها من الرواتب)
@@ -86,6 +87,7 @@ public static class DefaultAccounts
         ("211",  "الموردون",                        "Accounts Payable",          AccountCategory.Liability, "21"),
         ("212",  "مستحقات جمارك وموانئ",           "Accrued Customs and Port Fees", AccountCategory.Liability, "21"),
         ("213",  "ضريبة القيمة المضافة - مخرجات",  "Output VAT",                AccountCategory.Liability, "21"),
+        ("217",  "الضريبة الانتقائية المستحقة",      "Excise tax payable",        AccountCategory.Liability, "21"),
         ("214",  "رواتب مستحقة",                    "Salaries Payable",          AccountCategory.Liability, "21"),
         ("215",  "تأمينات اجتماعية مستحقة",         "Social Insurance Payable",  AccountCategory.Liability, "21"),
         ("216",  "عربونات عملاء السيارات",          "Customer Vehicle Deposits", AccountCategory.Liability, "21"),

@@ -49,6 +49,8 @@ internal static class PostingAccounts
             DefaultAccounts.OutputVat, new[] { AccountCategory.Liability }, LockedAfterUse: true),
         new(nameof(AccountingSettings.InputVatAccountCode), s => s.InputVatAccountCode, (s, v) => s.InputVatAccountCode = v,
             DefaultAccounts.InputVat, new[] { AccountCategory.Asset, AccountCategory.Liability }, LockedAfterUse: true),
+        new(nameof(AccountingSettings.OutputExciseAccountCode), s => s.OutputExciseAccountCode, (s, v) => s.OutputExciseAccountCode = v,
+            DefaultAccounts.OutputExcise, new[] { AccountCategory.Liability }, LockedAfterUse: true),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)
@@ -89,6 +91,7 @@ internal static class PostingAccounts
     public static string EndingInventory(this AccountingSettings s) => Required(s.EndingInventoryAccountCode, nameof(AccountingSettings.EndingInventoryAccountCode));
     public static string OutputVat(this AccountingSettings s) => s.OutputVatAccountCode ?? DefaultAccounts.OutputVat;
     public static string InputVat(this AccountingSettings s) => s.InputVatAccountCode ?? DefaultAccounts.InputVat;
+    public static string OutputExcise(this AccountingSettings s) => s.OutputExciseAccountCode ?? DefaultAccounts.OutputExcise;
 
     /// <summary>حسابات الدوري لا افتراضي لها: مستند بتاريخ دوري سابق بعد مسح حسابه يُرفض برسالة الإعداد الناقص.</summary>
     private static string Required(string? code, string key)

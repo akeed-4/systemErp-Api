@@ -21,6 +21,7 @@ public class PosTransaction : BaseEntity
     public decimal LoyaltyDiscount { get; set; }
     public int LoyaltyPointsRedeemed { get; set; }
     public decimal TotalDiscount { get; set; }
+    public decimal ExciseTaxAmount { get; set; }
     public decimal VatAmount { get; set; }
     public decimal GrandTotal { get; set; }
 

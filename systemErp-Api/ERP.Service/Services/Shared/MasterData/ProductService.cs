@@ -27,6 +27,10 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ProductArabicNameRequired);
         if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
         if (d.VatRate is < 0 or > 100) errors.Add(Messages.VatRateRange);
+        if (d.ExciseTaxRate is < 0 or > 100 || d.ExciseRetailPrice < 0 || d.ExciseStandardPrice < 0)
+            errors.Add("نسبة الضريبة الانتقائية بين 0 و100 والأسعار المرجعية لا تكون سالبة.");
+        if (d.ExciseTaxRate > 0 && d.ExciseRetailPrice <= 0 && d.ExciseStandardPrice <= 0)
+            errors.Add("الصنف الخاضع للضريبة الانتقائية يحتاج سعر تجزئة محدداً أو سعراً قياسياً معتمداً.");
         if (!Enum.IsDefined(d.VatCategory)) errors.Add("التصنيف الضريبي غير صالح.");
         else if (d.VatCategory == VatCategory.MarginScheme) errors.Add(Messages.ProductMarginSchemeNotAllowed); // من بطاقة السيارة وحدها
         else if (d.VatCategory == VatCategory.Standard) d.VatExemptionReasonCode = null;

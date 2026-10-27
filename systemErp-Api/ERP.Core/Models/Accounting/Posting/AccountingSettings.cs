@@ -31,4 +31,5 @@ public class AccountingSettings : BaseEntity
     // ضريبة القيمة المضافة
     public string? OutputVatAccountCode { get; set; }
     public string? InputVatAccountCode { get; set; }
+    public string? OutputExciseAccountCode { get; set; }
 }

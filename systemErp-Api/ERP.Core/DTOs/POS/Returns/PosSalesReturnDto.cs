@@ -15,6 +15,7 @@ public partial class PosSalesReturnDto
     public Guid ShiftId { get; set; }
     public string ReturnReason { get; set; } = string.Empty;
     public decimal Subtotal { get; set; }
+    public decimal ExciseTaxAmount { get; set; }
     public decimal VatAmount { get; set; }
     public decimal GrandTotal { get; set; }
     public PosRefundMethod RefundMethod { get; set; } = PosRefundMethod.Cash;

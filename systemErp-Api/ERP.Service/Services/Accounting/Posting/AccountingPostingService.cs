@@ -232,7 +232,7 @@ public class AccountingPostingService : IAccountingPostingService
         // الدوري: لا تكلفة مع البيع (تُستنتج من بضاعة آخر المدة)، إلا مستنداً بحساب مخزون محدد يدوياً (السيارات) فيبقى بتكلفته
         var periodic = r.InventoryAccountCode == null && accounts.IsPeriodic(r.Date);
         if (periodic) await PeriodicInventory.EnsureMethodOpeningAsync(_db, this, accounts, r.Date, ct);
-        var total = r.NetAmount + r.VatAmount;
+        var total = r.NetAmount + r.ExciseTaxAmount + r.VatAmount;
         var payments = ValidatePayments(r.Payments, total);
         var receivable = total - payments.Sum(p => p.Amount);
 
@@ -246,6 +246,7 @@ public class AccountingPostingService : IAccountingPostingService
                 lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
         }
         lines.AddRange(RevenueLines(r, r.RevenueAccountCode ?? accounts.SalesRevenue(r.IsReturn)));
+        if (r.ExciseTaxAmount > 0) lines.Add(new(accounts.OutputExcise(), 0, r.ExciseTaxAmount));
         if (r.VatAmount > 0) lines.Add(new(accounts.OutputVat(), 0, r.VatAmount));
         var inventoryAccount = r.InventoryAccountCode ?? await accounts.InventoryAsync(_db, r.WarehouseId, ct);
         foreach (var cost in periodic ? Array.Empty<CostCenterAmount>() : CostLines(r))

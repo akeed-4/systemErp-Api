@@ -75,6 +75,8 @@ public class PosSaleService : IPosSaleService
                 {
                     ItemId = l.ItemId, Quantity = l.Quantity, UnitPrice = products[l.ItemId].SellingPrice,
                     Discount = lineDiscounts[i], VatRate = products[l.ItemId].VatRate,
+                    ExciseTaxRate = products[l.ItemId].ExciseTaxRate, ExciseRetailPrice = products[l.ItemId].ExciseRetailPrice,
+                    ExciseStandardPrice = products[l.ItemId].ExciseStandardPrice,
                 }).ToList(),
             };
             if (configured != null) configured.ApplyTo(invoiceDto);
@@ -92,7 +94,7 @@ public class PosSaleService : IPosSaleService
                 SubtotalBeforeVat = DocumentPricing.Round(lines.Select((l, i) => l.Quantity * products[l.ItemId].SellingPrice).Sum()),
                 CouponDiscount = couponDiscount, CouponCode = coupon?.Code, LoyaltyDiscount = loyaltyDiscount, LoyaltyPointsRedeemed = pointsUsed,
                 TotalDiscount = lineDiscounts.Sum() + couponDiscount + loyaltyDiscount,
-                VatAmount = priced.VatTotal, GrandTotal = total, PaymentMethod = method,
+                ExciseTaxAmount = priced.ExciseTaxTotal, VatAmount = priced.VatTotal, GrandTotal = total, PaymentMethod = method,
                 PaidCash = cash, PaidCard = card, PaidMada = mada, PaidApplePay = apple, ChangeAmount = change, PaymentsJson = configured?.Json,
                 PointsEarned = pointsEarned, QrCodeBase64 = invoice.ZatcaQrCode ?? string.Empty,
                 ZatcaStatus = invoice.ZatcaStatus, ZatcaUuid = invoice.Uuid.ToString(), InvoiceId = invoice.Id,
@@ -104,7 +106,9 @@ public class PosSaleService : IPosSaleService
                 pos.Items.Add(new PosTransactionItem
                 {
                     ItemId = p.Id, ItemCode = p.Sku, NameAr = p.NameAr, UnitAr = p.Unit, Quantity = lines[i].Quantity,
-                    UnitPrice = p.SellingPrice, VatRate = p.VatRate, VatAmount = pl.VatAmount,
+                    UnitPrice = p.SellingPrice, ExciseTaxRate = pl.ExciseTaxRate, ExciseRetailPrice = pl.ExciseRetailPrice,
+                    ExciseStandardPrice = pl.ExciseStandardPrice, ExciseTaxBaseAmount = pl.ExciseTaxBaseAmount,
+                    ExciseTaxAmount = pl.ExciseTaxAmount, VatRate = p.VatRate, VatAmount = pl.VatAmount,
                     Subtotal = DocumentPricing.Round(lines[i].Quantity * p.SellingPrice - lineDiscounts[i]),
                     Discount = lineDiscounts[i], TotalWithVat = pl.Total,
                 });
@@ -115,7 +119,8 @@ public class PosSaleService : IPosSaleService
             // 9) الوردية والكوبون والولاء
             shift.TotalCashSales += cash; shift.TotalCardSales += card; shift.TotalMadaSales += mada; shift.TotalApplePaySales += apple;
             if (method == PosPaymentMethod.Credit) shift.TotalCreditSales += total;
-            shift.TotalDiscount += pos.TotalDiscount; shift.TotalVat += pos.VatAmount; shift.TotalGross += total;
+            shift.TotalDiscount += pos.TotalDiscount; shift.TotalExciseTax += pos.ExciseTaxAmount;
+            shift.TotalVat += pos.VatAmount; shift.TotalGross += total;
             if (coupon != null) coupon.UsageCount++;
 
             if (customer != null)
@@ -208,7 +213,8 @@ public class PosSaleService : IPosSaleService
 
             // 5) التسعير النهائي (نفس محرك الفواتير)
             var priced = DocumentPricing.Price(
-                lines.Select((l, i) => new PricedLineInput(l.Quantity, products[l.ItemId].SellingPrice, lineDiscounts[i], products[l.ItemId].VatRate)).ToList(),
+                lines.Select((l, i) => new PricedLineInput(l.Quantity, products[l.ItemId].SellingPrice, lineDiscounts[i], products[l.ItemId].VatRate,
+                    null, products[l.ItemId].ExciseTaxRate, products[l.ItemId].ExciseRetailPrice, products[l.ItemId].ExciseStandardPrice)).ToList(),
                 couponDiscount + loyaltyDiscount);
             return new CartPricing(lines, products, offerDiscounts, lineDiscounts, coupon, couponDiscount, couponError,
                 customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced);
@@ -229,7 +235,8 @@ public class PosSaleService : IPosSaleService
                     ItemId = prod.Id, Sku = prod.Sku, NameAr = prod.NameAr, NameEn = prod.NameEn, Unit = prod.Unit,
                     Quantity = l.Quantity, UnitPrice = prod.SellingPrice, VatRate = prod.VatRate,
                     OfferDiscount = cart.OfferDiscounts[i], ManualDiscount = l.ManualDiscount,
-                    Net = pl.Net, VatAmount = pl.VatAmount, Total = pl.Total, StockOnHand = prod.CurrentStock,
+                    Net = pl.Net, ExciseTaxBaseAmount = pl.ExciseTaxBaseAmount, ExciseTaxAmount = pl.ExciseTaxAmount,
+                    VatAmount = pl.VatAmount, Total = pl.Total, StockOnHand = prod.CurrentStock,
                 };
             }).ToList(),
             GrossTotal = p.Subtotal, LineDiscounts = cart.LineDiscounts.Sum(),
@@ -237,7 +244,7 @@ public class PosSaleService : IPosSaleService
             LoyaltyDiscount = cart.LoyaltyDiscount, LoyaltyPointsRedeemed = cart.PointsUsed, LoyaltyError = cart.LoyaltyError,
             LoyaltyPointsBalance = cart.Loyalty?.PointsBalance ?? 0,
             TotalDiscount = cart.LineDiscounts.Sum() + cart.CouponDiscount + cart.LoyaltyDiscount,
-            NetBeforeVat = p.NetTotal, VatTotal = p.VatTotal, GrandTotal = p.GrandTotal,
+            NetBeforeVat = p.NetTotal, ExciseTaxTotal = p.ExciseTaxTotal, VatTotal = p.VatTotal, GrandTotal = p.GrandTotal,
             PointsToEarn = cart.Customer == null ? 0 : (int)Math.Floor(p.GrandTotal / PosPricing.SarPerEarnedPoint),
         };
     }
@@ -374,7 +381,8 @@ public class PosSaleService : IPosSaleService
 
             shift.TotalCashSales -= t.PaidCash; shift.TotalCardSales -= t.PaidCard; shift.TotalMadaSales -= t.PaidMada; shift.TotalApplePaySales -= t.PaidApplePay;
             if (t.PaymentMethod == PosPaymentMethod.Credit) shift.TotalCreditSales -= t.GrandTotal;
-            shift.TotalDiscount -= t.TotalDiscount; shift.TotalVat -= t.VatAmount; shift.TotalGross -= t.GrandTotal;
+            shift.TotalDiscount -= t.TotalDiscount; shift.TotalExciseTax -= t.ExciseTaxAmount;
+            shift.TotalVat -= t.VatAmount; shift.TotalGross -= t.GrandTotal;
             await PosCashDrawer.SyncVarianceAsync(_db, _posting, shift, token);
 
             if (!string.IsNullOrWhiteSpace(t.CouponCode))

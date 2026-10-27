@@ -21,6 +21,7 @@ public class SaveAccountingSettingsDto
     public string? SalesReturnsAccountCode { get; set; }
     public string? OutputVatAccountCode { get; set; }
     public string? InputVatAccountCode { get; set; }
+    public string? OutputExciseAccountCode { get; set; }
 }
 
 public class AccountingSettingsDto : SaveAccountingSettingsDto

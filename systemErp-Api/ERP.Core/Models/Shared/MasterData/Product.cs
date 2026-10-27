@@ -15,6 +15,12 @@ public class Product : BaseEntity
     public decimal? StandardCost { get; set; }
     public decimal SellingPrice { get; set; }
     public decimal VatRate { get; set; } = 15m;
+    /// <summary>نسبة الضريبة الانتقائية المعتمدة للصنف؛ الصفر يعني أن الصنف غير مفعّل عليه الانتقائية.</summary>
+    public decimal ExciseTaxRate { get; set; }
+    /// <summary>سعر التجزئة المحدد للسلعة قبل الانتقائية وضريبة القيمة المضافة.</summary>
+    public decimal ExciseRetailPrice { get; set; }
+    /// <summary>السعر القياسي المعتمد للسلعة قبل الانتقائية وضريبة القيمة المضافة.</summary>
+    public decimal ExciseStandardPrice { get; set; }
     /// <summary>التصنيف الضريبي للصنف (خاضع / صفري / معفى / خارج النطاق): يُحدَّد عند تعريف الصنف ويتبعه في كل فاتورة.</summary>
     public VatCategory VatCategory { get; set; } = VatCategory.Standard;
     /// <summary>سبب الصفرية/الإعفاء برمز الهيئة (VATEX-SA-…)؛ إلزامي لغير الخاضع.</summary>

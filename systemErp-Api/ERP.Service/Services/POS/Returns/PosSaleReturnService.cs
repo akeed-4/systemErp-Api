@@ -75,7 +75,8 @@ public class PosSaleReturnService : IPosSaleReturnService
                 ReturnNumber = await _numbers.NextAsync("pos_return", "RET-", token),
                 OriginalTransactionId = tx.Id, OriginalInvoiceNumber = tx.InvoiceNumber, OriginalInvoiceId = tx.InvoiceId,
                 CustomerId = tx.CustomerId, CustomerName = tx.CustomerName, ShiftId = shift.Id, ReturnReason = r.ReturnReason,
-                Subtotal = creditNote.Subtotal, VatAmount = creditNote.VatTotal, GrandTotal = creditNote.GrandTotal,
+                Subtotal = creditNote.Subtotal, ExciseTaxAmount = creditNote.ExciseTaxTotal,
+                VatAmount = creditNote.VatTotal, GrandTotal = creditNote.GrandTotal,
                 RefundMethod = r.RefundMethod, Status = "completed", CreditNoteInvoiceId = creditNote.Id,
             };
             foreach (var l in wanted)
@@ -86,7 +87,10 @@ public class PosSaleReturnService : IPosSaleReturnService
                 {
                     ItemId = l.ItemId, ItemCode = src.ItemCode, ItemName = src.NameAr, SoldQuantity = src.Quantity,
                     PreviouslyReturnedQuantity = previous.GetValueOrDefault(l.ItemId), ReturnQuantity = l.ReturnQuantity,
-                    UnitPrice = src.UnitPrice, VatRate = src.VatRate, VatAmount = cnLine.VatAmount,
+                    UnitPrice = src.UnitPrice, ExciseTaxRate = cnLine.ExciseTaxRate,
+                    ExciseRetailPrice = cnLine.ExciseRetailPrice, ExciseStandardPrice = cnLine.ExciseStandardPrice,
+                    ExciseTaxBaseAmount = cnLine.ExciseTaxBaseAmount, ExciseTaxAmount = cnLine.ExciseTaxAmount,
+                    VatRate = src.VatRate, VatAmount = cnLine.VatAmount,
                     Subtotal = cnLine.TotalBeforeVat, TotalWithVat = cnLine.TotalAfterVat,
                 });
             }

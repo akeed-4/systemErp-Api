@@ -7,6 +7,11 @@ public sealed record PricedLine(
     decimal Discount,
     decimal AllocatedInvoiceDiscount,
     decimal Net,
+    decimal ExciseTaxRate,
+    decimal ExciseRetailPrice,
+    decimal ExciseStandardPrice,
+    decimal ExciseTaxBaseAmount,
+    decimal ExciseTaxAmount,
     decimal VatRate,
     decimal VatAmount,
     decimal Total);

@@ -21,11 +21,14 @@ public static class DocumentPricing
         for (var i = 0; i < lines.Count; i++)
         {
             var l = lines[i];
-            if (l.Quantity <= 0 || l.UnitPrice < 0 || l.Discount < 0 || l.Discount > l.Quantity * l.UnitPrice || l.VatRate is < 0 or > 100)
+            if (l.Quantity <= 0 || l.UnitPrice < 0 || l.Discount < 0 || l.Discount > l.Quantity * l.UnitPrice
+                || l.VatRate is < 0 or > 100 || l.ExciseTaxRate is < 0 or > 100
+                || l.ExciseRetailPrice < 0 || l.ExciseStandardPrice < 0
+                || (l.ExciseTaxRate > 0 && l.ExciseRetailPrice <= 0 && l.ExciseStandardPrice <= 0))
             {
                 errors[$"lines[{i}]"] = [T(
                     "الكمية أكبر من صفر، السعر ≥ 0، الخصم بين صفر وقيمة السطر، ونسبة الضريبة بين 0 و100",
-                    "quantity > 0, price ≥ 0, 0 ≤ discount ≤ line amount, VAT rate 0–100")];
+                    "quantity > 0, price ≥ 0, 0 ≤ discount ≤ line amount, VAT and excise rates 0–100, and a reference excise price when excise applies")];
             }
         }
 
@@ -52,14 +55,21 @@ public static class DocumentPricing
             allocatedSoFar += allocation;
 
             var net = nets[i] - allocation;
-            var vat = l.VatOverride.HasValue ? Round(l.VatOverride.Value) : Round(net * l.VatRate / 100m);
-            priced.Add(new PricedLine(Round(l.Quantity * l.UnitPrice), l.Discount, allocation, net, l.VatRate, vat, net + vat));
+            var exciseReferencePrice = Math.Max(l.ExciseRetailPrice, l.ExciseStandardPrice);
+            var exciseBase = l.ExciseTaxRate > 0 ? Round(l.Quantity * exciseReferencePrice) : 0m;
+            var excise = Round(exciseBase * l.ExciseTaxRate / 100m);
+            // الانتقائية ضمن قيمة التوريد الخاضعة لضريبة القيمة المضافة.
+            var vat = l.VatOverride.HasValue ? Round(l.VatOverride.Value) : Round((net + excise) * l.VatRate / 100m);
+            priced.Add(new PricedLine(Round(l.Quantity * l.UnitPrice), l.Discount, allocation, net,
+                l.ExciseTaxRate, l.ExciseRetailPrice, l.ExciseStandardPrice, exciseBase, excise, l.VatRate, vat, net + excise + vat));
         }
 
         var itemsDiscount = lines.Sum(l => l.Discount);
         var netTotal = priced.Sum(p => p.Net);
+        var exciseTotal = priced.Sum(p => p.ExciseTaxAmount);
         var vatTotal = priced.Sum(p => p.VatAmount);
-        return new PricedDocument(priced, priced.Sum(p => p.Gross), itemsDiscount, invoiceDiscount, itemsDiscount + invoiceDiscount, netTotal, vatTotal, netTotal + vatTotal);
+        return new PricedDocument(priced, priced.Sum(p => p.Gross), itemsDiscount, invoiceDiscount, itemsDiscount + invoiceDiscount,
+            netTotal, exciseTotal, vatTotal, netTotal + exciseTotal + vatTotal);
     }
 
     public static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);

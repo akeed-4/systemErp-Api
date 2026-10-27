@@ -140,6 +140,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("OpeningInventoryAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("OutputExciseAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("OutputVatAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -2514,6 +2517,10 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal>("ExciseTaxTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<decimal>("GrandTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -2737,6 +2744,26 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("Discount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseRetailPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseStandardPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxBaseAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
@@ -6954,6 +6981,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("ExciseTaxAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<decimal>("GrandTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -7021,6 +7052,26 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("ExciseRetailPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseStandardPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxBaseAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("ItemCode")
                         .IsRequired()
@@ -7170,6 +7221,10 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal>("TotalExciseTax")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<decimal>("TotalGross")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -7236,6 +7291,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("CustomerTaxNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("ExciseTaxAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal>("GrandTotal")
                         .HasPrecision(18, 4)
@@ -7346,6 +7405,26 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("Discount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseRetailPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseStandardPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxBaseAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
@@ -9242,6 +9321,18 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("CurrentStock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseRetailPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseStandardPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExciseTaxRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 

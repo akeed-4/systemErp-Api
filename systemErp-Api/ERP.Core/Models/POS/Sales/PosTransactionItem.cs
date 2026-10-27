@@ -9,6 +9,11 @@ public class PosTransactionItem : BaseEntity
     public string? UnitAr { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal ExciseTaxRate { get; set; }
+    public decimal ExciseRetailPrice { get; set; }
+    public decimal ExciseStandardPrice { get; set; }
+    public decimal ExciseTaxBaseAmount { get; set; }
+    public decimal ExciseTaxAmount { get; set; }
     public decimal VatRate { get; set; } = 15;
     public decimal VatAmount { get; set; }
     public decimal Subtotal { get; set; }

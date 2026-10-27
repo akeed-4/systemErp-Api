@@ -1294,5 +1294,6 @@
   <data name="AccountRole_SalesRevenueAccountCode" xml:space="preserve"><value>حساب المبيعات</value></data>
   <data name="AccountRole_SalesReturnsAccountCode" xml:space="preserve"><value>حساب مردودات المبيعات</value></data>
   <data name="AccountRole_OutputVatAccountCode" xml:space="preserve"><value>حساب ضريبة المخرجات</value></data>
+  <data name="AccountRole_OutputExciseAccountCode" xml:space="preserve"><value>حساب الضريبة الانتقائية المستحقة</value></data>
   <data name="AccountRole_InputVatAccountCode" xml:space="preserve"><value>حساب ضريبة المدخلات</value></data>
 </root>

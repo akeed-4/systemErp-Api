@@ -18,6 +18,7 @@ public class PosQuoteDto
     public int LoyaltyPointsBalance { get; set; }
     public decimal TotalDiscount { get; set; }
     public decimal NetBeforeVat { get; set; }
+    public decimal ExciseTaxTotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
     public int PointsToEarn { get; set; }
@@ -36,6 +37,8 @@ public class PosQuoteLineDto
     public decimal OfferDiscount { get; set; }
     public decimal ManualDiscount { get; set; }
     public decimal Net { get; set; }
+    public decimal ExciseTaxBaseAmount { get; set; }
+    public decimal ExciseTaxAmount { get; set; }
     public decimal VatAmount { get; set; }
     public decimal Total { get; set; }
     public decimal StockOnHand { get; set; }

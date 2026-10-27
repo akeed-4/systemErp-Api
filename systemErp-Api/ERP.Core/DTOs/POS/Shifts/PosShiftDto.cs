@@ -22,6 +22,7 @@ public partial class PosShiftDto
     public decimal TotalReturns { get; set; }
     public decimal TotalCashRefunds { get; set; }
     public decimal TotalDiscount { get; set; }
+    public decimal TotalExciseTax { get; set; }
     public decimal TotalVat { get; set; }
     public decimal TotalGross { get; set; }
     public decimal? ClosingCashActual { get; set; }

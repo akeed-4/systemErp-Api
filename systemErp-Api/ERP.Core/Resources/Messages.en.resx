@@ -1294,5 +1294,6 @@
   <data name="AccountRole_SalesRevenueAccountCode" xml:space="preserve"><value>Sales account</value></data>
   <data name="AccountRole_SalesReturnsAccountCode" xml:space="preserve"><value>Sales returns account</value></data>
   <data name="AccountRole_OutputVatAccountCode" xml:space="preserve"><value>Output VAT account</value></data>
+  <data name="AccountRole_OutputExciseAccountCode" xml:space="preserve"><value>Excise tax payable account</value></data>
   <data name="AccountRole_InputVatAccountCode" xml:space="preserve"><value>Input VAT account</value></data>
 </root>

@@ -13,6 +13,11 @@ public abstract class InvoiceItemBase : BaseEntity
     public decimal UnitPrice { get; set; }
     public decimal UnitCost { get; set; }
     public decimal Discount { get; set; }
+    public decimal ExciseTaxRate { get; set; }
+    public decimal ExciseRetailPrice { get; set; }
+    public decimal ExciseStandardPrice { get; set; }
+    public decimal ExciseTaxBaseAmount { get; set; }
+    public decimal ExciseTaxAmount { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     /// <summary>مبلغ ضريبة ثابت للسطر (نظام هامش الربح للسيارات المستعملة). فارغ = تُحسب من النسبة.</summary>

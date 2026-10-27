@@ -184,7 +184,7 @@ public class PosShiftService : IPosShiftService
             VoidedCount = sales.Count - live.Count,
             ReturnsCount = returnsCount,
             AverageTicket = live.Count == 0 ? 0 : DocumentPricing.Round(live.Sum(t => t.GrandTotal) / live.Count),
-            NetSales = DocumentPricing.Round(live.Sum(t => t.GrandTotal - t.VatAmount)),
+            NetSales = DocumentPricing.Round(live.Sum(t => t.GrandTotal - t.VatAmount - t.ExciseTaxAmount)),
             CashIn = shift.TotalCashIn, CashOut = shift.TotalCashOut,
             ExpectedCash = PosCashDrawer.ExpectedCash(shift),
             TopItems = live.SelectMany(t => t.Items).GroupBy(i => i.ItemId)

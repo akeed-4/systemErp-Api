@@ -409,6 +409,8 @@ public class TradeInvoiceEngine
                 {
                     ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = l.Quantity,
                     UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, VatRate = src.VatRate,
+                    ExciseTaxRate = src.ExciseTaxRate, ExciseRetailPrice = src.ExciseRetailPrice,
+                    ExciseStandardPrice = src.ExciseStandardPrice,
                     VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode, VatOverrideReason = src.VatOverrideReason,
                     RevenueAccountCode = src.RevenueAccountCode,
                     Discount = src.Quantity == 0 ? 0 : Math.Round(src.Discount * l.Quantity / src.Quantity, 2),
@@ -438,7 +440,8 @@ public class TradeInvoiceEngine
         var lines = splits.Where(s => s.Amount > 0).ToList();
         if (lines.Count == 0) return;
         var total = DocumentPricing.Price(
-            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride)).ToList(), dto.InvoiceDiscount).GrandTotal;
+            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
+                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount).GrandTotal;
         var entered = lines.Sum(s => s.Amount);
         dto.PaymentSplits.Clear();
         var allocated = 0m;
@@ -461,7 +464,8 @@ public class TradeInvoiceEngine
     {
         if (original.PaymentSplits.Count == 0 || original.GrandTotal <= 0) return;
         var returned = DocumentPricing.Price(
-            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride)).ToList(), dto.InvoiceDiscount).GrandTotal;
+            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
+                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount).GrandTotal;
         var allocated = 0m;
         for (var i = 0; i < original.PaymentSplits.Count; i++)
         {
@@ -628,6 +632,50 @@ public class TradeInvoiceEngine
         }
     }
 
+    private async Task ApplyProductExciseDefaultsAsync(CreateInvoiceDto r, CancellationToken ct)
+    {
+        // Returns are based on the original invoice snapshot. Purchases are outside this feature's scope.
+        if (r.Kind is InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn) return;
+        if (r.Kind != InvoiceKind.Sales)
+        {
+            foreach (var item in r.Items)
+            {
+                item.ExciseTaxRate = 0;
+                item.ExciseRetailPrice = 0;
+                item.ExciseStandardPrice = 0;
+            }
+            return;
+        }
+
+        var ids = r.Items.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct().ToList();
+        var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var previous = r.ExistingInvoiceId.HasValue
+            ? (await _db.Set<InvoiceItemBase>().AsNoTracking().Where(i => i.InvoiceId == r.ExistingInvoiceId.Value && ids.Contains(i.ItemId))
+                .ToListAsync(ct)).GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.First())
+            : new Dictionary<Guid, InvoiceItemBase>();
+        foreach (var item in r.Items)
+        {
+            if (item.ItemId != Guid.Empty && previous.TryGetValue(item.ItemId, out var oldLine))
+            {
+                item.ExciseTaxRate = oldLine.ExciseTaxRate;
+                item.ExciseRetailPrice = oldLine.ExciseRetailPrice;
+                item.ExciseStandardPrice = oldLine.ExciseStandardPrice;
+            }
+            else if (item.ItemId != Guid.Empty && products.TryGetValue(item.ItemId, out var product))
+            {
+                item.ExciseTaxRate = product.ExciseTaxRate;
+                item.ExciseRetailPrice = product.ExciseRetailPrice;
+                item.ExciseStandardPrice = product.ExciseStandardPrice;
+            }
+            else
+            {
+                item.ExciseTaxRate = 0;
+                item.ExciseRetailPrice = 0;
+                item.ExciseStandardPrice = 0;
+            }
+        }
+    }
+
     /// <summary>كل تجاوز جديد للتصنيف الضريبي: سطر في سجل التدقيق بالقيمة الأصلية والجديدة والسبب.</summary>
     private async Task LogTaxOverridesAsync(InvoiceBase invoice, CancellationToken ct)
     {
@@ -667,6 +715,7 @@ public class TradeInvoiceEngine
                 if ((attachLines = await ext.ResolveAsync(r, ct)) != null) { owner = ext; break; }
         r.ItemsDerivedFromVehicles = attachLines != null;
         await ApplyProductVatDefaultsAsync(r, ct);
+        await ApplyProductExciseDefaultsAsync(r, ct);
         await EnsureVatTreatmentAllowedAsync(r, ct);
         var errors = new List<string>();
         ApplyDocumentVatTreatment(r, errors);
@@ -692,7 +741,8 @@ public class TradeInvoiceEngine
             throw new ValidationFailedException(Messages.RegularInvoiceTypeInvalid);
 
         var priced = DocumentPricing.Price(
-            r.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride)).ToList(), r.InvoiceDiscount);
+            r.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
+                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), r.InvoiceDiscount);
 
         var productIds = r.Items.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct().ToList();
         if (r.Items.Any(i => i.ItemId == Guid.Empty && string.IsNullOrWhiteSpace(i.ItemName)))
@@ -719,6 +769,7 @@ public class TradeInvoiceEngine
         invoice.ItemsDiscountTotal = priced.ItemsDiscountTotal;
         invoice.InvoiceDiscount = priced.InvoiceDiscount;
         invoice.DiscountTotal = priced.DiscountTotal;
+        invoice.ExciseTaxTotal = priced.ExciseTaxTotal;
         invoice.VatTotal = priced.VatTotal;
         invoice.GrandTotal = priced.GrandTotal;
         invoice.ZatcaStatus = ZatcaSubmissionStatus.NotSubmitted;
@@ -745,6 +796,9 @@ public class TradeInvoiceEngine
             line.VatCategory = src.VatCategory ?? (src.VatRate > 0 || src.VatAmountOverride > 0 ? VatCategory.Standard : VatCategory.ZeroRated);
             line.VatExemptionReasonCode = VatExemptionReasons.Find(src.VatExemptionReasonCode)?.Code;
             line.VatOverrideReason = isSales && !string.IsNullOrWhiteSpace(src.VatOverrideReason) ? src.VatOverrideReason.Trim() : null;
+            line.ExciseTaxRate = pl.ExciseTaxRate; line.ExciseRetailPrice = pl.ExciseRetailPrice;
+            line.ExciseStandardPrice = pl.ExciseStandardPrice; line.ExciseTaxBaseAmount = pl.ExciseTaxBaseAmount;
+            line.ExciseTaxAmount = pl.ExciseTaxAmount;
             line.VatRate = src.VatRate; line.VatAmount = pl.VatAmount; line.TotalBeforeVat = pl.Net; line.TotalAfterVat = pl.Total;
             // مركز الترويسة افتراضي فقط: يُحفظ المركز الفعلي على السطر فلا يغيّر تعديلُ الافتراضي لاحقاً أثرَ المستند
             line.CostCenterId = src.CostCenterId ?? r.CostCenterId;
@@ -1028,7 +1082,8 @@ public class TradeInvoiceEngine
             {
                 Module = invoice.Module, Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id, ReplaceEntryId = invoice.JournalEntryId,
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
-                NetAmount = baseNet, VatAmount = baseVat, CostAmount = totalCost, Payments = payments,
+                NetAmount = baseNet, ExciseTaxAmount = DocumentPricing.Round(invoice.ExciseTaxTotal * fx),
+                VatAmount = baseVat, CostAmount = totalCost, Payments = payments,
                 RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode, WarehouseId = invoice.WarehouseId,
                 RevenueLines = RevenueByLine(invoice, fx, baseNet),
                 CostLines = costByCenter.ToAmounts(),

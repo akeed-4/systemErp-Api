@@ -61,6 +61,7 @@ public abstract class InvoiceBase : BaseEntity, IScopedRecord
     public decimal ItemsDiscountTotal { get; set; }
     public decimal InvoiceDiscount { get; set; }
     public decimal DiscountTotal { get; set; }
+    public decimal ExciseTaxTotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
     

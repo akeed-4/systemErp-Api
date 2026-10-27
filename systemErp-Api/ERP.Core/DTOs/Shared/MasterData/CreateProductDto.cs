@@ -14,6 +14,9 @@ public partial class CreateProductDto
     public decimal? StandardCost { get; set; }
     public decimal SellingPrice { get; set; }
     public decimal VatRate { get; set; } = 15m;
+    public decimal ExciseTaxRate { get; set; }
+    public decimal ExciseRetailPrice { get; set; }
+    public decimal ExciseStandardPrice { get; set; }
     /// <summary>التصنيف الضريبي للصنف: Standard | ZeroRated | Exempt | OutOfScope.</summary>
     public VatCategory VatCategory { get; set; } = VatCategory.Standard;
     public string? VatExemptionReasonCode { get; set; }

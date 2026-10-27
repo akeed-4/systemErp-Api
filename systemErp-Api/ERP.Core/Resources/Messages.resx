@@ -161,6 +161,7 @@
   <data name="CannotEditClosedContract" xml:space="preserve"><value>لا يمكن تعديل عقد مغلق.</value></data>
   <data name="CannotEditConvertedQuotation" xml:space="preserve"><value>لا يمكن تعديل عرض تم تحويله.</value></data>
   <data name="CannotEditConvertedRequisition" xml:space="preserve"><value>لا يمكن تعديل طلب تم تحويله.</value></data>
+  <data name="RequisitionAlreadyConverted" xml:space="preserve"><value>طلب الشراء {0} محوَّل مسبقاً إلى فاتورة.</value></data>
   <data name="CannotEditDeliveredInvoicedCancelledContract" xml:space="preserve"><value>لا يمكن تعديل عقد سُلّم أو فُوتر أو أُلغي.</value></data>
   <data name="CannotEditInvoicedOrder" xml:space="preserve"><value>لا يمكن تعديل أمر تم تحويله لفاتورة.</value></data>
   <data name="CannotEditInvoicedOrderProcurement" xml:space="preserve"><value>لا يمكن تعديل أمر تمت فوترته.</value></data>
@@ -721,7 +722,7 @@
   <data name="SupplierCodeInUse" xml:space="preserve"><value>كود المورد مستخدم مسبقاً.</value></data>
   <data name="SupplierNotFound" xml:space="preserve"><value>المورد غير موجود.</value></data>
   <data name="SystemMovementFromDocument" xml:space="preserve"><value>هذه حركة نظامية ناتجة عن مستند؛ عدّل المستند نفسه (أو أنشئ تسوية جديدة).</value></data>
-  <data name="TaxInvoiceBuyerDataRequired" xml:space="preserve"><value>الفاتورة الضريبية تتطلب بيانات المشتري: {0}.</value></data>
+  <data name="TaxInvoiceBuyerDataRequired" xml:space="preserve"><value>الفاتورة الضريبية تتطلب بيانات العميل: {0}.</value></data>
   <data name="TerminalHasOpenShift" xml:space="preserve"><value>هذا الجهاز عليه وردية مفتوحة لكاشير آخر.</value></data>
   <data name="TerminalNameRequired" xml:space="preserve"><value>اسم الجهاز/الكاشير مطلوب.</value></data>
   <data name="TicketClosedNoReplies" xml:space="preserve"><value>التذكرة مغلقة ولا تقبل ردوداً؛ افتح تذكرة جديدة.</value></data>

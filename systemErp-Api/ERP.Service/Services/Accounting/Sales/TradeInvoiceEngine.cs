@@ -133,6 +133,7 @@ public class TradeInvoiceEngine
             invoice.InvoiceNumber = DraftPrefix + invoice.Id.ToString("N")[..10].ToUpperInvariant();
             _db.Add(invoice);
             await OnSavingAsync(invoice, deleting: false, token);
+            await ClaimSourceAsync(invoice, token);
             await _db.SaveChangesAsync(token);
             // سياسة اعتماد منطبقة: تبقى مسودة بطلبها، والترحيل عند الموافقة
             if (!draft && !(r.ApplyApprovalPolicy && await RequiresApprovalAsync(invoice, token))) await FinalizeAsync(invoice, token);
@@ -508,6 +509,23 @@ public class TradeInvoiceEngine
     {
         if (invoice.ReferenceType != null || invoice.ReferenceId.HasValue || invoice.OriginalInvoiceId.HasValue)
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
+    }
+
+    /// <summary>
+    /// فاتورة شراء مستوردة من طلب شراء في الشاشة: الطلب يجب أن يكون معتمداً وغير محوَّل، ويُعلَّم محوَّلاً إليها
+    /// (عكس <see cref="ReleaseSourceAsync"/>). التحويل المباشر من شاشة الطلبات يمرّ بهذا المسار أيضاً.
+    /// </summary>
+    private async Task ClaimSourceAsync(InvoiceBase invoice, CancellationToken ct)
+    {
+        if (invoice.ReferenceType != "material_requisition" || invoice.ReferenceId == null) return;
+        if (invoice.Kind != InvoiceKind.Purchase) throw new ValidationFailedException(Messages.InvalidDocumentType);
+        var m = await _db.Set<MaterialRequisition>().FirstOrDefaultAsync(x => x.Id == invoice.ReferenceId, ct)
+            ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
+        if (m.ConvertedInvoiceId != null || m.Status is "converted_to_invoice" or "converted_to_po")
+            throw new ConflictException(string.Format(Messages.RequisitionAlreadyConverted, m.RequisitionNumber));
+        if (m.Status != "approved") throw new ConflictException(Messages.ApproveRequisitionBeforeConversion);
+        m.ConvertedInvoiceId = invoice.Id;
+        m.Status = "converted_to_invoice";
     }
 
     /// <summary>عند حذف فاتورة محوّلة من مستند تجاري يُفَك الارتباط ليعود المستند قابلاً للتحويل.</summary>

@@ -90,7 +90,7 @@ public class ArchitectureTests
             "AuditLogs", "Auth", "Company", "Permissions", "Roles", "Platform", "Subscriptions", "Users", "WarehouseSession", "Payments", "SupportTickets",
             "ApprovalPolicies", "Approvals", "Notifications",
             // المحاسبة مشتركة بين كل الوحدات
-            "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",
+            "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports", "AccountingSettings",
             // فواتير المعارض (Invoice) وأسباب الإعفاء الضريبي المشتركة؛ مستندات التجارة العامة لها controllers موسومة بوحدتها
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون

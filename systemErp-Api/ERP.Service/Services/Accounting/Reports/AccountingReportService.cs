@@ -155,11 +155,13 @@ public class AccountingReportService : IAccountingReportService
         var cogs = Cost(InvoiceKind.Sales) - Cost(InvoiceKind.SalesReturn);
 
         var vouchers = await _db.Set<Voucher>().AsNoTracking().GroupBy(v => v.Type).Select(g => new { g.Key, Sum = g.Sum(v => v.Amount) }).ToListAsync(ct);
+        var posting = await PostingAccounts.SettingsAsync(_db, ct);
+        string outputVatCode = posting.OutputVat(), inputVatCode = posting.InputVat();
         var under = await Leaves().GroupBy(a => 1).Select(g => new
         {
             Opex = g.Sum(a => a.Code.StartsWith("52") ? a.Balance : 0m),
-            OutputVat = g.Sum(a => a.Code.StartsWith(DefaultAccounts.OutputVat) ? a.Balance : 0m),
-            InputVat = g.Sum(a => a.Code.StartsWith(DefaultAccounts.InputVat) ? a.Balance : 0m),
+            OutputVat = g.Sum(a => a.Code.StartsWith(outputVatCode) ? a.Balance : 0m),
+            InputVat = g.Sum(a => a.Code.StartsWith(inputVatCode) ? a.Balance : 0m),
             Banks = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Banks) ? a.Balance : 0m),
             Receivables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Receivables) ? a.Balance : 0m),
             Payables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Payables) ? a.Balance : 0m),
@@ -240,7 +242,9 @@ public class AccountingReportService : IAccountingReportService
     /// </summary>
     private async Task<(decimal Output, decimal Input)> ManualVatAdjustmentsAsync(DateTime start, DateTime end, string[]? moduleScope, CancellationToken ct)
     {
-        var vatAccounts = new[] { DefaultAccounts.OutputVat, DefaultAccounts.InputVat };
+        var posting = await PostingAccounts.SettingsAsync(_db, ct);
+        string outputVatCode = posting.OutputVat(), inputVatCode = posting.InputVat();
+        var vatAccounts = new[] { outputVatCode, inputVatCode };
         // القيد اليدوي وعكسه (العكس يُلغي أثر التسوية في فترته)
         var manualEntryIds = from e in Entries
                              where e.Date >= start && e.Date < end
@@ -253,8 +257,8 @@ public class AccountingReportService : IAccountingReportService
             .Where(l => vatAccounts.Contains(l.AccountCode) && manualEntryIds.Contains(l.JournalEntryId)
                 && Lines.Any(o => o.JournalEntryId == l.JournalEntryId && !vatAccounts.Contains(o.AccountCode) && !o.AccountCode.StartsWith(DefaultAccounts.Banks)))
             .GroupBy(l => l.AccountCode).Select(g => new { Code = g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
-        var output = totals.Where(t => t.Code == DefaultAccounts.OutputVat).Sum(t => t.Credit - t.Debit);
-        var input = totals.Where(t => t.Code == DefaultAccounts.InputVat).Sum(t => t.Debit - t.Credit);
+        var output = totals.Where(t => t.Code == outputVatCode).Sum(t => t.Credit - t.Debit);
+        var input = totals.Where(t => t.Code == inputVatCode).Sum(t => t.Debit - t.Credit);
         return (DocumentPricing.Round(output), DocumentPricing.Round(input));
     }
 

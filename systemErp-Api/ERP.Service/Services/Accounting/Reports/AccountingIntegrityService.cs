@@ -86,11 +86,14 @@ public class AccountingIntegrityService : IAccountingIntegrityService
         var settings = await SalesCharges.SettingsAsync(_db, ct);
         var vehicleAccounts = Subtree(accounts, settings.VehicleInventoryAccount);
 
-        // حسابات مخزون البضاعة: الحساب الافتراضي وفروعه، وأي حساب مخزون خاص اختير على فاتورة (عدا حسابات السيارات)
+        // حسابات مخزون البضاعة: الحساب الافتراضي وفروعه، وحساب الإعدادات وحسابات المستودعات، وأي حساب مخزون خاص اختير على فاتورة
+        // (عدا حسابات السيارات)
         var custom = await _db.Set<InvoiceBase>().AsNoTracking()
             .Where(i => i.InventoryAccountCode != null && i.InventoryAccountCode != "")
             .Select(i => i.InventoryAccountCode!).Distinct().ToListAsync(ct);
         var itemAccounts = Subtree(accounts, DefaultAccounts.Inventory)
+            .Union(Subtree(accounts, (await PostingAccounts.SettingsAsync(_db, ct)).Inventory()))
+            .Union((await PostingAccounts.WarehouseInventoryAccountsAsync(_db, ct)).SelectMany(c => Subtree(accounts, c)))
             .Union(custom.SelectMany(c => Subtree(accounts, c)))
             .Except(vehicleAccounts)
             .ToList();

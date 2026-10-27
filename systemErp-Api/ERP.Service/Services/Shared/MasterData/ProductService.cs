@@ -77,7 +77,7 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         if (method != CostingMethod.Standard) return;
         var before = InventoryValuation.Value(e);
         e.AverageCost = standard;
-        await InventoryValuation.PostRevaluationAsync(Db, _posting, InventoryValuation.Value(e) - before,
+        await InventoryValuation.PostRevaluationAsync(Db, _posting, new[] { (e.Id, InventoryValuation.Value(e) - before) },
             $"إعادة تقييم {e.NameAr} بالتكلفة المعيارية {standard:0.####}", e.Id, ct);
     }
 

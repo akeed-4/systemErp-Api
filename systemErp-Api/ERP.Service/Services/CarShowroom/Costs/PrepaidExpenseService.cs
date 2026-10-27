@@ -78,7 +78,7 @@ public class PrepaidExpenseService : IPrepaidExpenseService
             };
             _db.Add(expense);
             var lines = new List<PostingLine> { new(settings.PrepaidExpensesAccount, amount, 0) };
-            if (recoverable > 0) lines.Add(new(DefaultAccounts.InputVat, recoverable, 0));
+            if (recoverable > 0) lines.Add(new((await PostingAccounts.SettingsAsync(_db, token)).InputVat(), recoverable, 0));
             lines.Add(new(credit, 0, amount + recoverable));
             var posted = await _posting.PostAsync(new GenericPostingRequest
             {

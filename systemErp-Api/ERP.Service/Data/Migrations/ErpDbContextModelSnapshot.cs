@@ -103,6 +103,75 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("Account");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.AccountingSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CogsAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EndingInventoryAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InputVatAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InventoryAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InventoryMethod")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InventoryMethodEffectiveFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InventoryShortageAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InventorySurplusAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OpeningInventoryAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OutputVatAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PreviousInventoryMethod")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PurchaseReturnsAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PurchasesAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SalesReturnsAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SalesRevenueAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("AccountingSettings");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.Agreement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3046,11 +3115,13 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SourceType")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -3075,6 +3146,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId", "EntryNumber")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "SourceType", "SourceReferenceId")
+                        .IsUnique()
+                        .HasFilter("[Status] = N'Posted' AND [SourceReferenceId] IS NOT NULL AND [SourceType] IN (N'sales', N'purchase', N'sales_return', N'purchase_return', N'inventory_count', N'stock_adjustment', N'inventory_period_end', N'inventory_period_opening')");
 
                     b.ToTable("JournalEntry");
                 });
@@ -10325,6 +10400,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("InventoryAccountCode")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("bit");

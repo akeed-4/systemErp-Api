@@ -56,7 +56,7 @@ public class StockAdjustmentService : IStockAdjustmentService
             await ReverseEntryAsync(id, "حذف", token);
             await _inventory.DeleteMovementAsync(id, token);
             // ما بقي بعد عكس القيد = أثر إعادة بناء التكلفة على بقية الرصيد (صرف سابق أعيد تسعيره)
-            await InventoryValuation.PostRevaluationAsync(_db, _posting, await ValueAfterAsync(itemId, token) - before + oldSigned,
+            await InventoryValuation.PostRevaluationAsync(_db, _posting, new[] { (itemId, await ValueAfterAsync(itemId, token) - before + oldSigned) },
                 "إعادة تقييم المخزون بعد حذف تسوية", id, token);
         }, ct);
 
@@ -70,11 +70,11 @@ public class StockAdjustmentService : IStockAdjustmentService
     private async Task<(Guid ItemId, decimal OldSigned)> CurrentAsync(Guid movementId, CancellationToken ct)
     {
         var movement = await _db.Set<StockMovement>().AsNoTracking().Where(m => m.Id == movementId)
-            .Select(m => new { m.ItemId, m.JournalEntryId }).FirstOrDefaultAsync(ct)
+            .Select(m => new { m.ItemId, m.JournalEntryId, m.CounterAccountCode }).FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException(Messages.StockMovementNotFound);
         var oldSigned = movement.JournalEntryId == null ? 0m
             : await _db.Set<JournalEntryLine>().AsNoTracking()
-                .Where(l => l.JournalEntryId == movement.JournalEntryId && l.AccountCode == DefaultAccounts.Inventory)
+                .Where(l => l.JournalEntryId == movement.JournalEntryId && l.AccountCode != (movement.CounterAccountCode ?? DefaultAccounts.InventoryAdjustment))
                 .SumAsync(l => l.Debit - l.Credit, ct);
         return (movement.ItemId, oldSigned);
     }
@@ -90,6 +90,8 @@ public class StockAdjustmentService : IStockAdjustmentService
     /// يرحّل تغيّر القيمة الدفترية (موجب = زيادة المخزون) ويربط قيد التسوية بالحركة. الإضافة قيدها بقيمتها المعلنة (الكمية × التكلفة)
     /// على حسابها المقابل، وما زاد أو نقص عنها (إعادة تسعير بقية الرصيد أو صرف سابق) قيد إعادة تقييم على حساب فروق التكلفة؛
     /// والخصم قيده بتغيّر القيمة كله. التغيّر الصفري لا قيد له.
+    /// في الجرد الدوري لا قيد للتسوية العادية (أثرها في بضاعة آخر المدة)، والتسوية مقابل حساب صريح (أرصدة افتتاحية مثلاً)
+    /// تُرحَّل على بضاعة أول المدة بدل المخزون، بلا إعادة تقييم.
     /// </summary>
     private async Task<StockMovementDto> PostAsync(Guid movementId, string? counterAccountCode, decimal signedValue, CancellationToken ct)
     {
@@ -99,26 +101,38 @@ public class StockAdjustmentService : IStockAdjustmentService
         var own = isIn ? DocumentPricing.Round(movement.Quantity * movement.UnitCost) : signedValue;
         var note = $"تسوية مخزون {(isIn ? "بالإضافة" : "بالخصم")} - {movement.ItemName}";
         movement.CounterAccountCode = counter;
-        movement.JournalEntryId = own == 0 ? null
-            : (await PostEntryAsync(movement.Id, movement.ReferenceNumber, movement.Date, counter, own, note, ct)).JournalEntryId;
-        await InventoryValuation.PostRevaluationAsync(_db, _posting, signedValue - own,
-            $"إعادة تقييم المخزون بأثر التسوية {movement.ReferenceNumber} - {movement.ItemName}", movement.Id, ct);
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
+        if (accounts.IsPeriodic(movement.Date))
+        {
+            await PeriodicInventory.EnsureMethodOpeningAsync(_db, _posting, accounts, movement.Date, ct);
+            movement.JournalEntryId = own == 0 || string.IsNullOrWhiteSpace(counterAccountCode) ? null
+                : (await PostEntryAsync(movement.Id, movement.ReferenceNumber, movement.Date, accounts.OpeningInventory(), counter, own, note, ct)).JournalEntryId;
+        }
+        else
+        {
+            movement.JournalEntryId = own == 0 ? null
+                : (await PostEntryAsync(movement.Id, movement.ReferenceNumber, movement.Date, await accounts.InventoryAsync(_db, movement.WarehouseId, ct),
+                    counter, own, note, ct)).JournalEntryId;
+            // ما زاد عن قيمة الإضافة إعادة تسعير للرصيد السابق لها: يُوزَّع على المستودعات بكمياتها قبل الإضافة
+            await InventoryValuation.PostRevaluationAsync(_db, _posting, new[] { (movement.ItemId, signedValue - own) },
+                $"إعادة تقييم المخزون بأثر التسوية {movement.ReferenceNumber} - {movement.ItemName}", movement.Id, ct,
+                isIn && movement.WarehouseId is { } warehouseId ? (warehouseId, movement.Quantity) : null);
+        }
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<StockMovementDto>(movement);
     }
 
-    private async Task<PostingResult> PostEntryAsync(Guid movementId, string referenceNumber, DateTime date, string? counterAccountCode,
+    private async Task<PostingResult> PostEntryAsync(Guid movementId, string referenceNumber, DateTime date, string inventory, string counter,
         decimal signedValue, string note, CancellationToken ct)
     {
-        var counter = string.IsNullOrWhiteSpace(counterAccountCode) ? DefaultAccounts.InventoryAdjustment : counterAccountCode.Trim();
-        await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.Inventory, counter);
+        await DefaultAccounts.EnsureAsync(_db, ct, inventory, counter);
         var value = Math.Abs(signedValue);
         return await _posting.PostAsync(new GenericPostingRequest
         {
             Date = date, Description = note, SourceType = SourceType, SourceId = movementId, SourceNumber = referenceNumber,
             Lines = signedValue > 0
-                ? new() { new(DefaultAccounts.Inventory, value, 0, note), new(counter, 0, value, note) }
-                : new() { new(counter, value, 0, note), new(DefaultAccounts.Inventory, 0, value, note) },
+                ? new() { new(inventory, value, 0, note), new(counter, 0, value, note) }
+                : new() { new(counter, value, 0, note), new(inventory, 0, value, note) },
         }, ct);
     }
 

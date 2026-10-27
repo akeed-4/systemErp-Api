@@ -43,6 +43,13 @@ public class ErpDbContext : DbContext
     /// </summary>
     private static readonly Type[] TpcRoots = { typeof(InvoiceBase), typeof(InvoiceItemBase) };
 
+    /// <summary>مصادر لا يكون لمستندها إلا قيد فعّال واحد (فهرس فريد مرشَّح على JournalEntry).</summary>
+    internal static readonly string[] SingleEntrySources =
+    {
+        "sales", "purchase", "sales_return", "purchase_return", "inventory_count", "stock_adjustment",
+        Services.Accounting.PeriodicInventory.PeriodEndSource, Services.Accounting.PeriodicInventory.PeriodOpeningSource,
+    };
+
     private static readonly Type[] EntityTypes = typeof(BaseEntity).Assembly.GetTypes()
         .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(BaseEntity).IsAssignableFrom(t))
         .ToArray();
@@ -386,6 +393,15 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<VehicleReservation>()
             .HasIndex(r => new { r.TenantId, r.VehicleId }).IsUnique().HasFilter("[Status] = N'Active'");
         modelBuilder.Entity<CarShowroomSettings>().HasIndex(s => s.TenantId).IsUnique();
+        modelBuilder.Entity<AccountingSettings>().HasIndex(s => s.TenantId).IsUnique();
+
+        // قيد فعّال واحد لكل مستند مصدر (ضمان على مستوى قاعدة البيانات): المعكوس خارج الشرط فيُعاد ترحيل المستند بعد عكس قيده.
+        // المصادر التي يحق لها أكثر من قيد (إعادة التقييم، العكس، سندات المعرض...) خارج القائمة.
+        modelBuilder.Entity<JournalEntry>().Property(e => e.SourceType).HasMaxLength(64);
+        modelBuilder.Entity<JournalEntry>().Property(e => e.Status).HasMaxLength(32);
+        modelBuilder.Entity<JournalEntry>()
+            .HasIndex(e => new { e.TenantId, e.SourceType, e.SourceReferenceId }).IsUnique()
+            .HasFilter("[Status] = N'Posted' AND [SourceReferenceId] IS NOT NULL AND [SourceType] IN (" + string.Join(", ", SingleEntrySources.Select(s => $"N'{s}'")) + ")");
 
         // المصروف المدفوع مقدماً لا يُطفأ مرتين للشهر نفسه (ضمان على مستوى قاعدة البيانات).
         modelBuilder.Entity<PrepaidExpenseAmortization>()

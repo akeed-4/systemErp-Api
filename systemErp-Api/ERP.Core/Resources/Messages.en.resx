@@ -1263,4 +1263,36 @@
   <data name="PromoCodeNotForCycle" xml:space="preserve"><value>The promo code does not apply to the selected billing cycle.</value></data>
   <data name="PromoCodeExhausted" xml:space="preserve"><value>The promo code has no uses left.</value></data>
   <data name="PromoCodeAlreadyUsed" xml:space="preserve"><value>Your company has already used this promo code.</value></data>
+  <data name="AccountingSettingsSaved" xml:space="preserve"><value>Accounting settings saved</value></data>
+  <data name="InvalidInventoryMethod" xml:space="preserve"><value>Invalid inventory method; allowed values: perpetual or periodic.</value></data>
+  <data name="AccountSettingNotFound" xml:space="preserve"><value>{0}: account {1} does not exist in the chart of accounts.</value></data>
+  <data name="AccountSettingIsParent" xml:space="preserve"><value>{0}: account {1} is a parent account and cannot be posted to; choose a sub-account.</value></data>
+  <data name="AccountSettingIsPartyAccount" xml:space="preserve"><value>{0}: account {1} is a customer or supplier account and cannot be used here.</value></data>
+  <data name="AccountSettingWrongType" xml:space="preserve"><value>{0}: the type of account {1} does not fit this setting.</value></data>
+  <data name="AccountSettingRequiredForPeriodic" xml:space="preserve"><value>{0}: required for the periodic inventory method.</value></data>
+  <data name="AccountSettingIsCashOrBank" xml:space="preserve"><value>{0}: account {1} is a cash or bank account and cannot be used here.</value></data>
+  <data name="AccountSettingIsShowroomAccount" xml:space="preserve"><value>{0}: account {1} is assigned in the car showroom settings and cannot be used here.</value></data>
+  <data name="AccountSettingSharedByRoles" xml:space="preserve"><value>Account {0} cannot be used for more than one role: {1}.</value></data>
+  <data name="AccountSettingHasMovements" xml:space="preserve"><value>{0}: account {1} cannot be changed after entries were posted to it.</value></data>
+  <data name="InventoryMethodEffectiveFromRequired" xml:space="preserve"><value>Specify the financial year start from which the new inventory method applies.</value></data>
+  <data name="InventoryMethodChangeAtYearStartOnly" xml:space="preserve"><value>An inventory method change can only take effect at the start of a financial year.</value></data>
+  <data name="InventoryMethodChangeAfterMovements" xml:space="preserve"><value>Cannot change the inventory method: stock movements exist on or after the effective date.</value></data>
+  <data name="InventoryMethodPriorPeriodOpen" xml:space="preserve"><value>Cannot change the inventory method again before the books are locked up to the start of the current method, and the new effective date must follow it.</value></data>
+  <data name="InventoryValuedThrough" xml:space="preserve"><value>Inventory has been valued under the periodic method through {0:yyyy-MM-dd}: no stock movement can be recorded on or before that date.</value></data>
+  <data name="PeriodEndInventoryAlreadyPosted" xml:space="preserve"><value>Ending inventory has already been recorded for {0:yyyy-MM-dd}.</value></data>
+  <data name="PeriodicCountMustCoverAllWarehouses" xml:space="preserve"><value>A period-end count under the periodic method covers all warehouses; do not select a warehouse.</value></data>
+  <data name="PeriodicManualInventoryAccount" xml:space="preserve"><value>Under the periodic method a stock-item document cannot use a manual inventory account; items go to the purchases account and are valued in ending inventory.</value></data>
+  <data name="WarehouseInventoryAccountLocked" xml:space="preserve"><value>The inventory account of warehouse {0} cannot be changed after stock movements were recorded in it.</value></data>
+  <data name="AccountRole_InventoryAccountCode" xml:space="preserve"><value>Inventory account</value></data>
+  <data name="AccountRole_CogsAccountCode" xml:space="preserve"><value>Cost of goods sold account</value></data>
+  <data name="AccountRole_InventoryShortageAccountCode" xml:space="preserve"><value>Inventory shortage account</value></data>
+  <data name="AccountRole_InventorySurplusAccountCode" xml:space="preserve"><value>Inventory surplus account</value></data>
+  <data name="AccountRole_PurchasesAccountCode" xml:space="preserve"><value>Purchases account</value></data>
+  <data name="AccountRole_PurchaseReturnsAccountCode" xml:space="preserve"><value>Purchase returns account</value></data>
+  <data name="AccountRole_OpeningInventoryAccountCode" xml:space="preserve"><value>Opening inventory account</value></data>
+  <data name="AccountRole_EndingInventoryAccountCode" xml:space="preserve"><value>Ending inventory account</value></data>
+  <data name="AccountRole_SalesRevenueAccountCode" xml:space="preserve"><value>Sales account</value></data>
+  <data name="AccountRole_SalesReturnsAccountCode" xml:space="preserve"><value>Sales returns account</value></data>
+  <data name="AccountRole_OutputVatAccountCode" xml:space="preserve"><value>Output VAT account</value></data>
+  <data name="AccountRole_InputVatAccountCode" xml:space="preserve"><value>Input VAT account</value></data>
 </root>

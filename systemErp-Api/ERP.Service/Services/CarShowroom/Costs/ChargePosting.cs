@@ -66,7 +66,7 @@ internal static class ChargePosting
                     else if (billed > line.CostAmount) debits.Add(new(s.VehicleExpenseAccount, 0, billed - line.CostAmount, "فرق رسم محمَّل على العميل"));
                     break;
             }
-        if (inputVat > 0) debits.Add(new(DefaultAccounts.InputVat, inputVat, 0));
+        if (inputVat > 0) debits.Add(new((await PostingAccounts.SettingsAsync(db, ct)).InputVat(), inputVat, 0));
         return debits;
     }
 

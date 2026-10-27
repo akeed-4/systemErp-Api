@@ -1263,4 +1263,36 @@
   <data name="PromoCodeNotForCycle" xml:space="preserve"><value>رمز الخصم لا ينطبق على دورة الفوترة المختارة.</value></data>
   <data name="PromoCodeExhausted" xml:space="preserve"><value>استُنفدت استخدامات رمز الخصم.</value></data>
   <data name="PromoCodeAlreadyUsed" xml:space="preserve"><value>استخدمت منشأتك رمز الخصم هذا من قبل.</value></data>
+  <data name="AccountingSettingsSaved" xml:space="preserve"><value>تم حفظ إعدادات الحسابات</value></data>
+  <data name="InvalidInventoryMethod" xml:space="preserve"><value>طريقة الجرد غير صحيحة؛ القيم المسموحة: مستمر أو دوري.</value></data>
+  <data name="AccountSettingNotFound" xml:space="preserve"><value>{0}: الحساب {1} غير موجود في دليل الحسابات.</value></data>
+  <data name="AccountSettingIsParent" xml:space="preserve"><value>{0}: الحساب {1} حساب رئيسي لا يُرحَّل إليه؛ اختر حساباً فرعياً.</value></data>
+  <data name="AccountSettingIsPartyAccount" xml:space="preserve"><value>{0}: الحساب {1} حساب عميل أو مورد ولا يصلح لهذا الإعداد.</value></data>
+  <data name="AccountSettingWrongType" xml:space="preserve"><value>{0}: نوع الحساب {1} لا يناسب هذا الإعداد.</value></data>
+  <data name="AccountSettingRequiredForPeriodic" xml:space="preserve"><value>{0}: حساب إلزامي في الجرد الدوري.</value></data>
+  <data name="AccountSettingIsCashOrBank" xml:space="preserve"><value>{0}: الحساب {1} من حسابات النقدية والبنوك ولا يصلح لهذا الإعداد.</value></data>
+  <data name="AccountSettingIsShowroomAccount" xml:space="preserve"><value>{0}: الحساب {1} مخصص في إعدادات معرض السيارات ولا يُستخدم هنا.</value></data>
+  <data name="AccountSettingSharedByRoles" xml:space="preserve"><value>لا يصح استخدام الحساب {0} لأكثر من دور: {1}.</value></data>
+  <data name="AccountSettingHasMovements" xml:space="preserve"><value>{0}: لا يمكن تغيير الحساب {1} بعد ترحيل حركات عليه.</value></data>
+  <data name="InventoryMethodEffectiveFromRequired" xml:space="preserve"><value>حدد بداية السنة المالية التي تسري منها طريقة الجرد الجديدة.</value></data>
+  <data name="InventoryMethodChangeAtYearStartOnly" xml:space="preserve"><value>تغيير طريقة الجرد يسري من بداية سنة مالية فقط.</value></data>
+  <data name="InventoryMethodChangeAfterMovements" xml:space="preserve"><value>لا يمكن تغيير طريقة الجرد: توجد حركات مخزون بتاريخ بداية السريان أو بعده.</value></data>
+  <data name="InventoryMethodPriorPeriodOpen" xml:space="preserve"><value>لا يمكن تغيير طريقة الجرد مرة أخرى قبل إقفال الدفاتر حتى بداية الطريقة الحالية، ويجب أن يلي تاريخ السريان الجديد تاريخها.</value></data>
+  <data name="InventoryValuedThrough" xml:space="preserve"><value>أُثبتت قيمة المخزون في الجرد الدوري حتى {0:yyyy-MM-dd}: لا تُسجَّل حركة مخزون بهذا التاريخ أو قبله.</value></data>
+  <data name="PeriodEndInventoryAlreadyPosted" xml:space="preserve"><value>أُثبتت بضاعة آخر المدة بتاريخ {0:yyyy-MM-dd} من قبل.</value></data>
+  <data name="PeriodicCountMustCoverAllWarehouses" xml:space="preserve"><value>جرد آخر المدة في الجرد الدوري يشمل كل المستودعات؛ لا تحدد مستودعاً.</value></data>
+  <data name="PeriodicManualInventoryAccount" xml:space="preserve"><value>في الجرد الدوري لا يُحدد حساب مخزون يدوي لمستند أصناف مخزنية؛ تُرحَّل على حساب المشتريات وتُقيَّم في بضاعة آخر المدة.</value></data>
+  <data name="WarehouseInventoryAccountLocked" xml:space="preserve"><value>لا يمكن تغيير حساب مخزون المستودع {0} بعد تسجيل حركات مخزون فيه.</value></data>
+  <data name="AccountRole_InventoryAccountCode" xml:space="preserve"><value>حساب المخزون</value></data>
+  <data name="AccountRole_CogsAccountCode" xml:space="preserve"><value>حساب تكلفة البضاعة المباعة</value></data>
+  <data name="AccountRole_InventoryShortageAccountCode" xml:space="preserve"><value>حساب عجز المخزون</value></data>
+  <data name="AccountRole_InventorySurplusAccountCode" xml:space="preserve"><value>حساب زيادة المخزون</value></data>
+  <data name="AccountRole_PurchasesAccountCode" xml:space="preserve"><value>حساب المشتريات</value></data>
+  <data name="AccountRole_PurchaseReturnsAccountCode" xml:space="preserve"><value>حساب مردودات المشتريات</value></data>
+  <data name="AccountRole_OpeningInventoryAccountCode" xml:space="preserve"><value>حساب بضاعة أول المدة</value></data>
+  <data name="AccountRole_EndingInventoryAccountCode" xml:space="preserve"><value>حساب بضاعة آخر المدة</value></data>
+  <data name="AccountRole_SalesRevenueAccountCode" xml:space="preserve"><value>حساب المبيعات</value></data>
+  <data name="AccountRole_SalesReturnsAccountCode" xml:space="preserve"><value>حساب مردودات المبيعات</value></data>
+  <data name="AccountRole_OutputVatAccountCode" xml:space="preserve"><value>حساب ضريبة المخرجات</value></data>
+  <data name="AccountRole_InputVatAccountCode" xml:space="preserve"><value>حساب ضريبة المدخلات</value></data>
 </root>

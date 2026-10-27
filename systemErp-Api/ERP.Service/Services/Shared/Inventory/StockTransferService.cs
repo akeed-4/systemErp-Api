@@ -1,11 +1,13 @@
+using ERP.Core.Contracts.Accounting;
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
 /// مستند تحويل المخزون: يتحقق من المستودعين والأصناف ثم ينقل كل سطر عبر محرك المخزون في معاملة واحدة.
-/// لا قيد محاسبي له: حساب المخزون واحد والتكلفة موحّدة، فالتحويل لا يغيّر قيمة المخزون.
+/// التكلفة موحّدة على مستوى المنشأة فالتحويل لا يغيّر قيمة المخزون؛ ولا قيد له إلا بين مستودعين بحسابي مخزون مختلفين.
 /// </summary>
 public class StockTransferService : IStockTransferService
 {
@@ -14,10 +16,12 @@ public class StockTransferService : IStockTransferService
     private readonly INumberSequenceService _numbers;
     private readonly ITransactionRunner _tx;
     private readonly IAuditService _audit;
+    private readonly IAccountingPostingService _posting;
 
-    public StockTransferService(ErpDbContext db, IInventoryService inventory, INumberSequenceService numbers, ITransactionRunner tx, IAuditService audit)
+    public StockTransferService(ErpDbContext db, IInventoryService inventory, INumberSequenceService numbers, ITransactionRunner tx, IAuditService audit,
+        IAccountingPostingService posting)
     {
-        _db = db; _inventory = inventory; _numbers = numbers; _tx = tx; _audit = audit;
+        _db = db; _inventory = inventory; _numbers = numbers; _tx = tx; _audit = audit; _posting = posting;
     }
 
     public Task<StockTransferDto> CreateAsync(CreateStockTransferDto r, CancellationToken ct = default)
@@ -58,9 +62,36 @@ public class StockTransferService : IStockTransferService
                     ReferenceNumber = transfer.TransferNumber, SourceId = transfer.Id, Notes = $"تحويل من {from.NameAr} إلى {to.NameAr}",
                 }, token);
 
+            await PostValueAsync(transfer, from, to, token);
             await _audit.LogAsync("create", nameof(StockTransfer), transfer.Id.ToString(), $"{transfer.TransferNumber}: {from.NameAr} ← {to.NameAr}", token);
             return Map(transfer);
         }, ct);
+
+    public const string SourceType = "stock_transfer";
+
+    /// <summary>
+    /// مستودعان بحسابي مخزون مختلفين: القيمة تنتقل بقيد (الكمية × متوسط التكلفة الموحّد) مدين حساب المستلم / دائن حساب المرسل.
+    /// الجرد الدوري لا يحرّك حساب المخزون داخل الفترة: بضاعة آخر المدة تُوزَّع على حسابات المستودعات.
+    /// </summary>
+    private async Task PostValueAsync(StockTransfer transfer, Warehouse from, Warehouse to, CancellationToken ct)
+    {
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
+        if (accounts.IsPeriodic(transfer.Date)) return;
+        string source = from.InventoryAccountCode ?? accounts.Inventory(), target = to.InventoryAccountCode ?? accounts.Inventory();
+        if (source == target) return;
+
+        var ids = transfer.Items.Select(i => i.ItemId).ToList();
+        var costs = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.AverageCost, ct);
+        var value = DocumentPricing.Round(transfer.Items.Sum(i => i.Quantity * costs[i.ItemId]));
+        if (value == 0) return;
+        await DefaultAccounts.EnsureAsync(_db, ct, source, target);
+        var description = $"تحويل مخزون {transfer.TransferNumber}: {from.NameAr} ← {to.NameAr}";
+        await _posting.PostAsync(new GenericPostingRequest
+        {
+            Date = transfer.Date, Description = description, SourceType = SourceType, SourceId = transfer.Id, SourceNumber = transfer.TransferNumber,
+            Lines = new() { new(target, value, 0, description), new(source, 0, value, description) },
+        }, ct);
+    }
 
     public async Task<StockTransferDto> GetAsync(Guid id, CancellationToken ct = default)
         => Map(await _db.Set<StockTransfer>().AsNoTracking().Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id, ct)

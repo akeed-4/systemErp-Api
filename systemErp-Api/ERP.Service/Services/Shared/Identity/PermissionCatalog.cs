@@ -89,6 +89,8 @@ public static class PermissionCatalog
 
         new("accounts", "accounting", "دليل الحسابات والقيود اليومية", "Chart of Accounts",
             Crud(A.Approve, A.Post, A.Cancel, A.Close), new[] { "accounts-tree", "cost-centers", "bank-reconciliation", "fiscal-periods", "fixed-assets" }),
+        new("accounting-settings", "accounting", "إعدادات الحسابات المحاسبية وطريقة الجرد", "Accounting Settings & Inventory Method",
+            new[] { A.View, A.Edit }, new[] { "accounting-settings" }, InheritsFrom: "accounts"),
         new("vouchers", "accounting", "سندات القبض والصرف", "Receipt & Payment Vouchers",
             Crud(A.Approve, A.Post, A.Cancel), new[] { "vouchers" }),
 

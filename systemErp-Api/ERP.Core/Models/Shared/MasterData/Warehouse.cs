@@ -11,4 +11,6 @@ public class Warehouse : BaseEntity
     public string? Phone { get; set; }
     public bool IsDefault { get; set; }
     public string Status { get; set; } = "active"; // active | inactive
+    /// <summary>حساب مخزون المستودع؛ فارغ = حساب المخزون في إعدادات الحسابات. الحساب اليدوي في المستند يتقدم عليه.</summary>
+    public string? InventoryAccountCode { get; set; }
 }

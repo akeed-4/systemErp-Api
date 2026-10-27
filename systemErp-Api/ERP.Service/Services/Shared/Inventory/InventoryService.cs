@@ -18,6 +18,7 @@ public class InventoryService : IInventoryService
         if (r.Quantity <= 0) throw new ValidationFailedException(Messages.QuantityMustBePositive);
         if (r.UnitCost < 0) throw new ValidationFailedException(Messages.UnitCostCannotBeNegative);
         await _periods.EnsureOpenAsync(r.Date ?? SaudiTime.Today, ct);
+        await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, r.Date ?? SaudiTime.Today, ct);
 
         var product = await _db.Set<Product>().FirstOrDefaultAsync(p => p.Id == r.ItemId, ct)
             ?? throw new NotFoundException(Messages.ProductNotFound);
@@ -141,6 +142,7 @@ public class InventoryService : IInventoryService
         var m = await LoadManualAsync(id, ct);
         await _periods.EnsureOpenAsync(m.Date, ct);
         await _periods.EnsureOpenAsync(r.Date ?? m.Date, ct);
+        await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, new[] { m.Date, r.Date ?? m.Date }.Min(), ct);
         if (r.ItemId != m.ItemId) throw new ValidationFailedException(Messages.CannotChangeMovementItem);
 
         // رصيد المستودع: يُسحب أثر الحركة القديمة ثم يُطبَّق الجديد (قد يتغيّر المستودع نفسه)
@@ -158,6 +160,7 @@ public class InventoryService : IInventoryService
     {
         var m = await LoadManualAsync(id, ct);
         await _periods.EnsureOpenAsync(m.Date, ct);
+        await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, m.Date, ct);
         _db.Remove(m);
         await UndoWarehouseEffectAsync(m, ct);
         await ReplayAsync(m.ItemId, new HashSet<Guid> { m.Id }, ct);
@@ -201,6 +204,7 @@ public class InventoryService : IInventoryService
         if (r.Quantity <= 0) throw new ValidationFailedException(Messages.QuantityMustBePositive);
         if (r.FromWarehouseId == r.ToWarehouseId) throw new ValidationFailedException(Messages.TransferWarehousesMustDiffer);
         await _periods.EnsureOpenAsync(r.Date, ct);
+        await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, r.Date, ct); // توزيع القيمة المثبتة على المستودعات
 
         var product = await _db.Set<Product>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == r.ItemId, ct)
             ?? throw new NotFoundException(Messages.ProductNotFound);

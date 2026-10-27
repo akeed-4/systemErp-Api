@@ -1,5 +1,6 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 
 namespace ERP.Service.Services.Shared;
 
@@ -26,6 +27,29 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
             if (sub != null && await Db.Set<Warehouse>().CountAsync(w => w.Status == "active", ct) >= sub.MaxBranches)
                 throw new ConflictException(Messages.WarehouseLimitReached);
         }
+        await ValidateInventoryAccountAsync(d, existing, ct);
+    }
+
+    /// <summary>
+    /// حساب مخزون المستودع (تحديث جزئي: غير المرسَل يبقى، و"" يعيده لحساب الإعدادات): يصلح لدور المخزون ولا يقع على حساب ضريبة،
+    /// ولا يتغيّر بعد أول حركة مخزون في المستودع، فتعديل مستند سابق يُرحَّل على الحساب الذي رُحِّل عليه أول مرة.
+    /// </summary>
+    private async Task ValidateInventoryAccountAsync(CreateWarehouseDto d, Warehouse? existing, CancellationToken ct)
+    {
+        d.InventoryAccountCode = d.InventoryAccountCode == null ? existing?.InventoryAccountCode
+            : string.IsNullOrWhiteSpace(d.InventoryAccountCode) ? null : d.InventoryAccountCode.Trim();
+        var role = PostingAccounts.InventoryRole;
+        if (d.InventoryAccountCode is { } code)
+        {
+            var errors = await AccountRoleRules.ProblemsAsync(Db, new[] { (role, code) }, ct);
+            var settings = await PostingAccounts.SettingsAsync(Db, ct);
+            if (code == settings.InputVat() || code == settings.OutputVat())
+                errors.Add(string.Format(Messages.AccountSettingSharedByRoles, code, role.Label));
+            if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+        }
+        if (existing != null && d.InventoryAccountCode != existing.InventoryAccountCode
+            && await Db.Set<StockMovement>().AnyAsync(m => m.WarehouseId == existing.Id || (existing.IsDefault && m.WarehouseId == null), ct))
+            throw new ConflictException(string.Format(Messages.WarehouseInventoryAccountLocked, existing.NameAr));
     }
 
     protected override async Task OnCreatingAsync(Warehouse e, CreateWarehouseDto d, CancellationToken ct)

@@ -131,7 +131,7 @@ public class ImportCostAdvanceService : IImportCostAdvanceService
 
             // مدين التسوية بالتكلفة ومدين ضريبة المدخلات المستردة، دائن حساب طريقة الدفع بالمدفوع كله
             var lines = new List<PostingLine> { new(settings.ImportCostsClearingAccount, advance.CostAmount, 0) };
-            if (advance.InputVatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, advance.InputVatAmount, 0));
+            if (advance.InputVatAmount > 0) lines.Add(new((await PostingAccounts.SettingsAsync(_db, token)).InputVat(), advance.InputVatAmount, 0));
             lines.Add(new(advance.PaymentAccountCode, 0, advance.CostAmount + advance.InputVatAmount));
             var posted = await _posting.PostAsync(new GenericPostingRequest
             {

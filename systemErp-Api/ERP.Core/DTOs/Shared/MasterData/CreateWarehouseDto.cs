@@ -10,4 +10,6 @@ public partial class CreateWarehouseDto
     public string? Phone { get; set; }
     public bool IsDefault { get; set; }
     public string Status { get; set; } = "active";
+    /// <summary>حساب مخزون المستودع: غير مرسَل (null) = يبقى كما هو، "" = يعود لحساب المخزون في الإعدادات.</summary>
+    public string? InventoryAccountCode { get; set; }
 }

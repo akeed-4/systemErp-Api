@@ -290,7 +290,11 @@ public class TradeInvoiceEngine
         }
         await _db.SaveChangesAsync(ct);
         // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف
-        await InventoryValuation.PostRevaluationAsync(_db, _posting, reversalChange + originalStockChange, reason, invoice.Id, ct);
+        // الفرق تسوية لأثر هذا المستند على حساب مخزون مستودعه؛ المستند بحساب يدوي (السيارات) يبقى على حساب المخزون العام كما كان
+        var postingAccounts = await PostingAccounts.SettingsAsync(_db, ct);
+        var inventoryAccount = string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)
+            ? await postingAccounts.InventoryAsync(_db, invoice.WarehouseId, ct) : postingAccounts.Inventory();
+        await InventoryValuation.PostRevaluationAsync(_db, _posting, reversalChange + originalStockChange, inventoryAccount, reason, invoice.Id, ct);
         if (forDelete) invoice.JournalEntryId = null;
     }
 
@@ -381,6 +385,8 @@ public class TradeInvoiceEngine
                 PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
                 WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
                 CostCenterId = original.CostCenterId,
+                // الحسابات المحددة يدوياً على الأصل تتقدم في مرتجعه كما تقدمت فيه: المخزون يعود لحسابه والإيراد يُعكس من حسابه
+                RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
                 VatTreatment = original.VatTreatment, VatTreatmentReasonCode = original.VatTreatmentReasonCode, // المرتجع بمعالجة أصله
                 PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
                 PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
@@ -980,6 +986,11 @@ public class TradeInvoiceEngine
         invoice.TotalCost = totalCost; // بالعملة الأساسية
         invoice.GrossProfit = isSales ? (invoice.IsReturn ? -(baseNet - totalCost) : baseNet - totalCost) : 0;
 
+        // الجرد الدوري: الأصناف تُقيَّم في بضاعة آخر المدة، فحساب مخزون يدوي على مستند أصناف يُثبتها مرتين (السيارات خارجه)
+        if (!string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) && invoice is not Invoice { VehicleLines.Count: > 0 }
+            && invoice.Lines.Any(i => i.ItemId != Guid.Empty) && (await PostingAccounts.SettingsAsync(_db, ct)).IsPeriodic(invoice.IssueDate))
+            throw new ValidationFailedException(Messages.PeriodicManualInventoryAccount);
+
         // مشتريات: البنود غير المخزنية (خدمات/مصروفات) لا تدخل حساب المخزون، إلا إن حدّد المستند حساب مخزون صراحةً
         // (شراء السيارات: بنودها وصفية وهي مخزون فعلاً).
         var expenseAmount = isSales || !string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) ? 0
@@ -1014,7 +1025,7 @@ public class TradeInvoiceEngine
                 Module = invoice.Module, Date = invoice.IssueDate, Description = description, SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id, ReplaceEntryId = invoice.JournalEntryId,
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
                 NetAmount = baseNet, VatAmount = baseVat, CostAmount = totalCost, Payments = payments,
-                RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode,
+                RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode, WarehouseId = invoice.WarehouseId,
                 RevenueLines = RevenueByLine(invoice, fx, baseNet),
                 CostLines = costByCenter.ToAmounts(),
             }, ct);
@@ -1025,7 +1036,7 @@ public class TradeInvoiceEngine
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
                 NetAmount = baseNet, VatAmount = baseVat, Payments = payments,
                 ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount, VarianceAccountCode = varianceAccount,
-                InventoryAccountCode = invoice.InventoryAccountCode,
+                InventoryAccountCode = invoice.InventoryAccountCode, WarehouseId = invoice.WarehouseId,
                 CostCenterShares = PurchaseShares(invoice, fx, baseNet, expenseAmount, inventoryAmount, stockByCenter),
             }, ct);
         invoice.JournalEntryId = posted.JournalEntryId;

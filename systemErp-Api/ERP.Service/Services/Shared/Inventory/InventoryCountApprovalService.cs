@@ -170,6 +170,11 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
     /// <summary>حركة تسوية لكل فرق (الزيادة بمتوسط التكلفة، والعجز بتكلفة الصرف وفق السياسة) ثم قيد الفروق.</summary>
     private async Task<PostingResult?> AdjustItemsAsync(InventoryCount count, CancellationToken ct)
     {
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
+        var periodic = accounts.IsPeriodic(SaudiTime.Today);
+        // بضاعة آخر المدة قيمة المخزون كله: الجرد الدوري يشمل كل المستودعات
+        if (periodic && count.CountType == InventoryCountType.Periodic && count.WarehouseId != null)
+            throw new ValidationFailedException(Messages.PeriodicCountMustCoverAllWarehouses);
         foreach (var line in count.Lines.Where(l => l.VarianceQuantity != 0))
         {
             var isIn = line.VarianceQuantity > 0;
@@ -184,7 +189,18 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             line.UnitCost = movement.UnitCost;
             line.VarianceValue = movement.ValueChange; // تغيّر القيمة الدفترية بإشارته: يطابق حساب المخزون بلا هللات تقريب
         }
-        return await PostVarianceAsync(count, DefaultAccounts.Inventory, ct);
+        if (periodic)
+        {
+            // الدوري: الفروق بلا قيد (أثرها في القيمة)، والجرد الدوري يُثبت بضاعة آخر المدة
+            await PeriodicInventory.EnsureMethodOpeningAsync(_db, _posting, accounts, SaudiTime.Today, ct);
+            return count.CountType == InventoryCountType.Periodic
+                ? await PeriodicInventory.PostPeriodEndAsync(_db, _posting, accounts, count, SaudiTime.Today, ct)
+                : null;
+        }
+        // حساب مخزون المستودع الذي سُجّلت فيه حركات الجرد (المستودع المحدد، وإلا ما تُحسب عليه الحركة بلا مستودع)
+        var warehouse = await WarehouseStocks.ResolveAsync(_db, count.WarehouseId, ct);
+        return await PostVarianceAsync(count, warehouse.InventoryAccountCode ?? accounts.Inventory(),
+            accounts.InventoryShortage(), accounts.InventorySurplus(), ct);
     }
 
     /// <summary>المفقودة تُشطب، والمعثور عليها بعد شطبها تُستعاد، والموجودة في موقع آخر يُحدَّث موقعها.</summary>
@@ -215,20 +231,23 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             }
         }
         await _db.SaveChangesAsync(ct);
-        return await PostVarianceAsync(count, (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).VehicleInventoryAccount, ct);
+        // فروق السيارات على فروقات الجرد كما كانت (الشطب وإعادة القيد متقابلان)، لا على حسابي عجز وزيادة البضاعة
+        return await PostVarianceAsync(count, (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).VehicleInventoryAccount,
+            DefaultAccounts.InventoryAdjustment, DefaultAccounts.InventoryAdjustment, ct);
     }
 
-    /// <summary>زيادة الجرد: مدين المخزون / دائن فروقات الجرد، والعجز بالعكس. لا قيد إن لم يكن للفروق قيمة.</summary>
-    private async Task<PostingResult?> PostVarianceAsync(InventoryCount count, string inventoryAccount, CancellationToken ct)
+    /// <summary>زيادة الجرد: مدين المخزون / دائن حساب الزيادة، والعجز: مدين حساب العجز / دائن المخزون. لا قيد إن لم يكن للفروق قيمة.</summary>
+    private async Task<PostingResult?> PostVarianceAsync(InventoryCount count, string inventoryAccount, string shortageAccount, string surplusAccount,
+        CancellationToken ct)
     {
         var surplus = count.Lines.Where(l => l.VarianceValue > 0).Sum(l => l.VarianceValue);
         var shortage = -count.Lines.Where(l => l.VarianceValue < 0).Sum(l => l.VarianceValue);
         var lines = new List<PostingLine>();
-        if (surplus > 0) lines.AddRange(new PostingLine[] { new(inventoryAccount, surplus, 0, "زيادة جرد"), new(DefaultAccounts.InventoryAdjustment, 0, surplus, "زيادة جرد") });
-        if (shortage > 0) lines.AddRange(new PostingLine[] { new(DefaultAccounts.InventoryAdjustment, shortage, 0, "عجز جرد"), new(inventoryAccount, 0, shortage, "عجز جرد") });
+        if (surplus > 0) lines.AddRange(new PostingLine[] { new(inventoryAccount, surplus, 0, "زيادة جرد"), new(surplusAccount, 0, surplus, "زيادة جرد") });
+        if (shortage > 0) lines.AddRange(new PostingLine[] { new(shortageAccount, shortage, 0, "عجز جرد"), new(inventoryAccount, 0, shortage, "عجز جرد") });
         if (lines.Count == 0) return null;
 
-        await DefaultAccounts.EnsureAsync(_db, ct, inventoryAccount, DefaultAccounts.InventoryAdjustment);
+        await DefaultAccounts.EnsureAsync(_db, ct, inventoryAccount, surplusAccount, shortageAccount);
         return await _posting.PostAsync(new GenericPostingRequest
         {
             Date = SaudiTime.Today, Description = $"تسوية فروق الجرد {count.CountNumber}",

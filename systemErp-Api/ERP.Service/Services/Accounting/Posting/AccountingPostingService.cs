@@ -226,8 +226,12 @@ public class AccountingPostingService : IAccountingPostingService
         }
     }
 
-    public Task<PostingResult> PostSaleAsync(SalePostingRequest r, CancellationToken ct = default)
+    public async Task<PostingResult> PostSaleAsync(SalePostingRequest r, CancellationToken ct = default)
     {
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
+        // الدوري: لا تكلفة مع البيع (تُستنتج من بضاعة آخر المدة)، إلا مستنداً بحساب مخزون محدد يدوياً (السيارات) فيبقى بتكلفته
+        var periodic = r.InventoryAccountCode == null && accounts.IsPeriodic(r.Date);
+        if (periodic) await PeriodicInventory.EnsureMethodOpeningAsync(_db, this, accounts, r.Date, ct);
         var total = r.NetAmount + r.VatAmount;
         var payments = ValidatePayments(r.Payments, total);
         var receivable = total - payments.Sum(p => p.Amount);
@@ -241,31 +245,31 @@ public class AccountingPostingService : IAccountingPostingService
             if (receivable > Tolerance)
                 lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
         }
-        lines.AddRange(RevenueLines(r));
-        if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.OutputVat, 0, r.VatAmount));
-        foreach (var cost in CostLines(r))
+        lines.AddRange(RevenueLines(r, r.RevenueAccountCode ?? accounts.SalesRevenue(r.IsReturn)));
+        if (r.VatAmount > 0) lines.Add(new(accounts.OutputVat(), 0, r.VatAmount));
+        var inventoryAccount = r.InventoryAccountCode ?? await accounts.InventoryAsync(_db, r.WarehouseId, ct);
+        foreach (var cost in periodic ? Array.Empty<CostCenterAmount>() : CostLines(r))
         {
             if (cost.Amount > 0)
             {
-                lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, cost.Amount, 0, null, cost.CostCenterId));
-                lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, 0, cost.Amount, null, cost.CostCenterId));
+                lines.Add(new(r.CogsAccountCode ?? accounts.Cogs(), cost.Amount, 0, null, cost.CostCenterId));
+                lines.Add(new(inventoryAccount, 0, cost.Amount, null, cost.CostCenterId));
             }
             else if (cost.Amount < 0) // تغيّر قيمة المخزون عكس الاتجاه المعتاد (إعادة تسعير الرصيد)
             {
-                lines.Add(new(r.InventoryAccountCode ?? DefaultAccounts.Inventory, -cost.Amount, 0, null, cost.CostCenterId));
-                lines.Add(new(r.CogsAccountCode ?? DefaultAccounts.Cogs, 0, -cost.Amount, null, cost.CostCenterId));
+                lines.Add(new(inventoryAccount, -cost.Amount, 0, null, cost.CostCenterId));
+                lines.Add(new(r.CogsAccountCode ?? accounts.Cogs(), 0, -cost.Amount, null, cost.CostCenterId));
             }
         }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
         request.ReplaceEntryId = r.ReplaceEntryId;
-        return PostAsync(request, ct);
+        return await PostAsync(request, ct);
     }
 
     /// <summary>الإيراد موزّعاً على حساب ومركز تكلفة كل سطر (مجمَّعاً)، أو سطراً واحداً بحساب المستند.</summary>
-    private static IEnumerable<PostingLine> RevenueLines(SalePostingRequest r)
+    private static IEnumerable<PostingLine> RevenueLines(SalePostingRequest r, string fallback)
     {
-        var fallback = r.RevenueAccountCode ?? DefaultAccounts.Revenue;
         if (r.RevenueLines.Count == 0) return new[] { new PostingLine(fallback, 0, r.NetAmount, null, r.CostCenterId) };
         if (Math.Abs(r.RevenueLines.Sum(l => l.Amount) - r.NetAmount) > Tolerance)
             throw new ValidationFailedException(Messages.RevenueLinesMustEqualNet);
@@ -285,13 +289,15 @@ public class AccountingPostingService : IAccountingPostingService
 
     /// <summary>
     /// حصص المراكز من مستند المشتريات (مجمَّعة لكل مركز، ومخزون كل حصة محسوماً)، أو حصة واحدة بمركز المستند.
-    /// مجاميع الحصص يجب أن تطابق مبالغ المستند وإلا اختلّ القيد بين المراكز.
+    /// مجاميع الحصص يجب أن تطابق مبالغ المستند وإلا اختلّ القيد بين المراكز. <paramref name="atDocumentValue"/>: الأصناف بصافيها في المستند
+    /// لا بتغيّر قيمة المخزون (الجرد الدوري: لا فرق سعر).
     /// </summary>
-    private static List<PurchaseCostCenterShare> PurchaseShares(PurchasePostingRequest r, decimal inventory)
+    private static List<PurchaseCostCenterShare> PurchaseShares(PurchasePostingRequest r, decimal inventory, bool atDocumentValue)
     {
         if (r.CostCenterShares.Count == 0) return new() { new(r.CostCenterId, r.NetAmount, r.ExpenseAmount, inventory) };
         var shares = r.CostCenterShares.GroupBy(s => s.CostCenterId)
-            .Select(g => new PurchaseCostCenterShare(g.Key, g.Sum(s => s.Net), g.Sum(s => s.Expense), g.Sum(s => s.Inventory ?? s.Net - s.Expense)))
+            .Select(g => new PurchaseCostCenterShare(g.Key, g.Sum(s => s.Net), g.Sum(s => s.Expense),
+                g.Sum(s => atDocumentValue ? s.Net - s.Expense : s.Inventory ?? s.Net - s.Expense)))
             .ToList();
         if (shares.Any(s => s.Expense < 0)
             || Math.Abs(shares.Sum(s => s.Net) - r.NetAmount) > Tolerance
@@ -301,8 +307,9 @@ public class AccountingPostingService : IAccountingPostingService
         return shares;
     }
 
-    public Task<PostingResult> PostPurchaseAsync(PurchasePostingRequest r, CancellationToken ct = default)
+    public async Task<PostingResult> PostPurchaseAsync(PurchasePostingRequest r, CancellationToken ct = default)
     {
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
         var total = r.NetAmount + r.VatAmount;
         var payments = ValidatePayments(r.Payments, total);
         var payable = total - payments.Sum(p => p.Amount);
@@ -311,13 +318,17 @@ public class AccountingPostingService : IAccountingPostingService
         // المخزون الدفتري قد يكون سالباً (شراء بآخر سعر أقل أعاد تسعير الرصيد كله بأقل من قيمته)
         if (r.ExpenseAmount < 0 || r.ExpenseAmount - r.NetAmount > Tolerance)
             throw new ValidationFailedException(Messages.PurchaseAmountsInvalid);
-        var inventory = r.InventoryAmount ?? r.NetAmount - r.ExpenseAmount;
-        var inventoryAccount = r.InventoryAccountCode ?? DefaultAccounts.Inventory;
+        // الدوري: الأصناف على حساب المشتريات (والمرتجع على مردوداتها) بسعر المستند، ولا يُمس حساب المخزون داخل الفترة
+        var periodic = r.InventoryAccountCode == null && accounts.IsPeriodic(r.Date);
+        if (periodic) await PeriodicInventory.EnsureMethodOpeningAsync(_db, this, accounts, r.Date, ct);
+        var inventory = periodic ? r.NetAmount - r.ExpenseAmount : r.InventoryAmount ?? r.NetAmount - r.ExpenseAmount;
+        var inventoryAccount = r.InventoryAccountCode
+            ?? (periodic ? (r.IsReturn ? accounts.PurchaseReturns() : accounts.Purchases()) : await accounts.InventoryAsync(_db, r.WarehouseId, ct));
         var varianceAccount = string.IsNullOrWhiteSpace(r.VarianceAccountCode) ? DefaultAccounts.PurchasePriceVariance : r.VarianceAccountCode;
 
         // كل مركز بمخزونه وخدماته وفرق سعره: لا يُنسب مركز سطر لأسطر غيره
         var lines = new List<PostingLine>();
-        foreach (var share in PurchaseShares(r, inventory))
+        foreach (var share in PurchaseShares(r, inventory, atDocumentValue: periodic))
         {
             var shareInventory = share.Inventory!.Value;
             var shareVariance = share.Net - share.Expense - shareInventory;
@@ -327,7 +338,7 @@ public class AccountingPostingService : IAccountingPostingService
             if (shareVariance > 0) lines.Add(new(varianceAccount, shareVariance, 0, null, share.CostCenterId));
             else if (shareVariance < 0) lines.Add(new(varianceAccount, 0, -shareVariance, null, share.CostCenterId));
         }
-        if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, r.VatAmount, 0));
+        if (r.VatAmount > 0) lines.Add(new(accounts.InputVat(), r.VatAmount, 0));
         if (!string.IsNullOrWhiteSpace(r.PartyAccountCode))
             lines.AddRange(ThroughParty(r.PartyAccountCode, total, payments, partyIsDebit: false));
         else
@@ -339,7 +350,7 @@ public class AccountingPostingService : IAccountingPostingService
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
         request.ReplaceEntryId = r.ReplaceEntryId;
-        return PostAsync(request, ct);
+        return await PostAsync(request, ct);
     }
 
     /// <summary>
@@ -356,8 +367,9 @@ public class AccountingPostingService : IAccountingPostingService
         }
     }
 
-    public Task<PostingResult> PostVoucherAsync(VoucherPostingRequest r, CancellationToken ct = default)
+    public async Task<PostingResult> PostVoucherAsync(VoucherPostingRequest r, CancellationToken ct = default)
     {
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
         if (r.Treasury.Count == 0 || r.Treasury.Any(t => t.Amount <= 0))
             throw new ValidationFailedException(Messages.TreasuryAccountAndPositiveAmountRequired);
         var total = r.Treasury.Sum(t => t.Amount);
@@ -372,16 +384,16 @@ public class AccountingPostingService : IAccountingPostingService
         {
             foreach (var t in r.Treasury) lines.Add(new(t.TreasuryAccountCode, t.Amount, 0));
             lines.Add(new(party, 0, net, null, r.CostCenterId));
-            if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.OutputVat, 0, r.VatAmount));
+            if (r.VatAmount > 0) lines.Add(new(accounts.OutputVat(), 0, r.VatAmount));
         }
         else
         {
             lines.Add(new(party, net, 0, null, r.CostCenterId));
-            if (r.VatAmount > 0) lines.Add(new(DefaultAccounts.InputVat, r.VatAmount, 0));
+            if (r.VatAmount > 0) lines.Add(new(accounts.InputVat(), r.VatAmount, 0));
             foreach (var t in r.Treasury) lines.Add(new(t.TreasuryAccountCode, 0, t.Amount));
         }
         var type = r.Type == VoucherType.Receipt ? "receipt_voucher" : "payment_voucher";
-        return PostAsync(new GenericPostingRequest
+        return await PostAsync(new GenericPostingRequest
         {
             Module = r.Module, Date = r.Date, Description = r.Description, SourceType = type, SourceId = r.VoucherId, SourceNumber = r.VoucherNumber, Lines = lines,
         }, ct);

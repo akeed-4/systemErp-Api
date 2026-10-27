@@ -78,7 +78,8 @@ public class CostingService : ICostingService
         await _db.SaveChangesAsync(ct);
 
         var difference = InventoryValuation.Difference(products, before);
-        var entry = await InventoryValuation.PostRevaluationAsync(_db, _posting, difference, description, null, ct);
+        var entry = await InventoryValuation.PostRevaluationAsync(_db, _posting,
+            products.Select(p => (p.Id, InventoryValuation.Value(p) - before.GetValueOrDefault(p.Id))), description, null, ct);
         return new RecalculateCostingResultDto
         {
             ProductsUpdated = updated, Method = policy.Method, RevaluationAmount = difference, RevaluationEntryNumber = entry?.EntryNumber,

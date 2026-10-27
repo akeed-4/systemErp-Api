@@ -14,4 +14,5 @@ public partial class WarehouseDto
     public string? Phone { get; set; }
     public bool IsDefault { get; set; }
     public string Status { get; set; } = "active";
+    public string? InventoryAccountCode { get; set; }
 }

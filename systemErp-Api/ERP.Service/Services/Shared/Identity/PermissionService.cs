@@ -349,6 +349,10 @@ public class PermissionService : IPermissionService
     {
         var type = ScopedRecordTypes.Find(recordType);
         if (type == null) return;
+        // مستند في موقع غير مسموح للمستخدم: مرفوض مهما كان نطاق دوره (المستند بلا موقع مسموح للجميع)
+        if (_db.SessionAllowedWarehouseIds != null && type.WarehouseProperty != null
+            && (await LoadFactsAsync(type, recordId, ct))?.WarehouseId is { } site && !_db.IsWarehouseAllowed(site))
+            throw new ForbiddenException(Messages.WarehouseNotAllowed);
         var (subject, grants) = await MineAsync(ct);
         if (subject == null || grants.FullAccess || grants.Settings.Scope == DataScope.All) return;
         var facts = await LoadFactsAsync(type, recordId, ct);

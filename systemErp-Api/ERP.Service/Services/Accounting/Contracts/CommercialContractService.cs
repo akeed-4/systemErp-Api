@@ -10,12 +10,10 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     private readonly INumberSequenceService _numbers;
     private readonly ISalesInvoiceService _invoices;
     private readonly ICurrentUser _user;
-    private readonly IPermissionService _permissions;
 
-    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices, ICurrentUser user,
-        IPermissionService permissions) : base(db)
+    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices, ICurrentUser user) : base(db)
     {
-        _numbers = numbers; _invoices = invoices; _user = user; _permissions = permissions;
+        _numbers = numbers; _invoices = invoices; _user = user;
     }
 
     protected override string Label => Messages.LabelContract;
@@ -89,23 +87,15 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         e.TotalInvoiced = 0; e.TotalCollected = 0;
         Recalculate(e);
 
-        // الحالة يحددها النظام لا المستخدم: المسار المبسط (من النوع أو لأن القيمة دون حد التبسيط) يُحفظ ويُعتمد مباشرة «ساري»،
-        // ويلزمه ما يلزم الاعتماد: صلاحية الاعتماد وحد اعتماد يغطي قيمة العقد. وإلا يبدأ «مسودة».
+        // الحالة يحددها النظام لا المستخدم: كل عقد جديد «مسودة»، والمسار (المبسط من النوع أو لأن القيمة دون حد التبسيط)
+        // يُثبَّت هنا ليحدد انتقالاته؛ تفعيل المبسط انتقال عادي عبر move (صلاحية الاعتماد وحد يغطي القيمة).
         e.IsSimplified = ContractTypeCodes.IsSimplified(type, e.ContractValue);
-        if (e.IsSimplified)
-        {
-            if (!await _permissions.HasPermissionAsync(PermissionCatalog.CommercialContractsScreenId, ScreenAction.Approve, ct))
-                throw new ForbiddenException(string.Format(Messages.ContractTransitionNoPermission, PermissionCatalog.Action(ScreenAction.Approve).NameAr));
-            await _permissions.EnsureApprovalLimitAsync(e.TotalValueWithVat, ct);
-        }
-        e.Stage = e.IsSimplified ? ContractStageDefinition.Active : ContractStageDefinition.Draft;
+        e.Stage = ContractStageDefinition.Draft;
         e.Status = StatusFor(e.Stage);
         e.StageChangedAt = DateTime.UtcNow;
-        if (e.IsSimplified) e.SignedDate ??= SaudiTime.Today;
         Db.Add(new ContractStatusLog
         {
             ContractId = e.Id, ToStatus = e.Stage, At = DateTime.UtcNow, UserId = _user.UserId, UserName = _user.Name ?? "system",
-            Note = e.IsSimplified ? Messages.ContractSimplifiedActivated : null,
         });
     }
 

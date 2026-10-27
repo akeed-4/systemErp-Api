@@ -7,6 +7,8 @@ public class Voucher : BaseEntity, IScopedRecord
     public Guid? CreatedByUserId { get; set; }
     /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
     public Guid? AssignedToUserId { get; set; }
+    /// <summary>موقع (معرض/مستودع) المستند: يُختم من موقع الجلسة عند الإنشاء؛ فارغ = مستند قديم يظهر لكل المواقع.</summary>
+    public Guid? WarehouseId { get; set; }
     public string Module { get; set; } = "accounting";
     public string VoucherNumber { get; set; } = string.Empty;
     public VoucherType Type { get; set; }

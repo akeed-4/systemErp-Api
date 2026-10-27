@@ -12,4 +12,6 @@ public class CreateUserRequestDto
     public Guid? CustomRoleId { get; set; }
     public string? JobTitle { get; set; }
     public string? Department { get; set; }
+    /// <summary>المواقع (المستودعات/المعارض) المسموحة؛ فارغة = كل المواقع.</summary>
+    public List<Guid> AllowedWarehouseIds { get; set; } = new();
 }

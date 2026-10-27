@@ -52,7 +52,9 @@ public static class ContractTransitionSeed
 {
     public static readonly ContractTransition[] All =
     [
-        new() { Id = 1, FromStatus = S.Draft, ToStatus = S.Review, NameAr = "إرسال للمراجعة", NameEn = "Submit for review", RequiredActions = "submit", Condition = "complete_data", SortOrder = 1 },
+        new() { Id = 1, FromStatus = S.Draft, ToStatus = S.Review, NameAr = "إرسال للمراجعة", NameEn = "Submit for review", RequiredActions = "submit", Condition = "complete_data", Workflow = ContractWorkflows.Full, SortOrder = 1 },
+        // المسار المبسط: من المسودة إلى «ساري» مباشرة بصلاحية الاعتماد وحد اعتماد يغطي القيمة
+        new() { Id = 13, FromStatus = S.Draft, ToStatus = S.Active, NameAr = "اعتماد وتفعيل", NameEn = "Approve & activate", RequiredActions = "approve", Condition = "complete_data", Workflow = ContractWorkflows.Simple, SortOrder = 1 },
         new() { Id = 2, FromStatus = S.Review, ToStatus = S.Approval, NameAr = "موافقة المراجعة", NameEn = "Approve review", RequiredActions = "legal_review,financial_review", Condition = "both_reviews", SortOrder = 1 },
         new() { Id = 3, FromStatus = S.Review, ToStatus = S.Draft, NameAr = "إعادة للمسودة", NameEn = "Return to draft", RequiredActions = "legal_review,financial_review", RequiresNote = true, Tone = "neutral", SortOrder = 2 },
         new() { Id = 4, FromStatus = S.Approval, ToStatus = S.Active, NameAr = "اعتماد وتفعيل", NameEn = "Approve & activate", RequiredActions = "approve", Condition = "signed_guarantee_limit", SortOrder = 1 },

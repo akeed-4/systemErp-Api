@@ -11,9 +11,13 @@ public static class WarehouseStocks
     /// <summary>المستودع المحدَّد، أو الافتراضي للمنشأة عند عدم التحديد (يُنشأ المستودع الرئيسي إن لم يوجد أي مستودع).</summary>
     public static async Task<Warehouse> ResolveAsync(ErpDbContext db, Guid? warehouseId, CancellationToken ct)
     {
+        // بلا تحديد: موقع الجلسة (المعرض المختار عند الدخول) قبل الافتراضي. السماح بالموقع يُفحص عند حفظ المستند نفسه
+        // (التحويل لمستودع آخر وعكس حركة قديمة لا يتقيّدان بمواقع المستخدم)
+        warehouseId ??= db.SessionWarehouseId;
         if (warehouseId.HasValue)
             return await db.Set<Warehouse>().FirstOrDefaultAsync(w => w.Id == warehouseId, ct)
                 ?? throw new ValidationFailedException(Messages.WarehouseNotFound);
+        if (db.SessionAllowedWarehouseIds != null) throw new ValidationFailedException(Messages.WarehouseRequired);
 
         var warehouse = await db.Set<Warehouse>().OrderByDescending(w => w.IsDefault).ThenBy(w => w.CreatedAt).FirstOrDefaultAsync(ct);
         if (warehouse != null) return warehouse;

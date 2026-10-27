@@ -32,7 +32,7 @@ public class ContractWorkflowSchemaTests : TestBase
     }
 
     [Fact]
-    public async Task New_tenant_gets_default_contract_types_and_simplified_contract_starts_active_with_log()
+    public async Task New_tenant_gets_default_contract_types_and_simplified_contract_starts_draft_with_log()
     {
         var api = await NewTenantAsync();
         var created = await api.Post("/commercialcontracts", new
@@ -41,7 +41,7 @@ public class ContractWorkflowSchemaTests : TestBase
             milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
         });
         Assert.Equal(201, created.Status);
-        Assert.Equal("active", created.Data!["stage"].S()); // مسار مبسط: حفظ واعتماد مباشرة
+        Assert.Equal("draft", created.Data!["stage"].S()); // كل عقد جديد مسودة، والمبسط يُفعَّل عبر move
         Assert.True(created.Data["isSimplified"]!.GetValue<bool>()); // الصيانة الشهرية مسار مبسط
         var id = created.Data["id"].G();
 
@@ -55,6 +55,6 @@ public class ContractWorkflowSchemaTests : TestBase
         var log = await db.Set<ContractStatusLog>().IgnoreQueryFilters().Where(l => l.ContractId == id).ToListAsync();
         Assert.Single(log);
         Assert.Null(log[0].FromStatus);
-        Assert.Equal("active", log[0].ToStatus);
+        Assert.Equal("draft", log[0].ToStatus);
     }
 }

@@ -87,7 +87,7 @@ public class ArchitectureTests
         var shared = new HashSet<string>
         {
             // الهوية والمنصة والإعدادات
-            "AuditLogs", "Auth", "Company", "Permissions", "Roles", "Platform", "Subscriptions", "Users", "Payments", "SupportTickets",
+            "AuditLogs", "Auth", "Company", "Permissions", "Roles", "Platform", "Subscriptions", "Users", "WarehouseSession", "Payments", "SupportTickets",
             "ApprovalPolicies", "Approvals", "Notifications",
             // المحاسبة مشتركة بين كل الوحدات
             "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports",

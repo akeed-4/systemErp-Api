@@ -49,6 +49,8 @@ public sealed class ContractTransition
     public string RequiredActions { get; set; } = string.Empty;
     /// <summary>مفتاح الشرط في دالة الانتقال (complete_data, both_reviews, signed_guarantee_limit, all_received, all_billed_retention_released)؛ فارغ = بلا شرط.</summary>
     public string? Condition { get; set; }
+    /// <summary>المسار الذي يُتاح له الانتقال: full | simple؛ فارغ = كل المسارات.</summary>
+    public string? Workflow { get; set; }
     public bool RequiresNote { get; set; }
     /// <summary>primary | danger | neutral — لون الزر.</summary>
     public string Tone { get; set; } = "primary";

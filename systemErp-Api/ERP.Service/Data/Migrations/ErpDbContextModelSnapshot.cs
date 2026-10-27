@@ -582,6 +582,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
@@ -1219,6 +1222,10 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<string>("Workflow")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FromStatus", "ToStatus")
@@ -1239,7 +1246,23 @@ namespace ERP.Service.Data.Migrations
                             RequiresNote = false,
                             SortOrder = 1,
                             ToStatus = "review",
-                            Tone = "primary"
+                            Tone = "primary",
+                            Workflow = "full"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Condition = "complete_data",
+                            FromStatus = "draft",
+                            IsActive = true,
+                            NameAr = "اعتماد وتفعيل",
+                            NameEn = "Approve & activate",
+                            RequiredActions = "approve",
+                            RequiresNote = false,
+                            SortOrder = 1,
+                            ToStatus = "active",
+                            Tone = "primary",
+                            Workflow = "simple"
                         },
                         new
                         {
@@ -3043,6 +3066,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
@@ -3888,6 +3914,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
@@ -4567,6 +4596,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("WarehouseLocation")
                         .HasColumnType("nvarchar(max)");
 
@@ -5012,6 +5044,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Vin")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int?>("WarrantyKm")
                         .HasColumnType("int");
@@ -8565,6 +8600,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<string>("FailureReason")
                         .HasColumnType("nvarchar(max)");
 
@@ -8572,6 +8611,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("PlanId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PromoCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Provider")
@@ -9241,6 +9283,110 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("ProductCategory");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.PromoCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BillingCycle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("DiscountType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MaxPerTenant")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MaxRedemptions")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlanIds")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ValidFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ValidUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("PromoCode");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.PromoCodeRedemption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PlanId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("PromoCodeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("RedeemedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PromoCodeId");
+
+                    b.HasIndex("TenantId", "PromoCodeId");
+
+                    b.ToTable("PromoCodeRedemption");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.RoleDefinition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9543,6 +9689,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTime>("ExpiryDate")
                         .HasColumnType("datetime2");
 
@@ -9575,6 +9725,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("PromoCode")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
@@ -9867,6 +10020,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DocumentVisibility")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -10011,6 +10168,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AllowedWarehouseIds")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("AvatarInitials")
                         .HasColumnType("nvarchar(max)");

@@ -25,7 +25,12 @@ public class ScopedRecordAttribute : Attribute, IAsyncActionFilter
             await permissions.EnsureRecordInScopeAsync(type.Key, id, ct);
 
         if (HttpMethods.IsGet(context.HttpContext.Request.Method))
-            services.GetRequiredService<ErpDbContext>().ApplyDataScope(await permissions.GetDataScopeAsync(type.ScreenId, ct));
+        {
+            var db = services.GetRequiredService<ErpDbContext>();
+            db.ApplyDataScope(await permissions.GetDataScopeAsync(type.ScreenId, ct));
+            // موقع الجلسة وإعداد العرض (حسب المعرض/حسب المستخدم) فوق نطاق الدور
+            db.ApplyWarehouseScope();
+        }
 
         await next();
     }

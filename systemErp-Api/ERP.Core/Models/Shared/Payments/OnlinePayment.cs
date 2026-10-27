@@ -37,6 +37,9 @@ public class OnlinePayment : BaseEntity
     /// <summary>للاشتراك: الباقة والدورة المطلوبتان (تُفعَّلان عند الدفع).</summary>
     public string? PlanId { get; set; }
     public SubscriptionBillingCycle? BillingCycle { get; set; }
+    /// <summary>رمز الخصم المطبَّق على الاشتراك (إن وُجد) ومبلغ خصمه قبل الضريبة.</summary>
+    public string? PromoCode { get; set; }
+    public decimal DiscountAmount { get; set; }
 
     public string? CustomerName { get; set; }
     public string? CustomerEmail { get; set; }

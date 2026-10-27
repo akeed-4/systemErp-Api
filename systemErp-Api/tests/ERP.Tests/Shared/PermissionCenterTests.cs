@@ -136,6 +136,31 @@ public class PermissionCenterTests : TestBase
     }
 
     [Fact]
+    public async Task Simplified_contract_activation_is_bound_by_the_approval_limit()
+    {
+        var owner = await NewTenantAsync();
+        var role = await NewRoleAsync(owner, "معتمد صيانة");
+        await SaveRoleAsync(owner, role, new() { [Contracts] = new[] { "view", "create", "edit", "approve" } }, new { scope = "all", approvalLimit = 500 });
+        var (user, _) = await UserWithRoleAsync(owner, role);
+        var (party, _) = await SeedCustomerAsync(owner);
+
+        async Task<string> Simple(decimal value)
+        {
+            var r = await user.Post("/commercialcontracts", new
+            {
+                title = "صيانة", contractType = "monthly_maintenance", partyName = "عميل", partyId = party, contractValue = value, vatRate = 0,
+                startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(6),
+                items = Array.Empty<object>(), milestones = new[] { new { title = "دفعة", percentage = 100 } }, clauses = Array.Empty<object>(),
+            });
+            Assert.Equal("draft", r.Data!["stage"].S()); // الإنشاء لا يتطلب الاعتماد: الحالة مسودة دائماً
+            return r.Data["id"].S();
+        }
+
+        Assert.Equal(403, (await user.Post($"/commercialcontracts/{await Simple(1000)}/move", new { toStatus = "active" })).Status); // 1000 > 500
+        Assert.Equal(200, (await user.Post($"/commercialcontracts/{await Simple(400)}/move", new { toStatus = "active" })).Status);
+    }
+
+    [Fact]
     public async Task Own_scope_hides_and_blocks_records_created_by_others()
     {
         var owner = await NewTenantAsync();

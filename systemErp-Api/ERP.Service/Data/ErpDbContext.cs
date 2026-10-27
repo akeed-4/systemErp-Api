@@ -206,6 +206,27 @@ public class ErpDbContext : DbContext
             e.HasData(SubscriptionCatalog.Seed);
         });
 
+        // رموز خصم الاشتراكات واستخداماتها (على مستوى المنصة، بلا مرشّح منشأة): تُقرأ وتُكتب على القاعدة المشتركة.
+        modelBuilder.Entity<PromoCode>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Code).HasMaxLength(32).IsRequired();
+            e.HasIndex(p => p.Code).IsUnique();
+            e.Property(p => p.Description).HasMaxLength(300);
+            e.Property(p => p.DiscountType).HasMaxLength(16).IsRequired();
+            e.Property(p => p.Value).HasPrecision(18, 2);
+            e.Property(p => p.PlanIds).HasMaxLength(1000);
+        });
+        modelBuilder.Entity<PromoCodeRedemption>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Code).HasMaxLength(32).IsRequired();
+            e.Property(r => r.PlanId).HasMaxLength(64).IsRequired();
+            e.Property(r => r.DiscountAmount).HasPrecision(18, 2);
+            e.HasIndex(r => r.PromoCodeId);
+            e.HasIndex(r => new { r.TenantId, r.PromoCodeId });
+        });
+
         modelBuilder.Entity<PlatformModuleDefinition>(e =>
         {
             e.HasKey(m => m.Key);
@@ -267,6 +288,7 @@ public class ErpDbContext : DbContext
             e.Property(t => t.NameEn).HasMaxLength(200).IsRequired();
             e.Property(t => t.RequiredActions).HasMaxLength(200).IsRequired();
             e.Property(t => t.Condition).HasMaxLength(64);
+            e.Property(t => t.Workflow).HasMaxLength(16);
             e.Property(t => t.Tone).HasMaxLength(16).IsRequired();
             e.HasIndex(t => new { t.FromStatus, t.ToStatus }).IsUnique();
             e.HasData(ContractTransitionSeed.All);
@@ -426,12 +448,62 @@ public class ErpDbContext : DbContext
         ScopeUserIds = scope == null ? new List<Guid>() : scope.DepartmentUserIds.Append(scope.UserId).Distinct().ToList();
     }
 
-    /// <summary>يعطّل النطاق مؤقتاً (قراءة سجل لفحص صلاحيته) ويعيده عند التخلّص.</summary>
+    /// <summary>يعطّل النطاق (ونطاق الموقع) مؤقتاً (قراءة سجل لفحص صلاحيته) ويعيده عند التخلّص.</summary>
     public IDisposable SuspendDataScope()
     {
         var saved = ActiveDataScope;
+        var site = (WarehouseFilterOn, WarehouseOwnerOnly);
         ApplyDataScope(null);
-        return new ScopeRestorer(() => ApplyDataScope(saved));
+        WarehouseFilterOn = false; WarehouseOwnerOnly = false;
+        return new ScopeRestorer(() => { ApplyDataScope(saved); (WarehouseFilterOn, WarehouseOwnerOnly) = site; });
+    }
+
+    // ---------- موقع الجلسة (المعرض/المستودع) ----------
+    // يضبطه وسيط الجلسة لكل طلب: المواقع المسموحة للمستخدم والموقع المختار عند الدخول وإعداد عرض المستندات.
+    // الكتابة: المستند الجديد بلا موقع يُختم بموقع الجلسة، والموقع غير المسموح يُرفض. القراءة: يفعّله مرشّح ScopedRecord.
+
+    /// <summary>موقع الجلسة المختار (null = كل المواقع المسموحة).</summary>
+    public Guid? SessionWarehouseId { get; private set; }
+    /// <summary>المواقع المسموحة للمستخدم (null = كل المواقع).</summary>
+    public IReadOnlyList<Guid>? SessionAllowedWarehouseIds { get; private set; }
+    /// <summary>site | user (إعداد المنشأة).</summary>
+    public string SessionDocumentVisibility { get; private set; } = "site";
+    /// <summary>صلاحية كاملة (المالك/المدير): «حسب المستخدم» لا يقيّده.</summary>
+    public bool SessionFullAccess { get; private set; }
+
+    public bool WarehouseFilterOn { get; private set; }
+    public List<Guid> WarehouseFilterIds { get; private set; } = new();
+    public bool WarehouseOwnerOnly { get; private set; }
+    public Guid WarehouseOwnerId { get; private set; }
+
+    public void SetWarehouseSession(Guid? siteId, IReadOnlyList<Guid>? allowed, string visibility, bool fullAccess, Guid? userId)
+    {
+        SessionWarehouseId = siteId;
+        SessionAllowedWarehouseIds = allowed;
+        SessionDocumentVisibility = visibility;
+        SessionFullAccess = fullAccess;
+        WarehouseOwnerId = userId ?? Guid.Empty;
+    }
+
+    /// <summary>
+    /// يفعّل نطاق الموقع على قوائم المستندات: المواقع المسموحة دائماً، و«حسب المعرض» يضيّقها لموقع الجلسة،
+    /// و«حسب المستخدم» يعرض مستندات المستخدم نفسه فقط. المستند بلا موقع (قديم) يظهر للجميع.
+    /// </summary>
+    public void ApplyWarehouseScope()
+    {
+        var byUser = SessionDocumentVisibility == "user";
+        IReadOnlyList<Guid>? sites = !byUser && SessionWarehouseId.HasValue ? new[] { SessionWarehouseId.Value } : SessionAllowedWarehouseIds;
+        WarehouseFilterOn = sites != null;
+        WarehouseFilterIds = sites?.ToList() ?? new List<Guid>();
+        WarehouseOwnerOnly = byUser && !SessionFullAccess && WarehouseOwnerId != Guid.Empty;
+    }
+
+    /// <summary>الموقع مسموح للمستخدم الحالي (بلا جلسة أو بلا تقييد = مسموح).</summary>
+    public bool IsWarehouseAllowed(Guid siteId) => SessionAllowedWarehouseIds == null || SessionAllowedWarehouseIds.Contains(siteId);
+
+    public void EnsureWarehouseAllowed(Guid siteId)
+    {
+        if (!IsWarehouseAllowed(siteId)) throw new ForbiddenException(Messages.WarehouseNotAllowed);
     }
 
     private sealed class ScopeRestorer(Action restore) : IDisposable
@@ -450,26 +522,86 @@ public class ErpDbContext : DbContext
         => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId && (ScopeMode == 0 || ScopeMode == 1
             || (ScopeMode == 2 && e.CreatedByUserId != null && ScopeUserIds.Contains(e.CreatedByUserId.Value))
             || (ScopeMode == 3 && e.CreatedByUserId == ScopeUserId)
-            || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId))));
+            || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId)))
+            && (!WarehouseOwnerOnly || e.CreatedByUserId == WarehouseOwnerId));
 
-    /// <summary>مستند بمستودع (فرع): المستند بلا مستودع لا يتبع فرعاً فيظهر لكل الفروع.</summary>
+    /// <summary>مستند بمستودع (فرع): المستند بلا مستودع لا يتبع فرعاً فيظهر لكل الفروع (ولكل المواقع).</summary>
     private void ApplyBranchScopedFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity, IScopedRecord
         => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId && (ScopeMode == 0
             || (ScopeMode == 1 && (EF.Property<Guid?>(e, "WarehouseId") == null || ScopeWarehouseIds.Contains(EF.Property<Guid?>(e, "WarehouseId")!.Value)))
             || (ScopeMode == 2 && e.CreatedByUserId != null && ScopeUserIds.Contains(e.CreatedByUserId.Value))
             || (ScopeMode == 3 && e.CreatedByUserId == ScopeUserId)
-            || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId))));
+            || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId)))
+            && (!WarehouseFilterOn || EF.Property<Guid?>(e, "WarehouseId") == null || WarehouseFilterIds.Contains(EF.Property<Guid?>(e, "WarehouseId")!.Value))
+            && (!WarehouseOwnerOnly || e.CreatedByUserId == WarehouseOwnerId));
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        GuardContractStatus();
+        StampWarehouses();
         StampEntities();
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        GuardContractStatus();
+        StampWarehouses();
         StampEntities();
         return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    /// <summary>
+    /// موقع المستندات ذات النطاق: الجديد بلا موقع يأخذ موقع الجلسة، ولا يُحفظ مستند (جديد أو نُقل موقعه) في موقع غير مسموح للمستخدم.
+    /// </summary>
+    private void StampWarehouses()
+    {
+        if (PreserveStamps) return;
+        foreach (var entry in ChangeTracker.Entries<IScopedRecord>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified)) continue;
+            var site = entry.Metadata.FindProperty("WarehouseId");
+            if (site == null) continue;
+            var property = entry.Property(site.Name);
+            if (entry.State == EntityState.Added && property.CurrentValue == null)
+            {
+                if (SessionWarehouseId.HasValue) property.CurrentValue = SessionWarehouseId;
+                // مستخدم مقيّد بمواقع ولم يختر موقعاً: لا يُنشأ مستند بلا موقع
+                else if (SessionAllowedWarehouseIds != null) throw new ValidationFailedException(Messages.WarehouseRequired);
+            }
+            if (property.CurrentValue is Guid id && (entry.State == EntityState.Added || property.IsModified))
+                EnsureWarehouseAllowed(id);
+        }
+    }
+
+    /// <summary>
+    /// حارس حالة العقد تحت كل مسارات الحفظ: العقد الجديد «مسودة» بسطر سجل افتتاحي، وتغيّر حالته لا يُحفظ إلا مع سطر سجل
+    /// لانتقال معرّف من الحالة نفسها (ما تكتبه دالة الانتقال وحدها)، وسطور السجل لا تُعدَّل. الملخص القديم Status يُشتق من الحالة.
+    /// </summary>
+    private void GuardContractStatus()
+    {
+        if (PreserveStamps) return; // نسخ بيانات المنشأة كما هي
+        var logs = ChangeTracker.Entries<ContractStatusLog>().ToList();
+        if (logs.Any(l => l.State == EntityState.Modified)) throw new ConflictException(Messages.ContractStatusLogImmutable);
+        var added = logs.Where(l => l.State == EntityState.Added).Select(l => l.Entity).ToList();
+
+        foreach (var entry in ChangeTracker.Entries<CommercialContract>())
+        {
+            var c = entry.Entity;
+            if (entry.State == EntityState.Added)
+            {
+                if (c.Stage != ContractStageDefinition.Draft || !added.Any(l => l.ContractId == c.Id && l.FromStatus == null && l.ToStatus == c.Stage))
+                    throw new ConflictException(Messages.ContractStatusOutsideWorkflow);
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                var from = entry.OriginalValues.GetValue<string>(nameof(CommercialContract.Stage));
+                if (from != c.Stage && !added.Any(l => l.ContractId == c.Id && l.TransitionId != null && l.FromStatus == from && l.ToStatus == c.Stage))
+                    throw new ConflictException(Messages.ContractStatusOutsideWorkflow);
+            }
+            else continue;
+            c.Status = Services.Accounting.CommercialContractService.StatusFor(c.Stage);
+        }
     }
 
     private void StampEntities()

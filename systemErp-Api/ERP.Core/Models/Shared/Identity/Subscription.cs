@@ -21,4 +21,7 @@ public class Subscription : BaseEntity
     public bool ZatcaPhase2Enabled { get; set; } = true;
     /// <summary>الوحدات المرخّصة (مفاتيح PlatformModules مفصولة بفاصلة).</summary>
     public string ModuleKeys { get; set; } = PlatformModules.DefaultCsv;
+    /// <summary>رمز الخصم المستخدم ومبلغ خصمه قبل الضريبة (Price بعد الخصم).</summary>
+    public string? PromoCode { get; set; }
+    public decimal DiscountAmount { get; set; }
 }

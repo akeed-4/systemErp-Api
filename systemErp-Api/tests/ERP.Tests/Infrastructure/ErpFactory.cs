@@ -104,6 +104,8 @@ public class Client
     public Res? Registration { get; private set; }
     /// <summary>قيمة Accept-Language لطلبات هذا العميل (null = بدون ترويسة، فتُستخدم العربية الافتراضية).</summary>
     public string? Language { get; set; }
+    /// <summary>موقع الجلسة المختار (ترويسة X-Warehouse-Id).</summary>
+    public Guid? WarehouseId { get; set; }
 
     public Client(HttpClient http) => _http = http;
 
@@ -131,9 +133,9 @@ public class Client
     }
 
     /// <summary>يسدّد اشتراك المنشأة: عملية دفع ثم إشعار Paymob الموقَّع كما يصل في الإنتاج.</summary>
-    public async Task<Res> PaySubscriptionAsync(string planId = "professional", string billingCycle = "yearly", bool success = true)
+    public async Task<Res> PaySubscriptionAsync(string planId = "professional", string billingCycle = "yearly", bool success = true, string? promoCode = null)
     {
-        var checkout = await Post("/payments/subscription", new { planId, billingCycle });
+        var checkout = await Post("/payments/subscription", new { planId, billingCycle, promoCode });
         var payment = checkout.Data!;
         var (body, hmac) = PaymobCallback.Signed(PaymobCallback.OrderIdOf(payment), payment["amount"].D(), FakePaymobClient.PlatformHmac, success);
         await SendAsync(HttpMethod.Post, $"/payments/paymob/webhook?hmac={hmac}", body, anonymous: true);
@@ -208,6 +210,7 @@ public class Client
         if (body != null && method != HttpMethod.Get) req.Content = JsonContent.Create(body);
         if (!anonymous && Token != null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
         if (Language != null) req.Headers.TryAddWithoutValidation("Accept-Language", Language);
+        if (WarehouseId != null) req.Headers.TryAddWithoutValidation("X-Warehouse-Id", WarehouseId.ToString());
         var resp = await _http.SendAsync(req);
         var text = await resp.Content.ReadAsStringAsync();
         JsonNode? node = null;

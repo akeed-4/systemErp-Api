@@ -1,4 +1,8 @@
+using ERP.Core.Contracts.Shared;
+using ERP.Core.Models.Accounting;
 using ERP.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ERP.Tests;
 
@@ -173,12 +177,84 @@ public class ContractWorkflowTests : TestBase
         Assert.Equal("review", submit!["toStatus"].S());
         Assert.NotEmpty(submit["blockers"]!.AsArray()); // البيانات ناقصة
 
-        // مُعد العقد لا يستطيع إنشاء عقد مبسط (حفظ واعتماد يتطلب صلاحية الاعتماد)
+        // مُعد العقد ينشئ العقد المبسط مسودة، ولا يفعّله (التفعيل يتطلب صلاحية الاعتماد) ولا يرى زراً لا يملكه
         var simple = await preparer.Post("/commercialcontracts", new
         {
-            title = "صيانة", contractType = "monthly_maintenance", partyName = "عميل", contractValue = 100,
+            title = "صيانة", contractType = "monthly_maintenance", partyName = "عميل", partyId = party, contractValue = 100,
+            startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(6),
+            items = Array.Empty<object>(), milestones = new[] { new { title = "دفعة", percentage = 100 } }, clauses = Array.Empty<object>(),
+        });
+        Assert.Equal(201, simple.Status);
+        Assert.Equal("draft", simple.Data!["stage"].S());
+        var simpleId = simple.Data["id"].S();
+        Assert.Empty((await preparer.Get($"/commercialcontracts/{simpleId}/workflow")).Data!["transitions"]!.AsArray());
+        Assert.Equal(403, (await Move(preparer, simpleId, "active")).Status);
+    }
+
+    [Fact]
+    public async Task Simplified_contract_starts_draft_and_activates_only_through_its_own_transition()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var created = await owner.Post("/commercialcontracts", new
+        {
+            title = "صيانة", contractType = "monthly_maintenance", partyName = "عميل", partyId = party, contractValue = 1000, vatRate = 15,
+            stage = "active", status = 3, // الحالة من المستخدم تُتجاهل
             items = Array.Empty<object>(), milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
         });
-        Assert.Equal(403, simple.Status);
+        Assert.Equal("draft", created.Data!["stage"].S());
+        var id = created.Data["id"].S();
+
+        var wf = (await owner.Get($"/commercialcontracts/{id}/workflow")).Data!;
+        var toStatuses = wf["transitions"]!.AsArray().Select(t => t!["toStatus"].S()).ToList();
+        Assert.Contains("active", toStatuses);
+        Assert.DoesNotContain("review", toStatuses); // المراجعة للمسار الكامل
+        Assert.Equal(409, (await Move(owner, id, "review")).Status); // ولا عبر API
+
+        var blocked = await Move(owner, id, "active");
+        Assert.Equal(409, blocked.Status);
+        Assert.Contains("تاريخا البداية والنهاية", blocked.Body!["message"].S());
+        Assert.Contains("بنود العقد أو مستخلصاته", blocked.Body!["message"].S());
+
+        var body = new
+        {
+            title = "صيانة", contractType = "monthly_maintenance", partyName = "عميل", partyId = party, contractValue = 1000, vatRate = 15,
+            startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(12), stage = "active", // التعديل لا يغيّر الحالة
+            items = Array.Empty<object>(), milestones = new[] { new { title = "دفعة", percentage = 100 } }, clauses = Array.Empty<object>(),
+        };
+        var edited = await owner.Put($"/commercialcontracts/{id}", body);
+        Assert.Equal(200, edited.Status);
+        Assert.Equal("draft", edited.Data!["stage"].S());
+
+        var active = await Move(owner, id, "active");
+        Assert.Equal(200, active.Status);
+        Assert.Equal(new[] { "draft", "active" }, active.Data!["log"]!.AsArray().Select(l => l!["toStatus"].S()));
+        Assert.NotNull((await owner.Get($"/commercialcontracts/{id}")).Data!["signedDate"]);
+    }
+
+    [Fact]
+    public async Task Full_contract_cannot_use_the_simplified_shortcut_and_status_cannot_be_saved_outside_move()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+        var id = (await owner.Post("/commercialcontracts", ContractBody(party, product))).Data!["id"].S();
+        Assert.Equal(409, (await Move(owner, id, "active")).Status); // مسودة ← ساري للمسار المبسط فقط
+        Assert.Equal(409, (await owner.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "closed" })).Status);
+
+        // تحت الخدمات: الحفظ نفسه يرفض تغيير الحالة بلا سطر سجل لانتقال معرّف
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
+        var c = await db.Set<CommercialContract>().IgnoreQueryFilters().FirstAsync(x => x.Id == Guid.Parse(id));
+        c.Stage = "active";
+        await Assert.ThrowsAsync<ConflictException>(() => db.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+
+        var log = await db.Set<ContractStatusLog>().IgnoreQueryFilters().FirstAsync(l => l.ContractId == Guid.Parse(id));
+        log.ToStatus = "active";
+        await Assert.ThrowsAsync<ConflictException>(() => db.SaveChangesAsync()); // السجل لا يُعدَّل
+        db.ChangeTracker.Clear();
+
+        Assert.Equal("draft", (await owner.Get($"/commercialcontracts/{id}")).Data!["stage"].S());
     }
 }

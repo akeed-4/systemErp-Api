@@ -142,6 +142,7 @@ app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<TenantMiddleware>();
+app.UseMiddleware<WarehouseSessionMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 

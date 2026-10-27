@@ -76,7 +76,7 @@ public class ContractWorkflowService : IContractWorkflowService
             && (await _permissions.HasPermissionAsync(Screen, ScreenAction.Approve, ct) || await _permissions.HasPermissionAsync(Screen, ScreenAction.Edit, ct));
 
         // الأزرار: الانتقالات من الحالة الحالية التي يملك المستخدم أحد إجراءاتها فقط، ومع كلٍّ ما ينقصه
-        foreach (var t in await TransitionsFromAsync(c.Stage, ct))
+        foreach (var t in await TransitionsFromAsync(c, ct))
         {
             if (!await CanAnyAsync(t)) continue;
             dto.Transitions.Add(new ContractTransitionOptionDto
@@ -111,7 +111,8 @@ public class ContractWorkflowService : IContractWorkflowService
     private async Task MoveCoreAsync(CommercialContract c, string? toStatus, string? note, CancellationToken ct)
     {
         var to = (toStatus ?? string.Empty).Trim();
-        var transition = (await TransitionsFromAsync(c.Stage, ct)).FirstOrDefault(t => t.ToStatus == to);
+        // انتقال غير معرّف (أو لمسار غير مسار العقد) يُرفض هنا مهما كان مصدر الطلب
+        var transition = (await TransitionsFromAsync(c, ct)).FirstOrDefault(t => t.ToStatus == to);
         if (transition == null)
             throw new ConflictException(string.Format(Messages.ContractTransitionNotAllowed, await StatusNameAsync(c.Stage, ct), await StatusNameAsync(to, ct)));
 
@@ -128,7 +129,7 @@ public class ContractWorkflowService : IContractWorkflowService
 
         // الرجوع للمسودة يبدأ جولة مراجعة جديدة (موافقات الجولة السابقة لا تُحتسب)
         if (to == S.Draft) c.ReviewRound++;
-        if (to == S.Active && c.Stage == S.Approval) c.SignedDate ??= SaudiTime.Today;
+        if (to == S.Active && c.Stage is S.Approval or S.Draft) c.SignedDate ??= SaudiTime.Today;
 
         _db.Add(new ContractStatusLog
         {
@@ -273,7 +274,12 @@ public class ContractWorkflowService : IContractWorkflowService
                 if (c.PartyId == null || string.IsNullOrWhiteSpace(c.PartyName)) missing.Add(Messages.ContractMissingParty);
                 if (c.StartDate == null || c.EndDate == null) missing.Add(Messages.ContractMissingDates);
                 if (c.ContractValue <= 0) missing.Add(Messages.ContractMissingValue);
-                if (c.Items.Count == 0) missing.Add(Messages.ContractMissingItems);
+                // الفوترة بعد الاستلام تُحسب على البنود؛ المباشرة تكفيها البنود أو المستخلصات
+                if (type?.Billing == ContractBilling.Direct)
+                {
+                    if (c.Items.Count == 0 && c.Milestones.Count == 0) missing.Add(Messages.ContractMissingItemsOrMilestones);
+                }
+                else if (c.Items.Count == 0) missing.Add(Messages.ContractMissingItems);
                 break;
 
             case "both_reviews":
@@ -319,6 +325,14 @@ public class ContractWorkflowService : IContractWorkflowService
                 if (c.RetentionAmount > 0 && !await _db.Set<ContractInvoice>().AnyAsync(i => i.ContractId == c.Id && i.Kind == "retention_release", ct))
                     missing.Add(Messages.ContractMissingRetentionRelease);
                 break;
+
+            case null or "":
+                break;
+
+            default:
+                // شرط مكتوب في الجدول ولا يعرفه الكود: يُغلق الانتقال بدل أن يمر بلا فحص
+                missing.Add(string.Format(Messages.ContractUnknownCondition, t.Condition));
+                break;
         }
         return missing;
     }
@@ -352,8 +366,14 @@ public class ContractWorkflowService : IContractWorkflowService
     private Task<ContractTypeDefinition?> TypeAsync(string code, CancellationToken ct)
         => _db.Set<ContractTypeDefinition>().AsNoTracking().FirstOrDefaultAsync(t => t.Code == code, ct);
 
-    private Task<List<ContractTransition>> TransitionsFromAsync(string status, CancellationToken ct)
-        => _db.Set<ContractTransition>().AsNoTracking().Where(t => t.IsActive && t.FromStatus == status).OrderBy(t => t.SortOrder).ToListAsync(ct);
+    /// <summary>الانتقالات المعرّفة من حالة العقد لمساره (كامل/مبسط)؛ ما سواها غير موجود بالنسبة للعقد.</summary>
+    private Task<List<ContractTransition>> TransitionsFromAsync(CommercialContract c, CancellationToken ct)
+    {
+        var workflow = c.IsSimplified ? ContractWorkflows.Simple : ContractWorkflows.Full;
+        return _db.Set<ContractTransition>().AsNoTracking()
+            .Where(t => t.IsActive && t.FromStatus == c.Stage && (t.Workflow == null || t.Workflow == "" || t.Workflow == workflow))
+            .OrderBy(t => t.SortOrder).ToListAsync(ct);
+    }
 
     private Task<List<ContractApproval>> RoundApprovalsAsync(CommercialContract c, CancellationToken ct)
         => _db.Set<ContractApproval>().AsNoTracking().Where(a => a.ContractId == c.Id && a.Round == c.ReviewRound).OrderBy(a => a.DecidedAt).ToListAsync(ct);

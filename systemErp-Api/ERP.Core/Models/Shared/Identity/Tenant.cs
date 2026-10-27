@@ -20,6 +20,8 @@ public class Tenant : BaseEntity
     public bool IsActive { get; set; } = true;
     /// <summary>الدفاتر مقفلة حتى هذا التاريخ شاملاً: لا قيد ولا حركة مخزون بتاريخ داخل الفترة المقفلة.</summary>
     public DateTime? BooksLockedThrough { get; set; }
+    /// <summary>عرض المستندات في القوائم: site = مستندات موقع الجلسة | user = مستندات المستخدم نفسه.</summary>
+    public string DocumentVisibility { get; set; } = "site";
     
     public ZatcaConfig ZatcaConfig { get; set; } = new();
 }

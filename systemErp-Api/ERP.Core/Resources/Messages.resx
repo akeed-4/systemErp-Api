@@ -1241,5 +1241,26 @@
   <data name="ContractMoved" xml:space="preserve"><value>تم نقل العقد إلى «{0}».</value></data>
   <data name="ContractReviewRecorded" xml:space="preserve"><value>تم تسجيل قرار المراجعة.</value></data>
   <data name="ContractSigningSaved" xml:space="preserve"><value>تم حفظ بيانات التوقيع والضمان.</value></data>
-  <data name="ContractSimplifiedActivated" xml:space="preserve"><value>عقد بمسار مبسط: حُفظ وفُعِّل مباشرة.</value></data>
+  <data name="ContractMissingItemsOrMilestones" xml:space="preserve"><value>بنود العقد أو مستخلصاته</value></data>
+  <data name="ContractUnknownCondition" xml:space="preserve"><value>شرط الانتقال «{0}» غير معروف للنظام</value></data>
+  <data name="ContractStatusOutsideWorkflow" xml:space="preserve"><value>لا تتغير حالة العقد إلا عبر انتقال معرّف من دورة العقد، والعقد الجديد يبدأ «مسودة».</value></data>
+  <data name="ContractStatusLogImmutable" xml:space="preserve"><value>سجل انتقالات العقد لا يُعدَّل.</value></data>
+  <data name="WarehouseNotAllowed" xml:space="preserve"><value>هذا الموقع (المعرض/المستودع) غير مسموح لك.</value></data>
+  <data name="WarehouseRequired" xml:space="preserve"><value>اختر موقع العمل (المعرض/المستودع) أولاً.</value></data>
+  <data name="DocumentVisibilityInvalid" xml:space="preserve"><value>طريقة عرض المستندات غير صحيحة: حسب المعرض أو حسب المستخدم.</value></data>
+  <data name="PromoCodeNotFound" xml:space="preserve"><value>رمز الخصم غير موجود.</value></data>
+  <data name="PromoCodeUsedCannotDelete" xml:space="preserve"><value>رمز الخصم مستخدم في اشتراكات فلا يُحذف؛ عطّله لإيقافه.</value></data>
+  <data name="PromoCodeFormat" xml:space="preserve"><value>الرمز من 3 إلى 32 حرفاً إنجليزياً أو رقماً أو - أو _.</value></data>
+  <data name="PromoCodeDuplicate" xml:space="preserve"><value>يوجد رمز خصم «{0}» مسبقاً.</value></data>
+  <data name="PromoCodeTypeInvalid" xml:space="preserve"><value>نوع الخصم: نسبة مئوية أو مبلغ ثابت.</value></data>
+  <data name="PromoCodeValueInvalid" xml:space="preserve"><value>قيمة الخصم يجب أن تكون أكبر من صفر، والنسبة لا تتجاوز 100%.</value></data>
+  <data name="PromoCodeLimitInvalid" xml:space="preserve"><value>حدود الاستخدام يجب أن تكون 1 أو أكثر.</value></data>
+  <data name="PromoCodePlanUnknown" xml:space="preserve"><value>إحدى الباقات المحددة غير موجودة.</value></data>
+  <data name="PromoCodeInvalid" xml:space="preserve"><value>رمز الخصم غير صحيح أو غير فعّال.</value></data>
+  <data name="PromoCodeNotStarted" xml:space="preserve"><value>رمز الخصم لم تبدأ صلاحيته بعد.</value></data>
+  <data name="PromoCodeExpired" xml:space="preserve"><value>انتهت صلاحية رمز الخصم.</value></data>
+  <data name="PromoCodeNotForPlan" xml:space="preserve"><value>رمز الخصم لا ينطبق على هذه الباقة.</value></data>
+  <data name="PromoCodeNotForCycle" xml:space="preserve"><value>رمز الخصم لا ينطبق على دورة الفوترة المختارة.</value></data>
+  <data name="PromoCodeExhausted" xml:space="preserve"><value>استُنفدت استخدامات رمز الخصم.</value></data>
+  <data name="PromoCodeAlreadyUsed" xml:space="preserve"><value>استخدمت منشأتك رمز الخصم هذا من قبل.</value></data>
 </root>

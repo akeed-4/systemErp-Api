@@ -7,6 +7,8 @@ public class CarSalesContract : BaseEntity, IScopedRecord
     public Guid? CreatedByUserId { get; set; }
     /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
     public Guid? AssignedToUserId { get; set; }
+    /// <summary>موقع (معرض/مستودع) المستند: يُختم من موقع الجلسة عند الإنشاء؛ فارغ = مستند قديم يظهر لكل المواقع.</summary>
+    public Guid? WarehouseId { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public CarSalesCycleType CycleType { get; set; }
     public DateTime Date { get; set; }

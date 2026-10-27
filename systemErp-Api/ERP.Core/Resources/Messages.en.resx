@@ -1241,5 +1241,26 @@
   <data name="ContractMoved" xml:space="preserve"><value>Contract moved to "{0}".</value></data>
   <data name="ContractReviewRecorded" xml:space="preserve"><value>Review decision recorded.</value></data>
   <data name="ContractSigningSaved" xml:space="preserve"><value>Signing and guarantee details saved.</value></data>
-  <data name="ContractSimplifiedActivated" xml:space="preserve"><value>Simplified contract: saved and activated directly.</value></data>
+  <data name="ContractMissingItemsOrMilestones" xml:space="preserve"><value>contract items or milestones</value></data>
+  <data name="ContractUnknownCondition" xml:space="preserve"><value>transition condition "{0}" is unknown to the system</value></data>
+  <data name="ContractStatusOutsideWorkflow" xml:space="preserve"><value>A contract's status changes only through a defined workflow transition, and a new contract starts as Draft.</value></data>
+  <data name="ContractStatusLogImmutable" xml:space="preserve"><value>The contract transition log cannot be edited.</value></data>
+  <data name="WarehouseNotAllowed" xml:space="preserve"><value>You are not allowed to work in this site (showroom/warehouse).</value></data>
+  <data name="WarehouseRequired" xml:space="preserve"><value>Choose your working site (showroom/warehouse) first.</value></data>
+  <data name="DocumentVisibilityInvalid" xml:space="preserve"><value>Invalid document visibility: by showroom or by user.</value></data>
+  <data name="PromoCodeNotFound" xml:space="preserve"><value>Promo code not found.</value></data>
+  <data name="PromoCodeUsedCannotDelete" xml:space="preserve"><value>The promo code has been used on subscriptions and cannot be deleted; disable it instead.</value></data>
+  <data name="PromoCodeFormat" xml:space="preserve"><value>The code must be 3 to 32 English letters, digits, - or _.</value></data>
+  <data name="PromoCodeDuplicate" xml:space="preserve"><value>A promo code "{0}" already exists.</value></data>
+  <data name="PromoCodeTypeInvalid" xml:space="preserve"><value>Discount type: percentage or fixed amount.</value></data>
+  <data name="PromoCodeValueInvalid" xml:space="preserve"><value>The discount must be greater than zero, and a percentage cannot exceed 100%.</value></data>
+  <data name="PromoCodeLimitInvalid" xml:space="preserve"><value>Usage limits must be 1 or more.</value></data>
+  <data name="PromoCodePlanUnknown" xml:space="preserve"><value>One of the selected plans does not exist.</value></data>
+  <data name="PromoCodeInvalid" xml:space="preserve"><value>The promo code is invalid or inactive.</value></data>
+  <data name="PromoCodeNotStarted" xml:space="preserve"><value>The promo code is not valid yet.</value></data>
+  <data name="PromoCodeExpired" xml:space="preserve"><value>The promo code has expired.</value></data>
+  <data name="PromoCodeNotForPlan" xml:space="preserve"><value>The promo code does not apply to this plan.</value></data>
+  <data name="PromoCodeNotForCycle" xml:space="preserve"><value>The promo code does not apply to the selected billing cycle.</value></data>
+  <data name="PromoCodeExhausted" xml:space="preserve"><value>The promo code has no uses left.</value></data>
+  <data name="PromoCodeAlreadyUsed" xml:space="preserve"><value>Your company has already used this promo code.</value></data>
 </root>

@@ -9,11 +9,13 @@ public class PlatformController : ErpControllerBase
 {
     private readonly IPlatformSubscriptionService _platform;
     private readonly IPlatformAccessService _access;
+    private readonly IPromoCodeService _promos;
 
-    public PlatformController(IPlatformSubscriptionService platform, IPlatformAccessService access)
+    public PlatformController(IPlatformSubscriptionService platform, IPlatformAccessService access, IPromoCodeService promos)
     {
         _platform = platform;
         _access = access;
+        _promos = promos;
     }
 
     /// <summary>تُسأل من الواجهة لإظهار قسم المنصة؛ متاحة لأي مستخدم مسجّل وتعيد true/false فقط.</summary>
@@ -75,6 +77,25 @@ public class PlatformController : ErpControllerBase
     [HttpPost("tenants/{tenantId:guid}/subscriptions/modules"), RequirePlatformAdmin]
     public async Task<IActionResult> SetModules(Guid tenantId, [FromBody] PlatformSetModulesRequestDto request, CancellationToken ct)
         => Success(await _platform.SetModulesAsync(tenantId, request, ct), "تم تحديث الوحدات");
+
+    // ---------- رموز خصم الاشتراكات ----------
+    [HttpGet("promo-codes"), RequirePlatformAdmin]
+    public async Task<IActionResult> PromoCodes(CancellationToken ct) => Success(await _promos.ListAsync(ct));
+
+    [HttpPost("promo-codes"), RequirePlatformAdmin]
+    public async Task<IActionResult> CreatePromoCode([FromBody] SavePromoCodeRequestDto request, CancellationToken ct)
+        => Success(await _promos.CreateAsync(request, ct), Messages.CreatedSuccessfully);
+
+    [HttpPut("promo-codes/{id:guid}"), RequirePlatformAdmin]
+    public async Task<IActionResult> UpdatePromoCode(Guid id, [FromBody] SavePromoCodeRequestDto request, CancellationToken ct)
+        => Success(await _promos.UpdateAsync(id, request, ct), Messages.UpdatedSuccessfully);
+
+    [HttpDelete("promo-codes/{id:guid}"), RequirePlatformAdmin]
+    public async Task<IActionResult> DeletePromoCode(Guid id, CancellationToken ct)
+    {
+        await _promos.DeleteAsync(id, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
 
     [HttpGet("plans"), RequirePlatformAdmin]
     public async Task<IActionResult> Plans(CancellationToken ct) => Success(await _platform.ListPlansAsync(ct));

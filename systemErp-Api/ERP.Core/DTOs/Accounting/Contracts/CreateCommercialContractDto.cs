@@ -5,8 +5,7 @@ public partial class CreateCommercialContractDto
     public string ContractNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string ContractType { get; set; } = "supply_materials";
-    public string Stage { get; set; } = "draft";
-    public ContractStatus Status { get; set; } = ContractStatus.Draft;
+    // لا حالة هنا: العقد يبدأ «مسودة» دائماً ولا تتغير حالته إلا عبر move
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }
     public string PartyName { get; set; } = string.Empty;

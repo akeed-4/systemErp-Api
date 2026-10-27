@@ -66,15 +66,33 @@ public class OnlinePaymentService : IOnlinePaymentService
     {
         if (!SubscriptionPlanId.IsValid(r.PlanId) || !Enum.IsDefined(r.BillingCycle)) throw new ValidationFailedException(Messages.InvalidPlanOrBillingCycle);
         var plan = await SubscriptionCatalog.GetAsync(_db, r.PlanId, forSale: true, ct);
-        var price = r.BillingCycle == SubscriptionBillingCycle.Yearly ? plan.PriceYearly : plan.PriceMonthly;
-        var total = DocumentPricing.Round(price * (1 + SubscriptionCatalog.VatRate));
+        var tenantId = _tenant.TenantId ?? throw new UnauthorizedAppException();
+        // السعر ورمز الخصم يُعاد حسابهما هنا (لا يُوثق بما ترسله الواجهة)
+        var (quote, _) = await PromoCodeService.PriceAsync(_db, tenantId, plan, r.BillingCycle, r.PromoCode, ct);
         var company = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
-        return await CreateAsync(new OnlinePayment
+        var payment = new OnlinePayment
         {
-            Purpose = OnlinePaymentPurpose.Subscription, Amount = total,
-            Description = $"اشتراك {plan.NameAr} ({(r.BillingCycle == SubscriptionBillingCycle.Yearly ? "سنوي" : "شهري")})",
-            PlanId = r.PlanId, BillingCycle = r.BillingCycle, CustomerName = company.NameAr, CustomerEmail = company.Email, CustomerPhone = company.Phone,
-        }, await PlatformCredentialsAsync(ct), ct);
+            Purpose = OnlinePaymentPurpose.Subscription, Amount = DocumentPricing.Round(quote.Total),
+            Description = $"اشتراك {plan.NameAr} ({(r.BillingCycle == SubscriptionBillingCycle.Yearly ? "سنوي" : "شهري")})"
+                + (quote.PromoCode != null ? $" - خصم {quote.PromoCode}" : string.Empty),
+            PlanId = r.PlanId, BillingCycle = r.BillingCycle, PromoCode = quote.PromoCode, DiscountAmount = quote.Discount,
+            CustomerName = company.NameAr, CustomerEmail = company.Email, CustomerPhone = company.Phone,
+        };
+
+        // رمز يجعل الإجمالي صفراً: لا دفع عبر Paymob، يُفعَّل الاشتراك مباشرة ويُسجَّل الاستخدام
+        if (payment.Amount <= 0)
+        {
+            payment.Id = Guid.NewGuid();
+            payment.SpecialReference = $"ERP-{payment.Id:N}";
+            payment.Provider = "promo";
+            await _tx.RunAsync(async token =>
+            {
+                _db.Add(payment);
+                await MarkPaidAsync(payment, token);
+            }, ct);
+            return Mapper.Map<OnlinePaymentDto>(payment);
+        }
+        return await CreateAsync(payment, await PlatformCredentialsAsync(ct), ct);
     }
 
     private async Task<OnlinePaymentDto> CreateAsync(OnlinePayment p, PaymobCredentials creds, CancellationToken ct)
@@ -239,8 +257,19 @@ public class OnlinePaymentService : IOnlinePaymentService
                 var sub = SubscriptionCatalog.NewSubscription(await SubscriptionCatalog.GetAsync(_db, p.PlanId!, forSale: false, ct), p.BillingCycle!.Value, "Paymob");
                 sub.TransactionReference = p.ProviderTransactionId?.ToString() ?? p.SpecialReference;
                 if (trialEnd.HasValue) sub.ExpiryDate += trialEnd.Value - sub.StartDate;
+                if (p.PromoCode != null)
+                {
+                    // السعر المدفوع فعلاً: بعد خصم الرمز وقبل الضريبة، وضريبة الصافي
+                    sub.PromoCode = p.PromoCode;
+                    sub.DiscountAmount = p.DiscountAmount;
+                    sub.Price -= p.DiscountAmount;
+                    sub.VatAmount = Math.Round(sub.Price * SubscriptionCatalog.VatRate, 2);
+                    sub.TotalAmount = sub.Price + sub.VatAmount;
+                    if (p.Provider == "promo") sub.PaymentMethod = "promo";
+                }
                 _db.Add(sub);
                 p.ReferenceId = sub.Id;
+                if (p.PromoCode != null) await PromoCodeService.RecordAsync(_db, p.PromoCode, p.TenantId, p.Id, sub, ct);
                 break;
             }
             case OnlinePaymentPurpose.PosSale:

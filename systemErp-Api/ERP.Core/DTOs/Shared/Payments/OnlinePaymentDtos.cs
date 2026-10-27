@@ -56,6 +56,8 @@ public class CreateSubscriptionCheckoutDto
 {
     public string PlanId { get; set; } = string.Empty;
     public SubscriptionBillingCycle BillingCycle { get; set; }
+    /// <summary>رمز خصم اختياري؛ السرفر يعيد حساب الخصم ويتحقق من صلاحيته.</summary>
+    public string? PromoCode { get; set; }
 }
 
 public class PaymentGatewaySettingsDto

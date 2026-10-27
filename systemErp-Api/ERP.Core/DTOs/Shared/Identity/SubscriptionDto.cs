@@ -13,6 +13,8 @@ public partial class SubscriptionDto
     public decimal Price { get; set; }
     public decimal VatAmount { get; set; }
     public decimal TotalAmount { get; set; }
+    public string? PromoCode { get; set; }
+    public decimal DiscountAmount { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime ExpiryDate { get; set; }
     public SubscriptionStatus Status { get; set; }

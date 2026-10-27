@@ -26,13 +26,13 @@ public class UserService : IUserService
     }
 
     public async Task<List<UserDto>> ListAsync(CancellationToken ct = default)
-        => (await _db.Set<User>().AsNoTracking().OrderBy(u => u.Name).ToListAsync(ct)).Select(Mapper.Map<UserDto>).ToList();
+        => (await _db.Set<User>().AsNoTracking().OrderBy(u => u.Name).ToListAsync(ct)).Select(ToDto).ToList();
 
     public async Task<UserDto> GetCurrentAsync(CancellationToken ct = default)
         => await GetAsync(_current.UserId ?? throw new UnauthorizedAppException(), ct);
 
     public async Task<UserDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<UserDto>(await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct)
+        => ToDto(await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct)
             ?? throw new NotFoundException(Messages.UserNotFound));
 
     public async Task<UserDto> CreateAsync(CreateUserRequestDto r, CancellationToken ct = default)
@@ -59,10 +59,11 @@ public class UserService : IUserService
             Name = r.Name.Trim(), Email = email, Phone = r.Phone, Role = role?.BaseRole ?? r.Role, CustomRoleId = role?.Id,
             JobTitle = r.JobTitle, Department = r.Department, AvatarInitials = AuthService.Initials(r.Name),
         };
+        user.AllowedWarehouseIds = await SitesCsvAsync(r.AllowedWarehouseIds, ct);
         user.PasswordHash = _hasher.HashPassword(user, r.Password!);
         _db.Add(user);
         await _db.SaveChangesAsync(ct);
-        return Mapper.Map<UserDto>(user);
+        return ToDto(user);
     }
 
     public async Task<UserDto> UpdateAsync(Guid id, UpdateUserRequestDto r, CancellationToken ct = default)
@@ -78,9 +79,28 @@ public class UserService : IUserService
 
         user.Name = r.Name.Trim(); user.Phone = r.Phone; user.Role = role?.BaseRole ?? r.Role; user.CustomRoleId = role?.Id;
         user.JobTitle = r.JobTitle; user.Department = r.Department; user.IsActive = r.IsActive;
+        // المالك يعمل في كل المواقع دائماً
+        user.AllowedWarehouseIds = user.Role == UserRole.Owner ? null : await SitesCsvAsync(r.AllowedWarehouseIds, ct);
         user.AvatarInitials = AuthService.Initials(user.Name);
         await _db.SaveChangesAsync(ct);
-        return Mapper.Map<UserDto>(user);
+        return ToDto(user);
+    }
+
+    private static UserDto ToDto(User user)
+    {
+        var dto = Mapper.Map<UserDto>(user);
+        dto.AllowedWarehouseIds = WarehouseSessionService.ParseIds(user.AllowedWarehouseIds) ?? new List<Guid>();
+        return dto;
+    }
+
+    /// <summary>قائمة المواقع المسموحة للحفظ (فارغة = كل المواقع)؛ كل موقع يجب أن يكون مستودعاً في المنشأة.</summary>
+    private async Task<string?> SitesCsvAsync(List<Guid>? ids, CancellationToken ct)
+    {
+        var list = (ids ?? new List<Guid>()).Where(g => g != Guid.Empty).Distinct().ToList();
+        if (list.Count == 0) return null;
+        if (await _db.Set<Warehouse>().CountAsync(w => list.Contains(w.Id), ct) != list.Count)
+            throw new ValidationFailedException(Messages.WarehouseNotFound);
+        return string.Join(',', list);
     }
 
     /// <summary>الدور المخصّص المسند (null = الدور الأساسي وحده). الدور المعطّل لا يُسند إلا لمن عليه أصلاً.</summary>
@@ -103,7 +123,7 @@ public class UserService : IUserService
         if (r.JobTitle != null) user.JobTitle = r.JobTitle;
         if (r.Department != null) user.Department = r.Department;
         await _db.SaveChangesAsync(ct);
-        return Mapper.Map<UserDto>(user);
+        return ToDto(user);
     }
 
     public async Task<OperationResultDto> ChangePasswordAsync(ChangePasswordRequestDto r, CancellationToken ct = default)

@@ -303,14 +303,17 @@ public class AccountingTests : TestBase
     {
         var api = await NewTenantAsync();
         var (customer, _) = await SeedCustomerAsync(api);
-        // الصيانة الشهرية مسار مبسط بفوترة مباشرة: تُحفظ وتُعتمد «ساري» مباشرة (الرمز القديم maintenance يُحوَّل لنوعها)
+        // الصيانة الشهرية مسار مبسط بفوترة مباشرة: تبدأ مسودة وتُعتمد «ساري» مباشرة عبر move (الرمز القديم maintenance يُحوَّل لنوعها)
         var ct = await api.Post("/commercialcontracts", new { title = "عقد صيانة", contractType = "maintenance", partyName = "عميل", partyId = customer, contractValue = 1000, vatRate = 15,
+            startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(12),
             milestones = new[] { new { title = "دفعة 1", percentage = 50 }, new { title = "دفعة 2", percentage = 50 } }, clauses = Array.Empty<object>() });
         Assert.Equal(1150, ct.Data!["totalValueWithVat"].D());
-        Assert.Equal("active", ct.Data["stage"].S());
+        Assert.Equal("draft", ct.Data["stage"].S());
         Assert.Equal("monthly_maintenance", ct.Data["contractType"].S());
         var id = ct.Data["id"].S(); var m1 = ct.Data["milestones"]![0]!["id"].S();
         Assert.Equal(500, ct.Data["milestones"]![0]!["amount"].D());
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill")).Status); // لا فوترة قبل التفعيل
+        Assert.Equal("active", (await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" })).Data!["status"].S());
 
         Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/AdvanceStage", new { stage = "closed" })).Status); // لا انتقال ساري ← مغلق
 

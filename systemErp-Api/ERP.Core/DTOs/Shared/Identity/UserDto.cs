@@ -17,4 +17,6 @@ public partial class UserDto
     public string? Department { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime? LastLoginAt { get; set; }
+    /// <summary>المواقع المسموحة؛ فارغة = كل المواقع.</summary>
+    public List<Guid> AllowedWarehouseIds { get; set; } = new();
 }

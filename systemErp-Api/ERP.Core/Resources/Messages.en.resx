@@ -241,6 +241,7 @@
   <data name="CreditPaymentRequiresDays" xml:space="preserve"><value>Credit payment requires the number of credit days.</value></data>
   <data name="CreditPeriodCannotBeNegative" xml:space="preserve"><value>The credit period cannot be negative.</value></data>
   <data name="CreditPurchaseRequiresSupplier" xml:space="preserve"><value>A credit purchase requires a supplier.</value></data>
+  <data name="TaxPurchaseRequiresSupplier" xml:space="preserve"><value>A tax purchase invoice requires a supplier.</value></data>
   <data name="CreditSaleRequiresCustomer" xml:space="preserve"><value>A credit sale requires a customer.</value></data>
   <data name="CreditSaleRequiresCustomerLink" xml:space="preserve"><value>A credit/financed sale requires linking the contract to a customer.</value></data>
   <data name="CurrencyCodeAlreadyExists" xml:space="preserve"><value>The currency code is already registered.</value></data>

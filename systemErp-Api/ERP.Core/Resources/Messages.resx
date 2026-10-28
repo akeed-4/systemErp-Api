@@ -241,6 +241,7 @@
   <data name="CreditPaymentRequiresDays" xml:space="preserve"><value>الدفع الآجل يتطلب عدد أيام الائتمان.</value></data>
   <data name="CreditPeriodCannotBeNegative" xml:space="preserve"><value>مدة الائتمان لا تكون سالبة.</value></data>
   <data name="CreditPurchaseRequiresSupplier" xml:space="preserve"><value>الشراء الآجل يتطلب تحديد المورد.</value></data>
+  <data name="TaxPurchaseRequiresSupplier" xml:space="preserve"><value>الفاتورة الضريبية تتطلب تحديد المورد.</value></data>
   <data name="CreditSaleRequiresCustomer" xml:space="preserve"><value>البيع الآجل يتطلب تحديد العميل.</value></data>
   <data name="CreditSaleRequiresCustomerLink" xml:space="preserve"><value>البيع الآجل/التمويل يتطلب ربط العقد بعميل.</value></data>
   <data name="CurrencyCodeAlreadyExists" xml:space="preserve"><value>رمز العملة مسجّل مسبقاً.</value></data>

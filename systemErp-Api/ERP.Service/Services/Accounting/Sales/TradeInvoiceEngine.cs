@@ -757,6 +757,8 @@ public class TradeInvoiceEngine
         if (isReturn && r.OriginalInvoiceId == null) throw new ValidationFailedException(Messages.ReturnNeedsOriginalInvoice);
         if (isSales && r.Kind == InvoiceKind.Sales && r.InvoiceType is InvoiceType.CreditNote or InvoiceType.DebitNote)
             throw new ValidationFailedException(Messages.RegularInvoiceTypeInvalid);
+        if (r.Kind == InvoiceKind.Purchase && r.InvoiceType == InvoiceType.TaxInvoice && !r.PartyId.HasValue)
+            throw new ValidationFailedException(Messages.TaxPurchaseRequiresSupplier);
 
         var priced = DocumentPricing.Price(
             r.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,

@@ -42,4 +42,6 @@ public class PurchasePostingRequest
     /// توزيع الصافي والخدمات والمخزون على مراكز تكلفة الأسطر (مجاميعها = مبالغ المستند)؛ فارغ = المستند كله على CostCenterId.
     /// </summary>
     public List<PurchaseCostCenterShare> CostCenterShares { get; set; } = new();
+    /// <summary>مراكز اختارها المستخدم لحسابات قيد المستند (انظر <see cref="GenericPostingRequest.CostCenterByAccount"/>).</summary>
+    public Dictionary<string, Guid> CostCenterByAccount { get; set; } = new();
 }

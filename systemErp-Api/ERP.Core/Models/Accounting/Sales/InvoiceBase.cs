@@ -35,6 +35,11 @@ public abstract class InvoiceBase : BaseEntity, IScopedRecord
     public Guid? WarehouseId { get; set; }
     /// <summary>مركز التكلفة الافتراضي للأسطر: يُنسخ لكل سطر بلا مركز عند الحفظ، فالمركز الفعلي محفوظ على السطر وقيده.</summary>
     public Guid? CostCenterId { get; set; }
+    /// <summary>
+    /// مراكز التكلفة التي اختارها المستخدم لحسابات قيد الفاتورة (JSON لقائمة JournalCostCenterDto: الحساب ← المركز). تُطبَّق عند كل
+    /// ترحيل وإعادة ترحيل على أسطر الحساب في القيد، ويرثها المرتجع. فارغ = مراكز الأسطر كما هي.
+    /// </summary>
+    public string? JournalCostCentersJson { get; set; }
     public string? WarehouseName { get; set; }
     /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>
     public string? PartyStreet { get; set; }

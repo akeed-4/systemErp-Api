@@ -227,10 +227,15 @@ public class DeliveryNoteService : IDeliveryNoteService
             var ids = lines.Select(x => x.Item.ItemId).Distinct().ToList();
             var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync(token);
             var sales = note.Type == "sales_delivery";
+            // بيان تسليم عقد: فاتورته على مركز تكلفة العقد
+            var contractCenter = note.ContractId is Guid contractId
+                ? await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId).Select(c => c.CostCenterId).FirstOrDefaultAsync(token)
+                : null;
             var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
                 Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
                 IssueDate = date?.Date ?? default,
+                CostCenterId = contractCenter, CostCenterFromSource = true,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,
                 PartyId = note.PartyId, PartyName = note.PartyName, PartyVatNumber = note.PartyTaxNumber, PartyPhone = note.PartyPhone,
                 WarehouseId = note.WarehouseId,

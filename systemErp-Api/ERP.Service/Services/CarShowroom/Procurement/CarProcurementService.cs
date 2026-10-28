@@ -25,11 +25,12 @@ public class CarProcurementService : ICarProcurementService
     private readonly ITransactionRunner _tx;
     private readonly IAuditService _audit;
     private readonly IVehicleService _vehicles;
+    private readonly IPermissionService _permissions;
 
     public CarProcurementService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, IAccountingPostingService posting, ITransactionRunner tx, IAuditService audit,
-        IVehicleService vehicles)
+        IVehicleService vehicles, IPermissionService permissions)
     {
-        _db = db; _numbers = numbers; _invoices = invoices; _posting = posting; _tx = tx; _audit = audit; _vehicles = vehicles;
+        _db = db; _numbers = numbers; _invoices = invoices; _posting = posting; _tx = tx; _audit = audit; _vehicles = vehicles; _permissions = permissions;
     }
 
     public async Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams p, string? purchaseCycle = null, CancellationToken ct = default)
@@ -71,10 +72,19 @@ public class CarProcurementService : ICarProcurementService
     public Task<List<CarStageDefinitionDto>> GetStagesAsync(CancellationToken ct = default)
         => CarStageCatalog.ListAsync(_db, CarStageDefinition.Procurement, ct);
 
+    /// <summary>مركز الأمر الجديد أو المتغيّر: من المنشأة ونشط، وبصلاحية تعيين المركز (المحفوظ كما هو لا يُعاد فحصه).</summary>
+    private async Task ValidateCostCenterAsync(Guid? center, Guid? previous, CancellationToken ct)
+    {
+        if (center == previous) return;
+        await CostCenterRules.EnsureUsableAsync(_db, new[] { center }, ct);
+        await CostCenterRules.EnsureCanAssignAsync(_permissions, true, ct);
+    }
+
     public Task<CarProcurementOrderDto> CreateAsync(CreateCarProcurementOrderDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var supplier = await ValidateAsync(r, token);
+            await ValidateCostCenterAsync(r.CostCenterId, null, token);
             var order = Mapper.Map<CarProcurementOrder>(r);
             order.OrderNumber = await _numbers.NextAsync("car_procurement_order", "CPO-", token);
             order.Stage = ProcurementStage.Requisition;
@@ -103,6 +113,7 @@ public class CarProcurementService : ICarProcurementService
             if (order.ReceivedVins.Count > 0 && r.Items.Sum(i => i.Quantity) != order.Items.Sum(i => i.Quantity))
                 throw new ConflictException(Messages.CannotChangeQtyAfterVinsReceived);
             var supplier = await ValidateAsync(r, token);
+            await ValidateCostCenterAsync(r.CostCenterId, order.CostCenterId, token);
 
             var keep = _db.Entry(order).CurrentValues.Clone(); // لاستعادة الحقول التي تديرها الدورة
             Mapper.Apply(r, order);
@@ -270,7 +281,7 @@ public class CarProcurementService : ICarProcurementService
             var created = await CreateAsync(new CreateCarProcurementOrderDto
             {
                 SupplierId = r.SupplierId, Date = r.Date ?? SaudiTime.Today, PurchaseCycle = r.PurchaseCycle, PurchaseSource = r.PurchaseSource,
-                PaymentType = r.PaymentType, CreditDays = r.CreditDays, Currency = r.Currency, ExchangeRate = r.ExchangeRate,
+                PaymentType = r.PaymentType, CreditDays = r.CreditDays, Currency = r.Currency, ExchangeRate = r.ExchangeRate, CostCenterId = r.CostCenterId,
                 Notes = string.Join("\n", notes), WarehouseLocation = r.WarehouseLocation,
                 Items = new List<CarProcurementOrderItemDto>
                 {
@@ -568,6 +579,7 @@ public class CarProcurementService : ICarProcurementService
             Notes = $"فاتورة شراء سيارات - أمر {order.OrderNumber}",
             ReferenceType = "car_procurement_order", ReferenceId = order.Id, ReferenceNumber = order.OrderNumber,
             InventoryAccountCode = settings.VehicleInventoryAccount,
+            CostCenterId = order.CostCenterId, CostCenterFromSource = true, // مركز الأمر افتراضي كل أسطر الفاتورة وقيدها
             // بند لكل سعر في بند الأمر: سعر الوحدة، وكل سعر خاص لشواصٍ مستلمة
             Items = order.Items.SelectMany(i => order.ReceivedVins.Where(v => v.ItemId == i.Id).GroupBy(v => v.UnitPrice ?? i.UnitPrice)
                 .OrderByDescending(g => g.Key == i.UnitPrice).ThenBy(g => g.Key)
@@ -593,7 +605,7 @@ public class CarProcurementService : ICarProcurementService
                 SourceType = "car_landed_costs", SourceId = order.Id, SourceNumber = order.OrderNumber,
                 Lines = new List<PostingLine>
                 {
-                    new(settings.VehicleInventoryAccount, landed, 0),
+                    new(settings.VehicleInventoryAccount, landed, 0, null, order.CostCenterId), // مخزون المركبات بمركز فاتورتها
                     new(settings.AccruedChargesAccount, 0, landed),
                 },
             }, ct);

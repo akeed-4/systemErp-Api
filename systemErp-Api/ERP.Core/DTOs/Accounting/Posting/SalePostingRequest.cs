@@ -37,4 +37,6 @@ public class SalePostingRequest
 
     public List<PaymentPosting> Payments { get; set; } = new();
     public Guid? CostCenterId { get; set; }
+    /// <summary>مراكز اختارها المستخدم لحسابات قيد المستند (انظر <see cref="GenericPostingRequest.CostCenterByAccount"/>).</summary>
+    public Dictionary<string, Guid> CostCenterByAccount { get; set; } = new();
 }

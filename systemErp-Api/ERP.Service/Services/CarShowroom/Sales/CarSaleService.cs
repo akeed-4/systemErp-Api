@@ -23,16 +23,25 @@ public class CarSaleService : ICarSaleService
     private readonly IAuditService _audit;
     private readonly ICostVisibility _cost;
     private readonly IAccountingPostingService _posting;
+    private readonly IPermissionService _permissions;
     /// <summary>يُحمَّل في بداية كل عملية عامة؛ الافتراضي الحجب.</summary>
     private bool _canViewCost;
 
     public CarSaleService(ErpDbContext db, INumberSequenceService numbers, IInvoiceService invoices, ICurrentUser user, ITransactionRunner tx, IAuditService audit,
-        ICostVisibility cost, IAccountingPostingService posting)
+        ICostVisibility cost, IAccountingPostingService posting, IPermissionService permissions)
     {
-        _db = db; _numbers = numbers; _invoices = invoices; _user = user; _tx = tx; _audit = audit; _cost = cost; _posting = posting;
+        _db = db; _numbers = numbers; _invoices = invoices; _user = user; _tx = tx; _audit = audit; _cost = cost; _posting = posting; _permissions = permissions;
     }
 
     private async Task LoadCostVisibilityAsync(CancellationToken ct) => _canViewCost = await _cost.CanViewAsync(ct);
+
+    /// <summary>مركز العقد الجديد أو المتغيّر: من المنشأة ونشط، وبصلاحية تعيين المركز (المحفوظ كما هو لا يُعاد فحصه).</summary>
+    private async Task ValidateCostCenterAsync(Guid? center, Guid? previous, CancellationToken ct)
+    {
+        if (center == previous) return;
+        await CostCenterRules.EnsureUsableAsync(_db, new[] { center }, ct);
+        await CostCenterRules.EnsureCanAssignAsync(_permissions, true, ct);
+    }
 
     /// <summary>التكلفة والربح لمن يملك صلاحية car-cost-view فقط. في هامش الربح الضريبة والصافي يكشفان الهامش فيُحجبان معه.</summary>
     private CarSalesContractDto ToDto(CarSalesContract contract)
@@ -95,6 +104,7 @@ public class CarSaleService : ICarSaleService
             var contract = Mapper.Map<CarSalesContract>(r);
             contract.PaymentSplitsJson = PackSplits(r.PaymentSplits);
             ResetSystemFields(contract);
+            await ValidateCostCenterAsync(contract.CostCenterId, null, token);
             var vehicle = await LoadVehicleAsync(r.VehicleId, null, token, r.DepositVoucherId, r.CustomerId, r.BuyerName);
             await ValidateAsync(contract, token);
             ApplyVehicleAndPricing(contract, vehicle, await CarTax.LoadAsync(_db, token));
@@ -123,9 +133,11 @@ public class CarSaleService : ICarSaleService
 
             var keep = _db.Entry(contract).CurrentValues.Clone();
             var previousVehicle = contract.VehicleId;
+            var previousCenter = contract.CostCenterId;
             Mapper.Apply(r, contract);
             RestoreSystemFields(contract, keep);
             contract.PaymentSplitsJson = PackSplits(r.PaymentSplits);
+            await ValidateCostCenterAsync(contract.CostCenterId, previousCenter, token);
             var vehicle = await LoadVehicleAsync(contract.VehicleId, contract.Id, token, contract.DepositVoucherId, contract.CustomerId, contract.BuyerName);
             await ValidateAsync(contract, token);
             ApplyVehicleAndPricing(contract, vehicle, await CarTax.LoadAsync(_db, token));
@@ -258,6 +270,7 @@ public class CarSaleService : ICarSaleService
                 Notes = $"مرتجع بيع سيارة - عقد {c.ContractNumber} - VIN {c.Vin} - {r.Reason.Trim()}",
                 ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
                 RevenueAccountCode = original.RevenueAccountCode, CogsAccountCode = original.CogsAccountCode, InventoryAccountCode = original.InventoryAccountCode,
+                JournalCostCenters = JournalCostCenterMap.Unpack(original.JournalCostCentersJson), // المرتجع يعكس قيد أصله على مراكزه
                 Items = returned.Select(i => new InvoiceItemDto
                 {
                     ItemId = Guid.Empty, ItemName = i.ItemName, Sku = i.Sku, Unit = i.Unit, Quantity = i.Quantity, UnitPrice = i.UnitPrice, UnitCost = i.UnitCost,
@@ -441,6 +454,7 @@ public class CarSaleService : ICarSaleService
             Notes = $"فاتورة مبيعات سيارة - عقد {c.ContractNumber} - VIN {c.Vin}",
             ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
             RevenueAccountCode = settings.CarSalesRevenueAccount, CogsAccountCode = settings.CarCogsAccount, InventoryAccountCode = settings.VehicleInventoryAccount,
+            CostCenterId = c.CostCenterId, CostCenterFromSource = true, // مركز العقد افتراضي كل أسطر الفاتورة وقيدها
             Items = new List<InvoiceItemDto>
             {
                 new()

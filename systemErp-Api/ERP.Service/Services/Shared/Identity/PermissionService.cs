@@ -18,6 +18,8 @@ public class PermissionService : IPermissionService
     public const string SoldVehicleAdjustmentScreenId = "sold-vehicle-adjustment";
     public const string ItemStandardCostScreenId = "item-standard-cost-revaluation";
     public const string InvoiceTaxTreatmentOverrideScreenId = "invoice-tax-treatment-override";
+    /// <summary>تعيين مركز التكلفة أو تغييره على الفواتير (عامة ومعارض) والمستندات التي تُصدر فواتير (عقود بيع السيارات وأوامر شرائها).</summary>
+    public const string InvoiceCostCenterScreenId = "invoice-cost-center";
 
     /// <summary>دور بوابة الموظف (UserRole.Employee): لا يملك أي شاشة، ويُحصر في مسارات الخدمة الذاتية.</summary>
     public const string EmployeeRoleId = "employee";

@@ -2561,6 +2561,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("JournalCostCentersJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("JournalEntryId")
                         .HasColumnType("uniqueidentifier");
 
@@ -4575,6 +4578,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ClearanceAgent")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -4918,6 +4924,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("CorporatePoNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("CostPrice")
                         .HasPrecision(18, 4)

@@ -106,6 +106,7 @@ public class TradeInvoiceEngine
     private static InvoiceDto ToDto(InvoiceBase invoice, decimal amountDue)
     {
         var dto = Mapper.Map<InvoiceDto>(invoice);
+        dto.JournalCostCenters = JournalCostCenterMap.Unpack(invoice.JournalCostCentersJson);
         dto.AmountDue = amountDue;
         return dto;
     }
@@ -390,6 +391,7 @@ public class TradeInvoiceEngine
                 PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
                 WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
                 CostCenterId = original.CostCenterId,
+                JournalCostCenters = JournalCostCenterMap.Unpack(original.JournalCostCentersJson), // المرتجع يعكس قيد أصله على مراكزه
                 // الحسابات المحددة يدوياً على الأصل تتقدم في مرتجعه كما تقدمت فيه: المخزون يعود لحسابه والإيراد يُعكس من حسابه
                 RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
                 VatTreatment = original.VatTreatment, VatTreatmentReasonCode = original.VatTreatmentReasonCode, // المرتجع بمعالجة أصله
@@ -603,11 +605,21 @@ public class TradeInvoiceEngine
     {
         var entry = await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines)
             .FirstAsync(e => e.Id == invoice.JournalEntryId, ct);
+        var centerIds = entry.Lines.Where(l => l.CostCenterId.HasValue).Select(l => l.CostCenterId!.Value).Distinct().ToList();
+        var centers = await _db.Set<CostCenter>().AsNoTracking().Where(c => centerIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
         return new InvoiceJournalDto
         {
             EntryNumber = entry.EntryNumber, Date = entry.Date, Description = entry.Description,
             Lines = entry.Lines.OrderByDescending(l => l.Debit > 0).ThenBy(l => l.AccountCode)
-                .Select(l => new InvoiceJournalLineDto { AccountCode = l.AccountCode, AccountName = l.AccountName, Debit = l.Debit, Credit = l.Credit, Notes = l.Notes })
+                .Select(l =>
+                {
+                    var center = l.CostCenterId is Guid c ? centers.GetValueOrDefault(c) : null;
+                    return new InvoiceJournalLineDto
+                    {
+                        AccountCode = l.AccountCode, AccountName = l.AccountName, Debit = l.Debit, Credit = l.Credit, Notes = l.Notes,
+                        CostCenterId = l.CostCenterId, CostCenterCode = center?.Code, CostCenterName = center?.NameAr,
+                    };
+                })
                 .ToList(),
             TotalDebit = entry.TotalDebit, TotalCredit = entry.TotalCredit,
             Subtotal = invoice.Subtotal, VatTotal = invoice.VatTotal, GrandTotal = invoice.GrandTotal,
@@ -735,6 +747,7 @@ public class TradeInvoiceEngine
         await ApplyProductVatDefaultsAsync(r, ct);
         await ApplyProductExciseDefaultsAsync(r, ct);
         await EnsureVatTreatmentAllowedAsync(r, ct);
+        await EnsureCostCenterAllowedAsync(r, ct);
         var errors = new List<string>();
         ApplyDocumentVatTreatment(r, errors);
         if (!Enum.IsDefined(r.Kind)) errors.Add(Messages.InvalidDocumentType);
@@ -771,9 +784,12 @@ public class TradeInvoiceEngine
         var missing = productIds.Where(id => !products.ContainsKey(id)).ToList();
         if (missing.Count > 0) throw new ValidationFailedException(Messages.ItemsNotFoundInInvoice);
         // المراكز من المنشأة ونشطة قبل حفظ المسودة نفسها (المرتجع يتبع مراكز أصله ولو أُوقفت بعده)
-        await CostCenterRules.EnsureUsableAsync(_db, r.Items.Select(i => i.CostCenterId).Append(r.CostCenterId), ct, requireActive: !isReturn);
+        r.JournalCostCenters = JournalCostCenterMap.Normalize(r.JournalCostCenters);
+        await CostCenterRules.EnsureUsableAsync(_db, r.Items.Select(i => i.CostCenterId).Append(r.CostCenterId)
+            .Concat(r.JournalCostCenters.Select(j => (Guid?)j.CostCenterId)), ct, requireActive: !isReturn);
 
         var invoice = Mapper.Map<T>(r);
+        invoice.JournalCostCentersJson = JournalCostCenterMap.Pack(r.JournalCostCenters);
         invoice.Id = Guid.NewGuid();
         invoice.Uuid = Guid.NewGuid();
         invoice.Status = "draft";
@@ -934,6 +950,28 @@ public class TradeInvoiceEngine
             && await _db.Set<InvoiceBase>().AsNoTracking().AnyAsync(i => i.Id == id && i.VatTreatment == r.VatTreatment, ct)) return;
         if (!await _permissions.HasPermissionAsync(PermissionService.InvoiceTaxTreatmentOverrideScreenId, ScreenAction.Edit, ct))
             throw new ForbiddenException(Messages.InvoiceTaxTreatmentOverrideForbidden);
+    }
+
+    /// <summary>
+    /// مركز التكلفة الذي يختاره المستخدم (الافتراضي أو مركز سطر) يحتاج صلاحية تعيينه؛ والمرتجع يتبع مراكز أصله، والفاتورة الناتجة
+    /// عن مستند مصدر تحمل مركزه. تعديل مستند بمراكزه المحفوظة نفسها (ولو تغيّرت أسطره) لا يُعدّ تعييناً جديداً.
+    /// </summary>
+    private async Task EnsureCostCenterAllowedAsync(CreateInvoiceDto r, CancellationToken ct)
+    {
+        if (r.CostCenterFromSource || r.OriginalInvoiceId.HasValue) return;
+        bool changed;
+        var journal = JournalCostCenterMap.Pack(r.JournalCostCenters);
+        if (r.ExistingInvoiceId is Guid id)
+        {
+            var saved = await _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Id == id)
+                .Select(i => new { i.CostCenterId, i.JournalCostCentersJson }).FirstOrDefaultAsync(ct);
+            var savedLines = await _db.Set<InvoiceItemBase>().AsNoTracking().Where(l => l.InvoiceId == id && l.CostCenterId != null)
+                .Select(l => l.CostCenterId).Distinct().ToListAsync(ct);
+            changed = r.CostCenterId != saved?.CostCenterId || r.Items.Any(i => i.CostCenterId.HasValue && !savedLines.Contains(i.CostCenterId))
+                || journal != JournalCostCenterMap.Pack(JournalCostCenterMap.Unpack(saved?.JournalCostCentersJson)); // مراكز قسم القيد
+        }
+        else changed = r.CostCenterId.HasValue || r.Items.Any(i => i.CostCenterId.HasValue) || journal != null;
+        await CostCenterRules.EnsureCanAssignAsync(_permissions, changed, ct);
     }
 
     private static void ApplyDocumentVatTreatment(CreateInvoiceDto r, List<string> errors)
@@ -1107,6 +1145,7 @@ public class TradeInvoiceEngine
                 RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode, WarehouseId = invoice.WarehouseId,
                 RevenueLines = RevenueByLine(invoice, fx, baseNet),
                 CostLines = costByCenter.ToAmounts(),
+                CostCenterByAccount = JournalCostCenterMap.Map(invoice.JournalCostCentersJson),
             }, ct);
         else
             posted = await _posting.PostPurchaseAsync(new PurchasePostingRequest
@@ -1117,6 +1156,7 @@ public class TradeInvoiceEngine
                 ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount, VarianceAccountCode = varianceAccount,
                 InventoryAccountCode = invoice.InventoryAccountCode, WarehouseId = invoice.WarehouseId,
                 CostCenterShares = PurchaseShares(invoice, fx, baseNet, expenseAmount, inventoryAmount, stockByCenter),
+                CostCenterByAccount = JournalCostCenterMap.Map(invoice.JournalCostCentersJson),
             }, ct);
         invoice.JournalEntryId = posted.JournalEntryId;
 

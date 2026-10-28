@@ -63,6 +63,8 @@ public partial class CreateCarSalesContractDto
     public string? PaymentMethodCode { get; set; }
     /// <summary>دفع متعدد: مجموعه يساوي ما يدفعه العميل بعد العربون (يُتحقق عند الفوترة).</summary>
     public List<ERP.Core.DTOs.Accounting.InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
+    /// <summary>مركز تكلفة البيع (يُنقل إلى فاتورة العقد)؛ تعيينه أو تغييره بصلاحية invoice-cost-center.</summary>
+    public Guid? CostCenterId { get; set; }
     public string? PlateRegistrationType { get; set; }
     public string? PlateLettersAr { get; set; }
     public string? PlateDigitsAr { get; set; }

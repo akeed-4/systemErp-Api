@@ -12,6 +12,8 @@ public class ArchitectureTests
     private static readonly Assembly Core = typeof(BaseEntity).Assembly;
     private static readonly Assembly Service = typeof(ErpDbContext).Assembly;
     private static readonly Assembly Api = typeof(Program).Assembly;
+    /// <summary>اسم تجميعة الـ API كما يبنيها مشروعها (Erp.Api)، لا اسم مجلدها.</summary>
+    private static readonly string ApiName = Api.GetName().Name!;
 
     private static IEnumerable<string> References(Assembly a) => a.GetReferencedAssemblies().Select(r => r.Name!);
 
@@ -20,14 +22,14 @@ public class ArchitectureTests
     {
         var refs = References(Core).ToList();
         Assert.DoesNotContain("ERP.Service", refs);
-        Assert.DoesNotContain("ERP.Api", refs);
+        Assert.DoesNotContain(ApiName, refs);
         Assert.DoesNotContain(refs, r => r.StartsWith("Microsoft.EntityFrameworkCore"));
     }
 
     [Fact]
     public void Service_does_not_depend_on_Api()
     {
-        Assert.DoesNotContain("ERP.Api", References(Service));
+        Assert.DoesNotContain(ApiName, References(Service));
         Assert.Contains("ERP.Core", References(Service));
     }
 
@@ -35,7 +37,8 @@ public class ArchitectureTests
     public void Solution_has_exactly_three_application_assemblies()
     {
         var erp = new[] { Core, Service, Api }.Select(a => a.GetName().Name).ToList();
-        Assert.Equal(new[] { "ERP.Core", "ERP.Service", "ERP.Api" }, erp);
+        Assert.Equal(new[] { "ERP.Core", "ERP.Service", ApiName }, erp);
+        Assert.Equal("erp.api", ApiName.ToLowerInvariant());
         var loaded = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name!).Where(n => n.StartsWith("ERP.") && n != "ERP.Tests");
         Assert.All(loaded, n => Assert.Contains(n, erp));
     }

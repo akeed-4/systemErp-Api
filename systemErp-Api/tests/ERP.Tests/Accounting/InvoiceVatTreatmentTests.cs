@@ -56,9 +56,11 @@ public class InvoiceVatTreatmentTests : TestBase
     public async Task Exempt_purchase_needs_no_reason_and_posts_no_input_vat_and_its_return_inherits_it()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var purchase = await api.PostInvoice(new
         {
-            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", status = "posted", vatTreatment = "exempt",
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, status = "posted", vatTreatment = "exempt",
             items = new[] { Line("إيجار", 300) },
         });
         Assert.Equal(201, purchase.Status);

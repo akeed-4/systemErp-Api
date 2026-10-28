@@ -89,6 +89,9 @@ public static class PermissionCatalog
 
         new("accounts", "accounting", "دليل الحسابات والقيود اليومية", "Chart of Accounts",
             Crud(A.Approve, A.Post, A.Cancel, A.Close), new[] { "accounts-tree", "cost-centers", "bank-reconciliation", "fiscal-periods", "fixed-assets" }),
+        // بُعد محاسبي على القيود: يرث صلاحية دليل الحسابات (حيث تُدار المراكز) حتى تُحفظ له صلاحية مستقلة
+        new(PermissionService.InvoiceCostCenterScreenId, "accounting", "الفواتير: تعيين وتعديل مركز التكلفة", "Invoices: Assign & Change Cost Center",
+            new[] { A.Edit }, Array.Empty<string>(), InheritsFrom: "accounts"),
         new("accounting-settings", "accounting", "إعدادات الحسابات المحاسبية وطريقة الجرد", "Accounting Settings & Inventory Method",
             new[] { A.View, A.Edit }, new[] { "accounting-settings" }, InheritsFrom: "accounts"),
         new("vouchers", "accounting", "سندات القبض والصرف", "Receipt & Payment Vouchers",

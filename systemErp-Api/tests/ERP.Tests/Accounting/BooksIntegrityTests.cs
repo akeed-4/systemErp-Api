@@ -181,9 +181,11 @@ public class BooksIntegrityTests : TestBase
     public async Task Item_inventory_reconciles_with_the_ledger_through_purchases_and_sales()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var product = await SeedProductAsync(api, stock: 10, cost: 40); // افتتاحي بقيد مقابل الأرصدة الافتتاحية
         Assert.Equal(201, (await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 3, unitPrice = 100, vatRate = 15 } } })).Status);
-        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 5, unitPrice = 46, vatRate = 15 } } })).Status);
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, items = new[] { new { itemId = product, quantity = 5, unitPrice = 46, vatRate = 15 } } })).Status);
 
         var rec = (await api.Get("/reports/InventoryReconciliation")).Data!;
         var items = rec["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;

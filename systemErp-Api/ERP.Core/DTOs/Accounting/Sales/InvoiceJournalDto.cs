@@ -26,4 +26,8 @@ public class InvoiceJournalLineDto
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
     public string? Notes { get; set; }
+    /// <summary>مركز تكلفة السطر كما رُحِّل (فارغ = بلا مركز أو حساب لا يُحلَّل بالمراكز).</summary>
+    public Guid? CostCenterId { get; set; }
+    public string? CostCenterCode { get; set; }
+    public string? CostCenterName { get; set; }
 }

@@ -187,6 +187,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
                 Notes = $"مستخلص رقم {m.MilestoneNumber} - عقد {c.ContractNumber}",
                 ReferenceType = "commercial_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
                 RevenueAccountCode = string.IsNullOrWhiteSpace(c.RevenueAccountCode) ? null : c.RevenueAccountCode,
+                CostCenterId = c.CostCenterId, CostCenterFromSource = true, // مركز العقد على إيراد المستخلص وقيده
                 Items = new List<InvoiceItemDto>
                 {
                     new() { ItemId = Guid.Empty, ItemName = m.Title, Unit = "خدمة", Quantity = 1, UnitPrice = m.Amount, VatRate = c.VatRate },

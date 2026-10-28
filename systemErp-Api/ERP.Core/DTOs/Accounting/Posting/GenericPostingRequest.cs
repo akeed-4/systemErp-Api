@@ -20,4 +20,9 @@ public class GenericPostingRequest
     /// وجود المركز في المنشأة وإعداد الحساب يبقيان شرطاً.
     /// </summary>
     public bool AllowInactiveCostCenters { get; set; }
+    /// <summary>
+    /// مركز التكلفة الذي اختاره المستخدم لحساب بعينه في قيد المستند (من قسم القيد في شاشة الفاتورة): يحلّ محل مركز أسطر ذلك
+    /// الحساب قبل قواعد المراكز، فيبقى الحساب «غير المحلَّل» بلا مركز والمركز الموقوف مرفوضاً. لا يغيّر المبالغ.
+    /// </summary>
+    public Dictionary<string, Guid> CostCenterByAccount { get; set; } = new();
 }

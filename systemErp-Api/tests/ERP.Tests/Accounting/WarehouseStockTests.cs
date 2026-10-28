@@ -22,9 +22,9 @@ public class WarehouseStockTests : TestBase
     private static async Task<Guid> DefaultWarehouseAsync(Client api)
         => (await api.Get("/warehouses")).Data!["items"]!.AsArray().First(w => w!["isDefault"]!.GetValue<bool>())!["id"].G();
 
-    private static object Purchase(Guid item, decimal qty, decimal price, Guid? warehouse = null) => new
+    private static object Purchase(Guid supplier, Guid item, decimal qty, decimal price, Guid? warehouse = null) => new
     {
-        kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", status = "posted", warehouseId = warehouse,
+        kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, status = "posted", warehouseId = warehouse,
         items = new[] { new { itemId = item, quantity = qty, unitPrice = price, vatRate = 15 } },
     };
 
@@ -38,15 +38,17 @@ public class WarehouseStockTests : TestBase
     public async Task Documents_without_a_warehouse_use_the_default_and_each_warehouse_keeps_its_own_balance()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var item = await SeedProductAsync(api);
         var main = await DefaultWarehouseAsync(api);
         var branch = await NewWarehouseAsync(api, "WH-B");
         var before = await OnHandAsync(api, item, main);
 
-        var toDefault = await api.PostInvoice(Purchase(item, 10, 20));
+        var toDefault = await api.PostInvoice(Purchase(supplier, item, 10, 20));
         Assert.Equal(201, toDefault.Status);
         Assert.Equal(main, toDefault.Data!["warehouseId"].G());
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 4, 20, branch))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 4, 20, branch))).Status);
 
         Assert.Equal(before + 10, await OnHandAsync(api, item, main));
         Assert.Equal(4, await OnHandAsync(api, item, branch));
@@ -65,10 +67,12 @@ public class WarehouseStockTests : TestBase
     public async Task Transfer_moves_quantity_between_warehouses_without_changing_total_stock_cost_or_the_ledger()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var item = await SeedProductAsync(api);
         var main = await DefaultWarehouseAsync(api);
         var branch = await NewWarehouseAsync(api, "WH-T");
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 10, 20))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 10, 20))).Status);
         var product = (await api.Get($"/products/{item}")).Data!;
         var mainBefore = await OnHandAsync(api, item, main);
         var (debit, credit) = Totals(await api.Get("/reports/TrialBalance"));

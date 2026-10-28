@@ -26,6 +26,8 @@ public partial class InvoiceDto
     public Guid? WarehouseId { get; set; }
     /// <summary>مركز التكلفة الافتراضي للأسطر: يُنسخ لكل سطر بلا مركز عند الحفظ، فالمركز الفعلي محفوظ على السطر وقيده.</summary>
     public Guid? CostCenterId { get; set; }
+    /// <summary>مراكز التكلفة المختارة لحسابات قيد الفاتورة.</summary>
+    public List<JournalCostCenterDto> JournalCostCenters { get; set; } = new();
     public string? WarehouseName { get; set; }
     /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>
     public string? PartyStreet { get; set; }

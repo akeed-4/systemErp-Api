@@ -34,9 +34,9 @@ public class ZatcaLiveSandboxTests
         BillingReference = type == ZatcaInvoiceXml.Invoice ? null : "SME-0001", NoteReason = type == ZatcaInvoiceXml.Invoice ? null : "إرجاع بضاعة",
         Lines = new[]
         {
-            new ZatcaLine("صنف أول", 2, 50.33m, 0.66m, 100.00m, 15, 15.00m, VatCategory.Standard, null, null),
-            new ZatcaLine("صنف ثانٍ", 3, 33.33m, 0, 99.99m, 15, 15.00m, VatCategory.Standard, null, null),
-            new ZatcaLine("صنف صفري", 1, 10, 0, 10.00m, 0, 0, VatCategory.ZeroRated, "VATEX-SA-35", "الأدوية والمعدات الطبية المؤهلة"),
+            new ZatcaLine("صنف أول", 2, 50.33m, 0.66m, 100.00m, 0, 15, 15.00m, VatCategory.Standard, null, null),
+            new ZatcaLine("صنف ثانٍ", 3, 33.33m, 0, 99.99m, 0, 15, 15.00m, VatCategory.Standard, null, null),
+            new ZatcaLine("صنف صفري", 1, 10, 0, 10.00m, 0, 0, 0, VatCategory.ZeroRated, "VATEX-SA-35", "الأدوية والمعدات الطبية المؤهلة"),
         },
     };
 

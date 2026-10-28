@@ -158,6 +158,9 @@ public class AccountingPostingService : IAccountingPostingService
             throw new ValidationFailedException(Messages.CannotPostToParentAccountPrefix + string.Join(", ", parents));
 
         var byCode = accounts.ToDictionary(a => a.Code);
+        // مركز اختاره المستخدم لحساب في قيد المستند يحلّ محل مركز أسطره، ثم تُطبَّق قواعد المراكز عليه كأي مركز
+        if (request.CostCenterByAccount.Count > 0)
+            lines = lines.Select(l => request.CostCenterByAccount.TryGetValue(l.AccountCode, out var center) ? l with { CostCenterId = center } : l).ToList();
         lines = await ApplyCostCenterPolicyAsync(request, lines, byCode, ct);
         return new Prepared(lines, accounts, byCode, totalDebit, totalCredit);
     }
@@ -265,6 +268,7 @@ public class AccountingPostingService : IAccountingPostingService
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
         request.ReplaceEntryId = r.ReplaceEntryId;
+        request.CostCenterByAccount = r.CostCenterByAccount;
         return await PostAsync(request, ct);
     }
 
@@ -351,6 +355,7 @@ public class AccountingPostingService : IAccountingPostingService
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
         request.Module = r.Module;
         request.ReplaceEntryId = r.ReplaceEntryId;
+        request.CostCenterByAccount = r.CostCenterByAccount;
         return await PostAsync(request, ct);
     }
 

@@ -18,8 +18,8 @@ public class PeriodicInventoryTests : TestBase
 
     private static readonly DateTime Today = DateTime.UtcNow.Date;
 
-    private static object Purchase(Guid product, decimal qty, decimal price, string? inventoryAccountCode = null)
-        => new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", inventoryAccountCode,
+    private static object Purchase(Guid supplier, Guid product, decimal qty, decimal price, string? inventoryAccountCode = null)
+        => new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, inventoryAccountCode,
             items = new[] { new { itemId = product, quantity = qty, unitPrice = price, vatRate = 15 } } };
 
     private static async Task<decimal> BalanceAsync(Client api, string code) => (await api.Get($"/accounts/ByCode/{code}")).Data!["balance"].D();
@@ -39,6 +39,8 @@ public class PeriodicInventoryTests : TestBase
     private async Task<Client> PeriodicTenantAsync()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         await PeriodicAccountsAsync(api);
         Assert.Equal(200, (await api.Put("/accounting-settings", PeriodicSettings())).Status);
         return api;
@@ -59,6 +61,8 @@ public class PeriodicInventoryTests : TestBase
     public async Task Sales_carry_no_cost_and_purchases_go_to_purchases_at_document_price()
     {
         var api = await PeriodicTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var product = await SeedProductAsync(api, stock: 10, cost: 40); // أرصدة افتتاحية مقابل 33: على بضاعة أول المدة
         Assert.Equal(400m, await BalanceAsync(api, "517"));
         Assert.Equal(0m, await BalanceAsync(api, "1141"));
@@ -69,7 +73,7 @@ public class PeriodicInventoryTests : TestBase
         Assert.Equal(200m, Credit(saleLines, "411"));
         Assert.DoesNotContain(saleLines, l => l!["accountCode"].S() is "511" or "1141");
 
-        var purchase = await api.PostInvoice(Purchase(product, 5, 60));
+        var purchase = await api.PostInvoice(Purchase(supplier, product, 5, 60));
         Assert.Equal(201, purchase.Status);
         var purchaseLines = await JournalLinesAsync(api, purchase.Data!["journalEntryId"].S());
         Assert.Equal(300m, Debit(purchaseLines, "516"));
@@ -166,9 +170,11 @@ public class PeriodicInventoryTests : TestBase
     public async Task Manual_inventory_account_is_rejected_on_periodic_stock_documents()
     {
         var api = await PeriodicTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         await AccountAsync(api, "1146", "asset", "114");
         var product = await SeedProductAsync(api, stock: 0);
-        Assert.Equal(400, (await api.PostInvoice(Purchase(product, 1, 50, inventoryAccountCode: "1146"))).Status);
+        Assert.Equal(400, (await api.PostInvoice(Purchase(supplier, product, 1, 50, inventoryAccountCode: "1146"))).Status);
     }
 
     [Fact]

@@ -87,6 +87,8 @@ public class CarSalesContract : BaseEntity, IScopedRecord
     public string? PaymentMethodCode { get; set; }
     /// <summary>طرق الدفع المتعددة (JSON لقائمة InvoicePaymentSplitDto)؛ فارغ = طريقة واحدة بحسب PaymentMethod والدفعة المقدمة.</summary>
     public string? PaymentSplitsJson { get; set; }
+    /// <summary>مركز تكلفة البيع: يُنقل إلى فاتورة العقد (وبه أسطر قيدها) عند الفوترة. فارغ = بلا مركز.</summary>
+    public Guid? CostCenterId { get; set; }
 
     // خدمات المرور واللوحات والتأمين
     /// <summary>new | transfer | auction | export</summary>

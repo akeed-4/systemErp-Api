@@ -152,10 +152,12 @@ public class AccountingIntegrityTests : TestBase
     public async Task Purchased_services_are_expensed_and_only_stock_items_reach_the_inventory_account()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var product = await SeedProductAsync(api, stock: 0);
         var purchase = await api.PostInvoice(new
         {
-            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash",
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier,
             items = new object[]
             {
                 new { itemId = product, quantity = 5, unitPrice = 40, vatRate = 15 },
@@ -175,8 +177,10 @@ public class AccountingIntegrityTests : TestBase
     public async Task Purchase_return_leaves_inventory_at_cost_and_books_the_price_difference_as_variance()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var product = await SeedProductAsync(api, stock: 0);
-        object Purchase(decimal price) => new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { new { itemId = product, quantity = 10, unitPrice = price, vatRate = 15 } } };
+        object Purchase(decimal price) => new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, items = new[] { new { itemId = product, quantity = 10, unitPrice = price, vatRate = 15 } } };
         Assert.Equal(201, (await api.PostInvoice(Purchase(40))).Status);
         var second = await api.PostInvoice(Purchase(50)); // المتوسط 45
         Assert.Equal(201, second.Status);
@@ -281,6 +285,8 @@ public class AccountingIntegrityTests : TestBase
     public async Task Vat_return_separates_standard_zero_rated_exempt_and_out_of_scope_lines_net_of_returns()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         object Line(string name, decimal price, decimal rate, string? category = null, string? reason = null) => new { itemName = name, quantity = 1, unitPrice = price, vatRate = rate, vatCategory = category, vatExemptionReasonCode = reason };
         object Sale(params object[] items) => new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", items };
 
@@ -293,7 +299,7 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(201, sale.Status);
         Assert.Equal(new[] { "standard", "zero_rated", "zero_rated", "exempt", "out_of_scope" }, sale.Data!["items"]!.AsArray().Select(i => i!["vatCategory"].S()));
         Assert.Equal("VATEX-SA-32", sale.Data["items"]![2]!["vatExemptionReasonCode"].S());
-        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new[] { Line("إيجار", 200, 15) } })).Status);
+        Assert.Equal(201, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, items = new[] { Line("إيجار", 200, 15) } })).Status);
         // مرتجع كامل لفاتورة أساسية أخرى يُطرح من الإقرار
         var other = await api.PostInvoice(Sale(Line("أساسي", 400, 15)));
         Assert.Equal(200, (await api.PostReturn(new { originalInvoiceId = other.Data!["id"].S(), returnReason = "x" })).Status);

@@ -71,6 +71,7 @@ public partial class CarSalesContractDto
     /// <summary>رمز طريقة الدفع المؤسَّسة لطريقة العقد النقدية (cash/bank_transfer/pos_mada): فاتورته تُرحَّل على حسابها.</summary>
     public string? PaymentMethodCode { get; set; }
     public List<ERP.Core.DTOs.Accounting.InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
+    public Guid? CostCenterId { get; set; }
     public string? PlateRegistrationType { get; set; }
     public string? PlateLettersAr { get; set; }
     public string? PlateDigitsAr { get; set; }

@@ -1,4 +1,5 @@
 using ERP.Service.Data;
+using ERP.Service.Services.Shared;
 
 namespace ERP.Service.Services.Accounting;
 
@@ -19,6 +20,17 @@ internal static class CostCenterRules
         if (!requireActive) return;
         var inactive = found.FirstOrDefault(c => !c.IsActive);
         if (inactive != null) throw new ValidationFailedException(string.Format(Messages.CostCenterInactiveNamed, inactive.Code));
+    }
+
+    /// <summary>
+    /// تعيين مركز تكلفة أو تغييره على مستند يُصدر قيداً (فاتورة، عقد بيع سيارة، أمر شراء سيارات) يتطلب صلاحية
+    /// <see cref="PermissionService.InvoiceCostCenterScreenId"/>؛ حفظ المستند بمراكزه المحفوظة كما هي لا يحتاجها.
+    /// </summary>
+    public static async Task EnsureCanAssignAsync(IPermissionService permissions, bool changed, CancellationToken ct)
+    {
+        if (!changed) return;
+        if (!await permissions.HasPermissionAsync(PermissionService.InvoiceCostCenterScreenId, ScreenAction.Edit, ct))
+            throw new ForbiddenException(Messages.InvoiceCostCenterForbidden);
     }
 
     /// <summary>

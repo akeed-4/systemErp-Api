@@ -27,6 +27,8 @@ public partial class CreateInvoiceDto
     public Guid? WarehouseId { get; set; }
     /// <summary>مركز التكلفة الافتراضي للأسطر: يُنسخ لكل سطر بلا مركز عند الحفظ، فالمركز الفعلي محفوظ على السطر وقيده.</summary>
     public Guid? CostCenterId { get; set; }
+    /// <summary>مراكز التكلفة لحسابات قيد الفاتورة كما اختارها المستخدم في قسم القيد (حساب واحد = مركز واحد). فارغ = بلا اختيار.</summary>
+    public List<JournalCostCenterDto> JournalCostCenters { get; set; } = new();
     /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>
     public string? PartyStreet { get; set; }
     public string? PartyBuildingNo { get; set; }
@@ -93,4 +95,10 @@ public partial class CreateInvoiceDto
     /// <summary>داخلي: خصم الفاتورة المنقول إلى أسطر السيارات (يُصفَّر InvoiceDiscount بعده)، ليُعاد توزيعه إن أُعيد تنفيذ الطلب.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public decimal? VehicleInvoiceDiscount { get; set; }
+    /// <summary>
+    /// داخلي: مراكز التكلفة منقولة من المستند المصدر (عقد، أمر شراء) الذي اختيرت عليه بصلاحيته، فلا تُشترط صلاحية
+    /// تعيين المركز على الفاتورة الناتجة. لا يُقبل من الطلب.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CostCenterFromSource { get; set; }
 }

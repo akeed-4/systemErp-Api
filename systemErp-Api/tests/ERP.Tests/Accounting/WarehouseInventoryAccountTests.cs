@@ -22,9 +22,9 @@ public class WarehouseInventoryAccountTests : TestBase
     private static async Task<Guid> DefaultWarehouseAsync(Client api)
         => (await api.Get("/warehouses")).Data!["items"]!.AsArray().First(w => w!["isDefault"]!.GetValue<bool>())!["id"].G();
 
-    private static object Purchase(Guid item, decimal qty, decimal price, Guid warehouse, string? inventoryAccountCode = null) => new
+    private static object Purchase(Guid supplier, Guid item, decimal qty, decimal price, Guid warehouse, string? inventoryAccountCode = null) => new
     {
-        kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", warehouseId = warehouse, inventoryAccountCode,
+        kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, warehouseId = warehouse, inventoryAccountCode,
         items = new[] { new { itemId = item, quantity = qty, unitPrice = price, vatRate = 15 } },
     };
 
@@ -46,6 +46,8 @@ public class WarehouseInventoryAccountTests : TestBase
     private async Task<(Client Api, Guid Main, Guid Branch, Guid Item)> SetupAsync()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         await AccountAsync(api, "1145", "asset", "114");
         await AccountAsync(api, "1146", "asset", "114");
         var main = await DefaultWarehouseAsync(api);
@@ -58,9 +60,11 @@ public class WarehouseInventoryAccountTests : TestBase
     public async Task Documents_post_to_their_warehouse_account_after_the_manual_account()
     {
         var (api, main, branch, item) = await SetupAsync();
-        var toBranch = await api.PostInvoice(Purchase(item, 10, 40, branch));
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
+        var toBranch = await api.PostInvoice(Purchase(supplier, item, 10, 40, branch));
         Assert.Equal(400m, Debit(await JournalLinesAsync(api, toBranch.Data!["journalEntryId"].S()), "1145"));
-        var toMain = await api.PostInvoice(Purchase(item, 5, 40, main));
+        var toMain = await api.PostInvoice(Purchase(supplier, item, 5, 40, main));
         Assert.Equal(200m, Debit(await JournalLinesAsync(api, toMain.Data!["journalEntryId"].S()), "1141"));
 
         var sale = await api.PostInvoice(SaleFrom(item, 2, branch));
@@ -68,7 +72,7 @@ public class WarehouseInventoryAccountTests : TestBase
         Assert.Equal(80m, Credit(saleLines, "1145"));
         Assert.DoesNotContain(saleLines, l => l!["accountCode"].S() == "1141");
 
-        var manual = await api.PostInvoice(Purchase(item, 1, 40, branch, inventoryAccountCode: "1146"));
+        var manual = await api.PostInvoice(Purchase(supplier, item, 1, 40, branch, inventoryAccountCode: "1146"));
         var manualLines = await JournalLinesAsync(api, manual.Data!["journalEntryId"].S());
         Assert.Equal(40m, Debit(manualLines, "1146"));
         Assert.DoesNotContain(manualLines, l => l!["accountCode"].S() == "1145");
@@ -79,8 +83,10 @@ public class WarehouseInventoryAccountTests : TestBase
     public async Task Transfers_move_value_between_different_accounts_at_average_cost_only()
     {
         var (api, main, branch, item) = await SetupAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var other = await WarehouseAsync(api, "OT", null); // بلا حساب: حساب الإعدادات كالرئيسي
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 10, 40, main))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 10, 40, main))).Status);
 
         Assert.Equal(200, (await api.Post("/stocktransfers", new { fromWarehouseId = main, toWarehouseId = branch, items = new[] { new { itemId = item, quantity = 4 } } })).Status);
         Assert.Equal(240m, await BalanceAsync(api, "1141"));
@@ -97,8 +103,10 @@ public class WarehouseInventoryAccountTests : TestBase
     public async Task Revaluation_is_split_by_the_quantities_that_were_repriced()
     {
         var (api, main, branch, item) = await SetupAsync();
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 6, 40, main))).Status);
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 4, 40, branch))).Status);
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 6, 40, main))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 4, 40, branch))).Status);
         Assert.Equal(200, (await api.Put("/costing/policy", new { method = "last_purchase", recalculateOnNewPurchase = true, includeFreightAndCustoms = false,
             negativeInventoryPolicy = "prohibit", standardCostVarianceAccountCode = "513" })).Status);
 
@@ -113,7 +121,9 @@ public class WarehouseInventoryAccountTests : TestBase
     public async Task Count_differences_post_to_the_counted_warehouse_account()
     {
         var (api, _, branch, item) = await SetupAsync();
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 10, 40, branch))).Status);
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 10, 40, branch))).Status);
         var created = await api.Post("/inventorycounts", new { scope = "items", countType = "full", warehouseId = branch, countDate = DateTime.UtcNow,
             lines = new[] { new { itemId = item, countedQuantity = 8m } } });
         var approval = await api.Post($"/inventorycounts/{created.Data!["id"].S()}/submit");
@@ -127,6 +137,8 @@ public class WarehouseInventoryAccountTests : TestBase
     public async Task Periodic_ending_inventory_is_split_by_warehouse_account()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         await AccountAsync(api, "1145", "asset", "114");
         foreach (var code in new[] { "516", "517", "518" }) await AccountAsync(api, code, "expense", "51");
         Assert.Equal(200, (await api.Put("/accounting-settings", new { inventoryMethod = "periodic", purchasesAccountCode = "516",
@@ -134,8 +146,8 @@ public class WarehouseInventoryAccountTests : TestBase
         var main = await DefaultWarehouseAsync(api);
         var branch = await WarehouseAsync(api, "BR", "1145");
         var item = await SeedProductAsync(api, stock: 0);
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 6, 40, main))).Status);
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 4, 40, branch))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 6, 40, main))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 4, 40, branch))).Status);
 
         var created = await api.Post("/inventorycounts", new { scope = "items", countType = "periodic", countDate = DateTime.UtcNow,
             lines = new[] { new { itemId = item, countedQuantity = 6m } } }); // الجرد بلا مستودع يعدّ المستودع الافتراضي: بلا فرق
@@ -152,6 +164,8 @@ public class WarehouseInventoryAccountTests : TestBase
     public async Task Warehouse_account_is_validated_kept_when_omitted_and_locked_after_movements()
     {
         var (api, main, branch, item) = await SetupAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         Assert.Equal(400, (await api.Post("/warehouses", new { code = "C1", nameAr = "ص", nameEn = "C1", location = "x", status = "active", inventoryAccountCode = "1111" })).Status);
         Assert.Equal(400, (await api.Post("/warehouses", new { code = "C2", nameAr = "ص", nameEn = "C2", location = "x", status = "active", inventoryAccountCode = "1131" })).Status);
         Assert.Equal(400, (await api.Post("/warehouses", new { code = "C3", nameAr = "ص", nameEn = "C3", location = "x", status = "active", inventoryAccountCode = "1142" })).Status);
@@ -162,7 +176,7 @@ public class WarehouseInventoryAccountTests : TestBase
         Assert.Equal(200, renamed.Status);
         Assert.Equal("1145", renamed.Data!["inventoryAccountCode"].S());
 
-        Assert.Equal(201, (await api.PostInvoice(Purchase(item, 1, 40, branch))).Status);
+        Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 1, 40, branch))).Status);
         Assert.Equal(409, (await api.Put($"/warehouses/{branch}", new { code = "BR", nameAr = "الفرع", nameEn = "Branch", location = "جدة", status = "active",
             inventoryAccountCode = "1146" })).Status);
         Assert.Equal(409, (await api.Put($"/warehouses/{branch}", new { code = "BR", nameAr = "الفرع", nameEn = "Branch", location = "جدة", status = "active",

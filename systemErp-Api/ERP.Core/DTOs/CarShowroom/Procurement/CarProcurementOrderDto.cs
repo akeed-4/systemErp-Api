@@ -21,6 +21,7 @@ public partial class CarProcurementOrderDto
     public decimal ExchangeRate { get; set; } = 1;
     public string PaymentType { get; set; } = "cash";
     public int? CreditDays { get; set; }
+    public Guid? CostCenterId { get; set; }
     public decimal Subtotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }

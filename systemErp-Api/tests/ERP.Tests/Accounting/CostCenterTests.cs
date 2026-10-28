@@ -143,11 +143,13 @@ public class CostCenterTests : TestBase
     public async Task Purchase_invoice_posts_inventory_and_services_to_their_own_line_centers_not_the_first_one()
     {
         var api = await NewTenantAsync();
+
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var a = await CenterAsync(api, "A"); var b = await CenterAsync(api, "B");
         var product = await SeedProductAsync(api, stock: 0);
         object Purchase() => new
         {
-            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash",
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier,
             items = new object[]
             {
                 new { itemId = product, quantity = 5, unitPrice = 40, vatRate = 15, costCenterId = a },
@@ -173,7 +175,7 @@ public class CostCenterTests : TestBase
 
         // حساب الخدمات «إلزامي»: سطر خدمة بلا مركز يرفض الفاتورة كلها
         Assert.Equal(200, (await SetPolicyAsync(api, "524", "required")).Status);
-        Assert.Equal(400, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash",
+        Assert.Equal(400, (await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier,
             items = new[] { new { itemName = "شحن", quantity = 1, unitPrice = 50, vatRate = 15 } } })).Status);
         await AssertBalancedAsync(api);
     }

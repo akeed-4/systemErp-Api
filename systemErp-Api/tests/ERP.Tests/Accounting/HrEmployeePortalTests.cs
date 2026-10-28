@@ -80,8 +80,10 @@ public class HrEmployeePortalTests : TestBase
         var (noEmail, _) = await EmployeeAsync(hr, "E0", withEmail: false);
         Assert.Equal(400, (await hr.Post($"/employees/{noEmail}/portal-access/invite")).Status);
 
+        // الموظف الجديد ببريد يُدعى تلقائياً عند حفظه، ويصله رابط تعيين كلمة المرور
         var (id, email) = await EmployeeAsync(hr, "E1");
-        Assert.Equal("none", (await hr.Get($"/employees/{id}/portal-access")).Data!["status"].S());
+        Assert.Equal("invited", (await hr.Get($"/employees/{id}/portal-access")).Data!["status"].S());
+        Assert.Contains(FakeEmailSender.Instance.SentTo(email), m => m.Body.Contains("/activate/"));
 
         var invite = await hr.Post($"/employees/{id}/portal-access/invite");
         Assert.Equal("invited", invite.Data!["status"].S());
@@ -112,6 +114,27 @@ public class HrEmployeePortalTests : TestBase
         var renewed = (await hr.Post($"/employees/{second}/portal-access/invite")).Data!["inviteToken"].S();
         Assert.Equal(400, (await hr.SendAsync(HttpMethod.Get, $"/auth/Invite/{first}", anonymous: true)).Status);
         Assert.Equal(200, (await hr.SendAsync(HttpMethod.Get, $"/auth/Invite/{renewed}", anonymous: true)).Status);
+    }
+
+    [Fact]
+    public async Task Employee_is_invited_when_an_email_is_added_later_and_saving_again_does_not_reinvite()
+    {
+        var hr = await HrTenantAsync();
+        var (id, _) = await EmployeeAsync(hr, "E9", withEmail: false);
+        Assert.Equal("none", (await hr.Get($"/employees/{id}/portal-access")).Data!["status"].S());
+
+        var employee = (await hr.Get($"/employees/{id}")).Data!.AsObject();
+        var email = $"late{Guid.NewGuid():N}@test.com";
+        employee["email"] = email;
+        var saved = await hr.Put($"/employees/{id}", employee);
+        Assert.Equal(200, saved.Status);
+        Assert.False(string.IsNullOrEmpty(saved.Data!["userId"].S()));
+        Assert.Equal("invited", (await hr.Get($"/employees/{id}/portal-access")).Data!["status"].S());
+        Assert.Single(FakeEmailSender.Instance.SentTo(email));
+
+        // حفظ آخر للموظف المدعو لا يرسل دعوة جديدة
+        Assert.Equal(200, (await hr.Put($"/employees/{id}", saved.Data!.AsObject())).Status);
+        Assert.Single(FakeEmailSender.Instance.SentTo(email));
     }
 
     [Fact]

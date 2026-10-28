@@ -17,6 +17,8 @@ public partial class CreateCarProcurementOrderDto
     public decimal ExchangeRate { get; set; } = 1;
     public string PaymentType { get; set; } = "cash";
     public int? CreditDays { get; set; }
+    /// <summary>مركز تكلفة الشراء (يُنقل إلى فاتورة الأمر)؛ تعيينه أو تغييره بصلاحية invoice-cost-center.</summary>
+    public Guid? CostCenterId { get; set; }
     public decimal Subtotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }

@@ -17,6 +17,35 @@ public class EmployeesController : CrudController<EmployeeDto, CreateEmployeeDto
         _employees = s; _portal = portal;
     }
 
+    /// <summary>
+    /// الموظف الجديد ببريد يُدعى لبوابته فوراً: يصله بريد لتعيين كلمة المرور ثم الدخول لشاشاته. تعذّر الدعوة (بريد مسجّل
+    /// لدى منشأة أخرى مثلاً) لا يُلغي حفظ الموظف، وتبقى الدعوة متاحة يدوياً من ملفه.
+    /// </summary>
+    public override async Task<IActionResult> Create([FromBody] CreateEmployeeDto dto, CancellationToken ct)
+    {
+        var created = await _employees.CreateAsync(dto, ct);
+        var invited = await TryInviteAsync(created, ct);
+        if (invited) created = await _employees.GetAsync(created.Id, ct); // بربط حساب البوابة
+        return Created($"{Request.Path}/{created.Id}",
+            ApiResponse<EmployeeDto>.Ok(created, invited ? Messages.EmployeeCreatedPortalInviteSent : Messages.CreatedSuccessfully).WithStatus(201));
+    }
+
+    /// <summary>موظف أُضيف بريده لاحقاً ولم يُدعَ بعد: يُدعى عند الحفظ.</summary>
+    public override async Task<IActionResult> Update(Guid id, [FromBody] UpdateEmployeeDto dto, CancellationToken ct)
+    {
+        var updated = await _employees.UpdateAsync(id, dto, ct);
+        var invited = updated.UserId == null && await TryInviteAsync(updated, ct);
+        if (invited) updated = await _employees.GetAsync(id, ct);
+        return Success(updated, invited ? Messages.EmployeeUpdatedPortalInviteSent : Messages.UpdatedSuccessfully);
+    }
+
+    private async Task<bool> TryInviteAsync(EmployeeDto employee, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(employee.Email) || employee.Status != EmployeeStatuses.Active) return false;
+        try { return (await _portal.InviteAsync(employee.Id, ct)).EmailSent; }
+        catch (ErpException) { return false; }
+    }
+
     // ---------- بوابة الموظف: حالة الدخول، الدعوة، الإيقاف ----------
     [HttpGet("{id:guid}/portal-access")]
     public async Task<IActionResult> PortalAccess(Guid id, CancellationToken ct) => Success(await _portal.GetAccessAsync(id, ct));

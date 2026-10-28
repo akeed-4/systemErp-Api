@@ -13,6 +13,8 @@ public class QuickCarPurchaseRequestDto
     /// <summary>cash | credit | bank_lc | advance_milestone</summary>
     public string PaymentType { get; set; } = "cash";
     public int? CreditDays { get; set; }
+    /// <summary>مركز تكلفة الشراء (يُنقل إلى أمر الشراء وفاتورته).</summary>
+    public Guid? CostCenterId { get; set; }
     public string Currency { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1;
     public string? FinancingBankName { get; set; }

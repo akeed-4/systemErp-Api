@@ -64,10 +64,10 @@ public class AccountingSettingsTests : TestBase
         await AccountAsync(api, "516", "expense", "51");
         await AccountAsync(api, "414", "revenue", "41");
         await AccountAsync(api, "415", "revenue", "41");
-        await AccountAsync(api, "217", "liability", "21");
+        await AccountAsync(api, "219", "liability", "21");
         Assert.Equal(200, (await api.Put("/accounting-settings", new
         {
-            inventoryAccountCode = "1145", cogsAccountCode = "516", salesRevenueAccountCode = "414", salesReturnsAccountCode = "415", outputVatAccountCode = "217",
+            inventoryAccountCode = "1145", cogsAccountCode = "516", salesRevenueAccountCode = "414", salesReturnsAccountCode = "415", outputVatAccountCode = "219",
         })).Status);
 
         var product = await SeedProductAsync(api, stock: 10, cost: 40);
@@ -75,7 +75,7 @@ public class AccountingSettingsTests : TestBase
         Assert.Equal(201, sale.Status);
         var lines = await JournalLinesAsync(api, sale.Data!["journalEntryId"].S());
         Assert.Equal(200m, Credit(lines, "414"));
-        Assert.Equal(30m, Credit(lines, "217"));
+        Assert.Equal(30m, Credit(lines, "219"));
         Assert.Equal(80m, Debit(lines, "516"));
         Assert.Equal(80m, Credit(lines, "1145"));
         Assert.DoesNotContain(lines, l => l!["accountCode"].S() is "411" or "213" or "511" or "1141");
@@ -141,13 +141,13 @@ public class AccountingSettingsTests : TestBase
     {
         var api = await NewTenantAsync();
         await AccountAsync(api, "1145", "asset", "114");
-        await AccountAsync(api, "217", "liability", "21");
+        await AccountAsync(api, "219", "liability", "21");
         var product = await SeedProductAsync(api, stock: 1, cost: 40);
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 1))).Status);
         Assert.Equal(0m, (await api.Get("/accounts/ByCode/1141")).Data!["balance"].D()); // بيع كل المخزون: الرصيد صفر والحركات باقية
 
         Assert.Equal(409, (await api.Put("/accounting-settings", new { inventoryAccountCode = "1145" })).Status);
-        Assert.Equal(409, (await api.Put("/accounting-settings", new { outputVatAccountCode = "217" })).Status);
+        Assert.Equal(409, (await api.Put("/accounting-settings", new { outputVatAccountCode = "219" })).Status);
         Assert.Equal(200, (await api.Put("/accounting-settings", new { cogsAccountCode = "511" })).Status); // حساب نتيجة يُغيَّر بحرية
     }
 
@@ -289,7 +289,8 @@ public class AccountingSettingsTests : TestBase
         var api = await NewTenantAsync();
         await AccountAsync(api, "1146", "asset", "114");
         var product = await SeedProductAsync(api, stock: 0);
-        var purchase = await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", inventoryAccountCode = "1146",
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
+        var purchase = await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, inventoryAccountCode = "1146",
             items = new[] { new { itemId = product, quantity = 10, unitPrice = 50, vatRate = 15 } } });
         Assert.Equal(201, purchase.Status);
         Assert.Equal(500m, Debit(await JournalLinesAsync(api, purchase.Data!["journalEntryId"].S()), "1146"));
@@ -307,21 +308,22 @@ public class AccountingSettingsTests : TestBase
     {
         var api = await NewTenantAsync();
         await AccountAsync(api, "1132", "asset", "113");
-        await AccountAsync(api, "217", "liability", "21");
-        Assert.Equal(200, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1132", outputVatAccountCode = "217" })).Status);
+        await AccountAsync(api, "219", "liability", "21");
+        Assert.Equal(200, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1132", outputVatAccountCode = "219" })).Status);
         var product = await SeedProductAsync(api, stock: 5, cost: 40);
 
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 1))).Status);                                     // مخرجات 15
-        var purchase = await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash",
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
+        var purchase = await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier,
             items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });          // مدخلات 15
         Assert.Equal(15m, Debit(await JournalLinesAsync(api, purchase.Data!["journalEntryId"].S()), "1132"));
         var voucher = await api.Post("/vouchers", new { type = "receipt", amount = 115, vatAmount = 15, partyName = "إيراد آخر", partyAccountCode = "421",
             treasuryAccountCode = "1111", paymentMethod = "cash" });                                             // مخرجات 15
         Assert.True(voucher.Success, voucher.Body?.ToJsonString());
-        Assert.Equal(30m, (await api.Get("/accounts/ByCode/217")).Data!["balance"].D()); // بيع + سند
+        Assert.Equal(30m, (await api.Get("/accounts/ByCode/219")).Data!["balance"].D()); // بيع + سند
         // تسويتان يدويتان: مخرجات 40 ومدخلات 10
         Assert.Equal(200, (await api.Post("/journalentries", new { date = DateTime.UtcNow, description = "تسوية مخرجات",
-            lines = new[] { new { accountCode = "524", debit = 40m, credit = 0m }, new { accountCode = "217", debit = 0m, credit = 40m } } })).Status);
+            lines = new[] { new { accountCode = "524", debit = 40m, credit = 0m }, new { accountCode = "219", debit = 0m, credit = 40m } } })).Status);
         Assert.Equal(200, (await api.Post("/journalentries", new { date = DateTime.UtcNow, description = "تسوية مدخلات",
             lines = new[] { new { accountCode = "1132", debit = 10m, credit = 0m }, new { accountCode = "524", debit = 0m, credit = 10m } } })).Status);
 
@@ -346,7 +348,8 @@ public class AccountingSettingsTests : TestBase
         static object Line(string name, decimal price, decimal rate, string? category = null)
             => new { itemName = name, quantity = 1, unitPrice = price, vatRate = rate, vatCategory = category };
 
-        var purchase = await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", items = new object[]
+        var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
+        var purchase = await api.PostInvoice(new { kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "cash", partyId = supplier, items = new object[]
         {
             Line("خاضع", 100, 15), Line("صفري", 200, 0, "zero_rated"), Line("خارج النطاق", 400, 0, "out_of_scope"),
             new { itemId = exemptItem, quantity = 3, unitPrice = 100, vatRate = 0m, vatCategory = "exempt" },

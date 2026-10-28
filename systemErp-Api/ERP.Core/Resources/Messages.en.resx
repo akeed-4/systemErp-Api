@@ -965,6 +965,8 @@
   <data name="PortalNoEmployeeProfile" xml:space="preserve"><value>Your account is not linked to an employee file. Contact HR.</value></data>
 
   <data name="PortalInviteCreated" xml:space="preserve"><value>Employee portal invitation created.</value></data>
+  <data name="EmployeeCreatedPortalInviteSent" xml:space="preserve"><value>Employee saved and an invitation was emailed to set a password and sign in to the employee portal.</value></data>
+  <data name="EmployeeUpdatedPortalInviteSent" xml:space="preserve"><value>Employee updated and an invitation was emailed to set a password and sign in to the employee portal.</value></data>
 
   <data name="PortalAccessRevoked" xml:space="preserve"><value>The employee's portal access has been disabled.</value></data>
 
@@ -1163,6 +1165,7 @@
   <data name="TenantDatabaseModeInvalid" xml:space="preserve"><value>Invalid database type or billing cycle.</value></data>
   <data name="PlatformSettingsSaved" xml:space="preserve"><value>Platform settings saved</value></data>
   <data name="CostCenterInactiveNamed" xml:space="preserve"><value>Cost center {0} is inactive; nothing can be posted to it.</value></data>
+  <data name="InvoiceCostCenterForbidden" xml:space="preserve"><value>Assigning or changing the cost center of an invoice requires the "Invoices: Assign &amp; Change Cost Center" permission.</value></data>
   <data name="CostCenterParentNotFound" xml:space="preserve"><value>The parent cost center was not found.</value></data>
   <data name="CostCenterParentInvalid" xml:space="preserve"><value>A cost center cannot be placed under itself or one of its sub-centers.</value></data>
   <data name="CannotDeleteCostCenterWithChildren" xml:space="preserve"><value>Cannot delete a cost center that has sub-centers.</value></data>

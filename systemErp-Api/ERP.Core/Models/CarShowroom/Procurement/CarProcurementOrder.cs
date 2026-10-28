@@ -41,6 +41,8 @@ public class CarProcurementOrder : BaseEntity, IScopedRecord
     /// <summary>cash | credit | bank_lc | advance_milestone</summary>
     public string PaymentType { get; set; } = "cash";
     public int? CreditDays { get; set; }
+    /// <summary>مركز تكلفة الشراء: يُنقل إلى فاتورة الأمر (وبه أسطر قيدها) عند الفوترة. فارغ = بلا مركز.</summary>
+    public Guid? CostCenterId { get; set; }
     public decimal Subtotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }

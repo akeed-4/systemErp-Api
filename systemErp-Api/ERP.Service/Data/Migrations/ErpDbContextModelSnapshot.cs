@@ -7254,6 +7254,16 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("AllowDiscount")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowReturns")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("AllowedCategoryIdsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal?>("CashVariance")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -7281,12 +7291,19 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal?>("MaxDiscountPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTime>("OpenedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("OpeningCash")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("PosTerminalId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("PosTerminalName")
                         .IsRequired()
@@ -7361,6 +7378,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("VarianceJournalEntryId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CashierId");
@@ -7371,6 +7391,91 @@ namespace ERP.Service.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("PosShift");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.POS.PosTerminal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AllowDiscount")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowReturns")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("AllowedCategoryIdsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AllowedUserIdsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ConnectionType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeviceIdentifier")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("HardwareModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("HardwareSerialNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("HardwareType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("HasCashDrawer")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MaxDiscountPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PrinterAddress")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PrinterConnectionType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PrinterModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("PosTerminal");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.POS.PosTransaction", b =>

@@ -27,7 +27,7 @@ public class PosShiftService : IPosShiftService
     {
         var me = Me;
         var shift = await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, ct);
-        return shift == null ? null : Mapper.Map<PosShiftDto>(shift);
+        return shift == null ? null : ToDto(shift);
     }
 
     public Task<PosShiftDto> OpenAsync(OpenShiftRequestDto r, CancellationToken ct = default)
@@ -35,21 +35,36 @@ public class PosShiftService : IPosShiftService
         {
             var me = Me;
             if (r.OpeningCash < 0) throw new ValidationFailedException(Messages.OpeningCashCannotBeNegative);
-            if (string.IsNullOrWhiteSpace(r.PosTerminalName)) throw new ValidationFailedException(Messages.TerminalNameRequired);
+            PosTerminal? terminal = null;
+            if (r.PosTerminalId.HasValue)
+            {
+                terminal = await _db.Set<PosTerminal>().FirstOrDefaultAsync(t => t.Id == r.PosTerminalId && t.IsActive, token)
+                    ?? throw new ValidationFailedException("نقطة البيع غير موجودة أو غير مفعلة.");
+                var allowedUsers = PosTerminalService.ReadIds(terminal.AllowedUserIdsJson);
+                if (allowedUsers.Count > 0 && !allowedUsers.Contains(me)) throw new ForbiddenException("هذا المستخدم غير مخول للعمل على نقطة البيع المحددة.");
+                if (await _db.Set<PosShift>().AnyAsync(s => s.PosTerminalId == terminal.Id && s.Status == PosShiftStatus.Open, token))
+                    throw new ConflictException("توجد وردية مفتوحة على نقطة البيع المحددة.");
+            }
+            var terminalName = terminal?.Name ?? r.PosTerminalName?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(terminalName)) throw new ValidationFailedException(Messages.TerminalNameRequired);
             if (await _db.Set<PosShift>().AnyAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token))
                 throw new ConflictException(Messages.ShiftAlreadyOpen);
-            if (await _db.Set<PosShift>().AnyAsync(s => s.PosTerminalName == r.PosTerminalName && s.Status == PosShiftStatus.Open, token))
+            if (terminal == null && await _db.Set<PosShift>().AnyAsync(s => s.PosTerminalId == null && s.PosTerminalName == terminalName && s.Status == PosShiftStatus.Open, token))
                 throw new ConflictException(Messages.TerminalHasOpenShift);
 
             var shift = new PosShift
             {
                 ShiftNumber = await _numbers.NextAsync("pos_shift", "SHF-", token),
-                CashierId = me, CashierName = _user.Name ?? string.Empty, PosTerminalName = r.PosTerminalName.Trim(),
+                CashierId = me, CashierName = _user.Name ?? string.Empty, PosTerminalName = terminalName,
+                PosTerminalId = terminal?.Id, WarehouseId = terminal?.WarehouseId,
+                AllowReturns = terminal?.AllowReturns ?? true, AllowDiscount = terminal?.AllowDiscount ?? true,
+                MaxDiscountPercent = terminal?.MaxDiscountPercent,
+                AllowedCategoryIdsJson = terminal?.AllowedCategoryIdsJson ?? "[]",
                 OpenedAt = DateTime.UtcNow, OpeningCash = r.OpeningCash, Status = PosShiftStatus.Open,
             };
             _db.Add(shift);
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<PosShiftDto>(shift);
+            return ToDto(shift);
         }, ct);
 
     /// <summary>إغلاق الوردية: الجرد بالفئات (إن أُرسل) يحدد النقد الفعلي، ويُرحَّل قيد العجز/الزيادة.</summary>
@@ -79,7 +94,7 @@ public class PosShiftService : IPosShiftService
                 : null;
             await PosCashDrawer.SyncVarianceAsync(_db, _posting, shift, token);
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<PosShiftDto>(shift);
+            return ToDto(shift);
         }, ct);
 
     /// <summary>إيداع/صرف نقدي على درج الوردية المفتوحة مع قيده (مقابل الصندوق).</summary>
@@ -180,7 +195,7 @@ public class PosShiftService : IPosShiftService
         return new PosShiftReportDto
         {
             ReportType = shift.Status == PosShiftStatus.Open ? "X" : "Z",
-            Shift = Mapper.Map<PosShiftDto>(shift),
+            Shift = ToDto(shift),
             GeneratedAt = DateTime.UtcNow,
             SalesCount = live.Count,
             VoidedCount = sales.Count - live.Count,
@@ -212,7 +227,7 @@ public class PosShiftService : IPosShiftService
             if (shift.Status == PosShiftStatus.Closed && r.ClosingCashActual.HasValue) shift.ClosingCashActual = r.ClosingCashActual;
             await PosCashDrawer.SyncVarianceAsync(_db, _posting, shift, token);
             await _db.SaveChangesAsync(token);
-            return Mapper.Map<PosShiftDto>(shift);
+            return ToDto(shift);
         }, ct);
 
     public Task DeleteAsync(Guid id, bool cascade, CancellationToken ct = default)
@@ -253,12 +268,19 @@ public class PosShiftService : IPosShiftService
         var items = await q.OrderByDescending(s => s.OpenedAt).Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
         return new PagedResult<PosShiftDto>
         {
-            Items = items.Select(Mapper.Map<PosShiftDto>).ToList(),
+            Items = items.Select(ToDto).ToList(),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
 
     public async Task<PosShiftDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<PosShiftDto>(await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct)
+        => ToDto(await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct)
             ?? throw new NotFoundException(Messages.ShiftNotFound));
+
+    private static PosShiftDto ToDto(PosShift shift)
+    {
+        var dto = Mapper.Map<PosShiftDto>(shift);
+        dto.AllowedCategoryIds = PosTerminalService.ReadIds(shift.AllowedCategoryIdsJson);
+        return dto;
+    }
 }

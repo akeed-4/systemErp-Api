@@ -35,7 +35,7 @@ public class PosSaleService : IPosSaleService
             var settings = await _db.Set<PosInvoiceSettings>().AsNoTracking().FirstOrDefaultAsync(token) ?? new PosInvoiceSettings();
 
             // 1-5) التسعير: السلة، العروض والخصم اليدوي، الكوبون، الولاء، الضريبة
-            var cart = await PriceCartAsync(r, strict: true, token);
+            var cart = await PriceCartAsync(r, strict: true, shift, token);
             var (lines, products, lineDiscounts, coupon, couponDiscount, customer, loyalty, loyaltyDiscount, pointsUsed, priced) =
                 (cart.Lines, cart.Products, cart.LineDiscounts, cart.Coupon, cart.CouponDiscount, cart.Customer, cart.Loyalty, cart.LoyaltyDiscount, cart.PointsUsed, cart.Priced);
             var total = priced.GrandTotal;
@@ -67,7 +67,7 @@ public class PosSaleService : IPosSaleService
             var invoiceDto = new CreateInvoiceDto
             {
                 Kind = InvoiceKind.Sales, InvoiceType = standard ? InvoiceType.TaxInvoice : InvoiceType.Simplified,
-                WarehouseId = settings.WarehouseId,
+                WarehouseId = shift.WarehouseId ?? settings.WarehouseId,
                 PartyId = customer?.Id, PartyName = r.CustomerName ?? customer?.NameAr ?? "عميل نقدي POS",
                 PartyVatNumber = vat, PartyPhone = r.CustomerPhone ?? customer?.Phone,
                 InvoiceDiscount = couponDiscount + loyaltyDiscount, Status = "posted",
@@ -146,7 +146,7 @@ public class PosSaleService : IPosSaleService
         PricedDocument Priced);
 
     /// <summary>تسعير السلة من الكتالوج (مشترك بين الإتمام والعرض المسبق). strict=false: الكوبون/الولاء غير الصالح يُتجاهل مع رسالة.</summary>
-    private async Task<CartPricing> PriceCartAsync(CheckoutRequestDto r, bool strict, CancellationToken token)
+    private async Task<CartPricing> PriceCartAsync(CheckoutRequestDto r, bool strict, PosShift shift, CancellationToken token)
     {
             // 1) السلة: دمج الأسطر المكررة والتحقق
             var lines = r.Items.Where(i => i.Quantity != 0 || i.ItemId != Guid.Empty)
@@ -166,6 +166,9 @@ public class PosSaleService : IPosSaleService
             if (products.Count != ids.Count) throw new ValidationFailedException(Messages.ItemNotInCart);
             var categoryCodes = products.Values.Select(p => p.Category).Distinct().ToList();
             var categoryIds = await _db.Set<ProductCategory>().AsNoTracking().Where(c => categoryCodes.Contains(c.Code)).ToDictionaryAsync(c => c.Code, c => c.Id, token);
+            var allowedCategories = PosTerminalService.ReadIds(shift.AllowedCategoryIdsJson);
+            if (allowedCategories.Count > 0 && products.Values.Any(p => !categoryIds.TryGetValue(p.Category, out var categoryId) || !allowedCategories.Contains(categoryId)))
+                throw new ForbiddenException("تحتوي السلة على فئة غير مسموحة في نقطة البيع الحالية.");
             var offers = await _db.Set<PosOffer>().AsNoTracking().Where(o => o.IsActive).ToListAsync(token);
 
             // 2) الخصومات على مستوى السطر (عروض السرفر + خصم يدوي إداري)
@@ -218,6 +221,10 @@ public class PosSaleService : IPosSaleService
                 lines.Select((l, i) => new PricedLineInput(l.Quantity, products[l.ItemId].SellingPrice, lineDiscounts[i], products[l.ItemId].VatRate,
                     null, products[l.ItemId].ExciseTaxRate, products[l.ItemId].ExciseRetailPrice, products[l.ItemId].ExciseStandardPrice)).ToList(),
                 couponDiscount + loyaltyDiscount);
+            if (!shift.AllowDiscount && (lines.Any(l => l.ManualDiscount > 0) || couponDiscount > 0 || loyaltyDiscount > 0))
+                throw new ForbiddenException("الخصومات غير مسموحة على نقطة البيع الحالية.");
+            if (shift.MaxDiscountPercent.HasValue && priced.Subtotal > 0 && priced.DiscountTotal * 100m / priced.Subtotal > shift.MaxDiscountPercent.Value)
+                throw new ForbiddenException($"تجاوز الخصم الحد المسموح لهذه النقطة ({shift.MaxDiscountPercent.Value:0.##}%).");
             return new CartPricing(lines, products, offerDiscounts, lineDiscounts, coupon, couponDiscount, couponError,
                 customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced);
     }
@@ -225,7 +232,10 @@ public class PosSaleService : IPosSaleService
     /// <summary>تسعير السلة من السرفر للعرض على شاشة الكاشير قبل الدفع — بلا أي أثر.</summary>
     public async Task<PosQuoteDto> QuoteAsync(CheckoutRequestDto r, CancellationToken ct = default)
     {
-        var cart = await PriceCartAsync(r, strict: false, ct);
+        var me = _user.UserId ?? throw new UnauthorizedAppException();
+        var shift = await _db.Set<PosShift>().AsNoTracking().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, ct)
+            ?? throw new ConflictException(Messages.OpenShiftBeforeSale);
+        var cart = await PriceCartAsync(r, strict: false, shift, ct);
         var p = cart.Priced;
         return new PosQuoteDto
         {

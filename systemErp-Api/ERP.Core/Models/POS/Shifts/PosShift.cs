@@ -7,6 +7,13 @@ public class PosShift : BaseEntity
     public Guid CashierId { get; set; }
     public string CashierName { get; set; } = string.Empty;
     public string PosTerminalName { get; set; } = string.Empty;
+    public Guid? PosTerminalId { get; set; }
+    public Guid? WarehouseId { get; set; }
+    /// <summary>سياسات محطة البيع كما كانت عند فتح الوردية؛ تبقى ثابتة إلى إغلاقها.</summary>
+    public bool AllowReturns { get; set; } = true;
+    public bool AllowDiscount { get; set; } = true;
+    public decimal? MaxDiscountPercent { get; set; }
+    public string AllowedCategoryIdsJson { get; set; } = "[]";
     public DateTime OpenedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
     public PosShiftStatus Status { get; set; } = PosShiftStatus.Open;

@@ -10,6 +10,12 @@ public partial class PosShiftDto
     public Guid CashierId { get; set; }
     public string CashierName { get; set; } = string.Empty;
     public string PosTerminalName { get; set; } = string.Empty;
+    public Guid? PosTerminalId { get; set; }
+    public Guid? WarehouseId { get; set; }
+    public bool AllowReturns { get; set; } = true;
+    public bool AllowDiscount { get; set; } = true;
+    public decimal? MaxDiscountPercent { get; set; }
+    public List<Guid> AllowedCategoryIds { get; set; } = new();
     public DateTime OpenedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
     public PosShiftStatus Status { get; set; } = PosShiftStatus.Open;

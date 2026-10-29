@@ -28,6 +28,7 @@ public class PosSaleReturnService : IPosSaleReturnService
             if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
             var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token)
                 ?? throw new ConflictException(Messages.OpenShiftToProcessReturn);
+            if (!shift.AllowReturns) throw new ForbiddenException("المرتجعات غير مسموحة على نقطة البيع المرتبطة بهذه الوردية.");
 
             var tx = await _db.Set<PosTransaction>().Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == r.OriginalTransactionId, token)
                 ?? throw new NotFoundException(Messages.OriginalTransactionNotFound);

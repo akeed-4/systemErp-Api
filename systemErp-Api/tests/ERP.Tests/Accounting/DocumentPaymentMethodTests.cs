@@ -101,7 +101,7 @@ public class DocumentPaymentMethodTests : TestBase
         await MethodAsync(api, "CASH", "cash", "1111");
         await MethodAsync(api, "MADA", "card", "1112");
         await MethodAsync(api, "LATER", "credit", "1111");
-        Assert.Equal(200, (await api.Post("/pos/shifts/open", new { openingCash = 0, posTerminalName = "POS-1" })).Status);
+        await OpenPosShiftAsync(api);
         var cashBefore = await BalanceAsync(api, "1111");
 
         // 115 مستحق: مدى 70 ونقد 50، والباقي 5 من النقد

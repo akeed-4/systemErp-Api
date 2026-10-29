@@ -1320,4 +1320,15 @@
   <data name="CardTerminalPaymentOtherShift" xml:space="preserve"><value>The card terminal payment belongs to another shift.</value></data>
   <data name="CardTerminalPaymentMethodMismatch" xml:space="preserve"><value>The payment method does not match the one charged on the terminal.</value></data>
   <data name="ShiftHasUnresolvedTerminalPayments" xml:space="preserve"><value>Cannot close the shift: {0} card terminal payment(s) unresolved (pending, unknown result, or an approval not used in a sale).</value></data>
+  <data name="LinkContractToSupplierBeforeBilling" xml:space="preserve"><value>Link the contract to a supplier before billing (a payables account is required).</value></data>
+  <data name="SupplierInactive" xml:space="preserve"><value>The supplier is inactive; activate their card before billing.</value></data>
+  <data name="SupplierAccountMissing" xml:space="preserve"><value>The supplier has no payables account in the chart of accounts; complete their card before billing.</value></data>
+  <data name="SupplierVatNumberInvalid" xml:space="preserve"><value>The VAT number on the supplier card is invalid; correct it before billing.</value></data>
+  <data name="ContractNotifyActionTitle" xml:space="preserve"><value>Contract {0} awaits your action ({1})</value></data>
+  <data name="ContractNotifyStatusTitle" xml:space="preserve"><value>Contract {0} moved to &quot;{1}&quot;</value></data>
+  <data name="ContractNotifyReturnedTitle" xml:space="preserve"><value>Contract {0} was returned to draft</value></data>
+  <data name="ContractNotifyReviewApprovedTitle" xml:space="preserve"><value>{0} review approved for contract {1}</value></data>
+  <data name="ContractNotifyBody" xml:space="preserve"><value>{0} — Party: {1} — by {2}</value></data>
+  <data name="PosTerminalSetupRequired" xml:space="preserve"><value>No POS station is defined; set up a POS station first, then open the shift on it.</value></data>
+  <data name="PosTerminalRequired" xml:space="preserve"><value>Select the POS station to open the shift on.</value></data>
 </root>

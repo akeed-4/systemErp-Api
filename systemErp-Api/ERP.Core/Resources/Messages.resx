@@ -1320,4 +1320,15 @@
   <data name="CardTerminalPaymentOtherShift" xml:space="preserve"><value>دفع جهاز الدفع يخص وردية أخرى.</value></data>
   <data name="CardTerminalPaymentMethodMismatch" xml:space="preserve"><value>طريقة الدفع لا تطابق الطريقة التي حُصِّل بها الجهاز.</value></data>
   <data name="ShiftHasUnresolvedTerminalPayments" xml:space="preserve"><value>لا يمكن إغلاق الوردية: {0} دفع على جهاز الدفع غير محسوم (معلّق، أو مجهول النتيجة، أو موافقة لم تُستخدم في بيع).</value></data>
+  <data name="LinkContractToSupplierBeforeBilling" xml:space="preserve"><value>اربط العقد بمورد قبل الفوترة (يلزم حساب ذمم المورد).</value></data>
+  <data name="SupplierInactive" xml:space="preserve"><value>المورد موقوف؛ فعّل بطاقته قبل الفوترة.</value></data>
+  <data name="SupplierAccountMissing" xml:space="preserve"><value>المورد ليس له حساب ذمم في شجرة الحسابات؛ أكمل بطاقته قبل الفوترة.</value></data>
+  <data name="SupplierVatNumberInvalid" xml:space="preserve"><value>الرقم الضريبي في بطاقة المورد غير صالح؛ صحّحه قبل الفوترة.</value></data>
+  <data name="ContractNotifyActionTitle" xml:space="preserve"><value>العقد {0} بانتظار إجرائك ({1})</value></data>
+  <data name="ContractNotifyStatusTitle" xml:space="preserve"><value>انتقل العقد {0} إلى «{1}»</value></data>
+  <data name="ContractNotifyReturnedTitle" xml:space="preserve"><value>أُعيد العقد {0} للمسودة</value></data>
+  <data name="ContractNotifyReviewApprovedTitle" xml:space="preserve"><value>تمت الموافقة {0} على العقد {1}</value></data>
+  <data name="ContractNotifyBody" xml:space="preserve"><value>{0} — الطرف: {1} — بواسطة {2}</value></data>
+  <data name="PosTerminalSetupRequired" xml:space="preserve"><value>لا توجد نقطة بيع معرّفة؛ أعدّ نقطة بيع أولاً من إعداد نقاط البيع ثم افتح الوردية عليها.</value></data>
+  <data name="PosTerminalRequired" xml:space="preserve"><value>اختر نقطة البيع التي تُفتح عليها الوردية.</value></data>
 </root>

@@ -56,7 +56,7 @@ public class PermissionTests : TestBase
         var owner = await NewTenantAsync();
         var product = await SeedProductAsync(owner);
         var rep = await SalesRepAsync(owner);
-        Assert.Equal(200, (await rep.Post("/pos/shifts/open", new { openingCash = 100, posTerminalName = "T1" })).Status);
+        await OpenPosShiftAsync(owner, 100, "T1", rep);
         var r = await rep.Post("/pos/transactions/checkout", new { items = new[] { new { itemId = product, quantity = 1, manualDiscount = 5 } }, paymentMethod = "cash", paidCash = 200 });
         Assert.Equal(403, r.Status);
     }

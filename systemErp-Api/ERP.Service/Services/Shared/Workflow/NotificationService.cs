@@ -28,12 +28,34 @@ public class NotificationService : INotificationService
         return Mapper.Map<AppNotificationDto>(n);
     }
 
+    public async Task NotifyUsersAsync(IEnumerable<Guid> recipients, NotifyRequestDto t, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(t.Title)) throw new ValidationFailedException(Messages.NotificationTitleRequired);
+        var ids = recipients.Distinct().ToList();
+        if (ids.Count == 0) return;
+        var existing = await _db.Set<User>().AsNoTracking().Where(u => ids.Contains(u.Id)).Select(u => u.Id).ToListAsync(ct);
+        foreach (var id in existing)
+            _db.Add(new AppNotification
+            {
+                RecipientUserId = id, RecipientRole = t.RecipientRole, Title = t.Title, Body = t.Body, Type = t.Type,
+                RelatedDocType = t.RelatedDocType, RelatedDocId = t.RelatedDocId, RelatedDocNumber = t.RelatedDocNumber,
+            });
+        await _db.SaveChangesAsync(ct);
+    }
+
     public async Task<List<AppNotificationDto>> ListMineAsync(CancellationToken ct = default)
     {
         var id = _user.UserId ?? throw new UnauthorizedAppException();
         var items = await _db.Set<AppNotification>().AsNoTracking().Where(n => n.RecipientUserId == id)
             .OrderByDescending(n => n.CreatedAt).Take(200).ToListAsync(ct);
         return items.Select(Mapper.Map<AppNotificationDto>).ToList();
+    }
+
+    public async Task<NotificationSummaryDto> SummaryAsync(CancellationToken ct = default)
+    {
+        var id = _user.UserId ?? throw new UnauthorizedAppException();
+        var mine = _db.Set<AppNotification>().AsNoTracking().Where(n => n.RecipientUserId == id);
+        return new(await mine.CountAsync(n => !n.IsRead, ct), await mine.MaxAsync(n => (DateTime?)n.CreatedAt, ct));
     }
 
     public async Task<AppNotificationDto> GetAsync(Guid id, CancellationToken ct = default)

@@ -37,6 +37,8 @@ public interface IPermissionService
     /// <summary>نطاق قوائم المستخدم الحالي لشاشة؛ null = كل السجلات.</summary>
     Task<DataScopeFilter?> GetDataScopeAsync(string screenId, CancellationToken ct = default);
 
+    /// <summary>المستخدمون النشطون الذين يملكون أياً من الإجراءات على الشاشة (لتوجيه الإشعارات).</summary>
+    Task<List<Guid>> UsersWithAnyActionAsync(string screenId, IReadOnlyCollection<ScreenAction> anyOf, CancellationToken ct = default);
     Task<EffectivePermissionsDto> GetEffectiveAsync(Guid userId, CancellationToken ct = default);
     /// <summary>المستخدمون الذين لهم تخصيص مباشر يتفوق على صلاحيات أدوارهم.</summary>
     Task<List<Guid>> GetCustomizedUsersAsync(CancellationToken ct = default);

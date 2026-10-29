@@ -35,31 +35,27 @@ public class PosShiftService : IPosShiftService
         {
             var me = Me;
             if (r.OpeningCash < 0) throw new ValidationFailedException(Messages.OpeningCashCannotBeNegative);
-            PosTerminal? terminal = null;
-            if (r.PosTerminalId.HasValue)
-            {
-                terminal = await _db.Set<PosTerminal>().FirstOrDefaultAsync(t => t.Id == r.PosTerminalId && t.IsActive, token)
-                    ?? throw new ValidationFailedException("نقطة البيع غير موجودة أو غير مفعلة.");
-                var allowedUsers = PosTerminalService.ReadIds(terminal.AllowedUserIdsJson);
-                if (allowedUsers.Count > 0 && !allowedUsers.Contains(me)) throw new ForbiddenException("هذا المستخدم غير مخول للعمل على نقطة البيع المحددة.");
-                if (await _db.Set<PosShift>().AnyAsync(s => s.PosTerminalId == terminal.Id && s.Status == PosShiftStatus.Open, token))
-                    throw new ConflictException("توجد وردية مفتوحة على نقطة البيع المحددة.");
-            }
-            var terminalName = terminal?.Name ?? r.PosTerminalName?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(terminalName)) throw new ValidationFailedException(Messages.TerminalNameRequired);
+            // الوردية تُفتح على نقطة بيع معرّفة ومفعّلة فقط (لا اسم حر): منها تُنسخ سياسات الوردية ومستودعها
+            if (!r.PosTerminalId.HasValue)
+                throw new ValidationFailedException(await _db.Set<PosTerminal>().AnyAsync(t => t.IsActive, token)
+                    ? Messages.PosTerminalRequired : Messages.PosTerminalSetupRequired);
+            var terminal = await _db.Set<PosTerminal>().FirstOrDefaultAsync(t => t.Id == r.PosTerminalId && t.IsActive, token)
+                ?? throw new ValidationFailedException("نقطة البيع غير موجودة أو غير مفعلة.");
+            var allowedUsers = PosTerminalService.ReadIds(terminal.AllowedUserIdsJson);
+            if (allowedUsers.Count > 0 && !allowedUsers.Contains(me)) throw new ForbiddenException("هذا المستخدم غير مخول للعمل على نقطة البيع المحددة.");
+            if (await _db.Set<PosShift>().AnyAsync(s => s.PosTerminalId == terminal.Id && s.Status == PosShiftStatus.Open, token))
+                throw new ConflictException("توجد وردية مفتوحة على نقطة البيع المحددة.");
             if (await _db.Set<PosShift>().AnyAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token))
                 throw new ConflictException(Messages.ShiftAlreadyOpen);
-            if (terminal == null && await _db.Set<PosShift>().AnyAsync(s => s.PosTerminalId == null && s.PosTerminalName == terminalName && s.Status == PosShiftStatus.Open, token))
-                throw new ConflictException(Messages.TerminalHasOpenShift);
 
             var shift = new PosShift
             {
                 ShiftNumber = await _numbers.NextAsync("pos_shift", "SHF-", token),
-                CashierId = me, CashierName = _user.Name ?? string.Empty, PosTerminalName = terminalName,
-                PosTerminalId = terminal?.Id, WarehouseId = terminal?.WarehouseId,
-                AllowReturns = terminal?.AllowReturns ?? true, AllowDiscount = terminal?.AllowDiscount ?? true,
-                MaxDiscountPercent = terminal?.MaxDiscountPercent,
-                AllowedCategoryIdsJson = terminal?.AllowedCategoryIdsJson ?? "[]",
+                CashierId = me, CashierName = _user.Name ?? string.Empty, PosTerminalName = terminal.Name,
+                PosTerminalId = terminal.Id, WarehouseId = terminal.WarehouseId,
+                AllowReturns = terminal.AllowReturns, AllowDiscount = terminal.AllowDiscount,
+                MaxDiscountPercent = terminal.MaxDiscountPercent,
+                AllowedCategoryIdsJson = terminal.AllowedCategoryIdsJson,
                 OpenedAt = DateTime.UtcNow, OpeningCash = r.OpeningCash, Status = PosShiftStatus.Open,
             };
             _db.Add(shift);

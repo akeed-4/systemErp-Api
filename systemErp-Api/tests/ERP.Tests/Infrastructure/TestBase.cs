@@ -72,6 +72,24 @@ public abstract class TestBase
     }
 
     /// <summary>يعلّم فواتير بيع المنشأة ومرتجعاتها مُبلَّغة للهيئة: لا محاكي لهيئة الزكاة في الاختبارات.</summary>
+    /// <summary>نقطة بيع معرّفة (المرتجعات والخصم مسموحة) — شرط فتح الوردية.</summary>
+    protected static async Task<Guid> SeedPosTerminalAsync(Client admin, string name = "POS-1")
+    {
+        var code = $"T{Guid.NewGuid():N}"[..10];
+        var t = await admin.Post("/pos/terminals", new { code, name, deviceIdentifier = code, allowReturns = true, allowDiscount = true });
+        Assert.True(t.Status is 200 or 201, t.Body?.ToJsonString());
+        return t.Data!["id"].G();
+    }
+
+    /// <summary>يعرّف نقطة بيع (بحساب المدير) ويفتح عليها وردية لـ <paramref name="cashier"/> (افتراضياً المدير نفسه).</summary>
+    protected static async Task<Guid> OpenPosShiftAsync(Client admin, decimal openingCash = 0, string name = "POS-1", Client? cashier = null)
+    {
+        var terminal = await SeedPosTerminalAsync(admin, name);
+        var open = await (cashier ?? admin).Post("/pos/shifts/open", new { openingCash, posTerminalId = terminal });
+        Assert.True(open.Status == 200, open.Body?.ToJsonString());
+        return terminal;
+    }
+
     protected async Task MarkSalesReportedToZatcaAsync(Client api)
     {
         using var scope = Factory.Services.CreateScope();

@@ -13,6 +13,9 @@ public class NotificationsController : ErpControllerBase
     // إشعارات المستخدم نفسه (مقيّدة بصاحب الجلسة في الخدمة): متاحة للموظف في بوابته أيضاً؛ إنشاء الإشعارات لا
     [HttpGet, EmployeeSelfService] public async Task<IActionResult> Mine(CancellationToken ct) => Success(await _notifications.ListMineAsync(ct));
 
+    [HttpGet("summary"), EmployeeSelfService]
+    public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _notifications.SummaryAsync(ct));
+
     [HttpPost]
     public async Task<IActionResult> Notify([FromBody] NotifyRequestDto request, CancellationToken ct)
         => Success(await _notifications.NotifyAsync(request, ct));

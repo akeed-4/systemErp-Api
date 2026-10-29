@@ -8,7 +8,7 @@ public class PosCorrectionTests : TestBase
 {
     public PosCorrectionTests(ErpFactory f) : base(f) { }
 
-    private static async Task OpenShiftAsync(Client api) => Assert.Equal(200, (await api.Post("/pos/shifts/open", new { openingCash = 500, posTerminalName = "POS-1" })).Status);
+    private static async Task OpenShiftAsync(Client api) => await OpenPosShiftAsync(api, 500);
 
     private static object Cash(Guid product, decimal qty, decimal paid, Guid? customer = null)
         => new { customerId = customer, items = new[] { new { itemId = product, quantity = qty } }, paymentMethod = "cash", paidCash = paid };

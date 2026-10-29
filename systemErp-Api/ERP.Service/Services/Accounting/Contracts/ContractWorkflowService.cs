@@ -1,6 +1,7 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
+using Microsoft.Extensions.Logging;
 using ERP.Service.Services.Shared;
 using S = ERP.Core.Models.Shared.ContractStageDefinition;
 
@@ -39,10 +40,13 @@ public class ContractWorkflowService : IContractWorkflowService
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
     private readonly IPermissionService _permissions;
+    private readonly INotificationService _notifications;
+    private readonly ILogger<ContractWorkflowService> _log;
 
-    public ContractWorkflowService(ErpDbContext db, ICurrentUser user, IPermissionService permissions)
+    public ContractWorkflowService(ErpDbContext db, ICurrentUser user, IPermissionService permissions,
+        INotificationService notifications, ILogger<ContractWorkflowService> log)
     {
-        _db = db; _user = user; _permissions = permissions;
+        _db = db; _user = user; _permissions = permissions; _notifications = notifications; _log = log;
     }
 
     // ---------- الحالة والخيارات ----------
@@ -102,6 +106,7 @@ public class ContractWorkflowService : IContractWorkflowService
         var c = await LoadAsync(contractId, ct, track: true);
         await MoveCoreAsync(c, request.ToStatus, request.Note, ct);
         await _db.SaveChangesAsync(ct);
+        await NotifyStageChangedAsync(c, request.Note, ct);
         return await GetAsync(contractId, ct);
     }
 
@@ -186,8 +191,73 @@ public class ContractWorkflowService : IContractWorkflowService
             await _db.SaveChangesAsync(token);
             return true;
         }, ct);
+
+        if (c.Stage != S.Review) await NotifyStageChangedAsync(c, note, ct); // أُعيد للمسودة أو اكتملت الموافقتان
+        else await NotifyCreatorAsync(c, "contract_review_approved",
+            string.Format(Messages.ContractNotifyReviewApprovedTitle, kind == "legal" ? Messages.ContractReviewLegal : Messages.ContractReviewFinancial, c.ContractNumber),
+            note, ct);
         return await GetAsync(contractId, ct);
     }
+
+    // ---------- الإشعارات ----------
+
+    /// <summary>مراحل تنتظر قراراً: يُشعر فيها كل من يملك إجراءً على انتقالاتها (والمراجعتين في «المراجعة»).</summary>
+    private static readonly HashSet<string> PendingStages = new() { S.Review, S.Approval };
+
+    /// <summary>
+    /// بعد الانتقال: من يملك التصرف في المرحلة الجديدة («بانتظار إجرائك»)، ومنشئ العقد بالحالة الجديدة. المنفّذ لا يُشعَر نفسه،
+    /// وتعذّر الإشعار لا يُسقط الانتقال المحفوظ.
+    /// </summary>
+    private async Task NotifyStageChangedAsync(CommercialContract c, string? note, CancellationToken ct)
+    {
+        try
+        {
+            var me = _user.UserId;
+            var stageName = await StatusNameAsync(c.Stage, ct);
+            var actors = new List<Guid>();
+            if (PendingStages.Contains(c.Stage))
+            {
+                var actions = (await TransitionsFromAsync(c, ct)).SelectMany(ActionsOf).ToHashSet();
+                if (c.Stage == S.Review) { actions.Add(ScreenAction.LegalReview); actions.Add(ScreenAction.FinancialReview); }
+                actors = (await _permissions.UsersWithAnyActionAsync(Screen, actions, ct)).Where(id => id != me).ToList();
+                if (actors.Count > 0)
+                    await _notifications.NotifyUsersAsync(actors, Notice(c, "contract_action_required",
+                        string.Format(Messages.ContractNotifyActionTitle, c.ContractNumber, stageName), note), ct);
+            }
+
+            if (c.CreatedByUserId is { } creator && !actors.Contains(creator))
+            {
+                var returned = c.Stage == S.Draft;
+                await NotifyCreatorAsync(c, returned ? "contract_returned" : "contract_status_changed",
+                    returned ? string.Format(Messages.ContractNotifyReturnedTitle, c.ContractNumber) : string.Format(Messages.ContractNotifyStatusTitle, c.ContractNumber, stageName),
+                    note, ct);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogError(ex, "تعذّر إرسال إشعارات انتقال العقد {ContractNumber}.", c.ContractNumber);
+        }
+    }
+
+    private async Task NotifyCreatorAsync(CommercialContract c, string type, string title, string? note, CancellationToken ct)
+    {
+        if (c.CreatedByUserId is not { } creator || creator == _user.UserId) return;
+        try
+        {
+            await _notifications.NotifyUsersAsync(new[] { creator }, Notice(c, type, title, note), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogError(ex, "تعذّر إشعار منشئ العقد {ContractNumber}.", c.ContractNumber);
+        }
+    }
+
+    private NotifyRequestDto Notice(CommercialContract c, string type, string title, string? note) => new()
+    {
+        Type = type, Title = title,
+        Body = string.Format(Messages.ContractNotifyBody, c.Title, c.PartyName, _user.Name ?? "system") + (note == null ? string.Empty : $" — {note}"),
+        RelatedDocType = "commercial_contract", RelatedDocId = c.Id, RelatedDocNumber = c.ContractNumber,
+    };
 
     // ---------- التوقيع والضمان ----------
 

@@ -192,6 +192,42 @@ public class ContractWorkflowTests : TestBase
     }
 
     [Fact]
+    public async Task Stage_moves_notify_who_must_act_and_the_contract_creator()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+        var role = (await owner.Post("/roles", new { nameAr = "مُعد عقود" })).Data!["code"].S();
+        await owner.Post("/permissions", new
+        {
+            roleId = role,
+            permissions = new[] { new { screenId = "commercial-contracts", screenNameAr = "", screenNameEn = "", actions = new[] { "view", "create", "edit", "submit" } } },
+        });
+        var roleId = (await owner.Get("/roles")).Data!.AsArray().First(r => r!["code"].S() == role)!["id"].G();
+        var email = $"p{Guid.NewGuid():N}@test.com";
+        await owner.Post("/users", new { name = "مُعد", email, phone = "1", password = "Passw0rd!", role = "sales_rep", customRoleId = roleId });
+        var preparer = await owner.LoginAsAsync(NewHttp(), email, "Passw0rd!");
+
+        // المُعد يرسل للمراجعة: المالك (يملك المراجعتين) يُشعَر «بانتظار إجرائك»، والمُعد نفسه لا
+        var id = (await preparer.Post("/commercialcontracts", ContractBody(party, product))).Data!["id"].S();
+        Assert.Equal(200, (await Move(preparer, id, "review")).Status);
+        var ownerInbox = (await owner.Get("/notifications")).Data!.AsArray();
+        var action = Assert.Single(ownerInbox, n => n!["type"].S() == "contract_action_required");
+        Assert.Equal(id, action!["relatedDocId"].S());
+        Assert.Equal("commercial_contract", action["relatedDocType"].S());
+        Assert.Empty((await preparer.Get("/notifications")).Data!.AsArray());
+        Assert.Equal(1, (await owner.Get("/notifications/summary")).Data!["unreadCount"]!.GetValue<int>());
+
+        // موافقة جزئية تُبلغ المُعد، والإعادة للمسودة بملاحظة تُبلغه بالسبب
+        await owner.Post($"/commercialcontracts/{id}/review", new { kind = "legal", decision = "approve" });
+        Assert.Equal(200, (await owner.Post($"/commercialcontracts/{id}/review", new { kind = "financial", decision = "return", note = "عدّل الأسعار" })).Status);
+        var mine = (await preparer.Get("/notifications")).Data!.AsArray();
+        Assert.Contains(mine, n => n!["type"].S() == "contract_review_approved");
+        var returned = Assert.Single(mine, n => n!["type"].S() == "contract_returned");
+        Assert.Contains("عدّل الأسعار", returned!["body"].S());
+    }
+
+    [Fact]
     public async Task Simplified_contract_starts_draft_and_activates_only_through_its_own_transition()
     {
         var owner = await NewTenantAsync();

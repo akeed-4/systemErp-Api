@@ -9,7 +9,7 @@ public class PosCashDrawerTests : TestBase
     public PosCashDrawerTests(ErpFactory f) : base(f) { }
 
     private static async Task OpenShiftAsync(Client api, decimal opening = 500)
-        => Assert.Equal(200, (await api.Post("/pos/shifts/open", new { openingCash = opening, posTerminalName = "POS-1" })).Status);
+        => await OpenPosShiftAsync(api, opening);
 
     private static object Cart(Guid product, decimal qty, decimal paid = 0, string? coupon = null)
         => new { items = new[] { new { itemId = product, quantity = qty } }, paymentMethod = "cash", paidCash = paid, couponCode = coupon };

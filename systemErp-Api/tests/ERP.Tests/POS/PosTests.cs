@@ -8,7 +8,7 @@ public class PosTests : TestBase
     public PosTests(ErpFactory f) : base(f) { }
 
     private static async Task OpenShiftAsync(Client api, decimal opening = 500)
-        => Assert.Equal(200, (await api.Post("/pos/shifts/open", new { openingCash = opening, posTerminalName = "POS-1" })).Status);
+        => await OpenPosShiftAsync(api, opening);
 
     private static object Cash(Guid product, decimal qty, decimal paid, string? coupon = null, Guid? customer = null)
         => new { customerId = customer, couponCode = coupon, items = new[] { new { itemId = product, quantity = qty } }, paymentMethod = "cash", paidCash = paid };
@@ -20,8 +20,13 @@ public class PosTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         Assert.Equal(409, (await api.Post("/pos/transactions/checkout", Cash(product, 1, 200))).Status);
-        Assert.Equal(200, (await api.Post("/pos/shifts/open", new { openingCash = 100, posTerminalName = "T1" })).Status);
-        Assert.Equal(409, (await api.Post("/pos/shifts/open", new { openingCash = 100, posTerminalName = "T2" })).Status);
+        // لا وردية بلا نقطة بيع معرّفة
+        var noStation = await api.Post("/pos/shifts/open", new { openingCash = 100, posTerminalName = "T1" });
+        Assert.Equal(400, noStation.Status);
+        Assert.Contains("أعدّ نقطة بيع أولاً", noStation.Body!["message"].S());
+        await OpenPosShiftAsync(api, 100, "T1");
+        var second = await SeedPosTerminalAsync(api, "T2");
+        Assert.Equal(409, (await api.Post("/pos/shifts/open", new { openingCash = 100, posTerminalId = second })).Status); // وردية واحدة للكاشير
         Assert.Equal(200, (await api.Get("/pos/shifts/active")).Status);
         Assert.NotNull((await api.Get("/pos/shifts/active")).Data);
         Assert.Equal(200, (await api.Post("/pos/shifts/close", new { closingCashActual = 100 })).Status);

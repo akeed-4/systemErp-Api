@@ -9,11 +9,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
 {
     private readonly INumberSequenceService _numbers;
     private readonly ISalesInvoiceService _invoices;
+    private readonly IPurchaseInvoiceService _purchases;
     private readonly ICurrentUser _user;
 
-    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices, ICurrentUser user) : base(db)
+    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices, IPurchaseInvoiceService purchases, ICurrentUser user) : base(db)
     {
-        _numbers = numbers; _invoices = invoices; _user = user;
+        _numbers = numbers; _invoices = invoices; _purchases = purchases; _user = user;
     }
 
     protected override string Label => Messages.LabelContract;
@@ -164,7 +165,11 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         c.RemainingBalance = c.TotalValueWithVat - c.TotalInvoiced;
     }
 
-    /// <summary>فاتورة ضريبية للمستخلص عبر محرك الفوترة المركزي (بند خدمة بلا مخزون) وربطها بالمستخلص والعقد.</summary>
+    /// <summary>
+    /// فاتورة المستخلص عبر محرك الفوترة المركزي (بند خدمة بلا مخزون) وربطها بالمستخلص والعقد:
+    /// عقد العميل فاتورة مبيعات ضريبية، وعقد المورد فاتورة مشتريات داخلية (قيد ذمم المورد فقط، لا إرسال للهيئة)
+    /// بعد التحقق من بطاقة المورد.
+    /// </summary>
     public async Task<InvoiceDto> BillMilestoneAsync(Guid contractId, Guid milestoneId, DateTime? date = null, CancellationToken ct = default)
         => await new TransactionRunner(Db).RunAsync(async token =>
         {
@@ -175,10 +180,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             if (m.Status is ContractMilestoneStatus.Invoiced or ContractMilestoneStatus.Paid) throw new ConflictException(Messages.MilestoneAlreadyBilled);
             if (c.Stage is not (ContractStageDefinition.Active or ContractStageDefinition.InitialAcceptance))
                 throw new ConflictException(Messages.MilestonesBilledOnlyWhenActive);
-            if (c.PartyId == null) throw new ValidationFailedException(Messages.LinkContractToCustomerBeforeBilling);
+            var isSupplier = string.Equals(c.PartyType, "supplier", StringComparison.OrdinalIgnoreCase);
+            if (c.PartyId == null)
+                throw new ValidationFailedException(isSupplier ? Messages.LinkContractToSupplierBeforeBilling : Messages.LinkContractToCustomerBeforeBilling);
             if (m.Amount <= 0) throw new ValidationFailedException(Messages.MilestoneAmountMustBePositive);
 
-            var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
+            var request = new CreateInvoiceDto
             {
                 Kind = InvoiceKind.Sales, InvoiceType = TradeHelper.InvoiceTypeFor(c.PartyVatNumber),
                 IssueDate = date?.Date ?? default,
@@ -186,13 +193,29 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
                 PaymentMethod = PaymentMethod.Credit, Status = "posted",
                 Notes = $"مستخلص رقم {m.MilestoneNumber} - عقد {c.ContractNumber}",
                 ReferenceType = "commercial_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
-                RevenueAccountCode = string.IsNullOrWhiteSpace(c.RevenueAccountCode) ? null : c.RevenueAccountCode,
-                CostCenterId = c.CostCenterId, CostCenterFromSource = true, // مركز العقد على إيراد المستخلص وقيده
+                CostCenterId = c.CostCenterId, CostCenterFromSource = true, // مركز العقد على إيراد/مصروف المستخلص وقيده
                 Items = new List<InvoiceItemDto>
                 {
                     new() { ItemId = Guid.Empty, ItemName = m.Title, Unit = "خدمة", Quantity = 1, UnitPrice = m.Amount, VatRate = c.VatRate },
                 },
-            }, token);
+            };
+
+            InvoiceDto invoice;
+            if (isSupplier)
+            {
+                // بيانات الطرف من بطاقة المورد (مصدر الحقيقة في الذمم) بعد التحقق منها
+                var s = await RequireBillableSupplierAsync(c.PartyId.Value, token);
+                request.Kind = InvoiceKind.Purchase;
+                request.InvoiceType = TradeHelper.InvoiceTypeFor(s.VatNumber);
+                request.PartyName = s.NameAr; request.PartyVatNumber = s.VatNumber; request.PartyPhone = s.Phone; request.PartyEmail = s.Email;
+                request.SendToZatca = false; // فاتورة مشتريات: قيد داخلي في النظام المحاسبي فقط
+                invoice = await _purchases.CreateAsync(request, token);
+            }
+            else
+            {
+                request.RevenueAccountCode = string.IsNullOrWhiteSpace(c.RevenueAccountCode) ? null : c.RevenueAccountCode;
+                invoice = await _invoices.CreateAsync(request, token);
+            }
 
             m.Status = ContractMilestoneStatus.Invoiced;
             m.InvoicedAt = DateTime.UtcNow; m.InvoiceId = invoice.Id; m.InvoiceNumber = invoice.InvoiceNumber;
@@ -202,4 +225,17 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             await Db.SaveChangesAsync(token);
             return invoice;
         }, ct);
+
+    /// <summary>المورد موجود ونشط، وله حساب ذمم في شجرة الحسابات، ورقمه الضريبي (إن وُجد) صالح.</summary>
+    private async Task<Supplier> RequireBillableSupplierAsync(Guid supplierId, CancellationToken ct)
+    {
+        var s = await Db.Set<Supplier>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == supplierId, ct)
+            ?? throw new ValidationFailedException(Messages.SupplierNotFound);
+        var errors = new List<string>();
+        if (s.Status != "active") errors.Add(Messages.SupplierInactive);
+        if (string.IsNullOrWhiteSpace(s.AccountCode)) errors.Add(Messages.SupplierAccountMissing);
+        if (!string.IsNullOrWhiteSpace(s.VatNumber) && !SaudiVat.IsValid(s.VatNumber)) errors.Add(Messages.SupplierVatNumberInvalid);
+        if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+        return s;
+    }
 }

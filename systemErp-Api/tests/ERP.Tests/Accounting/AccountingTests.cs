@@ -329,6 +329,26 @@ public class AccountingTests : TestBase
     }
 
     [Fact]
+    public async Task Supplier_contract_billing_posts_purchase_invoice_to_supplier_without_zatca()
+    {
+        var api = await NewTenantAsync();
+        var (supplier, _) = await SeedSupplierAsync(api);
+        var ct = await api.Post("/commercialcontracts", new { title = "عقد توريد خدمات", contractType = "maintenance", partyType = "supplier", partyName = "مورد", partyId = supplier,
+            contractValue = 1000, vatRate = 15, startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(12),
+            milestones = new[] { new { title = "دفعة 1", percentage = 50 } }, clauses = Array.Empty<object>() });
+        var id = ct.Data!["id"].S(); var m1 = ct.Data["milestones"]![0]!["id"].S();
+        Assert.Equal(200, (await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" })).Status);
+
+        // فاتورة مشتريات على ذمم المورد (لا «العميل غير موجود»)، ولا تُرسل للهيئة
+        var bill = await api.Post($"/commercialcontracts/{id}/milestones/{m1}/bill");
+        Assert.Equal(200, bill.Status); Assert.Equal(575, bill.Data!["grandTotal"].D());
+        Assert.StartsWith("PINV-", bill.Data["invoiceNumber"].S());
+        Assert.False(bill.Data["sendToZatca"]!.GetValue<bool>());
+        Assert.Equal(575, (await api.Get($"/suppliers/{supplier}")).Data!["currentBalance"].D());
+        Assert.Equal(575, (await api.Get($"/commercialcontracts/{id}")).Data!["totalInvoiced"].D());
+    }
+
+    [Fact]
     public async Task Delivery_return_cannot_exceed_delivered_quantity_and_updates_status()
     {
         var api = await NewTenantAsync();

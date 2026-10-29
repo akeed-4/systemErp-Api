@@ -5,7 +5,7 @@ public partial class ZatcaConfigDto
     public ZatcaEnvironment Environment { get; set; } = ZatcaEnvironment.Sandbox;
     public ComplianceStatus ComplianceStatus { get; set; } = ComplianceStatus.NotEnrolled;
     public string? Csid { get; set; }
-    public string SolutionName { get; set; } = "RayahAccounting";
+    public string SolutionName { get; set; } = "NumoAccounting";
     public string SolutionVersion { get; set; } = "1.0.0";
     public string? RegisteredDevice { get; set; }
     public bool AutoSendInvoices { get; set; }

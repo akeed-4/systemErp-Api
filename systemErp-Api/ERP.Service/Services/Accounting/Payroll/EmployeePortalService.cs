@@ -292,7 +292,7 @@ public class EmployeePortalService : IEmployeePortalService
         {
             var company = await _db.Set<Tenant>().AsNoTracking().Where(t => t.Id == user.TenantId).Select(t => t.NameAr).FirstOrDefaultAsync(ct);
             await _email.SendAsync(user.Email, InviteEmail.Subject,
-                InviteEmail.Body(user.Name, company ?? string.Empty, $"{frontend.TrimEnd('/')}/activate/{token}", InviteTokens.ValidDays), ct);
+                InviteEmail.Body(user.Name, company ?? string.Empty, $"{SecureOrigin(frontend)}/activate/{token}", InviteTokens.ValidDays), ct);
             return true;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -300,6 +300,17 @@ public class EmployeePortalService : IEmployeePortalService
             _log.LogError(ex, "تعذّر إرسال دعوة بوابة الموظف للمستخدم {UserId}.", user.Id);
             return false;
         }
+    }
+
+    /// <summary>
+    /// أصل الواجهة في الرابط المرسل: https دائماً خارج الجهاز المحلي. رابط http يفتح الواجهة من أصل لا يقبله CORS
+    /// فتفشل طلبات التفعيل كلها، وروابط http ترفع تصنيف الرسالة كرسالة مزعجة.
+    /// </summary>
+    private static string SecureOrigin(string url)
+    {
+        var origin = url.Trim().TrimEnd('/');
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp || uri.IsLoopback) return origin;
+        return new UriBuilder(uri) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
     }
 
     /// <summary>إشعار لكل من يملك اعتماد شؤون الموظفين بطلب جديد من البوابة. تعذّر الإشعار لا يُسقط الطلب.</summary>

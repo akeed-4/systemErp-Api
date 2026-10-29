@@ -24,6 +24,7 @@ public class PaymentMethodService : CrudService<PaymentMethodItem, PaymentMethod
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ArabicNameRequired);
         if (!Types.Contains(d.Type)) errors.Add(Messages.PaymentMethodTypePrefix + string.Join(" | ", Types));
         if (d.CommissionPercent is < 0 or > 100) errors.Add(Messages.CommissionRateRange);
+        if (d.UseCardTerminal && d.Type != "card") errors.Add(Messages.CardTerminalRequiresCardType);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         if (await Db.Set<PaymentMethodItem>().AnyAsync(m => m.Code == d.Code && (existing == null || m.Id != existing.Id), ct))

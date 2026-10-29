@@ -1301,4 +1301,23 @@
   <data name="AccountRole_OutputVatAccountCode" xml:space="preserve"><value>Output VAT account</value></data>
   <data name="AccountRole_OutputExciseAccountCode" xml:space="preserve"><value>Excise tax payable account</value></data>
   <data name="AccountRole_InputVatAccountCode" xml:space="preserve"><value>Input VAT account</value></data>
+  <data name="CardTerminalRequiresCardType" xml:space="preserve"><value>Card terminal integration is available for card payment methods only.</value></data>
+  <data name="CardTerminalUnknownProvider" xml:space="preserve"><value>Unknown card terminal provider.</value></data>
+  <data name="CardTerminalMethodNotEnabled" xml:space="preserve"><value>This payment method is not enabled for the card terminal.</value></data>
+  <data name="CardTerminalPaymentUnresolved" xml:space="preserve"><value>A previous card terminal payment has no final result; query the terminal or ask for a supervisor resolution before trying again.</value></data>
+  <data name="CardTerminalPaymentOtherCashier" xml:space="preserve"><value>This payment belongs to another cashier.</value></data>
+  <data name="CardTerminalPaymentFinal" xml:space="preserve"><value>This payment already has a final result and cannot be changed.</value></data>
+  <data name="CardTerminalApprovalNeedsRrn" xml:space="preserve"><value>A terminal approval is not accepted without the retrieval reference number (RRN).</value></data>
+  <data name="CardTerminalOutcomeValues" xml:space="preserve"><value>Terminal outcome must be: approved | declined | unknown | not_sent.</value></data>
+  <data name="CardTerminalResolveRequiresApproval" xml:space="preserve"><value>Resolving card terminal payments manually requires the sales approve permission.</value></data>
+  <data name="CardTerminalResolveNoteRequired" xml:space="preserve"><value>Enter a resolution note (what was checked on the terminal or statement).</value></data>
+  <data name="CardTerminalManualApprovalNeedsRefs" xml:space="preserve"><value>Approving manually requires the RRN and authorization code from the terminal receipt.</value></data>
+  <data name="CardTerminalResolveOutcomeValues" xml:space="preserve"><value>Resolution must be: approved | declined | reversed.</value></data>
+  <data name="CardTerminalPaymentNotFound" xml:space="preserve"><value>Card terminal payment not found.</value></data>
+  <data name="CardTerminalPaymentRequired" xml:space="preserve"><value>This payment method is collected through the card terminal only; send a terminal-approved payment.</value></data>
+  <data name="CardTerminalSingleLineOnly" xml:space="preserve"><value>A card terminal payment covers the whole invoice with one method and cannot be combined with another payment.</value></data>
+  <data name="CardTerminalPaymentNotApproved" xml:space="preserve"><value>The card terminal payment is not approved.</value></data>
+  <data name="CardTerminalPaymentOtherShift" xml:space="preserve"><value>The card terminal payment belongs to another shift.</value></data>
+  <data name="CardTerminalPaymentMethodMismatch" xml:space="preserve"><value>The payment method does not match the one charged on the terminal.</value></data>
+  <data name="ShiftHasUnresolvedTerminalPayments" xml:space="preserve"><value>Cannot close the shift: {0} card terminal payment(s) unresolved (pending, unknown result, or an approval not used in a sale).</value></data>
 </root>

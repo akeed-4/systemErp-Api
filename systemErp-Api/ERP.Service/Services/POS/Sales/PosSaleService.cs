@@ -41,6 +41,7 @@ public class PosSaleService : IPosSaleService
             var total = priced.GrandTotal;
 
             // 6) الدفع: بطرق جدول طرق الدفع إن أُرسلت، وإلا بالأنواع الثابتة (واجهات قديمة)
+            var terminal = await RequireTerminalPaymentAsync(r, shift, total, token);
             var configured = r.Payments.Count > 0 ? await ResolveConfiguredPaymentAsync(r.Payments, total, customer, token) : null;
             var (cash, card, mada, apple, change) = configured?.Buckets ?? ResolvePayment(r, total, customer);
             var method = configured?.Method ?? EffectiveMethod(r.PaymentMethod, cash, card, mada, apple);
@@ -115,6 +116,7 @@ public class PosSaleService : IPosSaleService
             }
             _db.Add(pos);
             if (online != null) { online.ConsumedAt = DateTime.UtcNow; online.ReferenceId = pos.Id; online.ReferenceNumber = invoice.InvoiceNumber; }
+            if (terminal != null) { terminal.ConsumedAt = DateTime.UtcNow; terminal.PosTransactionId = pos.Id; terminal.InvoiceNumber = invoice.InvoiceNumber; }
 
             // 9) الوردية والكوبون والولاء
             shift.TotalCashSales += cash; shift.TotalCardSales += card; shift.TotalMadaSales += mada; shift.TotalApplePaySales += apple;
@@ -329,6 +331,35 @@ public class PosSaleService : IPosSaleService
         var nonCash = DocumentPricing.Round(paid - cashIn);
         var method = cash > 0 && nonCash > 0 ? PosPaymentMethod.Split : cash > 0 ? PosPaymentMethod.Cash : PosPaymentMethod.Card;
         return new((cash, nonCash, 0, 0, change), method, splits, json);
+    }
+
+    /// <summary>
+    /// طريقة مفعّل لها جهاز الدفع لا تُقبل إلا بدفع مُوافَق عليه من الجهاز، غير مستخدم، من الوردية نفسها، وبكامل الإجمالي
+    /// كسطر دفع وحيد. رقم مرجع العملية (RRN) يُحفظ مرجعاً لسطر الدفع في الفاتورة.
+    /// </summary>
+    private async Task<CardTerminalPayment?> RequireTerminalPaymentAsync(CheckoutRequestDto r, PosShift shift, decimal total, CancellationToken ct)
+    {
+        var codes = r.Payments.Select(l => l.PaymentMethodCode?.Trim()).Where(c => !string.IsNullOrEmpty(c)).ToList();
+        var usesTerminal = codes.Count > 0 && await _db.Set<PaymentMethodItem>().AnyAsync(m => m.UseCardTerminal && codes.Contains(m.Code), ct);
+        if (!r.CardTerminalPaymentId.HasValue)
+        {
+            if (usesTerminal) throw new ValidationFailedException(Messages.CardTerminalPaymentRequired);
+            return null;
+        }
+        if (r.OnlinePaymentId.HasValue || r.Payments.Count != 1) throw new ValidationFailedException(Messages.CardTerminalSingleLineOnly);
+
+        var p = await _db.Set<CardTerminalPayment>().FirstOrDefaultAsync(x => x.Id == r.CardTerminalPaymentId, ct)
+            ?? throw new NotFoundException(Messages.CardTerminalPaymentNotFound);
+        if (p.Status != CardTerminalPaymentStatus.Approved) throw new ConflictException(Messages.CardTerminalPaymentNotApproved);
+        if (p.ConsumedAt != null) throw new ConflictException(Messages.PaymentAlreadyUsed);
+        if (p.ShiftId != shift.Id) throw new ConflictException(Messages.CardTerminalPaymentOtherShift);
+        var line = r.Payments[0];
+        if (!string.Equals(line.PaymentMethodCode?.Trim(), p.PaymentMethodCode, StringComparison.Ordinal))
+            throw new ValidationFailedException(Messages.CardTerminalPaymentMethodMismatch);
+        if (p.Amount != total || line.Amount != total)
+            throw new ConflictException(string.Format(Messages.OnlinePaymentAmountMismatch, p.Amount, total));
+        line.Reference = p.Rrn;
+        return p;
     }
 
     /// <summary>عملية نقطة البيع للواجهة، مع طرق الدفع المحفوظة.</summary>

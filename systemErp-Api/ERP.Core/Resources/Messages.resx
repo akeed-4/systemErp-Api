@@ -1301,4 +1301,23 @@
   <data name="AccountRole_OutputVatAccountCode" xml:space="preserve"><value>حساب ضريبة المخرجات</value></data>
   <data name="AccountRole_OutputExciseAccountCode" xml:space="preserve"><value>حساب الضريبة الانتقائية المستحقة</value></data>
   <data name="AccountRole_InputVatAccountCode" xml:space="preserve"><value>حساب ضريبة المدخلات</value></data>
+  <data name="CardTerminalRequiresCardType" xml:space="preserve"><value>ربط جهاز الدفع متاح لطرق الدفع من نوع بطاقة فقط.</value></data>
+  <data name="CardTerminalUnknownProvider" xml:space="preserve"><value>مزوّد ربط جهاز الدفع غير معروف.</value></data>
+  <data name="CardTerminalMethodNotEnabled" xml:space="preserve"><value>طريقة الدفع هذه غير مفعّل لها جهاز الدفع.</value></data>
+  <data name="CardTerminalPaymentUnresolved" xml:space="preserve"><value>يوجد دفع سابق على جهاز الدفع لم تُحسم نتيجته؛ استعلم من الجهاز أو اطلب الحسم الإداري قبل محاولة جديدة.</value></data>
+  <data name="CardTerminalPaymentOtherCashier" xml:space="preserve"><value>هذا الدفع يخص كاشيراً آخر.</value></data>
+  <data name="CardTerminalPaymentFinal" xml:space="preserve"><value>نتيجة هذا الدفع محسومة ولا يمكن تغييرها.</value></data>
+  <data name="CardTerminalApprovalNeedsRrn" xml:space="preserve"><value>لا تُقبل موافقة الجهاز بدون رقم مرجع العملية (RRN).</value></data>
+  <data name="CardTerminalOutcomeValues" xml:space="preserve"><value>نتيجة الجهاز يجب أن تكون: approved | declined | unknown | not_sent.</value></data>
+  <data name="CardTerminalResolveRequiresApproval" xml:space="preserve"><value>الحسم اليدوي لدفعات جهاز الدفع يتطلب صلاحية الاعتماد على المبيعات.</value></data>
+  <data name="CardTerminalResolveNoteRequired" xml:space="preserve"><value>اكتب ملاحظة الحسم (ما الذي رُوجع على الجهاز أو الكشف).</value></data>
+  <data name="CardTerminalManualApprovalNeedsRefs" xml:space="preserve"><value>اعتماد الدفع يدوياً يتطلب رقم مرجع العملية (RRN) ورمز الموافقة من إيصال الجهاز.</value></data>
+  <data name="CardTerminalResolveOutcomeValues" xml:space="preserve"><value>الحسم يجب أن يكون: approved | declined | reversed.</value></data>
+  <data name="CardTerminalPaymentNotFound" xml:space="preserve"><value>دفع جهاز الدفع غير موجود.</value></data>
+  <data name="CardTerminalPaymentRequired" xml:space="preserve"><value>طريقة الدفع هذه تُحصَّل عبر جهاز الدفع فقط؛ أرسل دفعاً مُوافَقاً عليه من الجهاز.</value></data>
+  <data name="CardTerminalSingleLineOnly" xml:space="preserve"><value>دفع جهاز الدفع يغطي كامل الفاتورة بطريقة واحدة، ولا يُجمع مع دفع آخر.</value></data>
+  <data name="CardTerminalPaymentNotApproved" xml:space="preserve"><value>دفع جهاز الدفع غير مُوافَق عليه.</value></data>
+  <data name="CardTerminalPaymentOtherShift" xml:space="preserve"><value>دفع جهاز الدفع يخص وردية أخرى.</value></data>
+  <data name="CardTerminalPaymentMethodMismatch" xml:space="preserve"><value>طريقة الدفع لا تطابق الطريقة التي حُصِّل بها الجهاز.</value></data>
+  <data name="ShiftHasUnresolvedTerminalPayments" xml:space="preserve"><value>لا يمكن إغلاق الوردية: {0} دفع على جهاز الدفع غير محسوم (معلّق، أو مجهول النتيجة، أو موافقة لم تُستخدم في بيع).</value></data>
 </root>

@@ -68,6 +68,8 @@ public class PosShiftService : IPosShiftService
             if (actual < 0) throw new ValidationFailedException(Messages.ActualCashCannotBeNegative);
             var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token)
                 ?? throw new NotFoundException(Messages.NoOpenShiftToClose);
+            var unresolved = await CardTerminalPaymentService.Unresolved(_db.Set<CardTerminalPayment>().Where(p => p.ShiftId == shift.Id)).CountAsync(token);
+            if (unresolved > 0) throw new ConflictException(string.Format(Messages.ShiftHasUnresolvedTerminalPayments, unresolved));
 
             shift.ClosedAt = DateTime.UtcNow; shift.Status = PosShiftStatus.Closed;
             shift.ClosingCashActual = actual;

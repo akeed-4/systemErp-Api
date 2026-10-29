@@ -22,6 +22,8 @@ public class CheckoutRequestDto
     public decimal PaidApplePay { get; set; }
     /// <summary>دفع إلكتروني مكتمل عبر Paymob (بطاقة/مدى/Apple Pay) يُستهلك في هذه العملية.</summary>
     public Guid? OnlinePaymentId { get; set; }
+    /// <summary>دفع مُوافَق عليه من جهاز الدفع (سطر الدفع الوحيد بطريقته وكامل الإجمالي) يُستهلك في هذه العملية.</summary>
+    public Guid? CardTerminalPaymentId { get; set; }
     /// <summary>
     /// الدفع بطرق جدول طرق الدفع (تُقدَّم على PaymentMethod و Paid*): كل سطر يُرحَّل على حساب طريقته،
     /// والنقد يدخل درج الوردية والبطاقة/البنك في مبيعات البطاقات. الآجل لا يُخلط بغيره.

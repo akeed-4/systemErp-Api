@@ -11,5 +11,6 @@ public partial class CreatePaymentMethodItemDto
     public string Icon { get; set; } = "payments";
     public decimal? CommissionPercent { get; set; }
     public bool RequiresReference { get; set; }
+    public bool UseCardTerminal { get; set; }
     public string Status { get; set; } = "active";
 }

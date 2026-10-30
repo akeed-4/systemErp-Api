@@ -10,12 +10,15 @@ public class PlatformController : ErpControllerBase
     private readonly IPlatformSubscriptionService _platform;
     private readonly IPlatformAccessService _access;
     private readonly IPromoCodeService _promos;
+    private readonly IWhatsAppPlatformSettingsService _whatsApp;
 
-    public PlatformController(IPlatformSubscriptionService platform, IPlatformAccessService access, IPromoCodeService promos)
+    public PlatformController(IPlatformSubscriptionService platform, IPlatformAccessService access, IPromoCodeService promos,
+        IWhatsAppPlatformSettingsService whatsApp)
     {
         _platform = platform;
         _access = access;
         _promos = promos;
+        _whatsApp = whatsApp;
     }
 
     /// <summary>تُسأل من الواجهة لإظهار قسم المنصة؛ متاحة لأي مستخدم مسجّل وتعيد true/false فقط.</summary>
@@ -48,6 +51,14 @@ public class PlatformController : ErpControllerBase
     [HttpPut("payment-gateway"), RequirePlatformAdmin]
     public async Task<IActionResult> UpdatePaymentGateway([FromBody] UpdatePlatformPaymobSettingsDto request, CancellationToken ct)
         => Success(await _platform.UpdatePaymobSettingsAsync(request, ct), Messages.PlatformSettingsSaved);
+
+    /// <summary>تطبيق Meta الخاص بالمنصة لربط واتساب المنشآت (السرّ ورمز التحقق لا يُعادان).</summary>
+    [HttpGet("whatsapp"), RequirePlatformAdmin]
+    public async Task<IActionResult> WhatsApp(CancellationToken ct) => Success(await _whatsApp.GetAsync(ct));
+
+    [HttpPut("whatsapp"), RequirePlatformAdmin]
+    public async Task<IActionResult> UpdateWhatsApp([FromBody] UpdatePlatformWhatsAppSettingsDto request, CancellationToken ct)
+        => Success(await _whatsApp.UpdateAsync(request, ct), Messages.PlatformSettingsSaved);
 
     /// <summary>منشأة جديدة على القاعدة المشتركة أو بقاعدة مستقلة: هذا المسار وحده يقبل نوع القاعدة (لمدير المنصة بصلاحية الإدارة).</summary>
     [HttpPost("tenants"), RequirePlatformAdmin]

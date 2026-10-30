@@ -1331,4 +1331,33 @@
   <data name="ContractNotifyBody" xml:space="preserve"><value>{0} — الطرف: {1} — بواسطة {2}</value></data>
   <data name="PosTerminalSetupRequired" xml:space="preserve"><value>لا توجد نقطة بيع معرّفة؛ أعدّ نقطة بيع أولاً من إعداد نقاط البيع ثم افتح الوردية عليها.</value></data>
   <data name="PosTerminalRequired" xml:space="preserve"><value>اختر نقطة البيع التي تُفتح عليها الوردية.</value></data>
+  <data name="WhatsAppNotInPlan" xml:space="preserve"><value>إضافة واتساب للأعمال غير مشمولة في اشتراكك.</value></data>
+  <data name="WhatsAppSubscriptionInactive" xml:space="preserve"><value>الاشتراك غير ساري؛ جدّده لاستعمال واتساب للأعمال.</value></data>
+  <data name="WhatsAppSignupDataInvalid" xml:space="preserve"><value>بيانات الربط من Meta غير مكتملة؛ أعد محاولة الربط.</value></data>
+  <data name="WhatsAppPlatformNotConfigured" xml:space="preserve"><value>ربط واتساب غير مهيأ على المنصة بعد؛ تواصل مع إدارة المنصة.</value></data>
+  <data name="WhatsAppNumberNotInAccount" xml:space="preserve"><value>الرقم المختار لا يتبع حساب WhatsApp Business المربوط.</value></data>
+  <data name="WhatsAppProviderError" xml:space="preserve"><value>رفضت Meta الطلب: {0}</value></data>
+  <data name="WhatsAppNumberLinkedElsewhere" xml:space="preserve"><value>هذا الرقم مربوط بمنشأة أخرى على المنصة.</value></data>
+  <data name="WhatsAppNotConnected" xml:space="preserve"><value>لا يوجد حساب واتساب مربوط بالمنشأة.</value></data>
+  <data name="WhatsAppReconnectRequired" xml:space="preserve"><value>انتهت صلاحية ربط واتساب؛ أعد ربط الحساب من الإعدادات.</value></data>
+  <data name="WhatsAppTemplateCreateFailed" xml:space="preserve"><value>تعذّر إنشاء قالب الفاتورة: {0}</value></data>
+  <data name="WhatsAppTemplateRejected" xml:space="preserve"><value>رفضت Meta قالب الفاتورة: {0}</value></data>
+  <data name="WhatsAppDeliveryFailedTitle" xml:space="preserve"><value>تعذّر تسليم رسالة واتساب ({0})</value></data>
+  <data name="WhatsAppPlatformSettingsInvalid" xml:space="preserve"><value>أدخل معرّف التطبيق ومعرّف الإعداد أرقاماً، والإصدار بصيغة v26.0.</value></data>
+  <data name="WhatsAppConnected" xml:space="preserve"><value>تم ربط حساب واتساب للأعمال.</value></data>
+  <data name="WhatsAppSynced" xml:space="preserve"><value>تمت مزامنة بيانات واتساب.</value></data>
+  <data name="WhatsAppDisconnected" xml:space="preserve"><value>تم فصل حساب واتساب.</value></data>
+  <data name="WhatsAppTemplateSubmitted" xml:space="preserve"><value>أُرسل قالب الفاتورة إلى Meta للاعتماد.</value></data>
+  <data name="WhatsAppPhoneInvalid" xml:space="preserve"><value>رقم الجوال غير صالح لواتساب: أدخله برمز الدولة (مثل 9665XXXXXXXX).</value></data>
+  <data name="WhatsAppPhoneMissing" xml:space="preserve"><value>لا يوجد رقم جوال للعميل؛ أدخل الرقم.</value></data>
+  <data name="WhatsAppInvoiceNotPosted" xml:space="preserve"><value>لا تُرسل إلا فاتورة مرحّلة.</value></data>
+  <data name="WhatsAppTemplateNotApproved" xml:space="preserve"><value>قالب الفاتورة لم تعتمده Meta بعد (الحالة: {0}).</value></data>
+  <data name="WhatsAppAlreadySent" xml:space="preserve"><value>أُرسل هذا المستند إلى الرقم نفسه في {0}؛ أكّد لإرساله ثانيةً.</value></data>
+  <data name="WhatsAppSendInProgress" xml:space="preserve"><value>إرسال هذا المستند إلى الرقم نفسه جارٍ الآن.</value></data>
+  <data name="WhatsAppIdempotencyKeyRequired" xml:space="preserve"><value>مفتاح الطلب مطلوب.</value></data>
+  <data name="WhatsAppSent" xml:space="preserve"><value>أُرسل المستند عبر واتساب.</value></data>
+  <data name="WhatsAppSendFailed" xml:space="preserve"><value>تعذّر الإرسال عبر واتساب: {0}</value></data>
+  <data name="WhatsAppSendOutcomeUnknown" xml:space="preserve"><value>انقطع الاتصال بـ Meta ولا يُعرف هل أُرسلت الرسالة؛ تحقق من العميل قبل إعادة الإرسال.</value></data>
+  <data name="WhatsAppCannotResend" xml:space="preserve"><value>لا تُعاد إلا رسالة فشلت أو لم تُعرف نتيجتها.</value></data>
+  <data name="WhatsAppMessageNotFound" xml:space="preserve"><value>رسالة واتساب غير موجودة.</value></data>
 </root>

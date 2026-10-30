@@ -113,7 +113,7 @@ public class ArchitectureTests
             else
             {
                 Assert.True(tag != null, $"{c.Name} غير مصنَّف: أضف له RequireModule أو أدرجه ضمن المشترك.");
-                Assert.All(tag!.AnyOf, m => Assert.Contains(m, PlatformModules.All));
+                Assert.All(tag!.AnyOf, m => Assert.Contains(m, PlatformModules.Licensable));
             }
         }
 
@@ -144,6 +144,8 @@ public class ArchitectureTests
             ["UserService.cs"] = 1,
             ["OnlinePaymentService.cs"] = 4,
             ["TenantOnboarding.cs"] = 2, // تفرّد الرقم الضريبي والبريد عند إنشاء منشأة (التسجيل العام وإنشاء مدير المنصة)
+            ["WhatsAppService.cs"] = 1, // رقم واتساب لا يُربط بمنشأتين (فحص الدليل)
+            ["WhatsAppWebhookService.cs"] = 1, // إشعار Meta يسبق معرفة المنشأة: تُعرف من رقمها في الدليل
         };
 
         var root = new DirectoryInfo(AppContext.BaseDirectory);

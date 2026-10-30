@@ -47,6 +47,10 @@ public static class PermissionCatalog
         new(A.FinancialReview, "financial_review", PermissionActionGroup.Workflow, "مراجعة مالية", "Financial Review", A.Approve),
         new(A.Inspect, "inspect", PermissionActionGroup.Workflow, "فحص واستلام أولي", "Inspection & Acceptance", A.Approve),
         new(A.Receive, "receive", PermissionActionGroup.Workflow, "استلام ومرتجع", "Receive & Return", A.Create),
+        // التكاملات الخارجية (واتساب): الربط والفصل إداريان، والإرسال للمستخدم الذي ينشئ المستندات
+        new(A.Connect, "connect", PermissionActionGroup.Workflow, "ربط الحساب", "Connect Account", A.Edit),
+        new(A.Send, "send", PermissionActionGroup.Workflow, "إرسال", "Send", A.Create),
+        new(A.Disconnect, "disconnect", PermissionActionGroup.Workflow, "فصل الحساب", "Disconnect Account", A.Delete),
         new(A.Print, "print", PermissionActionGroup.Reports, "طباعة", "Print", A.View),
         new(A.Export, "export", PermissionActionGroup.Reports, "تصدير Excel", "Export Excel", A.View),
         new(A.Pdf, "pdf", PermissionActionGroup.Reports, "تصدير PDF", "Export PDF", A.View),
@@ -129,11 +133,18 @@ public static class PermissionCatalog
         new("approval-policies", "settings", "سياسات الموافقات والطلبات", "Approval Policies & Requests",
             new[] { A.View, A.Create, A.Edit, A.Delete, A.Approve, A.Reject }, Array.Empty<string>()),
         new("zatca", "settings", "الربط الإلكتروني والفوترة (ZATCA)", "ZATCA Integration", new[] { A.View, A.Edit }, new[] { "zatca-integration" }),
+        // تعديل = إدارة (المزامنة والقوالب)
+        new(WhatsAppScreenId, "settings", "تكامل واتساب للأعمال", "WhatsApp Business Integration",
+            new[] { A.View, A.Connect, A.Edit, A.Disconnect }, new[] { "whatsapp-integration" }, Restricted: true),
+        new(WhatsAppSendScreenId, "sales", "إرسال المستندات عبر واتساب", "Send Documents via WhatsApp",
+            new[] { A.View, A.Send }, Array.Empty<string>()),
         new("user-permissions", "settings", "إدارة صلاحيات المستخدمين والشاشات", "User Roles & Screen Permissions",
             new[] { A.View, A.Create, A.Edit, A.Delete }, new[] { "users", "permissions", "payment-gateway" }),
     };
 
     public const string CommercialContractsScreenId = "commercial-contracts";
+    public const string WhatsAppScreenId = "whatsapp";
+    public const string WhatsAppSendScreenId = "whatsapp-send";
 
     private static readonly Dictionary<string, PermissionScreenDefinition> ById = Screens.ToDictionary(s => s.Id);
     private static readonly Dictionary<A, PermissionActionDefinition> ActionsByEnum = Actions.ToDictionary(a => a.Action);

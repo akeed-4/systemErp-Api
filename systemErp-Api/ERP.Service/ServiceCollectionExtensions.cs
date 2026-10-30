@@ -44,7 +44,9 @@ public static class ServiceCollectionExtensions
         services.Configure<PaymobOptions>(config.GetSection(PaymobOptions.Section));
         services.Configure<PlatformOptions>(config.GetSection(PlatformOptions.Section));
         services.Configure<EmailOptions>(config.GetSection(EmailOptions.Section));
+        services.Configure<WhatsAppOptions>(config.GetSection(WhatsAppOptions.Section));
         services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.AddHttpClient(MetaWhatsAppProvider.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddHttpClient(ERP.Service.Services.Accounting.ZatcaApiClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(45));
         // مفاتيح تشفير أسرار بوابات الدفع: تُحفظ في مسار دائم (DataProtection:KeysPath) لتبقى صالحة بعد إعادة النشر،
         // وباسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب. بلا المسار تبقى في ملف المستخدم على السرفر نفسه.

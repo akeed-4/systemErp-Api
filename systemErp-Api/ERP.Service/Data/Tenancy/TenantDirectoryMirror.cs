@@ -17,6 +17,7 @@ public sealed class TenantDirectoryMirror : SaveChangesInterceptor, IDbTransacti
     public static readonly Type[] Types =
     {
         typeof(Tenant), typeof(User), typeof(Subscription), typeof(UserInvite), typeof(OnlinePayment), typeof(PaymentGatewaySettings),
+        typeof(TenantWhatsAppIntegration),
     };
 
     private sealed record Change(Type Type, Guid Id, Guid TenantId, Guid? SourceDedicated, object? Snapshot);

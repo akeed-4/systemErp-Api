@@ -38,8 +38,8 @@ public class SubscriptionModuleTests : TestBase
         var response = await tenant.Get("/platform/modules");
         Assert.Equal(200, response.Status);
         var modules = response.Data!.AsArray();
-        Assert.Equal(new[] { "accounting", "car_showroom", "pos", "hr" }, modules.Select(m => m!["key"].S()));
-        Assert.Equal(new[] { 1, 2, 3, 4 }, modules.Select(m => m!["number"]!.GetValue<int>()));
+        Assert.Equal(new[] { "accounting", "car_showroom", "pos", "hr", "whatsapp" }, modules.Select(m => m!["key"].S()));
+        Assert.Equal(new[] { 1, 2, 3, 4, 5 }, modules.Select(m => m!["number"]!.GetValue<int>()));
         Assert.All(modules, module =>
         {
             Assert.False(string.IsNullOrWhiteSpace(module!["nameAr"].S()));

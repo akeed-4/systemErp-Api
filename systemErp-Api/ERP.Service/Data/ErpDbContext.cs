@@ -397,6 +397,50 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<CarShowroomSettings>().HasIndex(s => s.TenantId).IsUnique();
         modelBuilder.Entity<AccountingSettings>().HasIndex(s => s.TenantId).IsUnique();
 
+        // واتساب: ربط واحد لكل منشأة، والرقم لا يُربط بمنشأتين (يُفحص في الدليل حيث تجتمع المنشآت كلها).
+        modelBuilder.Entity<TenantWhatsAppIntegration>(e =>
+        {
+            e.Property(i => i.Provider).HasMaxLength(32);
+            e.Property(i => i.BusinessId).HasMaxLength(64);
+            e.Property(i => i.WabaId).HasMaxLength(64);
+            e.Property(i => i.PhoneNumberId).HasMaxLength(64);
+            e.Property(i => i.DisplayPhoneNumber).HasMaxLength(32);
+            e.Property(i => i.VerifiedName).HasMaxLength(256);
+            e.Property(i => i.QualityRating).HasMaxLength(32);
+            e.Property(i => i.MessagingLimit).HasMaxLength(64);
+            e.Property(i => i.InvoiceTemplateName).HasMaxLength(512);
+            e.Property(i => i.InvoiceTemplateLanguage).HasMaxLength(16);
+            e.Property(i => i.InvoiceTemplateStatus).HasMaxLength(32);
+            e.Property(i => i.LastError).HasMaxLength(1000);
+            e.Property(i => i.Status).HasMaxLength(32);
+            e.HasIndex(i => i.TenantId).IsUnique();
+            e.HasIndex(i => i.PhoneNumberId).IsUnique().HasFilter($"[Status] <> N'{nameof(WhatsAppIntegrationStatus.Disconnected)}'");
+        });
+        // سجل الإرسال: المفتاح يمنع تكرار الطلب، والفهرس المرشَّح يمنع إرسالين متزامنين للمستند نفسه إلى الرقم نفسه.
+        modelBuilder.Entity<WhatsAppMessage>(e =>
+        {
+            e.Property(m => m.DocumentType).HasMaxLength(64);
+            e.Property(m => m.DocumentNumber).HasMaxLength(64);
+            e.Property(m => m.RecipientPhone).HasMaxLength(20);
+            e.Property(m => m.TemplateName).HasMaxLength(512);
+            e.Property(m => m.TemplateLanguage).HasMaxLength(16);
+            e.Property(m => m.MediaId).HasMaxLength(128);
+            e.Property(m => m.FileName).HasMaxLength(256);
+            e.Property(m => m.ProviderMessageId).HasMaxLength(256);
+            e.Property(m => m.ErrorCode).HasMaxLength(32);
+            e.Property(m => m.ErrorMessage).HasMaxLength(1000);
+            e.Property(m => m.IdempotencyKey).HasMaxLength(64);
+            e.Property(m => m.CreatedByName).HasMaxLength(256);
+            e.Property(m => m.PricingCategory).HasMaxLength(32);
+            e.Property(m => m.Kind).HasMaxLength(32);
+            e.Property(m => m.Status).HasMaxLength(32);
+            e.HasIndex(m => new { m.TenantId, m.IdempotencyKey }).IsUnique();
+            e.HasIndex(m => new { m.TenantId, m.ProviderMessageId }).IsUnique().HasFilter("[ProviderMessageId] IS NOT NULL");
+            e.HasIndex(m => new { m.TenantId, m.DocumentType, m.DocumentId });
+            e.HasIndex(m => new { m.TenantId, m.DocumentType, m.DocumentId, m.RecipientPhone }).IsUnique()
+                .HasFilter($"[Status] = N'{nameof(WhatsAppMessageStatus.Sending)}' AND [DocumentId] IS NOT NULL");
+        });
+
         // قيد فعّال واحد لكل مستند مصدر (ضمان على مستوى قاعدة البيانات): المعكوس خارج الشرط فيُعاد ترحيل المستند بعد عكس قيده.
         // المصادر التي يحق لها أكثر من قيد (إعادة التقييم، العكس، سندات المعرض...) خارج القائمة.
         modelBuilder.Entity<JournalEntry>().Property(e => e.SourceType).HasMaxLength(64);

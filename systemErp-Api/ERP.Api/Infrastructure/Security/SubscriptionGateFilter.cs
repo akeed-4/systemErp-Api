@@ -52,6 +52,7 @@ public class SubscriptionGateFilter : IAsyncAuthorizationFilter
         PlatformModules.CarShowroom => "وحدة معارض السيارات",
         PlatformModules.Pos => "وحدة نقاط البيع",
         PlatformModules.Hr => "وحدة شؤون الموظفين",
+        PlatformModules.WhatsApp => "إضافة واتساب للأعمال",
         _ => module,
     };
 }

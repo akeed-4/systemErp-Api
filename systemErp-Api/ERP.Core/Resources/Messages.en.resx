@@ -1331,4 +1331,33 @@
   <data name="ContractNotifyBody" xml:space="preserve"><value>{0} — Party: {1} — by {2}</value></data>
   <data name="PosTerminalSetupRequired" xml:space="preserve"><value>No POS station is defined; set up a POS station first, then open the shift on it.</value></data>
   <data name="PosTerminalRequired" xml:space="preserve"><value>Select the POS station to open the shift on.</value></data>
+  <data name="WhatsAppNotInPlan" xml:space="preserve"><value>The WhatsApp Business add-on is not included in your subscription.</value></data>
+  <data name="WhatsAppSubscriptionInactive" xml:space="preserve"><value>Your subscription is not active; renew it to use WhatsApp Business.</value></data>
+  <data name="WhatsAppSignupDataInvalid" xml:space="preserve"><value>The connection data from Meta is incomplete; try connecting again.</value></data>
+  <data name="WhatsAppPlatformNotConfigured" xml:space="preserve"><value>WhatsApp is not configured on the platform yet; contact the platform administrator.</value></data>
+  <data name="WhatsAppNumberNotInAccount" xml:space="preserve"><value>The selected number does not belong to the connected WhatsApp Business account.</value></data>
+  <data name="WhatsAppProviderError" xml:space="preserve"><value>Meta rejected the request: {0}</value></data>
+  <data name="WhatsAppNumberLinkedElsewhere" xml:space="preserve"><value>This number is connected to another company on the platform.</value></data>
+  <data name="WhatsAppNotConnected" xml:space="preserve"><value>No WhatsApp account is connected to this company.</value></data>
+  <data name="WhatsAppReconnectRequired" xml:space="preserve"><value>The WhatsApp connection has expired; reconnect the account from settings.</value></data>
+  <data name="WhatsAppTemplateCreateFailed" xml:space="preserve"><value>Could not create the invoice template: {0}</value></data>
+  <data name="WhatsAppTemplateRejected" xml:space="preserve"><value>Meta rejected the invoice template: {0}</value></data>
+  <data name="WhatsAppDeliveryFailedTitle" xml:space="preserve"><value>WhatsApp message could not be delivered ({0})</value></data>
+  <data name="WhatsAppPlatformSettingsInvalid" xml:space="preserve"><value>Enter the app ID and configuration ID as numbers, and the version as v26.0.</value></data>
+  <data name="WhatsAppConnected" xml:space="preserve"><value>WhatsApp Business account connected.</value></data>
+  <data name="WhatsAppSynced" xml:space="preserve"><value>WhatsApp data synchronized.</value></data>
+  <data name="WhatsAppDisconnected" xml:space="preserve"><value>WhatsApp account disconnected.</value></data>
+  <data name="WhatsAppTemplateSubmitted" xml:space="preserve"><value>The invoice template was submitted to Meta for approval.</value></data>
+  <data name="WhatsAppPhoneInvalid" xml:space="preserve"><value>The mobile number is not valid for WhatsApp: include the country code (e.g. 9665XXXXXXXX).</value></data>
+  <data name="WhatsAppPhoneMissing" xml:space="preserve"><value>The customer has no mobile number; enter one.</value></data>
+  <data name="WhatsAppInvoiceNotPosted" xml:space="preserve"><value>Only posted invoices can be sent.</value></data>
+  <data name="WhatsAppTemplateNotApproved" xml:space="preserve"><value>The invoice template is not approved by Meta yet (status: {0}).</value></data>
+  <data name="WhatsAppAlreadySent" xml:space="preserve"><value>This document was sent to the same number at {0}; confirm to send it again.</value></data>
+  <data name="WhatsAppSendInProgress" xml:space="preserve"><value>This document is being sent to the same number right now.</value></data>
+  <data name="WhatsAppIdempotencyKeyRequired" xml:space="preserve"><value>A request key is required.</value></data>
+  <data name="WhatsAppSent" xml:space="preserve"><value>The document was sent via WhatsApp.</value></data>
+  <data name="WhatsAppSendFailed" xml:space="preserve"><value>Could not send via WhatsApp: {0}</value></data>
+  <data name="WhatsAppSendOutcomeUnknown" xml:space="preserve"><value>The connection to Meta was lost and it is unknown whether the message was sent; check with the customer before resending.</value></data>
+  <data name="WhatsAppCannotResend" xml:space="preserve"><value>Only a failed message or one with an unknown outcome can be resent.</value></data>
+  <data name="WhatsAppMessageNotFound" xml:space="preserve"><value>WhatsApp message not found.</value></data>
 </root>

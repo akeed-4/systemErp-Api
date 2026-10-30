@@ -125,7 +125,7 @@ public class OnlinePaymentTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         await EnableGatewayAsync(api);
-        Assert.Equal(200, (await api.Post("/pos/shifts/open", new { openingCash = 0, posTerminalName = "POS-1" })).Status);
+        await OpenPosShiftAsync(api);
         var cart = new[] { new { itemId = product, quantity = 1 } };
 
         var pay = await api.Post("/payments/pos", new { amount = 115 });

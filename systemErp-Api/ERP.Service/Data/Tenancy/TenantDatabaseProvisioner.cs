@@ -89,6 +89,7 @@ public sealed class TenantDatabaseProvisioner
         await CopyAsync<UserInvite>(catalog, dedicated, ct);
         await CopyAsync<OnlinePayment>(catalog, dedicated, ct);
         await CopyAsync<PaymentGatewaySettings>(catalog, dedicated, ct);
+        await CopyAsync<TenantWhatsAppIntegration>(catalog, dedicated, ct);
     }
 
     private static async Task CopyAsync<T>(ErpDbContext catalog, ErpDbContext dedicated, CancellationToken ct) where T : BaseEntity

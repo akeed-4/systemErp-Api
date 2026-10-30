@@ -16,6 +16,14 @@ public class PlatformSetting
     public const string PaymobIntegrationIds = "Paymob.IntegrationIds";
     public static readonly string[] PaymobKeys = { PaymobBaseUrl, PaymobPublicKey, PaymobSecretKey, PaymobHmacSecret, PaymobIntegrationIds };
 
+    // تطبيق Meta الخاص بالمنصة (Embedded Signup وWebhook واتساب)؛ سرّ التطبيق ورمز تحقق الـ Webhook مشفّران بـ ISecretProtector
+    public const string WhatsAppAppId = "WhatsApp.AppId";
+    public const string WhatsAppAppSecret = "WhatsApp.AppSecret";
+    public const string WhatsAppConfigId = "WhatsApp.ConfigId";
+    public const string WhatsAppVerifyToken = "WhatsApp.VerifyToken";
+    public const string WhatsAppGraphVersion = "WhatsApp.GraphVersion";
+    public static readonly string[] WhatsAppKeys = { WhatsAppAppId, WhatsAppAppSecret, WhatsAppConfigId, WhatsAppVerifyToken, WhatsAppGraphVersion };
+
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

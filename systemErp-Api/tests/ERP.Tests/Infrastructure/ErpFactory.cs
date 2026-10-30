@@ -43,6 +43,12 @@ public class ErpFactory : WebApplicationFactory<Program>
         builder.UseSetting("Paymob:IntegrationIds", "111");
         builder.UseSetting("Paymob:PublicApiUrl", "https://api.test");
         builder.UseSetting("Paymob:FrontendUrl", "https://app.test");
+        // تطبيق Meta للمنصة (واتساب)؛ المزوّد الفعلي يُستبدل ببديل في الذاكرة
+        builder.UseSetting("WhatsApp:AppId", FakeWhatsAppProvider.AppId);
+        builder.UseSetting("WhatsApp:AppSecret", FakeWhatsAppProvider.AppSecret);
+        builder.UseSetting("WhatsApp:ConfigId", FakeWhatsAppProvider.ConfigId);
+        builder.UseSetting("WhatsApp:VerifyToken", FakeWhatsAppProvider.VerifyToken);
+        builder.UseSetting("WhatsApp:PublicApiUrl", "https://api.test");
         builder.ConfigureTestServices(services =>
         {
             services.AddScoped<ERP.Core.Contracts.Shared.IPaymobClient, FakePaymobClient>();
@@ -50,6 +56,7 @@ public class ErpFactory : WebApplicationFactory<Program>
             services.AddSingleton<ERP.Core.Contracts.Shared.IEmailSender>(FakeEmailSender.Instance);
             // هيئة الزكاة: بديل محلي يتحقق من التجزئة والتوقيع، فلا اتصال بالإنترنت في الاختبارات
             services.AddSingleton<ERP.Core.Contracts.Accounting.IZatcaApiClient>(FakeZatcaApiClient.Instance);
+            services.AddSingleton<ERP.Core.Contracts.Shared.IWhatsAppProvider>(FakeWhatsAppProvider.Instance);
         });
     }
 

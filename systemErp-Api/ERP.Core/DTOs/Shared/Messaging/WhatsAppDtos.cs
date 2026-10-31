@@ -42,6 +42,12 @@ public class ConnectWhatsAppDto
     public string? BusinessId { get; set; }
     /// <summary>رقم تطبيق WhatsApp Business (Coexistence): لا يُعاد تسجيله.</summary>
     public bool IsCoexistence { get; set; }
+    /// <summary>عنوان الصفحة التي فُتحت منها نافذة Meta (لاستبدال الرمز المربوط به).</summary>
+    public string? RedirectUri { get; set; }
+    /// <summary>رقم واتساب الذي يريد العميل ربطه: يحدّد الرقم حين يمنح Meta أكثر من رقم ولم يصل حدث الجلسة.</summary>
+    public string? PhoneNumber { get; set; }
+    /// <summary>رمز وصول من لوحة Meta بدل Code (تجربة الرقم الاختباري، في بيئة التطوير فقط): لا يُستبدل ولا يُسجَّل الرقم.</summary>
+    public string? AccessToken { get; set; }
 }
 
 public class WhatsAppTemplateDto
@@ -53,11 +59,50 @@ public class WhatsAppTemplateDto
     public bool IsInvoiceTemplate { get; set; }
 }
 
+/// <summary>نص رسالة الفاتورة كما كتبه المستخدم، وحالته لدى Meta.</summary>
+public class WhatsAppInvoiceTemplateDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Language { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public string? Footer { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+    /// <summary>هذا ما يُرسل الآن بهذه اللغة (أحدث قالب معتمد).</summary>
+    public bool IsActive { get; set; }
+    public string? CreatedByName { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+}
+
+public class WhatsAppInvoiceTemplatesDto
+{
+    public List<WhatsAppInvoiceTemplateDto> Items { get; set; } = new();
+    /// <summary>المتغيرات المتاحة بترتيب عرضها.</summary>
+    public List<string> Variables { get; set; } = new();
+    /// <summary>نص القالب الافتراضي لكل لغة (نقطة بداية للتحرير).</summary>
+    public Dictionary<string, string> DefaultBodies { get; set; } = new();
+    /// <summary>حالة القالب الافتراضي لكل لغة (يُرسل به إن لم يُعتمد قالب مخصص).</summary>
+    public Dictionary<string, string> DefaultStatuses { get; set; } = new();
+    /// <summary>أمثلة قيم المتغيرات لكل لغة (للمعاينة).</summary>
+    public Dictionary<string, Dictionary<string, string>> Samples { get; set; } = new();
+}
+
+public class CreateWhatsAppInvoiceTemplateDto
+{
+    public string Language { get; set; } = "ar";
+    public string Body { get; set; } = string.Empty;
+    public string? Footer { get; set; }
+}
+
 public class SendWhatsAppTestDto
 {
     public string Phone { get; set; } = string.Empty;
     public string? Language { get; set; }
     public string IdempotencyKey { get; set; } = string.Empty;
+    /// <summary>فارغ = قالب الفاتورة مع PDF تجريبي؛ hello_world = قالب Meta الجاهز (يختبر الربط قبل اعتماد قالب الفاتورة).</summary>
+    public string? Template { get; set; }
 }
 
 public class SendWhatsAppDocumentDto

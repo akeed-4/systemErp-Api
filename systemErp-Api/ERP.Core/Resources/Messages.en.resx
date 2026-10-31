@@ -1336,6 +1336,7 @@
   <data name="WhatsAppSignupDataInvalid" xml:space="preserve"><value>The connection data from Meta is incomplete; try connecting again.</value></data>
   <data name="WhatsAppPlatformNotConfigured" xml:space="preserve"><value>WhatsApp is not configured on the platform yet; contact the platform administrator.</value></data>
   <data name="WhatsAppNumberNotInAccount" xml:space="preserve"><value>The selected number does not belong to the connected WhatsApp Business account.</value></data>
+  <data name="WhatsAppSessionAmbiguous" xml:space="preserve"><value>Could not determine the WhatsApp number from the Meta session. Numbers granted by Meta: {0} (accounts: {1}). Enter the WhatsApp number you want to connect and reconnect.</value></data>
   <data name="WhatsAppProviderError" xml:space="preserve"><value>Meta rejected the request: {0}</value></data>
   <data name="WhatsAppNumberLinkedElsewhere" xml:space="preserve"><value>This number is connected to another company on the platform.</value></data>
   <data name="WhatsAppNotConnected" xml:space="preserve"><value>No WhatsApp account is connected to this company.</value></data>
@@ -1360,4 +1361,14 @@
   <data name="WhatsAppSendOutcomeUnknown" xml:space="preserve"><value>The connection to Meta was lost and it is unknown whether the message was sent; check with the customer before resending.</value></data>
   <data name="WhatsAppCannotResend" xml:space="preserve"><value>Only a failed message or one with an unknown outcome can be resent.</value></data>
   <data name="WhatsAppMessageNotFound" xml:space="preserve"><value>WhatsApp message not found.</value></data>
+  <data name="WhatsAppTemplateBodyRequired" xml:space="preserve"><value>Write the message text.</value></data>
+  <data name="WhatsAppTemplateUnknownVariable" xml:space="preserve"><value>Unknown variable {0}; insert variables using the buttons below the text.</value></data>
+  <data name="WhatsAppTemplateTooManyVariables" xml:space="preserve"><value>A message can have at most {0} variables.</value></data>
+  <data name="WhatsAppTemplateVariableAtEdge" xml:space="preserve"><value>Meta does not accept a message that starts or ends with a variable; add a word before or after it (such as a closing period).</value></data>
+  <data name="WhatsAppTemplateBodyTooLong" xml:space="preserve"><value>The message text is longer than {0} characters.</value></data>
+  <data name="WhatsAppTemplateFooterInvalid" xml:space="preserve"><value>The footer is a single line of up to {0} characters without variables.</value></data>
+  <data name="WhatsAppTemplateLanguageInvalid" xml:space="preserve"><value>The template language must be Arabic or English.</value></data>
+  <data name="WhatsAppTemplateNotFound" xml:space="preserve"><value>Template not found.</value></data>
+  <data name="WhatsAppTemplateDeleted" xml:space="preserve"><value>Template deleted.</value></data>
+  <data name="WhatsAppHelloWorldMissing" xml:space="preserve"><value>The hello_world template is missing or not approved in the WhatsApp account; test with the invoice template once it is approved.</value></data>
 </root>

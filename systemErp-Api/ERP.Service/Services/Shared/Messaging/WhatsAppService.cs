@@ -70,26 +70,57 @@ public class WhatsAppService : IWhatsAppService
         var wabaId = r.WabaId?.Trim() ?? string.Empty;
         var phoneId = r.PhoneNumberId?.Trim() ?? string.Empty;
         var businessId = r.BusinessId?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(r.Code) || !GraphId.IsMatch(wabaId) || !GraphId.IsMatch(phoneId) || (businessId.Length > 0 && !GraphId.IsMatch(businessId)))
+        // الحساب والرقم من حدث جلسة Embedded Signup؛ إن لم يصل الحدث (فارغان) يُكتشفان من صلاحيات الرمز بعد استبداله
+        var manualToken = r.AccessToken?.Trim() ?? string.Empty;
+        if ((string.IsNullOrWhiteSpace(r.Code) && manualToken.Length == 0) || (wabaId.Length > 0 && !GraphId.IsMatch(wabaId)) || (phoneId.Length > 0 && !GraphId.IsMatch(phoneId))
+            || (businessId.Length > 0 && !GraphId.IsMatch(businessId)))
             throw new ValidationFailedException(Messages.WhatsAppSignupDataInvalid);
         var app = await AppAsync(ct);
         if (!app.IsConfigured) throw new ConflictException(Messages.WhatsAppPlatformNotConfigured);
 
         var tenantId = _tenant.TenantId ?? throw new UnauthorizedAppException();
-        await EnsureNumberFreeAsync(phoneId, tenantId, ct);
+        if (phoneId.Length > 0) await EnsureNumberFreeAsync(phoneId, tenantId, ct);
 
         var integration = await _db.Set<TenantWhatsAppIntegration>().FirstOrDefaultAsync(ct);
         string token, pin = string.Empty;
         WhatsAppPhoneInfo phone;
         try
         {
-            token = await _provider.ExchangeCodeAsync(app, r.Code.Trim(), ct);
-            if (!(await _provider.ListPhoneNumberIdsAsync(app, token, wabaId, ct)).Contains(phoneId))
-                throw new ValidationFailedException(Messages.WhatsAppNumberNotInAccount);
-            phone = await _provider.GetPhoneNumberAsync(app, token, phoneId, ct);
+            // رمز يدوي (تجربة رقم Meta الاختباري في بيئة التطوير؛ الـ controller يرفضه خارجها) بدل استبدال رمز Embedded Signup
+            token = manualToken.Length > 0 ? manualToken : await _provider.ExchangeCodeAsync(app, r.Code.Trim(), r.RedirectUri, ct);
+            if (phoneId.Length == 0)
+            {
+                // بلا حدث الجلسة: أرقام كل الحسابات الممنوحة (قد يمنح العميل حساب الاختبار مع حسابه)، ويُختار الرقم الذي كتبه العميل،
+                // أو الوحيد إن لم يكتب؛ وإلا تُعرض الأرقام المتاحة ليكتب أحدها
+                var wabas = wabaId.Length > 0 ? new[] { wabaId } : await _provider.ListSharedWabaIdsAsync(app, token, ct);
+                var found = new List<(string WabaId, WhatsAppPhoneInfo Phone)>();
+                foreach (var waba in wabas)
+                    foreach (var id in await _provider.ListPhoneNumberIdsAsync(app, token, waba, ct))
+                        found.Add((waba, await _provider.GetPhoneNumberAsync(app, token, id, ct)));
+                var hint = WhatsAppPhone.Normalize(r.PhoneNumber);
+                var match = hint == null ? found : found.Where(f => WhatsAppPhone.Normalize(f.Phone.DisplayPhoneNumber) == hint).ToList();
+                if (match.Count != 1)
+                {
+                    _log.LogWarning("WhatsApp connect for tenant {Tenant}: accounts [{Wabas}], numbers [{Numbers}], hint {Hint}",
+                        tenantId, string.Join(",", wabas), string.Join(",", found.Select(f => f.Phone.DisplayPhoneNumber)), hint);
+                    throw new ValidationFailedException(string.Format(Messages.WhatsAppSessionAmbiguous,
+                        found.Count == 0 ? "—" : string.Join("، ", found.Select(f => f.Phone.DisplayPhoneNumber)),
+                        wabas.Count == 0 ? "—" : string.Join("، ", wabas)));
+                }
+                (wabaId, phone) = match[0];
+                phoneId = phone.Id;
+                await EnsureNumberFreeAsync(phoneId, tenantId, ct);
+            }
+            else
+            {
+                if (wabaId.Length == 0) throw new ValidationFailedException(Messages.WhatsAppSignupDataInvalid);
+                if (!(await _provider.ListPhoneNumberIdsAsync(app, token, wabaId, ct)).Contains(phoneId))
+                    throw new ValidationFailedException(Messages.WhatsAppNumberNotInAccount);
+                phone = await _provider.GetPhoneNumberAsync(app, token, phoneId, ct);
+            }
             await _provider.SubscribeAppAsync(app, token, wabaId, ct);
             // رقم تطبيق الأعمال (Coexistence) يعمل على التطبيق والـ API معاً ولا يُسجَّل؛ وإعادة ربط الرقم نفسه تستعمل رمزه السابق
-            if (!r.IsCoexistence)
+            if (!r.IsCoexistence && manualToken.Length == 0)
             {
                 pin = integration?.PhoneNumberId == phoneId && !string.IsNullOrEmpty(integration.RegistrationPinEncrypted)
                     ? _secrets.Unprotect(integration.RegistrationPinEncrypted) : NewPin();
@@ -241,17 +272,146 @@ public class WhatsAppService : IWhatsAppService
 
     internal static bool SameLanguage(string a, string b) => string.Equals(a.Split('_')[0], b.Split('_')[0], StringComparison.OrdinalIgnoreCase);
 
+    // ================= نص رسالة الفاتورة =================
+
+    public async Task<WhatsAppInvoiceTemplatesDto> ListInvoiceTemplatesAsync(CancellationToken ct = default)
+    {
+        await EnsureEntitledAsync(ct);
+        var (integration, app, token) = await ActiveAsync(ct);
+        IReadOnlyList<WhatsAppTemplateInfo> templates;
+        try { templates = await _provider.ListTemplatesAsync(app, token, integration.WabaId, ct); }
+        catch (WhatsAppProviderException e)
+        {
+            await RecordProviderErrorAsync(integration, e, ct);
+            throw new ConflictException(string.Format(Messages.WhatsAppProviderError, e.Message));
+        }
+        ApplyTemplates(integration, templates);
+        var custom = await SyncInvoiceTemplatesAsync(templates, ct);
+        await _db.SaveChangesAsync(ct);
+
+        var company = await CompanyNameAsync(ct);
+        var active = InvoiceLanguages.Select(l => ActiveCustom(custom, l)?.Id).Where(id => id != null).ToHashSet();
+        return new WhatsAppInvoiceTemplatesDto
+        {
+            Items = custom.OrderByDescending(t => t.CreatedAt).Select(t => ToDto(t, active.Contains(t.Id))).ToList(),
+            Variables = WhatsAppInvoiceText.Keys.ToList(),
+            DefaultBodies = WhatsAppInvoiceText.DefaultBodies.ToDictionary(p => p.Key, p => p.Value),
+            DefaultStatuses = InvoiceLanguages.ToDictionary(l => l,
+                l => templates.FirstOrDefault(t => t.Name == InvoiceTemplateName && SameLanguage(t.Language, l))?.Status ?? string.Empty),
+            Samples = InvoiceLanguages.ToDictionary(l => l, l => WhatsAppInvoiceText.Samples(l, company).ToDictionary(p => p.Key, p => p.Value)),
+        };
+    }
+
+    public async Task<WhatsAppInvoiceTemplateDto> CreateInvoiceTemplateAsync(CreateWhatsAppInvoiceTemplateDto r, CancellationToken ct = default)
+    {
+        await EnsureEntitledAsync(ct);
+        var language = r.Language?.Trim().ToLowerInvariant() is { } l && InvoiceLanguages.Contains(l)
+            ? l : throw new ValidationFailedException(Messages.WhatsAppTemplateLanguageInvalid);
+        var compiled = WhatsAppInvoiceText.Compile(r.Body, r.Footer);
+        var (integration, app, token) = await ActiveAsync(ct);
+
+        // اسم جديد لكل نص: تعديل القالب المعتمد يعيده للمراجعة فيتوقف الإرسال، أما الجديد فيُراجَع والمعتمد الحالي يعمل
+        var name = $"erp_invoice_{DateTime.UtcNow:yyMMddHHmmss}_{RandomNumberGenerator.GetHexString(4, lowercase: true)}";
+        var company = await CompanyNameAsync(ct);
+        var samples = WhatsAppInvoiceText.Samples(language, company);
+        WhatsAppTemplateInfo created;
+        try
+        {
+            created = await _provider.CreateDocumentTemplateAsync(app, token, integration.WabaId,
+                new WhatsAppTemplateDefinition(name, language, compiled.MetaBody, WhatsAppInvoiceText.Values(compiled.Keys, samples),
+                    _pdf.RenderTestDocument(company), compiled.Footer), ct);
+        }
+        catch (WhatsAppProviderException e)
+        {
+            await RecordProviderErrorAsync(integration, e, ct);
+            throw new ConflictException(string.Format(Messages.WhatsAppTemplateCreateFailed, e.Message));
+        }
+
+        var template = new WhatsAppInvoiceTemplate
+        {
+            Name = name, Language = language, Body = compiled.Body, Footer = compiled.Footer, VariableKeys = string.Join(',', compiled.Keys),
+            CreatedByName = _user.Name,
+        };
+        SetStatus(template, created.Status, null);
+        _db.Add(template);
+        await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync("WHATSAPP_TEMPLATE_SUBMITTED", nameof(WhatsAppInvoiceTemplate), template.Id.ToString(), $"{name} ({language})", ct);
+        var custom = await _db.Set<WhatsAppInvoiceTemplate>().AsNoTracking().ToListAsync(ct);
+        return ToDto(template, ActiveCustom(custom, language)?.Id == template.Id);
+    }
+
+    public async Task DeleteInvoiceTemplateAsync(Guid id, CancellationToken ct = default)
+    {
+        await EnsureEntitledAsync(ct);
+        var template = await _db.Set<WhatsAppInvoiceTemplate>().FirstOrDefaultAsync(t => t.Id == id, ct)
+                       ?? throw new NotFoundException(Messages.WhatsAppTemplateNotFound);
+        var (integration, app, token) = await ActiveAsync(ct);
+        try { await _provider.DeleteTemplateAsync(app, token, integration.WabaId, template.Name, ct); }
+        catch (WhatsAppProviderException e) when (!e.IsAuth && !e.IsTransport)
+        {
+            // محذوف من Meta أصلاً (من WhatsApp Manager): يُحذف من هنا أيضاً
+            _log.LogInformation("WhatsApp template {Name} delete at Meta skipped: {Code} {Message}", template.Name, e.Code, e.Message);
+        }
+        catch (WhatsAppProviderException e)
+        {
+            await RecordProviderErrorAsync(integration, e, ct);
+            throw new ConflictException(string.Format(Messages.WhatsAppProviderError, e.Message));
+        }
+        _db.Remove(template);
+        await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync("WHATSAPP_TEMPLATE_DELETED", nameof(WhatsAppInvoiceTemplate), template.Id.ToString(), $"{template.Name} ({template.Language})", ct);
+    }
+
+    private static readonly string[] InvoiceLanguages = { "ar", "en" };
+
+    /// <summary>يحدّث حالات النصوص المخصصة من قائمة Meta (متعقَّبة، فيحفظها المستدعي).</summary>
+    private async Task<List<WhatsAppInvoiceTemplate>> SyncInvoiceTemplatesAsync(IReadOnlyList<WhatsAppTemplateInfo> templates, CancellationToken ct)
+    {
+        var custom = await _db.Set<WhatsAppInvoiceTemplate>().ToListAsync(ct);
+        foreach (var t in custom)
+            if (templates.FirstOrDefault(x => x.Name == t.Name && SameLanguage(x.Language, t.Language)) is { } info) SetStatus(t, info.Status, null);
+        return custom;
+    }
+
+    /// <summary>ما يُرسل الآن باللغة: أحدث نص مخصص معتمد.</summary>
+    private static WhatsAppInvoiceTemplate? ActiveCustom(IEnumerable<WhatsAppInvoiceTemplate> custom, string language)
+        => custom.Where(t => t.Status == "APPROVED" && SameLanguage(t.Language, language)).OrderByDescending(t => t.CreatedAt).FirstOrDefault();
+
+    internal static void SetStatus(WhatsAppInvoiceTemplate t, string status, string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return;
+        if (status == "APPROVED") { t.ApprovedAt ??= DateTime.UtcNow; t.Reason = null; }
+        else if (reason != null) t.Reason = reason.Length > 1000 ? reason[..1000] : reason;
+        t.Status = status;
+    }
+
+    private static WhatsAppInvoiceTemplateDto ToDto(WhatsAppInvoiceTemplate t, bool isActive) => new()
+    {
+        Id = t.Id, Name = t.Name, Language = t.Language, Body = t.Body, Footer = t.Footer, Status = t.Status, Reason = t.Reason,
+        IsActive = isActive, CreatedByName = t.CreatedByName, CreatedAt = t.CreatedAt, ApprovedAt = t.ApprovedAt,
+    };
+
     // ================= الإرسال =================
 
+    /// <summary>Values: قيم كل المتغيرات المتاحة بأسمائها؛ القالب المستعمل يحدد أيها يُرسل وبأي ترتيب.</summary>
     private sealed record SendPlan(WhatsAppMessageKind Kind, string Phone, string Language, string? DocumentType, Guid? DocumentId, string? DocumentNumber,
-        Guid? CustomerId, string[] BodyParameters, Func<CancellationToken, Task<RenderedDocument>> Render);
+        Guid? CustomerId, IReadOnlyDictionary<string, string> Values, Func<CancellationToken, Task<RenderedDocument>> Render, bool HelloWorld = false);
+
+    /// <summary>
+    /// القالب الذي يُرسل به: أحدث نص مخصص معتمد للغة، وإلا القالب الافتراضي. Language: لغة القالب لدى Meta إن خالفت لغة الخطة،
+    /// وDocument = false لقالب بلا رأس مستند (hello_world).
+    /// </summary>
+    private sealed record ResolvedTemplate(string Name, string[] Keys, string? Language = null, bool Document = true);
+
+    /// <summary>قالب Meta الجاهز المعتمد في كل حساب: يختبر الربط والتسليم قبل اعتماد قالب الفاتورة (نص فقط بلا PDF).</summary>
+    public const string HelloWorldTemplate = "hello_world";
 
     public async Task<WhatsAppMessageDto> SendTestAsync(SendWhatsAppTestDto r, CancellationToken ct = default)
     {
         await EnsureEntitledAsync(ct);
         var key = Key(r.IdempotencyKey);
         if (await ReplayAsync(key, ct) is { } replay) return replay;
-        var plan = await TestPlanAsync(r.Phone, r.Language, ct);
+        var plan = await TestPlanAsync(r.Phone, r.Language, ct) with { HelloWorld = r.Template?.Trim() == HelloWorldTemplate };
         return await SendAsync(plan, key, resendOf: null, confirmDuplicate: true, ct);
     }
 
@@ -274,7 +434,7 @@ public class WhatsAppService : IWhatsAppService
         if (original.Status is not (WhatsAppMessageStatus.Failed or WhatsAppMessageStatus.Unknown)) throw new ConflictException(Messages.WhatsAppCannotResend);
 
         var plan = original.Kind == WhatsAppMessageKind.Test
-            ? await TestPlanAsync(original.RecipientPhone, original.TemplateLanguage, ct)
+            ? await TestPlanAsync(original.RecipientPhone, original.TemplateLanguage, ct) with { HelloWorld = original.TemplateName == HelloWorldTemplate }
             : original.DocumentType == SalesInvoiceDocument && original.DocumentId is { } invoiceId
                 ? await InvoicePlanAsync(invoiceId, original.RecipientPhone, original.TemplateLanguage, ct)
                 : throw new ConflictException(Messages.WhatsAppCannotResend);
@@ -294,9 +454,15 @@ public class WhatsAppService : IWhatsAppService
         var to = WhatsAppPhone.Normalize(phone) ?? throw new ValidationFailedException(Messages.WhatsAppPhoneInvalid);
         var lang = Language(language);
         var company = await CompanyNameAsync(ct);
-        var customer = lang == "ar" ? "عميل تجريبي" : "Test customer";
-        return new SendPlan(WhatsAppMessageKind.Test, to, lang, null, null, null, null, new[] { customer, "TEST-0001", "0.00 SAR" },
-            _ => Task.FromResult(_pdf.RenderTestDocument(company)));
+        var values = new Dictionary<string, string>
+        {
+            [WhatsAppInvoiceText.CustomerName] = lang == "ar" ? "عميل تجريبي" : "Test customer",
+            [WhatsAppInvoiceText.InvoiceNumber] = "TEST-0001",
+            [WhatsAppInvoiceText.Amount] = "0.00 SAR",
+            [WhatsAppInvoiceText.InvoiceDate] = SaudiTime.FromUtc(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            [WhatsAppInvoiceText.CompanyName] = TemplateText(await CompanyNameAsync(lang, ct)),
+        };
+        return new SendPlan(WhatsAppMessageKind.Test, to, lang, null, null, null, null, values, _ => Task.FromResult(_pdf.RenderTestDocument(company)));
     }
 
     /// <summary>الفاتورة مرحّلة وضمن نطاق المستخدم وصلاحية عرض المبيعات؛ الرقم من الطلب ثم الفاتورة ثم بطاقة العميل.</summary>
@@ -313,9 +479,17 @@ public class WhatsAppService : IWhatsAppService
         if (string.IsNullOrWhiteSpace(raw)) throw new ValidationFailedException(Messages.WhatsAppPhoneMissing);
         var to = WhatsAppPhone.Normalize(raw) ?? throw new ValidationFailedException(Messages.WhatsAppPhoneInvalid);
 
-        var amount = $"{invoice.GrandTotal.ToString("#,##0.00", System.Globalization.CultureInfo.InvariantCulture)} {invoice.CurrencyCode}";
-        return new SendPlan(WhatsAppMessageKind.Document, to, Language(language), SalesInvoiceDocument, invoice.Id, invoice.InvoiceNumber, invoice.PartyId,
-            new[] { TemplateText(invoice.PartyName), invoice.InvoiceNumber, amount }, token => _pdf.RenderSalesInvoiceAsync(invoice.Id, token));
+        var lang = Language(language);
+        var values = new Dictionary<string, string>
+        {
+            [WhatsAppInvoiceText.CustomerName] = TemplateText(invoice.PartyName),
+            [WhatsAppInvoiceText.InvoiceNumber] = invoice.InvoiceNumber,
+            [WhatsAppInvoiceText.Amount] = $"{invoice.GrandTotal.ToString("#,##0.00", System.Globalization.CultureInfo.InvariantCulture)} {invoice.CurrencyCode}",
+            [WhatsAppInvoiceText.InvoiceDate] = invoice.IssueDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            [WhatsAppInvoiceText.CompanyName] = TemplateText(await CompanyNameAsync(lang, ct)),
+        };
+        return new SendPlan(WhatsAppMessageKind.Document, to, lang, SalesInvoiceDocument, invoice.Id, invoice.InvoiceNumber, invoice.PartyId,
+            values, token => _pdf.RenderSalesInvoiceAsync(invoice.Id, token));
     }
 
     /// <summary>
@@ -325,14 +499,16 @@ public class WhatsAppService : IWhatsAppService
     private async Task<WhatsAppMessageDto> SendAsync(SendPlan plan, string key, Guid? resendOf, bool confirmDuplicate, CancellationToken ct)
     {
         var (integration, app, token) = await ActiveAsync(ct);
-        await EnsureTemplateApprovedAsync(integration, app, token, plan.Language, ct);
+        var template = plan.HelloWorld
+            ? await ResolveHelloWorldAsync(integration, app, token, ct)
+            : await ResolveTemplateAsync(integration, app, token, plan.Language, ct);
         if (plan.DocumentId != null) await EnsureNotDuplicateAsync(plan, confirmDuplicate, ct);
 
         var message = new WhatsAppMessage
         {
             IntegrationId = integration.Id, Kind = plan.Kind, Status = WhatsAppMessageStatus.Sending,
             DocumentType = plan.DocumentType, DocumentId = plan.DocumentId, DocumentNumber = plan.DocumentNumber, CustomerId = plan.CustomerId,
-            RecipientPhone = plan.Phone, TemplateName = InvoiceTemplateName, TemplateLanguage = plan.Language,
+            RecipientPhone = plan.Phone, TemplateName = template.Name, TemplateLanguage = template.Language ?? plan.Language,
             IdempotencyKey = key, ResendOfId = resendOf, CreatedByUserId = _user.UserId, CreatedByName = _user.Name,
         };
         _db.Add(message);
@@ -346,11 +522,20 @@ public class WhatsAppService : IWhatsAppService
 
         try
         {
-            var document = await plan.Render(ct);
-            message.FileName = document.FileName;
-            message.MediaId = await _provider.UploadMediaAsync(app, token, integration.PhoneNumberId, document, ct);
-            message.ProviderMessageId = await _provider.SendDocumentTemplateAsync(app, token, integration.PhoneNumberId,
-                new WhatsAppTemplateMessage(plan.Phone, InvoiceTemplateName, plan.Language, message.MediaId, document.FileName, plan.BodyParameters), ct);
+            if (template.Document)
+            {
+                var document = await plan.Render(ct);
+                message.FileName = document.FileName;
+                message.MediaId = await _provider.UploadMediaAsync(app, token, integration.PhoneNumberId, document, ct);
+                message.ProviderMessageId = await _provider.SendDocumentTemplateAsync(app, token, integration.PhoneNumberId,
+                    new WhatsAppTemplateMessage(plan.Phone, template.Name, plan.Language, message.MediaId, document.FileName,
+                        WhatsAppInvoiceText.Values(template.Keys, plan.Values)), ct);
+            }
+            else
+            {
+                message.ProviderMessageId = await _provider.SendDocumentTemplateAsync(app, token, integration.PhoneNumberId,
+                    new WhatsAppTemplateMessage(plan.Phone, template.Name, message.TemplateLanguage, string.Empty, string.Empty, Array.Empty<string>()), ct);
+            }
             message.Status = WhatsAppMessageStatus.Sent;
             message.SentAt = DateTime.UtcNow;
         }
@@ -378,8 +563,11 @@ public class WhatsAppService : IWhatsAppService
         return ToDto(message);
     }
 
-    /// <summary>القالب معتمد لدى Meta باللغة المطلوبة (يُقرأ من Meta فتُحدَّث الحالة المحفوظة معه).</summary>
-    private async Task EnsureTemplateApprovedAsync(TenantWhatsAppIntegration integration, WhatsAppAppCredentials app, string token, string language, CancellationToken ct)
+    /// <summary>
+    /// قالب معتمد لدى Meta باللغة المطلوبة (يُقرأ من Meta فتُحدَّث الحالات المحفوظة معه): أحدث نص مخصص معتمد، وإلا الافتراضي.
+    /// </summary>
+    private async Task<ResolvedTemplate> ResolveTemplateAsync(TenantWhatsAppIntegration integration, WhatsAppAppCredentials app, string token, string language,
+        CancellationToken ct)
     {
         IReadOnlyList<WhatsAppTemplateInfo> templates;
         try { templates = await _provider.ListTemplatesAsync(app, token, integration.WabaId, ct); }
@@ -389,12 +577,30 @@ public class WhatsAppService : IWhatsAppService
             throw new ConflictException(string.Format(Messages.WhatsAppProviderError, e.Message));
         }
         ApplyTemplates(integration, templates);
+        var custom = await SyncInvoiceTemplatesAsync(templates, ct);
+        await _db.SaveChangesAsync(ct);
+
+        if (ActiveCustom(custom, language) is { } active) return new ResolvedTemplate(active.Name, WhatsAppInvoiceText.SplitKeys(active.VariableKeys));
         var template = templates.FirstOrDefault(t => t.Name == InvoiceTemplateName && SameLanguage(t.Language, language));
-        if (template?.Status != "APPROVED")
+        if (template?.Status == "APPROVED") return new ResolvedTemplate(InvoiceTemplateName, WhatsAppInvoiceText.DefaultKeys);
+        // الحالة المعروضة: أحدث نص مخصص بانتظار الاعتماد إن وُجد (هو ما ينتظره المستخدم)، وإلا حالة الافتراضي
+        var waiting = custom.Where(t => SameLanguage(t.Language, language)).OrderByDescending(t => t.CreatedAt).FirstOrDefault();
+        throw new ConflictException(string.Format(Messages.WhatsAppTemplateNotApproved, waiting?.Status ?? template?.Status ?? "—"));
+    }
+
+    /// <summary>hello_world معتمد في الحساب (يُنشئه Meta تلقائياً، وقد يُحذف من WhatsApp Manager)، بلغته لدى Meta (en_US عادةً).</summary>
+    private async Task<ResolvedTemplate> ResolveHelloWorldAsync(TenantWhatsAppIntegration integration, WhatsAppAppCredentials app, string token, CancellationToken ct)
+    {
+        IReadOnlyList<WhatsAppTemplateInfo> templates;
+        try { templates = await _provider.ListTemplatesAsync(app, token, integration.WabaId, ct); }
+        catch (WhatsAppProviderException e)
         {
-            await _db.SaveChangesAsync(ct);
-            throw new ConflictException(string.Format(Messages.WhatsAppTemplateNotApproved, template?.Status ?? "—"));
+            await RecordProviderErrorAsync(integration, e, ct);
+            throw new ConflictException(string.Format(Messages.WhatsAppProviderError, e.Message));
         }
+        var hello = templates.FirstOrDefault(t => t.Name == HelloWorldTemplate && t.Status == "APPROVED")
+                    ?? throw new ConflictException(Messages.WhatsAppHelloWorldMissing);
+        return new ResolvedTemplate(hello.Name, Array.Empty<string>(), hello.Language, Document: false);
     }
 
     /// <summary>إرسال جارٍ يمنع، وإرسال ناجح سابق يتطلب تأكيداً صريحاً. «الجاري» القديم يُعدّ مجهول النتيجة.</summary>
@@ -493,6 +699,13 @@ public class WhatsAppService : IWhatsAppService
 
     private async Task<string> CompanyNameAsync(CancellationToken ct)
         => await _db.Set<Tenant>().AsNoTracking().Select(t => t.NameAr).FirstOrDefaultAsync(ct) ?? string.Empty;
+
+    /// <summary>اسم المنشأة بلغة الرسالة (الإنجليزي يرجع للعربي إن لم يُدخل).</summary>
+    private async Task<string> CompanyNameAsync(string language, CancellationToken ct)
+    {
+        var names = await _db.Set<Tenant>().AsNoTracking().Select(t => new { t.NameAr, t.NameEn }).FirstOrDefaultAsync(ct);
+        return (language == "en" && !string.IsNullOrWhiteSpace(names?.NameEn) ? names!.NameEn : names?.NameAr) ?? string.Empty;
+    }
 
     private static string NewPin() => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 

@@ -99,6 +99,13 @@ public class WhatsAppWebhookService : IWhatsAppWebhookService
                 if (update.Reason != null) integration.LastError = string.Format(Messages.WhatsAppTemplateRejected, update.Reason);
                 else if (update.Status == "APPROVED") integration.LastError = null;
             }
+
+            // نصوص رسالة الفاتورة المخصصة: الاعتماد يجعل أحدثها هو المرسَل، والرفض يُعرض سببه للمستخدم
+            var names = templates.Select(t => t.TemplateName).Distinct().ToList();
+            var custom = await db.Set<WhatsAppInvoiceTemplate>().Where(t => names.Contains(t.Name)).ToListAsync(ct);
+            foreach (var t in custom)
+                if (templates.LastOrDefault(e => e.TemplateName == t.Name && WhatsAppService.SameLanguage(e.Language, t.Language)) is { } e)
+                    WhatsAppService.SetStatus(t, e.Status, e.Reason);
         }
         await db.SaveChangesAsync(ct);
 

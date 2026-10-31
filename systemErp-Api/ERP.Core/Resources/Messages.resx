@@ -1336,6 +1336,7 @@
   <data name="WhatsAppSignupDataInvalid" xml:space="preserve"><value>بيانات الربط من Meta غير مكتملة؛ أعد محاولة الربط.</value></data>
   <data name="WhatsAppPlatformNotConfigured" xml:space="preserve"><value>ربط واتساب غير مهيأ على المنصة بعد؛ تواصل مع إدارة المنصة.</value></data>
   <data name="WhatsAppNumberNotInAccount" xml:space="preserve"><value>الرقم المختار لا يتبع حساب WhatsApp Business المربوط.</value></data>
+  <data name="WhatsAppSessionAmbiguous" xml:space="preserve"><value>تعذّر تحديد رقم واتساب من جلسة Meta. الأرقام التي منحتها Meta: {0} (الحسابات: {1}). اكتب رقم واتساب الذي تريد ربطه ثم أعد الربط.</value></data>
   <data name="WhatsAppProviderError" xml:space="preserve"><value>رفضت Meta الطلب: {0}</value></data>
   <data name="WhatsAppNumberLinkedElsewhere" xml:space="preserve"><value>هذا الرقم مربوط بمنشأة أخرى على المنصة.</value></data>
   <data name="WhatsAppNotConnected" xml:space="preserve"><value>لا يوجد حساب واتساب مربوط بالمنشأة.</value></data>
@@ -1360,4 +1361,14 @@
   <data name="WhatsAppSendOutcomeUnknown" xml:space="preserve"><value>انقطع الاتصال بـ Meta ولا يُعرف هل أُرسلت الرسالة؛ تحقق من العميل قبل إعادة الإرسال.</value></data>
   <data name="WhatsAppCannotResend" xml:space="preserve"><value>لا تُعاد إلا رسالة فشلت أو لم تُعرف نتيجتها.</value></data>
   <data name="WhatsAppMessageNotFound" xml:space="preserve"><value>رسالة واتساب غير موجودة.</value></data>
+  <data name="WhatsAppTemplateBodyRequired" xml:space="preserve"><value>اكتب نص الرسالة.</value></data>
+  <data name="WhatsAppTemplateUnknownVariable" xml:space="preserve"><value>المتغير {0} غير معروف؛ أدرج المتغيرات من الأزرار أسفل النص.</value></data>
+  <data name="WhatsAppTemplateTooManyVariables" xml:space="preserve"><value>الحد الأقصى {0} متغيرات في الرسالة.</value></data>
+  <data name="WhatsAppTemplateVariableAtEdge" xml:space="preserve"><value>لا تقبل Meta رسالة تبدأ بمتغير أو تنتهي به؛ أضف كلمة قبله أو بعده (مثل نقطة الختام).</value></data>
+  <data name="WhatsAppTemplateBodyTooLong" xml:space="preserve"><value>نص الرسالة أطول من {0} حرفاً.</value></data>
+  <data name="WhatsAppTemplateFooterInvalid" xml:space="preserve"><value>التذييل سطر واحد حتى {0} حرفاً بلا متغيرات.</value></data>
+  <data name="WhatsAppTemplateLanguageInvalid" xml:space="preserve"><value>لغة القالب العربية أو الإنجليزية.</value></data>
+  <data name="WhatsAppTemplateNotFound" xml:space="preserve"><value>القالب غير موجود.</value></data>
+  <data name="WhatsAppTemplateDeleted" xml:space="preserve"><value>حُذف القالب.</value></data>
+  <data name="WhatsAppHelloWorldMissing" xml:space="preserve"><value>قالب hello_world غير موجود أو غير معتمد في حساب واتساب؛ اختبر بقالب الفاتورة بعد اعتماده.</value></data>
 </root>

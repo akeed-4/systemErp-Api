@@ -39,8 +39,12 @@ public class WhatsAppController : ErpControllerBase
     public async Task<IActionResult> SignupConfig(CancellationToken ct) => Success(await _whatsApp.GetSignupConfigAsync(ct));
 
     [HttpPost("connect"), RequireScreen(Screen, ScreenAction.Connect)]
-    public async Task<IActionResult> Connect([FromBody] ConnectWhatsAppDto dto, CancellationToken ct)
-        => Success(await _whatsApp.ConnectAsync(dto, ct), Messages.WhatsAppConnected);
+    public async Task<IActionResult> Connect([FromBody] ConnectWhatsAppDto dto, [FromServices] IWebHostEnvironment env, CancellationToken ct)
+    {
+        // الربط برمز يدوي لتجربة رقم Meta الاختباري فقط؛ الإنتاج يربط عبر Embedded Signup وحده
+        if (!string.IsNullOrWhiteSpace(dto.AccessToken) && !env.IsDevelopment()) throw new ForbiddenException();
+        return Success(await _whatsApp.ConnectAsync(dto, ct), Messages.WhatsAppConnected);
+    }
 
     [HttpPost("sync"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> Sync(CancellationToken ct) => Success(await _whatsApp.SyncAsync(ct), Messages.WhatsAppSynced);
@@ -54,6 +58,21 @@ public class WhatsAppController : ErpControllerBase
     [HttpPost("templates/invoice"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> EnsureInvoiceTemplate(CancellationToken ct)
         => Success(await _whatsApp.EnsureInvoiceTemplateAsync(ct), Messages.WhatsAppTemplateSubmitted);
+
+    /// <summary>نصوص رسالة الفاتورة التي كتبها المستخدم، والمتغيرات المتاحة والنص الافتراضي.</summary>
+    [HttpGet("invoice-templates"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> InvoiceTemplates(CancellationToken ct) => Success(await _whatsApp.ListInvoiceTemplatesAsync(ct));
+
+    [HttpPost("invoice-templates"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> CreateInvoiceTemplate([FromBody] CreateWhatsAppInvoiceTemplateDto dto, CancellationToken ct)
+        => Success(await _whatsApp.CreateInvoiceTemplateAsync(dto, ct), Messages.WhatsAppTemplateSubmitted);
+
+    [HttpDelete("invoice-templates/{id:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> DeleteInvoiceTemplate(Guid id, CancellationToken ct)
+    {
+        await _whatsApp.DeleteInvoiceTemplateAsync(id, ct);
+        return Success(Messages.WhatsAppTemplateDeleted);
+    }
 
     // ---------- الإرسال وسجله ----------
 

@@ -107,6 +107,43 @@ public class WhatsAppIntegrationTests : TestBase
     }
 
     [Fact]
+    public async Task Without_the_session_event_the_account_and_number_are_discovered_from_the_token()
+    {
+        var api = await EntitledTenantAsync();
+        var account = Meta.NewAccount();
+
+        var r = await ConnectAsync(api, account with { WabaId = "", PhoneNumberId = "" });
+        Assert.Equal(200, r.Status);
+        Assert.Equal(account.PhoneNumberId, r.Data!["phoneNumberId"].S());
+        Assert.True(Meta.SubscribedAccounts.ContainsKey(account.WabaId));
+
+        // حساب بأكثر من رقم لا يُخمَّن منه رقم: تُعرض الأرقام، ثم يُختار ما كتبه العميل بصيغته المحلية
+        var multi = Meta.NewAccount();
+        var second = FakeWhatsAppProvider.NewId();
+        Meta.Accounts[multi.WabaId] = new[] { multi.PhoneNumberId, second };
+        var other = await EntitledTenantAsync();
+        var ambiguous = await other.Post("/whatsapp/connect", new { code = multi.Code, wabaId = "", phoneNumberId = "" });
+        Assert.Equal(400, ambiguous.Status);
+        Assert.Contains("966 50 " + second[^7..], ambiguous.Body!.ToJsonString());
+
+        var chosen = await other.Post("/whatsapp/connect", new { code = multi.Code, wabaId = "", phoneNumberId = "", phoneNumber = "050" + second[^7..] });
+        Assert.Equal(200, chosen.Status);
+        Assert.Equal(second, chosen.Data!["phoneNumberId"].S());
+    }
+
+    [Fact]
+    public async Task A_dashboard_token_connects_the_meta_test_number_without_registering_it()
+    {
+        var api = await EntitledTenantAsync();
+        var account = Meta.NewAccount();
+
+        var r = await api.Post("/whatsapp/connect", new { accessToken = "token-dashboard-" + account.WabaId, wabaId = account.WabaId, phoneNumberId = account.PhoneNumberId });
+        Assert.Equal(200, r.Status);
+        Assert.Equal(account.PhoneNumberId, r.Data!["phoneNumberId"].S());
+        Assert.False(Meta.RegisteredPins.ContainsKey(account.PhoneNumberId)); // أرقام الاختبار مسجّلة لدى Meta مسبقاً
+    }
+
+    [Fact]
     public async Task A_failed_signup_leaves_nothing_connected()
     {
         var api = await EntitledTenantAsync();

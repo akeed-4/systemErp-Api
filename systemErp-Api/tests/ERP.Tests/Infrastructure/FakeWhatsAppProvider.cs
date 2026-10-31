@@ -33,6 +33,8 @@ public sealed class FakeWhatsAppProvider : IWhatsAppProvider
     public readonly ConcurrentDictionary<string, string> RegisteredPins = new();
     public readonly ConcurrentDictionary<string, bool> SubscribedAccounts = new();
     public readonly ConcurrentDictionary<string, ConcurrentDictionary<string, WhatsAppTemplateInfo>> Templates = new();
+    /// <summary>تعريفات القوالب كما أُرسلت لـ Meta (الاسم:اللغة).</summary>
+    public readonly ConcurrentDictionary<string, WhatsAppTemplateDefinition> Definitions = new();
     public readonly ConcurrentQueue<(string PhoneNumberId, WhatsAppTemplateMessage Message, string MessageId)> Sent = new();
     public readonly ConcurrentDictionary<string, RenderedDocument> Uploaded = new();
     /// <summary>المستلم ← خطأ يُرمى عند الإرسال إليه (كود، ونقل منقطع).</summary>
@@ -59,10 +61,17 @@ public sealed class FakeWhatsAppProvider : IWhatsAppProvider
         if (_revoked.Keys.Any(token.StartsWith)) throw new WhatsAppProviderException("190", "Error validating access token: Session has expired", isAuth: true);
     }
 
-    public Task<string> ExchangeCodeAsync(WhatsAppAppCredentials app, string code, CancellationToken ct = default)
+    public Task<string> ExchangeCodeAsync(WhatsAppAppCredentials app, string code, string? redirectUri = null, CancellationToken ct = default)
     {
         if (code == BadCode || app.AppSecret != AppSecret) throw new WhatsAppProviderException("100", "Invalid verification code format.");
         return Task.FromResult("token-" + code + "-" + NewId());
+    }
+
+    /// <summary>الرمز token-code-{waba}-...: الحساب الممنوح هو حساب رمز Embedded Signup.</summary>
+    public Task<IReadOnlyList<string>> ListSharedWabaIdsAsync(WhatsAppAppCredentials app, string token, CancellationToken ct = default)
+    {
+        Ensure(token);
+        return Task.FromResult<IReadOnlyList<string>>(Accounts.Keys.Where(w => token.StartsWith("token-code-" + w + "-")).ToList());
     }
 
     public Task<IReadOnlyList<string>> ListPhoneNumberIdsAsync(WhatsAppAppCredentials app, string token, string wabaId, CancellationToken ct = default)
@@ -113,7 +122,18 @@ public sealed class FakeWhatsAppProvider : IWhatsAppProvider
         Assert.StartsWith("%PDF", Encoding.ASCII.GetString(t.SampleDocument.Content, 0, 4)); // مثال الرأس مستند PDF فعلي
         var info = new WhatsAppTemplateInfo(t.Name, t.Language, "PENDING", "UTILITY");
         Templates.GetOrAdd(wabaId, _ => new())[$"{t.Name}:{t.Language}"] = info;
+        Definitions[$"{t.Name}:{t.Language}"] = t;
         return Task.FromResult(info);
+    }
+
+    public Task DeleteTemplateAsync(WhatsAppAppCredentials app, string token, string wabaId, string name, CancellationToken ct = default)
+    {
+        Ensure(token);
+        var templates = Templates.GetOrAdd(wabaId, _ => new());
+        var keys = templates.Where(p => p.Value.Name == name).Select(p => p.Key).ToList();
+        if (keys.Count == 0) throw new WhatsAppProviderException("100", "Template not found.");
+        foreach (var key in keys) templates.TryRemove(key, out _);
+        return Task.CompletedTask;
     }
 
     public void SetTemplateStatus(string wabaId, string name, string status)

@@ -29,13 +29,58 @@ public class MetaWhatsAppProvider : IWhatsAppProvider
 
     private string Url(WhatsAppAppCredentials app, string path) => $"{_options.GraphBaseUrl.TrimEnd('/')}/{app.GraphVersion}/{path.TrimStart('/')}";
 
-    public async Task<string> ExchangeCodeAsync(WhatsAppAppCredentials app, string code, CancellationToken ct = default)
+    public async Task<string> ExchangeCodeAsync(WhatsAppAppCredentials app, string code, string? redirectUri = null, CancellationToken ct = default)
     {
         var url = Url(app, "oauth/access_token")
             + $"?client_id={Uri.EscapeDataString(app.AppId)}&client_secret={Uri.EscapeDataString(app.AppSecret)}&code={Uri.EscapeDataString(code)}";
-        using var root = await SendAsync(new HttpRequestMessage(HttpMethod.Get, url), null, ct);
-        return Str(root.RootElement, "access_token") is { Length: > 0 } token ? token
-            : throw new WhatsAppProviderException("no_token", "Meta did not return an access token.");
+        // الرمز مربوط بـ redirect_uri نافذة Meta: صفحة الرجوع التي ترسلها الواجهة كما هي أولاً، ثم بلا عنوان أو بعنوان فارغ
+        // (رموز قديمة من FB.login)؛ يُنتقل للتالي ما دامت Meta ترفض لعدم تطابقه وحده
+        var candidates = new List<string?>();
+        if (Uri.TryCreate(redirectUri, UriKind.Absolute, out var page) && page.Scheme == Uri.UriSchemeHttps) candidates.Add(redirectUri);
+        candidates.AddRange(new[] { null, string.Empty });
+        for (var i = 0; ; i++)
+        {
+            var attempt = candidates[i] is { } uri ? $"{url}&redirect_uri={Uri.EscapeDataString(uri)}" : url;
+            try
+            {
+                using var root = await SendAsync(new HttpRequestMessage(HttpMethod.Get, attempt), null, ct);
+                return Str(root.RootElement, "access_token") is { Length: > 0 } token ? token
+                    : throw new WhatsAppProviderException("no_token", "Meta did not return an access token.");
+            }
+            catch (WhatsAppProviderException e) when (i < candidates.Count - 1 && e.Message.Contains("redirect_uri", StringComparison.OrdinalIgnoreCase)) { }
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> ListSharedWabaIdsAsync(WhatsAppAppCredentials app, string token, CancellationToken ct = default)
+    {
+        // رمز التطبيق (AppId|AppSecret) يقرأ صلاحيات رمز العميل؛ الحسابات الممنوحة هي target_ids لصلاحيات واتساب
+        var url = Url(app, "debug_token")
+            + $"?input_token={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(app.AppId + "|" + app.AppSecret)}";
+        var found = new List<string>();
+        using (var root = await SendAsync(new HttpRequestMessage(HttpMethod.Get, url), null, ct))
+        {
+            if (root.RootElement.TryGetProperty("data", out var data) && data.TryGetProperty("granular_scopes", out var scopes) && scopes.ValueKind == JsonValueKind.Array)
+                found.AddRange(scopes.EnumerateArray()
+                    .Where(s => Str(s, "scope") is "whatsapp_business_management" or "whatsapp_business_messaging")
+                    .SelectMany(s => s.TryGetProperty("target_ids", out var ids) && ids.ValueKind == JsonValueKind.Array ? ids.EnumerateArray() : Enumerable.Empty<JsonElement>())
+                    .Select(id => id.ValueKind == JsonValueKind.String ? id.GetString() ?? string.Empty : id.GetRawText()));
+        }
+        // صلاحية بلا target_ids (منح شامل): حسابات الأنشطة التي يصل إليها الرمز، المملوكة ثم حسابات العملاء
+        if (found.Count == 0)
+        {
+            using var businesses = await SendAsync(new HttpRequestMessage(HttpMethod.Get, Url(app, "me/businesses?fields=id&limit=50")), token, ct);
+            foreach (var business in Data(businesses.RootElement).Select(b => Str(b, "id")).Where(id => id.Length > 0))
+                foreach (var edge in new[] { "owned_whatsapp_business_accounts", "client_whatsapp_business_accounts" })
+                {
+                    try
+                    {
+                        using var accounts = await SendAsync(new HttpRequestMessage(HttpMethod.Get, Url(app, $"{business}/{edge}?fields=id&limit=50")), token, ct);
+                        found.AddRange(Data(accounts.RootElement).Select(a => Str(a, "id")));
+                    }
+                    catch (WhatsAppProviderException e) when (!e.IsAuth) { } // صلاحية ناقصة على أحد النوعين لا تُفشل الآخر
+                }
+        }
+        return found.Where(id => id.Length > 0).Distinct().ToList();
     }
 
     public async Task<IReadOnlyList<string>> ListPhoneNumberIdsAsync(WhatsAppAppCredentials app, string token, string wabaId, CancellationToken ct = default)
@@ -89,23 +134,25 @@ public class MetaWhatsAppProvider : IWhatsAppProvider
     {
         // رأس الوسائط في القالب يلزمه مثال يُرفع بواجهة الرفع القابل للاستئناف (Resumable Upload) فيعود مقبضه (h)
         var handle = await UploadExampleAsync(app, token, t.SampleDocument, ct);
+        var components = new List<object>
+        {
+            new { type = "HEADER", format = "DOCUMENT", example = new { header_handle = new[] { handle } } },
+            // نص بلا متغيرات لا يُرفق به مثال (Meta يرفض المثال الفارغ)
+            t.BodyExamples.Count > 0
+                ? (object)new { type = "BODY", text = t.BodyText, example = new { body_text = new[] { t.BodyExamples.ToArray() } } }
+                : new { type = "BODY", text = t.BodyText },
+        };
+        if (!string.IsNullOrWhiteSpace(t.Footer)) components.Add(new { type = "FOOTER", text = t.Footer });
         var req = new HttpRequestMessage(HttpMethod.Post, Url(app, $"{wabaId}/message_templates"))
         {
-            Content = JsonContent.Create(new
-            {
-                name = t.Name,
-                language = t.Language,
-                category = "UTILITY",
-                components = new object[]
-                {
-                    new { type = "HEADER", format = "DOCUMENT", example = new { header_handle = new[] { handle } } },
-                    new { type = "BODY", text = t.BodyText, example = new { body_text = new[] { t.BodyExamples.ToArray() } } },
-                },
-            }),
+            Content = JsonContent.Create(new { name = t.Name, language = t.Language, category = "UTILITY", components }),
         };
         using var root = await SendAsync(req, token, ct);
         return new WhatsAppTemplateInfo(t.Name, t.Language, Str(root.RootElement, "status") is { Length: > 0 } s ? s : "PENDING", Str(root.RootElement, "category"));
     }
+
+    public async Task DeleteTemplateAsync(WhatsAppAppCredentials app, string token, string wabaId, string name, CancellationToken ct = default)
+        => (await SendAsync(new HttpRequestMessage(HttpMethod.Delete, Url(app, $"{wabaId}/message_templates?name={Uri.EscapeDataString(name)}")), token, ct)).Dispose();
 
     private async Task<string> UploadExampleAsync(WhatsAppAppCredentials app, string token, RenderedDocument doc, CancellationToken ct)
     {
@@ -140,6 +187,12 @@ public class MetaWhatsAppProvider : IWhatsAppProvider
 
     public async Task<string> SendDocumentTemplateAsync(WhatsAppAppCredentials app, string token, string phoneNumberId, WhatsAppTemplateMessage m, CancellationToken ct = default)
     {
+        // قالب بلا رأس مستند (hello_world) لا يُرسل له رأس، والنص بلا متغيرات لا يُرسل له مكوّن
+        var components = new List<object>();
+        if (m.MediaId.Length > 0)
+            components.Add(new { type = "header", parameters = new object[] { new { type = "document", document = new { id = m.MediaId, filename = m.FileName } } } });
+        if (m.BodyParameters.Count > 0)
+            components.Add(new { type = "body", parameters = m.BodyParameters.Select(p => (object)new { type = "text", text = p }).ToArray() });
         var req = new HttpRequestMessage(HttpMethod.Post, Url(app, $"{phoneNumberId}/messages"))
         {
             Content = JsonContent.Create(new
@@ -152,11 +205,7 @@ public class MetaWhatsAppProvider : IWhatsAppProvider
                 {
                     name = m.TemplateName,
                     language = new { code = m.Language },
-                    components = new object[]
-                    {
-                        new { type = "header", parameters = new object[] { new { type = "document", document = new { id = m.MediaId, filename = m.FileName } } } },
-                        new { type = "body", parameters = m.BodyParameters.Select(p => (object)new { type = "text", text = p }).ToArray() },
-                    },
+                    components,
                 },
             }),
         };

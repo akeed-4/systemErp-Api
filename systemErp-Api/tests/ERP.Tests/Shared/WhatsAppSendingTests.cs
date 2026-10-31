@@ -267,6 +267,126 @@ public class WhatsAppSendingTests : TestBase
         Assert.Equal("966" + mobile[1..], sent.Message.To);
     }
 
+    [Fact]
+    public async Task Meta_hello_world_tests_the_connection_before_the_invoice_template_is_approved()
+    {
+        var s = await ConnectedWithInvoiceAsync(NewLocalMobile(), approve: false);
+        var mobile = NewLocalMobile();
+        Task<Res> TestAsync(string? template) => s.Api.Post("/whatsapp/test", new { phone = mobile, template, idempotencyKey = Guid.NewGuid().ToString("N") });
+
+        Assert.Equal(409, (await TestAsync(null)).Status); // قالب الفاتورة لم يُعتمد
+        Assert.Equal(409, (await TestAsync("hello_world")).Status); // ليس في الحساب
+
+        Meta.Templates[s.WabaId]["hello_world:en_US"] = new ERP.Core.Contracts.Shared.WhatsAppTemplateInfo("hello_world", "en_US", "APPROVED", "UTILITY");
+        var r = await TestAsync("hello_world");
+        Assert.Equal(200, r.Status);
+        Assert.Equal("hello_world", r.Data!["templateName"].S());
+        Assert.Equal("en_US", r.Data["templateLanguage"].S());
+        var sent = Meta.Sent.Single(x => x.MessageId == r.Data["providerMessageId"].S()).Message;
+        Assert.Equal("", sent.MediaId); // بلا PDF
+        Assert.Empty(sent.BodyParameters);
+    }
+
+    // ---------- نص رسالة الفاتورة المخصص ----------
+
+    private static Task<Res> CreateTemplateAsync(Setup s, string body, string? footer = null, string language = "ar")
+        => s.Api.Post("/whatsapp/invoice-templates", new { language, body, footer });
+
+    [Fact]
+    public async Task A_custom_invoice_text_is_submitted_to_meta_and_used_once_approved()
+    {
+        var mobile = NewLocalMobile();
+        var s = await ConnectedWithInvoiceAsync(mobile);
+        var created = await CreateTemplateAsync(s, "عزيزنا {customer_name}،\nفاتورتكم {invoice_number} بتاريخ {invoice_date} بمبلغ { amount }.\nمع تحيات {company_name}.",
+            footer: "  للاستفسار راسلونا هنا  ");
+        Assert.Equal(200, created.Status);
+        Assert.Equal("PENDING", created.Data!["status"].S());
+        Assert.False(created.Data["isActive"]!.GetValue<bool>());
+        var name = created.Data["name"].S();
+        Assert.Matches("^erp_invoice_[0-9]{12}_[0-9a-f]{4}$", name);
+
+        var definition = Meta.Definitions[$"{name}:ar"];
+        Assert.Equal("عزيزنا {{1}}،\nفاتورتكم {{2}} بتاريخ {{3}} بمبلغ {{4}}.\nمع تحيات {{5}}.", definition.BodyText);
+        Assert.Equal(5, definition.BodyExamples.Count);
+        Assert.Equal("للاستفسار راسلونا هنا", definition.Footer);
+
+        // بانتظار الاعتماد: يبقى الإرسال بالقالب الافتراضي
+        var first = await SendAsync(s);
+        Assert.Equal(WhatsAppService.InvoiceTemplateName, Meta.Sent.Single(x => x.MessageId == first.Data!["providerMessageId"].S()).Message.TemplateName);
+
+        Meta.SetTemplateStatus(s.WabaId, name, "APPROVED");
+        var list = (await s.Api.Get("/whatsapp/invoice-templates")).Data!;
+        var item = list["items"]!.AsArray().Single()!;
+        Assert.Equal("APPROVED", item["status"].S());
+        Assert.True(item["isActive"]!.GetValue<bool>());
+        Assert.Equal("APPROVED", list["defaultStatuses"]!["ar"].S());
+
+        var second = await SendAsync(s, confirm: true);
+        Assert.Equal(200, second.Status);
+        Assert.Equal(name, second.Data!["templateName"].S());
+        var sent = Meta.Sent.Single(x => x.MessageId == second.Data["providerMessageId"].S()).Message;
+        Assert.Equal(name, sent.TemplateName);
+        Assert.Equal("عميل واتساب", sent.BodyParameters[0]);
+        Assert.Equal(s.InvoiceNumber, sent.BodyParameters[1]);
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}$", sent.BodyParameters[2]);
+        Assert.Equal("230.00 SAR", sent.BodyParameters[3]);
+        Assert.NotEqual("-", sent.BodyParameters[4]);
+
+        // الإنجليزية بلا نص مخصص معتمد: القالب الافتراضي
+        var en = await SendAsync(s, confirm: true, language: "en");
+        Assert.Equal(WhatsAppService.InvoiceTemplateName, en.Data!["templateName"].S());
+    }
+
+    [Theory]
+    [InlineData("", null)]
+    [InlineData("   \n ", null)]
+    [InlineData("مرحباً {customer}، فاتورتك جاهزة.", null)] // متغير غير معروف
+    [InlineData("مرحباً {{customer_name}}، فاتورتك جاهزة.", null)] // صيغة Meta لا تُكتب يدوياً
+    [InlineData("{customer_name} فاتورتك جاهزة.", null)] // يبدأ بمتغير
+    [InlineData("فاتورتك جاهزة يا {customer_name}", null)] // ينتهي بمتغير
+    [InlineData("فاتورتك جاهزة.", "تذييل بمتغير {amount}")]
+    [InlineData("فاتورتك جاهزة.", "تذييل طويل جداً يتجاوز الحد المسموح به في Meta وهو ستون حرفاً فقط لا غير")]
+    public async Task Invalid_texts_are_rejected_before_reaching_meta(string body, string? footer)
+    {
+        var s = await ConnectedWithInvoiceAsync(NewLocalMobile());
+        Assert.Equal(400, (await CreateTemplateAsync(s, body, footer)).Status);
+        Assert.Equal(400, (await s.Api.Post("/whatsapp/invoice-templates", new { language = "fr", body = "فاتورتك جاهزة." })).Status);
+        Assert.Empty((await s.Api.Get("/whatsapp/invoice-templates")).Data!["items"]!.AsArray());
+    }
+
+    [Fact]
+    public async Task A_rejection_is_shown_with_its_reason_and_the_text_can_be_deleted()
+    {
+        var s = await ConnectedWithInvoiceAsync(NewLocalMobile());
+        var other = await ConnectedWithInvoiceAsync(NewLocalMobile());
+        var created = await CreateTemplateAsync(s, "Dear {customer_name}, invoice {invoice_number} is attached.", language: "en");
+        var id = created.Data!["id"].S();
+        var name = created.Data["name"].S();
+
+        // الحالة في قائمة Meta، والسبب لا يصل إلا بالإشعار
+        Meta.SetTemplateStatus(s.WabaId, name, "REJECTED");
+        Assert.Equal(200, await PostWebhookAsync(FakeWhatsAppProvider.TemplateWebhook(s.WabaId, name, "en", "REJECTED", "INVALID_FORMAT")));
+        var item = (await s.Api.Get("/whatsapp/invoice-templates")).Data!["items"]!.AsArray().Single()!;
+        Assert.Equal("REJECTED", item["status"].S());
+        Assert.Equal("INVALID_FORMAT", item["reason"].S());
+
+        Assert.Equal(404, (await other.Api.Delete($"/whatsapp/invoice-templates/{id}")).Status); // منشأة أخرى
+        Assert.Equal(200, (await s.Api.Delete($"/whatsapp/invoice-templates/{id}")).Status);
+        Assert.Empty((await s.Api.Get("/whatsapp/invoice-templates")).Data!["items"]!.AsArray());
+        Assert.DoesNotContain(Meta.Templates[s.WabaId].Values, t => t.Name == name);
+    }
+
+    [Theory]
+    [InlineData("مرحباً {customer_name}، فاتورة {invoice_number}.", "مرحباً {{1}}، فاتورة {{2}}.", "customer_name,invoice_number")]
+    [InlineData("فاتورة {amount} ثم {amount} مرة أخرى.", "فاتورة {{1}} ثم {{2}} مرة أخرى.", "amount,amount")]
+    [InlineData("نص بلا متغيرات.\n\n\n\nسطر", "نص بلا متغيرات.\n\nسطر", "")]
+    public void Named_variables_compile_to_positional_ones_in_order(string body, string meta, string keys)
+    {
+        var compiled = WhatsAppInvoiceText.Compile(body, null);
+        Assert.Equal(meta, compiled.MetaBody);
+        Assert.Equal(keys, string.Join(',', compiled.Keys));
+    }
+
     // ---------- تطبيع الرقم ----------
 
     [Theory]

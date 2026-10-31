@@ -416,6 +416,18 @@ public class ErpDbContext : DbContext
             e.HasIndex(i => i.TenantId).IsUnique();
             e.HasIndex(i => i.PhoneNumberId).IsUnique().HasFilter($"[Status] <> N'{nameof(WhatsAppIntegrationStatus.Disconnected)}'");
         });
+        modelBuilder.Entity<WhatsAppInvoiceTemplate>(e =>
+        {
+            e.Property(t => t.Name).HasMaxLength(512);
+            e.Property(t => t.Language).HasMaxLength(16);
+            e.Property(t => t.Body).HasMaxLength(1024);
+            e.Property(t => t.Footer).HasMaxLength(60);
+            e.Property(t => t.VariableKeys).HasMaxLength(512);
+            e.Property(t => t.Status).HasMaxLength(32);
+            e.Property(t => t.Reason).HasMaxLength(1000);
+            e.Property(t => t.CreatedByName).HasMaxLength(256);
+            e.HasIndex(t => new { t.TenantId, t.Name, t.Language }).IsUnique();
+        });
         // سجل الإرسال: المفتاح يمنع تكرار الطلب، والفهرس المرشَّح يمنع إرسالين متزامنين للمستند نفسه إلى الرقم نفسه.
         modelBuilder.Entity<WhatsAppMessage>(e =>
         {

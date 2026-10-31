@@ -90,6 +90,8 @@ public static class PermissionCatalog
 
         new("purchases", "purchases", "فواتير المشتريات وتكلفة المخزون", "Purchase Invoices",
             Crud(A.Approve, A.Post), new[] { "purchases", "stock-transfers", "costing" }),
+        new(PurchaseLandedCostsScreenId, "purchases", "التكاليف الإضافية للمشتريات (شحن، جمارك، تخليص)", "Purchase Landed Costs (Freight, Customs, Clearance)",
+            Crud(A.Approve, A.Cancel), new[] { "purchases/landed-costs" }, InheritsFrom: "purchases"),
 
         new("accounts", "accounting", "دليل الحسابات والقيود اليومية", "Chart of Accounts",
             Crud(A.Approve, A.Post, A.Cancel, A.Close), new[] { "accounts-tree", "cost-centers", "bank-reconciliation", "fiscal-periods", "fixed-assets" }),
@@ -145,6 +147,7 @@ public static class PermissionCatalog
     public const string CommercialContractsScreenId = "commercial-contracts";
     public const string WhatsAppScreenId = "whatsapp";
     public const string WhatsAppSendScreenId = "whatsapp-send";
+    public const string PurchaseLandedCostsScreenId = "purchase-landed-costs";
 
     private static readonly Dictionary<string, PermissionScreenDefinition> ById = Screens.ToDictionary(s => s.Id);
     private static readonly Dictionary<A, PermissionActionDefinition> ActionsByEnum = Actions.ToDictionary(a => a.Action);

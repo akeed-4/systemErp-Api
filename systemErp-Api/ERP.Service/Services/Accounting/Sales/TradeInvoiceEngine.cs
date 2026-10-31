@@ -244,6 +244,10 @@ public class TradeInvoiceEngine
         // فاتورة نقطة بيع/عقد: مجاميع مستندها المصدر (الوردية، العقد) تتبعها، فتُعدَّل من ذلك المستند
         if (invoice.ReferenceType is not (null or "quotation" or "sales_order" or "purchase_order" or "material_requisition"))
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
+        // تكاليف إضافية معتمدة رفعت تكلفة حركات شرائها: إعادة الترحيل تُسقطها، فيُلغى السند أولاً
+        if (invoice.Kind == InvoiceKind.Purchase && await _db.Set<PurchaseLandedCostInvoice>()
+                .AnyAsync(l => l.InvoiceId == invoice.Id && l.Voucher.Status == PurchaseLandedCostStatus.Approved, ct))
+            throw new ConflictException(Messages.PurchaseInvoiceHasLandedCosts);
 
         var stockItems = invoice.Lines.Where(i => i.ItemId != Guid.Empty).ToList();
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();

@@ -159,6 +159,8 @@ public class PlatformWhatsAppSettingsDto
     /// <summary>رابط الـ Webhook الذي يُضبط في تطبيق Meta.</summary>
     public string WebhookUrl { get; set; } = string.Empty;
     public bool IsCustomized { get; set; }
+    /// <summary>سرّ محفوظ تعذّر فكّه (فُقدت مفاتيح التشفير على السرفر): يُعامل كغير محفوظ ويجب إعادة إدخاله.</summary>
+    public bool SecretsNeedReentry { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
 }

@@ -1371,4 +1371,21 @@
   <data name="WhatsAppTemplateNotFound" xml:space="preserve"><value>القالب غير موجود.</value></data>
   <data name="WhatsAppTemplateDeleted" xml:space="preserve"><value>حُذف القالب.</value></data>
   <data name="WhatsAppHelloWorldMissing" xml:space="preserve"><value>قالب hello_world غير موجود أو غير معتمد في حساب واتساب؛ اختبر بقالب الفاتورة بعد اعتماده.</value></data>
+  <data name="PurchaseLandedCostNotFound" xml:space="preserve"><value>سند التكاليف الإضافية للمشتريات غير موجود.</value></data>
+  <data name="PurchaseLandedCostNotDraft" xml:space="preserve"><value>السند ليس مسودة؛ لا يُعدَّل ولا يُعتمد ولا يُحذف.</value></data>
+  <data name="PurchaseLandedCostAlreadyCancelled" xml:space="preserve"><value>السند ملغى مسبقاً.</value></data>
+  <data name="PurchaseLandedCostInvoicesRequired" xml:space="preserve"><value>اختر فاتورة مشتريات واحدة على الأقل.</value></data>
+  <data name="PurchaseLandedCostInvoiceInvalid" xml:space="preserve"><value>الفاتورة {0} ليست فاتورة مشتريات مرحّلة.</value></data>
+  <data name="PurchaseLandedCostNoStockLines" xml:space="preserve"><value>لا أصناف مخزنية بكمية صافية (بعد المرتجعات) في الفواتير المختارة.</value></data>
+  <data name="PurchaseLandedCostLinesRequired" xml:space="preserve"><value>أضف سطر تكلفة واحداً على الأقل.</value></data>
+  <data name="PurchaseLandedCostAmountInvalid" xml:space="preserve"><value>مبلغ السطر يجب أن يكون أكبر من صفر.</value></data>
+  <data name="PurchaseLandedCostPayeeInvalid" xml:space="preserve"><value>حدد الجهة المستحقة: المورد أو المخلّص، أو حساب الدفع، أو المستحقات.</value></data>
+  <data name="PurchaseLandedCostWeightMissing" xml:space="preserve"><value>التوزيع بالوزن يتطلب وزناً للوحدة في بطاقة الصنف: {0}.</value></data>
+  <data name="PurchaseLandedCostManualMismatch" xml:space="preserve"><value>مجموع التوزيع اليدوي ({0}) لا يساوي ما يُحمَّل من السطر ({1})، أو فيه سطر صنف غير موجود في الفواتير.</value></data>
+  <data name="PurchaseLandedCostApproved" xml:space="preserve"><value>اعتُمد السند وحُمِّلت التكاليف على الأصناف.</value></data>
+  <data name="PurchaseLandedCostCancelled" xml:space="preserve"><value>أُلغي السند.</value></data>
+  <data name="PurchaseInvoiceHasLandedCosts" xml:space="preserve"><value>لا تُعدَّل ولا تُحذف فاتورة مشتريات عليها سند تكاليف إضافية معتمد؛ ألغِ السند أولاً.</value></data>
+  <data name="PurchaseExpenseTypeNotFound" xml:space="preserve"><value>نوع التكلفة غير موجود أو غير نشط.</value></data>
+  <data name="PurchaseExpenseTypeValuesInvalid" xml:space="preserve"><value>الرمز (حروف إنجليزية كبيرة وأرقام و_) والاسم العربي مطلوبان، وقيم النوع غير صالحة.</value></data>
+  <data name="PurchaseExpenseTypeCodeExists" xml:space="preserve"><value>رمز نوع التكلفة مستخدم.</value></data>
 </root>

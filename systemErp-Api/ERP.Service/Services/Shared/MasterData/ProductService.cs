@@ -25,7 +25,7 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(d.Sku)) errors.Add(Messages.SkuRequired);
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ProductArabicNameRequired);
-        if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
+        if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0 || d.WeightKg < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
         if (d.VatRate is < 0 or > 100) errors.Add(Messages.VatRateRange);
         if (d.ExciseTaxRate is < 0 or > 100 || d.ExciseRetailPrice < 0 || d.ExciseStandardPrice < 0)
             errors.Add("نسبة الضريبة الانتقائية بين 0 و100 والأسعار المرجعية لا تكون سالبة.");

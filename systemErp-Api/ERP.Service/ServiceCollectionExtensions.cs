@@ -52,7 +52,9 @@ public static class ServiceCollectionExtensions
         // وباسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب. بلا المسار تبقى في ملف المستخدم على السرفر نفسه.
         var dataProtection = services.AddDataProtection().SetApplicationName("ERP");
         var keysPath = config["DataProtection:KeysPath"];
-        if (!string.IsNullOrWhiteSpace(keysPath)) dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        // المسار النسبي يُحسب من مجلد التطبيق (على الاستضافة المشتركة لا يُحمَّل ملف المستخدم فتضيع المفاتيح عند كل إعادة تشغيل)
+        if (!string.IsNullOrWhiteSpace(keysPath))
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, keysPath)));
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();

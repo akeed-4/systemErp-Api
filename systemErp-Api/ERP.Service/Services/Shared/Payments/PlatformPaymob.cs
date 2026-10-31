@@ -9,15 +9,21 @@ namespace ERP.Service.Services.Shared;
 /// </summary>
 public static class PlatformPaymob
 {
-    public static async Task<(PaymobOptions Options, List<PlatformSetting> Rows)> ResolveAsync(
+    public static async Task<(PaymobOptions Options, List<PlatformSetting> Rows, bool SecretsUnreadable)> ResolveAsync(
         ErpDbContext db, PaymobOptions server, ISecretProtector secrets, CancellationToken ct)
     {
         var rows = await db.Catalog.Set<PlatformSetting>().AsNoTracking()
             .Where(s => PlatformSetting.PaymobKeys.Contains(s.Key)).ToListAsync(ct);
+        // سرّ محفوظ تعذّر فكّه يبقى فارغاً (لا يُستبدل بسرّ الخادم فتختلط الحسابات) ويُبلَّغ عنه لإعادة إدخاله
+        var unreadable = false;
         string Value(string key, string fallback, bool secret = false)
         {
             var v = rows.FirstOrDefault(r => r.Key == key)?.Value;
-            return string.IsNullOrEmpty(v) ? fallback : secret ? secrets.Unprotect(v) : v;
+            if (string.IsNullOrEmpty(v)) return fallback;
+            if (!secret) return v;
+            var plain = secrets.TryUnprotect(v);
+            unreadable |= plain == null;
+            return plain ?? string.Empty;
         }
         return (new PaymobOptions
         {
@@ -28,6 +34,6 @@ public static class PlatformPaymob
             IntegrationIds = Value(PlatformSetting.PaymobIntegrationIds, server.IntegrationIds),
             PublicApiUrl = server.PublicApiUrl,
             FrontendUrl = server.FrontendUrl,
-        }, rows);
+        }, rows, unreadable);
     }
 }

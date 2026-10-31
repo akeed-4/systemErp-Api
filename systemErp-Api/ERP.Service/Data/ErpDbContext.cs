@@ -122,6 +122,10 @@ public class ErpDbContext : DbContext
         (typeof(ImportCostAdvance), nameof(ImportCostAdvance.ExpenseTypeId), typeof(ExpenseType)),
         (typeof(ImportCostAdvance), nameof(ImportCostAdvance.SupplierId), typeof(Supplier)),
         (typeof(LandedCostVoucherLine), nameof(LandedCostVoucherLine.ImportCostAdvanceId), typeof(ImportCostAdvance)),
+        (typeof(PurchaseLandedCost), nameof(PurchaseLandedCost.SupplierId), typeof(Supplier)),
+        (typeof(PurchaseLandedCostLine), nameof(PurchaseLandedCostLine.ExpenseTypeId), typeof(PurchaseExpenseType)),
+        (typeof(PurchaseLandedCostAllocation), nameof(PurchaseLandedCostAllocation.ItemId), typeof(Product)),
+        // PurchaseLandedCostInvoice.InvoiceId وAllocation.InvoiceId: فاتورة في جدول PurchaseInvoice (TPC)، فلا قيد قاعدة بيانات عليه.
         (typeof(ContractApproval), nameof(ContractApproval.ContractId), typeof(CommercialContract)),
         (typeof(ContractStatusLog), nameof(ContractStatusLog.ContractId), typeof(CommercialContract)),
         (typeof(ContractInvoice), nameof(ContractInvoice.ContractId), typeof(CommercialContract)),
@@ -174,6 +178,8 @@ public class ErpDbContext : DbContext
         (typeof(VehicleCostAdjustment), nameof(VehicleCostAdjustment.AdjustmentNumber)),
         (typeof(PrepaidExpense), nameof(PrepaidExpense.Number)),
         (typeof(ImportCostAdvance), nameof(ImportCostAdvance.Number)),
+        (typeof(PurchaseExpenseType), nameof(PurchaseExpenseType.Code)),
+        (typeof(PurchaseLandedCost), nameof(PurchaseLandedCost.VoucherNumber)),
         (typeof(User), nameof(User.Email)),
     };
 

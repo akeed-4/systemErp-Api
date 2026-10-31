@@ -1371,4 +1371,21 @@
   <data name="WhatsAppTemplateNotFound" xml:space="preserve"><value>Template not found.</value></data>
   <data name="WhatsAppTemplateDeleted" xml:space="preserve"><value>Template deleted.</value></data>
   <data name="WhatsAppHelloWorldMissing" xml:space="preserve"><value>The hello_world template is missing or not approved in the WhatsApp account; test with the invoice template once it is approved.</value></data>
+  <data name="PurchaseLandedCostNotFound" xml:space="preserve"><value>Purchase landed cost voucher not found.</value></data>
+  <data name="PurchaseLandedCostNotDraft" xml:space="preserve"><value>The voucher is not a draft; it cannot be edited, approved or deleted.</value></data>
+  <data name="PurchaseLandedCostAlreadyCancelled" xml:space="preserve"><value>The voucher is already cancelled.</value></data>
+  <data name="PurchaseLandedCostInvoicesRequired" xml:space="preserve"><value>Select at least one purchase invoice.</value></data>
+  <data name="PurchaseLandedCostInvoiceInvalid" xml:space="preserve"><value>Invoice {0} is not a posted purchase invoice.</value></data>
+  <data name="PurchaseLandedCostNoStockLines" xml:space="preserve"><value>The selected invoices have no stock items with a net quantity (after returns).</value></data>
+  <data name="PurchaseLandedCostLinesRequired" xml:space="preserve"><value>Add at least one cost line.</value></data>
+  <data name="PurchaseLandedCostAmountInvalid" xml:space="preserve"><value>The line amount must be greater than zero.</value></data>
+  <data name="PurchaseLandedCostPayeeInvalid" xml:space="preserve"><value>Specify the payee: a supplier or clearing agent, a payment account, or accruals.</value></data>
+  <data name="PurchaseLandedCostWeightMissing" xml:space="preserve"><value>Allocation by weight requires a unit weight on the item card: {0}.</value></data>
+  <data name="PurchaseLandedCostManualMismatch" xml:space="preserve"><value>The manual allocation total ({0}) does not equal the line's capitalized amount ({1}), or it references an item line not in the invoices.</value></data>
+  <data name="PurchaseLandedCostApproved" xml:space="preserve"><value>The voucher was approved and the costs were applied to the items.</value></data>
+  <data name="PurchaseLandedCostCancelled" xml:space="preserve"><value>The voucher was cancelled.</value></data>
+  <data name="PurchaseInvoiceHasLandedCosts" xml:space="preserve"><value>A purchase invoice with an approved landed cost voucher cannot be edited or deleted; cancel the voucher first.</value></data>
+  <data name="PurchaseExpenseTypeNotFound" xml:space="preserve"><value>Cost type not found or inactive.</value></data>
+  <data name="PurchaseExpenseTypeValuesInvalid" xml:space="preserve"><value>Code (uppercase letters, digits and _) and Arabic name are required, and the type values must be valid.</value></data>
+  <data name="PurchaseExpenseTypeCodeExists" xml:space="preserve"><value>The cost type code is already used.</value></data>
 </root>

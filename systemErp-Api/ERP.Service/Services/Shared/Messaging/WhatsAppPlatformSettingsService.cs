@@ -25,7 +25,7 @@ public class WhatsAppPlatformSettingsService : IWhatsAppPlatformSettingsService
 
     public async Task<PlatformWhatsAppSettingsDto> GetAsync(CancellationToken ct = default)
     {
-        var (app, rows) = await PlatformWhatsApp.ResolveAsync(_db, _server, _secrets, ct);
+        var (app, rows, unreadable) = await PlatformWhatsApp.ResolveAsync(_db, _server, _secrets, ct);
         var last = rows.OrderByDescending(r => r.UpdatedAt).FirstOrDefault();
         return new PlatformWhatsAppSettingsDto
         {
@@ -33,7 +33,7 @@ public class WhatsAppPlatformSettingsService : IWhatsAppPlatformSettingsService
             HasAppSecret = !string.IsNullOrEmpty(app.AppSecret), HasVerifyToken = !string.IsNullOrEmpty(app.VerifyToken),
             IsConfigured = app.IsConfigured,
             WebhookUrl = string.IsNullOrWhiteSpace(_server.PublicApiUrl) ? string.Empty : $"{_server.PublicApiUrl.TrimEnd('/')}/api/v1/whatsapp/webhook",
-            IsCustomized = last != null, UpdatedAt = last?.UpdatedAt, UpdatedBy = last?.UpdatedBy,
+            IsCustomized = last != null, SecretsNeedReentry = unreadable, UpdatedAt = last?.UpdatedAt, UpdatedBy = last?.UpdatedBy,
         };
     }
 

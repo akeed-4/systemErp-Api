@@ -23,21 +23,27 @@ public class WhatsAppOptions
 /// <summary>يدمج إعداد مدير المنصة مع إعداد الخادم. يُقرأ عند كل عملية فيسري تغييره فوراً.</summary>
 public static class PlatformWhatsApp
 {
-    public static async Task<(WhatsAppAppCredentials App, List<PlatformSetting> Rows)> ResolveAsync(
+    public static async Task<(WhatsAppAppCredentials App, List<PlatformSetting> Rows, bool SecretsUnreadable)> ResolveAsync(
         ErpDbContext db, WhatsAppOptions server, ISecretProtector secrets, CancellationToken ct)
     {
         var rows = await db.Catalog.Set<PlatformSetting>().AsNoTracking()
             .Where(s => PlatformSetting.WhatsAppKeys.Contains(s.Key)).ToListAsync(ct);
+        // سرّ محفوظ تعذّر فكّه يبقى فارغاً (لا يُستبدل بسرّ الخادم فتختلط الحسابات) ويُبلَّغ عنه لإعادة إدخاله
+        var unreadable = false;
         string Value(string key, string fallback, bool secret = false)
         {
             var v = rows.FirstOrDefault(r => r.Key == key)?.Value;
-            return string.IsNullOrEmpty(v) ? fallback : secret ? secrets.Unprotect(v) : v;
+            if (string.IsNullOrEmpty(v)) return fallback;
+            if (!secret) return v;
+            var plain = secrets.TryUnprotect(v);
+            unreadable |= plain == null;
+            return plain ?? string.Empty;
         }
         return (new WhatsAppAppCredentials(
             Value(PlatformSetting.WhatsAppAppId, server.AppId),
             Value(PlatformSetting.WhatsAppAppSecret, server.AppSecret, secret: true),
             Value(PlatformSetting.WhatsAppConfigId, server.ConfigId),
             Value(PlatformSetting.WhatsAppVerifyToken, server.VerifyToken, secret: true),
-            Value(PlatformSetting.WhatsAppGraphVersion, server.GraphVersion)), rows);
+            Value(PlatformSetting.WhatsAppGraphVersion, server.GraphVersion)), rows, unreadable);
     }
 }

@@ -320,7 +320,7 @@ public class OnlinePaymentService : IOnlinePaymentService
     /// <summary>حساب المنصة: المحفوظ من لوحة مدير المنصة، وإلا إعدادات الخادم.</summary>
     private async Task<PaymobCredentials> PlatformCredentialsAsync(CancellationToken ct)
     {
-        var (o, _) = await PlatformPaymob.ResolveAsync(_db, _platform, _secrets, ct);
+        var (o, _, _) = await PlatformPaymob.ResolveAsync(_db, _platform, _secrets, ct);
         var ids = ParseIds(o.IntegrationIds);
         // بلا مفتاح HMAC لا يُقبل أي إشعار، فيُخصم من العميل ولا يُفعَّل اشتراكه
         if (string.IsNullOrWhiteSpace(o.SecretKey) || string.IsNullOrWhiteSpace(o.PublicKey)

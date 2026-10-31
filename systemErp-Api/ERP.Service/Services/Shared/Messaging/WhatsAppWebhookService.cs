@@ -32,14 +32,14 @@ public class WhatsAppWebhookService : IWhatsAppWebhookService
 
     public async Task<string?> VerifySubscriptionAsync(string? mode, string? verifyToken, string? challenge, CancellationToken ct = default)
     {
-        var (app, _) = await PlatformWhatsApp.ResolveAsync(_db, _server, _secrets, ct);
+        var (app, _, _) = await PlatformWhatsApp.ResolveAsync(_db, _server, _secrets, ct);
         if (mode != "subscribe" || string.IsNullOrEmpty(app.VerifyToken) || string.IsNullOrEmpty(verifyToken) || string.IsNullOrEmpty(challenge)) return null;
         return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(verifyToken), Encoding.UTF8.GetBytes(app.VerifyToken)) ? challenge : null;
     }
 
     public async Task<bool> HandleAsync(byte[] body, string? signature, CancellationToken ct = default)
     {
-        var (app, _) = await PlatformWhatsApp.ResolveAsync(_db, _server, _secrets, ct);
+        var (app, _, _) = await PlatformWhatsApp.ResolveAsync(_db, _server, _secrets, ct);
         if (!_provider.VerifySignature(app, body, signature)) return false;
 
         WhatsAppWebhookBatch batch;

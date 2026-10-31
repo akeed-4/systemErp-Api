@@ -119,7 +119,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
 
     public async Task<PlatformPaymobSettingsDto> GetPaymobSettingsAsync(CancellationToken ct = default)
     {
-        var (o, rows) = await PlatformPaymob.ResolveAsync(_db, _paymob, _secrets, ct);
+        var (o, rows, unreadable) = await PlatformPaymob.ResolveAsync(_db, _paymob, _secrets, ct);
         var last = rows.OrderByDescending(r => r.UpdatedAt).FirstOrDefault();
         var hasUrls = !string.IsNullOrWhiteSpace(o.PublicApiUrl) && !string.IsNullOrWhiteSpace(o.FrontendUrl);
         return new PlatformPaymobSettingsDto
@@ -128,7 +128,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
             HasSecretKey = !string.IsNullOrEmpty(o.SecretKey), HasHmacSecret = !string.IsNullOrEmpty(o.HmacSecret),
             IsConfigured = o.IsConfigured, HasServerUrls = hasUrls,
             WebhookUrl = string.IsNullOrWhiteSpace(o.PublicApiUrl) ? string.Empty : $"{o.PublicApiUrl.TrimEnd('/')}/api/v1/payments/paymob/webhook",
-            IsCustomized = last != null, UpdatedAt = last?.UpdatedAt, UpdatedBy = last?.UpdatedBy,
+            IsCustomized = last != null, SecretsNeedReentry = unreadable, UpdatedAt = last?.UpdatedAt, UpdatedBy = last?.UpdatedBy,
         };
     }
 

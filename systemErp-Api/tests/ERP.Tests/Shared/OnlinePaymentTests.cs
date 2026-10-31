@@ -3,7 +3,11 @@ using System.Text.Json.Nodes;
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Services.Shared;
 using ERP.Tests.Infrastructure;
+using ERP.Core.Models.Shared;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ERP.Tests;
 
@@ -211,6 +215,55 @@ public class OnlinePaymentTests : TestBase
         finally
         {
             // يعيد حساب المنصة لقيم الاختبار حتى لا تتأثر الاختبارات الأخرى على القاعدة نفسها
+            await platform.Put("/platform/payment-gateway", new
+            {
+                baseUrl = "https://ksa.paymob.com", publicKey = "platform-public", secretKey = "platform-secret",
+                hmacSecret = FakePaymobClient.PlatformHmac, integrationIds = "111",
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Platform_paymob_secret_from_lost_keys_needs_reentry_and_never_falls_back_to_the_server_secret()
+    {
+        var owner = await NewTenantAsync();
+        var admin = await NewTenantAsync("شركة مدير المنصة");
+        var host = Factory.WithWebHostBuilder(b => b.UseSetting("Platform:AdminEmails:0", admin.Email));
+        var platform = await admin.LoginAsAsync(host.CreateClient(), admin.Email, "Passw0rd!");
+        var console = new
+        {
+            baseUrl = "https://ksa.paymob.com", publicKey = "console-public", secretKey = "console-secret", hmacSecret = "console-hmac", integrationIds = "222",
+        };
+        try
+        {
+            Assert.Equal(200, (await platform.Put("/platform/payment-gateway", console)).Status);
+
+            // كأن مفاتيح التشفير فُقدت على السرفر: المحفوظ مشفّر بمفاتيح لم تعد موجودة
+            using (var scope = Factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>().Catalog;
+                var lost = new EphemeralDataProtectionProvider().CreateProtector("ERP.PaymentGateway.Secrets.v1");
+                var row = await db.Set<PlatformSetting>().FirstAsync(s => s.Key == PlatformSetting.PaymobSecretKey);
+                row.Value = lost.Protect("console-secret");
+                await db.SaveChangesAsync();
+            }
+
+            var res = await platform.Get("/platform/payment-gateway");
+            Assert.Equal(200, res.Status); // لا خطأ 500 يُخفي لوحة المنصة
+            Assert.True(res.Data!["secretsNeedReentry"]!.GetValue<bool>());
+            // لا يُستبدل بسرّ الخادم (platform-secret) مع المفتاح العام المحفوظ من اللوحة
+            Assert.False(res.Data["hasSecretKey"]!.GetValue<bool>());
+            Assert.False(res.Data["isConfigured"]!.GetValue<bool>());
+            Assert.Equal("console-public", res.Data["publicKey"].S());
+            Assert.Equal(409, (await owner.Post("/payments/subscription", new { planId = "enterprise", billingCycle = "monthly" })).Status);
+
+            // إعادة الإدخال تُصلحه
+            var fixedUp = (await platform.Put("/platform/payment-gateway", console)).Data!;
+            Assert.False(fixedUp["secretsNeedReentry"]!.GetValue<bool>());
+            Assert.True(fixedUp["isConfigured"]!.GetValue<bool>());
+        }
+        finally
+        {
             await platform.Put("/platform/payment-gateway", new
             {
                 baseUrl = "https://ksa.paymob.com", publicKey = "platform-public", secretKey = "platform-secret",

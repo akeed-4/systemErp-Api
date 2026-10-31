@@ -138,3 +138,16 @@ public class SecretProtector : ISecretProtector
     public string Protect(string plain) => string.IsNullOrEmpty(plain) ? string.Empty : _protector.Protect(plain);
     public string Unprotect(string cipher) => string.IsNullOrEmpty(cipher) ? string.Empty : _protector.Unprotect(cipher);
 }
+
+public static class SecretProtectorExtensions
+{
+    /// <summary>
+    /// null إن تعذّر فك السرّ (فُقدت مفاتيح Data Protection على السرفر بعد إعادة تشغيل أو نشر):
+    /// يُعامل كغير محفوظ بدل إسقاط الطلب، فيعيد مدير المنصة إدخاله من لوحته.
+    /// </summary>
+    public static string? TryUnprotect(this ISecretProtector secrets, string cipher)
+    {
+        try { return secrets.Unprotect(cipher); }
+        catch (CryptographicException) { return null; }
+    }
+}

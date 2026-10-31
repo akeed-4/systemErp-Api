@@ -13,6 +13,8 @@ public class Product : BaseEntity
     public decimal AverageCost { get; set; }
     public decimal LastPurchaseCost { get; set; }
     public decimal? StandardCost { get; set; }
+    /// <summary>وزن الوحدة بالكيلوجرام: أساس توزيع التكاليف الإضافية للمشتريات بالوزن.</summary>
+    public decimal? WeightKg { get; set; }
     public decimal SellingPrice { get; set; }
     public decimal VatRate { get; set; } = 15m;
     /// <summary>نسبة الضريبة الانتقائية المعتمدة للصنف؛ الصفر يعني أن الصنف غير مفعّل عليه الانتقائية.</summary>

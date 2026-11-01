@@ -6,6 +6,8 @@ namespace ERP.Core.Models.Shared;
 /// </summary>
 public static class SubscriptionPlanId
 {
+    /// <summary>المنشآت الصغيرة: المحاسبة الأساسية فقط (بلا الميزات المتقدمة في PlanFeatures).</summary>
+    public const string SmallBusiness = "small_business";
     public const string Starter = "starter";
     public const string Professional = "professional";
     public const string Enterprise = "enterprise";

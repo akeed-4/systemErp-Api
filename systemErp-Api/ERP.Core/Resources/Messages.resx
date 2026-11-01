@@ -1388,4 +1388,5 @@
   <data name="PurchaseExpenseTypeNotFound" xml:space="preserve"><value>نوع التكلفة غير موجود أو غير نشط.</value></data>
   <data name="PurchaseExpenseTypeValuesInvalid" xml:space="preserve"><value>الرمز (حروف إنجليزية كبيرة وأرقام و_) والاسم العربي مطلوبان، وقيم النوع غير صالحة.</value></data>
   <data name="PurchaseExpenseTypeCodeExists" xml:space="preserve"><value>رمز نوع التكلفة مستخدم.</value></data>
+  <data name="FeatureNotInPlan" xml:space="preserve"><value>«{0}» غير مشمولة في باقتك. رقِّ الباقة لاستخدامها.</value></data>
 </root>

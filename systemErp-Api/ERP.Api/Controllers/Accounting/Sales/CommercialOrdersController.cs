@@ -7,6 +7,7 @@ namespace ERP.Api.Controllers.Accounting;
 
 [Route("api/v1/commercialorders"), RequireScreen("sales"), ScopedRecord("commercial-order")]
 [RequireModule(PlatformModules.Accounting)]
+[RequireFeature(PlanFeatures.CommercialCycle)]
 public class CommercialOrdersController : CrudController<CommercialOrderDto, CreateCommercialOrderDto, UpdateCommercialOrderDto>
 {
     private readonly ICommercialOrderService _orders;

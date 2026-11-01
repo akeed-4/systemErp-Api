@@ -8,6 +8,7 @@ namespace ERP.Api.Controllers.Accounting;
 [Route("api/v1/materialrequisitions"), RequireScreen("purchases")]
 [RequireModule(PlatformModules.Accounting)]
 [ScopedRecord("material-requisition")]
+[RequireFeature(PlanFeatures.CommercialCycle)]
 public class MaterialRequisitionsController : CrudController<MaterialRequisitionDto, CreateMaterialRequisitionDto, UpdateMaterialRequisitionDto>
 {
     private readonly IMaterialRequisitionService _requisitions;

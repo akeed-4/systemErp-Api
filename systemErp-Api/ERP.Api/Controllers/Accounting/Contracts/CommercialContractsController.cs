@@ -14,6 +14,7 @@ namespace ERP.Api.Controllers.Accounting;
 [Route("api/v1/commercialcontracts"), RequireScreen(PermissionCatalog.CommercialContractsScreenId)]
 [RequireModule(PlatformModules.Accounting)]
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
+[RequireFeature(PlanFeatures.CommercialCycle)]
 public class CommercialContractsController : CrudController<CommercialContractDto, CreateCommercialContractDto, UpdateCommercialContractDto>
 {
     private const string Screen = PermissionCatalog.CommercialContractsScreenId;

@@ -17,7 +17,7 @@ namespace ERP.Service.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.0")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -9626,6 +9626,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("FeatureKeys")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("FeaturesAr")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -9682,12 +9686,36 @@ namespace ERP.Service.Data.Migrations
                     b.HasData(
                         new
                         {
+                            Id = "small_business",
+                            BadgeAr = "للمنشآت الصغيرة",
+                            BadgeEn = "For Small Businesses",
+                            Branches = 1,
+                            DescriptionAr = "كل ما تحتاجه المنشأة الصغيرة: المبيعات والمشتريات والمخزون والمحاسبة والتقارير الأساسية، بلا تعقيد.",
+                            DescriptionEn = "Everything a small business needs: sales, purchases, inventory, accounting and core reports, without the complexity.",
+                            FeatureKeys = "",
+                            FeaturesAr = "مستخدمان وفرع ومستودع واحد\nفواتير المبيعات والمشتريات ومرتجعاتها (حتى 500 فاتورة شهرياً)\nالعملاء والموردون والأصناف والبنوك وطرق الدفع\nدليل الحسابات والقيود وسندات القبض والصرف\nجرد المخزون وحركة الصنف\nالفوترة الإلكترونية (ZATCA)\nالتقارير الأساسية: ميزان المراجعة وقائمة الدخل والميزانية والإقرار الضريبي وكشف الحساب وأعمار الديون",
+                            FeaturesEn = "2 users, 1 branch & warehouse\nSales & purchase invoices and returns (up to 500/month)\nCustomers, suppliers, items, banks & payment methods\nChart of accounts, journals, receipt & payment vouchers\nStock counts & item movement\nE-invoicing (ZATCA)\nCore reports: trial balance, income statement, balance sheet, VAT return, account statement, aging",
+                            IsActive = true,
+                            IsPopular = false,
+                            MaxInvoicesPerMonth = 500,
+                            MaxUsers = 2,
+                            ModuleKeys = "accounting",
+                            NameAr = "باقة المنشآت الصغيرة",
+                            NameEn = "Small Business Plan",
+                            PriceMonthly = 149m,
+                            PriceYearly = 1490m,
+                            SortOrder = 0,
+                            ZatcaPhase2Enabled = false
+                        },
+                        new
+                        {
                             Id = "starter",
                             BadgeAr = "للمنشآت الناشئة",
                             BadgeEn = "For Startups",
                             Branches = 1,
                             DescriptionAr = "مثالية للمنشآت والمتاجر الناشئة ورواد الأعمال لتلبية متطلبات الفوترة الضريبية وإدارة المعاملات الأساسية.",
                             DescriptionEn = "Ideal for startups, sole proprietors, and small shops to meet basic invoicing and tax compliance.",
+                            FeatureKeys = "commercial_cycle,landed_costs,cost_centers,fixed_assets,multi_currency,bank_reconciliation,approval_policies,stock_transfers",
                             FeaturesAr = "مستخدمين 2 مع صلاحيات أساسية\nحتى 500 فاتورة مبيعات ومشتريات شهرياً\nفرع ومستودع رئيسي واحد\nإصدار فواتير ضريبية مبسطة (B2C) مع QR كود TLV\nسندات القبض والصرف الأساسية\nشجرة حسابات مبسطة (4 مستويات)\nدعم فني عبر البريد وتحديثات دورية",
                             FeaturesEn = "Up to 2 users with basic roles\nUp to 500 invoices/month\n1 branch & single warehouse\nSimplified Tax Invoices (B2C) with TLV QR Code\nBasic receipt & payment vouchers\nStandard chart of accounts (4 levels)\nEmail support & regular updates",
                             IsActive = true,
@@ -9710,6 +9738,7 @@ namespace ERP.Service.Data.Migrations
                             Branches = 3,
                             DescriptionAr = "الخيار الأكثر طلباً للشركات والمؤسسات المتوسطة مع فواتير ضريبية برمز QR (المرحلة الأولى من ZATCA) ومحاسبة التكاليف.",
                             DescriptionEn = "Most popular choice for growing businesses with QR tax invoices (ZATCA Phase 1) and a costing engine.",
+                            FeatureKeys = "commercial_cycle,landed_costs,cost_centers,fixed_assets,multi_currency,bank_reconciliation,approval_policies,stock_transfers",
                             FeaturesAr = "حتى 10 مستخدمين مع إدارة أدوار متقدمة (RBAC)\nفواتير مبيعات ومشتريات غير محدودة شهرياً\nإدارة حتى 3 فروع ومستودعات متعددة\nفواتير ضريبية (B2B) ومبسطة (B2C) برمز QR وفق المرحلة الأولى من ZATCA\nمحرك حساب متوسط التكلفة المرجح المتحرك (Moving Average Costing)\nشجرة حسابات احترافية مرنة والقيود اليومية الآلية\nتقارير مالية تفصيلية (قائمة الدخل، الميزانية العمومية، إقرار الضريبة)\nدعم فني سريع عبر الواتساب والهاتف",
                             FeaturesEn = "Up to 10 users with advanced RBAC permissions\nUnlimited invoices per month\nUp to 3 branches & multi-warehouse inventory\nTax (B2B) and simplified (B2C) invoices with QR code (ZATCA Phase 1)\nWeighted Moving Average costing engine\nEnterprise chart of accounts with auto journal entries\nFinancial reports (P&L, Balance Sheet, VAT Return)\nPriority phone & WhatsApp support",
                             IsActive = true,
@@ -9730,6 +9759,7 @@ namespace ERP.Service.Data.Migrations
                             BadgeEn = "Corporate & Holding",
                             DescriptionAr = "حل متكامل ومخصص للمجموعات التجارية والشركات الكبرى وفروعها مع بنية تحتية مخصصة وربط API مفتوح.",
                             DescriptionEn = "Custom corporate solution for large holdings and chains with dedicated infrastructure and API webhooks.",
+                            FeatureKeys = "commercial_cycle,landed_costs,cost_centers,fixed_assets,multi_currency,bank_reconciliation,approval_policies,stock_transfers",
                             FeaturesAr = "عدد غير محدود من المستخدمين والمشرفين\nفروع ومستودعات ومراكز تكلفة غير محدودة\nربط برمجي كامل (RESTful API Webhooks) مع المتاجر ونقاط البيع\nفواتير ضريبية برمز QR وفق المرحلة الأولى من ZATCA\nتعدد العملات وسعر الصرف التلقائي\nتقارير تحليلية ومؤشرات أداء مالية متقدمة وتصدير مخصص\nخادم وقاعدة بيانات مستقلة عالية الأداء ونسخ احتياطي فوري\nمدير حساب محاسبي معتمد مخصص ودعم على مدار الساعة 24/7",
                             FeaturesEn = "Unlimited users and branch supervisors\nUnlimited branches, warehouses & cost centers\nFull RESTful API & POS webhooks integration\nQR tax invoices compliant with ZATCA Phase 1\nMulti-currency support with auto FX rates\nAdvanced financial BI dashboards & custom export\nDedicated high-performance tenant database & real-time backup\nDedicated account manager & 24/7 priority SLA",
                             IsActive = true,
@@ -10440,7 +10470,14 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("ExpiryDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("FeatureKeys")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("MaxBranches")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MaxInvoicesPerMonth")
                         .HasColumnType("int");
 
                     b.Property<int>("MaxUsers")

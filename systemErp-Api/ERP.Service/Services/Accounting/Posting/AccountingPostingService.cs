@@ -16,10 +16,11 @@ public class AccountingPostingService : IAccountingPostingService
     private readonly ErpDbContext _db;
     private readonly INumberSequenceService _numbers;
     private readonly IPeriodLock _periods;
+    private readonly ISubscriptionEntitlements _entitlements;
 
-    public AccountingPostingService(ErpDbContext db, INumberSequenceService numbers, IPeriodLock periods)
+    public AccountingPostingService(ErpDbContext db, INumberSequenceService numbers, IPeriodLock periods, ISubscriptionEntitlements entitlements)
     {
-        _db = db; _numbers = numbers; _periods = periods;
+        _db = db; _numbers = numbers; _periods = periods; _entitlements = entitlements;
     }
 
     public async Task<PostingResult> PostAsync(GenericPostingRequest request, CancellationToken ct = default)
@@ -177,6 +178,8 @@ public class AccountingPostingService : IAccountingPostingService
     {
         if (request.SourceType is ReversalSource or FiscalPeriodService.ClosingSource) return lines;
         var manual = IsManual(request.SourceType);
+        // باقة بلا مراكز التكلفة (نزلت إليها منشأة كانت تلزم بها حسابات): الإلزام لا يُفرض، فلا يتعذّر الترحيل بلا مركز يُختار
+        var centersInPlan = (await _entitlements.GetAsync(ct)).HasFeature(PlanFeatures.CostCenters);
         var result = new List<PostingLine>(lines.Count);
         foreach (var line in lines)
         {
@@ -187,7 +190,7 @@ public class AccountingPostingService : IAccountingPostingService
                     if (manual) throw new ValidationFailedException(string.Format(Messages.CostCenterNotAllowedForAccount, account.Code, account.NameAr));
                     result.Add(line with { CostCenterId = null });
                     continue;
-                case CostCenterPolicy.Required when !line.CostCenterId.HasValue:
+                case CostCenterPolicy.Required when !line.CostCenterId.HasValue && centersInPlan:
                     throw new ValidationFailedException(string.Format(Messages.CostCenterRequiredForAccount, account.Code, account.NameAr));
             }
             result.Add(line);

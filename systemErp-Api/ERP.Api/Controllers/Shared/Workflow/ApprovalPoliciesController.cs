@@ -6,6 +6,7 @@ namespace ERP.Api.Controllers.Shared;
 
 [Route("api/v1/ApprovalPolicies")]
 [RequireScreen("approval-policies")]
+[RequireFeature(PlanFeatures.ApprovalPolicies)]
 public class ApprovalPoliciesController : CrudController<ApprovalPolicyDto, CreateApprovalPolicyDto, UpdateApprovalPolicyDto>
 {
     private readonly IApprovalPolicyService _policies;

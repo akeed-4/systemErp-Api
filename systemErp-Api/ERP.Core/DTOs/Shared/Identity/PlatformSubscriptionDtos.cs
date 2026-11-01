@@ -40,6 +40,8 @@ public class PlatformPlanDto
     public int? Branches { get; set; }
     public bool ZatcaPhase2Enabled { get; set; }
     public string[] Modules { get; set; } = Array.Empty<string>();
+    /// <summary>الميزات المتقدمة المشمولة (مفاتيح PlanFeatures).</summary>
+    public string[] FeatureKeys { get; set; } = Array.Empty<string>();
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
     /// <summary>عدد المنشآت المشتركة حالياً (اشتراك فعّال أو تجريبي).</summary>
@@ -73,6 +75,8 @@ public class UpdatePlanRequestDto
     public int? Branches { get; set; }
     public bool ZatcaPhase2Enabled { get; set; } = true;
     public string[] Modules { get; set; } = PlatformModules.All;
+    /// <summary>الميزات المتقدمة المشمولة؛ null = في الإنشاء كلها، وفي التعديل تبقى كما هي.</summary>
+    public string[]? FeatureKeys { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -192,4 +196,6 @@ public class PlatformSetStatusRequestDto
 public class PlatformSetModulesRequestDto
 {
     public string[] Modules { get; set; } = Array.Empty<string>();
+    /// <summary>ميزات اشتراك المنشأة؛ null = تبقى كما هي.</summary>
+    public string[]? FeatureKeys { get; set; }
 }

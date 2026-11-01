@@ -5,6 +5,7 @@ namespace ERP.Api.Controllers.Shared;
 
 /// <summary>تحويلات المخزون بين المستودعات.</summary>
 [Route("api/v1/stocktransfers"), RequireScreen("purchases")]
+[RequireFeature(PlanFeatures.StockTransfers)]
 public class StockTransfersController : ErpControllerBase
 {
     private readonly IStockTransferService _transfers;

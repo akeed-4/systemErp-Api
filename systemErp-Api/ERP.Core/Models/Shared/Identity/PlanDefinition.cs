@@ -29,6 +29,8 @@ public class PlanDefinition
     public bool ZatcaPhase2Enabled { get; set; } = true;
     /// <summary>الوحدات المرخّصة (مفاتيح PlatformModules مفصولة بفاصلة).</summary>
     public string ModuleKeys { get; set; } = PlatformModules.DefaultCsv;
+    /// <summary>الميزات المتقدمة المشمولة (مفاتيح PlanFeatures مفصولة بفاصلة)؛ الفارغ = الأساسيات فقط.</summary>
+    public string FeatureKeys { get; set; } = PlanFeatures.AllCsv;
     /// <summary>الباقة المعطّلة لا تظهر في التسجيل ولا تُباع، وتبقى للمشتركين الحاليين.</summary>
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }

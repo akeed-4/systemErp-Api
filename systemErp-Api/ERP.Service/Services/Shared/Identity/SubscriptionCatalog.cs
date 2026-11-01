@@ -15,6 +15,16 @@ public static class SubscriptionCatalog
     /// <summary>البيانات الأولية للباقات (تُزرع بالـ migration).</summary>
     public static readonly List<PlanDefinition> Seed = new()
     {
+        // الأساسيات فقط: وحدة المحاسبة بلا ميزات متقدمة (FeatureKeys فارغ)، وحد الفواتير الشهري تنبيه لا منع
+        new() { Id = SubscriptionPlanId.SmallBusiness, NameAr = "باقة المنشآت الصغيرة", NameEn = "Small Business Plan",
+                PriceMonthly = 149, PriceYearly = 1490, MaxUsers = 2, MaxInvoicesPerMonth = 500, Branches = 1,
+                ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 0,
+                ModuleKeys = PlatformModules.Accounting, FeatureKeys = string.Empty,
+                DescriptionAr = "كل ما تحتاجه المنشأة الصغيرة: المبيعات والمشتريات والمخزون والمحاسبة والتقارير الأساسية، بلا تعقيد.",
+                DescriptionEn = "Everything a small business needs: sales, purchases, inventory, accounting and core reports, without the complexity.",
+                BadgeAr = "للمنشآت الصغيرة", BadgeEn = "For Small Businesses", IsPopular = false,
+                FeaturesAr = "مستخدمان وفرع ومستودع واحد\nفواتير المبيعات والمشتريات ومرتجعاتها (حتى 500 فاتورة شهرياً)\nالعملاء والموردون والأصناف والبنوك وطرق الدفع\nدليل الحسابات والقيود وسندات القبض والصرف\nجرد المخزون وحركة الصنف\nالفوترة الإلكترونية (ZATCA)\nالتقارير الأساسية: ميزان المراجعة وقائمة الدخل والميزانية والإقرار الضريبي وكشف الحساب وأعمار الديون",
+                FeaturesEn = "2 users, 1 branch & warehouse\nSales & purchase invoices and returns (up to 500/month)\nCustomers, suppliers, items, banks & payment methods\nChart of accounts, journals, receipt & payment vouchers\nStock counts & item movement\nE-invoicing (ZATCA)\nCore reports: trial balance, income statement, balance sheet, VAT return, account statement, aging" },
         new() { Id = SubscriptionPlanId.Starter, NameAr = "باقة البداية (Starter)", NameEn = "Starter Plan",
                 PriceMonthly = 199, PriceYearly = 1990, MaxUsers = 2, MaxInvoicesPerMonth = 500, Branches = 1,
                 ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 1,
@@ -45,7 +55,7 @@ public static class SubscriptionCatalog
     {
         Id = p.Id, NameAr = p.NameAr, NameEn = p.NameEn, PriceMonthly = p.PriceMonthly, PriceYearly = p.PriceYearly,
         MaxUsers = p.MaxUsers, MaxInvoicesPerMonth = p.MaxInvoicesPerMonth, Branches = p.Branches,
-        ZatcaPhase2Enabled = p.ZatcaPhase2Enabled, Modules = PlatformModules.Parse(p.ModuleKeys),
+        ZatcaPhase2Enabled = p.ZatcaPhase2Enabled, Modules = PlatformModules.Parse(p.ModuleKeys), FeatureKeys = PlanFeatures.Parse(p.FeatureKeys),
         DescriptionAr = p.DescriptionAr, DescriptionEn = p.DescriptionEn, BadgeAr = p.BadgeAr, BadgeEn = p.BadgeEn, IsPopular = p.IsPopular,
         FeaturesAr = SplitLines(p.FeaturesAr), FeaturesEn = SplitLines(p.FeaturesEn),
     };
@@ -72,6 +82,7 @@ public static class SubscriptionCatalog
     {
         var dto = Mapper.Map<SubscriptionDto>(s);
         dto.Modules = PlatformModules.Parse(s.ModuleKeys);
+        dto.FeatureKeys = PlanFeatures.Parse(s.FeatureKeys);
         var remaining = s.ExpiryDate - DateTime.UtcNow;
         dto.DaysRemaining = (int)Math.Ceiling(remaining.TotalDays);
         dto.TrialEnded = s.Status == SubscriptionStatus.Trial && remaining < TimeSpan.Zero;
@@ -115,6 +126,9 @@ public static class SubscriptionCatalog
             TransactionReference = $"TXN-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}",
             MaxUsers = plan.MaxUsers ?? int.MaxValue,
             MaxBranches = plan.Branches ?? int.MaxValue,
+            // الميزات وحد الفواتير منسوخة من الباقة: تعديل الباقة لاحقاً لا يغيّر ما اشتراه العميل
+            FeatureKeys = PlanFeatures.ToCsv(plan.FeatureKeys),
+            MaxInvoicesPerMonth = plan.MaxInvoicesPerMonth,
             ZatcaPhase2Enabled = plan.ZatcaPhase2Enabled,
             ModuleKeys = PlatformModules.ToCsv(modules != null ? PlatformModules.Normalize(modules) : plan.Modules.Length > 0 ? plan.Modules : PlatformModules.Parse(PlatformModules.DefaultCsv)),
         };

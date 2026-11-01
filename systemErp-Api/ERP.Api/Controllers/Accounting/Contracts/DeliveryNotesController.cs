@@ -7,6 +7,7 @@ namespace ERP.Api.Controllers.Accounting;
 
 [Route("api/v1/deliverynotes"), RequireScreen("sales"), ScopedRecord("delivery-note")]
 [RequireModule(PlatformModules.Accounting)]
+[RequireFeature(PlanFeatures.CommercialCycle)]
 public class DeliveryNotesController : ErpControllerBase
 {
     private readonly IDeliveryNoteService _notes;

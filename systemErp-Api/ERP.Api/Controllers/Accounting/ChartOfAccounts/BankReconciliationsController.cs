@@ -7,6 +7,7 @@ namespace ERP.Api.Controllers.Accounting;
 
 /// <summary>التسوية البنكية: ورقة العمل، الاعتماد، السجل، وإلغاء آخر تسوية.</summary>
 [Route("api/v1/bankreconciliations"), RequireScreen("accounts")]
+[RequireFeature(PlanFeatures.BankReconciliation)]
 public class BankReconciliationsController : ErpControllerBase
 {
     private readonly IBankReconciliationService _reconciliations;

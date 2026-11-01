@@ -314,6 +314,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         await ScopeToTenantAsync(tenantId, ct);
         var sub = await LatestAsync(ct);
         sub.ModuleKeys = PlatformModules.ToCsv(modules);
+        if (request.FeatureKeys != null) sub.FeatureKeys = PlanFeatures.ToCsv(PlanFeatures.Normalize(request.FeatureKeys));
         await _db.SaveChangesAsync(ct);
         return SubscriptionCatalog.ToDto(sub);
     }
@@ -324,7 +325,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
     {
         Id = p.Id, NameAr = p.NameAr, NameEn = p.NameEn, PriceMonthly = p.PriceMonthly, PriceYearly = p.PriceYearly,
         MaxUsers = p.MaxUsers, MaxInvoicesPerMonth = p.MaxInvoicesPerMonth, Branches = p.Branches,
-        ZatcaPhase2Enabled = p.ZatcaPhase2Enabled, Modules = PlatformModules.Parse(p.ModuleKeys),
+        ZatcaPhase2Enabled = p.ZatcaPhase2Enabled, Modules = PlatformModules.Parse(p.ModuleKeys), FeatureKeys = PlanFeatures.Parse(p.FeatureKeys),
         IsActive = p.IsActive, SortOrder = p.SortOrder, Subscribers = subscribers,
         DescriptionAr = p.DescriptionAr, DescriptionEn = p.DescriptionEn, BadgeAr = p.BadgeAr, BadgeEn = p.BadgeEn, IsPopular = p.IsPopular,
         FeaturesAr = SubscriptionCatalog.SplitLines(p.FeaturesAr), FeaturesEn = SubscriptionCatalog.SplitLines(p.FeaturesEn),
@@ -412,6 +413,8 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         plan.Branches = r.Branches;
         plan.ZatcaPhase2Enabled = r.ZatcaPhase2Enabled;
         plan.ModuleKeys = PlatformModules.ToCsv(PlatformModules.Normalize(r.Modules));
+        if (r.FeatureKeys != null) plan.FeatureKeys = PlanFeatures.ToCsv(PlanFeatures.Normalize(r.FeatureKeys));
+        else if (isNew) plan.FeatureKeys = PlanFeatures.AllCsv;
         plan.IsActive = r.IsActive;
         if (r.DescriptionAr != null) plan.DescriptionAr = r.DescriptionAr.Trim();
         if (r.DescriptionEn != null) plan.DescriptionEn = r.DescriptionEn.Trim();

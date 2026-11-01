@@ -42,8 +42,13 @@ public class SubscriptionGateFilter : IAsyncAuthorizationFilter
 
         // سمة الإجراء (الأخيرة في الـ metadata) تتقدّم على سمة الـ controller
         var required = context.ActionDescriptor.EndpointMetadata.OfType<RequireModuleAttribute>().LastOrDefault();
-        if (required == null || required.AnyOf.Any(info.Allows)) return;
-        throw new ForbiddenException($"{string.Join(" / ", required.AnyOf.Select(ModuleName))}: غير مشمولة في اشتراكك.");
+        if (required != null && !required.AnyOf.Any(info.Allows))
+            throw new ForbiddenException($"{string.Join(" / ", required.AnyOf.Select(ModuleName))}: غير مشمولة في اشتراكك.");
+
+        // الميزة داخل الوحدة (الباقة الصغيرة بلا الميزات المتقدمة)
+        var feature = context.ActionDescriptor.EndpointMetadata.OfType<RequireFeatureAttribute>().LastOrDefault();
+        if (feature == null || (feature.WritesOnly && readOnly) || info.HasFeature(feature.Feature)) return;
+        throw new ForbiddenException(string.Format(Messages.FeatureNotInPlan, PlanFeatures.NameAr(feature.Feature)));
     }
 
     private static string ModuleName(string module) => module switch

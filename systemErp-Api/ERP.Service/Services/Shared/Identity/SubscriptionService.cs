@@ -28,6 +28,17 @@ public class SubscriptionService : ISubscriptionService
             MaxUsers = sub?.MaxUsers ?? 0,
             Warehouses = await _db.Set<Warehouse>().CountAsync(w => w.Status == "active", ct),
             MaxWarehouses = sub?.MaxBranches ?? 0,
+            InvoicesThisMonth = await InvoicesThisMonthAsync(_db, ct),
+            MaxInvoicesPerMonth = sub?.MaxInvoicesPerMonth,
         };
+    }
+
+    /// <summary>فواتير الشهر الحالي (بتوقيت المملكة) المرحّلة: المبيعات والمشتريات ومرتجعاتها ونقاط البيع.</summary>
+    public static Task<int> InvoicesThisMonthAsync(ErpDbContext db, CancellationToken ct)
+    {
+        var today = SaudiTime.Today;
+        var start = new DateTime(today.Year, today.Month, 1);
+        var end = start.AddMonths(1);
+        return db.Set<InvoiceBase>().AsNoTracking().CountAsync(i => i.Status == "posted" && i.IssueDate >= start && i.IssueDate < end, ct);
     }
 }

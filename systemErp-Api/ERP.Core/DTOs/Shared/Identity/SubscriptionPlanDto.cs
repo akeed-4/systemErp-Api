@@ -20,4 +20,6 @@ public class SubscriptionPlanDto
     public int? Branches { get; set; }
     public bool ZatcaPhase2Enabled { get; set; } = true;
     public string[] Modules { get; set; } = Array.Empty<string>();
+    /// <summary>الميزات المتقدمة المشمولة (مفاتيح PlanFeatures)؛ لا علاقة لها بـ FeaturesAr/En (نصوص تسويقية).</summary>
+    public string[] FeatureKeys { get; set; } = Array.Empty<string>();
 }

@@ -25,13 +25,16 @@ public class TradeInvoiceEngine
     private readonly IReadOnlyList<IInvoiceExtension> _extensions;
     private readonly IApprovalService _approvals;
     private readonly ERP.Core.Contracts.Shared.IPermissionService _permissions;
+    private readonly ERP.Core.Contracts.Shared.ISubscriptionEntitlements _entitlements;
     /// <summary>تجاوزات التصنيف الضريبي التي أقرّها آخر بناء؛ تُسجَّل في سجل التدقيق بعد حفظ المستند.</summary>
     private List<ItemTaxTreatment.Override> _taxOverrides = new();
 
     public TradeInvoiceEngine(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
         INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit,
-        IEnumerable<IInvoiceExtension> extensions, IApprovalService approvals, ERP.Core.Contracts.Shared.IPermissionService permissions)
+        IEnumerable<IInvoiceExtension> extensions, IApprovalService approvals, ERP.Core.Contracts.Shared.IPermissionService permissions,
+        ERP.Core.Contracts.Shared.ISubscriptionEntitlements entitlements)
     {
+        _entitlements = entitlements;
         _audit = audit; _extensions = extensions.ToList(); _approvals = approvals; _permissions = permissions;
         _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx;
     }
@@ -805,6 +808,9 @@ public class TradeInvoiceEngine
         var baseCurrency = await _db.Set<Tenant>().AsNoTracking().Select(t => t.Currency).FirstAsync(ct);
         invoice.CurrencyCode = string.IsNullOrWhiteSpace(r.CurrencyCode) ? baseCurrency : r.CurrencyCode.Trim().ToUpperInvariant();
         if (invoice.CurrencyCode == baseCurrency) invoice.ExchangeRate = 1; // العملة الأساسية لا تُحوَّل
+        // مستند بعملة أجنبية ميزة متقدمة (الباقة الصغيرة بالعملة الأساسية فقط)
+        else if (!(await _entitlements.GetAsync(ct)).HasFeature(PlanFeatures.MultiCurrency))
+            throw new ValidationFailedException(string.Format(Messages.FeatureNotInPlan, PlanFeatures.NameAr(PlanFeatures.MultiCurrency)));
         invoice.Subtotal = priced.NetTotal;
         invoice.ItemsDiscountTotal = priced.ItemsDiscountTotal;
         invoice.InvoiceDiscount = priced.InvoiceDiscount;

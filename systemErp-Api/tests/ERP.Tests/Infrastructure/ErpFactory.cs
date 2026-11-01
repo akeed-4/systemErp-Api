@@ -121,19 +121,19 @@ public class Client
     /// يسجّل منشأة جديدة (تبدأ بفترة تجريبية مجانية) ثم يسدّد اشتراكها ليصير فعّالاً؛
     /// <paramref name="pay"/> = false يُبقيها في الفترة التجريبية.
     /// </summary>
-    public async Task<Client> RegisterAsync(string name = "شركة اختبار", bool pay = true)
+    public async Task<Client> RegisterAsync(string name = "شركة اختبار", bool pay = true, string planId = "professional")
     {
         Email = $"o{Guid.NewGuid():N}@test.com";
         var r = await SendAsync(HttpMethod.Post, "/auth/RegisterCompany", new
         {
             companyNameAr = name, companyNameEn = name, vatNumber = NewVat(), crNumber = "1010", city = "الرياض", address = "x",
-            phone = "050", email = Email, industry = "x", planId = "professional", billingCycle = "yearly", paymentMethod = "mada",
+            phone = "050", email = Email, industry = "x", planId, billingCycle = "yearly", paymentMethod = "mada",
             adminName = "المدير", adminEmail = Email, adminPhone = "050", password = "Passw0rd!",
         });
         Token = r.Body!["token"]!.GetValue<string>();
         TenantId = Guid.Parse(r.Body["tenantId"]!.GetValue<string>());
         Registration = r;
-        if (pay) await PaySubscriptionAsync();
+        if (pay) await PaySubscriptionAsync(planId);
         return this;
     }
 

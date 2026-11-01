@@ -12,6 +12,7 @@ namespace ERP.Api.Controllers.Accounting;
 /// </summary>
 [Route("api/v1/purchase-landed-costs"), RequireScreen("purchase-landed-costs")]
 [RequireModule(PlatformModules.Accounting)]
+[RequireFeature(PlanFeatures.LandedCosts)]
 public class PurchaseLandedCostsController : ErpControllerBase
 {
     private readonly IPurchaseLandedCostService _service;
@@ -55,6 +56,7 @@ public class PurchaseLandedCostsController : ErpControllerBase
 /// <summary>أنواع التكاليف الإضافية للمشتريات: تُعرض لمن يرى الشاشة، وتُدار بصلاحية التعديل.</summary>
 [Route("api/v1/purchase-expense-types"), RequireScreen("purchase-landed-costs")]
 [RequireModule(PlatformModules.Accounting)]
+[RequireFeature(PlanFeatures.LandedCosts)]
 public class PurchaseExpenseTypesController : ErpControllerBase
 {
     private readonly IPurchaseExpenseTypeService _service;

@@ -20,7 +20,8 @@ public static class StockReplay
             {
                 var baseStock = Math.Max(stock, 0);
                 var newQty = baseStock + m.Quantity;
-                switch (policy.Method)
+                if (InventoryService.KeepsCost(policy, m.Type, avg)) { } // الشراء لا يحدّث التكلفة (فرقه رُحِّل انحرافاً عند الشراء)
+                else switch (policy.Method)
                 {
                     case CostingMethod.MovingAverage:
                     case CostingMethod.FIFO:

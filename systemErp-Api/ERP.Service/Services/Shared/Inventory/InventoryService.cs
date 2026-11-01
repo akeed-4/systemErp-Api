@@ -48,6 +48,10 @@ public class InventoryService : IInventoryService
                 // المعيارية: الإضافة بالتكلفة المعيارية، والفرق عن التكلفة الفعلية يظهر في ValueChange فيُرحَّل فرقاً
                 product.AverageCost = product.StandardCost.Value;
             }
+            else if (KeepsCost(policy, r.Type, product.AverageCost))
+            {
+                // تحديث التكلفة عند الشراء موقوف: الصنف بتكلفته الحالية، وفرق سعر الشراء يظهر في ValueChange فيُرحَّل لحساب الانحرافات
+            }
             else if (policy.Method is CostingMethod.MovingAverage or CostingMethod.FIFO or CostingMethod.Standard)
             {
                 var newQty = baseStock + r.Quantity;
@@ -92,6 +96,14 @@ public class InventoryService : IInventoryService
         dto.ValueChange = InventoryValuation.Value(product) - valueBefore;
         return dto;
     }
+
+    /// <summary>
+    /// شراء لا يغيّر تكلفة الصنف: «تحديث التكلفة عند الشراء» موقوف، والطريقة متوسط أو آخر شراء (FIFO طبقاتها بتكلفتها الفعلية)،
+    /// وللصنف تكلفة سابقة (أول شراء يحدّد التكلفة دائماً).
+    /// </summary>
+    internal static bool KeepsCost(CostingPolicy policy, StockMovementType type, decimal currentCost)
+        => !policy.RecalculateOnNewPurchase && type == StockMovementType.InPurchase && currentCost > 0
+           && policy.Method is CostingMethod.MovingAverage or CostingMethod.LastPurchase or CostingMethod.Standard;
 
     /// <summary>يستهلك أقدم الدفعات ويُرجع متوسط تكلفة الكمية المستهلكة.</summary>
     private async Task<decimal> ConsumeFifoAsync(Product product, decimal qty, CancellationToken ct)

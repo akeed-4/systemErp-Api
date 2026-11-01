@@ -1,3 +1,4 @@
+using Zomp.EFCore.WindowFunctions.SqlServer;
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
@@ -34,7 +35,7 @@ public static class ServiceCollectionExtensions
             if (configureDb != null) configureDb(options);
             else
                 options.UseSqlServer(config.GetConnectionString("DefaultConnection"),
-                    sql => sql.MigrationsAssembly(typeof(ErpDbContext).Assembly.FullName));
+                    sql => sql.MigrationsAssembly(typeof(ErpDbContext).Assembly.FullName).UseWindowFunctions()); // SUM() OVER في LINQ (كشف الحساب)
             options.AddInterceptors(provider.GetRequiredService<AuditTrailInterceptor>(),
                 provider.GetRequiredService<TenantDirectoryMirror>(), provider.GetRequiredService<TenantConnectionInterceptor>());
         });

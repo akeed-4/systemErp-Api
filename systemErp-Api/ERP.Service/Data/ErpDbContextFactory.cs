@@ -1,3 +1,4 @@
+using Zomp.EFCore.WindowFunctions.SqlServer;
 using ERP.Service.Services.Shared;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -10,7 +11,7 @@ public class ErpDbContextFactory : IDesignTimeDbContextFactory<ErpDbContext>
     {
         var connection = Environment.GetEnvironmentVariable("ERP_CONNECTION")
             ?? @"Server=(localdb)\MSSQLLocalDB;Database=ErpDb;Trusted_Connection=True;TrustServerCertificate=True;";
-        var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(connection).Options;
+        var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(connection, sql => sql.UseWindowFunctions()).Options;
         return new ErpDbContext(options, new TenantContext());
     }
 }

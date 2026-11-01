@@ -1129,7 +1129,9 @@ public class TradeInvoiceEngine
             if (inventoryAmount != baseNet - expenseAmount)
             {
                 var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct);
-                varianceAccount = policy is { Method: CostingMethod.Standard } && !string.IsNullOrWhiteSpace(policy.StandardCostVarianceAccountCode)
+                // حساب الانحرافات المحدد في السياسة: للمعيارية، ولإيقاف تحديث التكلفة عند الشراء (الفرق كله فرق سعر)
+                varianceAccount = policy is { Method: CostingMethod.Standard } or { RecalculateOnNewPurchase: false }
+                        && !string.IsNullOrWhiteSpace(policy.StandardCostVarianceAccountCode)
                     ? policy.StandardCostVarianceAccountCode.Trim() : DefaultAccounts.PurchasePriceVariance;
                 await DefaultAccounts.EnsureAsync(_db, ct, varianceAccount);
             }

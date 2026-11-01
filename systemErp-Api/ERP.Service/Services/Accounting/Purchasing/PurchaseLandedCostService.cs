@@ -96,16 +96,26 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
             Replace(voucher, await BuildAsync(ToSaveDto(voucher), token));
             await _db.SaveChangesAsync(token);
 
-            var allocations = voucher.Lines.SelectMany(l => l.Allocations).Where(a => a.Amount > 0).ToList();
-            var movements = await PurchaseMovementsAsync(voucher.Invoices.Select(i => i.InvoiceId).ToList(), allocations, token);
-            foreach (var a in allocations)
+            var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(token) ?? new CostingPolicy();
+            (Dictionary<Guid, decimal> ValueChange, CostingMethod Method) effect;
+            if (policy.IncludeFreightAndCustoms)
             {
-                a.StockMovementId = movements[a.InvoiceItemId].Id;
-                a.UnitCostIncrease = Math.Round(a.Amount / a.NetQuantity, 4);
+                var allocations = voucher.Lines.SelectMany(l => l.Allocations).Where(a => a.Amount > 0).ToList();
+                var movements = await PurchaseMovementsAsync(voucher.Invoices.Select(i => i.InvoiceId).ToList(), allocations, token);
+                foreach (var a in allocations)
+                {
+                    a.StockMovementId = movements[a.InvoiceItemId].Id;
+                    a.UnitCostIncrease = Math.Round(a.Amount / a.NetQuantity, 4);
+                }
+                var increases = allocations.GroupBy(a => a.StockMovementId!.Value).ToDictionary(g => g.Key, g => g.Sum(a => a.UnitCostIncrease));
+                effect = await ApplyCostAsync(increases, token);
             }
-            var increases = allocations.GroupBy(a => a.StockMovementId!.Value).ToDictionary(g => g.Key, g => g.Sum(a => a.UnitCostIncrease));
-
-            var effect = await ApplyCostAsync(increases, token);
+            else
+            {
+                // «تضمين أعباء الشحن في التكلفة» موقوف: لا تُرفع تكلفة الأصناف (ولا تُربط التوزيعات بحركات، فالإلغاء لا يعكس تكلفة)،
+                // فيُحمَّل السند كله مصروفاً على الحساب المقابل في القيد
+                effect = (new Dictionary<Guid, decimal>(), policy.Method);
+            }
             var posted = await PostAsync(voucher, effect, sign: 1, voucher.Date, ApproveSource,
                 $"سند تكاليف إضافية للمشتريات {voucher.VoucherNumber}", token);
 

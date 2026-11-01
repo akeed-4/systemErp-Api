@@ -62,6 +62,62 @@ public class ReportQueryTests : TestBase
     }
 
     [Fact]
+    public async Task Account_statement_running_balance_respects_the_module_filter()
+    {
+        var api = await NewTenantAsync();
+        object Entry(string module, decimal amount, string date) => new { date, description = module, module,
+            lines = new[] { new { accountCode = "1111", debit = amount, credit = 0m }, new { accountCode = "31", debit = 0m, credit = amount } } };
+        Assert.Equal(200, (await api.Post("/journalentries", Entry("accounting", 500, "2026-01-10"))).Status);
+        Assert.Equal(200, (await api.Post("/journalentries", Entry("car_showroom", 300, "2026-01-11"))).Status);
+        Assert.Equal(200, (await api.Post("/journalentries", Entry("accounting", 200, "2026-01-12"))).Status);
+
+        // كل الوحدات: 500 ← 800 ← 1000
+        var all = await RowsAsync(api, "/reports/AccountStatement/1111/Entries?from=2026-01-01&to=2026-01-31");
+        Assert.Equal(new[] { 500m, 800m, 1000m }, all.Select(e => e!["runningBalance"].D()));
+        // المحاسبة وحدها: قيد المعارض لا يدخل الرصيد الجاري
+        var accounting = await RowsAsync(api, "/reports/AccountStatement/1111/Entries?module=accounting&from=2026-01-01&to=2026-01-31");
+        Assert.Equal(new[] { 500m, 700m }, accounting.Select(e => e!["runningBalance"].D()));
+        // فترة تبدأ بعد القيد الأول: رصيده يبقى في الجاري
+        var later = await RowsAsync(api, "/reports/AccountStatement/1111/Entries?module=accounting&from=2026-01-12&to=2026-01-31");
+        Assert.Equal(700, Assert.Single(later)!["runningBalance"].D());
+    }
+
+    [Fact]
+    public async Task Dashboard_summary_counts_and_totals_in_the_database()
+    {
+        var (api, _, _) = await SeededAsync();
+        var r = await api.Get("/reports/DashboardSummary?showroom=true");
+        Assert.True(r.Status == 200, r.Body?.ToString());
+        var d = r.Data!;
+        Assert.Equal(2, (int)d["salesCount"]!); Assert.Equal(500, d["totalSales"].D()); Assert.Equal(75, d["totalVatSales"].D());
+        Assert.Equal(1, (int)d["purchasesCount"]!); Assert.Equal(230, d["totalPurchases"].D());
+        Assert.True((int)d["vouchersCount"]! >= 1); Assert.True((int)d["journalEntriesCount"]! >= 4);
+        var months = d["months"]!.AsArray();
+        Assert.Equal(9, months.Count);
+        Assert.Equal(500, months[^1]!["sales"].D()); Assert.Equal(230, months[^1]!["purchases"].D());
+        Assert.Equal(230, d["showroom"]!["creditPurchases"].D()); Assert.Equal(0, d["showroom"]!["cashPurchases"].D());
+    }
+
+    [Fact]
+    public async Task Account_statement_carries_document_columns_and_header_only_mode()
+    {
+        var (api, _, account) = await SeededAsync();
+        var entries = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries");
+        Assert.Equal(new[] { "receipt_voucher", "sales" }, entries.Select(e => (string)e!["referenceType"]!));
+        Assert.All(entries, e => Assert.False(string.IsNullOrEmpty((string?)e!["documentNumber"])));
+        // حساب بالعملة الأساسية: الرصيد بعملة الحساب هو الرصيد نفسه
+        Assert.Equal(new[] { -100m, 245m }, entries.Select(e => e!["runningBalanceInAccountCurrency"].D()));
+        var receipts = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries?" + Q(("filter", "[\"referenceType\",\"=\",\"receipt_voucher\"]")));
+        Assert.Equal(100, Assert.Single(receipts)!["credit"].D());
+
+        var header = (await api.Get($"/reports/AccountStatement/{account}?entries=false")).Data!;
+        Assert.Empty(header["entries"]!.AsArray());
+        Assert.Equal(345, header["periodDebit"].D()); Assert.Equal(100, header["periodCredit"].D());
+        Assert.Equal(245, header["closingBalance"].D()); Assert.Equal(245, header["closingBalanceInAccountCurrency"].D());
+        Assert.Equal(1, header["exchangeRate"].D());
+    }
+
+    [Fact]
     public async Task Trial_balance_splits_opening_from_period_movement()
     {
         var (api, _, account) = await SeededAsync();

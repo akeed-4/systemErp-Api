@@ -22,6 +22,10 @@ public class PosCashDrawerTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api); // سعر 100 + ضريبة 15%، مخزون 10
 
+        // التسعير يتبع سياسات الوردية المفتوحة (الخصم والتصنيفات المسموحة والمستودع): بلا وردية لا تسعير
+        Assert.Equal(409, (await api.Post("/pos/transactions/quote", Cart(product, 2))).Status);
+        await OpenShiftAsync(api);
+
         var q = await api.Post("/pos/transactions/quote", Cart(product, 2, coupon: "NOPE"));
         Assert.Equal(200, q.Status);
         Assert.Equal(230, q.Data!["grandTotal"].D());
@@ -31,7 +35,6 @@ public class PosCashDrawerTests : TestBase
         Assert.Equal(0, q.Data["couponDiscount"].D());
         Assert.Equal(10, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
 
-        await OpenShiftAsync(api);
         var sale = await api.Post("/pos/transactions/checkout", Cart(product, 2, paid: 230));
         Assert.Equal(201, sale.Status);
         Assert.Equal(q.Data["grandTotal"].D(), sale.Data!["grandTotal"].D());

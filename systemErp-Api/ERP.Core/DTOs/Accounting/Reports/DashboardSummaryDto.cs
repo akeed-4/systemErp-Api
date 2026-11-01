@@ -1,0 +1,49 @@
+namespace ERP.Core.DTOs.Accounting;
+
+/// <summary>
+/// مؤشرات لوحة التحكم محسوبة في قاعدة البيانات: أعداد وإجماليات فقط، بدل تنزيل الفواتير والقيود والسندات كاملة إلى الواجهة.
+/// المبالغ بالعملة الأساسية، والفواتير الملغاة مستبعدة، والمرتجعات بالسالب.
+/// </summary>
+public class DashboardSummaryDto
+{
+    public int SalesCount { get; set; }
+    /// <summary>صافي المبيعات قبل الضريبة بعد المرتجعات.</summary>
+    public decimal TotalSales { get; set; }
+    public decimal TotalVatSales { get; set; }
+    public int PurchasesCount { get; set; }
+    /// <summary>إجمالي فواتير المشتريات شامل الضريبة.</summary>
+    public decimal TotalPurchases { get; set; }
+    public int CustomersCount { get; set; }
+    public int SuppliersCount { get; set; }
+    public int ProductsCount { get; set; }
+    public int AccountsCount { get; set; }
+    public int JournalEntriesCount { get; set; }
+    public int VouchersCount { get; set; }
+    /// <summary>آخر تسعة أشهر من الأقدم للأحدث، والشهر بلا حركة يظهر بأصفار.</summary>
+    public List<DashboardMonthDto> Months { get; set; } = new();
+    /// <summary>مؤشرات المعارض؛ فارغة لمنشأة بلا نشاط المعارض.</summary>
+    public DashboardShowroomDto? Showroom { get; set; }
+}
+
+public class DashboardMonthDto
+{
+    /// <summary>yyyy-MM</summary>
+    public string Month { get; set; } = string.Empty;
+    public decimal Sales { get; set; }
+    public decimal Profit { get; set; }
+    public decimal Purchases { get; set; }
+}
+
+public class DashboardShowroomDto
+{
+    public int VehiclesTotal { get; set; }
+    public int VehiclesAvailable { get; set; }
+    public int VehiclesReserved { get; set; }
+    public int VehiclesSold { get; set; }
+    /// <summary>تكلفة السيارات في المخزون (المتاحة والمحجوزة).</summary>
+    public decimal InventoryValuation { get; set; }
+    public int ProcurementCount { get; set; }
+    public int ContractsCount { get; set; }
+    public decimal CashPurchases { get; set; }
+    public decimal CreditPurchases { get; set; }
+}

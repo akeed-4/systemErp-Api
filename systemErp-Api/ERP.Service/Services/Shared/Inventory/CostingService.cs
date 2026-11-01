@@ -60,26 +60,42 @@ public class CostingService : ICostingService
     public Task<RecalculateCostingResultDto> RecalculateAllAsync(CancellationToken ct = default)
         => _tx.RunAsync(token => RecalculateCoreAsync("إعادة تقييم المخزون بإعادة احتساب التكلفة", token), ct);
 
+    /// <summary>أصناف كل دفعة: الأصناف وحركاتها تُحمَّل دفعةً دفعة فلا تُحمَّل حركات المخزون كلها في الذاكرة مرة واحدة.</summary>
+    internal const int BatchSize = 500;
+
     private async Task<RecalculateCostingResultDto> RecalculateCoreAsync(string description, CancellationToken ct)
     {
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
-        var products = await _db.Set<Product>().ToListAsync(ct);
-        var before = InventoryValuation.Snapshot(products);
-        var movements = (await _db.Set<StockMovement>().OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToListAsync(ct))
-            .GroupBy(m => m.ItemId).ToDictionary(g => g.Key, g => g.ToList());
-
+        var changes = new List<(Guid ItemId, decimal Amount)>();
         var updated = 0;
-        foreach (var p in products)
+        Guid? after = null;
+        while (true)
         {
-            if (!movements.TryGetValue(p.Id, out var list)) continue;
-            StockReplay.Apply(p, list, policy);
-            updated++;
-        }
-        await _db.SaveChangesAsync(ct);
+            // ترقيم بالمفتاح (Id > آخر Id) لا بالإزاحة: ثابت وسريع مهما كثرت الأصناف
+            var page = _db.Set<Product>().AsQueryable();
+            if (after is { } last) page = page.Where(p => p.Id.CompareTo(last) > 0);
+            var products = await page.OrderBy(p => p.Id).Take(BatchSize).ToListAsync(ct);
+            if (products.Count == 0) break;
+            after = products[^1].Id;
 
-        var difference = InventoryValuation.Difference(products, before);
-        var entry = await InventoryValuation.PostRevaluationAsync(_db, _posting,
-            products.Select(p => (p.Id, InventoryValuation.Value(p) - before.GetValueOrDefault(p.Id))), description, null, ct);
+            var ids = products.Select(p => p.Id).ToList();
+            var movements = (await _db.Set<StockMovement>().Where(m => ids.Contains(m.ItemId)).OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToListAsync(ct))
+                .GroupBy(m => m.ItemId).ToDictionary(g => g.Key, g => g.ToList());
+            foreach (var p in products)
+            {
+                if (!movements.TryGetValue(p.Id, out var list)) continue;
+                var before = InventoryValuation.Value(p);
+                StockReplay.Apply(p, list, policy);
+                updated++;
+                var change = InventoryValuation.Value(p) - before;
+                if (change != 0) changes.Add((p.Id, change));
+            }
+            await _db.SaveChangesAsync(ct);
+            _db.ChangeTracker.Clear(); // الدفعة حُفظت: لا تبقى كياناتها متتبَّعة فتكبر الذاكرة مع كل دفعة
+        }
+
+        var difference = changes.Sum(c => c.Amount);
+        var entry = await InventoryValuation.PostRevaluationAsync(_db, _posting, changes, description, null, ct);
         return new RecalculateCostingResultDto
         {
             ProductsUpdated = updated, Method = policy.Method, RevaluationAmount = difference, RevaluationEntryNumber = entry?.EntryNumber,

@@ -13,6 +13,12 @@ public class AccountLedgerEntryDto
     public decimal Credit { get; set; }
     public decimal RunningBalance { get; set; }
     public string? ReferenceNumber { get; set; }
+    /// <summary>نوع المستند المصدر للقيد (sales، receipt_voucher، manual...)؛ الواجهة تترجمه إلى اسم السند.</summary>
+    public string? ReferenceType { get; set; }
+    /// <summary>رقم المستند المصدر، أو رقم القيد إن لم يكن له مستند.</summary>
+    public string DocumentNumber { get; set; } = string.Empty;
+    /// <summary>الرصيد الجاري بعملة الحساب (الرصيد ÷ سعر صرف عملة الحساب الحالي).</summary>
+    public decimal RunningBalanceInAccountCurrency { get; set; }
     public Guid? CostCenterId { get; set; }
     public string? CostCenterCode { get; set; }
 }

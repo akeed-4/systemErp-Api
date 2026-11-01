@@ -1,3 +1,4 @@
+using Zomp.EFCore.WindowFunctions.SqlServer;
 using System.Collections.Concurrent;
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Services.Shared;
@@ -87,7 +88,7 @@ public sealed class TenantConnectionResolver : ITenantConnectionResolver
     {
         var builder = new DbContextOptionsBuilder<ErpDbContext>();
         if (_configureCatalog != null && connectionString == CatalogConnectionString) _configureCatalog(builder);
-        else builder.UseSqlServer(connectionString, sql => sql.MigrationsAssembly(typeof(ErpDbContext).Assembly.FullName));
+        else builder.UseSqlServer(connectionString, sql => sql.MigrationsAssembly(typeof(ErpDbContext).Assembly.FullName).UseWindowFunctions());
         if (interceptors.Length > 0) builder.AddInterceptors(interceptors);
         return builder.Options;
     }

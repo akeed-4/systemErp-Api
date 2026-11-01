@@ -17,10 +17,12 @@ public class ReportsController : ErpControllerBase
     private readonly IInventoryReportService _inventory;
     private readonly IPartyAgingService _aging;
     private readonly IAccountingIntegrityService _integrity;
+    private readonly IDashboardService _dashboard;
 
-    public ReportsController(IAccountingReportService accounting, IInventoryReportService inventory, IPartyAgingService aging, IAccountingIntegrityService integrity)
+    public ReportsController(IAccountingReportService accounting, IInventoryReportService inventory, IPartyAgingService aging, IAccountingIntegrityService integrity,
+        IDashboardService dashboard)
     {
-        _aging = aging; _integrity = integrity;
+        _aging = aging; _integrity = integrity; _dashboard = dashboard;
         _accounting = accounting; _inventory = inventory;
     }
 
@@ -28,6 +30,10 @@ public class ReportsController : ErpControllerBase
     /// <summary>مؤشرات لوحة القيادة (FinancialStats).</summary>
     [HttpGet("FinancialStats"), RequireScreen("dashboard")]
     public async Task<IActionResult> Stats(CancellationToken ct) => Success(await _accounting.GetFinancialStatsAsync(ct));
+
+    /// <summary>أعداد وإجماليات لوحة التحكم (showroom=true يضيف مؤشرات المعارض).</summary>
+    [HttpGet("DashboardSummary"), RequireScreen("dashboard")]
+    public async Task<IActionResult> Dashboard([FromQuery] bool showroom, CancellationToken ct) => Success(await _dashboard.GetSummaryAsync(showroom, ct));
 
     [HttpGet("FinancialSummary"), RequireScreen("reports")]
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _accounting.GetFinancialSummaryAsync(ct));
@@ -57,10 +63,11 @@ public class ReportsController : ErpControllerBase
     public async Task<IActionResult> Aging([FromQuery] string type = "receivable", [FromQuery] DateTime? asOf = null, CancellationToken ct = default)
         => Success(await _aging.GetAsync(receivable: !string.Equals(type, "payable", StringComparison.OrdinalIgnoreCase), asOf, ct));
 
-    /// <summary>رأس كشف الحساب (الرصيد الافتتاحي والختامي) مع الحركات كاملة.</summary>
+    /// <summary>رأس كشف الحساب (الرصيد الافتتاحي والختامي) مع الحركات كاملة؛ entries=false يعيد الرأس وحده (الحركات من /Entries).</summary>
     [HttpGet("AccountStatement/{code}"), RequireScreen("reports")]
-    public async Task<IActionResult> Statement(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, [FromQuery] Guid? costCenterId, CancellationToken ct)
-        => Success(await _accounting.GetAccountStatementAsync(code, from, to, module, costCenterId, ct));
+    public async Task<IActionResult> Statement(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? module, [FromQuery] Guid? costCenterId,
+        [FromQuery] bool entries = true, CancellationToken ct = default)
+        => Success(await _accounting.GetAccountStatementAsync(code, from, to, module, costCenterId, entries, ct));
 
     // ---------- تقارير قائمية (DevExtreme loadOptions) ----------
     [HttpGet("TrialBalance"), RequireScreen("reports")]

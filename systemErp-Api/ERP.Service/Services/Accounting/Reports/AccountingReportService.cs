@@ -1,3 +1,4 @@
+using Zomp.EFCore.WindowFunctions;
 using ERP.Service.Services.Shared;
 using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
@@ -58,6 +59,7 @@ public class AccountingReportService : IAccountingReportService
         public string EntryNumber { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string? ReferenceNumber { get; set; }
+        public string? ReferenceType { get; set; }
         public string? Notes { get; set; }
         public Guid? CostCenterId { get; set; }
         public string? CostCenterCode { get; set; }
@@ -76,7 +78,7 @@ public class AccountingReportService : IAccountingReportService
                select new LedgerLine
                {
                    Id = l.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, EntryNumber = e.EntryNumber,
-                   Description = e.Description, ReferenceNumber = e.ReferenceNumber, Notes = l.Notes, CostCenterId = l.CostCenterId,
+                   Description = e.Description, ReferenceNumber = e.ReferenceNumber, ReferenceType = e.ReferenceType, Notes = l.Notes, CostCenterId = l.CostCenterId,
                    CostCenterCode = CostCenters.Where(c => c.Id == l.CostCenterId).Select(c => c.Code).FirstOrDefault(),
                };
     }
@@ -96,34 +98,76 @@ public class AccountingReportService : IAccountingReportService
     /// حركات الحساب في الفترة، والرصيد الجاري لكل حركة يُحسب في قاعدة البيانات: مجموع كل ما سبقها (ومنه ما قبل الفترة)
     /// بترتيب التاريخ ثم رقم القيد ثم السطر.
     /// </summary>
-    private IQueryable<AccountLedgerEntryDto> StatementEntries(Account account, DateTime? from, DateTime? to, string? module, List<Guid>? costCenters)
+    private IQueryable<AccountLedgerEntryDto> StatementEntries(Account account, DateTime? from, DateTime? to, string? module, List<Guid>? costCenters, decimal rate)
     {
-        var debitNature = account.IsDebitNature;
         var all = AccountLines(account.Code, module, costCenters);
-        return InPeriod(all, from, to).Select(x => new AccountLedgerEntryDto
+        return from x in InPeriod(all, @from, to)
+               join w in RunningBalances(account, module, costCenters) on x.Id equals w.LineId
+               select new AccountLedgerEntryDto
+               {
+                   Id = x.Id, Date = x.Date, EntryNumber = x.EntryNumber, Description = string.IsNullOrWhiteSpace(x.Notes) ? x.Description : x.Notes!,
+                   Debit = x.Debit, Credit = x.Credit, ReferenceNumber = x.ReferenceNumber, CostCenterId = x.CostCenterId, CostCenterCode = x.CostCenterCode,
+                   ReferenceType = x.ReferenceType ?? "manual", DocumentNumber = x.ReferenceNumber ?? x.EntryNumber,
+                   RunningBalance = w.Running, RunningBalanceInAccountCurrency = w.Running / rate,
+               };
+    }
+
+    private sealed class RunningRow
+    {
+        public Guid LineId { get; set; }
+        public decimal Running { get; set; }
+    }
+
+    /// <summary>
+    /// الرصيد الجاري لكل سطر من أسطر الحساب بدالة نافذة (SUM() OVER) تمرّ على الأسطر مرة واحدة، بترتيب التاريخ ثم رقم القيد ثم السطر،
+    /// بدل جمع كل ما سبق السطر لكل سطر على حدة. تُحسب على أسطر <see cref="AccountLines"/> نفسها (المنشأة والوحدة ومراكز التكلفة)
+    /// فتشمل ما قبل الفترة، ثم تُربط بأسطر الفترة: يبقى الرصيد صحيحاً مع الترقيم والفرز والفلترة.
+    /// EF.Functions.Sum/Over من Zomp.EFCore.WindowFunctions (مسجّلة بـ UseWindowFunctions في إعداد SQL Server). الإطار ROWS لا RANGE
+    /// الافتراضي: RANGE يرفض مفتاح ترتيب يتجاوز 900 بايت (رقم القيد نص طويل)، والترتيب فريد بالسطر فالنتيجة واحدة.
+    /// </summary>
+    private IQueryable<RunningRow> RunningBalances(Account account, string? module, List<Guid>? costCenters)
+    {
+        var sign = account.IsDebitNature ? 1m : -1m;
+        return AccountLines(account.Code, module, costCenters).Select(x => new RunningRow
         {
-            Id = x.Id, Date = x.Date, EntryNumber = x.EntryNumber, Description = string.IsNullOrWhiteSpace(x.Notes) ? x.Description : x.Notes!,
-            Debit = x.Debit, Credit = x.Credit, ReferenceNumber = x.ReferenceNumber, CostCenterId = x.CostCenterId, CostCenterCode = x.CostCenterCode,
-            RunningBalance = all.Where(p => p.Date < x.Date || (p.Date == x.Date
-                    && (p.EntryNumber.CompareTo(x.EntryNumber) < 0 || (p.EntryNumber == x.EntryNumber && p.Id.CompareTo(x.Id) <= 0))))
-                .Sum(p => debitNature ? p.Debit - p.Credit : p.Credit - p.Debit),
+            LineId = x.Id,
+            Running = EF.Functions.Sum(sign * (x.Debit - x.Credit), EF.Functions.Over().OrderBy(x.Date).ThenBy(x.EntryNumber).ThenBy(x.Id).Rows().FromUnbounded().ToCurrentRow()) ?? 0m,
         });
     }
 
+    /// <summary>عملة الحساب وسعر صرفها الحالي (العملة الأساسية بسعر 1 إن لم تُحدَّد للحساب أو لم توجد).</summary>
+    private async Task<(string Code, decimal Rate)> AccountCurrencyAsync(Account account, CancellationToken ct)
+    {
+        var currencies = _db.Set<Currency>().AsNoTracking();
+        var baseCode = await currencies.Where(c => c.IsBaseCurrency).Select(c => c.Code).FirstOrDefaultAsync(ct) ?? "SAR";
+        var code = string.IsNullOrWhiteSpace(account.Currency) ? baseCode : account.Currency.Trim().ToUpperInvariant();
+        if (code == baseCode) return (code, 1m);
+        var rate = await currencies.Where(c => c.Code == code).Select(c => (decimal?)c.ExchangeRate).FirstOrDefaultAsync(ct);
+        return rate is > 0 ? (code, rate.Value) : (baseCode, 1m);
+    }
+
     public async Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, string? module = null,
-        Guid? costCenterId = null, CancellationToken ct = default)
+        Guid? costCenterId = null, bool includeEntries = true, CancellationToken ct = default)
     {
         var account = await AccountAsync(accountCode, ct);
         var debitNature = account.IsDebitNature;
+        var (currency, rate) = await AccountCurrencyAsync(account, ct);
         var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
         var all = AccountLines(account.Code, module, centers);
         var start = from?.Date;
         var opening = start.HasValue ? await all.Where(x => x.Date < start).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct) : 0m;
-        var movement = await InPeriod(all, from, to).SumAsync(x => debitNature ? x.Debit - x.Credit : x.Credit - x.Debit, ct);
+        var period = await InPeriod(all, from, to).GroupBy(x => 1)
+            .Select(g => new { Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) }).FirstOrDefaultAsync(ct);
+        decimal debit = period?.Debit ?? 0m, credit = period?.Credit ?? 0m;
+        var closing = opening + (debitNature ? debit - credit : credit - debit);
         return new AccountStatementDto
         {
-            AccountCode = account.Code, AccountNameAr = account.NameAr, OpeningBalance = opening, ClosingBalance = opening + movement, CostCenterId = costCenterId,
-            Entries = await StatementEntries(account, from, to, module, centers).OrderBy(x => x.Date).ThenBy(x => x.EntryNumber).ThenBy(x => x.Id).ToListAsync(ct),
+            AccountCode = account.Code, AccountNameAr = account.NameAr, AccountNameEn = account.NameEn, IsDebitNature = debitNature,
+            Currency = currency, ExchangeRate = rate, OpeningBalance = opening, PeriodDebit = debit, PeriodCredit = credit,
+            ClosingBalance = closing, ClosingBalanceInAccountCurrency = closing / rate, CostCenterId = costCenterId,
+            Entries = includeEntries
+                ? await StatementEntries(account, from, to, module, centers, rate).OrderBy(x => x.Date).ThenBy(x => x.EntryNumber).ThenBy(x => x.Id).ToListAsync(ct)
+                : new(),
         };
     }
 
@@ -328,8 +372,12 @@ public class AccountingReportService : IAccountingReportService
 
     public async Task<LoadResult> LoadAccountStatementEntriesAsync(string accountCode, DateTime? from, DateTime? to, DataSourceLoadOptions options, string? module = null,
         Guid? costCenterId = null, CancellationToken ct = default)
-        => await ReportLoader.LoadAsync(StatementEntries(await AccountAsync(accountCode, ct), from, to, module, await CostCenterRules.ScopeAsync(_db, costCenterId, ct)), options, nameof(AccountLedgerEntryDto.Id), ct,
+    {
+        var account = await AccountAsync(accountCode, ct);
+        var (_, rate) = await AccountCurrencyAsync(account, ct);
+        return await ReportLoader.LoadAsync(StatementEntries(account, from, to, module, await CostCenterRules.ScopeAsync(_db, costCenterId, ct), rate), options, nameof(AccountLedgerEntryDto.Id), ct,
             EntityLoader.Asc(nameof(AccountLedgerEntryDto.Date)), EntityLoader.Asc(nameof(AccountLedgerEntryDto.EntryNumber)));
+    }
 
     public Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)
     {

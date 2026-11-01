@@ -8,7 +8,7 @@ namespace ERP.Core.Contracts.Accounting;
 
 public interface IAccountingReportService
 {
-    Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, string? module = null, Guid? costCenterId = null, CancellationToken ct = default);
+    Task<AccountStatementDto> GetAccountStatementAsync(string accountCode, DateTime? from, DateTime? to, string? module = null, Guid? costCenterId = null, bool includeEntries = true, CancellationToken ct = default);
     Task<FinancialSummaryDto> GetFinancialSummaryAsync(CancellationToken ct = default);
     Task<FinancialStatsDto> GetFinancialStatsAsync(CancellationToken ct = default);
     Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, string? module = null, CancellationToken ct = default);

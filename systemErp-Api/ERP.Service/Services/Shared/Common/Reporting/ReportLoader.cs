@@ -6,15 +6,19 @@ namespace ERP.Service.Services.Shared;
 /// <summary>
 /// يطبّق خيارات DevExtreme (فلترة، فرز، تجميع، ملخصات، ترقيم) على استعلام التقرير نفسه، فتُنفَّذ كلها في SQL ولا تُحمَّل
 /// إلا الصفوف المطلوبة. كل تقارير النظام تمرّ من هنا فتتصرّف بشكل موحّد: النتيجة كائن LoadResult
-/// (data / totalCount / summary / groupCount) الذي يتوقعه CustomStore. بخلاف <see cref="EntityLoader"/> لا يُفرض حدّ للصفحة:
-/// التقرير بلا take يعود كاملاً.
+/// (data / totalCount / summary / groupCount) الذي يتوقعه CustomStore. الصفحة بحد أقصى <see cref="MaxRows"/> صف
+/// (أعلى من حد القوائم في <see cref="EntityLoader"/>: الطباعة والتصدير تطلب صفحات كبيرة).
 /// </summary>
 public static class ReportLoader
 {
+    /// <summary>أقصى صفوف في الطلب الواحد: طلب بلا take أو بأكبر منه يُقصر عليه، فلا يسحب طلب واحد التقرير كله مهما كبر.</summary>
+    public const int MaxRows = 5000;
+
     public static async Task<LoadResult> LoadAsync<T>(IQueryable<T> rows, DataSourceLoadOptions? options, string primaryKey,
         CancellationToken ct = default, params SortingInfo[] defaultSort)
     {
         options ??= new DataSourceLoadOptions();
+        options.Take = options.Take <= 0 ? MaxRows : Math.Min(options.Take, MaxRows);
         options.PrimaryKey = new[] { primaryKey }; // فرز ثانوي ثابت حتى لا تتكرر الصفوف أو تسقط بين الصفحات
         if (options.Sort == null || options.Sort.Length == 0) options.Sort = defaultSort;
         try

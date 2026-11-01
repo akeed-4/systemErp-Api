@@ -63,7 +63,7 @@ public class ArchitectureTests
         Assert.All(entities, e =>
         {
             // وراثة TPC (الفواتير وبنودها): المرشّح على الجذر ويسري على جداوله كلها
-            Assert.True(e.GetRootType().GetQueryFilter() != null, $"{e.ClrType.Name} بلا مرشّح منشأة");
+            Assert.True(e.GetRootType().GetDeclaredQueryFilters().Count > 0, $"{e.ClrType.Name} بلا مرشّح منشأة");
             Assert.Contains(e.GetIndexes(), i => i.Properties.First().Name == nameof(BaseEntity.TenantId));
         });
     }

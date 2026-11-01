@@ -24,7 +24,7 @@ public class InvoicePdfRenderer : IInvoicePdfRenderer
         // رخصة المجتمع: مجانية لمن يقل دخله السنوي عن مليون دولار (راجِع شروط QuestPDF قبل الإنتاج)
         QuestPDF.Settings.License = LicenseType.Community;
         // منذ 2026.9 لا تُستعمل خطوط النظام إلا صراحةً، والخط الغائب يوقف التوليد بدل استبداله
-        QuestPDF.Settings.UseEnvironmentFonts = true;
+        QuestPDF.Settings.UseSystemFonts = true;
     }
 
     private readonly ErpDbContext _db;

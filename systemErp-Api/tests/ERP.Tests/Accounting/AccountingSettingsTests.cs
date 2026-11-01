@@ -32,6 +32,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Empty_settings_resolve_to_the_default_chart_accounts()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         var settings = (await api.Get("/accounting-settings")).Data!;
         Assert.Equal("perpetual", settings["inventoryMethod"].S());
         var effective = settings["effectiveAccounts"]!;
@@ -47,6 +48,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Accounts_are_validated_before_saving()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         var (_, customerAccount) = await SeedCustomerAsync(api);
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "9999" })).Status);        // غير موجود
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "114" })).Status);         // حساب رئيسي
@@ -60,6 +62,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Documents_post_to_configured_accounts_and_the_line_account_wins()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1145", "asset", "114");
         await AccountAsync(api, "516", "expense", "51");
         await AccountAsync(api, "414", "revenue", "41");
@@ -95,9 +98,10 @@ public class AccountingSettingsTests : TestBase
     public async Task Inventory_count_posts_shortage_and_surplus_to_their_accounts()
     {
         var api = await NewTenantAsync();
-        await AccountAsync(api, "531", "expense", "52");
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
+        await AccountAsync(api, "539", "expense", "52");
         await AccountAsync(api, "424", "revenue", "42");
-        Assert.Equal(200, (await api.Put("/accounting-settings", new { inventoryShortageAccountCode = "531", inventorySurplusAccountCode = "424" })).Status);
+        Assert.Equal(200, (await api.Put("/accounting-settings", new { inventoryShortageAccountCode = "539", inventorySurplusAccountCode = "424" })).Status);
         var shortItem = await SeedProductAsync(api, "S1", stock: 10, cost: 40);
         var extraItem = await SeedProductAsync(api, "S2", stock: 10, cost: 30);
 
@@ -112,7 +116,7 @@ public class AccountingSettingsTests : TestBase
         Assert.Equal(200, approved.Status);
 
         var lines = await JournalLinesAsync(api, approved.Data!["journalEntryId"].S());
-        Assert.Equal(80m, Debit(lines, "531"));
+        Assert.Equal(80m, Debit(lines, "539"));
         Assert.Equal(30m, Credit(lines, "424"));
         Assert.DoesNotContain(lines, l => l!["accountCode"].S() == "513");
     }
@@ -121,8 +125,9 @@ public class AccountingSettingsTests : TestBase
     public async Task Vehicle_count_differences_keep_the_inventory_adjustment_account()
     {
         var api = await NewTenantAsync();
-        await AccountAsync(api, "531", "expense", "52");
-        Assert.Equal(200, (await api.Put("/accounting-settings", new { inventoryShortageAccountCode = "531" })).Status);
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
+        await AccountAsync(api, "539", "expense", "52");
+        Assert.Equal(200, (await api.Put("/accounting-settings", new { inventoryShortageAccountCode = "539" })).Status);
         var vin = Client.NewVin('4');
         Assert.Equal(201, (await api.Post("/vehicles", new { chassisNumber = vin, brandNameAr = "تويوتا", modelNameAr = "كامري", year = 2025,
             purchasePrice = 60000, sellingPrice = 70000, vatMode = "standard_15", location = "المعرض" })).Status);
@@ -133,13 +138,14 @@ public class AccountingSettingsTests : TestBase
         var approved = await api.Post($"/inventorycountapprovals/{approval["id"].S()}/approve", new { });
         var lines = await JournalLinesAsync(api, approved.Data!["journalEntryId"].S());
         Assert.Equal(60000m, Debit(lines, "513"));
-        Assert.DoesNotContain(lines, l => l!["accountCode"].S() == "531");
+        Assert.DoesNotContain(lines, l => l!["accountCode"].S() == "539");
     }
 
     [Fact]
     public async Task Inventory_and_vat_accounts_are_locked_after_any_movement_even_at_zero_balance()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1145", "asset", "114");
         await AccountAsync(api, "219", "liability", "21");
         var product = await SeedProductAsync(api, stock: 1, cost: 40);
@@ -164,6 +170,7 @@ public class AccountingSettingsTests : TestBase
         Assert.Null(saved.Data["inventoryMethodEffectiveFrom"]); // قبل أول قيد: منذ البداية
 
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         foreach (var code in new[] { "516", "517", "518" }) await AccountAsync(api, code, "expense", "51");
         await SeedProductAsync(api); // قيد وحركة مخزون اليوم
         var thisYear = new DateTime(DateTime.UtcNow.Year, 1, 1);
@@ -183,6 +190,7 @@ public class AccountingSettingsTests : TestBase
     private async Task<Client> PeriodicReadyTenantAsync()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         foreach (var code in new[] { "516", "517", "518" }) await AccountAsync(api, code, "expense", "51");
         return api;
     }
@@ -230,6 +238,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Conflicting_cash_showroom_and_shared_balance_sheet_accounts_are_rejected()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1132", "asset", "113");
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "1111" })).Status); // صندوق
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1112" })).Status);  // بنك
@@ -248,6 +257,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Editing_and_deleting_an_adjustment_stays_on_the_configured_inventory_account()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1145", "asset", "114");
         Assert.Equal(200, (await api.Put("/accounting-settings", new { inventoryAccountCode = "1145" })).Status);
         var product = await SeedProductAsync(api, stock: 10, cost: 40);
@@ -266,6 +276,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Configured_inventory_account_reconciles_after_sales_and_revaluation()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1145", "asset", "114");
         Assert.Equal(200, (await api.Put("/accounting-settings", new { inventoryAccountCode = "1145" })).Status);
         var product = await SeedProductAsync(api, stock: 10, cost: 40);
@@ -287,6 +298,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Purchase_return_follows_the_manual_inventory_account_of_its_original()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1146", "asset", "114");
         var product = await SeedProductAsync(api, stock: 0);
         var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
@@ -307,6 +319,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Purchases_vouchers_and_the_vat_report_use_the_configured_vat_accounts()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1132", "asset", "113");
         await AccountAsync(api, "219", "liability", "21");
         Assert.Equal(200, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1132", outputVatAccountCode = "219" })).Status);
@@ -342,6 +355,7 @@ public class AccountingSettingsTests : TestBase
     public async Task Vat_return_separates_purchase_categories_net_of_returns_without_extra_tax_accounts()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1132", "asset", "113");
         Assert.Equal(200, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1132" })).Status);
         var exemptItem = await SeedProductAsync(api, "EX", stock: 0);

@@ -329,13 +329,13 @@ public class AccountingGapsTests : TestBase
         var opening = await api.Post("/stockmovements/adjust", Adjust("adjustment_in", 10, 40, "33"));
         Assert.Equal(200, opening.Status);
         Assert.NotNull(opening.Data!["journalEntryId"]);
-        Assert.Equal(400, await BalanceAsync(api, "1141")); Assert.Equal(400, await BalanceAsync(api, "33"));
+        Assert.Equal(400, await BalanceAsync(api, MainSiteInventory)); Assert.Equal(400, await BalanceAsync(api, "33"));
 
         // خصم تالف بمتوسط التكلفة على فروقات الجرد (الحساب الافتراضي)
         var damaged = await api.Post("/stockmovements/adjust", Adjust("adjustment_out", 2, 0));
-        Assert.Equal(320, await BalanceAsync(api, "1141")); Assert.Equal(80, await BalanceAsync(api, "513"));
+        Assert.Equal(320, await BalanceAsync(api, MainSiteInventory)); Assert.Equal(80, await BalanceAsync(api, "513"));
         var stock = (await api.Get($"/products/{product}")).Data!;
-        Assert.Equal(await BalanceAsync(api, "1141"), stock["currentStock"].D() * stock["averageCost"].D()); // الدفاتر = قيمة المخزون
+        Assert.Equal(await BalanceAsync(api, MainSiteInventory), stock["currentStock"].D() * stock["averageCost"].D()); // الدفاتر = قيمة المخزون
 
         // قيد التسوية يُدار من حركتها لا من شاشة القيود
         Assert.Equal(409, (await api.Post($"/journalentries/{damaged.Data!["journalEntryId"].S()}/reverse")).Status);
@@ -345,7 +345,7 @@ public class AccountingGapsTests : TestBase
         Assert.Equal(500, await BalanceAsync(api, "33"));
         Assert.Equal(200, (await api.Delete($"/stockmovements/{damaged.Data["id"].S()}")).Status);
         Assert.Equal(0, await BalanceAsync(api, "513"));
-        Assert.Equal(500, await BalanceAsync(api, "1141"));
+        Assert.Equal(500, await BalanceAsync(api, MainSiteInventory));
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 

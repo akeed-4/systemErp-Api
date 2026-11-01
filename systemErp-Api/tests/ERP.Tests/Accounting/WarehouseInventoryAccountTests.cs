@@ -16,7 +16,12 @@ public class WarehouseInventoryAccountTests : TestBase
     {
         var w = await api.Post("/warehouses", new { code, nameAr = "مستودع " + code, nameEn = code, location = "الرياض", status = "active", inventoryAccountCode });
         Assert.Equal(201, w.Status);
-        return w.Data!["id"].G();
+        var id = w.Data!["id"].G();
+        // بلا حساب: يُنشأ للموقع حسابه تلقائياً، ثم يُعاد إلى حساب الإعدادات كموقع قائم قبل حسابات المواقع
+        if (inventoryAccountCode == null)
+            Assert.Equal(200, (await api.Put($"/warehouses/{id}", new { code, nameAr = "مستودع " + code, nameEn = code, location = "الرياض", status = "active",
+                inventoryAccountCode = "" })).Status);
+        return id;
     }
 
     private static async Task<Guid> DefaultWarehouseAsync(Client api)
@@ -42,10 +47,11 @@ public class WarehouseInventoryAccountTests : TestBase
         Assert.True(items["difference"].D() == 0, items.ToJsonString());
     }
 
-    /// <summary>منشأة بمستودع افتراضي بلا حساب (حساب الإعدادات 1141) ومستودع فرعي بحساب 1145.</summary>
+    /// <summary>منشأة بمستودع افتراضي بلا حساب (حساب الإعدادات 1141، كالمنشآت القائمة قبل حسابات المواقع) ومستودع فرعي بحساب 1145.</summary>
     private async Task<(Client Api, Guid Main, Guid Branch, Guid Item)> SetupAsync()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
 
         var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         await AccountAsync(api, "1145", "asset", "114");
@@ -137,6 +143,7 @@ public class WarehouseInventoryAccountTests : TestBase
     public async Task Periodic_ending_inventory_is_split_by_warehouse_account()
     {
         var api = await NewTenantAsync();
+        await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
 
         var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         await AccountAsync(api, "1145", "asset", "114");

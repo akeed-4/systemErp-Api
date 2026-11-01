@@ -39,6 +39,13 @@ public class PurchaseExpenseType : BaseEntity
     /// <summary>المبلغ كله ضريبة (مثل ضريبة الاستيراد المدفوعة للجمارك): لا يدخل التكلفة ولا تُسجَّل عليه ضريبة.</summary>
     public bool IsInputTax { get; set; }
     public PurchaseCostAllocationMethod DefaultAllocationMethod { get; set; } = PurchaseCostAllocationMethod.ByValue;
+    /// <summary>
+    /// يدخل في تكلفة الأصناف (جمارك، تخليص، رسوم موانئ): يُوزَّع على أسطر الفواتير ويرفع تكلفتها. وغيره (شحن، نقل، تأمين)
+    /// مصروف على حسابه في قيد السند، بلا أثر على التكلفة.
+    /// </summary>
+    public bool CapitalizeToItemCost { get; set; } = true;
+    /// <summary>حساب مصروف النوع إن لم يدخل التكلفة؛ فارغ = مصاريف شحن ونقل المشتريات (531).</summary>
+    public string? ExpenseAccountCode { get; set; }
     public bool IsSystem { get; set; }
     public bool IsActive { get; set; } = true;
 }
@@ -115,6 +122,12 @@ public class PurchaseLandedCostLine : BaseEntity
     public decimal CostAmount { get; set; }
     /// <summary>ضريبة المدخلات المستردة بالعملة الأساسية.</summary>
     public decimal InputVatAmount { get; set; }
+    /// <summary>يدخل في تكلفة الأصناف (من نوعه وقت الحفظ). غير الداخل: CostAmount صفر ومبلغه في ExpenseAmount.</summary>
+    public bool CapitalizeToItemCost { get; set; } = true;
+    /// <summary>ما يُقيَّد مصروفاً بالعملة الأساسية (المبلغ + الضريبة غير المستردة) لنوع لا يدخل التكلفة.</summary>
+    public decimal ExpenseAmount { get; set; }
+    /// <summary>حساب المصروف للسطر غير الداخل في التكلفة (يُثبَّت عند الحفظ فيُعكس الإلغاء على الحساب نفسه).</summary>
+    public string? ExpenseAccountCode { get; set; }
     public PurchaseCostAllocationMethod AllocationMethod { get; set; }
 
     public virtual PurchaseLandedCost Voucher { get; set; } = null!;

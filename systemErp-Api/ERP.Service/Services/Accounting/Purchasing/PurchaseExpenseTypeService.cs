@@ -14,21 +14,22 @@ public static class PurchaseExpenseTypeSeed
     private const PurchaseCostAllocationMethod Val = PurchaseCostAllocationMethod.ByValue;
     private const PurchaseCostAllocationMethod Wt = PurchaseCostAllocationMethod.ByWeight;
 
-    private static readonly (string Code, string Ar, string En, VatCategory Vat, PurchaseCostAllocationMethod Method, bool IsInputTax)[] Seeds =
+    // آخر قيمة: يدخل في تكلفة الأصناف. الجمارك والتخليص ورسوم الموانئ تدخلها؛ الشحن والنقل والتأمين مصروف (531)
+    private static readonly (string Code, string Ar, string En, VatCategory Vat, PurchaseCostAllocationMethod Method, bool IsInputTax, bool Capitalize)[] Seeds =
     {
-        ("FREIGHT", "شحن", "Freight", VatCategory.Standard, Val, false),
-        ("INLAND_TRANSPORT", "نقل داخلي", "Inland Transport", VatCategory.Standard, Wt, false),
-        ("INSURANCE", "تأمين الشحنة", "Shipment Insurance", VatCategory.Standard, Val, false),
-        ("CUSTOMS_DUTY", "رسوم جمركية", "Customs Duty", VatCategory.OutOfScope, Val, false),
-        ("IMPORT_VAT", "ضريبة استيراد", "Import VAT", VatCategory.Standard, Val, true),
-        ("CUSTOMS_CLEARANCE", "تخليص جمركي", "Customs Clearance", VatCategory.Standard, Val, false),
-        ("PORT_FEES", "رسوم موانئ", "Port Fees", VatCategory.Standard, Val, false),
+        ("FREIGHT", "شحن", "Freight", VatCategory.Standard, Val, false, false),
+        ("INLAND_TRANSPORT", "نقل داخلي", "Inland Transport", VatCategory.Standard, Wt, false, false),
+        ("INSURANCE", "تأمين الشحنة", "Shipment Insurance", VatCategory.Standard, Val, false, false),
+        ("CUSTOMS_DUTY", "رسوم جمركية", "Customs Duty", VatCategory.OutOfScope, Val, false, true),
+        ("IMPORT_VAT", "ضريبة استيراد", "Import VAT", VatCategory.Standard, Val, true, true),
+        ("CUSTOMS_CLEARANCE", "تخليص جمركي", "Customs Clearance", VatCategory.Standard, Val, false, true),
+        ("PORT_FEES", "رسوم موانئ", "Port Fees", VatCategory.Standard, Val, false, true),
     };
 
     public static IEnumerable<PurchaseExpenseType> Build() => Seeds.Select(s => new PurchaseExpenseType
     {
         Code = s.Code, NameAr = s.Ar, NameEn = s.En, VatCategory = s.Vat, DefaultAllocationMethod = s.Method,
-        IsInputTax = s.IsInputTax, IsVatRecoverable = true, IsSystem = true, IsActive = true,
+        IsInputTax = s.IsInputTax, CapitalizeToItemCost = s.Capitalize, IsVatRecoverable = true, IsSystem = true, IsActive = true,
     });
 
     public static async Task EnsureAsync(ErpDbContext db, CancellationToken ct)
@@ -61,7 +62,7 @@ public class PurchaseExpenseTypeService : IPurchaseExpenseTypeService
         var code = Validate(d);
         if (await _db.Set<PurchaseExpenseType>().AnyAsync(t => t.Code == code, ct)) throw new ConflictException(Messages.PurchaseExpenseTypeCodeExists);
         var type = new PurchaseExpenseType { Code = code };
-        Apply(d, type);
+        await ApplyAsync(d, type, ct);
         _db.Add(type);
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<PurchaseExpenseTypeDto>(type);
@@ -75,7 +76,7 @@ public class PurchaseExpenseTypeService : IPurchaseExpenseTypeService
         if (type.IsSystem ? code != type.Code : code != type.Code && await _db.Set<PurchaseExpenseType>().AnyAsync(t => t.Code == code, ct))
             throw new ConflictException(Messages.PurchaseExpenseTypeCodeExists);
         type.Code = code;
-        Apply(d, type);
+        await ApplyAsync(d, type, ct);
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<PurchaseExpenseTypeDto>(type);
     }
@@ -91,11 +92,18 @@ public class PurchaseExpenseTypeService : IPurchaseExpenseTypeService
         return code;
     }
 
-    private static void Apply(SavePurchaseExpenseTypeDto d, PurchaseExpenseType type)
+    private async Task ApplyAsync(SavePurchaseExpenseTypeDto d, PurchaseExpenseType type, CancellationToken ct)
     {
         type.NameAr = d.NameAr.Trim();
         type.NameEn = string.IsNullOrWhiteSpace(d.NameEn) ? type.NameAr : d.NameEn.Trim();
         type.VatCategory = d.VatCategory; type.IsVatRecoverable = d.IsVatRecoverable; type.IsInputTax = d.IsInputTax;
         type.DefaultAllocationMethod = d.DefaultAllocationMethod; type.IsActive = d.IsActive;
+        type.CapitalizeToItemCost = d.CapitalizeToItemCost;
+        // حساب مصروف النوع (لما لا يدخل التكلفة): حساب مصروفات فرعي غير مرتبط بطرف؛ فارغ = 531
+        var account = string.IsNullOrWhiteSpace(d.ExpenseAccountCode) ? null : d.ExpenseAccountCode.Trim();
+        if (account != null && !await _db.Set<Account>().AnyAsync(a => a.Code == account && a.Type == AccountCategory.Expense && a.LinkedEntityType == null
+                && !_db.Set<Account>().Any(c => c.ParentCode == a.Code), ct))
+            throw new ValidationFailedException(string.Format(Messages.PurchaseExpenseTypeAccountInvalid, account));
+        type.ExpenseAccountCode = account;
     }
 }

@@ -108,7 +108,7 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
                     a.UnitCostIncrease = Math.Round(a.Amount / a.NetQuantity, 4);
                 }
                 var increases = allocations.GroupBy(a => a.StockMovementId!.Value).ToDictionary(g => g.Key, g => g.Sum(a => a.UnitCostIncrease));
-                effect = await ApplyCostAsync(increases, token);
+                effect = await ApplyCostAsync(increases, voucher, $"سند تكاليف إضافية للمشتريات {voucher.VoucherNumber}", token);
             }
             else
             {
@@ -139,7 +139,7 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
                 // تُعاد تكلفة الحركات بما رُفعت به تماماً، والقيد المعاكس يُحسب بأثر ذلك الآن (قد بيع بعد الاعتماد ما كان مخزوناً)
                 var increases = voucher.Lines.SelectMany(l => l.Allocations).Where(a => a.StockMovementId.HasValue)
                     .GroupBy(a => a.StockMovementId!.Value).ToDictionary(g => g.Key, g => -g.Sum(a => a.UnitCostIncrease));
-                var effect = await ApplyCostAsync(increases, token);
+                var effect = await ApplyCostAsync(increases, voucher, $"إلغاء سند تكاليف إضافية للمشتريات {voucher.VoucherNumber}", token);
                 var posted = await PostAsync(voucher, effect, sign: -1, SaudiTime.Today, CancelSource,
                     $"إلغاء سند تكاليف إضافية للمشتريات {voucher.VoucherNumber}", token);
                 voucher.CancelJournalEntryId = posted.EntryId;
@@ -227,7 +227,14 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
                 // ضريبة الاستيراد: مبلغها كله ضريبة مدخلات (أو تكلفة إن لم تُسترد)؛ وغيرها: المبلغ تكلفة وضريبته مدخلات إن استُردت
                 CostAmount = type.IsInputTax ? (type.IsVatRecoverable ? 0 : baseAmount) : baseAmount + (type.IsVatRecoverable ? 0 : baseVat),
                 InputVatAmount = type.IsInputTax ? (type.IsVatRecoverable ? baseAmount : 0) : (type.IsVatRecoverable ? baseVat : 0),
+                CapitalizeToItemCost = type.CapitalizeToItemCost,
             };
+            // نوع لا يدخل تكلفة الأصناف (شحن، نقل، تأمين): مبلغه مصروف على حساب النوع في قيد السند، ولا يُوزَّع على الأصناف
+            if (!type.CapitalizeToItemCost)
+            {
+                (line.ExpenseAmount, line.CostAmount) = (line.CostAmount, 0);
+                line.ExpenseAccountCode = type.ExpenseAccountCode ?? DefaultAccounts.PurchaseFreightExpense;
+            }
             if (line.CostAmount > 0)
             {
                 var shares = Allocate(method, line.CostAmount, targets, src.Manual);
@@ -375,7 +382,8 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
     /// يغيّر تكلفة حركات الشراء ويعيد بناء تكلفة أصنافها. التغيّر يُحسب بإعادة البناء قبل التغيير وبعده (فلا يدخل فيه أي فرق سابق
     /// بين التكلفة الحية وحركاتها) ثم يُضاف للمتوسط الحي. يُرجع تغيّر قيمة كل صنف كما يراه حساب المخزون.
     /// </summary>
-    private async Task<(Dictionary<Guid, decimal> ValueChange, CostingMethod Method)> ApplyCostAsync(Dictionary<Guid, decimal> increases, CancellationToken ct)
+    private async Task<(Dictionary<Guid, decimal> ValueChange, CostingMethod Method)> ApplyCostAsync(Dictionary<Guid, decimal> increases,
+        PurchaseLandedCost voucher, string notes, CancellationToken ct)
     {
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
         var ids = increases.Keys.ToList();
@@ -395,6 +403,7 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
                 product.AverageCost = Math.Max(0, Math.Round(product.AverageCost + delta / product.CurrentStock, 4));
             if (after.LastPurchaseCost != before.LastPurchaseCost) product.LastPurchaseCost = after.LastPurchaseCost;
             change[itemId] = InventoryValuation.Value(product) - liveBefore;
+            InventoryValuation.AddRevaluation(_db, product, change[itemId], voucher.VoucherNumber, notes, voucher.Id); // أثر السند في سجل الصنف
         }
         await _db.SaveChangesAsync(ct);
         return (change, policy.Method);
@@ -440,6 +449,9 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
             expensed = cost - inventory;
             if (expensed != 0) Add(expensedAccount, expensed);
         }
+        // أنواع لا تدخل التكلفة: كل سطر على حساب مصروفه، في القيد نفسه (الجرد الدوري أيضاً: مصروف الفترة لا مشتريات)
+        foreach (var line in v.Lines.Where(l => l.ExpenseAmount != 0))
+            Add(line.ExpenseAccountCode ?? DefaultAccounts.PurchaseFreightExpense, sign * line.ExpenseAmount);
         if (v.BaseInputVat > 0) Add(accounts.InputVat(), sign * v.BaseInputVat);
         var payable = v.Lines.Sum(l => l.BaseAmount + l.BaseVatAmount);
         var payee = v.Payee switch

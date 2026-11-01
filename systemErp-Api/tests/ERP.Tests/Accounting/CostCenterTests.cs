@@ -132,7 +132,7 @@ public class CostCenterTests : TestBase
         var lines = await EntryLinesAsync(api, sale.Data["journalEntryId"].S());
         Assert.Equal(200, Amount(lines, "411", a, "credit")); Assert.Equal(100, Amount(lines, "411", b, "credit"));
         Assert.Equal(80, Amount(lines, "511", a, "debit")); Assert.Equal(40, Amount(lines, "511", b, "debit"));
-        Assert.Equal(80, Amount(lines, "1141", a, "credit")); Assert.Equal(40, Amount(lines, "1141", b, "credit"));
+        Assert.Equal(80, Amount(lines, MainSiteInventory, a, "credit")); Assert.Equal(40, Amount(lines, MainSiteInventory, b, "credit"));
         // النقد والضريبة لا يُنسبان لمركز
         Assert.Equal(345, Amount(lines, "1111", null, "debit")); Assert.Equal(45, Amount(lines, "213", null, "credit"));
         Assert.Equal(lines.Sum(l => l!["debit"].D()), lines.Sum(l => l!["credit"].D()));
@@ -160,17 +160,17 @@ public class CostCenterTests : TestBase
         var purchase = await api.PostInvoice(Purchase());
         Assert.Equal(201, purchase.Status);
         var lines = await EntryLinesAsync(api, purchase.Data!["journalEntryId"].S());
-        Assert.Equal(200, Amount(lines, "1141", a, "debit"));
+        Assert.Equal(200, Amount(lines, MainSiteInventory, a, "debit"));
         Assert.Equal(100, Amount(lines, "524", b, "debit")); // كان يُنسب لمركز أول سطر
         Assert.Equal(0, Amount(lines, "524", a, "debit"));
         Assert.Equal(345, Amount(lines, "1111", null, "credit"));
 
         // حساب المخزون «غير مستخدم»: يُسقط مركزه من قيد المستند ويبقى على المصروف
-        Assert.Equal(200, (await SetPolicyAsync(api, "1141", "none")).Status);
+        Assert.Equal(200, (await SetPolicyAsync(api, MainSiteInventory, "none")).Status);
         var second = await api.PostInvoice(Purchase());
         Assert.Equal(201, second.Status);
         lines = await EntryLinesAsync(api, second.Data!["journalEntryId"].S());
-        Assert.Equal(200, Amount(lines, "1141", null, "debit"));
+        Assert.Equal(200, Amount(lines, MainSiteInventory, null, "debit"));
         Assert.Equal(100, Amount(lines, "524", b, "debit"));
 
         // حساب الخدمات «إلزامي»: سطر خدمة بلا مركز يرفض الفاتورة كلها
@@ -198,7 +198,7 @@ public class CostCenterTests : TestBase
         Assert.Equal(a, CenterOf(ret.Data!["items"]![0]));
         var lines = await EntryLinesAsync(api, ret.Data["journalEntryId"].S());
         Assert.Equal(200, Amount(lines, "411", a, "debit"));
-        Assert.Equal(80, Amount(lines, "1141", a, "debit")); Assert.Equal(80, Amount(lines, "511", a, "credit"));
+        Assert.Equal(80, Amount(lines, MainSiteInventory, a, "debit")); Assert.Equal(80, Amount(lines, "511", a, "credit"));
 
         var performance = (await api.Get($"/financialstatements/CostCenterPerformance?from={MonthStart}&to={Today}&costCenterId={a}")).Data!;
         var row = performance["rows"]!.AsArray().Single()!;

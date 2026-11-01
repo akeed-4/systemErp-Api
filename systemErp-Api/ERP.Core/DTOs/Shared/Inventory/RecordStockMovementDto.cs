@@ -16,4 +16,10 @@ public class RecordStockMovementDto
     public Guid? SourceId { get; set; }
     /// <summary>للتسوية اليدوية: الحساب المقابل لقيدها (فارغ = فروقات جرد المخزون).</summary>
     public string? CounterAccountCode { get; set; }
+    /// <summary>
+    /// داخلي (لا يُقرأ من الطلب): تكلفة خروج محددة بدل المتوسط، لعكس شراء بتكلفة دخوله فيعود المتوسط إلى ما قبله
+    /// وتحمل حركة العكس قيمتها الفعلية. تُتجاهل في FIFO (الخروج من الطبقات).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public decimal? OutUnitCost { get; set; }
 }

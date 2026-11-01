@@ -26,7 +26,7 @@ public class InventoryValuationTests : TestBase
         var items = (await api.Get("/reports/InventoryReconciliation")).Data!["rows"]!.AsArray().Single(r => r!["key"].S() == "items")!;
         Assert.True(items["difference"].D() == 0, items.ToJsonString());
         Assert.Equal(expectedValue, items["ledgerValue"].D());
-        Assert.Equal(expectedValue, await BalanceAsync(api, "1141"));
+        Assert.Equal(expectedValue, await BalanceAsync(api, MainSiteInventory));
         return items;
     }
 

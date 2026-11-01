@@ -56,7 +56,7 @@ public class PurchaseLandedCostTests : TestBase
 
         // قيد الشراء كما هو: مخزون 100 + ضريبة 15 / المورد 115
         var buy = await EntryAsync(api, purchase.Data!["journalEntryId"].S());
-        Assert.Equal(100, buy["1141"]); Assert.Equal(15, buy["1131"]); Assert.Equal(-115, buy[supplierAccount]);
+        Assert.Equal(100, buy[MainSiteInventory]); Assert.Equal(15, buy["1131"]); Assert.Equal(-115, buy[supplierAccount]);
 
         var types = await TypesAsync(api);
         // ضريبة مقطوعة 1 على 10 (ليست 15%)
@@ -75,7 +75,7 @@ public class PurchaseLandedCostTests : TestBase
         Assert.Equal(200, approved.Status);
         Assert.Equal("approved", approved.Data!["status"].S());
         var entry = await EntryAsync(api, approved.Data["journalEntryId"].S());
-        Assert.Equal(10, entry["1141"]);
+        Assert.Equal(10, entry[MainSiteInventory]);
         Assert.Equal(1, entry["1131"]);
         Assert.Equal(-11, entry[agentAccount]);
         Assert.Equal(3, entry.Count);
@@ -107,13 +107,13 @@ public class PurchaseLandedCostTests : TestBase
         var types = await TypesAsync(api);
         var created = await api.Post("/purchase-landed-costs", new
         {
-            invoiceIds = new[] { invoice }, payee = "payment_account", paymentAccountCode = "1112", lines = new[] { Line(types["FREIGHT"], 10) },
+            invoiceIds = new[] { invoice }, payee = "payment_account", paymentAccountCode = "1112", lines = new[] { Line(types["PORT_FEES"], 10) },
         });
         Assert.Equal(201, created.Status);
         var id = created.Data!["id"].S();
         var approved = (await api.Post($"/purchase-landed-costs/{id}/approve")).Data!;
         var entry = await EntryAsync(api, approved["journalEntryId"].S());
-        Assert.Equal(6, entry["1141"]); // الباقي في المخزون 6 وحدات
+        Assert.Equal(6, entry[MainSiteInventory]); // الباقي في المخزون 6 وحدات
         Assert.Equal(4, entry["511"]);  // حصة المبيع على تكلفة المبيعات
         Assert.Equal(-10, entry["1112"]); // دائن البنك
         Assert.Equal(6, approved["inventoryAmount"].D());
@@ -124,7 +124,7 @@ public class PurchaseLandedCostTests : TestBase
         Assert.Equal(200, cancelled.Status);
         Assert.Equal("cancelled", cancelled.Data!["status"].S());
         var reverse = await EntryAsync(api, cancelled.Data["cancelJournalEntryId"].S());
-        Assert.Equal(-6, reverse["1141"]); Assert.Equal(-4, reverse["511"]); Assert.Equal(10, reverse["1112"]);
+        Assert.Equal(-6, reverse[MainSiteInventory]); Assert.Equal(-4, reverse["511"]); Assert.Equal(10, reverse["1112"]);
         Assert.Equal(10, await AverageCostAsync(api, item));
         Assert.Equal(409, (await api.Post($"/purchase-landed-costs/{id}/cancel")).Status);
         Assert.Equal(409, (await api.Delete($"/purchase-landed-costs/{id}")).Status); // الملغى بعد اعتماده يبقى في السجل
@@ -146,7 +146,7 @@ public class PurchaseLandedCostTests : TestBase
         {
             var preview = await api.Post("/purchase-landed-costs/preview", new
             {
-                invoiceIds = new[] { invoice }, payee = "accrued", lines = new[] { Line(types["FREIGHT"], 80, 0, method, manual) },
+                invoiceIds = new[] { invoice }, payee = "accrued", lines = new[] { Line(types["PORT_FEES"], 80, 0, method, manual) },
             });
             Assert.True(preview.Status == 200, preview.Body?.ToJsonString());
             return preview.Data!["items"]!.AsArray().ToDictionary(i => i!["itemId"].G(), i => i!["capitalized"].D());
@@ -167,14 +167,14 @@ public class PurchaseLandedCostTests : TestBase
         Assert.Equal(400, (await api.Post("/purchase-landed-costs/preview", new
         {
             invoiceIds = new[] { invoice }, payee = "accrued",
-            lines = new[] { Line(types["FREIGHT"], 80, 0, "manual", new object[] { new { invoiceItemId = heavyLine, amount = 70 } }) },
+            lines = new[] { Line(types["PORT_FEES"], 80, 0, "manual", new object[] { new { invoiceItemId = heavyLine, amount = 70 } }) },
         })).Status); // المجموع لا يساوي المبلغ
 
         // صنف بلا وزن: التوزيع بالوزن مرفوض
         var (other, _) = await PurchaseAsync(api, supplier, (heavy, 1, 10), (bare, 1, 10));
         Assert.Equal(400, (await api.Post("/purchase-landed-costs/preview", new
         {
-            invoiceIds = new[] { other }, payee = "accrued", lines = new[] { Line(types["FREIGHT"], 10, 0, "by_weight") },
+            invoiceIds = new[] { other }, payee = "accrued", lines = new[] { Line(types["PORT_FEES"], 10, 0, "by_weight") },
         })).Status);
     }
 
@@ -193,13 +193,13 @@ public class PurchaseLandedCostTests : TestBase
         var types = await TypesAsync(api);
         var created = await api.Post("/purchase-landed-costs", new
         {
-            invoiceIds = new[] { invoice }, payee = "accrued", lines = new[] { Line(types["FREIGHT"], 8, 0, "by_quantity") },
+            invoiceIds = new[] { invoice }, payee = "accrued", lines = new[] { Line(types["PORT_FEES"], 8, 0, "by_quantity") },
         });
         Assert.Equal(8, created.Data!["items"]![0]!["netQuantity"].D());
         Assert.Equal(11, created.Data["items"]![0]!["unitCostAfter"].D());
         var approved = (await api.Post($"/purchase-landed-costs/{created.Data["id"].S()}/approve")).Data!;
         var entry = await EntryAsync(api, approved["journalEntryId"].S());
-        Assert.Equal(8, entry["1141"]);   // الصافي 8 وحدات بزيادة 1 للوحدة
+        Assert.Equal(8, entry[MainSiteInventory]);   // الصافي 8 وحدات بزيادة 1 للوحدة
         Assert.Equal(-8, entry["212"]);   // مستحقات حتى تصل فاتورة الشاحن
         Assert.Equal(11, await AverageCostAsync(api, item));
     }
@@ -233,7 +233,7 @@ public class PurchaseLandedCostTests : TestBase
         Assert.Equal(15, created.Data["baseInputVat"].D());
         var approved = (await api.Post($"/purchase-landed-costs/{created.Data["id"].S()}/approve")).Data!;
         var entry = await EntryAsync(api, approved["journalEntryId"].S());
-        Assert.Equal(20, entry["1141"]); Assert.Equal(15, entry["1131"]); Assert.Equal(-35, entry["1112"]);
+        Assert.Equal(20, entry[MainSiteInventory]); Assert.Equal(15, entry["1131"]); Assert.Equal(-35, entry["1112"]);
         Assert.Equal(12, await AverageCostAsync(api, item)); // 10 + 20/10
     }
 
@@ -254,12 +254,12 @@ public class PurchaseLandedCostTests : TestBase
         var types = await TypesAsync(api);
         var created = await api.Post("/purchase-landed-costs", new
         {
-            invoiceIds = new[] { older }, payee = "accrued", lines = new[] { Line(types["FREIGHT"], 10) },
+            invoiceIds = new[] { older }, payee = "accrued", lines = new[] { Line(types["PORT_FEES"], 10) },
         });
         var approved = (await api.Post($"/purchase-landed-costs/{created.Data!["id"].S()}/approve")).Data!;
         var entry = await EntryAsync(api, approved["journalEntryId"].S());
         Assert.Equal(10, entry["514"]); // لا تتغيّر تكلفة آخر شراء، فالتكلفة كلها فرق سعر
-        Assert.False(entry.ContainsKey("1141"));
+        Assert.False(entry.ContainsKey(MainSiteInventory));
         Assert.Equal("514", approved["expensedAccountCode"].S());
         Assert.Equal(12, await AverageCostAsync(api, item));
     }
@@ -285,11 +285,88 @@ public class PurchaseLandedCostTests : TestBase
         foreach (var id in new[] { draft.Data!["id"].S(), sale.Data!["id"].S(), Guid.NewGuid().ToString() })
             Assert.Equal(400, (await api.Post("/purchase-landed-costs/preview", new
             {
-                invoiceIds = new[] { id }, payee = "accrued", lines = new[] { Line(types["FREIGHT"], 10) },
+                invoiceIds = new[] { id }, payee = "accrued", lines = new[] { Line(types["PORT_FEES"], 10) },
             })).Status);
         Assert.Equal(400, (await api.Post("/purchase-landed-costs/preview", new
         {
-            invoiceIds = Array.Empty<string>(), payee = "accrued", lines = new[] { Line(types["FREIGHT"], 10) },
+            invoiceIds = Array.Empty<string>(), payee = "accrued", lines = new[] { Line(types["PORT_FEES"], 10) },
         })).Status);
+    }
+
+    /// <summary>
+    /// فاتورة الشراء بقيدها (المبلغ الأساسي)، وسند الشحن والتخليص بقيد منفصل: التخليص والجمارك يرفعان تكلفة الأصناف، والشحن مصروف
+    /// على 531 (أو حساب النوع إن حُدِّد). والإلغاء يعكس الحسابات نفسها.
+    /// </summary>
+    [Fact]
+    public async Task Freight_is_expensed_while_customs_and_clearance_raise_item_cost_in_a_separate_entry()
+    {
+        var api = await NewTenantAsync();
+        var item = await ProductAsync(api, "A");
+        var (supplier, supplierAccount) = await SeedSupplierAsync(api, "مورد البضاعة");
+        var (agent, agentAccount) = await SeedSupplierAsync(api, "مخلّص جمركي");
+        var (invoice, purchase) = await PurchaseAsync(api, supplier, (item, 10, 10));
+        var buy = await EntryAsync(api, purchase.Data!["journalEntryId"].S());
+        Assert.Equal(100, buy[MainSiteInventory]); Assert.Equal(-115, buy[supplierAccount]); // قيد الفاتورة: المبلغ الأساسي وحده
+
+        var list = (await api.Get("/purchase-expense-types")).Data!.AsArray();
+        bool Capitalized(string code) => (bool)list.Single(t => t!["code"].S() == code)!["capitalizeToItemCost"]!;
+        Assert.False(Capitalized("FREIGHT")); Assert.False(Capitalized("INLAND_TRANSPORT")); Assert.False(Capitalized("INSURANCE"));
+        Assert.True(Capitalized("CUSTOMS_DUTY")); Assert.True(Capitalized("CUSTOMS_CLEARANCE")); Assert.True(Capitalized("PORT_FEES"));
+
+        var types = await TypesAsync(api);
+        var created = await api.Post("/purchase-landed-costs", new
+        {
+            invoiceIds = new[] { invoice }, payee = "supplier", supplierId = agent, supplierInvoiceNumber = "CLR-5",
+            lines = new[] { Line(types["FREIGHT"], 30, 4.5m), Line(types["CUSTOMS_DUTY"], 20), Line(types["CUSTOMS_CLEARANCE"], 10, 1.5m) },
+        });
+        Assert.Equal(201, created.Status);
+        var lines = created.Data!["lines"]!.AsArray();
+        Assert.Equal(0, lines[0]!["costAmount"].D()); Assert.Equal(30, lines[0]!["expenseAmount"].D()); Assert.Empty(lines[0]!["allocations"]!.AsArray());
+        Assert.Equal(13, created.Data["items"]![0]!["unitCostAfter"].D()); // (100 + 20 + 10) ÷ 10
+
+        var approved = await api.Post($"/purchase-landed-costs/{created.Data["id"].S()}/approve");
+        Assert.Equal(200, approved.Status);
+        Assert.NotEqual(purchase.Data["journalEntryId"].S(), approved.Data!["journalEntryId"].S()); // قيد منفصل
+        var entry = await EntryAsync(api, approved.Data["journalEntryId"].S());
+        Assert.Equal(30, entry[MainSiteInventory]);   // الجمارك والتخليص
+        Assert.Equal(30, entry["531"]);               // الشحن
+        Assert.Equal(6, entry["1131"]);               // ضريبة الشحن والتخليص
+        Assert.Equal(-66, entry[agentAccount]);
+        Assert.Equal(13, await AverageCostAsync(api, item));
+
+        var cancelled = await api.Post($"/purchase-landed-costs/{created.Data["id"].S()}/cancel");
+        Assert.Equal(200, cancelled.Status);
+        var reverse = await EntryAsync(api, cancelled.Data!["cancelJournalEntryId"].S());
+        Assert.Equal(-30, reverse["531"]); Assert.Equal(-30, reverse[MainSiteInventory]); Assert.Equal(66, reverse[agentAccount]);
+        Assert.Equal(10, await AverageCostAsync(api, item));
+    }
+
+    [Fact]
+    public async Task An_expense_type_can_post_to_its_own_account_or_be_switched_into_item_cost()
+    {
+        var api = await NewTenantAsync();
+        var item = await ProductAsync(api, "A");
+        var (supplier, _) = await SeedSupplierAsync(api);
+        var (invoice, _) = await PurchaseAsync(api, supplier, (item, 10, 10));
+        var freight = (await api.Get("/purchase-expense-types")).Data!.AsArray().Single(t => t!["code"].S() == "FREIGHT")!;
+        object Save(bool capitalize, string? account) => new
+        {
+            code = "FREIGHT", nameAr = freight["nameAr"].S(), nameEn = freight["nameEn"].S(), vatCategory = "standard", isVatRecoverable = true,
+            defaultAllocationMethod = "by_value", isActive = true, capitalizeToItemCost = capitalize, expenseAccountCode = account,
+        };
+        var id = freight["id"].S();
+        Assert.Equal(400, (await api.Put($"/purchase-expense-types/{id}", Save(false, "1111"))).Status); // ليس حساب مصروفات
+        Assert.Equal(200, (await api.Put($"/purchase-expense-types/{id}", Save(false, "524"))).Status);
+
+        var voucher = await api.Post("/purchase-landed-costs", new { invoiceIds = new[] { invoice }, payee = "accrued", lines = new[] { Line(freight["id"].G(), 10) } });
+        var entry = await EntryAsync(api, (await api.Post($"/purchase-landed-costs/{voucher.Data!["id"].S()}/approve")).Data!["journalEntryId"].S());
+        Assert.Equal(10, entry["524"]);
+        Assert.False(entry.ContainsKey(MainSiteInventory));
+
+        // تحويل النوع إلى «يدخل في التكلفة» يحمّله على الأصناف في السندات الجديدة
+        Assert.Equal(200, (await api.Put($"/purchase-expense-types/{id}", Save(true, null))).Status);
+        var second = await api.Post("/purchase-landed-costs", new { invoiceIds = new[] { invoice }, payee = "accrued", lines = new[] { Line(freight["id"].G(), 10) } });
+        Assert.Equal(200, (await api.Post($"/purchase-landed-costs/{second.Data!["id"].S()}/approve")).Status);
+        Assert.Equal(11, await AverageCostAsync(api, item));
     }
 }

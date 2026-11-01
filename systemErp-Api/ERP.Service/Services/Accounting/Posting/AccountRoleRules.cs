@@ -32,7 +32,8 @@ internal static class AccountRoleRules
         {
             if (!chart.TryGetValue(code, out var account)) errors.Add(string.Format(Messages.AccountSettingNotFound, role.Label, code));
             else if (parents.Contains(code)) errors.Add(string.Format(Messages.AccountSettingIsParent, role.Label, code));
-            else if (account.LinkedEntityType != null) errors.Add(string.Format(Messages.AccountSettingIsPartyAccount, role.Label, code));
+            // حساب الموقع المرتبط به حساب مخزون عادي؛ حسابات العملاء والموردين والبنوك لا تصلح لدور
+            else if (account.LinkedEntityType is { } linked && linked != LinkedEntityType.Warehouse) errors.Add(string.Format(Messages.AccountSettingIsPartyAccount, role.Label, code));
             else if (IsUnder(code, DefaultAccounts.Banks)) errors.Add(string.Format(Messages.AccountSettingIsCashOrBank, role.Label, code));
             else if (showroom.Contains(code)) errors.Add(string.Format(Messages.AccountSettingIsShowroomAccount, role.Label, code));
             else if (!role.Types.Contains(account.Type)) errors.Add(string.Format(Messages.AccountSettingWrongType, role.Label, code));

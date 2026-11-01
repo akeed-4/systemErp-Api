@@ -89,6 +89,7 @@ public class CostingService : ICostingService
                 updated++;
                 var change = InventoryValuation.Value(p) - before;
                 if (change != 0) changes.Add((p.Id, change));
+                InventoryValuation.AddRevaluation(_db, p, change, "COST-RECALC", description, null);
             }
             await _db.SaveChangesAsync(ct);
             _db.ChangeTracker.Clear(); // الدفعة حُفظت: لا تبقى كياناتها متتبَّعة فتكبر الذاكرة مع كل دفعة

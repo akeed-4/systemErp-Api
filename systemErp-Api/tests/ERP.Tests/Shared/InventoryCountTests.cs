@@ -87,7 +87,7 @@ public class InventoryCountTests : TestBase
         Assert.True(preview["hasJournal"]!.GetValue<bool>());
         Assert.Null(preview["entryNumber"]);
         var previewLines = preview["lines"]!.AsArray().Select(l => (l!["accountCode"].S(), l["debit"].D(), l["credit"].D())).ToList();
-        Assert.Equal(new[] { ("513", 120m, 0m), ("1141", 0m, 120m) }, previewLines);
+        Assert.Equal(new[] { ("513", 120m, 0m), (MainSiteInventory, 0m, 120m) }, previewLines);
 
         // المعاينة لا تترك أثراً: لا قيد ولا حركة مخزون ولا رقم مستهلك
         Assert.Equal(journalsBefore, (await api.Get("/journalentries")).Data!["totalCount"].D());

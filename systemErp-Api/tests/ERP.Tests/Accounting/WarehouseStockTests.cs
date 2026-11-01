@@ -75,7 +75,6 @@ public class WarehouseStockTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 10, 20))).Status);
         var product = (await api.Get($"/products/{item}")).Data!;
         var mainBefore = await OnHandAsync(api, item, main);
-        var (debit, credit) = Totals(await api.Get("/reports/TrialBalance"));
 
         object Transfer(Guid from, Guid to, decimal qty) => new { fromWarehouseId = from, toWarehouseId = to, items = new[] { new { itemId = item, quantity = qty } } };
         Assert.Equal(400, (await api.Post("/stocktransfers", Transfer(main, main, 1))).Status);
@@ -89,7 +88,12 @@ public class WarehouseStockTests : TestBase
         var after = (await api.Get($"/products/{item}")).Data!;
         Assert.Equal(product["currentStock"].D(), after["currentStock"].D());
         Assert.Equal(product["averageCost"].D(), after["averageCost"].D());
-        Assert.Equal((debit, credit), Totals(await api.Get("/reports/TrialBalance")));
+        // لكل موقع حساب مخزونه: التحويل قيد بقيمة الكمية بمتوسط التكلفة من حساب المصدر إلى حساب الوجهة، والميزان متوازن
+        var (debitAfter, creditAfter) = Totals(await api.Get("/reports/TrialBalance"));
+        Assert.Equal(debitAfter, creditAfter);
+        var branchAccount = (await api.Get($"/warehouses/{branch}")).Data!["inventoryAccountCode"].S();
+        Assert.NotEqual(MainSiteInventory, branchAccount);
+        Assert.Equal(6 * after["averageCost"].D(), (await api.Get($"/accounts/ByCode/{branchAccount}")).Data!["balance"].D());
 
         // المرتجع يعود إلى مستودع فاتورته
         var sale = await api.PostInvoice(Sale(item, 2, branch));

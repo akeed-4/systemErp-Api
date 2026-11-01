@@ -3757,6 +3757,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("CapitalizeToItemCost")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -3766,6 +3769,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("DefaultAllocationMethod")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExpenseAccountCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
@@ -4039,6 +4045,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<bool>("CapitalizeToItemCost")
+                        .HasColumnType("bit");
+
                     b.Property<decimal>("CostAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -4048,6 +4057,13 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExpenseAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("ExpenseAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("ExpenseTypeCode")
                         .IsRequired()
@@ -10336,6 +10352,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("ValueChange")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid?>("WarehouseId")
                         .HasColumnType("uniqueidentifier");

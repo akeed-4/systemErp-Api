@@ -14,6 +14,22 @@ internal static class InventoryValuation
 
     public static decimal Value(Product p) => DocumentPricing.Round(p.CurrentStock * p.AverageCost);
 
+    /// <summary>
+    /// يسجّل في سجل الصنف ما تغيّر في قيمته بلا كمية (إعادة احتساب، تغيير المعيارية، تكاليف إضافية، إعادة بناء بعد تعديل حركة):
+    /// حركة إعادة تقييم بكمية صفر وقيمة التغيّر، فيبقى مجموع قيم حركات الصنف = قيمته الدفترية. التغيّر الصفري لا حركة له.
+    /// تُضاف للسياق ويحفظها المستدعي مع تغيير التكلفة نفسه.
+    /// </summary>
+    public static void AddRevaluation(ErpDbContext db, Product product, decimal amount, string reference, string notes, Guid? sourceId)
+    {
+        if (amount == 0) return;
+        db.Add(new StockMovement
+        {
+            ItemId = product.Id, ItemName = product.NameAr, Date = SaudiTime.Today, Type = StockMovementType.Revaluation,
+            UnitCost = product.AverageCost, ValueChange = amount, RemainingStock = product.CurrentStock,
+            ReferenceNumber = reference, Notes = notes, SourceType = RevaluationSource, SourceId = sourceId,
+        });
+    }
+
     public static Dictionary<Guid, decimal> Snapshot(IEnumerable<Product> products) => products.ToDictionary(p => p.Id, Value);
 
     /// <summary>فرق القيمة بعد التغيير عن اللقطة السابقة، مجموعاً لكل الأصناف.</summary>

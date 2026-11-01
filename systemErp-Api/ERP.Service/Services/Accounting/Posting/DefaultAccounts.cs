@@ -15,6 +15,7 @@ public static class DefaultAccounts
     public const string PaymentGatewayReceivable = "1113"; // تحصيلات بوابة الدفع الإلكتروني (Paymob) حتى تسويتها للبنك
     public const string Receivables = "112";     // الأب: حسابات العملاء الفرعية تحته
     public const string InputVat = "1131";
+    public const string InventoryGroup = "114";  // الأب: حسابات مخزون المواقع الفرعية تحته (114001...)
     public const string Inventory = "1141";
     public const string VehicleInventory = "1142";
     public const string FixedAssets = "121";          // الأصول الثابتة المادية (الحساب الافتراضي لأصل جديد)
@@ -57,6 +58,7 @@ public static class DefaultAccounts
     public const string CarAddOnCost = "515";
     public const string VehicleExpenses = "529";
     public const string PurchaseCancellationLoss = "530";
+    public const string PurchaseFreightExpense = "531"; // التكاليف الإضافية للمشتريات التي لا تدخل تكلفة الأصناف (شحن، نقل، تأمين)
 
     public static readonly (string Code, string Ar, string En, AccountCategory Type, string? Parent)[] Chart =
     {
@@ -122,6 +124,7 @@ public static class DefaultAccounts
         ("528",  "مكافأة نهاية الخدمة",             "End of Service Benefits",  AccountCategory.Expense,   "52"),
         ("529",  "مصاريف تشغيل وبيع السيارات",      "Vehicle Operating and Selling Expenses", AccountCategory.Expense, "52"),
         ("530",  "خسائر إلغاء مشتريات السيارات",    "Loss on Cancelled Vehicle Purchases", AccountCategory.Expense, "52"),
+        ("531",  "مصاريف شحن ونقل المشتريات",       "Purchase Freight and Transport Expenses", AccountCategory.Expense, "52"),
     };
 
     /// <summary>طبيعة الحساب: الأصول والمصروفات مدينة، عدا مجمع الإهلاك (حساب مقابل للأصل) فطبيعته دائنة.</summary>

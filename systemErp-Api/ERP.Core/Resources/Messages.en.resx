@@ -1387,6 +1387,7 @@
   <data name="PurchaseInvoiceHasLandedCosts" xml:space="preserve"><value>A purchase invoice with an approved landed cost voucher cannot be edited or deleted; cancel the voucher first.</value></data>
   <data name="PurchaseExpenseTypeNotFound" xml:space="preserve"><value>Cost type not found or inactive.</value></data>
   <data name="PurchaseExpenseTypeValuesInvalid" xml:space="preserve"><value>Code (uppercase letters, digits and _) and Arabic name are required, and the type values must be valid.</value></data>
+  <data name="PurchaseExpenseTypeAccountInvalid" xml:space="preserve"><value>Expense account {0} is invalid: choose an expense sub-account not linked to a customer or supplier.</value></data>
   <data name="PurchaseExpenseTypeCodeExists" xml:space="preserve"><value>The cost type code is already used.</value></data>
   <data name="FeatureNotInPlan" xml:space="preserve"><value>"{0}" is not included in your plan. Upgrade your plan to use it.</value></data>
 </root>

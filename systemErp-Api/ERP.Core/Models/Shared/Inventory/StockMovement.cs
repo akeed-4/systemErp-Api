@@ -15,6 +15,11 @@ public class StockMovement : BaseEntity
     public decimal RemainingStock { get; set; }
     /// <summary>الكمية غير المستهلكة من هذه الدفعة (للحركات الواردة فقط) - أساس تكلفة FIFO.</summary>
     public decimal RemainingQuantity { get; set; }
+    /// <summary>
+    /// ما غيّرته الحركة في قيمة الصنف الدفترية (الرصيد × التكلفة) بإشارته، وهو ما رُحِّل لحساب المخزون. مجموعه لصنف = قيمته دائماً،
+    /// فبطاقة الصنف تقرأ القيمة منه لا من الكمية × التكلفة (إعادة تسعير الرصيد بآخر شراء أو بالمعيارية ليست في الكمية × التكلفة).
+    /// </summary>
+    public decimal ValueChange { get; set; }
     public string? Notes { get; set; }
     /// <summary>مصدر الحركة: manual (تسوية يدوية) | invoice | invoice_reversal | ... — الحركات اليدوية فقط تُعدَّل/تُحذف.</summary>
     public string? SourceType { get; set; }

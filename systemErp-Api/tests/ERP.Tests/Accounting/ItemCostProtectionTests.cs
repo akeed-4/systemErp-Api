@@ -89,13 +89,13 @@ public class ItemCostProtectionTests : TestBase
     {
         var owner = await NewTenantAsync();
         var item = await SeedProductAsync(owner, "STD", stock: 10, cost: 40);
-        Assert.Equal(400, (await owner.Get("/accounts/ByCode/1141")).Data!["balance"].D());
+        Assert.Equal(400, (await owner.Get($"/accounts/ByCode/{MainSiteInventory}")).Data!["balance"].D());
 
         // بالتكلفة المعيارية: صاحب الصلاحية يغيّرها فيُعاد تقييم الرصيد بقيد
         Assert.Equal(200, (await owner.Put("/costing/policy", Policy("standard"))).Status);
         Assert.Equal(200, (await UpdateAsync(owner, owner, item, 48)).Status);
         Assert.Equal(48, (await ProductAsync(owner, item))["averageCost"].D());
-        Assert.Equal(480, (await owner.Get("/accounts/ByCode/1141")).Data!["balance"].D());
+        Assert.Equal(480, (await owner.Get($"/accounts/ByCode/{MainSiteInventory}")).Data!["balance"].D());
 
         // الشراء الجديد بالمتوسط المتحرك يغيّر التكلفة طبيعياً (القفل على التعديل اليدوي فقط)
         Assert.Equal(200, (await owner.Put("/costing/policy", Policy("moving_average"))).Status);

@@ -282,20 +282,17 @@ public class TradeInvoiceEngine
         decimal reversalChange = 0;
         foreach (var item in stockItems)
         {
-            var product = await _db.Set<Product>().FirstAsync(p => p.Id == item.ItemId, ct);
-            var valueBefore = InventoryValuation.Value(product);
-            await _inventory.RecordMovementAsync(new RecordStockMovementDto
+            var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
             {
                 ItemId = item.ItemId, WarehouseId = invoice.WarehouseId, Quantity = item.Quantity,
                 Type = invoice.Kind == InvoiceKind.Sales ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
                 UnitCost = invoice.Kind == InvoiceKind.Sales ? item.UnitCost : 0, // المبيعات تعود بتكلفة خروجها
+                // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)، وتحمل الحركة تلك القيمة
+                OutUnitCost = restoreAverage ? item.UnitCost : null,
                 UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
                 SourceType = "invoice_reversal", SourceId = invoice.Id,
             }, ct);
-            // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)
-            if (restoreAverage && product.CurrentStock > 0)
-                product.AverageCost = Math.Max(0, Math.Round((valueBefore - item.Quantity * item.UnitCost) / product.CurrentStock, 4));
-            reversalChange += InventoryValuation.Value(product) - valueBefore;
+            reversalChange += recorded.ValueChange;
         }
         await _db.SaveChangesAsync(ct);
         // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف

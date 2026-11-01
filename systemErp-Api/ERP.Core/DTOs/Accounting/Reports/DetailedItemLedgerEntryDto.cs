@@ -9,7 +9,7 @@ public class DetailedItemLedgerEntryDto
     public DateTime Date { get; set; }
     /// <summary>وقت تسجيل الحركة: يرتّب حركات اليوم الواحد.</summary>
     public DateTime CreatedAt { get; set; }
-    /// <summary>نوع الحركة: purchase, sales, sales_return, purchase_return, adjustment_in, adjustment_out, transfer_in, transfer_out.</summary>
+    /// <summary>نوع الحركة: purchase, sales, sales_return, purchase_return, adjustment_in, adjustment_out, transfer_in, transfer_out, revaluation.</summary>
     public string DocType { get; set; } = string.Empty;
     public Guid? WarehouseId { get; set; }
     public string? WarehouseName { get; set; }

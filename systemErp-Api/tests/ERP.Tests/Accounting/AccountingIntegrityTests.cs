@@ -165,7 +165,7 @@ public class AccountingIntegrityTests : TestBase
             },
         });
         Assert.Equal(201, purchase.Status);
-        Assert.Equal(200, await BalanceAsync(api, "1141")); // الأصناف فقط
+        Assert.Equal(200, await BalanceAsync(api, MainSiteInventory)); // الأصناف فقط
         Assert.Equal(100, await BalanceAsync(api, "524"));  // الخدمة مصروف
         Assert.Equal(45, await BalanceAsync(api, "1131"));
         Assert.Equal(-345, await BalanceAsync(api, "1111"));
@@ -192,7 +192,7 @@ public class AccountingIntegrityTests : TestBase
         // حساب المخزون = قيمة المخزون الفعلية (16 × 45)، وفرق السعر 20 في حساب مستقل
         var stock = (await api.Get($"/products/{product}")).Data!;
         Assert.Equal(16, stock["currentStock"].D()); Assert.Equal(45, stock["averageCost"].D());
-        Assert.Equal(720, await BalanceAsync(api, "1141"));
+        Assert.Equal(720, await BalanceAsync(api, MainSiteInventory));
         Assert.Equal(-20, await BalanceAsync(api, "514"));
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }

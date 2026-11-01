@@ -65,28 +65,28 @@ public class PeriodicInventoryTests : TestBase
         var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var product = await SeedProductAsync(api, stock: 10, cost: 40); // أرصدة افتتاحية مقابل 33: على بضاعة أول المدة
         Assert.Equal(400m, await BalanceAsync(api, "517"));
-        Assert.Equal(0m, await BalanceAsync(api, "1141"));
+        Assert.Equal(0m, await BalanceAsync(api, MainSiteInventory));
 
         var sale = await api.PostInvoice(Sale(product, 2));
         Assert.Equal(201, sale.Status);
         var saleLines = await JournalLinesAsync(api, sale.Data!["journalEntryId"].S());
         Assert.Equal(200m, Credit(saleLines, "411"));
-        Assert.DoesNotContain(saleLines, l => l!["accountCode"].S() is "511" or "1141");
+        Assert.DoesNotContain(saleLines, l => l!["accountCode"].S() is "511" or MainSiteInventory);
 
         var purchase = await api.PostInvoice(Purchase(supplier, product, 5, 60));
         Assert.Equal(201, purchase.Status);
         var purchaseLines = await JournalLinesAsync(api, purchase.Data!["journalEntryId"].S());
         Assert.Equal(300m, Debit(purchaseLines, "516"));
         Assert.Equal(45m, Debit(purchaseLines, "1131"));
-        Assert.DoesNotContain(purchaseLines, l => l!["accountCode"].S() is "1141" or "514");
+        Assert.DoesNotContain(purchaseLines, l => l!["accountCode"].S() is MainSiteInventory or "514");
 
         // المرتجع بسعر مستنده (لا بالتكلفة الحالية) على حساب مردودات المشتريات
         var ret = await api.PostReturn(new { originalInvoiceId = purchase.Data["id"].S(), returnReason = "x", lines = new[] { new { itemId = product, quantity = 2 } } });
         Assert.True(ret.Success, ret.Body?.ToJsonString());
         var retLines = await JournalLinesAsync(api, ret.Data!["journalEntryId"].S());
         Assert.Equal(120m, Credit(retLines, "519"));
-        Assert.DoesNotContain(retLines, l => l!["accountCode"].S() is "1141" or "514");
-        Assert.Equal(0m, await BalanceAsync(api, "1141"));
+        Assert.DoesNotContain(retLines, l => l!["accountCode"].S() is MainSiteInventory or "514");
+        Assert.Equal(0m, await BalanceAsync(api, MainSiteInventory));
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class PeriodicInventoryTests : TestBase
         Assert.Equal(200, count.Status);
         Assert.Null(count.Data!["journalEntryId"]);
         Assert.Equal(entries, (await api.Get("/journalentries")).Data!["totalCount"].D());
-        Assert.Equal(0m, await BalanceAsync(api, "1141"));
+        Assert.Equal(0m, await BalanceAsync(api, MainSiteInventory));
         Assert.Equal(0m, await BalanceAsync(api, "513"));
     }
 
@@ -121,9 +121,9 @@ public class PeriodicInventoryTests : TestBase
         var approved = await ApproveCountAsync(api, ItemCount(product, 7)); // عجز قطعة: 7 × 40
         Assert.Equal(200, approved.Status);
         var ending = await JournalLinesAsync(api, approved.Data!["journalEntryId"].S());
-        Assert.Equal(280m, Debit(ending, "1141"));
+        Assert.Equal(280m, Debit(ending, MainSiteInventory));
         Assert.Equal(280m, Credit(ending, "518"));
-        Assert.Equal(0m, await BalanceAsync(api, "1141"));       // عُكس غداً إلى أول المدة
+        Assert.Equal(0m, await BalanceAsync(api, MainSiteInventory));       // عُكس غداً إلى أول المدة
         Assert.Equal(400m + 280m, await BalanceAsync(api, "517"));
         Assert.Equal(-280m, await BalanceAsync(api, "518")); // دائن على حساب مصروف (طبيعته مدينة)
 
@@ -151,13 +151,13 @@ public class PeriodicInventoryTests : TestBase
         var product = await SeedProductAsync(api, stock: 0);
         Assert.Equal(200, (await api.Post("/stockmovements/adjust", new { itemId = product, type = "adjustment_in", quantity = 10, unitCost = 40,
             referenceNumber = "OPEN", counterAccountCode = "33", date = thisYear.AddMonths(-6) })).Status); // مستمر: على 1141
-        Assert.Equal(400m, await BalanceAsync(api, "1141"));
+        Assert.Equal(400m, await BalanceAsync(api, MainSiteInventory));
         Assert.Equal(200, (await api.Put("/accounting-settings", PeriodicSettings(thisYear))).Status);
 
         var sale = await api.PostInvoice(Sale(product, 2));
         Assert.Equal(201, sale.Status);
-        Assert.DoesNotContain(await JournalLinesAsync(api, sale.Data!["journalEntryId"].S()), l => l!["accountCode"].S() is "511" or "1141");
-        Assert.Equal(0m, await BalanceAsync(api, "1141"));   // نُقل الرصيد إلى بضاعة أول المدة
+        Assert.DoesNotContain(await JournalLinesAsync(api, sale.Data!["journalEntryId"].S()), l => l!["accountCode"].S() is "511" or MainSiteInventory);
+        Assert.Equal(0m, await BalanceAsync(api, MainSiteInventory));   // نُقل الرصيد إلى بضاعة أول المدة
         Assert.Equal(400m, await BalanceAsync(api, "517"));
 
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 1))).Status);

@@ -64,7 +64,7 @@ public class CostingPolicyOptionsTests : TestBase
 
         // المخزون بتكلفة الصنف الحالية 100، والفرق 40 لحساب الانحرافات المحدد، والمورد بالفاتورة كاملة
         var entry = await EntryAsync(api, entryId);
-        Assert.Equal(100, entry["1141"]); Assert.Equal(40, entry["513"]); Assert.Equal(-161, entry[supplierAccount]);
+        Assert.Equal(100, entry[MainSiteInventory]); Assert.Equal(40, entry["513"]); Assert.Equal(-161, entry[supplierAccount]);
 
         // إعادة الاحتساب تحترم الخيار: لا تغيير ولا قيد إعادة تقييم
         var re = (await api.Post("/costing/RecalculateAll")).Data!;
@@ -100,7 +100,7 @@ public class CostingPolicyOptionsTests : TestBase
         Assert.Equal(200, approved.Status);
         Assert.Equal(10, await AverageCostAsync(api, item));
         var entry = await EntryAsync(api, approved.Data!["journalEntryId"].S());
-        Assert.False(entry.ContainsKey("1141"));
+        Assert.False(entry.ContainsKey(MainSiteInventory));
         Assert.Equal(10, entry["511"]); Assert.Equal(1, entry["1131"]); Assert.Equal(-11, entry[agentAccount]);
 
         // الإلغاء يعكس المصروف ولا يمس التكلفة

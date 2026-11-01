@@ -13,6 +13,8 @@ public class PurchaseExpenseTypeDto
     public bool IsVatRecoverable { get; set; }
     public bool IsInputTax { get; set; }
     public PurchaseCostAllocationMethod DefaultAllocationMethod { get; set; }
+    public bool CapitalizeToItemCost { get; set; }
+    public string? ExpenseAccountCode { get; set; }
     public bool IsSystem { get; set; }
     public bool IsActive { get; set; }
 }
@@ -26,6 +28,9 @@ public class SavePurchaseExpenseTypeDto
     public bool IsVatRecoverable { get; set; } = true;
     public bool IsInputTax { get; set; }
     public PurchaseCostAllocationMethod DefaultAllocationMethod { get; set; } = PurchaseCostAllocationMethod.ByValue;
+    /// <summary>يدخل في تكلفة الأصناف؛ false = مصروف على ExpenseAccountCode (فارغ = 531).</summary>
+    public bool CapitalizeToItemCost { get; set; } = true;
+    public string? ExpenseAccountCode { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -117,6 +122,9 @@ public class PurchaseLandedCostLineDto
     public decimal BaseVatAmount { get; set; }
     public decimal CostAmount { get; set; }
     public decimal InputVatAmount { get; set; }
+    public bool CapitalizeToItemCost { get; set; }
+    public decimal ExpenseAmount { get; set; }
+    public string? ExpenseAccountCode { get; set; }
     public PurchaseCostAllocationMethod AllocationMethod { get; set; }
     public List<PurchaseLandedCostAllocationDto> Allocations { get; set; } = new();
 }

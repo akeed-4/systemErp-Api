@@ -192,7 +192,7 @@ public class BooksIntegrityTests : TestBase
         Assert.True(items["isReconciled"]!.GetValue<bool>(), items.ToJsonString());
         Assert.Equal(items["subledgerValue"].D(), items["ledgerValue"].D());
         Assert.True(items["ledgerValue"].D() > 0);
-        Assert.Contains("1141", items["accountCodes"]!.AsArray().Select(c => c.S()));
+        Assert.Contains(MainSiteInventory, items["accountCodes"]!.AsArray().Select(c => c.S()));
     }
 
     [Fact]

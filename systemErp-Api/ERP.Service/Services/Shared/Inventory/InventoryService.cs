@@ -76,25 +76,28 @@ public class InventoryService : IInventoryService
                 throw new ConflictException(string.Format(Messages.InsufficientStockInWarehouse, product.NameAr, warehouse.NameAr,
                     await WarehouseStocks.QuantityAsync(_db, product.Id, warehouse.Id, ct) + r.Quantity, r.Quantity));
 
+            // تكلفة خروج محددة (عكس شراء بتكلفة دخوله) في المتوسط المتحرك وآخر شراء والمعيارية؛ FIFO يخرج من طبقاته
+            var fixedCost = policy.Method != CostingMethod.FIFO ? r.OutUnitCost : null;
             movement.UnitCost = policy.Method switch
             {
                 CostingMethod.FIFO => await ConsumeFifoAsync(product, r.Quantity, ct),
                 // آخر شراء والمعيارية: المتوسط الدفتري يساوي تكلفة الطريقة (يُضبط عند الشراء وبقيد إعادة تقييم عند تغيير المعيارية)
-                _ => product.AverageCost,
+                _ => fixedCost ?? product.AverageCost,
             };
             if (policy.Method != CostingMethod.FIFO) await ConsumeLayersAsync(product.Id, r.Quantity, ct);
             product.CurrentStock -= r.Quantity;
             if (policy.Method == CostingMethod.FIFO) product.AverageCost = await RemainingAverageAsync(product, ct);
+            else if (fixedCost is { } cost && product.CurrentStock > 0)
+                product.AverageCost = Math.Max(0, Math.Round((valueBefore - r.Quantity * cost) / product.CurrentStock, 4));
         }
 
         movement.RemainingStock = product.CurrentStock;
+        // فرق القيمتين لا الكمية × التكلفة: مجموع ما يُرحَّل يساوي قيمة الصنف دائماً (لا تتراكم هللات التقريب، ويدخل فيه أثر
+        // إعادة تسعير الرصيد في آخر شراء وبالمعيارية وأثر الشراء على رصيد سالب). يُحفظ على الحركة فتقرؤه بطاقة الصنف.
+        movement.ValueChange = InventoryValuation.Value(product) - valueBefore;
         _db.Add(movement);
         await _db.SaveChangesAsync(ct);
-        var dto = Mapper.Map<StockMovementDto>(movement);
-        // فرق القيمتين لا الكمية × التكلفة: مجموع ما يُرحَّل يساوي قيمة الصنف دائماً (لا تتراكم هللات التقريب، ويدخل فيه أثر
-        // إعادة تسعير الرصيد في آخر شراء وأثر الشراء على رصيد سالب)
-        dto.ValueChange = InventoryValuation.Value(product) - valueBefore;
-        return dto;
+        return Mapper.Map<StockMovementDto>(movement);
     }
 
     /// <summary>
@@ -160,10 +163,17 @@ public class InventoryService : IInventoryService
         // رصيد المستودع: يُسحب أثر الحركة القديمة ثم يُطبَّق الجديد (قد يتغيّر المستودع نفسه)
         await UndoWarehouseEffectAsync(m, ct);
         var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId ?? m.WarehouseId, ct);
+        var product = await _db.Set<Product>().FirstAsync(p => p.Id == m.ItemId, ct);
+        var valueBefore = InventoryValuation.Value(product);
+        var oldValue = m.ValueChange;
         m.Type = r.Type; m.Quantity = r.Quantity; m.UnitCost = r.UnitCost; m.UnitPrice = r.UnitPrice;
         m.Date = r.Date ?? m.Date; m.ReferenceNumber = r.ReferenceNumber; m.Notes = r.Notes; m.WarehouseId = warehouse.Id;
+        m.ValueChange = Sign(m.Type) * DocumentPricing.Round(m.Quantity * m.UnitCost);
         await WarehouseStocks.ApplyAsync(_db, m.ItemId, warehouse.Id, Sign(m.Type) * m.Quantity, ct);
         await ReplayAsync(m.ItemId, new HashSet<Guid>(), ct);
+        // ما تغيّر في قيمة الصنف غير قيمة الحركة نفسها = إعادة تسعير بقية الرصيد بإعادة البناء
+        InventoryValuation.AddRevaluation(_db, product, InventoryValuation.Value(product) - valueBefore - (m.ValueChange - oldValue),
+            m.ReferenceNumber, "إعادة تقييم بقية الرصيد بعد تعديل تسوية", m.Id);
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<StockMovementDto>(m);
     }
@@ -173,9 +183,14 @@ public class InventoryService : IInventoryService
         var m = await LoadManualAsync(id, ct);
         await _periods.EnsureOpenAsync(m.Date, ct);
         await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, m.Date, ct);
+        var product = await _db.Set<Product>().FirstAsync(p => p.Id == m.ItemId, ct);
+        var valueBefore = InventoryValuation.Value(product);
         _db.Remove(m);
         await UndoWarehouseEffectAsync(m, ct);
         await ReplayAsync(m.ItemId, new HashSet<Guid> { m.Id }, ct);
+        // قيمة الحركة المحذوفة خرجت من سجل الصنف؛ ما تغيّر غيرها = إعادة تسعير بقية الرصيد
+        InventoryValuation.AddRevaluation(_db, product, InventoryValuation.Value(product) - valueBefore + m.ValueChange,
+            m.ReferenceNumber, "إعادة تقييم بقية الرصيد بعد حذف تسوية", null);
         await _db.SaveChangesAsync(ct);
     }
 

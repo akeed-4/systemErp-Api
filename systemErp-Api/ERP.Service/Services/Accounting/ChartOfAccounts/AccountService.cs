@@ -125,6 +125,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             LinkedEntityType.Customer => DefaultAccounts.Receivables,
             LinkedEntityType.Supplier => DefaultAccounts.Payables,
             LinkedEntityType.Bank => DefaultAccounts.Banks,
+            LinkedEntityType.Warehouse => DefaultAccounts.InventoryGroup,
             _ => throw new ValidationFailedException(Messages.EntityTypeNotSupportedForAutoAccount),
         };
         var parent = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == parentCode, ct)

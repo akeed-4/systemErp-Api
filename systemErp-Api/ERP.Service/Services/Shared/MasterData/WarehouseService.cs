@@ -6,7 +6,8 @@ namespace ERP.Service.Services.Shared;
 
 public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWarehouseDto, UpdateWarehouseDto>, IWarehouseService
 {
-    public WarehouseService(ErpDbContext db) : base(db) { }
+    private readonly IAccountService _accounts;
+    public WarehouseService(ErpDbContext db, IAccountService accounts) : base(db) => _accounts = accounts;
     protected override string Label => Messages.LabelWarehouse;
 
     protected override IQueryable<Warehouse> ApplySearch(IQueryable<Warehouse> q, string t)
@@ -57,12 +58,25 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
         var any = await Db.Set<Warehouse>().AnyAsync(ct);
         if (!any) e.IsDefault = true; // أول مستودع هو الافتراضي
         if (e.IsDefault) await ClearOtherDefaultsAsync(e.Id, ct);
+        // موقع بلا حساب مخزون محدد: يُنشأ له حسابه تحت المخزون 114 (114001، 114002...) كحسابات العملاء تحت 112
+        e.InventoryAccountCode ??= await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Warehouse, e.Id, InventoryAccountName(e.NameAr),
+            InventoryAccountName(e.NameEn, english: true), ct);
     }
 
     protected override async Task OnUpdatingAsync(Warehouse e, UpdateWarehouseDto d, CancellationToken ct)
     {
         if (e.IsDefault) await ClearOtherDefaultsAsync(e.Id, ct);
+        // اسم حساب الموقع المرتبط يتبع اسمه
+        var account = await Db.Set<Account>().FirstOrDefaultAsync(a => a.LinkedEntityType == LinkedEntityType.Warehouse && a.LinkedEntityId == e.Id, ct);
+        if (account != null)
+        {
+            account.NameAr = InventoryAccountName(e.NameAr);
+            account.NameEn = InventoryAccountName(string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn, english: true);
+        }
     }
+
+    internal static string InventoryAccountName(string? name, bool english = false)
+        => english ? $"Inventory - {name}" : $"مخزون - {name}";
 
     private async Task ClearOtherDefaultsAsync(Guid keep, CancellationToken ct)
     {

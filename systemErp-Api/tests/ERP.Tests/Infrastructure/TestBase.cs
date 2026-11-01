@@ -31,6 +31,24 @@ public abstract class TestBase
     }
     protected async Task<Client> NewTenantAsync(string name = "شركة اختبار") => await new Client(NewHttp()).RegisterAsync(name);
 
+    /// <summary>حساب مخزون الموقع الرئيسي في منشأة جديدة: يُنشأ تلقائياً تحت المخزون 114.</summary>
+    protected const string MainSiteInventory = "114001";
+
+    /// <summary>
+    /// يعيد الموقع الرئيسي إلى «بلا حساب مخزون خاص» كما في المنشآت القائمة قبل حسابات المواقع: المخزون على حساب الإعدادات (1141).
+    /// يُستدعى قبل أي حركة (الحساب يُقفل بعدها).
+    /// </summary>
+    protected static async Task UseSettingsInventoryAccountAsync(Client api)
+    {
+        var w = (await api.Get("/warehouses")).Data!["items"]!.AsArray().First(x => x!["isDefault"]!.GetValue<bool>())!;
+        var r = await api.Put($"/warehouses/{w["id"].S()}", new
+        {
+            code = w["code"].S(), nameAr = w["nameAr"].S(), nameEn = w["nameEn"].S(), location = w["location"]?.ToString() ?? "", isDefault = true, status = "active",
+            inventoryAccountCode = "",
+        });
+        Assert.True(r.Status == 200, r.Body?.ToJsonString());
+    }
+
     protected async Task<Client> NewTenantWithModulesAsync(params string[] modules)
     {
         var admin = await NewTenantAsync("شركة مدير المنصة للاختبار");

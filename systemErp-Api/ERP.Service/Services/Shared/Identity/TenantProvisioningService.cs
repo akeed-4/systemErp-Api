@@ -35,11 +35,25 @@ public class TenantProvisioningService : ITenantProvisioningService
             IsBaseCurrency = true,
         });
 
-        _db.Add(new Warehouse
+        // الموقع الرئيسي بحساب مخزونه الخاص تحت 114 (كل موقع يُضاف لاحقاً يُنشأ له حسابه بالترقيم نفسه)
+        var warehouse = new Warehouse
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            Code = "WH-001", NameAr = "المستودع الرئيسي", NameEn = "Main Warehouse", IsDefault = true,
+        };
+        var inventoryGroup = DefaultAccounts.Chart.First(a => a.Code == DefaultAccounts.InventoryGroup);
+        var siteAccount = new Account
         {
             TenantId = tenantId,
-            Code = "WH-001", NameAr = "المستودع الرئيسي", NameEn = "Main Warehouse", IsDefault = true,
-        });
+            Code = DefaultAccounts.InventoryGroup + "001",
+            NameAr = WarehouseService.InventoryAccountName(warehouse.NameAr), NameEn = WarehouseService.InventoryAccountName(warehouse.NameEn, english: true),
+            Type = inventoryGroup.Type, ParentCode = inventoryGroup.Code, Level = levelByCode[inventoryGroup.Code] + 1,
+            IsDebitNature = true, Currency = baseCurrencyCode,
+            LinkedEntityType = LinkedEntityType.Warehouse, LinkedEntityId = warehouse.Id,
+        };
+        _db.Add(siteAccount);
+        warehouse.InventoryAccountCode = siteAccount.Code;
+        _db.Add(warehouse);
 
         _db.Add(new CostingPolicy
         {

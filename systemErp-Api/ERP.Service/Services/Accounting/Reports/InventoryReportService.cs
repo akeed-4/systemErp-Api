@@ -22,6 +22,8 @@ public class InventoryReportService : IInventoryReportService
         public StockMovementType Type { get; set; }
         public decimal Quantity { get; set; }
         public decimal UnitCost { get; set; }
+        /// <summary>ما غيّرته الحركة في قيمة الصنف الدفترية (StockMovement.ValueChange).</summary>
+        public decimal ValueChange { get; set; }
         public decimal? UnitPrice { get; set; }
         public string ReferenceNumber { get; set; } = string.Empty;
         /// <summary>+1 وارد، −1 صادر، 0 بلا أثر.</summary>
@@ -41,10 +43,11 @@ public class InventoryReportService : IInventoryReportService
         return Movements(q).Select(m => new SignedMovement
         {
             Id = m.Id, ItemId = m.ItemId, WarehouseId = m.WarehouseId, Date = m.Date, CreatedAt = m.CreatedAt, Type = m.Type, Quantity = m.Quantity,
-            UnitCost = m.UnitCost, UnitPrice = m.UnitPrice, ReferenceNumber = m.ReferenceNumber,
+            UnitCost = m.UnitCost, ValueChange = m.ValueChange, UnitPrice = m.UnitPrice, ReferenceNumber = m.ReferenceNumber,
             Sign = m.Type == StockMovementType.InPurchase || m.Type == StockMovementType.AdjustmentIn ? 1
                 : m.Type == StockMovementType.TransferIn ? transfer
                 : m.Type == StockMovementType.TransferOut ? -transfer
+                : m.Type == StockMovementType.Revaluation ? 0
                 : -1,
         });
     }
@@ -111,7 +114,11 @@ public class InventoryReportService : IInventoryReportService
     private IQueryable<DetailedItemLedgerEntryDto> ItemLedgerQuery(ReportQueryDto q)
     {
         if (!q.ItemId.HasValue) throw new ValidationFailedException(Messages.SelectItemForItemCard);
-        var all = SignedMovements(q).Where(m => m.ItemId == q.ItemId && m.Sign != 0);
+        // إعادة التقييم بلا كمية لكنها تغيّر القيمة: تظهر في البطاقة
+        var all = SignedMovements(q).Where(m => m.ItemId == q.ItemId && (m.Sign != 0 || m.Type == StockMovementType.Revaluation));
+        // قيمة الصنف دفترية على مستوى المنشأة: مجموع ما غيّرته كل حركة (ومنه إعادة تسعير الرصيد). ولمستودع بعينه لا قيمة دفترية مستقلة:
+        // الكمية × تكلفة الحركة كما كانت
+        var byWarehouse = q.WarehouseId.HasValue;
         var period = all;
         if (q.DateFrom.HasValue) period = period.Where(m => m.Date >= q.DateFrom);
         if (q.DateTo.HasValue) period = period.Where(m => m.Date < q.EndExclusive());
@@ -124,6 +131,7 @@ public class InventoryReportService : IInventoryReportService
             "sales" => period.Where(m => m.Type == StockMovementType.OutSales && !m.ReferenceNumber.StartsWith("SRET-") && !m.ReferenceNumber.StartsWith("PRET-")),
             "adjustment" => period.Where(m => m.Type == StockMovementType.AdjustmentIn || m.Type == StockMovementType.AdjustmentOut),
             "transfer" => period.Where(m => m.Type == StockMovementType.TransferIn || m.Type == StockMovementType.TransferOut),
+            "revaluation" => period.Where(m => m.Type == StockMovementType.Revaluation),
             _ => period,
         };
         var warehouses = _db.Set<Warehouse>().AsNoTracking();
@@ -138,17 +146,19 @@ public class InventoryReportService : IInventoryReportService
                 : m.Type == StockMovementType.OutSales ? "sales"
                 : m.Type == StockMovementType.AdjustmentIn ? "adjustment_in"
                 : m.Type == StockMovementType.AdjustmentOut ? "adjustment_out"
-                : m.Type == StockMovementType.TransferIn ? "transfer_in" : "transfer_out",
+                : m.Type == StockMovementType.TransferIn ? "transfer_in"
+                : m.Type == StockMovementType.TransferOut ? "transfer_out" : "revaluation",
             WarehouseId = m.WarehouseId,
             WarehouseName = warehouses.Where(w => w.Id == m.WarehouseId).Select(w => w.NameAr).FirstOrDefault(),
             QuantityIn = m.Sign > 0 ? m.Quantity : 0m, QuantityOut = m.Sign < 0 ? m.Quantity : 0m,
-            UnitCost = m.UnitCost, UnitPrice = m.UnitPrice, TotalValue = Math.Round(m.Quantity * m.UnitCost, 2),
+            UnitCost = m.UnitCost, UnitPrice = m.UnitPrice,
+            TotalValue = byWarehouse ? Math.Round(m.Quantity * m.UnitCost, 2) : Math.Abs(m.ValueChange),
             RunningStockBalance = all
                 .Where(p => p.Date < m.Date || (p.Date == m.Date && (p.CreatedAt < m.CreatedAt || (p.CreatedAt == m.CreatedAt && p.Id.CompareTo(m.Id) <= 0))))
                 .Sum(p => p.Sign * p.Quantity),
             RunningStockValue = Math.Round(all
                 .Where(p => p.Date < m.Date || (p.Date == m.Date && (p.CreatedAt < m.CreatedAt || (p.CreatedAt == m.CreatedAt && p.Id.CompareTo(m.Id) <= 0))))
-                .Sum(p => p.Sign * p.Quantity * p.UnitCost), 2),
+                .Sum(p => byWarehouse ? p.Sign * p.Quantity * p.UnitCost : p.ValueChange), 2),
         });
     }
 

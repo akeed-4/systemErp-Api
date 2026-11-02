@@ -6,6 +6,11 @@ public class CreateReturnInvoiceRequestDto
 {
     public Guid OriginalInvoiceId { get; set; }
     public string ReturnReason { get; set; } = string.Empty;
+    /// <summary>رقم المرتجع اليدوي (إن كان نوع المرتجع مضبوطاً يدوياً).</summary>
+    public string? ManualNumber { get; set; }
+    /// <summary>داخلي: مرتجع ينشئه النظام (نقاط البيع) فيبقى ترقيمه تلقائياً.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SystemGenerated { get; set; }
     /// <summary>طريقة رد المبلغ (فارغ = نفس طريقة دفع الفاتورة الأصلية).</summary>
     public PaymentMethod? RefundPaymentMethod { get; set; }
     /// <summary>رمز طريقة الرد المؤسَّسة (يُرحَّل على حسابها) مع RefundPaymentMethod.</summary>

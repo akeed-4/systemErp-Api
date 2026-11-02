@@ -54,7 +54,9 @@ public class JournalService : IJournalService
     public Task<JournalEntryDto> CreateManualAsync(CreateJournalEntryDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var result = await _posting.PostAsync(ToRequest(r), token);
+            var request = ToRequest(r);
+            request.UserEntered = true; request.ManualNumber = r.EntryNumber; // قيد يدوي: رقمه يدوي إن ضُبط نوع القيود يدوياً
+            var result = await _posting.PostAsync(request, token);
             await _audit.LogAsync("JOURNAL_ENTRY_CREATED", nameof(JournalEntry), result.JournalEntryId.ToString(), $"قيد يدوي {result.EntryNumber}", token);
             return await GetAsync(result.JournalEntryId, token);
         }, ct);

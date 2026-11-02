@@ -67,13 +67,14 @@ public class PosSaleReturnService : IPosSaleReturnService
 
             var creditNote = await _returns.CreateFromInvoiceAsync(new CreateReturnInvoiceRequestDto
             {
+                SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
                 OriginalInvoiceId = tx.InvoiceId.Value, ReturnReason = r.ReturnReason, RefundPaymentMethod = refundMethod, RefundPaymentMethodCode = refundChoice?.Code,
                 Lines = wanted.Select(l => new ReturnLineDto { ItemId = l.ItemId, Quantity = l.ReturnQuantity }).ToList(),
             }, token);
 
             var ret = new PosSalesReturn
             {
-                ReturnNumber = await _numbers.NextAsync("pos_return", "RET-", token),
+                ReturnNumber = await _numbers.NextAsync("pos_return", "RET-", shift.WarehouseId, token),
                 OriginalTransactionId = tx.Id, OriginalInvoiceNumber = tx.InvoiceNumber, OriginalInvoiceId = tx.InvoiceId,
                 CustomerId = tx.CustomerId, CustomerName = tx.CustomerName, ShiftId = shift.Id, ReturnReason = r.ReturnReason,
                 Subtotal = creditNote.Subtotal, ExciseTaxAmount = creditNote.ExciseTaxTotal,

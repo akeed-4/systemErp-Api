@@ -9,4 +9,6 @@ public interface IWarehouseSessionService
     Task InitializeAsync(CancellationToken ct = default);
     Task<WarehouseSessionDto> GetAsync(CancellationToken ct = default);
     Task<WarehouseSessionDto> SetDocumentVisibilityAsync(string visibility, CancellationToken ct = default);
+    /// <summary>نطاق ترقيم المستندات: tenant | warehouse | user.</summary>
+    Task<WarehouseSessionDto> SetNumberingScopeAsync(string scope, CancellationToken ct = default);
 }

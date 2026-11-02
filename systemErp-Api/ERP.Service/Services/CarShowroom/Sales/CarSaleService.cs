@@ -110,8 +110,13 @@ public class CarSaleService : ICarSaleService
             ApplyVehicleAndPricing(contract, vehicle, await CarTax.LoadAsync(_db, token));
             await ValidateDepositAsync(contract, token);
 
-            contract.ContractNumber = await _numbers.NextAsync("car_sales_contract", "CSC-", token);
             contract.Date = r.Date == default ? SaudiTime.Today : r.Date;
+            contract.ContractNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = "car_sales_contract", DefaultPrefix = "CSC-", WarehouseId = contract.WarehouseId, Date = contract.Date, // معرض سيارته
+                ManualNumber = r.ContractNumber, UserEntered = !r.SystemGenerated,
+                Exists = (n, c) => _db.Set<CarSalesContract>().AnyAsync(x => x.ContractNumber == n, c),
+            }, token);
             contract.Status = SalesContractStatus.Draft;
             contract.SalespersonName ??= _user.Name;
             contract.CustomerChargesNet = 0; contract.CustomerChargesVat = 0;
@@ -206,6 +211,7 @@ public class CarSaleService : ICarSaleService
     public async Task<CarSalesContractDto> QuickSaleAsync(QuickSaleRequestDto r, CancellationToken ct = default)
         => await SendToZatcaAsync(await _tx.RunAsync(async token =>
         {
+            r.Contract.SystemGenerated = true; // البيع السريع: الرقم تلقائي دائماً
             var created = await CreateAsync(r.Contract, token);
             var done = await CompleteAsync(created.Id, r.Handover, token);
             await _audit.LogAsync("QUICK_SALE", nameof(CarSalesContract), created.Id.ToString(), $"بيع سريع: عقد {done.ContractNumber} — VIN {done.Vin}", token);
@@ -257,7 +263,7 @@ public class CarSaleService : ICarSaleService
             var returned = refundCharges ? original.Items.OrderByDescending(i => i.Id == vehicleItem.Id).ToList() : new List<InvoiceItem> { vehicleItem };
             var dto = new CreateInvoiceDto
             {
-                Kind = InvoiceKind.SalesReturn, InvoiceType = InvoiceType.CreditNote, IsReturn = true,
+                Kind = InvoiceKind.SalesReturn, InvoiceType = InvoiceType.CreditNote, IsReturn = true, SystemGenerated = true,
                 OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.Reason.Trim(),
                 PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber,
                 PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber, PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
@@ -447,6 +453,7 @@ public class CarSaleService : ICarSaleService
         var (method, splits) = PaymentPlan(c, depositAmount, deposit?.VoucherNumber);
         var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
         {
+            SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
             Kind = InvoiceKind.Sales,
             InvoiceType = customer?.IsVatRegistered == true ? InvoiceType.TaxInvoice : InvoiceType.Simplified, // من الحالة الضريبية للعميل (الافتراضي مبسطة)
             PartyId = c.CustomerId, PartyName = c.BuyerName, PartyVatNumber = customer?.VatNumber, PartyPhone = c.BuyerPhone, PartyEmail = c.BuyerEmail,

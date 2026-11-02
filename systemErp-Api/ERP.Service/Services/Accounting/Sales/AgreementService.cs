@@ -59,7 +59,11 @@ public class AgreementService : CrudService<Agreement, AgreementDto, CreateAgree
 
     protected override async Task OnCreatingAsync(Agreement e, CreateAgreementDto d, CancellationToken ct)
     {
-        e.AgreementNumber = await _numbers.NextAsync("agreement", "AGR-", ct);
+        e.AgreementNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = "agreement", DefaultPrefix = "AGR-", Date = e.StartDate, ManualNumber = d.AgreementNumber, UserEntered = true,
+            Exists = (n, c) => Db.Set<Agreement>().AnyAsync(x => x.AgreementNumber == n, c),
+        }, ct);
         foreach (var i in e.Items) i.UsedQuantity = 0; // لا استهلاك قبل وجود أوامر
     }
 

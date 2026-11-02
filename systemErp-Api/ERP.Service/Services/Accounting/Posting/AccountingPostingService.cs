@@ -31,7 +31,12 @@ public class AccountingPostingService : IAccountingPostingService
         var entry = new JournalEntry
         {
             Module = ResolveModule(request.Module, request.SourceType),
-            EntryNumber = await _numbers.NextAsync("journal_entry", "JE-", ct),
+            EntryNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = "journal_entry", DefaultPrefix = "JE-", WarehouseId = request.WarehouseId, Date = request.Date,
+                ManualNumber = request.ManualNumber, UserEntered = request.UserEntered,
+                Exists = (n, c) => _db.Set<JournalEntry>().AnyAsync(e => e.EntryNumber == n, c),
+            }, ct),
             Date = request.Date,
             Description = request.Description,
             ReferenceType = request.SourceType ?? "manual",
@@ -269,6 +274,7 @@ public class AccountingPostingService : IAccountingPostingService
             }
         }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
+        request.WarehouseId = r.WarehouseId;
         request.Module = r.Module;
         request.ReplaceEntryId = r.ReplaceEntryId;
         request.CostCenterByAccount = r.CostCenterByAccount;
@@ -356,6 +362,7 @@ public class AccountingPostingService : IAccountingPostingService
                 lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartySupplier), 0, payable));
         }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);
+        request.WarehouseId = r.WarehouseId;
         request.Module = r.Module;
         request.ReplaceEntryId = r.ReplaceEntryId;
         request.CostCenterByAccount = r.CostCenterByAccount;

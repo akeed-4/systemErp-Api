@@ -24,17 +24,18 @@ namespace ERP.Service.Data.Migrations
                 nullable: false,
                 defaultValue: 0m);
 
-            // 1 وارد مشتريات، 3 تسوية إضافة: موجب؛ 2 مبيعات، 4 تسوية خصم: سالب؛ 5 و6 تحويل: صفر
+            // العمود Type نصي (اسم القيمة لا رقمها)؛ مقارنته بأرقام تعطي Msg 245.
+            // وارد مشتريات وتسوية إضافة: موجب؛ مبيعات وتسوية خصم: سالب؛ التحويل: صفر
             migrationBuilder.Sql(@"
 UPDATE [StockMovement] SET [ValueChange] =
-    CASE WHEN [Type] IN (1, 3) THEN ROUND([Quantity] * [UnitCost], 2)
-         WHEN [Type] IN (2, 4) THEN -ROUND([Quantity] * [UnitCost], 2)
+    CASE WHEN [Type] IN (N'InPurchase', N'AdjustmentIn') THEN ROUND([Quantity] * [UnitCost], 2)
+         WHEN [Type] IN (N'OutSales', N'AdjustmentOut') THEN -ROUND([Quantity] * [UnitCost], 2)
          ELSE 0 END;");
 
             migrationBuilder.Sql(@"
 INSERT INTO [StockMovement] ([Id], [TenantId], [CreatedAt], [ItemId], [WarehouseId], [ItemName], [Date], [Type], [Quantity], [UnitCost],
     [ReferenceNumber], [RemainingStock], [RemainingQuantity], [ValueChange], [Notes], [SourceType])
-SELECT NEWID(), p.[TenantId], SYSUTCDATETIME(), p.[Id], NULL, p.[NameAr], CAST(DATEADD(hour, 3, SYSUTCDATETIME()) AS date), 7, 0, p.[AverageCost],
+SELECT NEWID(), p.[TenantId], SYSUTCDATETIME(), p.[Id], NULL, p.[NameAr], CAST(DATEADD(hour, 3, SYSUTCDATETIME()) AS date), N'Revaluation', 0, p.[AverageCost],
     N'OPENING-VALUE', p.[CurrentStock], 0, d.[Diff], N'مطابقة قيمة الصنف مع إعادة تسعير سابقة لم تُسجَّل في سجله', N'inventory_revaluation'
 FROM [Product] p
 CROSS APPLY (SELECT ROUND(p.[CurrentStock] * p.[AverageCost], 2)
@@ -45,7 +46,7 @@ WHERE d.[Diff] <> 0;");
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("DELETE FROM [StockMovement] WHERE [Type] = 7;");
+            migrationBuilder.Sql("DELETE FROM [StockMovement] WHERE [Type] = N'Revaluation' AND [ReferenceNumber] = N'OPENING-VALUE';");
             migrationBuilder.DropColumn(
                 name: "ValueChange",
                 table: "StockMovement");

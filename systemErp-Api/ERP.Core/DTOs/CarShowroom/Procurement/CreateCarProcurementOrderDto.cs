@@ -2,7 +2,11 @@ namespace ERP.Core.DTOs.CarShowroom;
 
 public partial class CreateCarProcurementOrderDto
 {
+    /// <summary>الرقم اليدوي (يُعتمد فقط إن كانت أوامر شراء السيارات مضبوطة يدوياً).</summary>
     public string OrderNumber { get; set; } = string.Empty;
+    /// <summary>داخلي: مستند ينشئه النظام (المسارات السريعة) فيبقى ترقيمه تلقائياً دائماً.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SystemGenerated { get; set; }
     public ProcurementStage Stage { get; set; } = ProcurementStage.Requisition;
     public DateTime Date { get; set; }
     public Guid SupplierId { get; set; }

@@ -37,5 +37,11 @@ public partial class PosTransactionDto
     public string? ZatcaResponseMsg { get; set; }
     public Guid? InvoiceId { get; set; }
     public PosTransactionStatus Status { get; set; } = PosTransactionStatus.Completed;
+    public string? ClientReference { get; set; }
+    public bool IsOffline { get; set; }
+    public DateTime? OfflineIssuedAt { get; set; }
+    public string? OfflineReceiptNumber { get; set; }
+    public decimal? OfflinePrintedTotal { get; set; }
+    public string? OfflineReviewNote { get; set; }
     public List<PosTransactionItemDto> Items { get; set; } = new();
 }

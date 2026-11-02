@@ -57,9 +57,16 @@ public class DeliveryNoteService : IDeliveryNoteService
                     ?? throw new ValidationFailedException(Messages.ContractNotFoundDot);
 
             var note = Mapper.Map<DeliveryNote>(r);
-            note.DeliveryNumber = await _numbers.NextAsync("delivery_note", r.Type == "sales_delivery" ? "DN-" : "GRN-", token);
             note.ContractNumber = contract?.ContractNumber ?? r.ContractNumber;
             note.Date = r.Date == default ? SaudiTime.Today : r.Date;
+            // بيان التسليم (بيع) وسند الاستلام (شراء) نوعان بعدّادين وبادئتين مستقلتين
+            var salesNote = r.Type == "sales_delivery";
+            note.DeliveryNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = salesNote ? "delivery_note" : "goods_receipt", DefaultPrefix = salesNote ? "DN-" : "GRN-", WarehouseId = note.WarehouseId, Date = note.Date,
+                ManualNumber = r.DeliveryNumber, UserEntered = true,
+                Exists = (n, c) => _db.Set<DeliveryNote>().AnyAsync(x => x.DeliveryNumber == n, c),
+            }, token);
             note.Status = DeliveryNoteStatus.Delivered;
             note.InvoiceId = null; note.InvoiceNumber = null;
             foreach (var i in note.Items) i.ReturnedQty = 0;
@@ -192,10 +199,15 @@ public class DeliveryNoteService : IDeliveryNoteService
             note.Status = note.Items.All(i => i.ReturnedQty >= i.DeliveredQty) ? DeliveryNoteStatus.Returned : DeliveryNoteStatus.PartiallyReturned;
 
             var ret = Mapper.Map<DeliveryReturnNote>(r);
-            ret.ReturnNumber = await _numbers.NextAsync("delivery_return", "DR-", token);
             ret.DeliveryNumber = note.DeliveryNumber;
             ret.ContractId = note.ContractId; ret.ContractNumber = note.ContractNumber; ret.PartyName = note.PartyName;
             ret.Date = r.Date == default ? SaudiTime.Today : r.Date;
+            ret.ReturnNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = "delivery_return", DefaultPrefix = "DR-", WarehouseId = note.WarehouseId, Date = ret.Date, // مستودع بيان التسليم
+                ManualNumber = r.ReturnNumber, UserEntered = true,
+                Exists = (n, c) => _db.Set<DeliveryReturnNote>().AnyAsync(x => x.ReturnNumber == n, c),
+            }, token);
             ret.Status = "completed";
             foreach (var i in ret.Items)
             {
@@ -233,7 +245,7 @@ public class DeliveryNoteService : IDeliveryNoteService
                 : null;
             var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
-                Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
+                Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase, SystemGenerated = true, // فاتورة البيان: الرقم تلقائي دائماً
                 IssueDate = date?.Date ?? default,
                 CostCenterId = contractCenter, CostCenterFromSource = true,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,

@@ -7,7 +7,11 @@ public partial class CreateInvoiceDto
     /// بطلب اعتماد، وإلا تُرحَّل فوراً. أي فشل في الترحيل (رصيد غير كافٍ...) يلغي الفاتورة كلها فلا تُحفظ مسودة يتيمة.
     /// </summary>
     public bool ApplyApprovalPolicy { get; set; }
+    /// <summary>الرقم اليدوي (يُعتمد فقط إن كان نوع المستند مضبوطاً يدوياً؛ وإلا يصدره السرفر).</summary>
     public string InvoiceNumber { get; set; } = string.Empty;
+    /// <summary>داخلي: مستند ينشئه النظام (نقاط البيع، التحويل من عقد/طلب...) فيبقى ترقيمه تلقائياً دائماً.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SystemGenerated { get; set; }
     public Guid Uuid { get; set; }
     public DateTime IssueDate { get; set; }
     public string IssueTime { get; set; } = string.Empty;

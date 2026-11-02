@@ -162,7 +162,7 @@ public sealed class PermissionStore
                 continue;
             }
             // شاشة فُصلت من أصل ولم تُحفظ لها صلاحيات: تُشتق من أعمدة الأصل (كما كانت محميّة به)
-            var parent = item == null && screen.InheritsFrom != null ? items.GetValueOrDefault(screen.InheritsFrom) : null;
+            var parent = item == null ? InheritedItem(screen, items) : null;
             var source0 = item ?? parent;
             var columns = source0 != null
                 ? new[] { source0.CanView, source0.CanCreate, source0.CanEdit, source0.CanDelete, source0.CanApprove }
@@ -209,13 +209,33 @@ public sealed class PermissionStore
     /// الافتراضي لكل دور (كما كان قبل الكتالوج): الكل للمالك والمدير، المندوب بلا حذف/اعتماد ولا حسابات وتقارير،
     /// والصلاحيات الحسّاسة للأدوار الإدارية فقط. الأدوار المخصّصة بلا صلاحيات افتراضية.
     /// </summary>
+    /// <summary>أعلى شاشة في سلسلة الوراثة: شاشة تفرعت من شاشة متفرعة تأخذ افتراض الأصل الأول.</summary>
+    private static string RootOf(PermissionScreenDefinition screen)
+    {
+        var current = screen;
+        for (var depth = 0; current.InheritsFrom != null && depth < 8; depth++)
+            current = PermissionCatalog.Screens.FirstOrDefault(x => x.Id == current.InheritsFrom) ?? current;
+        return current.InheritsFrom == null ? current.Id : current.InheritsFrom;
+    }
+
+    /// <summary>أقرب صلاحيات محفوظة في سلسلة الوراثة (الأب، ثم أبوه...).</summary>
+    private static ScreenPermissionItem? InheritedItem(PermissionScreenDefinition screen, IReadOnlyDictionary<string, ScreenPermissionItem> items)
+    {
+        for (var (id, depth) = (screen.InheritsFrom, 0); id != null && depth < 8; depth++)
+        {
+            if (items.TryGetValue(id, out var item)) return item;
+            id = PermissionCatalog.Screens.FirstOrDefault(x => x.Id == id)?.InheritsFrom;
+        }
+        return null;
+    }
+
     public static Dictionary<string, bool[]> DefaultColumns(string role)
     {
         var known = FindSystem(role) != null;
         var result = new Dictionary<string, bool[]>();
         foreach (var s in PermissionCatalog.Screens)
         {
-            var id = s.InheritsFrom ?? s.Id;
+            var id = RootOf(s); // الأصل الأعلى في سلسلة الوراثة (ترقيم المستندات ← إعدادات الحسابات ← الحسابات)
             bool view = known, create = known, edit = known, delete = known, approve = known;
             if (role == PermissionService.EmployeeRoleId || !known) view = create = edit = delete = approve = false;
             else if (s.Restricted) view = create = edit = delete = approve = PermissionService.PermissionAdminRoles.Contains(role);

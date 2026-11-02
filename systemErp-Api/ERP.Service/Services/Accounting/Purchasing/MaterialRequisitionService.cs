@@ -45,7 +45,12 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
 
     protected override async Task OnCreatingAsync(MaterialRequisition e, CreateMaterialRequisitionDto d, CancellationToken ct)
     {
-        e.RequisitionNumber = await _numbers.NextAsync("material_requisition", "REQ-", ct);
+        e.RequisitionNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = "material_requisition", DefaultPrefix = "REQ-", WarehouseId = e.WarehouseId, Date = e.RequestDate,
+            ManualNumber = d.RequisitionNumber, UserEntered = true,
+            Exists = (n, c) => Db.Set<MaterialRequisition>().AnyAsync(x => x.RequisitionNumber == n, c),
+        }, ct);
         e.TotalEstimatedCost = e.Items.Sum(i => (i.EstimatedCost ?? 0) * i.RequestedQuantity);
     }
 
@@ -86,6 +91,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             var products = await Db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);
             var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
             {
+                SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
                 Kind = InvoiceKind.Purchase, InvoiceType = InvoiceType.TaxInvoice, PartyId = r.SupplierId, PartyName = r.SupplierName ?? string.Empty,
                 PaymentMethod = PaymentMethod.Credit, Status = "draft",
                 Notes = $"فاتورة شراء محوّلة من طلب {r.RequisitionNumber}",

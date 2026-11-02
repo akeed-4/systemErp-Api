@@ -30,14 +30,22 @@ public class PosSaleService : IPosSaleService
         => _tx.RunAsync(async token =>
         {
             var me = _user.UserId ?? throw new UnauthorizedAppException();
+            // إعادة إرسال العملية نفسها (بعد انقطاع أو مهلة): تُرجع كما حُفظت ولا تُكرَّر
+            var clientRef = string.IsNullOrWhiteSpace(r.ClientReference) ? null : r.ClientReference.Trim();
+            if (clientRef is { Length: > 64 }) throw new ValidationFailedException(Messages.PosClientReferenceTooLong);
+            if (clientRef != null && await _db.Set<PosTransaction>().AsNoTracking().Include(t => t.Items)
+                    .FirstOrDefaultAsync(t => t.ClientReference == clientRef, token) is { } existing)
+                return ToDto(existing);
             var shift = await _db.Set<PosShift>().FirstOrDefaultAsync(s => s.CashierId == me && s.Status == PosShiftStatus.Open, token)
                 ?? throw new ConflictException(Messages.OpenShiftBeforeSale);
             var settings = await _db.Set<PosInvoiceSettings>().AsNoTracking().FirstOrDefaultAsync(token) ?? new PosInvoiceSettings();
+            var offlineAt = r.Offline != null ? EnsureOfflineAllowed(r, shift) : (DateTime?)null;
 
             // 1-5) التسعير: السلة، العروض والخصم اليدوي، الكوبون، الولاء، الضريبة
             var cart = await PriceCartAsync(r, strict: true, shift, token);
             var (lines, products, lineDiscounts, coupon, couponDiscount, customer, loyalty, loyaltyDiscount, pointsUsed, priced) =
                 (cart.Lines, cart.Products, cart.LineDiscounts, cart.Coupon, cart.CouponDiscount, cart.Customer, cart.Loyalty, cart.LoyaltyDiscount, cart.PointsUsed, cart.Priced);
+            var prices = cart.UnitPrices;
             var total = priced.GrandTotal;
 
             // 6) الدفع: بطرق جدول طرق الدفع إن أُرسلت، وإلا بالأنواع الثابتة (واجهات قديمة)
@@ -45,6 +53,8 @@ public class PosSaleService : IPosSaleService
             var configured = r.Payments.Count > 0 ? await ResolveConfiguredPaymentAsync(r.Payments, total, customer, token) : null;
             var (cash, card, mada, apple, change) = configured?.Buckets ?? ResolvePayment(r, total, customer);
             var method = configured?.Method ?? EffectiveMethod(r.PaymentMethod, cash, card, mada, apple);
+            // أوف لاين نقد فقط: جهاز البطاقة والدفع الإلكتروني يحتاجان اتصالاً، والآجل يحتاج رصيد العميل الحالي
+            if (offlineAt.HasValue && (card + mada + apple > 0 || method != PosPaymentMethod.Cash)) throw new ValidationFailedException(Messages.OfflineSaleCashOnly);
 
             // 6ب) دفع إلكتروني مكتمل عبر Paymob: يطابق الإجمالي ويُستهلك مرة واحدة
             OnlinePayment? online = null;
@@ -66,6 +76,7 @@ public class PosSaleService : IPosSaleService
             if (standard && string.IsNullOrWhiteSpace(vat)) throw new ValidationFailedException(Messages.StandardInvoiceRequiresCustomerVat);
             var invoiceDto = new CreateInvoiceDto
             {
+                SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
                 Kind = InvoiceKind.Sales, InvoiceType = standard ? InvoiceType.TaxInvoice : InvoiceType.Simplified,
                 WarehouseId = shift.WarehouseId ?? settings.WarehouseId,
                 PartyId = customer?.Id, PartyName = r.CustomerName ?? customer?.NameAr ?? "عميل نقدي POS",
@@ -74,7 +85,7 @@ public class PosSaleService : IPosSaleService
                 ReferenceType = "pos_transaction", Notes = $"بيع نقطة بيع - وردية {shift.ShiftNumber}",
                 Items = lines.Select((l, i) => new InvoiceItemDto
                 {
-                    ItemId = l.ItemId, Quantity = l.Quantity, UnitPrice = products[l.ItemId].SellingPrice,
+                    ItemId = l.ItemId, Quantity = l.Quantity, UnitPrice = prices[i],
                     Discount = lineDiscounts[i], VatRate = products[l.ItemId].VatRate,
                     ExciseTaxRate = products[l.ItemId].ExciseTaxRate, ExciseRetailPrice = products[l.ItemId].ExciseRetailPrice,
                     ExciseStandardPrice = products[l.ItemId].ExciseStandardPrice,
@@ -83,7 +94,17 @@ public class PosSaleService : IPosSaleService
             if (configured != null) configured.ApplyTo(invoiceDto);
             else ApplyPaymentToInvoice(invoiceDto, method, cash, card + mada + apple, total);
             if (online != null) invoiceDto.SettlementAccountCode = await OnlinePaymentService.SettlementAccountAsync(_db, token);
-            var invoice = await _invoices.CreateAsync(invoiceDto, token);
+            InvoiceDto invoice;
+            if (offlineAt.HasValue)
+            {
+                // البيع أوف لاين يُؤرَّخ بوقت بيعه، ويُختم ويُرسل للهيئة الآن (عند المزامنة)، ولا يُرفض لنقص الرصيد
+                invoiceDto.IssueDate = SaudiTime.FromUtc(offlineAt.Value);
+                invoiceDto.Notes += $" - بيع أوف لاين، إيصال {r.Offline!.ReceiptNumber.Trim()}";
+                _db.PermitNegativeStock = true; _db.NegativeStockOccurred = false;
+                try { invoice = await _invoices.CreateAsync(invoiceDto, token); }
+                finally { _db.PermitNegativeStock = false; }
+            }
+            else invoice = await _invoices.CreateAsync(invoiceDto, token);
 
             // 8) معاملة نقطة البيع (ما يخص الكاشير)
             var pointsEarned = customer == null ? 0 : (int)Math.Floor(total / PosPricing.SarPerEarnedPoint);
@@ -92,7 +113,7 @@ public class PosSaleService : IPosSaleService
                 InvoiceNumber = invoice.InvoiceNumber, ShiftId = shift.Id, CustomerId = customer?.Id,
                 CustomerName = invoice.PartyName, CustomerPhone = invoice.PartyPhone, CustomerTaxNumber = vat,
                 InvoiceType = standard ? "standard" : "simplified",
-                SubtotalBeforeVat = DocumentPricing.Round(lines.Select((l, i) => l.Quantity * products[l.ItemId].SellingPrice).Sum()),
+                SubtotalBeforeVat = DocumentPricing.Round(lines.Select((l, i) => l.Quantity * prices[i]).Sum()),
                 CouponDiscount = couponDiscount, CouponCode = coupon?.Code, LoyaltyDiscount = loyaltyDiscount, LoyaltyPointsRedeemed = pointsUsed,
                 TotalDiscount = lineDiscounts.Sum() + couponDiscount + loyaltyDiscount,
                 ExciseTaxAmount = priced.ExciseTaxTotal, VatAmount = priced.VatTotal, GrandTotal = total, PaymentMethod = method,
@@ -100,17 +121,24 @@ public class PosSaleService : IPosSaleService
                 PointsEarned = pointsEarned, QrCodeBase64 = invoice.ZatcaQrCode ?? string.Empty,
                 ZatcaStatus = invoice.ZatcaStatus, ZatcaUuid = invoice.Uuid.ToString(), InvoiceId = invoice.Id,
                 Status = PosTransactionStatus.Completed,
+                ClientReference = clientRef,
             };
+            if (offlineAt.HasValue)
+            {
+                pos.IsOffline = true; pos.OfflineIssuedAt = offlineAt; pos.OfflineReceiptNumber = r.Offline!.ReceiptNumber.Trim();
+                pos.OfflinePrintedTotal = r.Offline.PrintedTotal;
+                pos.OfflineReviewNote = OfflineReviewNote(lines, products, prices, total, r.Offline.PrintedTotal, _db.NegativeStockOccurred);
+            }
             for (var i = 0; i < lines.Count; i++)
             {
                 var p = products[lines[i].ItemId]; var pl = priced.Lines[i];
                 pos.Items.Add(new PosTransactionItem
                 {
                     ItemId = p.Id, ItemCode = p.Sku, NameAr = p.NameAr, UnitAr = p.Unit, Quantity = lines[i].Quantity,
-                    UnitPrice = p.SellingPrice, ExciseTaxRate = pl.ExciseTaxRate, ExciseRetailPrice = pl.ExciseRetailPrice,
+                    UnitPrice = prices[i], ExciseTaxRate = pl.ExciseTaxRate, ExciseRetailPrice = pl.ExciseRetailPrice,
                     ExciseStandardPrice = pl.ExciseStandardPrice, ExciseTaxBaseAmount = pl.ExciseTaxBaseAmount,
                     ExciseTaxAmount = pl.ExciseTaxAmount, VatRate = p.VatRate, VatAmount = pl.VatAmount,
-                    Subtotal = DocumentPricing.Round(lines[i].Quantity * p.SellingPrice - lineDiscounts[i]),
+                    Subtotal = DocumentPricing.Round(lines[i].Quantity * prices[i] - lineDiscounts[i]),
                     Discount = lineDiscounts[i], TotalWithVat = pl.Total,
                 });
             }
@@ -143,7 +171,7 @@ public class PosSaleService : IPosSaleService
         List<CheckoutLineDto> Lines, Dictionary<Guid, Product> Products, List<decimal> OfferDiscounts, List<decimal> LineDiscounts,
         PosCoupon? Coupon, decimal CouponDiscount, string? CouponError,
         Customer? Customer, CustomerLoyalty? Loyalty, decimal LoyaltyDiscount, int PointsUsed, string? LoyaltyError,
-        PricedDocument Priced);
+        PricedDocument Priced, List<decimal> UnitPrices);
 
     /// <summary>تسعير السلة من الكتالوج (مشترك بين الإتمام والعرض المسبق). strict=false: الكوبون/الولاء غير الصالح يُتجاهل مع رسالة.</summary>
     private async Task<CartPricing> PriceCartAsync(CheckoutRequestDto r, bool strict, PosShift shift, CancellationToken token)
@@ -152,7 +180,7 @@ public class PosSaleService : IPosSaleService
             var lines = r.Items.Where(i => i.Quantity != 0 || i.ItemId != Guid.Empty)
                 .GroupBy(i => i.ItemId).Select(g => new CheckoutLineDto
                 {
-                    ItemId = g.Key, Quantity = g.Sum(x => x.Quantity), ManualDiscount = g.Sum(x => x.ManualDiscount),
+                    ItemId = g.Key, Quantity = g.Sum(x => x.Quantity), ManualDiscount = g.Sum(x => x.ManualDiscount), OfflineUnitPrice = g.First().OfflineUnitPrice,
                     Note = string.Join(" | ", g.Select(x => x.Note).Where(n => !string.IsNullOrWhiteSpace(n))),
                 }).ToList();
             if (lines.Count == 0) throw new ValidationFailedException(Messages.CartEmpty);
@@ -170,20 +198,25 @@ public class PosSaleService : IPosSaleService
             if (allowedCategories.Count > 0 && products.Values.Any(p => !categoryIds.TryGetValue(p.Category, out var categoryId) || !allowedCategories.Contains(categoryId)))
                 throw new ForbiddenException("تحتوي السلة على فئة غير مسموحة في نقطة البيع الحالية.");
             var offers = await _db.Set<PosOffer>().AsNoTracking().Where(o => o.IsActive).ToListAsync(token);
+            // البيع أوف لاين بسعره على الجهاز (الكتالوج المحفوظ) وبلا عروض: هذا ما طُبع للعميل وقبضه الكاشير
+            var offline = r.Offline != null;
+            if (offline && lines.Any(l => l.OfflineUnitPrice is < 0)) throw new ValidationFailedException(Messages.QtyPositiveDiscountsNonNegative);
+            var unitPrices = lines.Select(l => offline ? l.OfflineUnitPrice ?? products[l.ItemId].SellingPrice : products[l.ItemId].SellingPrice).ToList();
 
             // 2) الخصومات على مستوى السطر (عروض السرفر + خصم يدوي إداري)
             var offerDiscounts = new List<decimal>();
             var lineDiscounts = new List<decimal>();
-            foreach (var l in lines)
+            for (var li = 0; li < lines.Count; li++)
             {
+                var l = lines[li];
                 var p = products[l.ItemId];
-                var offer = PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, p.SellingPrice);
-                var gross = l.Quantity * p.SellingPrice;
+                var offer = offline ? 0m : PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, p.SellingPrice);
+                var gross = l.Quantity * unitPrices[li];
                 if (l.ManualDiscount > gross - offer) throw new ValidationFailedException(string.Format(Messages.ItemDiscountExceedsValue, p.NameAr));
                 offerDiscounts.Add(offer);
                 lineDiscounts.Add(offer + l.ManualDiscount);
             }
-            var netAfterLines = lines.Select((l, i) => l.Quantity * products[l.ItemId].SellingPrice - lineDiscounts[i]).Sum();
+            var netAfterLines = lines.Select((l, i) => l.Quantity * unitPrices[i] - lineDiscounts[i]).Sum();
 
             // 3) الكوبون
             PosCoupon? coupon = null; decimal couponDiscount = 0; string? couponError = null;
@@ -218,7 +251,7 @@ public class PosSaleService : IPosSaleService
 
             // 5) التسعير النهائي (نفس محرك الفواتير)
             var priced = DocumentPricing.Price(
-                lines.Select((l, i) => new PricedLineInput(l.Quantity, products[l.ItemId].SellingPrice, lineDiscounts[i], products[l.ItemId].VatRate,
+                lines.Select((l, i) => new PricedLineInput(l.Quantity, unitPrices[i], lineDiscounts[i], products[l.ItemId].VatRate,
                     null, products[l.ItemId].ExciseTaxRate, products[l.ItemId].ExciseRetailPrice, products[l.ItemId].ExciseStandardPrice)).ToList(),
                 couponDiscount + loyaltyDiscount);
             if (!shift.AllowDiscount && (lines.Any(l => l.ManualDiscount > 0) || couponDiscount > 0 || loyaltyDiscount > 0))
@@ -226,7 +259,7 @@ public class PosSaleService : IPosSaleService
             if (shift.MaxDiscountPercent.HasValue && priced.Subtotal > 0 && priced.DiscountTotal * 100m / priced.Subtotal > shift.MaxDiscountPercent.Value)
                 throw new ForbiddenException($"تجاوز الخصم الحد المسموح لهذه النقطة ({shift.MaxDiscountPercent.Value:0.##}%).");
             return new CartPricing(lines, products, offerDiscounts, lineDiscounts, coupon, couponDiscount, couponError,
-                customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced);
+                customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced, unitPrices);
     }
 
     /// <summary>تسعير السلة من السرفر للعرض على شاشة الكاشير قبل الدفع — بلا أي أثر.</summary>
@@ -373,6 +406,49 @@ public class PosSaleService : IPosSaleService
     }
 
     /// <summary>عملية نقطة البيع للواجهة، مع طرق الدفع المحفوظة.</summary>
+    /// <summary>أقصى عمر لبيع أوف لاين عند مزامنته (يحفظ مهلة إرسال الفاتورة المبسطة للهيئة)، وهامش لفرق ساعة الجهاز.</summary>
+    internal static readonly TimeSpan OfflineMaxAge = TimeSpan.FromHours(12);
+    private static readonly TimeSpan ClockSkew = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// شروط ترحيل بيع أوف لاين: خلال 12 ساعة من وقت بيعه، في وردية الكاشير المفتوحة نفسها، برقم إيصال، وبلا خصومات
+    /// أو كوبون أو نقاط أو دفع إلكتروني. يُرجع وقت البيع بتوقيت UTC.
+    /// </summary>
+    private static DateTime EnsureOfflineAllowed(CheckoutRequestDto r, PosShift shift)
+    {
+        var o = r.Offline!;
+        var issued = o.IssuedAt.Kind switch
+        {
+            DateTimeKind.Utc => o.IssuedAt,
+            DateTimeKind.Local => o.IssuedAt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(o.IssuedAt, DateTimeKind.Utc),
+        };
+        var now = DateTime.UtcNow;
+        if (now - issued > OfflineMaxAge + ClockSkew) throw new ValidationFailedException(Messages.OfflineSaleTooOld);
+        if (issued - now > ClockSkew) throw new ValidationFailedException(Messages.OfflineSaleInFuture);
+        if (o.ShiftId != shift.Id) throw new ConflictException(Messages.OfflineSaleShiftMismatch);
+        if (string.IsNullOrWhiteSpace(o.ReceiptNumber)) throw new ValidationFailedException(Messages.OfflineReceiptNumberRequired);
+        if (!string.IsNullOrWhiteSpace(r.CouponCode) || r.LoyaltyPointsToRedeem > 0 || r.Items.Any(i => i.ManualDiscount > 0)
+            || r.OnlinePaymentId.HasValue || r.CardTerminalPaymentId.HasValue)
+            throw new ValidationFailedException(Messages.OfflineSaleNoDiscounts);
+        return issued;
+    }
+
+    /// <summary>ما يحتاج مراجعة بعد المزامنة: سعر تغيّر منذ البيع، فرق بين المطبوع والمحسوب، أو رصيد صار سالباً.</summary>
+    private static string? OfflineReviewNote(List<CheckoutLineDto> lines, Dictionary<Guid, Product> products, List<decimal> prices,
+        decimal total, decimal printed, bool negativeStock)
+    {
+        var notes = new List<string>();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var p = products[lines[i].ItemId];
+            if (prices[i] != p.SellingPrice) notes.Add($"سعر {p.NameAr} عند البيع {prices[i]:0.00} والحالي {p.SellingPrice:0.00}");
+        }
+        if (Math.Abs(total - printed) > 0.01m) notes.Add($"الإجمالي المطبوع {printed:0.00} والمحسوب {total:0.00}");
+        if (negativeStock) notes.Add("أصبح رصيد صنف أو أكثر سالباً بهذا البيع");
+        return notes.Count == 0 ? null : string.Join("؛ ", notes);
+    }
+
     private static PosTransactionDto ToDto(PosTransaction t)
     {
         var dto = Mapper.Map<PosTransactionDto>(t);
@@ -449,6 +525,7 @@ public class PosSaleService : IPosSaleService
             if (t.InvoiceId.HasValue)
                 await _returns.CreateFromInvoiceAsync(new CreateReturnInvoiceRequestDto
                 {
+                    SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
                     OriginalInvoiceId = t.InvoiceId.Value, ReturnReason = string.Format(Messages.PosVoidReturnReason, t.InvoiceNumber),
                 }, token);
             return ToDto(t);

@@ -2,7 +2,11 @@ namespace ERP.Core.DTOs.Accounting;
 
 public partial class CreateCommercialOrderDto
 {
+    /// <summary>الرقم اليدوي (يُعتمد فقط إن كان نوع الأمر مضبوطاً يدوياً).</summary>
     public string OrderNumber { get; set; } = string.Empty;
+    /// <summary>داخلي: أمر ينشئه النظام فيبقى ترقيمه تلقائياً دائماً.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SystemGenerated { get; set; }
     public string Type { get; set; } = "sales_order";
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }

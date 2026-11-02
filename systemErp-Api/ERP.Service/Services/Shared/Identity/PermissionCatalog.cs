@@ -100,6 +100,9 @@ public static class PermissionCatalog
             new[] { A.Edit }, Array.Empty<string>(), InheritsFrom: "accounts"),
         new("accounting-settings", "accounting", "إعدادات الحسابات المحاسبية وطريقة الجرد", "Accounting Settings & Inventory Method",
             new[] { A.View, A.Edit }, new[] { "accounting-settings" }, InheritsFrom: "accounts"),
+        // ترقيم المستندات: يرث إعدادات الحسابات (من يملكها يملك هذه) حتى تُحفظ له صلاحية مستقلة
+        new("document-numbering", "accounting", "ترقيم المستندات", "Document Numbering",
+            new[] { A.View, A.Edit }, new[] { "document-numbering" }, InheritsFrom: "accounting-settings"),
         new("vouchers", "accounting", "سندات القبض والصرف", "Receipt & Payment Vouchers",
             Crud(A.Approve, A.Post, A.Cancel), new[] { "vouchers" }),
 

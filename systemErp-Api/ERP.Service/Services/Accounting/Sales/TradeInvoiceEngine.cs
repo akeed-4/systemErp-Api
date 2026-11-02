@@ -135,6 +135,8 @@ public class TradeInvoiceEngine
             invoice.Status = "draft";
             // المسودة برقم مؤقت؛ الرقم المتسلسل يُصرف عند الترحيل فلا يترك حذف مسودة فجوة في تسلسل الفواتير
             invoice.InvoiceNumber = DraftPrefix + invoice.Id.ToString("N")[..10].ToUpperInvariant();
+            // ترقيم يدوي لهذا النوع: الرقم المُدخل (بعد التحقق من صيغته وتكراره) من الإنشاء ولو مسودة
+            if (await ManualNumberAsync(invoice, r.InvoiceNumber, r.SystemGenerated, token) is { } manual) invoice.InvoiceNumber = manual;
             _db.Add(invoice);
             await OnSavingAsync(invoice, deleting: false, token);
             await ClaimSourceAsync(invoice, token);
@@ -200,6 +202,13 @@ public class TradeInvoiceEngine
             }
             Mapper.Apply(fresh, invoice);
             (invoice.Id, invoice.TenantId, invoice.CreatedAt, invoice.InvoiceNumber, invoice.Uuid) = (keepId, keepTenant, keepCreated, keepNumber, keepUuid);
+            // الترقيم اليدوي: المسودة يُعتمد/يُغيَّر رقمها المُدخل، والمرحّلة لا يتغير رقمها
+            var requestedNumber = r.InvoiceNumber?.Trim();
+            if (!string.IsNullOrEmpty(requestedNumber) && requestedNumber != keepNumber && await IsManualAsync(invoice, r.SystemGenerated, token))
+            {
+                if (wasPosted) throw new ConflictException(Messages.DocumentNumberLocked);
+                invoice.InvoiceNumber = (await ManualNumberAsync(invoice, requestedNumber, r.SystemGenerated, token))!;
+            }
             if (wasPosted) (invoice.ReferenceType, invoice.ReferenceId, invoice.JournalEntryId) = (keepRefType, keepRefId, keepEntry);
             invoice.Status = "draft";
             foreach (var item in fresh.Lines.ToList()) invoice.AddLine(item);
@@ -391,6 +400,7 @@ public class TradeInvoiceEngine
                 Kind = original.Kind == InvoiceKind.Sales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
                 InvoiceType = original.Kind == InvoiceKind.Sales ? InvoiceType.CreditNote : InvoiceType.DebitNote,
                 IsReturn = true, OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.ReturnReason,
+                InvoiceNumber = r.ManualNumber ?? string.Empty, SystemGenerated = r.SystemGenerated, // رقم المرتجع اليدوي إن ضُبط نوعه يدوياً
                 PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber, PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber,
                 PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
                 WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
@@ -1058,9 +1068,16 @@ public class TradeInvoiceEngine
     private async Task FinalizeAsync(InvoiceBase invoice, CancellationToken ct, bool preview = false)
     {
         if (invoice.InvoiceNumber.StartsWith(DraftPrefix, StringComparison.Ordinal))
-            invoice.InvoiceNumber = invoice.ReferenceType == "pos_transaction" && invoice.Kind == InvoiceKind.Sales
-                ? await _numbers.NextAsync("pos_invoice", "POS-", ct) // ترقيم نقاط البيع مستقل ومتسلسل
-                : await _numbers.NextAsync(KeyFor(invoice.Kind), PrefixFor(invoice.Kind), ct);
+        {
+            // نقاط البيع بترقيم مستقل تلقائي دائماً (ومنه المزامنة أوف لاين)؛ الباقي بإعداد نوعه: البادئة والطول والنطاق والسنة المالية لتاريخ الفاتورة
+            var pos = invoice.ReferenceType == "pos_transaction" && invoice.Kind == InvoiceKind.Sales;
+            invoice.InvoiceNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = pos ? "pos_invoice" : KeyFor(invoice.Kind), DefaultPrefix = pos ? "POS-" : PrefixFor(invoice.Kind),
+                WarehouseId = invoice.WarehouseId, Date = invoice.IssueDate,
+                Exists = (n, c) => _db.Set<InvoiceBase>().AnyAsync(i => i.InvoiceNumber == n, c),
+            }, ct);
+        }
         if (!preview && invoice is Invoice car)
             foreach (var ext in _extensions) await ext.OnPostingAsync(car, ct); // سجلات الوحدات (إنشاء المركبات وبيعها...)
         var isSales = invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
@@ -1263,6 +1280,26 @@ public class TradeInvoiceEngine
     /// <summary>بادئة الرقم المؤقت للمسودة قبل صرف رقمها المتسلسل عند الترحيل.</summary>
     private const string DraftPrefix = "DRAFT-";
     private const string DefaultCashCustomer = "عميل نقدي";
+
+    /// <summary>
+    /// فاتورة (تجارية أو معارض) من شاشة المستخدم ونوعها مضبوط يدوياً. نقاط البيع ومستندات النظام
+    /// (التحويل، العقود، البيع والشراء السريع) تبقى تلقائية.
+    /// </summary>
+    private async Task<bool> IsManualAsync(InvoiceBase invoice, bool systemGenerated, CancellationToken ct)
+        => !systemGenerated && invoice.ReferenceType != "pos_transaction"
+            && (await _numbers.CounterAsync(KeyFor(invoice.Kind), PrefixFor(invoice.Kind), invoice.WarehouseId, invoice.IssueDate, ct)).Manual;
+
+    /// <summary>الرقم اليدوي بعد التحقق (إلزامي، صيغة، طول، تكرار في كل جداول الفواتير)؛ null = الترقيم التلقائي.</summary>
+    private async Task<string?> ManualNumberAsync(InvoiceBase invoice, string? requested, bool systemGenerated, CancellationToken ct)
+    {
+        if (!await IsManualAsync(invoice, systemGenerated, ct)) return null;
+        var id = invoice.Id;
+        return await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = KeyFor(invoice.Kind), DefaultPrefix = PrefixFor(invoice.Kind), ManualNumber = requested, UserEntered = true,
+            Exists = (n, c) => _db.Set<InvoiceBase>().AnyAsync(i => i.InvoiceNumber == n && i.Id != id, c),
+        }, ct);
+    }
 
     private static string KeyFor(InvoiceKind k) => k switch
     {

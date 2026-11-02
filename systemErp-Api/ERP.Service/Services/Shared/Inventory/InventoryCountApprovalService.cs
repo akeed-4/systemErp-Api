@@ -254,7 +254,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         return await _posting.PostAsync(new GenericPostingRequest
         {
             Date = SaudiTime.Today, Description = $"تسوية فروق الجرد {count.CountNumber}",
-            SourceType = SourceType, SourceId = count.Id, SourceNumber = count.CountNumber, Lines = lines,
+            SourceType = SourceType, SourceId = count.Id, SourceNumber = count.CountNumber, WarehouseId = count.WarehouseId, Lines = lines,
         }, ct);
     }
 

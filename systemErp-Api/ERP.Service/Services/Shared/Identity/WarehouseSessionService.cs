@@ -13,6 +13,7 @@ public class WarehouseSessionService : IWarehouseSessionService
 {
     public const string Header = "X-Warehouse-Id";
     public static readonly string[] Visibilities = { "site", "user" };
+    public static readonly string[] NumberingScopes = { "tenant", "warehouse", "user" };
 
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
@@ -52,9 +53,11 @@ public class WarehouseSessionService : IWarehouseSessionService
             .Select(w => new WarehouseOptionDto { Id = w.Id, Code = w.Code, NameAr = w.NameAr, NameEn = w.NameEn, IsDefault = w.IsDefault })
             .ToListAsync(ct);
         if (allowed != null) warehouses = warehouses.Where(s => allowed.Contains(s.Id)).ToList();
+        var scope = await _db.Set<Tenant>().AsNoTracking().Select(t => t.DocumentNumberingScope).FirstOrDefaultAsync(ct);
         return new WarehouseSessionDto
         {
             Warehouses = warehouses, AllWarehouses = allowed == null, CurrentWarehouseId = current, DocumentVisibility = _db.SessionDocumentVisibility,
+            DocumentNumberingScope = NumberingScopes.Contains(scope) ? scope! : "tenant",
         };
     }
 
@@ -66,6 +69,17 @@ public class WarehouseSessionService : IWarehouseSessionService
         tenant.DocumentVisibility = visibility;
         await _db.SaveChangesAsync(ct);
         _db.SetWarehouseSession(_db.SessionWarehouseId, _db.SessionAllowedWarehouseIds, visibility, _db.SessionFullAccess, _user.UserId);
+        return await GetAsync(ct);
+    }
+
+    /// <summary>نطاق ترقيم المستندات للمنشأة: يسري على المستندات الجديدة، والأرقام السابقة تبقى كما هي.</summary>
+    public async Task<WarehouseSessionDto> SetNumberingScopeAsync(string scope, CancellationToken ct = default)
+    {
+        scope = (scope ?? string.Empty).Trim().ToLowerInvariant();
+        if (!NumberingScopes.Contains(scope)) throw new ValidationFailedException(Messages.NumberingScopeInvalid);
+        var tenant = await _db.Set<Tenant>().FirstOrDefaultAsync(ct) ?? throw new NotFoundException(Messages.CompanyNotFound);
+        tenant.DocumentNumberingScope = scope;
+        await _db.SaveChangesAsync(ct);
         return await GetAsync(ct);
     }
 

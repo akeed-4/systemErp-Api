@@ -310,6 +310,17 @@
   <data name="DisposalProceedsCannotBeNegative" xml:space="preserve"><value>متحصَّل الاستبعاد لا يكون سالباً.</value></data>
   <data name="DisposalTreasuryRequired" xml:space="preserve"><value>حدّد حساب الخزينة أو البنك المستلم لمتحصَّل البيع.</value></data>
   <data name="DocumentNumberGenerationFailed" xml:space="preserve"><value>تعذّر توليد رقم المستند، أعد المحاولة.</value></data>
+  <data name="DocumentNumberRequired" xml:space="preserve"><value>رقم المستند مطلوب (الترقيم يدوي لهذا النوع).</value></data>
+  <data name="DocumentNumberInvalid" xml:space="preserve"><value>رقم المستند غير صالح: حروف لاتينية وأرقام و(- _ / .) فقط، يبدأ بحرف أو رقم، وبحد أقصى {0} حرفاً.</value></data>
+  <data name="DocumentNumberExists" xml:space="preserve"><value>رقم المستند {0} مستخدم من قبل.</value></data>
+  <data name="DocumentNumberLocked" xml:space="preserve"><value>لا يمكن تغيير رقم مستند بعد ترحيله أو اعتماده.</value></data>
+  <data name="NumberingTypeUnknown" xml:space="preserve"><value>نوع المستند غير مدعوم في إعداد الترقيم.</value></data>
+  <data name="NumberingManualNotAllowed" xml:space="preserve"><value>هذا النوع من المستندات ترقيمه تلقائي فقط.</value></data>
+  <data name="NumberingPrefixInvalid" xml:space="preserve"><value>البادئة: حروف لاتينية وأرقام و(- _ / .) والرمزان {YYYY} و{YY}، وبحد أقصى 20 حرفاً.</value></data>
+  <data name="NumberingPaddingInvalid" xml:space="preserve"><value>طول الرقم بين 1 و12.</value></data>
+  <data name="NumberingScopeTypeInvalid" xml:space="preserve"><value>نطاق ترقيم النوع: فارغ (إعداد المنشأة) أو tenant أو warehouse.</value></data>
+  <data name="NumberingYearlyNeedsYear" xml:space="preserve"><value>التصفير السنوي يتطلب {YYYY} أو {YY} في البادئة حتى لا تتكرر الأرقام بين السنوات.</value></data>
+  <data name="NumberingNextNumberDecrease" xml:space="preserve"><value>الرقم التالي لا يقل عن {0} (يُسمح بزيادته فقط).</value></data>
   <data name="DocumentTotalCannotBeNegative" xml:space="preserve"><value>إجمالي المستند لا يكون سالباً.</value></data>
   <data name="DocumentTypeAndActionRequired" xml:space="preserve"><value>نوع المستند والإجراء مطلوبان.</value></data>
   <data name="Done" xml:space="preserve"><value>تم</value></data>
@@ -544,6 +555,13 @@
   <data name="OnlyUnsubmittedDraftCountDeletable" xml:space="preserve"><value>لا يُحذف إلا جرد مسودة لم يُرسل للاعتماد؛ ألغِه بدلاً من ذلك ليبقى في السجل.</value></data>
   <data name="OpeningCashCannotBeNegative" xml:space="preserve"><value>الرصيد الافتتاحي لا يكون سالباً.</value></data>
   <data name="OpenShiftBeforeSale" xml:space="preserve"><value>افتح وردية أولاً قبل البيع.</value></data>
+  <data name="OfflineSaleTooOld" xml:space="preserve"><value>مضى على هذا البيع أوف لاين أكثر من 12 ساعة فلا يمكن ترحيله تلقائياً. راجع الإدارة لتسجيله يدوياً.</value></data>
+  <data name="OfflineSaleInFuture" xml:space="preserve"><value>وقت البيع أوف لاين بعد الوقت الحالي: تحقق من ساعة الجهاز.</value></data>
+  <data name="OfflineSaleShiftMismatch" xml:space="preserve"><value>بيع أوف لاين من وردية غير وردية الكاشير المفتوحة حالياً.</value></data>
+  <data name="OfflineSaleCashOnly" xml:space="preserve"><value>البيع أوف لاين نقداً فقط.</value></data>
+  <data name="OfflineSaleNoDiscounts" xml:space="preserve"><value>البيع أوف لاين بلا خصومات أو كوبونات أو نقاط ولاء أو دفع إلكتروني.</value></data>
+  <data name="OfflineReceiptNumberRequired" xml:space="preserve"><value>رقم الإيصال المطبوع مطلوب لبيع أوف لاين.</value></data>
+  <data name="PosClientReferenceTooLong" xml:space="preserve"><value>معرّف العملية من الجهاز أطول من 64 حرفاً.</value></data>
   <data name="OpenShiftFirst" xml:space="preserve"><value>افتح وردية أولاً.</value></data>
   <data name="OpenShiftToProcessReturn" xml:space="preserve"><value>افتح وردية أولاً لمعالجة المرتجع.</value></data>
   <data name="OperationMakesStockNegativeLater" xml:space="preserve"><value>العملية تجعل رصيد الصنف {0} سالباً في تاريخ لاحق.</value></data>
@@ -1259,6 +1277,7 @@
   <data name="WarehouseNotAllowed" xml:space="preserve"><value>هذا الموقع (المعرض/المستودع) غير مسموح لك.</value></data>
   <data name="WarehouseRequired" xml:space="preserve"><value>اختر موقع العمل (المعرض/المستودع) أولاً.</value></data>
   <data name="DocumentVisibilityInvalid" xml:space="preserve"><value>طريقة عرض المستندات غير صحيحة: حسب المعرض أو حسب المستخدم.</value></data>
+  <data name="NumberingScopeInvalid" xml:space="preserve"><value>نطاق الترقيم: tenant (المنشأة) أو warehouse (لكل مستودع) أو user (لكل مستخدم).</value></data>
   <data name="PromoCodeNotFound" xml:space="preserve"><value>رمز الخصم غير موجود.</value></data>
   <data name="PromoCodeUsedCannotDelete" xml:space="preserve"><value>رمز الخصم مستخدم في اشتراكات فلا يُحذف؛ عطّله لإيقافه.</value></data>
   <data name="PromoCodeFormat" xml:space="preserve"><value>الرمز من 3 إلى 32 حرفاً إنجليزياً أو رقماً أو - أو _.</value></data>

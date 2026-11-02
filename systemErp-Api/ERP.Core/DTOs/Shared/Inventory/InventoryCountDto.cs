@@ -55,6 +55,8 @@ public class InventoryCountLineDto
 /// <summary>ما يُدخله المستخدم؛ الرقم والحالة ورصيد النظام والتكلفة والفروق يحسبها السرفر.</summary>
 public class CreateInventoryCountDto
 {
+    /// <summary>الرقم اليدوي (يُعتمد فقط إن كان الجرد مضبوطاً يدوياً)؛ لا يتغير بالتعديل.</summary>
+    public string? CountNumber { get; set; }
     public InventoryCountScope Scope { get; set; } = InventoryCountScope.Items;
     public InventoryCountType CountType { get; set; } = InventoryCountType.Full;
     public DateTime CountDate { get; set; }

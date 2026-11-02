@@ -45,7 +45,7 @@ internal static class PosCashDrawer
         {
             Date = SaudiTime.FromUtc(shift.ClosedAt ?? DateTime.UtcNow).Date,
             Description = $"{(variance > 0 ? "زيادة" : "عجز")} نقدية الصندوق - وردية {shift.ShiftNumber}",
-            SourceType = "pos_shift_variance", SourceId = shift.Id, SourceNumber = shift.ShiftNumber, Lines = lines,
+            SourceType = "pos_shift_variance", SourceId = shift.Id, SourceNumber = shift.ShiftNumber, WarehouseId = shift.WarehouseId, Lines = lines,
         }, ct);
         shift.VarianceJournalEntryId = posted.JournalEntryId;
     }

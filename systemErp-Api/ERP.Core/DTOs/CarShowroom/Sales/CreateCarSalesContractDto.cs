@@ -2,7 +2,11 @@ namespace ERP.Core.DTOs.CarShowroom;
 
 public partial class CreateCarSalesContractDto
 {
+    /// <summary>الرقم اليدوي (يُعتمد فقط إن كانت عقود بيع السيارات مضبوطة يدوياً).</summary>
     public string ContractNumber { get; set; } = string.Empty;
+    /// <summary>داخلي: مستند ينشئه النظام (المسارات السريعة) فيبقى ترقيمه تلقائياً دائماً.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SystemGenerated { get; set; }
     public CarSalesCycleType CycleType { get; set; }
     public DateTime Date { get; set; }
     public Guid? CustomerId { get; set; }

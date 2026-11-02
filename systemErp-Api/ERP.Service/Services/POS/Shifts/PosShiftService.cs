@@ -50,7 +50,7 @@ public class PosShiftService : IPosShiftService
 
             var shift = new PosShift
             {
-                ShiftNumber = await _numbers.NextAsync("pos_shift", "SHF-", token),
+                ShiftNumber = await _numbers.NextAsync("pos_shift", "SHF-", terminal.WarehouseId, token),
                 CashierId = me, CashierName = _user.Name ?? string.Empty, PosTerminalName = terminal.Name,
                 PosTerminalId = terminal.Id, WarehouseId = terminal.WarehouseId,
                 AllowReturns = terminal.AllowReturns, AllowDiscount = terminal.AllowDiscount,
@@ -127,7 +127,7 @@ public class PosShiftService : IPosShiftService
             {
                 Date = SaudiTime.Today,
                 Description = $"{(paidIn ? "إيداع نقدي في" : "صرف نقدي من")} درج الوردية {shift.ShiftNumber} - {movement.Reason}",
-                SourceType = "pos_cash_movement", SourceId = movement.Id, SourceNumber = shift.ShiftNumber,
+                SourceType = "pos_cash_movement", SourceId = movement.Id, SourceNumber = shift.ShiftNumber, WarehouseId = shift.WarehouseId,
                 Lines = paidIn
                     ? new List<PostingLine> { new(cash, amount, 0), new(counter, 0, amount) }
                     : new List<PostingLine> { new(counter, amount, 0), new(cash, 0, amount) },

@@ -14,6 +14,12 @@ public class GenericPostingRequest
     public string? SourceType { get; set; }
     public Guid? SourceId { get; set; }
     public string? SourceNumber { get; set; }
+    /// <summary>مستودع المستند المصدر: لترقيم القيد بنطاق الترقيم لكل مستودع فقط (لا يغيّر نطاق ظهور القيد).</summary>
+    public Guid? WarehouseId { get; set; }
+    /// <summary>قيد يدوي من شاشة المستخدم: يخضع للترقيم اليدوي إن ضُبط (القيود المولدة آلياً تبقى تلقائية).</summary>
+    public bool UserEntered { get; set; }
+    /// <summary>رقم القيد اليدوي (مع UserEntered).</summary>
+    public string? ManualNumber { get; set; }
     public List<PostingLine> Lines { get; set; } = new();
     /// <summary>
     /// مستند يردّ مستنداً سابقاً (مرتجع): مراكز أسطره من الأصل، فيُقبل المركز ولو أُوقف بعد الأصل حتى يُلغى الأثر في مركزه نفسه.

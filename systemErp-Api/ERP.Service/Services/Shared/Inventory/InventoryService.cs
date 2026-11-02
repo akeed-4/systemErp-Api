@@ -69,10 +69,15 @@ public class InventoryService : IInventoryService
         }
         else
         {
-            if (product.CurrentStock < r.Quantity && policy.NegativeInventoryPolicy == "prohibit")
+            // مزامنة بيع أوف لاين: الخروج حدث فعلاً، فيُسجَّل ولو صار الرصيد سالباً ويُعلَّم للمراجعة
+            var prohibit = policy.NegativeInventoryPolicy == "prohibit" && !_db.PermitNegativeStock;
+            if (product.CurrentStock < r.Quantity && _db.PermitNegativeStock) _db.NegativeStockOccurred = true;
+            if (product.CurrentStock < r.Quantity && prohibit)
                 throw new ConflictException(string.Format(Messages.InsufficientStock, product.NameAr, product.CurrentStock, r.Quantity));
             // الصرف من مستودع بعينه: رصيده هو المتاح، لا رصيد المستودعات الأخرى
-            if (await WarehouseStocks.ApplyAsync(_db, product.Id, warehouse.Id, -r.Quantity, ct) < 0 && policy.NegativeInventoryPolicy == "prohibit")
+            var warehouseLeft = await WarehouseStocks.ApplyAsync(_db, product.Id, warehouse.Id, -r.Quantity, ct);
+            if (warehouseLeft < 0 && _db.PermitNegativeStock) _db.NegativeStockOccurred = true;
+            if (warehouseLeft < 0 && prohibit)
                 throw new ConflictException(string.Format(Messages.InsufficientStockInWarehouse, product.NameAr, warehouse.NameAr,
                     await WarehouseStocks.QuantityAsync(_db, product.Id, warehouse.Id, ct) + r.Quantity, r.Quantity));
 
@@ -211,7 +216,7 @@ public class InventoryService : IInventoryService
             .Where(m => !excluded.Contains(m.Id)).OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).ToList();
         var min = StockReplay.Apply(product, ordered, policy);
         var warehouseShort = _db.Set<WarehouseStock>().Local.Any(s => s.ItemId == itemId && s.Quantity < 0);
-        if ((min < 0 || warehouseShort) && policy.NegativeInventoryPolicy == "prohibit")
+        if ((min < 0 || warehouseShort) && policy.NegativeInventoryPolicy == "prohibit" && !_db.PermitNegativeStock)
             throw new ConflictException(string.Format(Messages.OperationMakesStockNegativeLater, product.NameAr));
     }
 

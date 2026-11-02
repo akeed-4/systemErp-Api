@@ -22,9 +22,17 @@ public class WarehouseSessionDto
     public Guid? CurrentWarehouseId { get; set; }
     /// <summary>site = مستندات المعرض المختار | user = مستندات المستخدم نفسه.</summary>
     public string DocumentVisibility { get; set; } = "site";
+    /// <summary>tenant | warehouse | user: نطاق ترقيم المستندات.</summary>
+    public string DocumentNumberingScope { get; set; } = "tenant";
 }
 
 public class DocumentVisibilityRequestDto
 {
     public string DocumentVisibility { get; set; } = "site";
+}
+
+public class NumberingScopeRequestDto
+{
+    /// <summary>tenant | warehouse | user</summary>
+    public string DocumentNumberingScope { get; set; } = "tenant";
 }

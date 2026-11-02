@@ -515,7 +515,7 @@ public class AccountingIntegrityTests : TestBase
     }
 
     [Fact]
-    public async Task A_number_collision_while_posting_is_a_conflict_that_rolls_the_whole_posting_back()
+    public async Task A_counter_behind_an_existing_number_skips_it_instead_of_duplicating_or_failing()
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
@@ -526,24 +526,14 @@ public class AccountingIntegrityTests : TestBase
         var path = await api.InvoicePath(draft.Data!["id"].S(), "");
         var entriesBefore = (await api.Get("/journalentries")).Data!["totalCount"].D();
 
-        // عدّاد أُرجع خطوة (استيراد/تعديل يدوي): الرقم التالي صُرف من قبل، والفهرس الفريد يمنع تكراره
+        // عدّاد أُرجع خطوة (استيراد/تعديل يدوي، أو رقم أُدخل يدوياً بالترقيم اليدوي): الرقم التالي مستخدم فيُتجاوز للتالي ولا يتكرر.
+        // الفهرس الفريد يبقى الضمان الأخير لسباقات التزامن
         await ShiftSequenceAsync(api, "sales_invoice", -1);
-        Assert.Equal(409, (await api.Post(path + "/post")).Status);
-
-        // تراجعت المعاملة كلها: لا ترحيل ولا رقم ولا مخزون ولا قيد ولا نقدية
-        var after = (await api.Get(path)).Data!;
-        Assert.Equal("draft", after["status"].S());
-        Assert.StartsWith("DRAFT-", after["invoiceNumber"].S());
-        Assert.Equal(9, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
-        Assert.Equal(entriesBefore, (await api.Get("/journalentries")).Data!["totalCount"].D());
-        Assert.Equal(115, await BalanceAsync(api, "1111"));
-
-        // بعد تصحيح العدّاد تُرحَّل بالرقم التالي مباشرة (لم يستهلك الفشل رقماً)
-        await ShiftSequenceAsync(api, "sales_invoice", 1);
         var posted = await api.Post(path + "/post");
         Assert.Equal(200, posted.Status);
         Assert.Equal(long.Parse(first["SINV-".Length..]) + 1, long.Parse(posted.Data!["invoiceNumber"].S()["SINV-".Length..]));
         Assert.Equal(7, (await api.Get($"/products/{product}")).Data!["currentStock"].D());
+        Assert.Equal(entriesBefore + 1, (await api.Get("/journalentries")).Data!["totalCount"].D());
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 

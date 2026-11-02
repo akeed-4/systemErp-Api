@@ -29,6 +29,8 @@ public class TransferStockDto
 
 public class CreateStockTransferDto
 {
+    /// <summary>الرقم اليدوي (يُعتمد فقط إن كانت التحويلات مضبوطة يدوياً).</summary>
+    public string? TransferNumber { get; set; }
     public DateTime? Date { get; set; }
     public Guid FromWarehouseId { get; set; }
     public Guid ToWarehouseId { get; set; }

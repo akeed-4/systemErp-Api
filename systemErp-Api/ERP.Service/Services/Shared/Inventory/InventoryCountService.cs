@@ -96,7 +96,12 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
 
     protected override async Task OnCreatingAsync(InventoryCount e, CreateInventoryCountDto d, CancellationToken ct)
     {
-        e.CountNumber = await _numbers.NextAsync("inventory_count", "IC-", ct);
+        e.CountNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = "inventory_count", DefaultPrefix = "IC-", WarehouseId = e.WarehouseId, Date = e.CountDate,
+            ManualNumber = d.CountNumber, UserEntered = true,
+            Exists = (n, c) => Db.Set<InventoryCount>().AnyAsync(x => x.CountNumber == n, c),
+        }, ct);
         e.Status = InventoryCountStatus.Draft;
         e.CreatedByUserId = _user.UserId;
         e.CreatedByName = _user.Name;
@@ -105,6 +110,7 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
 
     protected override async Task OnUpdatingAsync(InventoryCount e, UpdateInventoryCountDto d, CancellationToken ct)
     {
+        e.CountNumber = Db.Entry(e).OriginalValues.GetValue<string>(nameof(InventoryCount.CountNumber)); // الرقم لا يتغير بالتعديل
         e.Status = InventoryCountStatus.Draft; // تعديل المرفوض يعيده مسودة للإرسال من جديد
         await PrepareAsync(e, ct);
     }
@@ -172,7 +178,7 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
             var approval = new InventoryCountApproval
             {
                 Id = Guid.NewGuid(),
-                ApprovalNumber = await _numbers.NextAsync("inventory_count_approval", "ICA-", token),
+                ApprovalNumber = await _numbers.NextAsync("inventory_count_approval", "ICA-", count.WarehouseId, token),
                 InventoryCountId = count.Id, CountNumber = count.CountNumber, Scope = count.Scope,
                 Status = InventoryCountApprovalStatus.Pending,
                 RequestedByUserId = me, RequestedBy = _user.Name ?? string.Empty, RequestedAt = now,

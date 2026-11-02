@@ -36,6 +36,13 @@ public class ErpDbContext : DbContext
 
     /// <summary>نسخ سجلات الدليل بين القاعدتين: تُحفظ كما هي (المنشأة وتاريخ الإنشاء) بلا ختم جديد.</summary>
     internal bool PreserveStamps { get; set; }
+    /// <summary>
+    /// مزامنة بيع أوف لاين: البضاعة خرجت فعلاً وقُبض ثمنها، فلا يُرفض تسجيلها لنقص الرصيد (يُعلَّم للمراجعة بدل ذلك).
+    /// يُفعَّل داخل معاملة المزامنة فقط ثم يُعاد.
+    /// </summary>
+    public bool PermitNegativeStock { get; set; }
+    /// <summary>يُرفع إذا صار رصيد صنف سالباً أثناء PermitNegativeStock (لملاحظة المراجعة).</summary>
+    public bool NegativeStockOccurred { get; set; }
 
     /// <summary>
     /// جذور الوراثة بنمط TPC (جدول فعلي مستقل لكل نوع مشتق، ولا جدول للجذر): المفتاح ومرشّح المنشأة على الجذر وحده،
@@ -154,6 +161,10 @@ public class ErpDbContext : DbContext
         (typeof(MaterialRequisition), nameof(MaterialRequisition.RequisitionNumber)),
         (typeof(CommercialOrder), nameof(CommercialOrder.OrderNumber)),
         (typeof(CommercialContract), nameof(CommercialContract.ContractNumber)),
+        (typeof(Agreement), nameof(Agreement.AgreementNumber)),
+        (typeof(DeliveryNote), nameof(DeliveryNote.DeliveryNumber)),
+        (typeof(DeliveryReturnNote), nameof(DeliveryReturnNote.ReturnNumber)),
+        (typeof(PosSalesReturn), nameof(PosSalesReturn.ReturnNumber)),
         (typeof(CarProcurementOrder), nameof(CarProcurementOrder.OrderNumber)),
         (typeof(CarSalesContract), nameof(CarSalesContract.ContractNumber)),
         (typeof(Vehicle), nameof(Vehicle.ChassisNumber)),
@@ -402,6 +413,9 @@ public class ErpDbContext : DbContext
             .HasIndex(r => new { r.TenantId, r.VehicleId }).IsUnique().HasFilter("[Status] = N'Active'");
         modelBuilder.Entity<CarShowroomSettings>().HasIndex(s => s.TenantId).IsUnique();
         modelBuilder.Entity<AccountingSettings>().HasIndex(s => s.TenantId).IsUnique();
+        // بيع نقطة البيع الواحد لا يُسجَّل مرتين عند إعادة إرساله (أوف لاين أو بعد مهلة).
+        modelBuilder.Entity<PosTransaction>().Property(t => t.ClientReference).HasMaxLength(64);
+        modelBuilder.Entity<PosTransaction>().HasIndex(t => new { t.TenantId, t.ClientReference }).IsUnique().HasFilter("[ClientReference] IS NOT NULL");
 
         // واتساب: ربط واحد لكل منشأة، والرقم لا يُربط بمنشأتين (يُفحص في الدليل حيث تجتمع المنشآت كلها).
         modelBuilder.Entity<TenantWhatsAppIntegration>(e =>

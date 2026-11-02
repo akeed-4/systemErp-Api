@@ -39,7 +39,12 @@ public class StockTransferService : IStockTransferService
 
             var transfer = new StockTransfer
             {
-                TransferNumber = await _numbers.NextAsync("stock_transfer", "TRF-", token),
+                TransferNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+                {
+                    Key = "stock_transfer", DefaultPrefix = "TRF-", WarehouseId = from.Id, Date = r.Date, // المستودع المحوَّل منه
+                    ManualNumber = r.TransferNumber, UserEntered = true,
+                    Exists = (n, c) => _db.Set<StockTransfer>().AnyAsync(x => x.TransferNumber == n, c),
+                }, token),
                 Date = r.Date ?? SaudiTime.Today, Notes = r.Notes,
                 FromWarehouseId = from.Id, FromWarehouseName = from.NameAr, ToWarehouseId = to.Id, ToWarehouseName = to.NameAr,
             };
@@ -88,7 +93,7 @@ public class StockTransferService : IStockTransferService
         var description = $"تحويل مخزون {transfer.TransferNumber}: {from.NameAr} ← {to.NameAr}";
         await _posting.PostAsync(new GenericPostingRequest
         {
-            Date = transfer.Date, Description = description, SourceType = SourceType, SourceId = transfer.Id, SourceNumber = transfer.TransferNumber,
+            Date = transfer.Date, Description = description, SourceType = SourceType, SourceId = transfer.Id, SourceNumber = transfer.TransferNumber, WarehouseId = transfer.FromWarehouseId,
             Lines = new() { new(target, value, 0, description), new(source, 0, value, description) },
         }, ct);
     }

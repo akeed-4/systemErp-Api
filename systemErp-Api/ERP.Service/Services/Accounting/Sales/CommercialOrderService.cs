@@ -66,7 +66,12 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
 
     protected override async Task OnCreatingAsync(CommercialOrder e, CreateCommercialOrderDto d, CancellationToken ct)
     {
-        e.OrderNumber = await _numbers.NextAsync(e.Type, e.Type == "sales_order" ? "SO-" : "PO-", ct);
+        e.OrderNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = e.Type, DefaultPrefix = e.Type == "sales_order" ? "SO-" : "PO-", WarehouseId = e.WarehouseId, Date = e.OrderDate,
+            ManualNumber = d.OrderNumber, UserEntered = !d.SystemGenerated,
+            Exists = (n, c) => Db.Set<CommercialOrder>().AnyAsync(o => o.OrderNumber == n, c),
+        }, ct);
         await StampAgreementAsync(e, ct);
         Recalculate(e);
     }
@@ -127,7 +132,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
             var sales = o.Type == "sales_order";
             var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
-                Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
+                Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase, SystemGenerated = true, // تحويل: الرقم تلقائي دائماً
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(o.PartyVatNumber) : InvoiceType.TaxInvoice,
                 PartyId = o.PartyId, PartyName = o.PartyName, PartyPhone = o.PartyPhone, PartyVatNumber = o.PartyVatNumber,
                 WarehouseId = o.WarehouseId,

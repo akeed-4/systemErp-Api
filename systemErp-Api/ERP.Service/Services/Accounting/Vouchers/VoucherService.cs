@@ -56,8 +56,13 @@ public class VoucherService : IVoucherService
             voucher.Module = await ResolveModuleAsync(r, token);
             if (r.DepositVehicleId.HasValue) voucher.DepositStatus = "open";
             voucher.Date = r.Date == default ? SaudiTime.Today : r.Date;
-            voucher.VoucherNumber = await _numbers.NextAsync(r.Type == VoucherType.Receipt ? "receipt_voucher" : "payment_voucher",
-                r.Type == VoucherType.Receipt ? "RV-" : "PV-", token);
+            // يدوي إن ضُبط نوع السند يدوياً (من شاشة المستخدم)، وإلا تلقائي بإعداد النوع وسنة تاريخ السند
+            voucher.VoucherNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = r.Type == VoucherType.Receipt ? "receipt_voucher" : "payment_voucher", DefaultPrefix = r.Type == VoucherType.Receipt ? "RV-" : "PV-",
+                WarehouseId = voucher.WarehouseId, Date = voucher.Date, ManualNumber = r.VoucherNumber, UserEntered = !r.SystemGenerated,
+                Exists = (n, c) => _db.Set<Voucher>().AnyAsync(v => v.VoucherNumber == n, c),
+            }, token);
             voucher.AmountInWordsAr = ArabicAmountInWords.Riyals(r.Amount);
             _db.Add(voucher);
             await _db.SaveChangesAsync(token);

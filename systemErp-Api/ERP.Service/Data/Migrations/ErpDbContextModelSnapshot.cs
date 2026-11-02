@@ -189,7 +189,7 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("AgreementNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -240,6 +240,9 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AgreementNumber")
+                        .IsUnique();
 
                     b.ToTable("Agreement");
                 });
@@ -1628,7 +1631,7 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("DeliveryNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("DriverName")
                         .HasColumnType("nvarchar(max)");
@@ -1696,6 +1699,9 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "DeliveryNumber")
+                        .IsUnique();
 
                     b.ToTable("DeliveryNote");
                 });
@@ -1867,7 +1873,7 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("ReturnNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("ReturnReason")
                         .HasColumnType("nvarchar(max)");
@@ -1897,6 +1903,9 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ReturnNumber")
+                        .IsUnique();
 
                     b.ToTable("DeliveryReturnNote");
                 });
@@ -7490,7 +7499,7 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("ReturnNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("ReturnReason")
                         .IsRequired()
@@ -7522,6 +7531,9 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("OriginalTransactionId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ReturnNumber")
+                        .IsUnique();
 
                     b.ToTable("PosSalesReturn");
                 });
@@ -7856,6 +7868,10 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("ClientReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("CouponCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -7898,12 +7914,28 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsOffline")
+                        .HasColumnType("bit");
+
                     b.Property<decimal>("LoyaltyDiscount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<int>("LoyaltyPointsRedeemed")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("OfflineIssuedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("OfflinePrintedTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("OfflineReceiptNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OfflineReviewNote")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("PaidApplePay")
                         .HasPrecision(18, 4)
@@ -7975,6 +8007,10 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("ShiftId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ClientReference")
+                        .IsUnique()
+                        .HasFilter("[ClientReference] IS NOT NULL");
 
                     b.HasIndex("TenantId", "InvoiceNumber")
                         .IsUnique();
@@ -9258,6 +9294,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -9265,11 +9304,21 @@ namespace ERP.Service.Data.Migrations
                     b.Property<long>("LastValue")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("Padding")
                         .HasColumnType("int");
 
                     b.Property<string>("Prefix")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("ResetYearly")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Scope")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("TenantId")
@@ -10833,6 +10882,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DocumentNumberingScope")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("DocumentVisibility")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -11106,6 +11159,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Department")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DocumentCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Email")

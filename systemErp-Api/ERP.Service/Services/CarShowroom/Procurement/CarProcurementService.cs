@@ -86,7 +86,12 @@ public class CarProcurementService : ICarProcurementService
             var supplier = await ValidateAsync(r, token);
             await ValidateCostCenterAsync(r.CostCenterId, null, token);
             var order = Mapper.Map<CarProcurementOrder>(r);
-            order.OrderNumber = await _numbers.NextAsync("car_procurement_order", "CPO-", token);
+            order.OrderNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = "car_procurement_order", DefaultPrefix = "CPO-", WarehouseId = order.WarehouseId, Date = order.Date, // معرض الاستلام
+                ManualNumber = r.OrderNumber, UserEntered = !r.SystemGenerated,
+                Exists = (n, c) => _db.Set<CarProcurementOrder>().AnyAsync(x => x.OrderNumber == n, c),
+            }, token);
             order.Stage = ProcurementStage.Requisition;
             order.Status = ProcurementOrderStatus.Draft;
             order.PurchaseSource = string.IsNullOrWhiteSpace(r.PurchaseSource) ? ProcurementSources.Company : r.PurchaseSource.Trim().ToLowerInvariant();
@@ -282,6 +287,7 @@ public class CarProcurementService : ICarProcurementService
 
             var created = await CreateAsync(new CreateCarProcurementOrderDto
             {
+                SystemGenerated = true, // الشراء السريع: الرقم تلقائي دائماً
                 SupplierId = r.SupplierId, Date = r.Date ?? SaudiTime.Today, PurchaseCycle = r.PurchaseCycle, PurchaseSource = r.PurchaseSource,
                 PaymentType = r.PaymentType, CreditDays = r.CreditDays, Currency = r.Currency, ExchangeRate = r.ExchangeRate, CostCenterId = r.CostCenterId,
                 Notes = string.Join("\n", notes), WarehouseLocation = r.WarehouseLocation, WarehouseId = r.WarehouseId,
@@ -577,6 +583,7 @@ public class CarProcurementService : ICarProcurementService
         var credit = order.PaymentType != "cash";
         var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
         {
+            SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
             Kind = InvoiceKind.Purchase, InvoiceType = InvoiceType.TaxInvoice,
             PartyId = order.SupplierId, PartyName = order.SupplierName, PartyVatNumber = order.SupplierVat,
             PaymentMethod = credit ? PaymentMethod.Credit : PaymentMethod.BankTransfer, Status = "posted",

@@ -236,6 +236,7 @@ public class OnlinePaymentService : IOnlinePaymentService
                 var settlement = await SettlementAccountAsync(ct);
                 var voucher = await _vouchers.CreateAsync(new CreateVoucherDto
                 {
+                    SystemGenerated = true, // سند تحصيل إلكتروني ينشئه النظام: ترقيمه تلقائي
                     Type = VoucherType.Receipt, Date = SaudiTime.Today, Amount = p.Amount,
                     PartyName = customer.NameAr, PartyAccountCode = customer.AccountCode, TreasuryAccountCode = settlement,
                     PaymentMethod = "bank_card", ReferenceNumber = inv.InvoiceNumber,

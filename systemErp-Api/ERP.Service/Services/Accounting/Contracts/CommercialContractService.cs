@@ -82,7 +82,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
 
     protected override async Task OnCreatingAsync(CommercialContract e, CreateCommercialContractDto d, CancellationToken ct)
     {
-        e.ContractNumber = await _numbers.NextAsync("commercial_contract", "CON-", ct);
+        e.ContractNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = "commercial_contract", DefaultPrefix = "CON-", WarehouseId = e.WarehouseId, Date = e.StartDate,
+            ManualNumber = d.ContractNumber, UserEntered = true,
+            Exists = (n, c) => Db.Set<CommercialContract>().AnyAsync(x => x.ContractNumber == n, c),
+        }, ct);
         var type = await ResolveTypeAsync(e, ct);
         e.ReviewRound = 1;
         e.TotalInvoiced = 0; e.TotalCollected = 0;
@@ -187,6 +192,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
 
             var request = new CreateInvoiceDto
             {
+                SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
                 Kind = InvoiceKind.Sales, InvoiceType = TradeHelper.InvoiceTypeFor(c.PartyVatNumber),
                 IssueDate = date?.Date ?? default,
                 PartyId = c.PartyId, PartyName = c.PartyName, PartyVatNumber = c.PartyVatNumber, PartyPhone = c.PartyPhone, PartyEmail = c.PartyEmail,

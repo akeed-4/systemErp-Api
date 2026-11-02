@@ -29,4 +29,21 @@ public class CheckoutRequestDto
     /// والنقد يدخل درج الوردية والبطاقة/البنك في مبيعات البطاقات. الآجل لا يُخلط بغيره.
     /// </summary>
     public List<PosPaymentLineDto> Payments { get; set; } = new();
+    /// <summary>معرّف فريد يولّده الجهاز: إعادة إرسال العملية نفسها (بعد انقطاع أو مهلة) تُرجعها ولا تكررها.</summary>
+    public string? ClientReference { get; set; }
+    /// <summary>بيع تم أوف لاين ويُرحَّل الآن (نقد فقط، خلال 12 ساعة من وقت البيع).</summary>
+    public OfflineSaleInfoDto? Offline { get; set; }
+}
+
+/// <summary>بيانات بيع أوف لاين كما تمت على الجهاز.</summary>
+public class OfflineSaleInfoDto
+{
+    /// <summary>وقت البيع على الجهاز (UTC).</summary>
+    public DateTime IssuedAt { get; set; }
+    /// <summary>رقم الإيصال المطبوع للعميل.</summary>
+    public string ReceiptNumber { get; set; } = string.Empty;
+    /// <summary>الإجمالي المطبوع على الإيصال (للمطابقة).</summary>
+    public decimal PrintedTotal { get; set; }
+    /// <summary>الوردية التي بيع فيها: يجب أن تكون وردية الكاشير المفتوحة نفسها.</summary>
+    public Guid ShiftId { get; set; }
 }

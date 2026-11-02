@@ -3,7 +3,11 @@ namespace ERP.Core.DTOs.Accounting;
 public partial class CreateVoucherDto
 {
     public string? Module { get; set; }
+    /// <summary>الرقم اليدوي (يُعتمد فقط إن كان نوع السند مضبوطاً يدوياً).</summary>
     public string VoucherNumber { get; set; } = string.Empty;
+    /// <summary>داخلي: سند ينشئه النظام فيبقى ترقيمه تلقائياً دائماً.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SystemGenerated { get; set; }
     public VoucherType Type { get; set; }
     public DateTime Date { get; set; }
     public decimal Amount { get; set; }

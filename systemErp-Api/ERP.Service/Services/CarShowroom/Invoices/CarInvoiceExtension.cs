@@ -141,6 +141,7 @@ public class CarInvoiceExtension : IInvoiceExtension
         var dto = new CreateInvoiceDto
         {
             Kind = isSales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
+            InvoiceNumber = r.ManualNumber ?? string.Empty, SystemGenerated = r.SystemGenerated, // رقم المرتجع اليدوي إن ضُبط نوعه يدوياً
             InvoiceType = isSales ? InvoiceType.CreditNote : InvoiceType.DebitNote,
             IsReturn = true, OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.ReturnReason,
             PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber,

@@ -42,5 +42,17 @@ public class PosTransaction : BaseEntity
     public Guid? InvoiceId { get; set; }
     public PosTransactionStatus Status { get; set; } = PosTransactionStatus.Completed;
 
+    // ---- البيع أوف لاين (يُرحَّل عند عودة الاتصال) ----
+    /// <summary>معرّف يولّده الجهاز لكل عملية بيع: إعادة الإرسال بعد انقطاع تُرجع العملية نفسها ولا تكررها.</summary>
+    public string? ClientReference { get; set; }
+    public bool IsOffline { get; set; }
+    /// <summary>وقت البيع الفعلي على الجهاز (UTC)؛ الفاتورة تُؤرَّخ به لا بوقت المزامنة.</summary>
+    public DateTime? OfflineIssuedAt { get; set; }
+    /// <summary>رقم الإيصال المطبوع أوف لاين (من الجهاز) قبل أن يمنح السرفر رقم الفاتورة.</summary>
+    public string? OfflineReceiptNumber { get; set; }
+    public decimal? OfflinePrintedTotal { get; set; }
+    /// <summary>ملاحظات مراجعة المزامنة: سعر تغيّر منذ البيع، فرق إجمالي، أو مخزون صار سالباً.</summary>
+    public string? OfflineReviewNote { get; set; }
+
     public virtual ICollection<PosTransactionItem> Items { get; set; } = new List<PosTransactionItem>();
 }

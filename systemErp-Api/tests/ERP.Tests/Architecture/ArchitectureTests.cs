@@ -94,6 +94,7 @@ public class ArchitectureTests
             "ApprovalPolicies", "Approvals", "Notifications",
             // المحاسبة مشتركة بين كل الوحدات
             "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports", "AccountingSettings",
+            "DocumentNumbering", "DocumentNumberingModes",
             // فواتير المعارض (Invoice) وأسباب الإعفاء الضريبي المشتركة؛ مستندات التجارة العامة لها controllers موسومة بوحدتها
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون

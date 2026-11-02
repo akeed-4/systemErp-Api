@@ -310,6 +310,17 @@
   <data name="DisposalProceedsCannotBeNegative" xml:space="preserve"><value>The disposal proceeds cannot be negative.</value></data>
   <data name="DisposalTreasuryRequired" xml:space="preserve"><value>Select the cash or bank account that receives the sale proceeds.</value></data>
   <data name="DocumentNumberGenerationFailed" xml:space="preserve"><value>Could not generate the document number; please try again.</value></data>
+  <data name="DocumentNumberRequired" xml:space="preserve"><value>The document number is required (manual numbering for this type).</value></data>
+  <data name="DocumentNumberInvalid" xml:space="preserve"><value>Invalid document number: Latin letters, digits and (- _ / .) only, starting with a letter or digit, up to {0} characters.</value></data>
+  <data name="DocumentNumberExists" xml:space="preserve"><value>Document number {0} is already used.</value></data>
+  <data name="DocumentNumberLocked" xml:space="preserve"><value>A document number cannot change after posting or approval.</value></data>
+  <data name="NumberingTypeUnknown" xml:space="preserve"><value>This document type is not supported in numbering settings.</value></data>
+  <data name="NumberingManualNotAllowed" xml:space="preserve"><value>This document type is automatic only.</value></data>
+  <data name="NumberingPrefixInvalid" xml:space="preserve"><value>Prefix: Latin letters, digits, (- _ / .) and the tokens {YYYY} and {YY}, up to 20 characters.</value></data>
+  <data name="NumberingPaddingInvalid" xml:space="preserve"><value>Number length must be between 1 and 12.</value></data>
+  <data name="NumberingScopeTypeInvalid" xml:space="preserve"><value>Type numbering scope: empty (company setting), tenant or warehouse.</value></data>
+  <data name="NumberingYearlyNeedsYear" xml:space="preserve"><value>Yearly reset requires {YYYY} or {YY} in the prefix so numbers do not repeat across years.</value></data>
+  <data name="NumberingNextNumberDecrease" xml:space="preserve"><value>The next number cannot be lower than {0} (it can only increase).</value></data>
   <data name="DocumentTotalCannotBeNegative" xml:space="preserve"><value>The document total cannot be negative.</value></data>
   <data name="DocumentTypeAndActionRequired" xml:space="preserve"><value>The document type and action are required.</value></data>
   <data name="Done" xml:space="preserve"><value>Done</value></data>
@@ -544,6 +555,13 @@
   <data name="OnlyUnsubmittedDraftCountDeletable" xml:space="preserve"><value>Only a draft count that was never submitted can be deleted; cancel it instead to keep it on record.</value></data>
   <data name="OpeningCashCannotBeNegative" xml:space="preserve"><value>The opening balance cannot be negative.</value></data>
   <data name="OpenShiftBeforeSale" xml:space="preserve"><value>Open a shift before selling.</value></data>
+  <data name="OfflineSaleTooOld" xml:space="preserve"><value>This offline sale is older than 12 hours and cannot be synced automatically. Ask a manager to record it manually.</value></data>
+  <data name="OfflineSaleInFuture" xml:space="preserve"><value>The offline sale time is in the future: check the device clock.</value></data>
+  <data name="OfflineSaleShiftMismatch" xml:space="preserve"><value>Offline sale from a shift other than the cashier's currently open shift.</value></data>
+  <data name="OfflineSaleCashOnly" xml:space="preserve"><value>Offline sales are cash only.</value></data>
+  <data name="OfflineSaleNoDiscounts" xml:space="preserve"><value>Offline sales cannot use discounts, coupons, loyalty points or online payment.</value></data>
+  <data name="OfflineReceiptNumberRequired" xml:space="preserve"><value>The printed receipt number is required for an offline sale.</value></data>
+  <data name="PosClientReferenceTooLong" xml:space="preserve"><value>The device operation reference is longer than 64 characters.</value></data>
   <data name="OpenShiftFirst" xml:space="preserve"><value>Open a shift first.</value></data>
   <data name="OpenShiftToProcessReturn" xml:space="preserve"><value>Open a shift first to process the return.</value></data>
   <data name="OperationMakesStockNegativeLater" xml:space="preserve"><value>The operation makes the stock of item {0} negative at a later date.</value></data>
@@ -1259,6 +1277,7 @@
   <data name="WarehouseNotAllowed" xml:space="preserve"><value>You are not allowed to work in this site (showroom/warehouse).</value></data>
   <data name="WarehouseRequired" xml:space="preserve"><value>Choose your working site (showroom/warehouse) first.</value></data>
   <data name="DocumentVisibilityInvalid" xml:space="preserve"><value>Invalid document visibility: by showroom or by user.</value></data>
+  <data name="NumberingScopeInvalid" xml:space="preserve"><value>Numbering scope must be tenant, warehouse or user.</value></data>
   <data name="PromoCodeNotFound" xml:space="preserve"><value>Promo code not found.</value></data>
   <data name="PromoCodeUsedCannotDelete" xml:space="preserve"><value>The promo code has been used on subscriptions and cannot be deleted; disable it instead.</value></data>
   <data name="PromoCodeFormat" xml:space="preserve"><value>The code must be 3 to 32 English letters, digits, - or _.</value></data>

@@ -19,6 +19,11 @@ public class WarehouseSessionController : ErpControllerBase
     [HttpGet]
     public async Task<IActionResult> Session(CancellationToken ct) => Success(await _warehouses.GetAsync(ct));
 
+    /// <summary>ترقيم المستندات للمنشأة أو لكل موقع أو لكل مستخدم.</summary>
+    [HttpPut("numbering-scope"), RequireScreen("user-permissions", ScreenAction.Edit)]
+    public async Task<IActionResult> SetNumberingScope([FromBody] NumberingScopeRequestDto dto, CancellationToken ct)
+        => Success(await _warehouses.SetNumberingScopeAsync(dto.DocumentNumberingScope, ct), Messages.UpdatedSuccessfully);
+
     [HttpPut("document-visibility"), RequireScreen("user-permissions", ScreenAction.Edit)]
     public async Task<IActionResult> SetVisibility([FromBody] DocumentVisibilityRequestDto dto, CancellationToken ct)
         => Success(await _warehouses.SetDocumentVisibilityAsync(dto.DocumentVisibility, ct), Messages.UpdatedSuccessfully);

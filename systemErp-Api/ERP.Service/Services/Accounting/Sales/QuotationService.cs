@@ -41,8 +41,13 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
 
     protected override async Task OnCreatingAsync(Quotation e, CreateQuotationDto d, CancellationToken ct)
     {
-        e.QuotationNumber = await _numbers.NextAsync(e.Type == "sales_quotation" ? "sales_quotation" : "purchase_quotation",
-            e.Type == "sales_quotation" ? "QT-" : "PQT-", ct);
+        var sales = e.Type == "sales_quotation";
+        e.QuotationNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = sales ? "sales_quotation" : "purchase_quotation", DefaultPrefix = sales ? "QT-" : "PQT-",
+            WarehouseId = e.WarehouseId, Date = e.Date, ManualNumber = d.QuotationNumber, UserEntered = true,
+            Exists = (n, c) => Db.Set<Quotation>().AnyAsync(q => q.QuotationNumber == n, c),
+        }, ct);
         Recalculate(e);
     }
 
@@ -80,7 +85,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
             var sales = q.Type == "sales_quotation";
             var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
             {
-                Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase,
+                Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase, SystemGenerated = true, // تحويل: الرقم تلقائي دائماً
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(q.PartyVatNumber) : InvoiceType.TaxInvoice,
                 PartyId = q.PartyId, PartyName = q.PartyName, PartyPhone = q.PartyPhone, PartyEmail = q.PartyEmail, PartyVatNumber = q.PartyVatNumber,
                 WarehouseId = q.WarehouseId,
@@ -110,6 +115,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
 
             var order = await _orders.CreateAsync(new CreateCommercialOrderDto
             {
+                SystemGenerated = true, // أمر محوَّل من عرض سعر: ترقيمه تلقائي
                 Type = q.Type == "sales_quotation" ? "sales_order" : "purchase_order",
                 PartyId = q.PartyId, PartyName = q.PartyName, PartyPhone = q.PartyPhone, PartyVatNumber = q.PartyVatNumber,
                 WarehouseId = q.WarehouseId,

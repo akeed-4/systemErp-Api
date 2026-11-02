@@ -149,11 +149,17 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("PreviousInventoryMethod")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("PurchaseReturnPeriodDays")
+                        .HasColumnType("int");
+
                     b.Property<string>("PurchaseReturnsAccountCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PurchasesAccountCode")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("SalesReturnPeriodDays")
+                        .HasColumnType("int");
 
                     b.Property<string>("SalesReturnsAccountCode")
                         .HasColumnType("nvarchar(max)");
@@ -6779,6 +6785,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal?>("VolumeCbm")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WarehouseName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("WarrantyKm")
                         .HasColumnType("int");

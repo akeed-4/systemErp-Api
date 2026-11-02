@@ -223,10 +223,13 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
                     if (v.Status != VehicleStatus.WrittenOff) throw new ConflictException(string.Format(Messages.CountVehicleStatusChanged, v.ChassisNumber));
                     v.Status = VehicleStatus.Available;
                     if (count.Location != null) v.Location = count.Location;
+                    if (count.WarehouseId.HasValue) { v.WarehouseId = count.WarehouseId; v.WarehouseName = count.WarehouseName; }
                     line.UnitCost = v.TotalCost; line.VarianceValue = v.TotalCost;
                     break;
                 case InventoryCountLineResolution.VehicleRelocated:
+                    // وُجدت في معرض الجرد وهي مسجّلة بمعرض آخر: تنتقل لمعرض الجرد
                     if (count.Location != null) v.Location = count.Location;
+                    if (count.WarehouseId.HasValue) { v.WarehouseId = count.WarehouseId; v.WarehouseName = count.WarehouseName; }
                     break;
             }
         }

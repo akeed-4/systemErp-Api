@@ -202,6 +202,8 @@ public class CarInvoiceExtension : IInvoiceExtension
                 TotalAfterVat = l.TotalAfterVat, UnitCost = l.UnitCost, IsTemporaryChassis = l.IsTemporaryChassis, PriceOverride = l.PriceOverride,
             });
             vehicles[l.VehicleId!.Value].Status = isSales ? VehicleStatus.Available : VehicleStatus.WrittenOff;
+            // مرتجع البيع يعيد السيارة لمعرض المرتجع (معرض الفاتورة الأصلية)
+            if (isSales && ret.WarehouseId.HasValue) VehicleSites.Place(vehicles[l.VehicleId!.Value], ret.WarehouseId.Value, ret.WarehouseName);
         }
         // كمرتجع العقد: السيارة تعود بتكلفتها وقت البيع، ومصاريف ما بعد البيع تبقى على تكلفة المبيعات ولا تُحسب مرة ثانية
         if (isSales) await SoldVehicleAdjustments.ExpenseLateChargesAsync(_db, vehicleIds, ct);

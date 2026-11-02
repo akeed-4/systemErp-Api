@@ -176,6 +176,32 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         };
     }
 
+    /// <summary>تحويل بين المعارض: للسيارات داخل المخزون (متاحة أو محجوزة) فقط، بلا أثر محاسبي (حساب مخزون السيارات واحد).</summary>
+    public Task<int> TransferAsync(TransferVehiclesDto r, CancellationToken ct = default)
+        => new TransactionRunner(Db).RunAsync(async token =>
+        {
+            var ids = r.VehicleIds.Distinct().ToList();
+            if (ids.Count == 0) throw new ValidationFailedException(Messages.TransferVehiclesRequired);
+            var warehouse = await Db.Set<Warehouse>().FirstOrDefaultAsync(w => w.Id == r.WarehouseId, token)
+                ?? throw new ValidationFailedException(Messages.WarehouseNotFound);
+            if (warehouse.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
+            var vehicles = await Db.Set<Vehicle>().Where(v => ids.Contains(v.Id)).ToListAsync(token);
+            if (vehicles.Count != ids.Count) throw new NotFoundException(Messages.VehicleNotFound);
+            var notInStock = vehicles.FirstOrDefault(v => !InventoryCountLines.InStock.Contains(v.Status));
+            if (notInStock != null) throw new ConflictException(string.Format(Messages.VehicleTransferNotInStock, notInStock.ChassisNumber));
+
+            var moved = vehicles.Where(v => v.WarehouseId != warehouse.Id).ToList();
+            foreach (var v in moved)
+            {
+                var from = v.WarehouseName ?? "—";
+                VehicleSites.Place(v, warehouse.Id, warehouse.NameAr);
+                await _audit.LogAsync("TRANSFERRED", nameof(Vehicle), v.Id.ToString(),
+                    $"تحويل {v.ChassisNumber} من {from} إلى {warehouse.NameAr}{(string.IsNullOrWhiteSpace(r.Notes) ? "" : " — " + r.Notes.Trim())}", token);
+            }
+            await Db.SaveChangesAsync(token);
+            return moved.Count;
+        }, ct);
+
     protected override IQueryable<Vehicle> ApplySearch(IQueryable<Vehicle> q, string t)
         => q.Where(v => v.ChassisNumber.Contains(t) || v.BrandNameAr.Contains(t) || v.ModelNameAr.Contains(t) || (v.PlateNumber != null && v.PlateNumber.Contains(t)));
 
@@ -246,6 +272,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         e.Status = VehicleStatus.Available;
         e.IsTemporaryChassis = ChassisCheck.IsProvisional(e.ChassisNumber);
         e.ReceivedAt = DateTime.UtcNow;
+        await VehicleSites.PlaceAsync(Db, new[] { e }, d.WarehouseId, ct);
         await FillDenormalizedAsync(e, ct);
         Recalculate(e, await CarTax.LoadAsync(Db, ct));
     }
@@ -266,6 +293,9 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         e.PurchaseInvoiceId = o.GetValue<Guid?>(nameof(Vehicle.PurchaseInvoiceId));
         e.ReceivedAt = o.GetValue<DateTime?>(nameof(Vehicle.ReceivedAt));
         e.ProcurementOrderItemId = o.GetValue<Guid?>(nameof(Vehicle.ProcurementOrderItemId));
+        // المعرض يتغير بالتحويل (TransferAsync) لا بتعديل البطاقة
+        e.WarehouseId = o.GetValue<Guid?>(nameof(Vehicle.WarehouseId));
+        e.WarehouseName = o.GetValue<string?>(nameof(Vehicle.WarehouseName));
         e.PurchasePrice = o.GetValue<decimal?>(nameof(Vehicle.PurchasePrice));
         e.AdditionalCosts = o.GetValue<decimal?>(nameof(Vehicle.AdditionalCosts));
         e.PreparationCost = o.GetValue<decimal?>(nameof(Vehicle.PreparationCost));

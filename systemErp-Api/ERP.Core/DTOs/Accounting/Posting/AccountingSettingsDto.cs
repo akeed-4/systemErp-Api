@@ -22,6 +22,10 @@ public class SaveAccountingSettingsDto
     public string? OutputVatAccountCode { get; set; }
     public string? InputVatAccountCode { get; set; }
     public string? OutputExciseAccountCode { get; set; }
+    /// <summary>فترة إرجاع المبيعات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
+    public int? SalesReturnPeriodDays { get; set; }
+    /// <summary>فترة إرجاع المشتريات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
+    public int? PurchaseReturnPeriodDays { get; set; }
 }
 
 public class AccountingSettingsDto : SaveAccountingSettingsDto

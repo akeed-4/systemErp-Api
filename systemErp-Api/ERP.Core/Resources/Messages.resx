@@ -678,6 +678,8 @@
   <data name="ReturnQtyExceedsAvailable" xml:space="preserve"><value>كمية المرتجع للصنف {0} تتجاوز المتاح ({1:0.####}).</value></data>
   <data name="ReturnQtyRange" xml:space="preserve"><value>كمية الإرجاع للصنف {0} يجب أن تكون بين 0 و{1:0.####}.</value></data>
   <data name="ReturnReasonRequired" xml:space="preserve"><value>سبب الإرجاع مطلوب.</value></data>
+  <data name="ReturnPeriodExpired" xml:space="preserve"><value>انتهت فترة الإرجاع ({0} يوماً من تاريخ الفاتورة) للفاتورة {1}.</value></data>
+  <data name="ReturnPeriodDaysInvalid" xml:space="preserve"><value>فترة الإرجاع يجب أن تكون بين 0 و3650 يوماً (0 = بلا حد).</value></data>
   <data name="ReturnUpdated" xml:space="preserve"><value>تم تحديث المرتجع</value></data>
   <data name="RevenueLinesMustEqualNet" xml:space="preserve"><value>توزيع الإيراد على السطور لا يساوي صافي المستند.</value></data>
   <data name="ReversalEntryIsAuditTrail" xml:space="preserve"><value>قيد العكس لا يُعدَّل ولا يُحذف؛ هو أثر تدقيق.</value></data>
@@ -780,6 +782,10 @@
   <data name="VehicleLinesOnlyForPurchaseAndSales" xml:space="preserve"><value>أسطر السيارات مدعومة لفواتير الشراء والبيع فقط.</value></data>
   <data name="VehicleLinkedToSalesContract" xml:space="preserve"><value>المركبة مرتبطة بعقد بيع.</value></data>
   <data name="VehicleNotFound" xml:space="preserve"><value>المركبة غير موجودة.</value></data>
+  <data name="VehicleInOtherWarehouse" xml:space="preserve"><value>السيارة {0} موجودة في معرض «{1}» وليست في معرض الفاتورة «{2}». اختر معرضها أو حوّلها أولاً.</value></data>
+  <data name="VehicleTransferNotInStock" xml:space="preserve"><value>السيارة {0} ليست في المخزون (متاحة أو محجوزة) فلا يمكن تحويلها.</value></data>
+  <data name="TransferVehiclesRequired" xml:space="preserve"><value>اختر سيارة واحدة على الأقل للتحويل.</value></data>
+  <data name="VehiclesTransferred" xml:space="preserve"><value>تم تحويل {0} سيارة.</value></data>
   <data name="VehiclePurchaseInvoiceRecorded" xml:space="preserve"><value>تم تسجيل فاتورة شراء المركبة</value></data>
   <data name="VehicleReservedForAnotherContract" xml:space="preserve"><value>المركبة محجوزة لعقد آخر.</value></data>
   <data name="VehicleSold" xml:space="preserve"><value>المركبة مباعة.</value></data>

@@ -48,6 +48,8 @@ public class AccountingSettingsService : IAccountingSettingsService
             Mapper.Apply(d, incoming);
             foreach (var role in PostingAccounts.Roles)
                 if (role.Get(incoming) is { } value) role.Set(settings, string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+            if (d.SalesReturnPeriodDays is { } salesDays) settings.SalesReturnPeriodDays = ReturnPeriod(salesDays);
+            if (d.PurchaseReturnPeriodDays is { } purchaseDays) settings.PurchaseReturnPeriodDays = ReturnPeriod(purchaseDays);
 
             await ValidateAccountsAsync(settings, token);
             await EnsureChangeableAsync(before, settings, token);
@@ -56,6 +58,13 @@ public class AccountingSettingsService : IAccountingSettingsService
             await _db.SaveChangesAsync(token);
             return ToDto(settings);
         }, ct);
+
+    /// <summary>0 = بلا حد (يُحفظ فارغاً).</summary>
+    private static int? ReturnPeriod(int days)
+    {
+        if (days is < 0 or > 3650) throw new ValidationFailedException(Messages.ReturnPeriodDaysInvalid);
+        return days == 0 ? null : days;
+    }
 
     private async Task ValidateAccountsAsync(AccountingSettings s, CancellationToken ct)
     {

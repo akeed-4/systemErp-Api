@@ -195,6 +195,8 @@ public class CarVehicleInTransitRowDto
 public class CarInventoryAgingRowDto
 {
     public Guid Id { get; set; }
+    /// <summary>معرض السيارة.</summary>
+    public string? WarehouseName { get; set; }
     public string ChassisNumber { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public VehicleStatus Status { get; set; }

@@ -52,6 +52,8 @@ public partial class CarSalesContractDto
     public string? FuelType { get; set; }
     public string? Transmission { get; set; }
     public string? Location { get; set; }
+    /// <summary>معرض العقد = معرض سيارته (للقراءة؛ يُضبط من السيارة).</summary>
+    public Guid? WarehouseId { get; set; }
     public decimal? CostPrice { get; set; }
     public decimal? AdditionalCosts { get; set; }
     public decimal SellingPrice { get; set; }

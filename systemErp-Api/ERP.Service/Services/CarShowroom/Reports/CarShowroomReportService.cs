@@ -24,6 +24,8 @@ public class CarShowroomReportService : ICarShowroomReportService
         var c = _db.Set<CarSalesContract>().AsNoTracking().Where(x => x.Status == SalesContractStatus.Invoiced);
         if (q.DateFrom.HasValue) c = c.Where(x => x.Date >= q.DateFrom);
         if (q.DateTo.HasValue) c = c.Where(x => x.Date < q.EndExclusive());
+        // المبيعات بمعرض فاتورتها (= معرض السيارة عند البيع)
+        if (q.WarehouseId is Guid wh) c = c.Where(x => Invoices.Any(i => i.Id == x.InvoiceId && i.WarehouseId == wh));
         return c;
     }
 
@@ -32,7 +34,17 @@ public class CarShowroomReportService : ICarShowroomReportService
         var orders = _db.Set<CarProcurementOrder>().AsNoTracking().AsQueryable();
         if (q.DateFrom.HasValue) orders = orders.Where(o => o.Date >= q.DateFrom);
         if (q.DateTo.HasValue) orders = orders.Where(o => o.Date < q.EndExclusive());
+        if (q.WarehouseId is Guid wh) orders = orders.Where(o => o.WarehouseId == wh); // معرض الاستلام
         return orders;
+    }
+
+    /// <summary>السيارات بمعرضها؛ سيارة في الطريق بلا معرض بعد تُنسب لمعرض استلام أمرها.</summary>
+    private IQueryable<Vehicle> Vehicles(CarReportQueryDto q)
+    {
+        var v = _db.Set<Vehicle>().AsNoTracking();
+        if (q.WarehouseId is not Guid wh) return v;
+        var orders = _db.Set<CarProcurementOrder>().AsNoTracking();
+        return v.Where(x => x.WarehouseId == wh || (x.WarehouseId == null && orders.Any(o => o.Id == x.ProcurementOrderId && o.WarehouseId == wh)));
     }
 
     private IQueryable<CarSalesPerformanceRowDto> SalesPerformanceQuery(CarReportQueryDto q)
@@ -44,16 +56,16 @@ public class CarShowroomReportService : ICarShowroomReportService
             ProfitMargin = c.ProfitMargin, VatMode = c.VatMode, VatAmount = c.VatAmount, TotalWithVat = c.TotalWithVat,
         });
 
-    private IQueryable<CarVinInventoryRowDto> VinInventoryQuery()
+    private IQueryable<CarVinInventoryRowDto> VinInventoryQuery(CarReportQueryDto q)
     {
         var now = DateTime.UtcNow;
-        return _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.Available || v.Status == VehicleStatus.Reserved)
+        return Vehicles(q).Where(v => v.Status == VehicleStatus.Available || v.Status == VehicleStatus.Reserved)
             .Select(v => new { v, Hours = EF.Functions.DateDiffHour(v.ReceivedAt ?? v.CreatedAt, now) })
             .Select(r => new CarVinInventoryRowDto
             {
                 Id = r.v.Id, BrandNameAr = r.v.BrandNameAr, AgentNameAr = r.v.AgentNameAr, ModelNameAr = r.v.ModelNameAr, TrimNameAr = r.v.TrimNameAr,
                 Year = r.v.Year, ChassisNumber = r.v.ChassisNumber, EngineNumber = r.v.EngineNumber, Condition = r.v.Condition,
-                TotalCost = r.v.TotalCost, SellingPrice = r.v.SellingPrice, VatMode = r.v.VatMode, Status = r.v.Status,
+                TotalCost = r.v.TotalCost, SellingPrice = r.v.SellingPrice, VatMode = r.v.VatMode, Status = r.v.Status, WarehouseName = r.v.WarehouseName,
                 DaysInStock = r.Hours > 0 ? r.Hours / 24 : 0,
             });
     }
@@ -92,8 +104,9 @@ public class CarShowroomReportService : ICarShowroomReportService
             VatAmount = r.c.VatAmount, VatMode = r.c.VatMode, SalesPerson = r.c.SalespersonName,
         });
 
-    private IQueryable<CarInstallmentReceivableRowDto> InstallmentsReceivableQuery()
+    private IQueryable<CarInstallmentReceivableRowDto> InstallmentsReceivableQuery(CarReportQueryDto q)
         => _db.Set<CarSalesContract>().AsNoTracking()
+            .Where(c => q.WarehouseId == null || c.WarehouseId == q.WarehouseId || Invoices.Any(i => i.Id == c.InvoiceId && i.WarehouseId == q.WarehouseId))
             .Where(c => c.Status != SalesContractStatus.Cancelled && c.Status != SalesContractStatus.Returned
                 && (c.CycleType == CarSalesCycleType.Installment || c.CycleType == CarSalesCycleType.BankLease))
             .Select(c => new CarInstallmentReceivableRowDto
@@ -274,10 +287,10 @@ public class CarShowroomReportService : ICarShowroomReportService
     }
 
     /// <summary>سيارات في الطريق وتكلفتها حتى الآن والمتوقعة عند الوصول.</summary>
-    private IQueryable<CarVehicleInTransitRowDto> VehiclesInTransitQuery()
+    private IQueryable<CarVehicleInTransitRowDto> VehiclesInTransitQuery(CarReportQueryDto q)
     {
         var now = DateTime.UtcNow;
-        return _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.InTransit).Select(v => new
+        return Vehicles(q).Where(v => v.Status == VehicleStatus.InTransit).Select(v => new
         {
             v,
             Actual = Shares.Where(a => a.VehicleId == v.Id && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Capitalize).Sum(a => (decimal?)a.Amount) ?? 0m,
@@ -294,15 +307,15 @@ public class CarShowroomReportService : ICarShowroomReportService
     }
 
     /// <summary>عمر المخزون مع تكلفته: الأيام منذ دخول السيارة المخزون (الاستلام)، بشرائح عمرية.</summary>
-    private IQueryable<CarInventoryAgingRowDto> InventoryAgingQuery()
+    private IQueryable<CarInventoryAgingRowDto> InventoryAgingQuery(CarReportQueryDto q)
     {
         var now = DateTime.UtcNow;
-        return _db.Set<Vehicle>().AsNoTracking().Where(v => v.Status == VehicleStatus.Available || v.Status == VehicleStatus.Reserved)
+        return Vehicles(q).Where(v => v.Status == VehicleStatus.Available || v.Status == VehicleStatus.Reserved)
             .Select(v => new { v, Hours = EF.Functions.DateDiffHour(v.ReceivedAt ?? v.CreatedAt, now) })
             .Select(r => new { r.v, Days = r.Hours > 0 ? r.Hours / 24 : 0 })
             .Select(r => new CarInventoryAgingRowDto
             {
-                Id = r.v.Id, ChassisNumber = r.v.ChassisNumber, Description = r.v.BrandNameAr + " " + r.v.ModelNameAr + " " + r.v.Year.ToString(), Status = r.v.Status,
+                Id = r.v.Id, ChassisNumber = r.v.ChassisNumber, Description = r.v.BrandNameAr + " " + r.v.ModelNameAr + " " + r.v.Year.ToString(), Status = r.v.Status, WarehouseName = r.v.WarehouseName,
                 DaysInStock = r.Days, AgeBucket = r.Days <= 30 ? "0-30" : r.Days <= 60 ? "31-60" : r.Days <= 90 ? "61-90" : r.Days <= 180 ? "91-180" : "180+",
                 PurchasePrice = r.v.PurchasePrice ?? 0m, AdditionalCosts = r.v.AdditionalCosts ?? 0m, PreparationCost = r.v.PreparationCost ?? 0m,
                 TotalCost = r.v.TotalCost, SellingPrice = r.v.SellingPrice,
@@ -317,23 +330,23 @@ public class CarShowroomReportService : ICarShowroomReportService
         => ReportLoader.LoadAsync(TammMonthlyFeesQuery(q), options, nameof(CarTammMonthlyFeesRowDto.Key), ct, EntityLoader.Asc(nameof(CarTammMonthlyFeesRowDto.Key)));
     public Task<LoadResult> LoadUnpurchasedVehicleExpensesAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
         => ReportLoader.LoadAsync(UnpurchasedVehicleExpensesQuery(q), options, nameof(CarUnpurchasedVehicleExpenseRowDto.Id), ct, EntityLoader.Asc(nameof(CarUnpurchasedVehicleExpenseRowDto.Date)));
-    public Task<LoadResult> LoadVehiclesInTransitAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(VehiclesInTransitQuery(), options, nameof(CarVehicleInTransitRowDto.Id), ct, EntityLoader.Desc(nameof(CarVehicleInTransitRowDto.DaysInTransit)));
-    public Task<LoadResult> LoadInventoryAgingAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(InventoryAgingQuery(), options, nameof(CarInventoryAgingRowDto.Id), ct, EntityLoader.Desc(nameof(CarInventoryAgingRowDto.DaysInStock)));
+    public Task<LoadResult> LoadVehiclesInTransitAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(VehiclesInTransitQuery(q), options, nameof(CarVehicleInTransitRowDto.Id), ct, EntityLoader.Desc(nameof(CarVehicleInTransitRowDto.DaysInTransit)));
+    public Task<LoadResult> LoadInventoryAgingAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(InventoryAgingQuery(q), options, nameof(CarInventoryAgingRowDto.Id), ct, EntityLoader.Desc(nameof(CarInventoryAgingRowDto.DaysInStock)));
 
     public Task<LoadResult> LoadSalesPerformanceAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
         => ReportLoader.LoadAsync(SalesPerformanceQuery(q), options, nameof(CarSalesPerformanceRowDto.Id), ct, EntityLoader.Asc(nameof(CarSalesPerformanceRowDto.Date)));
-    public Task<LoadResult> LoadVinInventoryAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(VinInventoryQuery(), options, nameof(CarVinInventoryRowDto.Id), ct, EntityLoader.Desc(nameof(CarVinInventoryRowDto.DaysInStock)));
+    public Task<LoadResult> LoadVinInventoryAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(VinInventoryQuery(q), options, nameof(CarVinInventoryRowDto.Id), ct, EntityLoader.Desc(nameof(CarVinInventoryRowDto.DaysInStock)));
     public Task<LoadResult> LoadZatcaMarginTaxAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
         => ReportLoader.LoadAsync(ZatcaMarginTaxQuery(q), options, nameof(CarZatcaMarginTaxRowDto.Id), ct, EntityLoader.Asc(nameof(CarZatcaMarginTaxRowDto.Date)));
     public Task<LoadResult> LoadProcurementTrackingAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
         => ReportLoader.LoadAsync(ProcurementTrackingQuery(q), options, nameof(CarProcurementTrackingRowDto.Id), ct, EntityLoader.Asc(nameof(CarProcurementTrackingRowDto.Date)));
     public Task<LoadResult> LoadProfitLossAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
         => ReportLoader.LoadAsync(ProfitLossQuery(q), options, nameof(CarProfitLossRowDto.Id), ct, EntityLoader.Asc(nameof(CarProfitLossRowDto.SaleDate)));
-    public Task<LoadResult> LoadInstallmentsReceivableAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(InstallmentsReceivableQuery(), options, nameof(CarInstallmentReceivableRowDto.Id), ct, EntityLoader.Asc(nameof(CarInstallmentReceivableRowDto.StartDate)));
+    public Task<LoadResult> LoadInstallmentsReceivableAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(InstallmentsReceivableQuery(q), options, nameof(CarInstallmentReceivableRowDto.Id), ct, EntityLoader.Asc(nameof(CarInstallmentReceivableRowDto.StartDate)));
     public Task<LoadResult> LoadSuppliersProcurementAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
         => ReportLoader.LoadAsync(SuppliersProcurementQuery(q), options, nameof(CarSupplierProcurementRowDto.SupplierId), ct, EntityLoader.Desc(nameof(CarSupplierProcurementRowDto.TotalPurchaseAmount)));
     public Task<LoadResult> LoadDailyMonthlySalesAsync(CarReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)

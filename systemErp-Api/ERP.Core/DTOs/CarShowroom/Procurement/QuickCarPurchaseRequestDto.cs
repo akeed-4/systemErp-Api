@@ -37,6 +37,8 @@ public class QuickCarPurchaseRequestDto
     public decimal PurchasePrice { get; set; }
     public decimal? SellingPrice { get; set; }
     public string? WarehouseLocation { get; set; }
+    /// <summary>معرض/مستودع الاستلام: تدخله سيارات الأمر عند استلامها (فارغ = معرض الجلسة أو الافتراضي).</summary>
+    public Guid? WarehouseId { get; set; }
     public string? SupplierInvoiceNumber { get; set; }
     public DateTime? SupplierInvoiceDate { get; set; }
     public string? Notes { get; set; }

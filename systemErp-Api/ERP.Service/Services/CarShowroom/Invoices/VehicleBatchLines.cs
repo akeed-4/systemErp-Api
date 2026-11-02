@@ -235,6 +235,7 @@ internal static class VehicleBatchLines
         {
             v.Status = VehicleStatus.Available;
             v.ReceivedAt = now;
+            if (invoice.WarehouseId.HasValue) VehicleSites.Place(v, invoice.WarehouseId.Value, invoice.WarehouseName); // معرض فاتورة الشراء
         }
         await db.SaveChangesAsync(ct);
         await TammCharges.AttachPurchasedAsync(db, posting, vehicles.Where(v => !v.IsTemporaryChassis).Select(v => v.Id).ToList(), ct);

@@ -121,6 +121,8 @@ public class CarProcurementService : ICarProcurementService
             order.Stage = (ProcurementStage)keep[nameof(CarProcurementOrder.Stage)]!;
             order.Status = (ProcurementOrderStatus)keep[nameof(CarProcurementOrder.Status)]!;
             order.PurchaseSource = (string?)keep[nameof(CarProcurementOrder.PurchaseSource)]; // المصدر لا يتغيّر بعد الإنشاء
+            // معرض الاستلام: لا يُمسح بطلب لا يرسله، ولا يتغير بعد استلام أي سيارة (دخلت معرضه فعلاً)
+            if (r.WarehouseId == null || order.ReceivedVins.Count > 0) order.WarehouseId = (Guid?)keep[nameof(CarProcurementOrder.WarehouseId)];
             order.PurchaseInvoiceId = (Guid?)keep[nameof(CarProcurementOrder.PurchaseInvoiceId)];
             order.MatchedInvoiceNumber = (string?)keep[nameof(CarProcurementOrder.MatchedInvoiceNumber)];
             order.PdiInspectionPassed = (bool?)keep[nameof(CarProcurementOrder.PdiInspectionPassed)];
@@ -282,7 +284,7 @@ public class CarProcurementService : ICarProcurementService
             {
                 SupplierId = r.SupplierId, Date = r.Date ?? SaudiTime.Today, PurchaseCycle = r.PurchaseCycle, PurchaseSource = r.PurchaseSource,
                 PaymentType = r.PaymentType, CreditDays = r.CreditDays, Currency = r.Currency, ExchangeRate = r.ExchangeRate, CostCenterId = r.CostCenterId,
-                Notes = string.Join("\n", notes), WarehouseLocation = r.WarehouseLocation,
+                Notes = string.Join("\n", notes), WarehouseLocation = r.WarehouseLocation, WarehouseId = r.WarehouseId,
                 Items = new List<CarProcurementOrderItemDto>
                 {
                     new()
@@ -409,6 +411,8 @@ public class CarProcurementService : ICarProcurementService
 
         var tax = await CarTax.LoadAsync(_db, ct);
         var remaining = order.Items.ToDictionary(i => i.Id, i => i.Quantity - order.ReceivedVins.Count(v => v.ItemId == i.Id));
+        // السيارات المستلمة تدخل معرض الأمر (أو معرض الجلسة/الافتراضي)
+        var receiptWarehouse = await WarehouseStocks.ResolveAsync(_db, order.WarehouseId, ct);
         var fx = order.ExchangeRate <= 0 ? 1 : order.ExchangeRate;
         // سيارات الأمر «في الطريق» تستلم شواسيها الحقيقية وتدخل المخزون؛ أمر سابق لهذه الحالة لا سيارات له فتُنشأ الآن
         var inTransit = await _db.Set<Vehicle>().Where(v => v.ProcurementOrderId == order.Id && v.Status == VehicleStatus.InTransit)
@@ -439,6 +443,7 @@ public class CarProcurementService : ICarProcurementService
             vehicle.Status = VehicleStatus.Available;
             vehicle.ReceivedAt = DateTime.UtcNow;
             vehicle.Location = r.WarehouseLocation ?? order.WarehouseLocation ?? vehicle.Location;
+            VehicleSites.Place(vehicle, receiptWarehouse.Id, receiptWarehouse.NameAr);
             // سعر شراء خاص للشاسيه (بعملة الأمر) بدل سعر وحدة بنده
             var specialPrice = src.PurchasePrice.HasValue && src.PurchasePrice != item.UnitPrice ? src.PurchasePrice : null;
             if (specialPrice.HasValue) vehicle.PurchasePrice = DocumentPricing.Round(specialPrice.Value * fx);

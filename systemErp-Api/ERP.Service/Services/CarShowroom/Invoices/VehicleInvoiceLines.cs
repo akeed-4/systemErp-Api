@@ -173,6 +173,7 @@ internal static class VehicleInvoiceLines
                         BrandNameAr = l.BrandNameAr, ModelNameAr = l.ModelNameAr, TrimNameAr = l.TrimNameAr, Trim = l.TrimNameAr,
                         Year = l.Year, ColorExterior = l.ColorExterior, ColorInterior = l.ColorInterior, Condition = VehicleCondition.New,
                         PurchasePrice = l.TotalBeforeVat, SellingPrice = l.TotalBeforeVat, VatMode = VatMode.Standard_15, Location = string.Empty,
+                        WarehouseId = invoice.WarehouseId, // تدخل معرض فاتورة شرائها
                     }, ct);
                     var entity = await db.Set<Vehicle>().FirstAsync(v => v.Id == created.Id, ct);
                     entity.PurchaseInvoiceId = invoice.Id;
@@ -202,6 +203,7 @@ internal static class VehicleInvoiceLines
                     if (item != null) { item.UnitCost = v.TotalCost; items.Remove(item); }
                     l.UnitCost = v.TotalCost;
                 }
+                VehicleSites.EnsureSoldFrom(v, invoice.WarehouseId, invoice.WarehouseName); // تُباع من معرضها
                 v.Status = VehicleStatus.Sold;
             }
         }

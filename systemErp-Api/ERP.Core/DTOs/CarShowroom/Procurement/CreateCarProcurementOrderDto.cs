@@ -37,6 +37,8 @@ public partial class CreateCarProcurementOrderDto
     public bool? PdiInspectionPassed { get; set; }
     public string? RejectionReason { get; set; }
     public string? WarehouseLocation { get; set; }
+    /// <summary>معرض/مستودع الاستلام: تدخله سيارات الأمر عند استلامها (فارغ = معرض الجلسة أو الافتراضي).</summary>
+    public Guid? WarehouseId { get; set; }
     public string? MatchedInvoiceNumber { get; set; }
     public DateTime? SupplierInvoiceDate { get; set; }
     public string? DebitNoteNumber { get; set; }

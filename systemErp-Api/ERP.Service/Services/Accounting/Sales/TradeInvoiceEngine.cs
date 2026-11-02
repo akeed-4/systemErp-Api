@@ -935,6 +935,11 @@ public class TradeInvoiceEngine
             var expected = r.Kind == InvoiceKind.SalesReturn ? InvoiceKind.Sales : InvoiceKind.Purchase;
             var expectedTable = showroom ? typeof(Invoice) : expected == InvoiceKind.Sales ? typeof(SalesInvoice) : typeof(PurchaseInvoice);
             if (orig.Kind != expected || orig.Status != "posted" || orig.GetType() != expectedTable) throw new ConflictException(Messages.OriginalInvoiceNotReturnable);
+            // فترة الإرجاع من إعدادات المنشأة: منع نهائي بعد انقضائها (كل مسارات الإرجاع تمر من هنا)
+            var settings = await PostingAccounts.SettingsAsync(_db, ct);
+            var periodDays = expected == InvoiceKind.Sales ? settings.SalesReturnPeriodDays : settings.PurchaseReturnPeriodDays;
+            if (periodDays is > 0 && (invoice.IssueDate.Date - orig.IssueDate.Date).TotalDays > periodDays)
+                throw new ConflictException(string.Format(Messages.ReturnPeriodExpired, periodDays, orig.InvoiceNumber));
             invoice.OriginalInvoiceNumber = orig.InvoiceNumber;
             invoice.Module = orig.Module;
         }

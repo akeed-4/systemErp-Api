@@ -16,6 +16,16 @@ internal static class InventoryCountLines
     private static bool SameLocation(string? countLocation, string vehicleLocation)
         => string.IsNullOrWhiteSpace(countLocation) || string.Equals(countLocation.Trim(), vehicleLocation.Trim(), StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// السيارة ضمن نطاق الجرد: جرد بمعرض يقارن بمعرض السيارة (سيارة قديمة بلا معرض تُحسب على المعرض الافتراضي)،
+    /// وجرد قديم بلا معرض يبقى على مطابقة الموقع النصي.
+    /// </summary>
+    private static bool InScope(Guid? countWarehouseId, string? countLocation, Vehicle v, Guid? defaultWarehouseId)
+        => countWarehouseId.HasValue ? (v.WarehouseId ?? defaultWarehouseId) == countWarehouseId : SameLocation(countLocation, v.Location);
+
+    private static Task<Guid?> DefaultWarehouseIdAsync(ErpDbContext db, CancellationToken ct)
+        => db.Set<Warehouse>().AsNoTracking().OrderByDescending(w => w.IsDefault).ThenBy(w => w.CreatedAt).Select(w => (Guid?)w.Id).FirstOrDefaultAsync(ct);
+
     public static string Describe(Vehicle v) => $"{v.BrandNameAr} {v.ModelNameAr} {v.Year}".Trim();
 
     /// <summary>يعيد احتساب رصيد النظام والتكلفة والفرق لكل سطر ثم ملخص المستند.</summary>
@@ -53,10 +63,11 @@ internal static class InventoryCountLines
         foreach (var line in count.Lines) line.ChassisNumber = NormalizeVin(line.ChassisNumber);
         var vins = count.Lines.Select(l => l.ChassisNumber!).Distinct().ToList();
         var vehicles = await db.Set<Vehicle>().AsNoTracking().Where(v => vins.Contains(v.ChassisNumber)).ToDictionaryAsync(v => v.ChassisNumber, ct);
+        var defaultWarehouseId = await DefaultWarehouseIdAsync(db, ct);
         foreach (var line in count.Lines)
         {
             var v = vehicles.GetValueOrDefault(line.ChassisNumber!);
-            var expected = v != null && InStock.Contains(v.Status) && SameLocation(count.Location, v.Location);
+            var expected = v != null && InStock.Contains(v.Status) && InScope(count.WarehouseId, count.Location, v, defaultWarehouseId);
             line.VehicleId = v?.Id;
             line.ItemName = v != null ? Describe(v) : "مركبة غير مسجّلة في النظام";
             line.SystemQuantity = expected ? 1 : 0;
@@ -112,7 +123,8 @@ internal static class InventoryCountLines
         }
 
         var vehicles = await db.Set<Vehicle>().AsNoTracking().Where(v => InStock.Contains(v.Status)).OrderBy(v => v.ChassisNumber).ToListAsync(ct);
-        return vehicles.Where(v => SameLocation(r.Location, v.Location)).Select(v => new InventoryCountLineDto
+        var defaultId = await DefaultWarehouseIdAsync(db, ct);
+        return vehicles.Where(v => InScope(r.WarehouseId, r.Location, v, defaultId)).Select(v => new InventoryCountLineDto
         {
             VehicleId = v.Id, ChassisNumber = v.ChassisNumber, ItemName = Describe(v), SystemQuantity = 1, UnitCost = v.TotalCost,
         }).ToList();

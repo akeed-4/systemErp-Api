@@ -3,6 +3,8 @@ namespace ERP.Core.DTOs.CarShowroom;
 public class CarVinInventoryRowDto
 {
     public Guid Id { get; set; }
+    /// <summary>معرض السيارة.</summary>
+    public string? WarehouseName { get; set; }
     public string BrandNameAr { get; set; } = string.Empty;
     public string? AgentNameAr { get; set; }
     public string ModelNameAr { get; set; } = string.Empty;

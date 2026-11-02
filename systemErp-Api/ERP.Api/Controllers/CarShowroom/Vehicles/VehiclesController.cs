@@ -70,6 +70,15 @@ public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, U
         return Success(new { replaced }, string.Format(Messages.ChassisReplaced, replaced));
     }
 
+    /// <summary>تحويل سيارات إلى معرض/مستودع آخر.</summary>
+    [HttpPost("transfer")]
+    [RequireScreen("car-showroom", ScreenAction.Edit)]
+    public async Task<IActionResult> Transfer([FromBody] TransferVehiclesDto request, CancellationToken ct)
+    {
+        var moved = await _vehicles.TransferAsync(request, ct);
+        return Success(new { moved }, string.Format(Messages.VehiclesTransferred, moved));
+    }
+
     [HttpPost("CheckVins")]
     [RequireScreen("car-showroom", ScreenAction.View)]
     public async Task<IActionResult> CheckVins([FromBody] List<string> vins, CancellationToken ct)

@@ -678,6 +678,8 @@
   <data name="ReturnQtyExceedsAvailable" xml:space="preserve"><value>Return quantity for item {0} exceeds the available quantity ({1:0.####}).</value></data>
   <data name="ReturnQtyRange" xml:space="preserve"><value>Return quantity for item {0} must be between 0 and {1:0.####}.</value></data>
   <data name="ReturnReasonRequired" xml:space="preserve"><value>A return reason is required.</value></data>
+  <data name="ReturnPeriodExpired" xml:space="preserve"><value>The return period ({0} days from the invoice date) has expired for invoice {1}.</value></data>
+  <data name="ReturnPeriodDaysInvalid" xml:space="preserve"><value>The return period must be between 0 and 3650 days (0 = no limit).</value></data>
   <data name="ReturnUpdated" xml:space="preserve"><value>Return updated</value></data>
   <data name="RevenueLinesMustEqualNet" xml:space="preserve"><value>The revenue lines do not equal the document net amount.</value></data>
   <data name="ReversalEntryIsAuditTrail" xml:space="preserve"><value>A reversal entry cannot be edited or deleted; it is an audit trail.</value></data>
@@ -780,6 +782,10 @@
   <data name="VehicleLinesOnlyForPurchaseAndSales" xml:space="preserve"><value>Vehicle lines are supported for purchase and sales invoices only.</value></data>
   <data name="VehicleLinkedToSalesContract" xml:space="preserve"><value>The vehicle is linked to a sales contract.</value></data>
   <data name="VehicleNotFound" xml:space="preserve"><value>Vehicle not found.</value></data>
+  <data name="VehicleInOtherWarehouse" xml:space="preserve"><value>Vehicle {0} is in showroom "{1}", not in the invoice showroom "{2}". Choose its showroom or transfer it first.</value></data>
+  <data name="VehicleTransferNotInStock" xml:space="preserve"><value>Vehicle {0} is not in stock (available or reserved), so it cannot be transferred.</value></data>
+  <data name="TransferVehiclesRequired" xml:space="preserve"><value>Choose at least one vehicle to transfer.</value></data>
+  <data name="VehiclesTransferred" xml:space="preserve"><value>{0} vehicle(s) transferred.</value></data>
   <data name="VehiclePurchaseInvoiceRecorded" xml:space="preserve"><value>Vehicle purchase invoice recorded</value></data>
   <data name="VehicleReservedForAnotherContract" xml:space="preserve"><value>The vehicle is reserved for another contract.</value></data>
   <data name="VehicleSold" xml:space="preserve"><value>The vehicle is sold.</value></data>

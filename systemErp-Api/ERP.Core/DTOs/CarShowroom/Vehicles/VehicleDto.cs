@@ -48,6 +48,8 @@ public partial class VehicleDto
     public bool IsTemporaryChassis { get; set; }
     public VehicleStatus Status { get; set; } = VehicleStatus.Available;
     public string Location { get; set; } = string.Empty;
+    public Guid? WarehouseId { get; set; }
+    public string? WarehouseName { get; set; }
     public string? QrCodeUrl { get; set; }
     public string? Notes { get; set; }
     public int? WarrantyYears { get; set; }

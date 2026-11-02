@@ -41,6 +41,8 @@ public partial class CreateVehicleDto
     public decimal? MinSellingPrice { get; set; }
     public VehicleStatus Status { get; set; } = VehicleStatus.Available;
     public string Location { get; set; } = string.Empty;
+    /// <summary>معرض السيارة عند إنشائها (فارغ = معرض الجلسة أو الافتراضي). بعد الإنشاء يتغير بالتحويل فقط.</summary>
+    public Guid? WarehouseId { get; set; }
     public string? QrCodeUrl { get; set; }
     public string? Notes { get; set; }
     public int? WarrantyYears { get; set; }

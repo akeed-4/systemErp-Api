@@ -32,4 +32,8 @@ public class AccountingSettings : BaseEntity
     public string? OutputVatAccountCode { get; set; }
     public string? InputVatAccountCode { get; set; }
     public string? OutputExciseAccountCode { get; set; }
+
+    // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
+    public int? SalesReturnPeriodDays { get; set; }
+    public int? PurchaseReturnPeriodDays { get; set; }
 }

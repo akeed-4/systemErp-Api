@@ -33,10 +33,10 @@ public class CarShowroomReportsController : ErpControllerBase
     }
 
     [HttpGet("VinInventory")]
-    public async Task<IActionResult> VinInventory(DataSourceLoadOptions loadOptions, CancellationToken ct)
+    public async Task<IActionResult> VinInventory([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
     {
         await RequireCostViewAsync(ct);
-        return Ok(await _reports.LoadVinInventoryAsync(loadOptions, ct));
+        return Ok(await _reports.LoadVinInventoryAsync(q, loadOptions, ct));
     }
 
     [HttpGet("ZatcaMarginTax")]
@@ -89,18 +89,18 @@ public class CarShowroomReportsController : ErpControllerBase
 
     /// <summary>سيارات في الطريق وتكلفتها.</summary>
     [HttpGet("VehiclesInTransit")]
-    public async Task<IActionResult> VehiclesInTransit(DataSourceLoadOptions loadOptions, CancellationToken ct)
+    public async Task<IActionResult> VehiclesInTransit([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
     {
         await RequireCostViewAsync(ct);
-        return Ok(await _reports.LoadVehiclesInTransitAsync(loadOptions, ct));
+        return Ok(await _reports.LoadVehiclesInTransitAsync(q, loadOptions, ct));
     }
 
     /// <summary>عمر المخزون مع تكلفته.</summary>
     [HttpGet("InventoryAging")]
-    public async Task<IActionResult> InventoryAging(DataSourceLoadOptions loadOptions, CancellationToken ct)
+    public async Task<IActionResult> InventoryAging([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
     {
         await RequireCostViewAsync(ct);
-        return Ok(await _reports.LoadInventoryAgingAsync(loadOptions, ct));
+        return Ok(await _reports.LoadInventoryAgingAsync(q, loadOptions, ct));
     }
 
     [HttpGet("ProcurementTracking")]
@@ -115,8 +115,8 @@ public class CarShowroomReportsController : ErpControllerBase
     }
 
     [HttpGet("InstallmentsReceivable")]
-    public async Task<IActionResult> Installments(DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _reports.LoadInstallmentsReceivableAsync(loadOptions, ct));
+    public async Task<IActionResult> Installments([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _reports.LoadInstallmentsReceivableAsync(q, loadOptions, ct));
 
     [HttpGet("SuppliersProcurement")]
     public async Task<IActionResult> Suppliers([FromQuery] CarReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)

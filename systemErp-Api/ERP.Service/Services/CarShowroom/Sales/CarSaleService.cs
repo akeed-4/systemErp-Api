@@ -269,6 +269,7 @@ public class CarSaleService : ICarSaleService
                 SendToZatca = TradeInvoiceEngine.ReturnSendsToZatca(original),
                 Notes = $"مرتجع بيع سيارة - عقد {c.ContractNumber} - VIN {c.Vin} - {r.Reason.Trim()}",
                 ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
+                WarehouseId = original.WarehouseId, // السيارة تعود لمعرض فاتورة بيعها
                 RevenueAccountCode = original.RevenueAccountCode, CogsAccountCode = original.CogsAccountCode, InventoryAccountCode = original.InventoryAccountCode,
                 JournalCostCenters = JournalCostCenterMap.Unpack(original.JournalCostCentersJson), // المرتجع يعكس قيد أصله على مراكزه
                 Items = returned.Select(i => new InvoiceItemDto
@@ -284,6 +285,7 @@ public class CarSaleService : ICarSaleService
 
             var vehicle = await _db.Set<Vehicle>().FirstAsync(v => v.Id == c.VehicleId, token);
             vehicle.Status = VehicleStatus.Available;
+            if (original.WarehouseId.HasValue) VehicleSites.Place(vehicle, original.WarehouseId.Value, original.WarehouseName);
 
             // مصاريف ما بعد البيع: بقيت على تكلفة المبيعات، فتخرج من تكلفة السيارة وتصير مصروفاً
             await SoldVehicleAdjustments.ExpenseLateChargesAsync(_db, new[] { vehicle.Id }, token);
@@ -455,6 +457,7 @@ public class CarSaleService : ICarSaleService
             ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
             RevenueAccountCode = settings.CarSalesRevenueAccount, CogsAccountCode = settings.CarCogsAccount, InventoryAccountCode = settings.VehicleInventoryAccount,
             CostCenterId = c.CostCenterId, CostCenterFromSource = true, // مركز العقد افتراضي كل أسطر الفاتورة وقيدها
+            WarehouseId = vehicle.WarehouseId, // تُباع من معرض السيارة
             Items = new List<InvoiceItemDto>
             {
                 new()
@@ -552,6 +555,10 @@ public class CarSaleService : ICarSaleService
         if (vehicle.Status == VehicleStatus.WrittenOff) throw new ConflictException(Messages.VehicleWrittenOffNotSellable);
         if (vehicle.Status is VehicleStatus.InTransit or VehicleStatus.Cancelled or VehicleStatus.Draft) throw new ConflictException(string.Format(Messages.VehicleNotInStock, vehicle.ChassisNumber));
         if (vehicle.IsTemporaryChassis) throw new ConflictException(string.Format(Messages.VehicleChassisTemporary, vehicle.ChassisNumber));
+        // مستخدم مثبَّت على معرض: يبيع سيارات معرضه فقط (سيارة معرض آخر تُحوَّل أولاً)
+        if (_db.SessionWarehouseId is Guid site && vehicle.WarehouseId.HasValue && vehicle.WarehouseId != site)
+            throw new ConflictException(string.Format(Messages.VehicleInOtherWarehouse, vehicle.ChassisNumber, vehicle.WarehouseName,
+                await _db.Set<Warehouse>().Where(w => w.Id == site).Select(w => w.NameAr).FirstOrDefaultAsync(ct)));
         if (vehicle.Status == VehicleStatus.Reserved)
         {
             var reservedByThis = contractId.HasValue && await _db.Set<CarSalesContract>().AnyAsync(x => x.Id == contractId && x.VehicleId == vehicleId
@@ -617,6 +624,8 @@ public class CarSaleService : ICarSaleService
         c.ColorExterior = v.ColorExterior; c.ColorInterior = v.ColorInterior; c.Condition = v.Condition;
         c.Mileage = v.MileageKm; c.FuelType = v.FuelType.ToString().ToLowerInvariant();
         c.Transmission = v.Transmission.ToString().ToLowerInvariant(); c.Location = v.Location;
+        // العقد بكل مراحله (عرض، عقد، تسليم، فاتورة، مرتجع) في معرض سيارته
+        if (v.WarehouseId.HasValue) c.WarehouseId = v.WarehouseId;
 
         if (c.SellingPrice <= 0) c.SellingPrice = v.SellingPrice;
         var net = c.SellingPrice - (c.DiscountAmount ?? 0);

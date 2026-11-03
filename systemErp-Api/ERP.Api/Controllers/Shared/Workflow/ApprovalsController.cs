@@ -8,10 +8,11 @@ namespace ERP.Api.Controllers.Shared;
 public class ApprovalsController : ErpControllerBase
 {
     private readonly IApprovalService _approvals;
+    private readonly IApprovalDecisionService _decisions;
     private readonly IPermissionService _permissions;
-    public ApprovalsController(IApprovalService approvals, IPermissionService permissions)
+    public ApprovalsController(IApprovalService approvals, IApprovalDecisionService decisions, IPermissionService permissions)
     {
-        _approvals = approvals; _permissions = permissions;
+        _approvals = approvals; _decisions = decisions; _permissions = permissions;
     }
 
     [HttpPost("check"), RequireScreen("dashboard")]
@@ -28,15 +29,15 @@ public class ApprovalsController : ErpControllerBase
     [HttpDelete("{id:guid}"), RequireScreen("dashboard", ScreenAction.View)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _approvals.CancelAsync(id, ct), Messages.RequestWithdrawn);
 
-    /// <summary>الاعتماد لا يتجاوز حد اعتماد المستخدم (مبلغ المستند في الطلب).</summary>
+    /// <summary>الاعتماد لا يتجاوز حد اعتماد المستخدم (مبلغ المستند في الطلب)، والاعتماد النهائي يرحّل المستند.</summary>
     [HttpPost("{id:guid}/approve"), AuthenticatedOnly, EmployeeSelfService]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
     {
         await _permissions.EnsureApprovalLimitAsync((await _approvals.GetForApproverAsync(id, ct)).DocumentAmount, ct);
-        return Success(await _approvals.ApproveAsync(id, decision, ct));
+        return Success(await _decisions.ApproveAsync(id, decision, ct));
     }
 
     [HttpPost("{id:guid}/reject"), AuthenticatedOnly, EmployeeSelfService]
     public async Task<IActionResult> Reject(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
-        => Success(await _approvals.RejectAsync(id, decision, ct));
+        => Success(await _decisions.RejectAsync(id, decision, ct));
 }

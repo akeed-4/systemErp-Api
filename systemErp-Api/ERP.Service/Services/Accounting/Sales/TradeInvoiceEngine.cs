@@ -163,10 +163,25 @@ public class TradeInvoiceEngine
         {
             DocumentType = documentType, ActionType = "create", DocumentId = invoice.Id,
             DocumentNumber = invoice.InvoiceNumber, DocumentAmount = invoice.GrandTotal,
-            DocumentDataSnapshot = System.Text.Json.JsonSerializer.Serialize(ToDto(invoice, invoice.GrandTotal)),
+            DocumentDataSnapshot = ApprovalSnapshot(ToDto(invoice, invoice.GrandTotal)),
         }, ct);
         return check.ApprovalRequired;
     }
+
+    private static readonly System.Text.Json.JsonSerializerOptions SnapshotJson = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.SnakeCaseLower) },
+    };
+
+    /// <summary>ما يراه المعتمِد من المستند: الرأس والبنود والإجماليات فقط (بلا بيانات الهيئة والحسابات).</summary>
+    private static string ApprovalSnapshot(InvoiceDto d) => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        d.Kind, d.InvoiceNumber, d.IssueDate, d.PartyName, d.PartyVatNumber, d.WarehouseName, d.PaymentMethod,
+        d.CurrencyCode, d.ReferenceNumber, d.OriginalInvoiceNumber, d.ReturnReason, d.Notes,
+        Items = d.Items.Select(l => new { l.ItemName, l.Unit, l.Quantity, l.UnitPrice, l.Discount, l.VatAmount, l.TotalAfterVat }),
+        d.Subtotal, d.DiscountTotal, d.VatTotal, d.GrandTotal,
+    }, SnapshotJson);
 
     public async Task<InvoiceDto> UpdateAsync<T>(Guid id, UpdateInvoiceDto r, CancellationToken ct) where T : InvoiceBase, new()
         => await SendToZatcaIfRequestedAsync<T>(await _tx.RunAsync(async token =>
@@ -228,7 +243,12 @@ public class TradeInvoiceEngine
             await _db.SaveChangesAsync(token);
 
             // المرحّلة تعود مرحّلة دائماً (بنفس رقمها) بقيد وحركات مخزنية جديدة
-            if (wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase)) await FinalizeAsync(invoice, token);
+            var posting = wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
+            // مسودة رُفض اعتمادها: حفظها للترحيل بعد تصحيحها يعيد إرسالها للاعتماد بطلب جديد إن بقيت السياسة منطبقة
+            if (posting && !wasPosted && await _db.Set<ApprovalRequest>().Where(a => a.DocumentId == id).OrderByDescending(a => a.CreatedAt)
+                    .Select(a => a.Status).FirstOrDefaultAsync(token) == "rejected" && await RequiresApprovalAsync(invoice, token))
+                posting = false;
+            if (posting) await FinalizeAsync(invoice, token);
             await LogTaxOverridesAsync(invoice, token);
             if (wasPosted)
                 await _audit.LogAsync(wasRejected ? "INVOICE_ZATCA_REJECTED_EDITED" : "INVOICE_POSTED_EDITED", typeof(T).Name, invoice.Id.ToString(),

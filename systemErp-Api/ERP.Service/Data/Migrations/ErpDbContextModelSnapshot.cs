@@ -11096,8 +11096,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<decimal>("ConversionFactor")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -11123,6 +11123,13 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UnitType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("count");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");

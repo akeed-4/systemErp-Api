@@ -384,65 +384,132 @@ public class TradeInvoiceEngine
                 foreach (var ext in _extensions)
                     if (await ext.CreateReturnAsync(r, car, CreateAsync<TReturn>, token) is { } extensionReturn) return extensionReturn;
 
-            var previouslyReturned = (await _db.Set<InvoiceItemBase>().AsNoTracking()
-                    .Where(i => _db.Set<TReturn>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"))
-                    .ToListAsync(token))
-                .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
-
-            var originalLines = original.Lines.ToList();
+            var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original.Id, token);
             var lines = r.Lines.Count > 0
                 ? r.Lines
-                : originalLines.Select(i => new ReturnLineDto { ItemId = i.ItemId, Quantity = i.Quantity - previouslyReturned.GetValueOrDefault(i.ItemId) }).Where(l => l.Quantity > 0).ToList();
+                : original.Lines.Select(i => new ReturnLineDto { ItemId = i.ItemId, Quantity = i.Quantity - previouslyReturned.GetValueOrDefault(i.ItemId) }).Where(l => l.Quantity > 0).ToList();
             if (lines.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
 
-            var dto = new CreateInvoiceDto
-            {
-                Kind = original.Kind == InvoiceKind.Sales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
-                InvoiceType = original.Kind == InvoiceKind.Sales ? InvoiceType.CreditNote : InvoiceType.DebitNote,
-                IsReturn = true, OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.ReturnReason,
-                InvoiceNumber = r.ManualNumber ?? string.Empty, SystemGenerated = r.SystemGenerated, // رقم المرتجع اليدوي إن ضُبط نوعه يدوياً
-                PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber, PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber,
-                PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
-                WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
-                CostCenterId = original.CostCenterId,
-                JournalCostCenters = JournalCostCenterMap.Unpack(original.JournalCostCentersJson), // المرتجع يعكس قيد أصله على مراكزه
-                // الحسابات المحددة يدوياً على الأصل تتقدم في مرتجعه كما تقدمت فيه: المخزون يعود لحسابه والإيراد يُعكس من حسابه
-                RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
-                VatTreatment = original.VatTreatment, VatTreatmentReasonCode = original.VatTreatmentReasonCode, // المرتجع بمعالجة أصله
-                PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
-                PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
-                PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
-                Notes = ReturnNotes(original, r),
-                Status = "posted",
-            };
-            if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
-            foreach (var l in lines)
-            {
-                var src = originalLines.FirstOrDefault(i => i.ItemId == l.ItemId) ?? throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
-                var remaining = src.Quantity - previouslyReturned.GetValueOrDefault(l.ItemId);
-                if (l.Quantity <= 0 || l.Quantity > remaining)
-                    throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.ItemName, remaining));
-                dto.Items.Add(new InvoiceItemDto
-                {
-                    ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = l.Quantity,
-                    UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, VatRate = src.VatRate,
-                    ExciseTaxRate = src.ExciseTaxRate, ExciseRetailPrice = src.ExciseRetailPrice,
-                    ExciseStandardPrice = src.ExciseStandardPrice,
-                    VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode, VatOverrideReason = src.VatOverrideReason,
-                    RevenueAccountCode = src.RevenueAccountCode,
-                    Discount = src.Quantity == 0 ? 0 : Math.Round(src.Discount * l.Quantity / src.Quantity, 2),
-                    CostCenterId = src.CostCenterId,
-                });
-            }
-            // خصم الفاتورة يُوزَّع نسبياً على الكميات المرتجعة.
-            var origGross = originalLines.Sum(i => i.Quantity * i.UnitPrice - i.Discount);
-            var retGross = dto.Items.Sum(i => i.Quantity * i.UnitPrice - i.Discount);
-            dto.InvoiceDiscount = origGross == 0 ? 0 : DocumentPricing.Round(original.InvoiceDiscount * retGross / origGross);
-
+            var dto = BuildTradeReturn(original, r, lines, previouslyReturned);
             if (r.RefundSplits.Count > 0) await ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
             else if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
             return await CreateAsync<TReturn>(dto, token);
         }, ct), ct);
+
+    /// <summary>
+    /// معاينة مرتجع بلا أي أثر (لا رقم ولا قيد ولا مخزون ولا هيئة): الأصل كاملاً، المتبقي من كل صنف/سيارة، وتسعير المختار
+    /// (r.Lines، أو r.VehicleIds لفاتورة سيارات؛ الفارغ = لا اختيار) بالبناء نفسه الذي يُنشئ المرتجع.
+    /// </summary>
+    public async Task<ReturnPreviewDto> PreviewReturnAsync<TOriginal, TReturn>(CreateReturnInvoiceRequestDto r, CancellationToken ct)
+        where TOriginal : InvoiceBase, new() where TReturn : InvoiceBase, new()
+    {
+        var original = await Detailed(_db.Set<TOriginal>().AsNoTracking()).FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, ct)
+            ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
+        if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
+        var preview = new ReturnPreviewDto { Original = await GetAsync<TOriginal>(original.Id, ct) };
+
+        if (original is Invoice car)
+            foreach (var ext in _extensions)
+                if (await ext.PreviewReturnAsync(r, car, ct) is { } units)
+                {
+                    preview.ReturnedVehicleIds = units.ReturnedVehicleIds.ToList();
+                    if (units.Return != null) preview.Totals = PriceReturn(units.Return).Totals;
+                    return preview;
+                }
+
+        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original.Id, ct);
+        var chosen = r.Lines.Where(l => l.Quantity > 0).ToList();
+        var priced = chosen.Count > 0 ? PriceReturn(BuildTradeReturn(original, r, chosen, previouslyReturned)) : (Totals: null, Lines: Array.Empty<PricedLine>());
+        // صف لكل صنف كما يطابقه المرتجع (أول سطر له في الأصل)، والمتبقي بعد المرتجعات المرحّلة
+        foreach (var src in original.Lines.GroupBy(i => i.ItemId).Select(g => g.First()))
+        {
+            var returned = previouslyReturned.GetValueOrDefault(src.ItemId);
+            var index = chosen.FindIndex(l => l.ItemId == src.ItemId);
+            var line = index >= 0 ? priced.Lines[index] : null;
+            preview.Lines.Add(new ReturnPreviewLineDto
+            {
+                ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit,
+                OriginalQuantity = src.Quantity, ReturnedQuantity = returned, RemainingQuantity = Math.Max(0, src.Quantity - returned),
+                UnitPrice = src.UnitPrice, Discount = src.Discount, VatRate = src.VatRate,
+                Quantity = index >= 0 ? chosen[index].Quantity : 0, Net = line?.Net ?? 0, VatAmount = line?.VatAmount ?? 0, Total = line?.Total ?? 0,
+            });
+        }
+        preview.Totals = priced.Totals;
+        return preview;
+    }
+
+    /// <summary>الكميات المرتجعة من كل صنف في مرتجعات الأصل المرحّلة.</summary>
+    private async Task<Dictionary<Guid, decimal>> PreviouslyReturnedAsync<TReturn>(Guid originalId, CancellationToken ct) where TReturn : InvoiceBase
+        => (await _db.Set<InvoiceItemBase>().AsNoTracking()
+                .Where(i => _db.Set<TReturn>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == originalId && inv.Status == "posted"))
+                .ToListAsync(ct))
+            .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+    /// <summary>تسعير المرتجع كما يسعّره الإنشاء: معالجة الضريبة من الأصل ثم محرك التسعير، بأسطره بترتيب بنوده.</summary>
+    private static (ReturnTotalsDto Totals, IReadOnlyList<PricedLine> Lines) PriceReturn(CreateInvoiceDto dto)
+    {
+        var errors = new List<string>();
+        ApplyDocumentVatTreatment(dto, errors);
+        if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+        var p = DocumentPricing.Price(
+            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
+                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount);
+        return (new ReturnTotalsDto
+        {
+            Gross = p.Subtotal, ItemsDiscount = p.ItemsDiscountTotal, InvoiceDiscount = p.InvoiceDiscount, NetTotal = p.NetTotal,
+            ExciseTotal = p.ExciseTaxTotal, VatTotal = p.VatTotal, GrandTotal = p.GrandTotal,
+        }, p.Lines);
+    }
+
+    /// <summary>طلب مرتجع تجارة عامة من الأصل: بيانات الطرف والحسابات والمعالجة منه، وكل سطر بسعر أصله وخصمه النسبي.</summary>
+    private static CreateInvoiceDto BuildTradeReturn(InvoiceBase original, CreateReturnInvoiceRequestDto r, List<ReturnLineDto> lines, Dictionary<Guid, decimal> previouslyReturned)
+    {
+        var originalLines = original.Lines.ToList();
+        var dto = new CreateInvoiceDto
+        {
+            Kind = original.Kind == InvoiceKind.Sales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
+            InvoiceType = original.Kind == InvoiceKind.Sales ? InvoiceType.CreditNote : InvoiceType.DebitNote,
+            IsReturn = true, OriginalInvoiceId = original.Id, OriginalInvoiceNumber = original.InvoiceNumber, ReturnReason = r.ReturnReason,
+            InvoiceNumber = r.ManualNumber ?? string.Empty, SystemGenerated = r.SystemGenerated, // رقم المرتجع اليدوي إن ضُبط نوعه يدوياً
+            PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber, PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber,
+            PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
+            WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
+            CostCenterId = original.CostCenterId,
+            JournalCostCenters = JournalCostCenterMap.Unpack(original.JournalCostCentersJson), // المرتجع يعكس قيد أصله على مراكزه
+            // الحسابات المحددة يدوياً على الأصل تتقدم في مرتجعه كما تقدمت فيه: المخزون يعود لحسابه والإيراد يُعكس من حسابه
+            RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
+            VatTreatment = original.VatTreatment, VatTreatmentReasonCode = original.VatTreatmentReasonCode, // المرتجع بمعالجة أصله
+            PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
+            PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
+            PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
+            Notes = ReturnNotes(original, r),
+            Status = "posted",
+        };
+        if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
+        foreach (var l in lines)
+        {
+            var src = originalLines.FirstOrDefault(i => i.ItemId == l.ItemId) ?? throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
+            var remaining = src.Quantity - previouslyReturned.GetValueOrDefault(l.ItemId);
+            if (l.Quantity <= 0 || l.Quantity > remaining)
+                throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.ItemName, remaining));
+            dto.Items.Add(new InvoiceItemDto
+            {
+                ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = l.Quantity,
+                UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, VatRate = src.VatRate,
+                ExciseTaxRate = src.ExciseTaxRate, ExciseRetailPrice = src.ExciseRetailPrice,
+                ExciseStandardPrice = src.ExciseStandardPrice,
+                VatCategory = src.VatCategory, VatExemptionReasonCode = src.VatExemptionReasonCode, VatOverrideReason = src.VatOverrideReason,
+                RevenueAccountCode = src.RevenueAccountCode,
+                Discount = src.Quantity == 0 ? 0 : Math.Round(src.Discount * l.Quantity / src.Quantity, 2),
+                CostCenterId = src.CostCenterId,
+            });
+        }
+        // خصم الفاتورة يُوزَّع نسبياً على الكميات المرتجعة.
+        var origGross = originalLines.Sum(i => i.Quantity * i.UnitPrice - i.Discount);
+        var retGross = dto.Items.Sum(i => i.Quantity * i.UnitPrice - i.Discount);
+        dto.InvoiceDiscount = origGross == 0 ? 0 : DocumentPricing.Round(original.InvoiceDiscount * retGross / origGross);
+        return dto;
+    }
 
     internal static string ReturnNotes(InvoiceBase original, CreateReturnInvoiceRequestDto r)
         => string.IsNullOrWhiteSpace(r.Notes) ? $"مرتجع من الفاتورة {original.InvoiceNumber}" : $"مرتجع من الفاتورة {original.InvoiceNumber}: {r.Notes.Trim()}";
@@ -456,6 +523,7 @@ public class TradeInvoiceEngine
     {
         var lines = splits.Where(s => s.Amount > 0).ToList();
         if (lines.Count == 0) return;
+        PaymentSplitRules.EnsureDistinctMethods(lines.Select(s => (s.Method, s.PaymentMethodCode)));
         var total = DocumentPricing.Price(
             dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
                 i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount).GrandTotal;
@@ -916,8 +984,10 @@ public class TradeInvoiceEngine
         {
             if (r.PaymentSplits.Count == 0 || r.PaymentSplits.Any(s => s.Amount <= 0))
                 throw new ValidationFailedException(Messages.SplitPaymentsNeedPositiveAmounts);
-            if (Math.Abs(r.PaymentSplits.Sum(s => s.Amount) - invoice.GrandTotal) > 0.005m)
-                throw new ValidationFailedException(Messages.SplitPaymentsMustEqualInvoiceTotal);
+            if (PaymentSplitRules.TotalProblem(r.PaymentSplits.Sum(s => s.Amount), invoice.GrandTotal) is { } totalProblem)
+                throw new ValidationFailedException(totalProblem);
+            // طريقة واحدة لكل سطر (المرتجع يرث أسطر فاتورته كما هي)
+            if (!isReturn) PaymentSplitRules.EnsureDistinctMethods(r.PaymentSplits.Select(s => (s.Method, s.PaymentMethodCode)));
             foreach (var s in r.PaymentSplits)
             {
                 var method = isReturn ? s.Method : await PaymentMethodRules.MethodForAsync(_db, s.Method, s.PaymentMethodCode, ct);

@@ -82,6 +82,15 @@ public class InvoicesController : ErpControllerBase
         return Success(await _invoices.CreateReturnAsync(dto, ct), Messages.ReturnCreated);
     }
 
+    /// <summary>معاينة مرتجع فاتورة معرض: السيارات المرتجعة من قبل وتسعير المختار بلا أي أثر.</summary>
+    [HttpPost("returns/preview")]
+    public async Task<IActionResult> PreviewReturn([FromBody] CreateReturnInvoiceRequestDto dto, CancellationToken ct)
+    {
+        var original = await _invoices.GetAsync(dto.OriginalInvoiceId, ct);
+        await Require(original.Kind == InvoiceKind.Sales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn, ScreenAction.Create, ct);
+        return Success(await _invoices.PreviewReturnAsync(dto, ct));
+    }
+
     [HttpPost("{id:guid}/post")]
     public async Task<IActionResult> Post(Guid id, CancellationToken ct)
     {

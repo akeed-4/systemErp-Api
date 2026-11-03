@@ -119,6 +119,14 @@ public abstract class TradeReturnsControllerBase : TradeDocumentsControllerBase
         await Require(ScreenAction.Create, ct);
         return Success(await _returns.CreateFromInvoiceAsync(dto, ct), Messages.ReturnCreated);
     }
+
+    /// <summary>معاينة المرتجع قبل إصداره: الأصل، المتبقي من كل صنف، وتسعير المختار بلا أي أثر.</summary>
+    [HttpPost("return-preview")]
+    public async Task<IActionResult> PreviewReturn([FromBody] CreateReturnInvoiceRequestDto dto, CancellationToken ct)
+    {
+        await Require(ScreenAction.Create, ct);
+        return Success(await _returns.PreviewReturnAsync(dto, ct));
+    }
 }
 
 [Route("api/v1/sales-invoices"), ScopedRecord("sales-invoice")]

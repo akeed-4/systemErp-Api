@@ -524,6 +524,12 @@
   <data name="NoLinkedInvoice" xml:space="preserve"><value>No linked invoice.</value></data>
   <data name="NoLoyaltyBalanceForCustomer" xml:space="preserve"><value>This customer has no loyalty balance.</value></data>
   <data name="NonBaseUnitNeedsBaseUnit" xml:space="preserve"><value>A non-base unit needs a base unit.</value></data>
+  <data name="UnitBaseTypeLocked" xml:space="preserve"><value>Cannot change the type of a base unit that other units are linked to.</value></data>
+  <data name="UnitBaseCannotBeUnset" xml:space="preserve"><value>Every type needs a base unit. To change it, open the unit you want as base and turn on "Base unit"; the other units of the type are converted to it automatically.</value></data>
+  <data name="UnitTypeAlreadyHasBase" xml:space="preserve"><value>This type already has a base unit ({0}). Create the unit linked to it with a conversion factor, then edit it to make it the base if needed.</value></data>
+  <data name="UnitTypeHasNoBase" xml:space="preserve"><value>This type has no base unit yet; make this unit the base unit.</value></data>
+  <data name="UnitBaseMustMatchType" xml:space="preserve"><value>Base unit {0} is not of this unit's type; pick a base unit of the same type.</value></data>
+  <data name="UnitTypeInvalid" xml:space="preserve"><value>Invalid unit type; types are: count, weight, volume, length.</value></data>
   <data name="NoNetQuantitiesToBill" xml:space="preserve"><value>No net quantities to bill (the delivery note is fully returned).</value></data>
   <data name="NoneValue" xml:space="preserve"><value>none</value></data>
   <data name="NoOpenShift" xml:space="preserve"><value>There is no open shift.</value></data>
@@ -729,6 +735,9 @@
   <data name="SplitPaymentsMustEqualInvoiceTotal" xml:space="preserve"><value>The split payments total must equal the invoice total.</value></data>
   <data name="SplitPaymentsMustEqualVoucherAmount" xml:space="preserve"><value>The split payments total must equal the voucher amount.</value></data>
   <data name="SplitPaymentsNeedPositiveAmounts" xml:space="preserve"><value>Split payments need positive amounts.</value></data>
+  <data name="SplitPaymentMethodRepeated" xml:space="preserve"><value>Payment method "{0}" is repeated in the split payment. Use a different method on each line, or combine the amounts in one line.</value></data>
+  <data name="SplitPaymentsBelowTotal" xml:space="preserve"><value>The payments total ({0}) is less than the total ({1}); {2} remains. Add the remainder to one of the methods.</value></data>
+  <data name="SplitPaymentsExceedTotal" xml:space="preserve"><value>The payments total ({0}) exceeds the total ({1}) by {2}. Reduce one of the amounts so the payments equal the total.</value></data>
   <data name="StandardCostVarianceAccountNotFound" xml:space="preserve"><value>The standard cost variance account was not found.</value></data>
   <data name="StandardInvoiceRequiresCustomerVat" xml:space="preserve"><value>A standard invoice requires the customer's VAT number.</value></data>
   <data name="StatementDateInFuture" xml:space="preserve"><value>The bank statement date cannot be in the future.</value></data>

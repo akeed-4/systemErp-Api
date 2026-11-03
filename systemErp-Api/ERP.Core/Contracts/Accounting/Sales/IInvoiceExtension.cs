@@ -35,6 +35,12 @@ public interface IInvoiceExtension
     Task<InvoiceDto?> CreateReturnAsync(CreateReturnInvoiceRequestDto r, Invoice original,
         Func<CreateInvoiceDto, CancellationToken, Task<InvoiceDto>> create, CancellationToken ct);
 
+    /// <summary>
+    /// معاينة مرتجع فاتورة تخص الوحدة بلا أي أثر: الوحدات المرتجعة من قبل، وطلب المرتجع للمختار (r.VehicleIds؛ null بلا اختيار).
+    /// null = الأصل لا يخص الوحدة.
+    /// </summary>
+    Task<ReturnUnitsPreview?> PreviewReturnAsync(CreateReturnInvoiceRequestDto r, Invoice original, CancellationToken ct);
+
     /// <summary>يُكمل بيانات الوحدة في عرض الفاتورة.</summary>
     Task FillAsync(Invoice invoice, InvoiceDto dto, CancellationToken ct);
 
@@ -44,3 +50,6 @@ public interface IInvoiceExtension
     /// <summary>يمنع عرض قيد الفاتورة (أو معاينته) إن كان يُظهر ما تحجبه الوحدة عن المستخدم.</summary>
     Task EnsureJournalVisibleAsync(Invoice invoice, CancellationToken ct);
 }
+
+/// <summary>معاينة مرتجع وحدة: المركبات المرتجعة من قبل، وطلب المرتجع المبني للمختار (null بلا اختيار).</summary>
+public sealed record ReturnUnitsPreview(IReadOnlyCollection<Guid> ReturnedVehicleIds, CreateInvoiceDto? Return);

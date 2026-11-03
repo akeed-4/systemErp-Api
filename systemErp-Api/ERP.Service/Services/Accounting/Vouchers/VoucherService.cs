@@ -192,8 +192,9 @@ public class VoucherService : IVoucherService
         if (string.IsNullOrWhiteSpace(r.PartyName)) errors.Add(Messages.PartyNameRequired);
         if (string.IsNullOrWhiteSpace(r.PartyAccountCode)) errors.Add(Messages.PartyAccountRequired);
         if (!r.IsSplitPayment && string.IsNullOrWhiteSpace(r.TreasuryAccountCode)) errors.Add(Messages.TreasuryAccountRequired);
-        if (r.IsSplitPayment && Math.Abs(r.PaymentSplits.Sum(s => s.Amount) - r.Amount) > 0.005m)
-            errors.Add(Messages.SplitPaymentsMustEqualVoucherAmount);
+        if (r.IsSplitPayment && PaymentSplitRules.TotalProblem(r.PaymentSplits.Sum(s => s.Amount), r.Amount) is { } totalProblem)
+            errors.Add(totalProblem);
+        if (r.IsSplitPayment) PaymentSplitRules.EnsureDistinctMethods(r.PaymentSplits.Select(s => (s.Method, s.PaymentMethodCode)));
         if (r.VatAmount < 0 || (r.VatAmount > 0 && r.VatAmount >= r.Amount)) errors.Add(Messages.VoucherVatInvalid);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
     }

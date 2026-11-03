@@ -71,7 +71,11 @@ public class WarehouseStockTests : TestBase
         var (supplier, _) = await SeedSupplierAsync(api); // فاتورة الشراء الضريبية تتطلب مورداً
         var item = await SeedProductAsync(api);
         var main = await DefaultWarehouseAsync(api);
-        var branch = await NewWarehouseAsync(api, "WH-T");
+        // الموقع المضاف يختار حساب مخزونه من الدليل (لا يُنشأ له حساب)
+        await AccountingSettingsTests.AccountAsync(api, "1148", "asset", "114");
+        var branchCreated = await api.Post("/warehouses", new { code = "WH-T", nameAr = "مستودع WH-T", nameEn = "WH-T", location = "الرياض", status = "active", inventoryAccountCode = "1148" });
+        Assert.Equal(201, branchCreated.Status);
+        var branch = branchCreated.Data!["id"].G();
         Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 10, 20))).Status);
         var product = (await api.Get($"/products/{item}")).Data!;
         var mainBefore = await OnHandAsync(api, item, main);

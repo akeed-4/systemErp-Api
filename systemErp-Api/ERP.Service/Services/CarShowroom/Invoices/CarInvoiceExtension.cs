@@ -119,9 +119,7 @@ public class CarInvoiceExtension : IInvoiceExtension
         Func<CreateInvoiceDto, CancellationToken, Task<InvoiceDto>> create, CancellationToken ct)
     {
         var isSales = original.Kind == InvoiceKind.Sales;
-        var alreadyReturned = (await _db.Set<InvoiceVehicleLine>().AsNoTracking()
-                .Where(l => l.VehicleId != null && _db.Set<Invoice>().Any(inv => inv.Id == l.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"))
-                .Select(l => l.VehicleId!.Value).ToListAsync(ct)).ToHashSet();
+        var alreadyReturned = await ReturnedVehicleIdsAsync(original.Id, ct);
 
         var chosen = r.VehicleIds.Count == 0
             ? originalLines.Where(l => l.VehicleId.HasValue && !alreadyReturned.Contains(l.VehicleId.Value)).ToList()
@@ -138,6 +136,62 @@ public class CarInvoiceExtension : IInvoiceExtension
             if (v.Status != expected) throw new ConflictException(string.Format(isSales ? Messages.ReturnVehicleNotSold : Messages.ReturnVehicleNotAvailable, v.ChassisNumber));
         }
 
+        var dto = BuildVehicleReturn(r, original, chosen);
+        if (r.RefundSplits.Count > 0) await TradeInvoiceEngine.ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, ct);
+        else if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) TradeInvoiceEngine.MirrorOriginalSplits(dto, original);
+
+        var created = await create(dto, ct);
+
+        // أسطر المرتجع تتبّع المركبات (لمنع إرجاعها مرة ثانية) وتتغير حالة المركبة
+        var ret = await _db.Set<Invoice>().Include(i => i.VehicleLines).Include(i => i.VehicleBatches).FirstAsync(i => i.Id == created.Id, ct);
+        var no = 1;
+        foreach (var l in chosen)
+        {
+            ret.VehicleLines.Add(new InvoiceVehicleLine
+            {
+                LineNo = no++, VehicleId = l.VehicleId, Vin = l.Vin, TempRef = l.TempRef, BrandId = l.BrandId, ModelId = l.ModelId, TrimId = l.TrimId,
+                BrandNameAr = l.BrandNameAr, ModelNameAr = l.ModelNameAr, TrimNameAr = l.TrimNameAr, Year = l.Year,
+                ColorExterior = l.ColorExterior, ColorInterior = l.ColorInterior, EngineNumber = l.EngineNumber, CustomsCardNumber = l.CustomsCardNumber,
+                VatMode = l.VatMode, UnitPrice = l.UnitPrice, Discount = l.Discount, InvoiceDiscountShare = l.InvoiceDiscountShare, VatAmount = l.VatAmount, TotalBeforeVat = l.TotalBeforeVat,
+                TotalAfterVat = l.TotalAfterVat, UnitCost = l.UnitCost, IsTemporaryChassis = l.IsTemporaryChassis, PriceOverride = l.PriceOverride,
+            });
+            vehicles[l.VehicleId!.Value].Status = isSales ? VehicleStatus.Available : VehicleStatus.WrittenOff;
+            // مرتجع البيع يعيد السيارة لمعرض المرتجع (معرض الفاتورة الأصلية)
+            if (isSales && ret.WarehouseId.HasValue) VehicleSites.Place(vehicles[l.VehicleId!.Value], ret.WarehouseId.Value, ret.WarehouseName);
+        }
+        // كمرتجع العقد: السيارة تعود بتكلفتها وقت البيع، ومصاريف ما بعد البيع تبقى على تكلفة المبيعات ولا تُحسب مرة ثانية
+        if (isSales) await SoldVehicleAdjustments.ExpenseLateChargesAsync(_db, vehicleIds, ct);
+        await _db.SaveChangesAsync(ct);
+        if (isSales)
+        {
+            await VehicleCostLedger.RecomputeAsync(_db, vehicleIds, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+        return created;
+    }
+
+    /// <summary>معاينة مرتجع سيارات بلا أثر: المرتجع منها من قبل، وطلب المرتجع للمختار غير المرتجع (كما يبنيه الإنشاء).</summary>
+    public async Task<ReturnUnitsPreview?> PreviewReturnAsync(CreateReturnInvoiceRequestDto r, Invoice original, CancellationToken ct)
+    {
+        var originalLines = await _db.Set<InvoiceVehicleLine>().AsNoTracking().Where(l => l.InvoiceId == original.Id).OrderBy(l => l.LineNo).ToListAsync(ct);
+        if (originalLines.Count == 0) return null;
+        var returned = await ReturnedVehicleIdsAsync(original.Id, ct);
+        var chosen = r.VehicleIds.Distinct()
+            .Select(id => originalLines.FirstOrDefault(l => l.VehicleId == id))
+            .OfType<InvoiceVehicleLine>().Where(l => !returned.Contains(l.VehicleId!.Value)).ToList();
+        return new ReturnUnitsPreview(returned, chosen.Count > 0 ? BuildVehicleReturn(r, original, chosen) : null);
+    }
+
+    /// <summary>المركبات المرتجعة من الأصل في مرتجعات مرحّلة.</summary>
+    private async Task<HashSet<Guid>> ReturnedVehicleIdsAsync(Guid originalId, CancellationToken ct)
+        => (await _db.Set<InvoiceVehicleLine>().AsNoTracking()
+                .Where(l => l.VehicleId != null && _db.Set<Invoice>().Any(inv => inv.Id == l.InvoiceId && inv.OriginalInvoiceId == originalId && inv.Status == "posted"))
+                .Select(l => l.VehicleId!.Value).ToListAsync(ct)).ToHashSet();
+
+    /// <summary>طلب مرتجع السيارات المختارة: بنود من بنود الأصل نفسها (الدفعات مجمّعة بمواصفاتها وسعرها).</summary>
+    private static CreateInvoiceDto BuildVehicleReturn(CreateReturnInvoiceRequestDto r, Invoice original, List<InvoiceVehicleLine> chosen)
+    {
+        var isSales = original.Kind == InvoiceKind.Sales;
         var dto = new CreateInvoiceDto
         {
             Kind = isSales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
@@ -184,37 +238,7 @@ public class CarInvoiceExtension : IInvoiceExtension
                 RevenueAccountCode = src.RevenueAccountCode, CostCenterId = src.CostCenterId,
             });
         }
-        if (r.RefundSplits.Count > 0) await TradeInvoiceEngine.ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, ct);
-        else if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) TradeInvoiceEngine.MirrorOriginalSplits(dto, original);
-
-        var created = await create(dto, ct);
-
-        // أسطر المرتجع تتبّع المركبات (لمنع إرجاعها مرة ثانية) وتتغير حالة المركبة
-        var ret = await _db.Set<Invoice>().Include(i => i.VehicleLines).Include(i => i.VehicleBatches).FirstAsync(i => i.Id == created.Id, ct);
-        var no = 1;
-        foreach (var l in chosen)
-        {
-            ret.VehicleLines.Add(new InvoiceVehicleLine
-            {
-                LineNo = no++, VehicleId = l.VehicleId, Vin = l.Vin, TempRef = l.TempRef, BrandId = l.BrandId, ModelId = l.ModelId, TrimId = l.TrimId,
-                BrandNameAr = l.BrandNameAr, ModelNameAr = l.ModelNameAr, TrimNameAr = l.TrimNameAr, Year = l.Year,
-                ColorExterior = l.ColorExterior, ColorInterior = l.ColorInterior, EngineNumber = l.EngineNumber, CustomsCardNumber = l.CustomsCardNumber,
-                VatMode = l.VatMode, UnitPrice = l.UnitPrice, Discount = l.Discount, InvoiceDiscountShare = l.InvoiceDiscountShare, VatAmount = l.VatAmount, TotalBeforeVat = l.TotalBeforeVat,
-                TotalAfterVat = l.TotalAfterVat, UnitCost = l.UnitCost, IsTemporaryChassis = l.IsTemporaryChassis, PriceOverride = l.PriceOverride,
-            });
-            vehicles[l.VehicleId!.Value].Status = isSales ? VehicleStatus.Available : VehicleStatus.WrittenOff;
-            // مرتجع البيع يعيد السيارة لمعرض المرتجع (معرض الفاتورة الأصلية)
-            if (isSales && ret.WarehouseId.HasValue) VehicleSites.Place(vehicles[l.VehicleId!.Value], ret.WarehouseId.Value, ret.WarehouseName);
-        }
-        // كمرتجع العقد: السيارة تعود بتكلفتها وقت البيع، ومصاريف ما بعد البيع تبقى على تكلفة المبيعات ولا تُحسب مرة ثانية
-        if (isSales) await SoldVehicleAdjustments.ExpenseLateChargesAsync(_db, vehicleIds, ct);
-        await _db.SaveChangesAsync(ct);
-        if (isSales)
-        {
-            await VehicleCostLedger.RecomputeAsync(_db, vehicleIds, ct);
-            await _db.SaveChangesAsync(ct);
-        }
-        return created;
+        return dto;
     }
 
 

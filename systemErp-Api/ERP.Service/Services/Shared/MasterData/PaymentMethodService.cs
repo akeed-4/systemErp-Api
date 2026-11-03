@@ -33,6 +33,9 @@ public class PaymentMethodService : CrudService<PaymentMethodItem, PaymentMethod
             throw new ValidationFailedException(Messages.LinkedTreasuryAccountRequired);
         if (!await Db.Set<Account>().AnyAsync(a => a.Code == d.LinkedAccountCode, ct))
             throw new ValidationFailedException(Messages.LinkedAccountNotInChart);
+        // حساب الخزينة يُرحَّل عليه: حساب فرعي لا رئيسي (الآجل يُرحَّل على حساب الطرف فلا يُشترط)
+        if (d.Type != "credit" && await Db.Set<Account>().AnyAsync(a => a.ParentCode == d.LinkedAccountCode, ct))
+            throw new ValidationFailedException(Messages.CannotPostToParentAccountPrefix + d.LinkedAccountCode);
     }
 
     protected override async Task OnCreatingAsync(PaymentMethodItem e, CreatePaymentMethodItemDto d, CancellationToken ct)

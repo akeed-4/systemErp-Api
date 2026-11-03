@@ -49,6 +49,9 @@ public abstract class TradeReturnService<T, TOriginal> : TradeDocumentService<T>
 
     public Task<InvoiceDto> CreateFromInvoiceAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default)
         => Engine.CreateReturnAsync<TOriginal, T>(request, ct);
+
+    public Task<ReturnPreviewDto> PreviewReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default)
+        => Engine.PreviewReturnAsync<TOriginal, T>(request, ct);
 }
 
 public class SalesInvoiceService : TradeDocumentService<SalesInvoice>, ISalesInvoiceService

@@ -491,6 +491,9 @@ public class ErpDbContext : DbContext
         // رصيد واحد لكل صنف في كل مستودع
         modelBuilder.Entity<WarehouseStock>().Property(s => s.RowVersion).IsRowVersion();
         modelBuilder.Entity<WarehouseStock>().HasIndex(s => new { s.TenantId, s.ItemId, s.WarehouseId }).IsUnique();
+        // معامل تحويل الوحدة بدقة أعلى: تغيير وحدة الأساس يقسم معاملات النوع (1 ÷ 12...)
+        modelBuilder.Entity<UnitOfMeasure>().Property(u => u.ConversionFactor).HasPrecision(18, 8);
+        modelBuilder.Entity<UnitOfMeasure>().Property(u => u.UnitType).HasMaxLength(20).HasDefaultValue(UnitTypes.Count);
         modelBuilder.Entity<InvoiceItemBase>().Property(i => i.VatCategory).HasDefaultValue(VatCategory.Standard);
         // توزيع السند يُقرأ بفاتورته (المرجع بلا قيد لأن الفاتورة في أحد جداول InvoiceBase)
         modelBuilder.Entity<VoucherAllocation>().HasIndex(a => a.InvoiceId);

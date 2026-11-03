@@ -39,7 +39,11 @@ public class DocumentNumberingSettingsTests : TestBase
     {
         var api = await NewTenantAsync();
         var list = (await api.Get("/document-numbering")).Data!.AsArray();
-        Assert.Equal(10, list.Count);
+        // أنواع المرحلة الأولى كلها معروضة (المرحلة الثانية تضيف أنواعاً أخرى)
+        var keys = list.Select(t => t!["key"].S()).ToHashSet();
+        foreach (var key in new[] { "sales_invoice", "sales_return", "sales_quotation", "purchase_invoice", "purchase_return", "purchase_quotation",
+                     "purchase_order", "receipt_voucher", "payment_voucher", "journal_entry" })
+            Assert.Contains(key, keys);
         var sales = list.Single(t => t!["key"].S() == "sales_invoice")!;
         Assert.Equal("SINV-000001", sales["nextFormatted"].S());
         Assert.Equal("auto", sales["mode"].S());

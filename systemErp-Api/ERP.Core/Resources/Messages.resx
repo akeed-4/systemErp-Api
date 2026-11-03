@@ -524,6 +524,12 @@
   <data name="NoLinkedInvoice" xml:space="preserve"><value>لا توجد فاتورة مرتبطة.</value></data>
   <data name="NoLoyaltyBalanceForCustomer" xml:space="preserve"><value>لا يوجد رصيد ولاء لهذا العميل.</value></data>
   <data name="NonBaseUnitNeedsBaseUnit" xml:space="preserve"><value>الوحدة غير الأساسية تحتاج وحدة أساس.</value></data>
+  <data name="UnitBaseTypeLocked" xml:space="preserve"><value>لا يمكن تغيير نوع وحدة أساس مرتبطة بها وحدات أخرى.</value></data>
+  <data name="UnitBaseCannotBeUnset" xml:space="preserve"><value>كل نوع يحتاج وحدة أساس. لتغييرها افتح الوحدة التي تريدها أساساً وفعّل «وحدة الأساس»؛ تُحوَّل بقية وحدات النوع إليها تلقائياً.</value></data>
+  <data name="UnitTypeAlreadyHasBase" xml:space="preserve"><value>النوع لديه وحدة أساس ({0}). أنشئ الوحدة مربوطة بها بمعامل التحويل، ثم اجعلها الأساس بالتعديل إن أردت.</value></data>
+  <data name="UnitTypeHasNoBase" xml:space="preserve"><value>لا توجد وحدة أساس لهذا النوع بعد؛ اجعل هذه الوحدة وحدة الأساس.</value></data>
+  <data name="UnitBaseMustMatchType" xml:space="preserve"><value>وحدة الأساس {0} ليست من نوع هذه الوحدة؛ اختر وحدة أساس من النوع نفسه.</value></data>
+  <data name="UnitTypeInvalid" xml:space="preserve"><value>نوع الوحدة غير صحيح؛ الأنواع: عدد، وزن، سائل، طول.</value></data>
   <data name="NoNetQuantitiesToBill" xml:space="preserve"><value>لا توجد كميات صافية لفوترتها (البيان مُرتجع بالكامل).</value></data>
   <data name="NoneValue" xml:space="preserve"><value>لا يوجد</value></data>
   <data name="NoOpenShift" xml:space="preserve"><value>لا توجد وردية مفتوحة.</value></data>
@@ -729,6 +735,9 @@
   <data name="SplitPaymentsMustEqualInvoiceTotal" xml:space="preserve"><value>مجموع الدفعات المقسّمة يجب أن يساوي إجمالي الفاتورة.</value></data>
   <data name="SplitPaymentsMustEqualVoucherAmount" xml:space="preserve"><value>مجموع الدفعات المقسّمة يجب أن يساوي مبلغ السند.</value></data>
   <data name="SplitPaymentsNeedPositiveAmounts" xml:space="preserve"><value>الدفعات المقسّمة تحتاج مبالغ موجبة.</value></data>
+  <data name="SplitPaymentMethodRepeated" xml:space="preserve"><value>طريقة الدفع «{0}» مكررة في الدفع المتعدد. اختر طريقة مختلفة لكل سطر، أو اجمع المبلغين في سطر واحد.</value></data>
+  <data name="SplitPaymentsBelowTotal" xml:space="preserve"><value>مجموع الدفعات ({0}) أقل من الإجمالي ({1})، والمتبقي {2}. أضف المتبقي إلى إحدى الطرق.</value></data>
+  <data name="SplitPaymentsExceedTotal" xml:space="preserve"><value>مجموع الدفعات ({0}) يزيد على الإجمالي ({1}) بمقدار {2}. أنقص مبلغ إحدى الطرق حتى يساوي المجموع الإجمالي.</value></data>
   <data name="StandardCostVarianceAccountNotFound" xml:space="preserve"><value>حساب فروقات التكلفة المعيارية غير موجود.</value></data>
   <data name="StandardInvoiceRequiresCustomerVat" xml:space="preserve"><value>الفاتورة القياسية تتطلب الرقم الضريبي للعميل.</value></data>
   <data name="StatementDateInFuture" xml:space="preserve"><value>تاريخ كشف البنك لا يكون في المستقبل.</value></data>

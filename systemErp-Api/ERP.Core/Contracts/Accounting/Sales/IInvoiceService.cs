@@ -17,6 +17,8 @@ public interface IInvoiceService
     Task<InvoiceDto> UpdateAsync(Guid id, UpdateInvoiceDto request, CancellationToken ct = default);
     /// <summary>مرتجع (إشعار دائن/مدين) كلي أو جزئي لفاتورة مرحّلة: الطريقة الوحيدة لإلغاء أثر فاتورة صادرة.</summary>
     Task<InvoiceDto> CreateReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
+    /// <summary>معاينة مرتجع فاتورة معرض (السيارات المرتجعة من قبل وتسعير المختار) بلا أي أثر.</summary>
+    Task<ReturnPreviewDto> PreviewReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
     /// <summary>يرحّل مسودة فاتورة: مخزون + قيد + QR.</summary>
     Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default);
     /// <summary>حذف مسودة فقط (رقمها مؤقت فلا فجوة في التسلسل). الفاتورة المرحّلة لا تُحذف.</summary>

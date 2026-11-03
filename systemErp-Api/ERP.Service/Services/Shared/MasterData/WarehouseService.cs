@@ -6,8 +6,7 @@ namespace ERP.Service.Services.Shared;
 
 public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWarehouseDto, UpdateWarehouseDto>, IWarehouseService
 {
-    private readonly IAccountService _accounts;
-    public WarehouseService(ErpDbContext db, IAccountService accounts) : base(db) => _accounts = accounts;
+    public WarehouseService(ErpDbContext db) : base(db) { }
     protected override string Label => Messages.LabelWarehouse;
 
     protected override IQueryable<Warehouse> ApplySearch(IQueryable<Warehouse> q, string t)
@@ -58,9 +57,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
         var any = await Db.Set<Warehouse>().AnyAsync(ct);
         if (!any) e.IsDefault = true; // أول مستودع هو الافتراضي
         if (e.IsDefault) await ClearOtherDefaultsAsync(e.Id, ct);
-        // موقع بلا حساب مخزون محدد: يُنشأ له حسابه تحت المخزون 114 (114001، 114002...) كحسابات العملاء تحت 112
-        e.InventoryAccountCode ??= await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Warehouse, e.Id, InventoryAccountName(e.NameAr),
-            InventoryAccountName(e.NameEn, english: true), ct);
+        // حساب المخزون يختاره المستخدم من الدليل؛ بلا اختيار تُرحَّل حركات الموقع على حساب المخزون في إعدادات الحسابات (لا يُنشأ حساب)
     }
 
     protected override async Task OnUpdatingAsync(Warehouse e, UpdateWarehouseDto d, CancellationToken ct)

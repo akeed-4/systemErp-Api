@@ -8472,6 +8472,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("DocumentDataSnapshot")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("DocumentNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

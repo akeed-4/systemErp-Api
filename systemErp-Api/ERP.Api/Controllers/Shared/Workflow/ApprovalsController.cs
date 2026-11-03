@@ -22,21 +22,21 @@ public class ApprovalsController : ErpControllerBase
     public async Task<IActionResult> List([FromQuery] string? status, [FromQuery] PaginationParams query, CancellationToken ct)
         => Success(await _approvals.ListRequestsAsync(status, query, ct));
 
-    [HttpGet("{id:guid}"), RequireScreen("dashboard")]
-    public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _approvals.GetAsync(id, ct));
+    [HttpGet("{id:guid}"), AuthenticatedOnly, EmployeeSelfService]
+    public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _approvals.GetForApproverAsync(id, ct));
 
     [HttpDelete("{id:guid}"), RequireScreen("dashboard", ScreenAction.View)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _approvals.CancelAsync(id, ct), Messages.RequestWithdrawn);
 
     /// <summary>الاعتماد لا يتجاوز حد اعتماد المستخدم (مبلغ المستند في الطلب).</summary>
-    [HttpPost("{id:guid}/approve"), RequireScreen("approval-policies", ScreenAction.Approve)]
+    [HttpPost("{id:guid}/approve"), AuthenticatedOnly, EmployeeSelfService]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
     {
-        await _permissions.EnsureApprovalLimitAsync((await _approvals.GetAsync(id, ct)).DocumentAmount, ct);
+        await _permissions.EnsureApprovalLimitAsync((await _approvals.GetForApproverAsync(id, ct)).DocumentAmount, ct);
         return Success(await _approvals.ApproveAsync(id, decision, ct));
     }
 
-    [HttpPost("{id:guid}/reject"), RequireScreen("approval-policies", ScreenAction.Reject, Legacy = ScreenAction.Approve)]
+    [HttpPost("{id:guid}/reject"), AuthenticatedOnly, EmployeeSelfService]
     public async Task<IActionResult> Reject(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
         => Success(await _approvals.RejectAsync(id, decision, ct));
 }

@@ -191,6 +191,11 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
             {
                 DocumentType = DocumentType, ActionType = ApprovalAction, DocumentId = approval.Id,
                 DocumentNumber = count.CountNumber, DocumentAmount = count.TotalSurplusValue + count.TotalShortageValue,
+                DocumentDataSnapshot = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    count.CountNumber, count.Scope, count.WarehouseId, count.TotalSurplusValue,
+                    count.TotalShortageValue, count.NetVarianceValue, count.VarianceLines,
+                }),
             }, token);
             if (check.ApprovalRequired && check.Request != null)
             {

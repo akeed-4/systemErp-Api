@@ -36,6 +36,7 @@ public class ApprovalService : IApprovalService
             {
                 PolicyId = policy.Id, PolicyNameAr = policy.NameAr, DocumentType = r.DocumentType, DocumentId = r.DocumentId,
                 DocumentNumber = r.DocumentNumber, ActionType = r.ActionType, DocumentAmount = r.DocumentAmount,
+                DocumentDataSnapshot = r.DocumentDataSnapshot,
                 RequesterUserId = me, RequesterName = _user.Name ?? string.Empty,
                 CurrentLevel = 1, TotalLevels = policy.Steps.Count, Status = "pending",
                 RequiredApproverRole = first.ApproverRole, RequiredApproverUserId = first.ApproverUserId,
@@ -68,6 +69,20 @@ public class ApprovalService : IApprovalService
     public async Task<ApprovalRequestDto> GetAsync(Guid id, CancellationToken ct = default)
         => Mapper.Map<ApprovalRequestDto>(await _db.Set<ApprovalRequest>().AsNoTracking().Include(x => x.History).FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException(Messages.ApprovalRequestNotFound));
+
+    public async Task<ApprovalRequestDto> GetForApproverAsync(Guid id, CancellationToken ct = default)
+    {
+        var me = _user.UserId ?? throw new UnauthorizedAppException();
+        var role = _user.RoleId;
+        var request = await _db.Set<ApprovalRequest>().AsNoTracking().Include(x => x.History)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status == "pending", ct)
+            ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
+        var assigned = role == "owner" || (request.RequiredApproverUserId.HasValue
+            ? request.RequiredApproverUserId == me
+            : request.RequiredApproverRole != null && request.RequiredApproverRole == role);
+        if (!assigned) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
+        return Mapper.Map<ApprovalRequestDto>(request);
+    }
 
     public Task<ApprovalRequestDto> ApproveAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
         => _tx.RunAsync(async token =>

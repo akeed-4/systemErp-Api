@@ -64,6 +64,7 @@ public class TradeInvoiceEngine
         var q = _db.Set<T>().AsNoTracking().AsQueryable();
         if (kind.HasValue) q = q.Where(i => i.Kind == kind);
         if (filter != null) q = q.Where(filter);
+        q = q.Where(i => !_db.Set<ApprovalRequest>().Any(r => r.DocumentId == i.Id && r.Status == "pending"));
         if (!string.IsNullOrWhiteSpace(p.Status)) q = q.Where(i => i.Status == p.Status);
         if (p.StartDate.HasValue) q = q.Where(i => i.IssueDate >= p.StartDate);
         if (p.EndDate.HasValue) q = q.Where(i => i.IssueDate <= p.EndDate);
@@ -90,6 +91,7 @@ public class TradeInvoiceEngine
         var q = _db.Set<T>().AsNoTracking().AsQueryable();
         if (kind.HasValue) q = q.Where(i => i.Kind == kind);
         if (filter != null) q = q.Where(filter);
+        q = q.Where(i => !_db.Set<ApprovalRequest>().Any(r => r.DocumentId == i.Id && r.Status == "pending"));
         return EntityLoader.LoadAsync(Detailed(q), options, async (page, token) =>
         {
             var due = await InvoiceBalances.ForAsync(_db, page.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, token);

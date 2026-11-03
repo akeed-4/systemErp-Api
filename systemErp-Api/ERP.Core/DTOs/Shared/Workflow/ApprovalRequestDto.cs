@@ -13,6 +13,7 @@ public partial class ApprovalRequestDto
     public string DocumentNumber { get; set; } = string.Empty;
     public string ActionType { get; set; } = string.Empty;
     public decimal DocumentAmount { get; set; }
+    public string? DocumentDataSnapshot { get; set; }
     public Guid RequesterUserId { get; set; }
     public string RequesterName { get; set; } = string.Empty;
     public int CurrentLevel { get; set; }

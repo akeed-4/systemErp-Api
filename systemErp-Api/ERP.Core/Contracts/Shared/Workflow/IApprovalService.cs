@@ -8,6 +8,7 @@ public interface IApprovalService
     Task<ApprovalCheckResultDto> CheckAndCreateAsync(ApprovalCheckRequestDto request, CancellationToken ct = default);
     Task<PagedResult<ApprovalRequestDto>> ListRequestsAsync(string? status, PaginationParams query, CancellationToken ct = default);
     Task<ApprovalRequestDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<ApprovalRequestDto> GetForApproverAsync(Guid id, CancellationToken ct = default);
     Task<ApprovalRequestDto> ApproveAsync(Guid id, ApprovalDecisionDto decision, CancellationToken ct = default);
     /// <summary>سحب طلب معلّق (مقدّم الطلب أو المالك/المدير) - يُحفظ في السجل بحالة cancelled ولا يُحذف فيزيائياً.</summary>
     Task<ApprovalRequestDto> CancelAsync(Guid id, CancellationToken ct = default);

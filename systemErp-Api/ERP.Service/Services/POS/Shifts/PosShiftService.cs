@@ -98,6 +98,11 @@ public class PosShiftService : IPosShiftService
         => _tx.RunAsync(async token =>
         {
             var me = Me;
+            // إعادة إرسال الحركة نفسها (مزامنة أوف لاين أو بعد مهلة): تُرجع كما حُفظت ولا تُكرَّر
+            var clientRef = string.IsNullOrWhiteSpace(r.ClientReference) ? null : r.ClientReference.Trim();
+            if (clientRef is { Length: > 64 }) throw new ValidationFailedException(Messages.PosClientReferenceTooLong);
+            if (clientRef != null && await _db.Set<PosCashMovement>().AsNoTracking().FirstOrDefaultAsync(m => m.ClientReference == clientRef, token) is { } existing)
+                return Mapper.Map<PosCashMovementDto>(existing);
             if (!Enum.IsDefined(r.Type)) throw new ValidationFailedException(Messages.MovementTypeValues);
             if (r.Amount <= 0) throw new ValidationFailedException(Messages.AmountMustBePositive);
             if (string.IsNullOrWhiteSpace(r.Reason)) throw new ValidationFailedException(Messages.MovementReasonRequired);
@@ -117,7 +122,7 @@ public class PosShiftService : IPosShiftService
             var movement = new PosCashMovement
             {
                 ShiftId = shift.Id, Type = r.Type, Amount = amount, Reason = r.Reason.Trim(), CounterAccountCode = counter, CashAccountCode = cash,
-                CreatedByName = _user.Name ?? string.Empty,
+                CreatedByName = _user.Name ?? string.Empty, ClientReference = clientRef,
             };
             _db.Add(movement);
             await _db.SaveChangesAsync(token);

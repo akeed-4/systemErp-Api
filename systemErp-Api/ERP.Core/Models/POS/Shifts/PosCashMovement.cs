@@ -13,4 +13,6 @@ public class PosCashMovement : BaseEntity
     public string CashAccountCode { get; set; } = string.Empty;
     public Guid? JournalEntryId { get; set; }
     public string CreatedByName { get; set; } = string.Empty;
+    /// <summary>معرّف العملية من الجهاز: إعادة إرسال الحركة نفسها (أوف لاين أو بعد مهلة) لا تُسجّلها مرتين.</summary>
+    public string? ClientReference { get; set; }
 }

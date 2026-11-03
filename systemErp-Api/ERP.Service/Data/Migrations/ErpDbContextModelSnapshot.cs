@@ -7129,6 +7129,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ClientReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("CounterAccountCode")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -7163,6 +7167,10 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ClientReference")
+                        .IsUnique()
+                        .HasFilter("[ClientReference] IS NOT NULL");
 
                     b.ToTable("PosCashMovement");
                 });

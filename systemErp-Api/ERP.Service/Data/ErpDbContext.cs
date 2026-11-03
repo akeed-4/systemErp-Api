@@ -416,6 +416,8 @@ public class ErpDbContext : DbContext
         // بيع نقطة البيع الواحد لا يُسجَّل مرتين عند إعادة إرساله (أوف لاين أو بعد مهلة).
         modelBuilder.Entity<PosTransaction>().Property(t => t.ClientReference).HasMaxLength(64);
         modelBuilder.Entity<PosTransaction>().HasIndex(t => new { t.TenantId, t.ClientReference }).IsUnique().HasFilter("[ClientReference] IS NOT NULL");
+        modelBuilder.Entity<PosCashMovement>().Property(m => m.ClientReference).HasMaxLength(64);
+        modelBuilder.Entity<PosCashMovement>().HasIndex(m => new { m.TenantId, m.ClientReference }).IsUnique().HasFilter("[ClientReference] IS NOT NULL");
 
         // واتساب: ربط واحد لكل منشأة، والرقم لا يُربط بمنشأتين (يُفحص في الدليل حيث تجتمع المنشآت كلها).
         modelBuilder.Entity<TenantWhatsAppIntegration>(e =>

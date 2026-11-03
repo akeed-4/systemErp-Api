@@ -10,6 +10,8 @@ public class CashMovementRequestDto
     public string? CounterAccountCode { get; set; }
     /// <summary>حساب النقدية؛ فارغ = حساب الصندوق المرتبط بطريقة الدفع النقدي.</summary>
     public string? CashAccountCode { get; set; }
+    /// <summary>معرّف فريد من الجهاز (حركات الدرج أوف لاين): الإرسال المكرر يعيد الحركة المحفوظة.</summary>
+    public string? ClientReference { get; set; }
 }
 
 /// <summary>حسابات الحركة النقدية في نقاط البيع: الحسابات القابلة للترحيل وحساب الصندوق الافتراضي.</summary>

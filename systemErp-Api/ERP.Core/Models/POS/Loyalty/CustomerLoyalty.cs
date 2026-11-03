@@ -7,9 +7,13 @@ public class CustomerLoyalty : BaseEntity
     public string CustomerName { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public int PointsBalance { get; set; }
+    /// <summary>نقاط مكتسبة لم تُتح بعد (تنتظر انتهاء مدة الترجيع)؛ خارج الرصيد والفئة.</summary>
+    public int PendingPoints { get; set; }
     public int TotalPointsEarned { get; set; }
     public int TotalPointsRedeemed { get; set; }
     /// <summary>القيمة النقدية لرصيد النقاط الحالي بالريال.</summary>
     public decimal PointsValueSar { get; set; }
     public LoyaltyTier Tier { get; set; } = LoyaltyTier.Bronze;
+    /// <summary>تزامن: تعديلان متزامنان للرصيد (بيع، مرتجع، إتاحة نقاط) لا يطغى أحدهما على الآخر.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

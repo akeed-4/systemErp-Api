@@ -1424,4 +1424,16 @@
   <data name="PurchaseExpenseTypeAccountInvalid" xml:space="preserve"><value>Expense account {0} is invalid: choose an expense sub-account not linked to a customer or supplier.</value></data>
   <data name="PurchaseExpenseTypeCodeExists" xml:space="preserve"><value>The cost type code is already used.</value></data>
   <data name="FeatureNotInPlan" xml:space="preserve"><value>"{0}" is not included in your plan. Upgrade your plan to use it.</value></data>
+  <data name="PromotionSettingsSaved" xml:space="preserve"><value>Discount and loyalty settings saved</value></data>
+  <data name="PercentMustBe0To100" xml:space="preserve"><value>Percentages must be between 0 and 100.</value></data>
+  <data name="LoyaltyRatesInvalid" xml:space="preserve"><value>SAR per earned point and point value must be greater than zero, minimum points to redeem cannot be negative, and points pending days must be 0 to 3650.</value></data>
+  <data name="LoyaltyTierThresholdsOrder" xml:space="preserve"><value>Tier thresholds must increase: Silver below Gold, and Gold below Platinum.</value></data>
+  <data name="ManualDiscountDisabled" xml:space="preserve"><value>Manual discounts are disabled in discount settings.</value></data>
+  <data name="LineDiscountExceedsMax" xml:space="preserve"><value>The manual discount on "{0}" exceeds the line limit ({1}%).</value></data>
+  <data name="InvoiceDiscountExceedsMax" xml:space="preserve"><value>The invoice discount (manual + coupon + points) exceeds the limit ({0}%).</value></data>
+  <data name="CouponsDisabled" xml:space="preserve"><value>Coupons are disabled in discount settings.</value></data>
+  <data name="CouponCannotCombineWithOffers" xml:space="preserve"><value>A coupon cannot be combined with offers applied to the cart.</value></data>
+  <data name="LoyaltyProgramDisabled" xml:space="preserve"><value>The loyalty program is not enabled.</value></data>
+  <data name="LoyaltyRedemptionDisabled" xml:space="preserve"><value>Loyalty point redemption is disabled in discount settings.</value></data>
+  <data name="MinPointsToRedeem" xml:space="preserve"><value>The minimum to redeem is {0} points.</value></data>
 </root>

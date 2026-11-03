@@ -7079,6 +7079,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("PendingPoints")
+                        .HasColumnType("int");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -7089,6 +7092,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("PointsValueSar")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -7113,6 +7122,58 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("CustomerLoyalty");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.POS.LoyaltyPointEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("OriginalPoints")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "TransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Status", "AvailableAt");
+
+                    b.ToTable("LoyaltyPointEntry");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.POS.PosCashMovement", b =>
@@ -7459,6 +7520,78 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("PosOffer");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.POS.PosPromotionSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AllowCouponWithOffers")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowCoupons")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowLoyaltyRedemption")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowManualDiscount")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("GoldThreshold")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("LoyaltyEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MaxInvoiceDiscountPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("MaxLineDiscountPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("MaxRedeemPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("MinPointsToRedeem")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlatinumThreshold")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PointValueSar")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int?>("PointsPendingDays")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SarPerEarnedPoint")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("SilverThreshold")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("PosPromotionSettings");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.POS.PosSalesReturn", b =>
@@ -7930,6 +8063,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<int>("LoyaltyPointsRedeemed")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LoyaltyPointsRevoked")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("OfflineIssuedAt")

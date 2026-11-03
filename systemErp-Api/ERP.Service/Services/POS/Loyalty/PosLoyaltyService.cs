@@ -1,3 +1,4 @@
+using ERP.Core.Contracts.Shared;
 using ERP.Core.Contracts.POS;
 using ERP.Core.DTOs.POS;
 using ERP.Service.Data;
@@ -8,10 +9,12 @@ namespace ERP.Service.Services.POS;
 public class PosLoyaltyService : IPosLoyaltyService
 {
     private readonly ErpDbContext _db;
-    public PosLoyaltyService(ErpDbContext db) => _db = db;
+    private readonly ITransactionRunner _tx;
+    public PosLoyaltyService(ErpDbContext db, ITransactionRunner tx) { _db = db; _tx = tx; }
 
     public async Task<PagedResult<CustomerLoyaltyDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
     {
+        await PosLoyaltyLedger.ReleaseDueAsync(_db, _tx, null, ct);
         var q = _db.Set<CustomerLoyalty>().AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
@@ -33,6 +36,7 @@ public class PosLoyaltyService : IPosLoyaltyService
 
     public async Task<CustomerLoyaltyDto?> GetByCustomerAsync(Guid customerId, CancellationToken ct = default)
     {
+        await PosLoyaltyLedger.ReleaseDueAsync(_db, _tx, customerId, ct);
         var l = await _db.Set<CustomerLoyalty>().AsNoTracking().FirstOrDefaultAsync(x => x.CustomerId == customerId, ct);
         return l == null ? null : Mapper.Map<CustomerLoyaltyDto>(l);
     }

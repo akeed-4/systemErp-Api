@@ -109,10 +109,12 @@ public class PosSaleReturnService : IPosSaleReturnService
                 var loyalty = await _db.Set<CustomerLoyalty>().FirstOrDefaultAsync(l => l.CustomerId == tx.CustomerId, token);
                 if (loyalty != null)
                 {
-                    var revoke = Math.Min(loyalty.PointsBalance, (int)Math.Floor(ret.GrandTotal / PosPricing.SarPerEarnedPoint));
-                    loyalty.PointsBalance -= revoke;
+                    // تُسحب من نقاط الفاتورة نفسها بنسبة المرتجع (لا بمعدل الكسب الحالي إن تغيّر بعد البيع)
+                    var earned = tx.GrandTotal > 0 ? (int)Math.Floor(tx.PointsEarned * ret.GrandTotal / tx.GrandTotal) : 0;
+                    // من النقاط المعلّقة للفاتورة أولاً (قبل انتهاء مدة الترجيع) ثم من الرصيد المتاح
+                    var (revoke, _) = await PosLoyaltyLedger.RevokeAsync(_db, loyalty, tx, earned, token);
                     ret.PointsRevoked = revoke;
-                    loyalty.PointsValueSar = loyalty.PointsBalance * PosPricing.PointValueSar;
+                    PosPricing.Revalue(loyalty, await PosPricing.SettingsAsync(_db, token));
                 }
             }
 

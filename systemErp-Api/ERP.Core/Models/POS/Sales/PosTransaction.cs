@@ -34,6 +34,8 @@ public class PosTransaction : BaseEntity
     /// <summary>طرق الدفع المختارة من جدول طرق الدفع (JSON لقائمة PosPaymentLineDto)؛ فارغ = عملية بالأنواع الثابتة.</summary>
     public string? PaymentsJson { get; set; }
     public int PointsEarned { get; set; }
+    /// <summary>ما سُحب من نقاط الفاتورة بالمرتجعات حتى الآن: لا يتجاوز PointsEarned فلا تُسحب مرتين.</summary>
+    public int LoyaltyPointsRevoked { get; set; }
 
     public string QrCodeBase64 { get; set; } = string.Empty;
     public ZatcaSubmissionStatus ZatcaStatus { get; set; } = ZatcaSubmissionStatus.NotSubmitted;

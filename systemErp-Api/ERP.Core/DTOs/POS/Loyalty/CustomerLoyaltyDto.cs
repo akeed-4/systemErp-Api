@@ -10,6 +10,7 @@ public partial class CustomerLoyaltyDto
     public string CustomerName { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public int PointsBalance { get; set; }
+    public int PendingPoints { get; set; }
     public int TotalPointsEarned { get; set; }
     public int TotalPointsRedeemed { get; set; }
     public decimal PointsValueSar { get; set; }

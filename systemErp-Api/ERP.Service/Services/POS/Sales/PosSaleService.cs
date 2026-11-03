@@ -107,7 +107,7 @@ public class PosSaleService : IPosSaleService
             else invoice = await _invoices.CreateAsync(invoiceDto, token);
 
             // 8) معاملة نقطة البيع (ما يخص الكاشير)
-            var pointsEarned = customer == null ? 0 : (int)Math.Floor(total / PosPricing.SarPerEarnedPoint);
+            var pointsEarned = customer == null ? 0 : PosPricing.PointsFor(cart.Rules, total);
             var pos = new PosTransaction
             {
                 InvoiceNumber = invoice.InvoiceNumber, ShiftId = shift.Id, CustomerId = customer?.Id,
@@ -157,10 +157,11 @@ public class PosSaleService : IPosSaleService
             {
                 loyalty ??= NewLoyalty(customer);
                 if (_db.Entry(loyalty).State == EntityState.Detached) _db.Add(loyalty);
-                loyalty.PointsBalance += pointsEarned - pointsUsed;
-                loyalty.TotalPointsEarned += pointsEarned; loyalty.TotalPointsRedeemed += pointsUsed;
-                loyalty.PointsValueSar = loyalty.PointsBalance * PosPricing.PointValueSar;
-                loyalty.Tier = PosPricing.TierFor(loyalty.TotalPointsEarned);
+                loyalty.PointsBalance -= pointsUsed;
+                loyalty.TotalPointsRedeemed += pointsUsed;
+                // المكتسب معلّق حتى تنتهي مدة الترجيع (أو للرصيد فوراً بلا مدة)
+                await PosLoyaltyLedger.EarnAsync(_db, loyalty, pos.Id, pointsEarned, cart.Rules, token);
+                PosPricing.Revalue(loyalty, cart.Rules);
             }
 
             await _db.SaveChangesAsync(token);
@@ -171,7 +172,7 @@ public class PosSaleService : IPosSaleService
         List<CheckoutLineDto> Lines, Dictionary<Guid, Product> Products, List<decimal> OfferDiscounts, List<decimal> LineDiscounts,
         PosCoupon? Coupon, decimal CouponDiscount, string? CouponError,
         Customer? Customer, CustomerLoyalty? Loyalty, decimal LoyaltyDiscount, int PointsUsed, string? LoyaltyError,
-        PricedDocument Priced, List<decimal> UnitPrices);
+        PricedDocument Priced, List<decimal> UnitPrices, PosPromotionSettings Rules);
 
     /// <summary>تسعير السلة من الكتالوج (مشترك بين الإتمام والعرض المسبق). strict=false: الكوبون/الولاء غير الصالح يُتجاهل مع رسالة.</summary>
     private async Task<CartPricing> PriceCartAsync(CheckoutRequestDto r, bool strict, PosShift shift, CancellationToken token)
@@ -185,6 +186,9 @@ public class PosSaleService : IPosSaleService
                 }).ToList();
             if (lines.Count == 0) throw new ValidationFailedException(Messages.CartEmpty);
             if (lines.Any(l => l.Quantity <= 0 || l.ManualDiscount < 0)) throw new ValidationFailedException(Messages.QtyPositiveDiscountsNonNegative);
+            // قواعد الخصومات والولاء للمنشأة (شاشة إعدادات الخصومات والولاء)
+            var rules = await PosPricing.SettingsAsync(_db, token);
+            if (lines.Any(l => l.ManualDiscount > 0) && !rules.AllowManualDiscount) throw new ForbiddenException(Messages.ManualDiscountDisabled);
             // الخصم اليدوي صلاحية مستقلة على المبيعات (افتراضها القديم عمود الاعتماد: الأدوار الإدارية فقط)
             if (lines.Any(l => l.ManualDiscount > 0) && !await _permissions.HasPermissionAsync("sales", ScreenAction.Discount, ScreenAction.Approve, token))
                 throw new ForbiddenException(Messages.ManualLineDiscountAdminOnly);
@@ -213,6 +217,8 @@ public class PosSaleService : IPosSaleService
                 var offer = offline ? 0m : PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, p.SellingPrice);
                 var gross = l.Quantity * unitPrices[li];
                 if (l.ManualDiscount > gross - offer) throw new ValidationFailedException(string.Format(Messages.ItemDiscountExceedsValue, p.NameAr));
+                if (rules.MaxLineDiscountPercent is { } maxLine && gross > 0 && l.ManualDiscount * 100m / gross > maxLine)
+                    throw new ValidationFailedException(string.Format(Messages.LineDiscountExceedsMax, p.NameAr, maxLine.ToString("0.##")));
                 offerDiscounts.Add(offer);
                 lineDiscounts.Add(offer + l.ManualDiscount);
             }
@@ -224,7 +230,9 @@ public class PosSaleService : IPosSaleService
             {
                 var code = r.CouponCode.Trim().ToUpperInvariant();
                 coupon = await _db.Set<PosCoupon>().FirstOrDefaultAsync(c => c.Code == code, token);
-                couponError = PosPricing.CouponRejectionReason(coupon, netAfterLines, SaudiTime.Now);
+                couponError = !rules.AllowCoupons ? Messages.CouponsDisabled
+                    : !rules.AllowCouponWithOffers && offerDiscounts.Sum() > 0 ? Messages.CouponCannotCombineWithOffers
+                    : PosPricing.CouponRejectionReason(coupon, netAfterLines, SaudiTime.Now);
                 if (couponError != null && strict) throw new ValidationFailedException(couponError);
                 if (couponError != null) coupon = null;
                 else couponDiscount = PosPricing.CouponDiscount(coupon!, netAfterLines);
@@ -234,18 +242,24 @@ public class PosSaleService : IPosSaleService
             Customer? customer = r.CustomerId.HasValue
                 ? await _db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.CustomerId, token) ?? throw new ValidationFailedException(Messages.CustomerNotFound)
                 : null;
+            // النقاط التي حلّ موعدها تُتاح قبل الاستبدال
+            if (customer != null) await PosLoyaltyLedger.ReleaseDueAsync(_db, _tx, customer.Id, token);
             CustomerLoyalty? loyalty = customer == null ? null : await _db.Set<CustomerLoyalty>().FirstOrDefaultAsync(l => l.CustomerId == customer.Id, token);
             decimal loyaltyDiscount = 0; var pointsUsed = 0; string? loyaltyError = null;
             if (r.LoyaltyPointsToRedeem > 0)
             {
-                loyaltyError = loyalty == null ? Messages.NoLoyaltyBalanceForCustomer
-                    : r.LoyaltyPointsToRedeem > loyalty.PointsBalance ? Messages.PointsExceedBalance : null;
+                loyaltyError = !rules.LoyaltyEnabled ? Messages.LoyaltyProgramDisabled
+                    : !rules.AllowLoyaltyRedemption ? Messages.LoyaltyRedemptionDisabled
+                    : loyalty == null ? Messages.NoLoyaltyBalanceForCustomer
+                    : r.LoyaltyPointsToRedeem > loyalty.PointsBalance ? Messages.PointsExceedBalance
+                    : r.LoyaltyPointsToRedeem < rules.MinPointsToRedeem ? string.Format(Messages.MinPointsToRedeem, rules.MinPointsToRedeem) : null;
                 if (loyaltyError != null && strict) throw new ValidationFailedException(loyaltyError);
                 if (loyaltyError == null)
                 {
                     var maxDiscount = netAfterLines - couponDiscount;
-                    loyaltyDiscount = DocumentPricing.Round(Math.Min(r.LoyaltyPointsToRedeem * PosPricing.PointValueSar, maxDiscount));
-                    pointsUsed = (int)Math.Ceiling(loyaltyDiscount / PosPricing.PointValueSar);
+                    if (rules.MaxRedeemPercent is { } maxRedeem) maxDiscount = Math.Min(maxDiscount, DocumentPricing.Round(netAfterLines * maxRedeem / 100m));
+                    loyaltyDiscount = DocumentPricing.Round(Math.Min(r.LoyaltyPointsToRedeem * rules.PointValueSar, Math.Max(0, maxDiscount)));
+                    pointsUsed = (int)Math.Ceiling(loyaltyDiscount / rules.PointValueSar);
                 }
             }
 
@@ -258,8 +272,12 @@ public class PosSaleService : IPosSaleService
                 throw new ForbiddenException("الخصومات غير مسموحة على نقطة البيع الحالية.");
             if (shift.MaxDiscountPercent.HasValue && priced.Subtotal > 0 && priced.DiscountTotal * 100m / priced.Subtotal > shift.MaxDiscountPercent.Value)
                 throw new ForbiddenException($"تجاوز الخصم الحد المسموح لهذه النقطة ({shift.MaxDiscountPercent.Value:0.##}%).");
+            // حد خصم الكاشير على الفاتورة (يدوي + كوبون + نقاط)؛ العروض التلقائية خارجه
+            var cashierDiscount = lines.Sum(l => l.ManualDiscount) + couponDiscount + loyaltyDiscount;
+            if (rules.MaxInvoiceDiscountPercent is { } maxInvoice && priced.Subtotal > 0 && cashierDiscount * 100m / priced.Subtotal > maxInvoice)
+                throw new ValidationFailedException(string.Format(Messages.InvoiceDiscountExceedsMax, maxInvoice.ToString("0.##")));
             return new CartPricing(lines, products, offerDiscounts, lineDiscounts, coupon, couponDiscount, couponError,
-                customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced, unitPrices);
+                customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced, unitPrices, rules);
     }
 
     /// <summary>تسعير السلة من السرفر للعرض على شاشة الكاشير قبل الدفع — بلا أي أثر.</summary>
@@ -290,7 +308,7 @@ public class PosSaleService : IPosSaleService
             LoyaltyPointsBalance = cart.Loyalty?.PointsBalance ?? 0,
             TotalDiscount = cart.LineDiscounts.Sum() + cart.CouponDiscount + cart.LoyaltyDiscount,
             NetBeforeVat = p.NetTotal, ExciseTaxTotal = p.ExciseTaxTotal, VatTotal = p.VatTotal, GrandTotal = p.GrandTotal,
-            PointsToEarn = cart.Customer == null ? 0 : (int)Math.Floor(p.GrandTotal / PosPricing.SarPerEarnedPoint),
+            PointsToEarn = cart.Customer == null ? 0 : PosPricing.PointsFor(cart.Rules, p.GrandTotal),
         };
     }
 
@@ -512,11 +530,12 @@ public class PosSaleService : IPosSaleService
                 var loyalty = await _db.Set<CustomerLoyalty>().FirstOrDefaultAsync(l => l.CustomerId == t.CustomerId, token);
                 if (loyalty != null)
                 {
-                    loyalty.PointsBalance = Math.Max(0, loyalty.PointsBalance - t.PointsEarned + t.LoyaltyPointsRedeemed);
-                    loyalty.TotalPointsEarned = Math.Max(0, loyalty.TotalPointsEarned - t.PointsEarned);
+                    // يُرد المستبدَل، وتُسحب نقاط الفاتورة من المعلّق أولاً ثم من المتاح (وما أُتيح منها يخرج من إجمالي المكتسب)
+                    loyalty.PointsBalance += t.LoyaltyPointsRedeemed;
+                    var (_, fromAvailable) = await PosLoyaltyLedger.RevokeAsync(_db, loyalty, t, t.PointsEarned, token);
+                    loyalty.TotalPointsEarned = Math.Max(0, loyalty.TotalPointsEarned - fromAvailable);
                     loyalty.TotalPointsRedeemed = Math.Max(0, loyalty.TotalPointsRedeemed - t.LoyaltyPointsRedeemed);
-                    loyalty.PointsValueSar = loyalty.PointsBalance * PosPricing.PointValueSar;
-                    loyalty.Tier = PosPricing.TierFor(loyalty.TotalPointsEarned);
+                    PosPricing.Revalue(loyalty, await PosPricing.SettingsAsync(_db, token));
                 }
             }
 

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using ERP.Tests.Infrastructure;
 
 namespace ERP.Tests;
@@ -193,6 +195,112 @@ public class PosTests : TestBase
         var loyalty = (await api.Get($"/pos/loyalty/customer/{customer}")).Data!;
         Assert.Equal(23 - 20 + 11, loyalty["pointsBalance"].D()); // 112.7 → 11 نقطة
         Assert.Equal("bronze", loyalty["tier"].S());
+    }
+
+    // ---------- إعدادات الخصومات والولاء ----------
+    private static object Rules(bool loyaltyEnabled = true, decimal sarPerPoint = 10, decimal pointValue = 0.10m, int minPoints = 0, decimal? maxRedeem = null,
+        bool allowManual = true, decimal? maxLine = null, decimal? maxInvoice = null, bool allowCoupons = true, bool couponWithOffers = true, bool allowRedeem = true,
+        int silver = 1000, int gold = 5000, int platinum = 10000)
+        => new
+        {
+            allowManualDiscount = allowManual, maxLineDiscountPercent = maxLine, maxInvoiceDiscountPercent = maxInvoice, allowCoupons, allowCouponWithOffers = couponWithOffers,
+            allowLoyaltyRedemption = allowRedeem, loyaltyEnabled, sarPerEarnedPoint = sarPerPoint, pointValueSar = pointValue, minPointsToRedeem = minPoints,
+            maxRedeemPercent = maxRedeem, silverThreshold = silver, goldThreshold = gold, platinumThreshold = platinum,
+        };
+
+    [Fact]
+    public async Task Loyalty_program_settings_drive_earning_redemption_and_tiers()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api, stock: 50);
+        var (customer, _) = await SeedCustomerAsync(api);
+        await OpenShiftAsync(api);
+        Assert.Equal(10, (await api.Get("/pos/promotion-settings")).Data!["sarPerEarnedPoint"].D()); // الافتراضي
+        Assert.Equal(400, (await api.Put("/pos/promotion-settings", Rules(silver: 5000, gold: 1000))).Status); // فئات غير تصاعدية
+
+        // نقطة لكل 5 ريال، والفضية من 40 نقطة
+        Assert.Equal(200, (await api.Put("/pos/promotion-settings", Rules(sarPerPoint: 5, pointValue: 0.5m, minPoints: 10, maxRedeem: 10, silver: 40, gold: 100, platinum: 200))).Status);
+        var first = await api.Post("/pos/transactions/checkout", Cash(product, 2, 230, null, customer)); // 230 → 46 نقطة
+        Assert.Equal(46, first.Data!["pointsEarned"].D());
+        var loyalty = (await api.Get($"/pos/loyalty/customer/{customer}")).Data!;
+        Assert.Equal("silver", loyalty["tier"].S()); Assert.Equal(23, loyalty["pointsValueSar"].D());
+
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", new { customerId = customer, items = new[] { new { itemId = product, quantity = 1 } }, paymentMethod = "cash", paidCash = 500, loyaltyPointsToRedeem = 5 })).Status); // أقل من الحد الأدنى
+        // 40 نقطة × 0.5 = 20 ريال، لكن الحد 10% من 100 = 10 ريال → 20 نقطة فقط
+        var second = await api.Post("/pos/transactions/checkout", new { customerId = customer, items = new[] { new { itemId = product, quantity = 1 } }, paymentMethod = "cash", paidCash = 500, loyaltyPointsToRedeem = 40 });
+        Assert.Equal(10, second.Data!["loyaltyDiscount"].D()); Assert.Equal(20, second.Data["loyaltyPointsRedeemed"].D());
+
+        // البرنامج معطّل: لا كسب ولا استبدال، والرصيد محفوظ
+        await api.Put("/pos/promotion-settings", Rules(loyaltyEnabled: false));
+        var balance = (await api.Get($"/pos/loyalty/customer/{customer}")).Data!["pointsBalance"].D();
+        Assert.Equal(0, (await api.Post("/pos/transactions/checkout", Cash(product, 1, 200, null, customer))).Data!["pointsEarned"].D());
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", new { customerId = customer, items = new[] { new { itemId = product, quantity = 1 } }, paymentMethod = "cash", paidCash = 500, loyaltyPointsToRedeem = 10 })).Status);
+        Assert.Equal(balance, (await api.Get($"/pos/loyalty/customer/{customer}")).Data!["pointsBalance"].D());
+    }
+
+    [Fact]
+    public async Task Earned_points_stay_pending_until_the_return_period_ends()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api, stock: 50);
+        var (customer, _) = await SeedCustomerAsync(api);
+        await OpenShiftAsync(api);
+        var settings = (await api.Get("/pos/promotion-settings")).Data!.AsObject();
+        settings["pointsPendingDays"] = 7;
+        Assert.Equal(200, (await api.Put("/pos/promotion-settings", settings)).Status);
+
+        var sale = await api.Post("/pos/transactions/checkout", Cash(product, 2, 230, null, customer)); // 23 نقطة معلّقة
+        Assert.Equal(23, sale.Data!["pointsEarned"].D());
+        var loyalty = (await api.Get($"/pos/loyalty/customer/{customer}")).Data!;
+        Assert.Equal(0, loyalty["pointsBalance"].D()); Assert.Equal(23, loyalty["pendingPoints"].D());
+        // المعلّق لا يُستبدل
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", new { customerId = customer, items = new[] { new { itemId = product, quantity = 1 } }, paymentMethod = "cash", paidCash = 500, loyaltyPointsToRedeem = 10 })).Status);
+
+        // مرتجع نصف الفاتورة قبل الإتاحة: يُسحب من المعلّق
+        var ret = await api.Post("/pos/returns", new { originalTransactionId = sale.Data["id"].S(), returnReason = "x", refundMethod = "cash", items = new[] { new { itemId = product, returnQuantity = 1 } } });
+        Assert.Equal(11, ret.Data!["pointsRevoked"].D());
+        Assert.Equal(12, (await api.Get($"/pos/loyalty/customer/{customer}")).Data!["pendingPoints"].D());
+
+        // انتهت المدة: تُتاح في الرصيد
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
+            var entries = await db.Set<ERP.Core.Models.POS.LoyaltyPointEntry>().IgnoreQueryFilters().Where(e => e.TenantId == api.TenantId).ToListAsync();
+            foreach (var e in entries) e.AvailableAt = DateTime.UtcNow.AddMinutes(-1);
+            await db.SaveChangesAsync();
+        }
+        loyalty = (await api.Get($"/pos/loyalty/customer/{customer}")).Data!;
+        Assert.Equal(12, loyalty["pointsBalance"].D()); Assert.Equal(0, loyalty["pendingPoints"].D()); Assert.Equal(12, loyalty["totalPointsEarned"].D());
+    }
+
+    [Fact]
+    public async Task Discount_settings_limit_manual_discounts_and_coupons()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api, stock: 50);
+        await OpenShiftAsync(api);
+        await api.Post("/pos/coupons", new { code = "C5", titleAr = "خصم 5", discountType = "fixed", discountValue = 5, minCartAmount = 0,
+            validFrom = DateTime.UtcNow.AddDays(-1), validTo = DateTime.UtcNow.AddDays(30), isActive = true });
+        object Manual(decimal discount, string? coupon = null) => new { couponCode = coupon, items = new[] { new { itemId = product, quantity = 1, manualDiscount = discount } }, paymentMethod = "cash", paidCash = 500 };
+
+        await api.Put("/pos/promotion-settings", Rules(allowManual: false));
+        Assert.Equal(403, (await api.Post("/pos/transactions/checkout", Manual(5))).Status);
+
+        await api.Put("/pos/promotion-settings", Rules(maxLine: 10));
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", Manual(15))).Status); // 15% > 10%
+        Assert.Equal(201, (await api.Post("/pos/transactions/checkout", Manual(10))).Status);
+
+        await api.Put("/pos/promotion-settings", Rules(maxInvoice: 12));
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", Manual(10, "C5"))).Status); // 10 + 5 = 15% > 12%
+
+        await api.Put("/pos/promotion-settings", Rules(allowCoupons: false));
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", Cash(product, 1, 200, "C5"))).Status);
+
+        // الكوبون لا يُجمع مع العروض
+        await api.Put("/pos/promotion-settings", Rules(couponWithOffers: false));
+        await api.Post("/pos/offers", new { titleAr = "خصم 10%", type = "percentage_discount", discountPercent = 10, targetItemId = product, isActive = true, badgeText = "-10%" });
+        Assert.Equal(400, (await api.Post("/pos/transactions/checkout", Cash(product, 1, 200, "C5"))).Status);
+        Assert.Equal(201, (await api.Post("/pos/transactions/checkout", Cash(product, 1, 200))).Status);
     }
 
     // ---------- المرتجعات ----------

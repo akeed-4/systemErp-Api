@@ -8,8 +8,20 @@ namespace ERP.Service.Services.POS;
 /// <summary>قواعد التسعير والخصم الخاصة بنقطة البيع (كوبونات، عروض، ولاء).</summary>
 public static class PosPricing
 {
-    public const decimal PointValueSar = 0.10m;      // 100 نقطة = 10 ريال
-    public const decimal SarPerEarnedPoint = 10m;    // نقطة لكل 10 ريال
+    /// <summary>قواعد الخصومات والولاء للمنشأة؛ بلا سجل محفوظ = القيم الافتراضية (نقطة لكل 10 ريال، النقطة 0.10 ريال).</summary>
+    public static async Task<PosPromotionSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)
+        => await db.Set<PosPromotionSettings>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new PosPromotionSettings();
+
+    /// <summary>النقاط المكتسبة على مبلغ (لا شيء والبرنامج معطّل).</summary>
+    public static int PointsFor(PosPromotionSettings s, decimal amount)
+        => !s.LoyaltyEnabled || s.SarPerEarnedPoint <= 0 || amount <= 0 ? 0 : (int)Math.Floor(amount / s.SarPerEarnedPoint);
+
+    /// <summary>رصيد الولاء بقيمته وفئته بعد تغيّر نقاطه.</summary>
+    public static void Revalue(CustomerLoyalty l, PosPromotionSettings s)
+    {
+        l.PointsValueSar = l.PointsBalance * s.PointValueSar;
+        l.Tier = TierFor(s, l.TotalPointsEarned);
+    }
 
     public static string? CouponRejectionReason(PosCoupon? c, decimal cartAmount, DateTime now)
     {
@@ -28,10 +40,10 @@ public static class PosPricing
         return DocumentPricing.Round(Math.Min(d, cartAmount));
     }
 
-    public static LoyaltyTier TierFor(int totalEarned) => totalEarned switch
-    {
-        >= 10000 => LoyaltyTier.Platinum, >= 5000 => LoyaltyTier.Gold, >= 1000 => LoyaltyTier.Silver, _ => LoyaltyTier.Bronze,
-    };
+    public static LoyaltyTier TierFor(PosPromotionSettings s, int totalEarned)
+        => totalEarned >= s.PlatinumThreshold ? LoyaltyTier.Platinum
+        : totalEarned >= s.GoldThreshold ? LoyaltyTier.Gold
+        : totalEarned >= s.SilverThreshold ? LoyaltyTier.Silver : LoyaltyTier.Bronze;
 
     /// <summary>أفضل خصم عرض لسطر (عرض واحد لكل سطر): على الصنف، أو التصنيف، أو عام.</summary>
     public static decimal BestOfferDiscount(IEnumerable<PosOffer> offers, Guid itemId, Guid? categoryId, decimal qty, decimal unitPrice)

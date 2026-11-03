@@ -416,6 +416,12 @@ public class ErpDbContext : DbContext
         // بيع نقطة البيع الواحد لا يُسجَّل مرتين عند إعادة إرساله (أوف لاين أو بعد مهلة).
         modelBuilder.Entity<PosTransaction>().Property(t => t.ClientReference).HasMaxLength(64);
         modelBuilder.Entity<PosTransaction>().HasIndex(t => new { t.TenantId, t.ClientReference }).IsUnique().HasFilter("[ClientReference] IS NOT NULL");
+        // نقاط الولاء المعلّقة: الإتاحة بحسب الموعد، والسحب بالفاتورة
+        modelBuilder.Entity<LoyaltyPointEntry>().HasIndex(e => new { e.TenantId, e.Status, e.AvailableAt });
+        // قيد معلّق واحد لكل فاتورة
+        modelBuilder.Entity<LoyaltyPointEntry>().HasIndex(e => new { e.TenantId, e.TransactionId }).IsUnique();
+        modelBuilder.Entity<LoyaltyPointEntry>().Property(e => e.RowVersion).IsRowVersion();
+        modelBuilder.Entity<CustomerLoyalty>().Property(l => l.RowVersion).IsRowVersion();
         modelBuilder.Entity<PosCashMovement>().Property(m => m.ClientReference).HasMaxLength(64);
         modelBuilder.Entity<PosCashMovement>().HasIndex(m => new { m.TenantId, m.ClientReference }).IsUnique().HasFilter("[ClientReference] IS NOT NULL");
 

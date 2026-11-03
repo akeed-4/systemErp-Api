@@ -14,6 +14,8 @@ public partial class ApprovalRequestDto
     public string ActionType { get; set; } = string.Empty;
     public decimal DocumentAmount { get; set; }
     public string? DocumentDataSnapshot { get; set; }
+    /// <summary>عملية محجوزة تُنفَّذ عند الاعتماد النهائي؛ معرّف المستند فارغ للإنشاء حتى تنفيذه.</summary>
+    public bool IsDeferred { get; set; }
     public Guid RequesterUserId { get; set; }
     public string RequesterName { get; set; } = string.Empty;
     public int CurrentLevel { get; set; }

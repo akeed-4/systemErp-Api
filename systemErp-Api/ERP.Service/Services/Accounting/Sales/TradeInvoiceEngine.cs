@@ -168,6 +168,11 @@ public class TradeInvoiceEngine
         return check.ApprovalRequired;
     }
 
+    /// <summary>حالة آخر طلب اعتماد على المستند؛ null إن لم يُطلب له اعتماد.</summary>
+    private Task<string?> LatestApprovalAsync(Guid id, CancellationToken ct)
+        => _db.Set<ApprovalRequest>().Where(r => r.DocumentId == id).OrderByDescending(r => r.CreatedAt)
+            .Select(r => (string?)r.Status).FirstOrDefaultAsync(ct);
+
     private static readonly System.Text.Json.JsonSerializerOptions SnapshotJson = new()
     {
         PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
@@ -244,9 +249,8 @@ public class TradeInvoiceEngine
 
             // المرحّلة تعود مرحّلة دائماً (بنفس رقمها) بقيد وحركات مخزنية جديدة
             var posting = wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
-            // مسودة رُفض اعتمادها: حفظها للترحيل بعد تصحيحها يعيد إرسالها للاعتماد بطلب جديد إن بقيت السياسة منطبقة
-            if (posting && !wasPosted && await _db.Set<ApprovalRequest>().Where(a => a.DocumentId == id).OrderByDescending(a => a.CreatedAt)
-                    .Select(a => a.Status).FirstOrDefaultAsync(token) == "rejected" && await RequiresApprovalAsync(invoice, token))
+            // مسودة لم تُعتمد (ومنها المرفوضة بعد تصحيحها): حفظها للترحيل يرسلها للاعتماد إن انطبقت سياسة
+            if (posting && !wasPosted && !IsShowroom<T>() && await LatestApprovalAsync(id, token) != "approved" && await RequiresApprovalAsync(invoice, token))
                 posting = false;
             if (posting) await FinalizeAsync(invoice, token);
             await LogTaxOverridesAsync(invoice, token);
@@ -345,10 +349,11 @@ public class TradeInvoiceEngine
             var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
             if (claimed != 1 || invoice.Status != "draft") throw new ConflictException(Messages.InvoiceAlreadyPostedOrCancelled);
             // سير الموافقات: المسودة المعلّقة أو المرفوضة لا تُرحَّل (آخر طلب على المستند هو المرجع)
-            var approval = await _db.Set<ApprovalRequest>().Where(r => r.DocumentId == id)
-                .OrderByDescending(r => r.CreatedAt).Select(r => r.Status).FirstOrDefaultAsync(token);
+            var approval = await LatestApprovalAsync(id, token);
             if (approval == "pending") throw new ConflictException(Messages.InvoicePendingApproval);
             if (approval == "rejected") throw new ConflictException(Messages.InvoiceApprovalRejected);
+            // لم تُعتمد بعد (محوّلة من عرض سعر/أمر بيع أو محفوظة مسودة): سياسة منطبقة ترسلها للاعتماد بدل ترحيلها
+            if (approval != "approved" && !IsShowroom<T>() && await RequiresApprovalAsync(invoice, token)) return await GetAsync<T>(id, token);
             await FinalizeAsync(invoice, token);
             return await GetAsync<T>(id, token);
         }, ct), ct);

@@ -23,16 +23,27 @@ public class EmployeeLoansController : ErpControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateEmployeeLoanDto dto, CancellationToken ct)
     {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
         var created = await _loans.CreateAsync(dto, ct);
         return Created($"{Request.Path}/{created.Id}", ApiResponse<EmployeeLoanDto>.Ok(created, Messages.CreatedSuccessfully).WithStatus(201));
     }
 
     [HttpPut("{id:guid}/schedule")]
     public async Task<IActionResult> Reschedule(Guid id, [FromBody] RescheduleEmployeeLoanDto dto, CancellationToken ct)
-        => Success(await _loans.RescheduleAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
+        return Success(await _loans.RescheduleAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+    }
 
     [HttpPost("{id:guid}/cancel"), RequireScreen("hr", ScreenAction.Cancel, Legacy = ScreenAction.Delete)]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _loans.CancelAsync(id, ct), Messages.LoanCancelled);
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Cancel, id, null, ct) is { } held) return held;
+        return Success(await _loans.CancelAsync(id, ct), Messages.LoanCancelled);
+    }
+
+    // السلف تخضع لسياسات الاعتماد: الصرف وإعادة الجدولة والإلغاء تُحجز حتى اعتمادها
+    private const string Approval = "employee-loans";
 }
 
 /// <summary>تصفية نهاية الخدمة: معاينة الحساب، ترحيله وإنهاء خدمة الموظف، وعكسه (بصلاحية الاعتماد).</summary>
@@ -53,7 +64,10 @@ public class EndOfServiceController : ErpControllerBase
 
     [HttpPost, RequireScreen("hr", ScreenAction.Approve)]
     public async Task<IActionResult> Post([FromBody] EndOfServiceRequestDto request, CancellationToken ct)
-        => Success(await _service.PostAsync(request, ct), Messages.EndOfServicePosted);
+    {
+        if (await HoldForApprovalAsync("end-of-service", ApprovalDocumentCatalog.Post, null, request, ct) is { } held) return held;
+        return Success(await _service.PostAsync(request, ct), Messages.EndOfServicePosted);
+    }
 
     [HttpPost("{id:guid}/reverse"), RequireScreen("hr", ScreenAction.Cancel, Legacy = ScreenAction.Approve)]
     public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _service.ReverseAsync(id, ct), Messages.EndOfServiceReversed);

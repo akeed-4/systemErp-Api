@@ -52,6 +52,8 @@ public abstract class TradeDocumentsControllerBase : ErpControllerBase
     public async Task<IActionResult> Create([FromBody] CreateInvoiceDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Create, ct);
+        // سياسات الاعتماد تنطبق على كل إنشاء من الواجهة أياً كان المستخدم أو الشاشة؛ الإنشاء الداخلي (نقطة البيع، العقود) لا يمر من هنا
+        dto.ApplyApprovalPolicy = true;
         var created = await _documents.CreateAsync(dto, ct);
         return Created($"{Request.Path}/{created.Id}", ApiResponse<InvoiceDto>.Ok(created, Messages.InvoiceCreated).WithStatus(201));
     }
@@ -68,7 +70,8 @@ public abstract class TradeDocumentsControllerBase : ErpControllerBase
     {
         await _documents.GetAsync(id, ct); // غير موجود في جدول هذا النوع ← 404
         await Require(ScreenAction.Post, ct, ScreenAction.Edit);
-        return Success(await _documents.PostDraftAsync(id, ct), Messages.InvoicePosted);
+        var result = await _documents.PostDraftAsync(id, ct);
+        return Success(result, result.Status == "posted" ? Messages.InvoicePosted : Messages.InvoiceSentForApproval);
     }
 
     [HttpDelete("{id:guid}")]

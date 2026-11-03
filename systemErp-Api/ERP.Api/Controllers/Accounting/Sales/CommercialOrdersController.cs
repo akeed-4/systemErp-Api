@@ -12,6 +12,7 @@ public class CommercialOrdersController : CrudController<CommercialOrderDto, Cre
 {
     private readonly ICommercialOrderService _orders;
     public CommercialOrdersController(ICommercialOrderService s) : base(s) => _orders = s;
+    protected override string? ApprovalHandler => "commercial-orders";
 
     [HttpPost("{id:guid}/ConvertToInvoice")]
     public async Task<IActionResult> ToInvoice(Guid id, CancellationToken ct) => Success(await _orders.ConvertToInvoiceAsync(id, ct), Messages.DraftInvoiceCreated);

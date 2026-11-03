@@ -28,6 +28,8 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         _contracts = s; _workflow = workflow; _permissions = permissions;
     }
 
+    protected override string? ApprovalHandler => "commercial-contracts";
+
     [HttpGet("stages")]
     public async Task<IActionResult> GetStages(CancellationToken ct)
         => Success(await _contracts.GetStageCatalogAsync(ct));

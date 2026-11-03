@@ -20,14 +20,28 @@ public class VouchersController : ErpControllerBase
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _vouchers.ListAsync(q, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _vouchers.GetAsync(id, ct));
 
+    // سندات القبض والصرف تخضع لسياسات الاعتماد: العملية المنطبقة تُحجز ولا يُرحَّل قيدها إلا عند اعتمادها
+    private const string Approval = "vouchers";
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateVoucherDto dto, CancellationToken ct)
-        => Success(await _vouchers.CreateAsync(dto, ct), Messages.VoucherCreatedAndPosted);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
+        return Success(await _vouchers.CreateAsync(dto, ct), Messages.VoucherCreatedAndPosted);
+    }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateVoucherDto dto, CancellationToken ct)
-        => Success(await _vouchers.UpdateAsync(id, dto, ct), Messages.VoucherUpdatedAndReposted);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
+        return Success(await _vouchers.UpdateAsync(id, dto, ct), Messages.VoucherUpdatedAndReposted);
+    }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _vouchers.DeleteAsync(id, ct); return Success(Messages.VoucherDeletedAndReversed); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Delete, id, null, ct) is { } held) return held;
+        await _vouchers.DeleteAsync(id, ct);
+        return Success(Messages.VoucherDeletedAndReversed);
+    }
 }

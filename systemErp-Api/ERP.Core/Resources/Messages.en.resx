@@ -401,6 +401,7 @@
   <data name="InvoiceNotPostedUsePreview" xml:space="preserve"><value>The invoice is not posted; use the journal preview.</value></data>
   <data name="InvoicePendingApproval" xml:space="preserve"><value>The invoice is pending approval and cannot be posted until approval is complete.</value></data>
   <data name="InvoicePosted" xml:space="preserve"><value>Invoice posted</value></data>
+  <data name="InvoiceSentForApproval" xml:space="preserve"><value>An approval policy applies to this invoice, so it was sent for approval and will be posted once approved.</value></data>
   <data name="InvoiceSettingsSaved" xml:space="preserve"><value>Invoice settings saved</value></data>
   <data name="InvoiceTypeValues" xml:space="preserve"><value>Invoice type: simplified | standard.</value></data>
   <data name="InvoiceUpdated" xml:space="preserve"><value>Invoice updated</value></data>
@@ -1436,4 +1437,9 @@
   <data name="LoyaltyProgramDisabled" xml:space="preserve"><value>The loyalty program is not enabled.</value></data>
   <data name="LoyaltyRedemptionDisabled" xml:space="preserve"><value>Loyalty point redemption is disabled in discount settings.</value></data>
   <data name="MinPointsToRedeem" xml:space="preserve"><value>The minimum to redeem is {0} points.</value></data>
+  <data name="ApprovalDocumentUnknown" xml:space="preserve"><value>Document "{0}" is not supported by approval policies.</value></data>
+  <data name="ApprovalActionNotSupported" xml:space="preserve"><value>This action is not subject to approval for "{0}".</value></data>
+  <data name="OperationSentForApproval" xml:space="preserve"><value>Saved and sent for approval ("{0}"); it will run and appear in the list once approved.</value></data>
+  <data name="ApprovalPendingOnDocument" xml:space="preserve"><value>This document has a pending approval request; wait for the decision or withdraw the request first.</value></data>
+  <data name="ApprovalHandlerMissing" xml:space="preserve"><value>The approved operation could not run: its type is unknown.</value></data>
 </root>

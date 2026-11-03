@@ -168,7 +168,7 @@ public class InventoryCountTests : TestBase
         var manager = await UserAsync(owner, "general_manager");
         Assert.Equal(201, (await owner.Post("/ApprovalPolicies", new
         {
-            nameAr = "اعتماد فروق الجرد", documentType = "inventory_count", actionType = "approve", isActive = true,
+            nameAr = "اعتماد فروق الجرد", documentTypes = new[] { "inventory_count" }, actionType = "approve", isActive = true,
             steps = new[] { new { level = 1, approverRole = "chief_accountant", titleAr = "رئيس الحسابات" }, new { level = 2, approverRole = "general_manager", titleAr = "المدير العام" } },
         })).Status);
 

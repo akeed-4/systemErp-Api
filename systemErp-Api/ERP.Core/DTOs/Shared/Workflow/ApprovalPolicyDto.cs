@@ -8,7 +8,7 @@ public partial class ApprovalPolicyDto
     public DateTime? UpdatedAt { get; set; }
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
-    public string DocumentType { get; set; } = string.Empty;
+    public List<string> DocumentTypes { get; set; } = new();
     public string ActionType { get; set; } = string.Empty;
     public decimal? MinAmountTrigger { get; set; }
     public bool IsActive { get; set; } = true;

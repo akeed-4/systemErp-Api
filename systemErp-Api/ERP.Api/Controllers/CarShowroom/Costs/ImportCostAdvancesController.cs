@@ -66,6 +66,7 @@ public class ImportCostAdvancesController : ErpControllerBase
     public async Task<IActionResult> Create([FromBody] CreateImportCostAdvanceDto dto, CancellationToken ct)
     {
         await RequireCostViewAsync(ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
         var created = await _service.CreateAsync(dto, ct);
         return Created($"{Request.Path}/{created.Id}", ApiResponse<ImportCostAdvanceDto>.Ok(created, Messages.CreatedSuccessfully).WithStatus(201));
     }
@@ -74,6 +75,7 @@ public class ImportCostAdvancesController : ErpControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateImportCostAdvanceDto dto, CancellationToken ct)
     {
         await RequireCostViewAsync(ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
         return Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
     }
 
@@ -82,6 +84,7 @@ public class ImportCostAdvancesController : ErpControllerBase
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
     {
         await RequireApprovalAsync(ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Approve, id, null, ct) is { } held) return held;
         return Success(await _service.ApproveAsync(id, ct), Messages.ImportCostAdvanceApproved);
     }
 
@@ -90,6 +93,7 @@ public class ImportCostAdvancesController : ErpControllerBase
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
         await RequireApprovalAsync(ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Cancel, id, null, ct) is { } held) return held;
         return Success(await _service.CancelAsync(id, ct), Messages.ImportCostAdvanceCancelled);
     }
 
@@ -97,7 +101,11 @@ public class ImportCostAdvancesController : ErpControllerBase
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await RequireCostViewAsync(ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Delete, id, null, ct) is { } held) return held;
         await _service.DeleteAsync(id, ct);
         return Success(Messages.DeletedSuccessfully);
     }
+
+    // الدفعات المقدمة لتكاليف الاستيراد تخضع لسياسات الاعتماد: العملية المنطبقة تُحجز وتُنفَّذ عند اعتمادها
+    private const string Approval = "import-cost-advances";
 }

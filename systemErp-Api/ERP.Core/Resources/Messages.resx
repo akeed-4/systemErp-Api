@@ -401,6 +401,7 @@
   <data name="InvoiceNotPostedUsePreview" xml:space="preserve"><value>الفاتورة غير مرحّلة؛ استخدم معاينة القيد.</value></data>
   <data name="InvoicePendingApproval" xml:space="preserve"><value>الفاتورة بانتظار الاعتماد ولا تُرحَّل قبل اكتمال الموافقة.</value></data>
   <data name="InvoicePosted" xml:space="preserve"><value>تم ترحيل الفاتورة</value></data>
+  <data name="InvoiceSentForApproval" xml:space="preserve"><value>تنطبق على الفاتورة سياسة اعتماد، فأُرسلت للموافقة وتُرحَّل عند اعتمادها.</value></data>
   <data name="InvoiceSettingsSaved" xml:space="preserve"><value>تم حفظ إعدادات الفاتورة</value></data>
   <data name="InvoiceTypeValues" xml:space="preserve"><value>نوع الفاتورة: simplified | standard.</value></data>
   <data name="InvoiceUpdated" xml:space="preserve"><value>تم تعديل الفاتورة</value></data>
@@ -1436,4 +1437,9 @@
   <data name="LoyaltyProgramDisabled" xml:space="preserve"><value>برنامج الولاء غير مفعّل.</value></data>
   <data name="LoyaltyRedemptionDisabled" xml:space="preserve"><value>استبدال نقاط الولاء معطّل في إعدادات الخصومات.</value></data>
   <data name="MinPointsToRedeem" xml:space="preserve"><value>أقل عدد نقاط للاستبدال {0} نقطة.</value></data>
+  <data name="ApprovalDocumentUnknown" xml:space="preserve"><value>المستند «{0}» غير مدعوم في سياسات الاعتماد.</value></data>
+  <data name="ApprovalActionNotSupported" xml:space="preserve"><value>هذه العملية لا تخضع للاعتماد في مستند «{0}».</value></data>
+  <data name="OperationSentForApproval" xml:space="preserve"><value>تم الحفظ وإرسال العملية للاعتماد («{0}»)؛ تُنفَّذ وتظهر في القائمة بعد الموافقة.</value></data>
+  <data name="ApprovalPendingOnDocument" xml:space="preserve"><value>على هذا المستند طلب اعتماد معلّق؛ انتظر قرار المعتمِد أو اسحب الطلب أولاً.</value></data>
+  <data name="ApprovalHandlerMissing" xml:space="preserve"><value>تعذّر تنفيذ العملية المعتمدة: نوعها غير معروف.</value></data>
 </root>

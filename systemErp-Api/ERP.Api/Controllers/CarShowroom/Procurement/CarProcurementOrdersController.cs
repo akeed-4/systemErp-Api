@@ -42,6 +42,7 @@ public class CarProcurementOrdersController : ErpControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateCarProcurementOrderDto dto, CancellationToken ct)
     {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
         var created = await _service.CreateAsync(dto, ct);
         return Created($"{Request.Path}/{created.Id}", ApiResponse<CarProcurementOrderDto>.Ok(created, Messages.PurchaseOrderCreated).WithStatus(201));
     }
@@ -51,13 +52,17 @@ public class CarProcurementOrdersController : ErpControllerBase
     public async Task<IActionResult> QuickPurchase([FromBody] QuickCarPurchaseRequestDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Approve, ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Quick, null, dto, ct) is { } held) return held;
         var done = await _service.QuickPurchaseAsync(dto, ct);
         return Created($"{Request.Path}/{done.Id}", ApiResponse<CarProcurementOrderDto>.Ok(done, Messages.VehiclePurchaseInvoiceRecorded).WithStatus(201));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCarProcurementOrderDto dto, CancellationToken ct)
-        => Success(await _service.UpdateAsync(id, dto, ct), Messages.Updated);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
+        return Success(await _service.UpdateAsync(id, dto, ct), Messages.Updated);
+    }
 
     [HttpPost("{id:guid}/AdvanceStage")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceProcurementRequestDto dto, CancellationToken ct)
@@ -84,7 +89,15 @@ public class CarProcurementOrdersController : ErpControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _service.DeleteAsync(id, ct); return Success(Messages.Deleted); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Delete, id, null, ct) is { } held) return held;
+        await _service.DeleteAsync(id, ct);
+        return Success(Messages.Deleted);
+    }
+
+    // أوامر شراء السيارات تخضع لسياسات الاعتماد: العملية المنطبقة تُحجز وتُنفَّذ عند اعتمادها
+    private const string Approval = "car-procurement-orders";
 
     private async Task Require(ScreenAction action, CancellationToken ct, ScreenAction? legacy = null)
     {

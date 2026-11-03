@@ -15,6 +15,10 @@ public class ApprovalsController : ErpControllerBase
         _approvals = approvals; _decisions = decisions; _permissions = permissions;
     }
 
+    /// <summary>المستندات والعمليات التي تخضع لسياسات الاعتماد، مجمّعة بالوحدات (شاشة تعريف السياسة).</summary>
+    [HttpGet("document-types"), RequireScreen("approval-policies", ScreenAction.View)]
+    public IActionResult DocumentTypes([FromServices] IApprovalGate gate) => Success(gate.Catalog());
+
     [HttpPost("check"), RequireScreen("dashboard")]
     public async Task<IActionResult> Check([FromBody] ApprovalCheckRequestDto request, CancellationToken ct)
         => Success(await _approvals.CheckAndCreateAsync(request, ct));

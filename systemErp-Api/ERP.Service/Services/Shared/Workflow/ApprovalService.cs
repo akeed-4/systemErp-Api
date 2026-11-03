@@ -20,32 +20,81 @@ public class ApprovalService : IApprovalService
             if (string.IsNullOrWhiteSpace(r.DocumentType) || string.IsNullOrWhiteSpace(r.ActionType))
                 throw new ValidationFailedException(Messages.DocumentTypeAndActionRequired);
 
-            var policy = (await _db.Set<ApprovalPolicy>().Include(p => p.Steps)
-                    .Where(p => p.IsActive && p.DocumentType == r.DocumentType && p.ActionType == r.ActionType).ToListAsync(token))
-                .Where(p => p.MinAmountTrigger == null || r.DocumentAmount >= p.MinAmountTrigger)
-                .OrderByDescending(p => p.MinAmountTrigger ?? 0).FirstOrDefault();
-            if (policy == null || policy.Steps.Count == 0) return new ApprovalCheckResultDto { ApprovalRequired = false };
+            var policy = await MatchPolicyAsync(r.DocumentType, r.ActionType, r.DocumentAmount, token);
+            if (policy == null) return new ApprovalCheckResultDto { ApprovalRequired = false };
 
             var pending = await _db.Set<ApprovalRequest>().Include(x => x.History)
                 .FirstOrDefaultAsync(x => x.DocumentId == r.DocumentId && x.ActionType == r.ActionType && x.Status == "pending", token);
             if (pending != null)
                 return new ApprovalCheckResultDto { ApprovalRequired = true, Request = Mapper.Map<ApprovalRequestDto>(pending) };
 
-            var first = policy.Steps.OrderBy(s => s.Level).First();
-            var request = new ApprovalRequest
-            {
-                PolicyId = policy.Id, PolicyNameAr = policy.NameAr, DocumentType = r.DocumentType, DocumentId = r.DocumentId,
-                DocumentNumber = r.DocumentNumber, ActionType = r.ActionType, DocumentAmount = r.DocumentAmount,
-                DocumentDataSnapshot = r.DocumentDataSnapshot,
-                RequesterUserId = me, RequesterName = _user.Name ?? string.Empty,
-                CurrentLevel = 1, TotalLevels = policy.Steps.Count, Status = "pending",
-                RequiredApproverRole = first.ApproverRole, RequiredApproverUserId = first.ApproverUserId,
-            };
-            _db.Add(request);
-            await _db.SaveChangesAsync(token);
-            await NotifyApproversAsync(request, token);
+            var request = await CreateRequestAsync(policy, r, me, null, null, token);
             return new ApprovalCheckResultDto { ApprovalRequired = true, Request = Mapper.Map<ApprovalRequestDto>(request) };
         }, ct);
+
+    public async Task<bool> HasActivePolicyAsync(string documentType, string actionType, CancellationToken ct = default)
+        => (await ActivePoliciesAsync(documentType, actionType, ct)).Count > 0;
+
+    public Task<ApprovalRequestDto?> HoldAsync(ApprovalCheckRequestDto r, string handler, string payload, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var me = _user.UserId ?? throw new UnauthorizedAppException();
+            var policy = await MatchPolicyAsync(r.DocumentType, r.ActionType, r.DocumentAmount, token);
+            if (policy == null) return null;
+
+            // إعادة إرسال العملية نفسها (نقر مكرر أو إعادة حفظ النموذج) لا تنشئ طلباً ثانياً
+            var duplicate = await _db.Set<ApprovalRequest>().Include(x => x.History)
+                .FirstOrDefaultAsync(x => x.IsDeferred && x.Status == "pending" && x.RequesterUserId == me && x.Handler == handler
+                    && x.DocumentType == r.DocumentType && x.ActionType == r.ActionType && x.DocumentId == r.DocumentId && x.Payload == payload, token);
+            if (duplicate != null) return Mapper.Map<ApprovalRequestDto>(duplicate);
+
+            return Mapper.Map<ApprovalRequestDto>(await CreateRequestAsync(policy, r, me, handler, payload, token));
+        }, ct);
+
+    public async Task<ApprovalDeferredOperation?> GetDeferredAsync(Guid id, CancellationToken ct = default)
+        => await _db.Set<ApprovalRequest>().AsNoTracking().Where(x => x.Id == id && x.IsDeferred)
+            .Select(x => new ApprovalDeferredOperation(x.Handler ?? string.Empty, x.ActionType, x.DocumentType, x.DocumentId, x.Payload, x.RequesterUserId))
+            .FirstOrDefaultAsync(ct);
+
+    public async Task CompleteDeferredAsync(Guid id, Guid documentId, string? documentNumber, CancellationToken ct = default)
+    {
+        var request = await _db.Set<ApprovalRequest>().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
+        if (documentId != Guid.Empty) request.DocumentId = documentId;
+        if (!string.IsNullOrWhiteSpace(documentNumber)) request.DocumentNumber = documentNumber;
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>السياسات الفعّالة لعملية المستند (السياسة الواحدة قد تغطي عدة مستندات).</summary>
+    private async Task<List<ApprovalPolicy>> ActivePoliciesAsync(string documentType, string actionType, CancellationToken ct)
+        => (await _db.Set<ApprovalPolicy>().Include(p => p.Steps)
+                .Where(p => p.IsActive && p.ActionType == actionType && p.DocumentTypes.Contains(documentType)).ToListAsync(ct))
+            .Where(p => p.Steps.Count > 0 && ApprovalDocumentCatalog.Split(p.DocumentTypes).Contains(documentType))
+            .ToList();
+
+    /// <summary>أعلى سياسة منطبقة بحدّ المبلغ (الأشد أولاً)؛ null إن لم تنطبق.</summary>
+    private async Task<ApprovalPolicy?> MatchPolicyAsync(string documentType, string actionType, decimal amount, CancellationToken ct)
+        => (await ActivePoliciesAsync(documentType, actionType, ct))
+            .Where(p => p.MinAmountTrigger == null || amount >= p.MinAmountTrigger)
+            .OrderByDescending(p => p.MinAmountTrigger ?? 0).FirstOrDefault();
+
+    private async Task<ApprovalRequest> CreateRequestAsync(ApprovalPolicy policy, ApprovalCheckRequestDto r, Guid me, string? handler, string? payload, CancellationToken ct)
+    {
+        var first = policy.Steps.OrderBy(s => s.Level).First();
+        var request = new ApprovalRequest
+        {
+            PolicyId = policy.Id, PolicyNameAr = policy.NameAr, DocumentType = r.DocumentType, DocumentId = r.DocumentId,
+            DocumentNumber = r.DocumentNumber, ActionType = r.ActionType, DocumentAmount = r.DocumentAmount,
+            DocumentDataSnapshot = r.DocumentDataSnapshot,
+            IsDeferred = payload != null, Handler = handler, Payload = payload,
+            RequesterUserId = me, RequesterName = _user.Name ?? string.Empty,
+            CurrentLevel = 1, TotalLevels = policy.Steps.Count, Status = "pending",
+            RequiredApproverRole = first.ApproverRole, RequiredApproverUserId = first.ApproverUserId,
+        };
+        _db.Add(request);
+        await _db.SaveChangesAsync(ct);
+        await NotifyApproversAsync(request, ct);
+        return request;
+    }
 
     public async Task<PagedResult<ApprovalRequestDto>> ListRequestsAsync(string? status, PaginationParams p, CancellationToken ct = default)
     {

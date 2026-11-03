@@ -16,11 +16,12 @@ public class ApprovalDecisionService : IApprovalDecisionService
     private readonly IInventoryCountApprovalService _counts;
     private readonly TradeInvoiceEngine _engine;
     private readonly IAuditService _audit;
+    private readonly IApprovalGate _gate;
 
     public ApprovalDecisionService(ErpDbContext db, ITransactionRunner tx, IApprovalService approvals,
-        IInventoryCountApprovalService counts, TradeInvoiceEngine engine, IAuditService audit)
+        IInventoryCountApprovalService counts, TradeInvoiceEngine engine, IAuditService audit, IApprovalGate gate)
     {
-        _db = db; _tx = tx; _approvals = approvals; _counts = counts; _engine = engine; _audit = audit;
+        _db = db; _tx = tx; _approvals = approvals; _counts = counts; _engine = engine; _audit = audit; _gate = gate;
     }
 
     /// <summary>ترحيل مسودة فاتورة في جدولها، وإرسالها للهيئة بعد المعاملة.</summary>
@@ -28,6 +29,21 @@ public class ApprovalDecisionService : IApprovalDecisionService
 
     public async Task<ApprovalRequestDto> ApproveAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
     {
+        // عملية محجوزة (سند، قيد، عقد، أمر...): الاعتماد النهائي ينفّذها في معاملة القرار نفسها؛
+        // فإن تعذّر تنفيذها (رصيد، فترة مقفلة، تغيّر المستند) لا يُسجَّل الاعتماد ويظهر السبب للمعتمِد
+        var deferred = await _approvals.GetDeferredAsync(id, ct);
+        if (deferred != null)
+            return await _tx.RunAsync(async token =>
+            {
+                var result = await _approvals.ApproveAsync(id, d, token);
+                if (result.Status != "approved") return result;
+                var (documentId, documentNumber) = await _gate.ExecuteAsync(deferred, token);
+                await _approvals.CompleteDeferredAsync(id, documentId, documentNumber, token);
+                await _audit.LogAsync("APPROVAL_EXECUTED", deferred.DocumentType, documentId.ToString(),
+                    $"تنفيذ عملية «{deferred.Action}» المعتمدة على {documentNumber ?? result.DocumentNumber}", token);
+                return await _approvals.GetAsync(id, token);
+            }, ct);
+
         var request = await _approvals.GetAsync(id, ct);
         if (request.DocumentType == InventoryCountService.DocumentType)
         {

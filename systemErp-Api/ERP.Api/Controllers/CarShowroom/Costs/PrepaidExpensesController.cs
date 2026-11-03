@@ -22,13 +22,21 @@ public class PrepaidExpensesController : ErpControllerBase
     [RequireScreen("car-showroom", ScreenAction.Approve)]
     public async Task<IActionResult> Create([FromBody] CreatePrepaidExpenseDto dto, CancellationToken ct)
     {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
         var created = await _service.CreateAsync(dto, ct);
         return Created($"{Request.Path}/{created.Id}", ApiResponse<PrepaidExpenseDto>.Ok(created, Messages.CreatedSuccessfully).WithStatus(201));
     }
 
     [HttpPost("{id:guid}/cancel")]
     [RequireScreen("car-showroom", ScreenAction.Cancel, Legacy = ScreenAction.Approve)]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _service.CancelAsync(id, ct), Messages.UpdatedSuccessfully);
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Cancel, id, null, ct) is { } held) return held;
+        return Success(await _service.CancelAsync(id, ct), Messages.UpdatedSuccessfully);
+    }
+
+    // المصروفات المدفوعة مقدماً تخضع لسياسات الاعتماد: التسجيل والإلغاء يُحجزان حتى الاعتماد
+    private const string Approval = "prepaid-expenses";
 
     /// <summary>ترحيل إطفاء الشهر (period بصيغة yyyy-MM، فارغ = الشهر الحالي). آمن للتكرار: الشهر لا يُطفأ مرتين.</summary>
     [HttpPost("amortize")]

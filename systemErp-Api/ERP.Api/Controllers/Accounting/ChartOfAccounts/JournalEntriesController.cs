@@ -16,17 +16,35 @@ public class JournalEntriesController : ErpControllerBase
     [HttpGet("load")] public async Task<IActionResult> Load(DataSourceLoadOptions loadOptions, CancellationToken ct) => Ok(await _journal.LoadAsync(loadOptions, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _journal.GetAsync(id, ct));
 
+    // القيود اليدوية تخضع لسياسات الاعتماد: العملية المنطبقة تُحجز ولا تمس الدفاتر إلا عند اعتمادها
+    private const string Approval = "journal-entries";
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateJournalEntryDto dto, CancellationToken ct)
-        => Success(await _journal.CreateManualAsync(dto, ct), Messages.JournalEntryPosted);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
+        return Success(await _journal.CreateManualAsync(dto, ct), Messages.JournalEntryPosted);
+    }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateJournalEntryDto dto, CancellationToken ct)
-        => Success(await _journal.UpdateManualAsync(id, dto, ct), Messages.JournalEntryUpdated);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
+        return Success(await _journal.UpdateManualAsync(id, dto, ct), Messages.JournalEntryUpdated);
+    }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _journal.DeleteManualAsync(id, ct); return Success(Messages.JournalEntryDeleted); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Delete, id, null, ct) is { } held) return held;
+        await _journal.DeleteManualAsync(id, ct);
+        return Success(Messages.JournalEntryDeleted);
+    }
 
     [HttpPost("{id:guid}/reverse"), RequireScreen("accounts", ScreenAction.Cancel, Legacy = ScreenAction.Create)]
-    public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _journal.ReverseAsync(id, ct), Messages.JournalEntryReversed);
+    public async Task<IActionResult> Reverse(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Reverse, id, null, ct) is { } held) return held;
+        return Success(await _journal.ReverseAsync(id, ct), Messages.JournalEntryReversed);
+    }
 }

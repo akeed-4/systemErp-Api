@@ -75,7 +75,7 @@ CORS بقائمة أصول صريحة · أخطاء موحّدة بلا stack tr
 
 ## قاعدة البيانات
 
-SQL Server + EF Core 9. الـ migrations في `ERP.Service/Data/Migrations`. **لا ترحيل تلقائي** إلا بـ `Database:AutoMigrate=true` (مفعّل في Development فقط).
+SQL Server + EF Core 9. الـ migrations في `ERP.Service/Data/Migrations`. الترحيل التلقائي عند تشغيل الـ API يتحكم به `Database:AutoMigrate` (مفعّل في الإنتاج وDevelopment؛ يطبّق المهاجرات المعلّقة على القاعدة المشتركة عند الإقلاع).
 
 ```bash
 dotnet ef migrations add <Name> --project ERP.Service --output-dir Data/Migrations

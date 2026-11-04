@@ -19,5 +19,9 @@ public class StockTransfersController : ErpControllerBase
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateStockTransferDto request, CancellationToken ct)
-        => Success(await _transfers.CreateAsync(request, ct), Messages.StockTransferRecorded);
+    {
+        // سياسة اعتماد منطبقة: يُحجز التحويل ولا تتحرك الكميات إلا عند اعتماده
+        if (await HoldForApprovalAsync("stock-transfers", ApprovalDocumentCatalog.Create, null, request, ct) is { } held) return held;
+        return Success(await _transfers.CreateAsync(request, ct), Messages.StockTransferRecorded);
+    }
 }

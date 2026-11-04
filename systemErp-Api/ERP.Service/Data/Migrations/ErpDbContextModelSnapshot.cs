@@ -8370,7 +8370,7 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DocumentType")
+                    b.Property<string>("DocumentTypes")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -8481,6 +8481,15 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("DocumentType")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Handler")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeferred")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Payload")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("PolicyId")

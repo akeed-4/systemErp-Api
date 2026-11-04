@@ -57,6 +57,7 @@ public class CarSalesContractsController : ErpControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateCarSalesContractDto dto, CancellationToken ct)
     {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
         var created = await _service.CreateAsync(dto, ct);
         return Created($"{Request.Path}/{created.Id}", ApiResponse<CarSalesContractDto>.Ok(created, Messages.ContractCreated).WithStatus(201));
     }
@@ -66,13 +67,17 @@ public class CarSalesContractsController : ErpControllerBase
     public async Task<IActionResult> QuickSale([FromBody] QuickSaleRequestDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Approve, ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Quick, null, dto, ct) is { } held) return held;
         var done = await _service.QuickSaleAsync(dto, ct);
         return Created($"{Request.Path}/{done.Id}", ApiResponse<CarSalesContractDto>.Ok(done, Messages.ContractApprovedAndInvoiced).WithStatus(201));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCarSalesContractDto dto, CancellationToken ct)
-        => Success(await _service.UpdateAsync(id, dto, ct), Messages.Updated);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
+        return Success(await _service.UpdateAsync(id, dto, ct), Messages.Updated);
+    }
 
     [HttpPost("{id:guid}/AdvanceStatus")]
     public async Task<IActionResult> Advance(Guid id, [FromBody] AdvanceSalesContractRequestDto dto, CancellationToken ct)
@@ -87,6 +92,7 @@ public class CarSalesContractsController : ErpControllerBase
     public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteSalesContractRequestDto? dto, CancellationToken ct)
     {
         await _permissions.AuthorizeRecordAsync("car-showroom", ScreenAction.Approve, "car-sales-contract", id, ct: ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Complete, id, dto, ct) is { } held) return held;
         return Success(await _service.CompleteAsync(id, dto, ct), Messages.ContractCompletedAndInvoiced);
     }
 
@@ -94,6 +100,7 @@ public class CarSalesContractsController : ErpControllerBase
     public async Task<IActionResult> Cancel(Guid id, [FromBody] RejectProcurementRequestDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Cancel, ct, ScreenAction.Approve);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Cancel, id, dto, ct) is { } held) return held;
         return Success(await _service.CancelAsync(id, dto.Reason, ct), Messages.ContractCancelled);
     }
 
@@ -102,11 +109,20 @@ public class CarSalesContractsController : ErpControllerBase
     public async Task<IActionResult> Return(Guid id, [FromBody] ReturnCarSaleDto dto, CancellationToken ct)
     {
         await Require(ScreenAction.Approve, ct);
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Return, id, dto, ct) is { } held) return held;
         return Success(await _service.ReturnAsync(id, dto, ct), Messages.SaleReturned);
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await _service.DeleteAsync(id, ct); return Success(Messages.Deleted); }
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Delete, id, null, ct) is { } held) return held;
+        await _service.DeleteAsync(id, ct);
+        return Success(Messages.Deleted);
+    }
+
+    // عقود بيع السيارات تخضع لسياسات الاعتماد: العملية المنطبقة تُحجز وتُنفَّذ عند اعتمادها
+    private const string Approval = "car-sales-contracts";
 
     private async Task Require(ScreenAction action, CancellationToken ct, ScreenAction? legacy = null)
     {

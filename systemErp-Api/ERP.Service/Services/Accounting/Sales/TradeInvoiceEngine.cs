@@ -163,10 +163,30 @@ public class TradeInvoiceEngine
         {
             DocumentType = documentType, ActionType = "create", DocumentId = invoice.Id,
             DocumentNumber = invoice.InvoiceNumber, DocumentAmount = invoice.GrandTotal,
-            DocumentDataSnapshot = System.Text.Json.JsonSerializer.Serialize(ToDto(invoice, invoice.GrandTotal)),
+            DocumentDataSnapshot = ApprovalSnapshot(ToDto(invoice, invoice.GrandTotal)),
         }, ct);
         return check.ApprovalRequired;
     }
+
+    /// <summary>حالة آخر طلب اعتماد على المستند؛ null إن لم يُطلب له اعتماد.</summary>
+    private Task<string?> LatestApprovalAsync(Guid id, CancellationToken ct)
+        => _db.Set<ApprovalRequest>().Where(r => r.DocumentId == id).OrderByDescending(r => r.CreatedAt)
+            .Select(r => (string?)r.Status).FirstOrDefaultAsync(ct);
+
+    private static readonly System.Text.Json.JsonSerializerOptions SnapshotJson = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.SnakeCaseLower) },
+    };
+
+    /// <summary>ما يراه المعتمِد من المستند: الرأس والبنود والإجماليات فقط (بلا بيانات الهيئة والحسابات).</summary>
+    private static string ApprovalSnapshot(InvoiceDto d) => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        d.Kind, d.InvoiceNumber, d.IssueDate, d.PartyName, d.PartyVatNumber, d.WarehouseName, d.PaymentMethod,
+        d.CurrencyCode, d.ReferenceNumber, d.OriginalInvoiceNumber, d.ReturnReason, d.Notes,
+        Items = d.Items.Select(l => new { l.ItemName, l.Unit, l.Quantity, l.UnitPrice, l.Discount, l.VatAmount, l.TotalAfterVat }),
+        d.Subtotal, d.DiscountTotal, d.VatTotal, d.GrandTotal,
+    }, SnapshotJson);
 
     public async Task<InvoiceDto> UpdateAsync<T>(Guid id, UpdateInvoiceDto r, CancellationToken ct) where T : InvoiceBase, new()
         => await SendToZatcaIfRequestedAsync<T>(await _tx.RunAsync(async token =>
@@ -228,7 +248,11 @@ public class TradeInvoiceEngine
             await _db.SaveChangesAsync(token);
 
             // المرحّلة تعود مرحّلة دائماً (بنفس رقمها) بقيد وحركات مخزنية جديدة
-            if (wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase)) await FinalizeAsync(invoice, token);
+            var posting = wasPosted || !string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
+            // مسودة لم تُعتمد (ومنها المرفوضة بعد تصحيحها): حفظها للترحيل يرسلها للاعتماد إن انطبقت سياسة
+            if (posting && !wasPosted && !IsShowroom<T>() && await LatestApprovalAsync(id, token) != "approved" && await RequiresApprovalAsync(invoice, token))
+                posting = false;
+            if (posting) await FinalizeAsync(invoice, token);
             await LogTaxOverridesAsync(invoice, token);
             if (wasPosted)
                 await _audit.LogAsync(wasRejected ? "INVOICE_ZATCA_REJECTED_EDITED" : "INVOICE_POSTED_EDITED", typeof(T).Name, invoice.Id.ToString(),
@@ -325,10 +349,11 @@ public class TradeInvoiceEngine
             var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
             if (claimed != 1 || invoice.Status != "draft") throw new ConflictException(Messages.InvoiceAlreadyPostedOrCancelled);
             // سير الموافقات: المسودة المعلّقة أو المرفوضة لا تُرحَّل (آخر طلب على المستند هو المرجع)
-            var approval = await _db.Set<ApprovalRequest>().Where(r => r.DocumentId == id)
-                .OrderByDescending(r => r.CreatedAt).Select(r => r.Status).FirstOrDefaultAsync(token);
+            var approval = await LatestApprovalAsync(id, token);
             if (approval == "pending") throw new ConflictException(Messages.InvoicePendingApproval);
             if (approval == "rejected") throw new ConflictException(Messages.InvoiceApprovalRejected);
+            // لم تُعتمد بعد (محوّلة من عرض سعر/أمر بيع أو محفوظة مسودة): سياسة منطبقة ترسلها للاعتماد بدل ترحيلها
+            if (approval != "approved" && !IsShowroom<T>() && await RequiresApprovalAsync(invoice, token)) return await GetAsync<T>(id, token);
             await FinalizeAsync(invoice, token);
             return await GetAsync<T>(id, token);
         }, ct), ct);

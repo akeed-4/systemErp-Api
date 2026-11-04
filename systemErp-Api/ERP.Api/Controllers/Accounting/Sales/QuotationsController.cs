@@ -12,6 +12,7 @@ public class QuotationsController : CrudController<QuotationDto, CreateQuotation
 {
     private readonly IQuotationService _quotations;
     public QuotationsController(IQuotationService s) : base(s) => _quotations = s;
+    protected override string? ApprovalHandler => "quotations";
 
     [HttpPost("{id:guid}/ConvertToInvoice")]
     public async Task<IActionResult> ToInvoice(Guid id, CancellationToken ct) => Success(await _quotations.ConvertToInvoiceAsync(id, ct), Messages.DraftInvoiceCreated);

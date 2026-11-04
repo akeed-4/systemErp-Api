@@ -11,7 +11,12 @@ public class ApprovalRequest : BaseEntity
     public string ActionType { get; set; } = string.Empty;
     public decimal DocumentAmount { get; set; }
     public string? DocumentDataSnapshot { get; set; }
-    
+
+    /// <summary>عملية محجوزة (IApprovalGate): معالجها وبياناتها، وتُنفَّذ بها عند الاعتماد النهائي. لا تُعرض للواجهة.</summary>
+    public bool IsDeferred { get; set; }
+    public string? Handler { get; set; }
+    public string? Payload { get; set; }
+
     public Guid RequesterUserId { get; set; }
     public string RequesterName { get; set; } = string.Empty;
     

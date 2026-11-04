@@ -8,13 +8,41 @@ public class ApprovalPolicyService : CrudService<ApprovalPolicy, ApprovalPolicyD
     protected override string Label => Messages.LabelApprovalPolicy;
 
     protected override IQueryable<ApprovalPolicy> ApplySearch(IQueryable<ApprovalPolicy> q, string t)
-        => q.Where(p => p.NameAr.Contains(t) || p.NameEn.Contains(t) || p.DocumentType.Contains(t));
+        => q.Where(p => p.NameAr.Contains(t) || p.NameEn.Contains(t) || p.DocumentTypes.Contains(t));
+
+    // المستندات تُخزَّن مفصولة بفاصلة وتُعرض قائمة
+    protected override ApprovalPolicyDto ToDto(ApprovalPolicy entity)
+    {
+        var dto = base.ToDto(entity);
+        dto.DocumentTypes = ApprovalDocumentCatalog.Split(entity.DocumentTypes);
+        return dto;
+    }
+
+    protected override Task OnCreatingAsync(ApprovalPolicy entity, CreateApprovalPolicyDto dto, CancellationToken ct)
+    {
+        entity.DocumentTypes = ApprovalDocumentCatalog.Join(dto.DocumentTypes);
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnUpdatingAsync(ApprovalPolicy entity, UpdateApprovalPolicyDto dto, CancellationToken ct)
+    {
+        entity.DocumentTypes = ApprovalDocumentCatalog.Join(dto.DocumentTypes);
+        return Task.CompletedTask;
+    }
 
     protected override async Task ValidateAsync(CreateApprovalPolicyDto d, ApprovalPolicy? existing, CancellationToken ct)
     {
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.PolicyArabicNameRequired);
-        if (string.IsNullOrWhiteSpace(d.DocumentType) || string.IsNullOrWhiteSpace(d.ActionType)) errors.Add(Messages.DocumentTypeAndActionRequired);
+        d.DocumentTypes = d.DocumentTypes.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()).Distinct().ToList();
+        if (d.DocumentTypes.Count == 0 || string.IsNullOrWhiteSpace(d.ActionType)) errors.Add(Messages.DocumentTypeAndActionRequired);
+        // كل مستند مختار يجب أن يكون في الفهرس، وأن يفرض السرفر اعتماد هذه العملية عليه (لا سياسة شكلية بلا أثر)
+        foreach (var type in d.DocumentTypes)
+        {
+            var doc = ApprovalDocumentCatalog.Find(type);
+            if (doc == null) errors.Add(string.Format(Messages.ApprovalDocumentUnknown, type));
+            else if (!doc.Actions.Contains(d.ActionType)) errors.Add(string.Format(Messages.ApprovalActionNotSupported, doc.NameAr));
+        }
         if (d.MinAmountTrigger < 0) errors.Add(Messages.AmountThresholdCannotBeNegative);
         if (d.Steps.Count == 0) errors.Add(Messages.PolicyNeedsOneLevel);
         var levels = d.Steps.Select(s => s.Level).OrderBy(l => l).ToList();

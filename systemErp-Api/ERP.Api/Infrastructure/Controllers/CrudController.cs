@@ -30,9 +30,13 @@ public abstract class CrudController<TDto, TCreate, TUpdate> : ErpControllerBase
     public virtual async Task<IActionResult> Get(Guid id, CancellationToken ct)
         => Success(await _service.GetAsync(id, ct));
 
+    /// <summary>معالج المستند في سجل الاعتماد (ApprovalRegistry)؛ إن ضُبط تخضع عمليات الإنشاء والتعديل والحذف لسياسات الاعتماد.</summary>
+    protected virtual string? ApprovalHandler => null;
+
     [HttpPost]
     public virtual async Task<IActionResult> Create([FromBody] TCreate dto, CancellationToken ct)
     {
+        if (ApprovalHandler != null && await HoldForApprovalAsync(ApprovalHandler, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
         var created = await _service.CreateAsync(dto, ct);
         var id = created?.GetType().GetProperty("Id")?.GetValue(created);
         return Created($"{Request.Path}/{id}", ApiResponse<TDto>.Ok(created!, Messages.CreatedSuccessfully) .WithStatus(201));
@@ -40,11 +44,15 @@ public abstract class CrudController<TDto, TCreate, TUpdate> : ErpControllerBase
 
     [HttpPut("{id:guid}")]
     public virtual async Task<IActionResult> Update(Guid id, [FromBody] TUpdate dto, CancellationToken ct)
-        => Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+    {
+        if (ApprovalHandler != null && await HoldForApprovalAsync(ApprovalHandler, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
+        return Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+    }
 
     [HttpDelete("{id:guid}")]
     public virtual async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
+        if (ApprovalHandler != null && await HoldForApprovalAsync(ApprovalHandler, ApprovalDocumentCatalog.Delete, id, null, ct) is { } held) return held;
         await _service.DeleteAsync(id, ct);
         return Success(Messages.DeletedSuccessfully);
     }

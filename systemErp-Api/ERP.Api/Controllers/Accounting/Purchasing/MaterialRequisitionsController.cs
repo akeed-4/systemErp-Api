@@ -18,6 +18,8 @@ public class MaterialRequisitionsController : CrudController<MaterialRequisition
         _requisitions = s; _permissions = permissions;
     }
 
+    protected override string? ApprovalHandler => "material-requisitions";
+
     /// <summary>الاعتماد يفحص حد اعتماد المستخدم مقابل التكلفة التقديرية للطلب.</summary>
     [HttpPost("{id:guid}/approve"), RequireScreen("purchases", ScreenAction.Approve)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)

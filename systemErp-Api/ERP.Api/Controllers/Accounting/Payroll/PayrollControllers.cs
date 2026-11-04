@@ -116,7 +116,12 @@ public class PayrollController : ErpControllerBase
         => Success(await _payroll.SaveDraftAsync(request, ct), Messages.PayrollDraftSaved);
 
     [HttpPost("{id:guid}/approve"), RequireScreen("hr", ScreenAction.Approve)]
-    public async Task<IActionResult> Approve(Guid id, CancellationToken ct) => Success(await _payroll.ApproveAsync(id, ct), Messages.PayrollPosted);
+    public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
+    {
+        // سياسة اعتماد منطبقة: يبقى المسير مسودة ويُرحَّل عند اعتمادها
+        if (await HoldForApprovalAsync("payroll", ApprovalDocumentCatalog.Approve, id, null, ct) is { } held) return held;
+        return Success(await _payroll.ApproveAsync(id, ct), Messages.PayrollPosted);
+    }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteDraft(Guid id, CancellationToken ct)
@@ -131,7 +136,10 @@ public class PayrollController : ErpControllerBase
 
     [HttpPost("post"), RequireScreen("hr", ScreenAction.Post, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Post([FromBody] PayrollRunRequestDto request, CancellationToken ct)
-        => Success(await _payroll.PostAsync(request, ct), Messages.PayrollPosted);
+    {
+        if (await HoldForApprovalAsync("payroll", ApprovalDocumentCatalog.Post, null, request, ct) is { } held) return held;
+        return Success(await _payroll.PostAsync(request, ct), Messages.PayrollPosted);
+    }
 
     [HttpPost("{id:guid}/reverse"), RequireScreen("hr", ScreenAction.Cancel, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) => Success(await _payroll.ReverseAsync(id, ct), Messages.PayrollReversed);

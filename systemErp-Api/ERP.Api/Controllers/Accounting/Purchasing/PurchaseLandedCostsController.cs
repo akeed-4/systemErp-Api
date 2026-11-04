@@ -31,26 +31,42 @@ public class PurchaseLandedCostsController : ErpControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SavePurchaseLandedCostDto dto, CancellationToken ct)
     {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Create, null, dto, ct) is { } held) return held;
         var created = await _service.CreateAsync(dto, ct);
         return Created($"{Request.Path}/{created.Id}", ApiResponse<PurchaseLandedCostDto>.Ok(created, Messages.CreatedSuccessfully).WithStatus(201));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SavePurchaseLandedCostDto dto, CancellationToken ct)
-        => Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Edit, id, dto, ct) is { } held) return held;
+        return Success(await _service.UpdateAsync(id, dto, ct), Messages.UpdatedSuccessfully);
+    }
 
     [HttpPost("{id:guid}/approve"), RequireScreen("purchase-landed-costs", ScreenAction.Approve)]
-    public async Task<IActionResult> Approve(Guid id, CancellationToken ct) => Success(await _service.ApproveAsync(id, ct), Messages.PurchaseLandedCostApproved);
+    public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Approve, id, null, ct) is { } held) return held;
+        return Success(await _service.ApproveAsync(id, ct), Messages.PurchaseLandedCostApproved);
+    }
 
     [HttpPost("{id:guid}/cancel"), RequireScreen("purchase-landed-costs", ScreenAction.Cancel)]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _service.CancelAsync(id, ct), Messages.PurchaseLandedCostCancelled);
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
+    {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Cancel, id, null, ct) is { } held) return held;
+        return Success(await _service.CancelAsync(id, ct), Messages.PurchaseLandedCostCancelled);
+    }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Delete, id, null, ct) is { } held) return held;
         await _service.DeleteAsync(id, ct);
         return Success(Messages.DeletedSuccessfully);
     }
+
+    // تكاليف الشراء الإضافية تخضع لسياسات الاعتماد: العملية المنطبقة تُحجز وتُنفَّذ عند اعتمادها
+    private const string Approval = "purchase-landed-costs";
 }
 
 /// <summary>أنواع التكاليف الإضافية للمشتريات: تُعرض لمن يرى الشاشة، وتُدار بصلاحية التعديل.</summary>

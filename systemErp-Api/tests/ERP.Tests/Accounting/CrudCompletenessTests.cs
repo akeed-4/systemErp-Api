@@ -161,7 +161,7 @@ public class CrudCompletenessTests : TestBase
     public async Task Pending_approval_request_can_be_withdrawn_by_its_requester()
     {
         var api = await NewTenantAsync();
-        var policy = await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبالغ الكبيرة", documentType = "sales", actionType = "create", minAmountTrigger = 1000, isActive = true,
+        var policy = await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبالغ الكبيرة", documentTypes = new[] { "sales" }, actionType = "create", minAmountTrigger = 1000, isActive = true,
             steps = new[] { new { level = 1, approverRole = "general_manager", titleAr = "المدير العام" } } });
         Assert.Equal(201, policy.Status);
         var check = await api.Post("/approvals/check", new { documentType = "sales", actionType = "create", documentId = Guid.NewGuid(), documentNumber = "S-1", documentAmount = 5000 });
@@ -178,7 +178,7 @@ public class CrudCompletenessTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
-        await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentType = "sales", actionType = "create", minAmountTrigger = 1, isActive = true,
+        await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentTypes = new[] { "sales" }, actionType = "create", minAmountTrigger = 1, isActive = true,
             steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } });
         var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
             items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
@@ -187,8 +187,88 @@ public class CrudCompletenessTests : TestBase
         Assert.True(check.Data!["approvalRequired"]!.GetValue<bool>());
 
         Assert.Equal(409, (await api.Post(await api.InvoicePath(id, "/post"))).Status);
+        // الاعتماد النهائي يرحّل المسودة مباشرة
         Assert.Equal(200, (await api.Post($"/approvals/{check.Data["request"]!["id"].S()}/approve", new { comment = "ok" })).Status);
-        Assert.Equal("posted", (await api.Post(await api.InvoicePath(id, "/post"))).Data!["status"].S());
+        Assert.Equal("posted", (await api.Get(await api.InvoicePath(id))).Data!["status"].S());
+    }
+
+    [Fact]
+    public async Task Approval_policy_cannot_be_bypassed_by_saving_draft_or_omitting_the_flag()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentTypes = new[] { "sales" }, actionType = "create", minAmountTrigger = 1, isActive = true,
+            steps = new[] { new { level = 1, approverRole = "general_manager", titleAr = "المدير العام" } } });
+
+        // إنشاء مرحّل بلا علامة الاعتماد: يبقى مسودة بطلب اعتماد
+        var direct = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "posted", applyApprovalPolicy = false,
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        Assert.Equal("draft", direct.Data!["status"].S());
+
+        // مسودة ثم ترحيل: يُرسل للاعتماد بدل الترحيل، والترحيل الثاني يُرفض لأنها معلّقة
+        var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        var path = await api.InvoicePath(draft.Data!["id"].S(), "/post");
+        Assert.Equal("draft", (await api.Post(path)).Data!["status"].S());
+        Assert.Equal(409, (await api.Post(path)).Status);
+    }
+
+    [Fact]
+    public async Task Rejected_approval_keeps_invoice_as_unpostable_draft()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentTypes = new[] { "sales" }, actionType = "create", minAmountTrigger = 1, isActive = true,
+            steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } });
+        var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        var id = draft.Data!["id"].S();
+        var check = await api.Post("/approvals/check", new { documentType = "sales", actionType = "create", documentId = id, documentNumber = draft.Data["invoiceNumber"].S(), documentAmount = 115 });
+        var requestId = check.Data!["request"]!["id"].S();
+
+        Assert.NotEqual(200, (await api.Post($"/approvals/{requestId}/reject", new { comment = "" })).Status); // السبب إلزامي
+        var rejected = await api.Post($"/approvals/{requestId}/reject", new { comment = "السعر غير صحيح" });
+        Assert.Equal(200, rejected.Status); Assert.Equal("rejected", rejected.Data!["status"].S());
+        Assert.Equal("draft", (await api.Get(await api.InvoicePath(id))).Data!["status"].S());
+        Assert.Equal(409, (await api.Post(await api.InvoicePath(id, "/post"))).Status);
+    }
+
+    [Fact]
+    public async Task Held_operation_has_no_effect_until_final_approval_then_runs_once()
+    {
+        var api = await NewTenantAsync();
+        // سياسة واحدة تغطي أكثر من مستند
+        Assert.Equal(201, (await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد القيود والسندات", documentTypes = new[] { "journal_entry", "receipt_voucher" },
+            actionType = "create", minAmountTrigger = 1000, isActive = true, steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } })).Status);
+        // مستند أو عملية خارج الفهرس تُرفض (لا سياسة شكلية بلا أثر)
+        Assert.Equal(400, (await api.Post("/ApprovalPolicies", new { nameAr = "x", documentTypes = new[] { "journal_entry" }, actionType = "approve", isActive = true,
+            steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } })).Status);
+
+        var date = DateTime.UtcNow.Date; // بيانات متطابقة حرفياً = العملية نفسها
+        object Entry(decimal amount) => new { date, description = "رأس المال",
+            lines = new[] { new { accountCode = "1111", debit = amount, credit = 0m }, new { accountCode = "31", debit = 0m, credit = amount } } };
+
+        // دون الحد: تُنفَّذ مباشرة
+        Assert.Equal(200, (await api.Post("/journalentries", Entry(500))).Status);
+
+        // فوق الحد: تُحجز بطلب اعتماد ولا يُنشأ القيد
+        var before = (await api.Get("/journalentries")).Data!["totalCount"].D();
+        var held = await api.Post("/journalentries", Entry(5000));
+        Assert.Equal(202, held.Status);
+        Assert.True(held.Data!["isDeferred"]!.GetValue<bool>());
+        Assert.Equal(5000, held.Data["documentAmount"].D());
+        Assert.Equal(before, (await api.Get("/journalentries")).Data!["totalCount"].D());
+
+        // إعادة الإرسال نفسها لا تنشئ طلباً ثانياً
+        Assert.Equal(held.Data["id"].S(), (await api.Post("/journalentries", Entry(5000))).Data!["id"].S());
+
+        // الاعتماد النهائي ينفّذها مرة واحدة ويربط الطلب بالقيد الناتج
+        var approved = await api.Post($"/approvals/{held.Data["id"].S()}/approve", new { comment = "ok" });
+        Assert.Equal(200, approved.Status);
+        Assert.Equal("approved", approved.Data!["status"].S());
+        Assert.NotEqual(Guid.Empty.ToString(), approved.Data["documentId"].S());
+        Assert.Equal(before + 1, (await api.Get("/journalentries")).Data!["totalCount"].D());
+        Assert.Equal(200, (await api.Get($"/journalentries/{approved.Data["documentId"].S()}")).Status);
     }
 
     [Fact]

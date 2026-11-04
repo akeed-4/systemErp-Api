@@ -57,6 +57,13 @@ Angular → Controller (ERP.Api) → Contract (ERP.Core) → Service (ERP.Servic
 - المحرك المشترك: `ERP.Service/Services/Accounting/Sales/TradeInvoiceEngine.cs`؛ يستقبل نوع الجدول المناسب، ويتعامل مع التحقق والتسعير والترحيل والمرتجعات.
 - الأرقام النهائية والضريبة وآثار المخزون والقيد تحسب في الخادم. لا تعتمد على أرقام الواجهة كمرجع موثوق.
 
+## سياسات الاعتماد (الموافقات)
+
+- فهرس المستندات والعمليات القابلة للاعتماد: `ERP.Core/Models/Shared/Workflow/ApprovalDocumentCatalog.cs` (يعرضه `GET api/v1/approvals/document-types`). السياسة الواحدة تغطي عدة مستندات (`DocumentTypes`)، ويرفض التحقق أي مستند/عملية خارج الفهرس.
+- الفواتير والمرتجعات تبقى مسودة حتى اعتمادها (`TradeInvoiceEngine`)، والجرد يمر بمسار اعتماده.
+- بقية المستندات تُحجز عمليتها: المتحكم يستدعي `HoldForApprovalAsync(handler, action, id, payload)` بعد فحص الصلاحية (أو `ApprovalHandler` في `CrudController`)؛ فتُجرَّب داخل معاملة تُلغى للتحقق وبناء ملخص المعتمِد، وتُحفظ بطلب اعتماد (202) ولا تُنفَّذ إلا عند الاعتماد النهائي في `ApprovalDecisionService` عبر `IApprovalGate.ExecuteAsync`.
+- لإضافة مستند جديد: أضفه للفهرس، وسجّل معالجه في `ERP.Service/Services/Shared/Workflow/ApprovalRegistry.cs` (خدمته وعملياته)، واستدعِ البوابة في إجراءات متحكمه. العمليات التي تُرسل للهيئة بعد معاملتها تُسجَّل بـ `dryRun: false`.
+
 ## تتبع تغيير منظم
 
 1. حدد endpoint من خدمة الواجهة أو `docs/API_ENDPOINTS.md`.

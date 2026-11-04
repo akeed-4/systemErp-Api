@@ -1442,4 +1442,9 @@
   <data name="OperationSentForApproval" xml:space="preserve"><value>Saved and sent for approval ("{0}"); it will run and appear in the list once approved.</value></data>
   <data name="ApprovalPendingOnDocument" xml:space="preserve"><value>This document has a pending approval request; wait for the decision or withdraw the request first.</value></data>
   <data name="ApprovalHandlerMissing" xml:space="preserve"><value>The approved operation could not run: its type is unknown.</value></data>
+  <data name="AnnouncementNotFound" xml:space="preserve"><value>Announcement not found.</value></data>
+  <data name="AnnouncementTitleRequired" xml:space="preserve"><value>The Arabic title and text of the announcement are required.</value></data>
+  <data name="AnnouncementOptionInvalid" xml:space="preserve"><value>Invalid announcement options (style, display, audience, frequency or icon).</value></data>
+  <data name="AnnouncementLinkInvalid" xml:space="preserve"><value>The announcement button link must be an internal path starting with / or an https link, with a button label.</value></data>
+  <data name="AnnouncementTenantUnknown" xml:space="preserve"><value>One of the companies selected for the announcement does not exist.</value></data>
 </root>

@@ -1442,4 +1442,9 @@
   <data name="OperationSentForApproval" xml:space="preserve"><value>تم الحفظ وإرسال العملية للاعتماد («{0}»)؛ تُنفَّذ وتظهر في القائمة بعد الموافقة.</value></data>
   <data name="ApprovalPendingOnDocument" xml:space="preserve"><value>على هذا المستند طلب اعتماد معلّق؛ انتظر قرار المعتمِد أو اسحب الطلب أولاً.</value></data>
   <data name="ApprovalHandlerMissing" xml:space="preserve"><value>تعذّر تنفيذ العملية المعتمدة: نوعها غير معروف.</value></data>
+  <data name="AnnouncementNotFound" xml:space="preserve"><value>الإعلان غير موجود.</value></data>
+  <data name="AnnouncementTitleRequired" xml:space="preserve"><value>عنوان الإعلان ونصه بالعربية مطلوبان.</value></data>
+  <data name="AnnouncementOptionInvalid" xml:space="preserve"><value>خيارات الإعلان (النمط أو طريقة العرض أو الجمهور أو التكرار أو الأيقونة) غير صحيحة.</value></data>
+  <data name="AnnouncementLinkInvalid" xml:space="preserve"><value>رابط زر الإعلان يجب أن يكون مساراً داخلياً يبدأ بـ / أو رابط https، مع نص للزر.</value></data>
+  <data name="AnnouncementTenantUnknown" xml:space="preserve"><value>إحدى المنشآت المختارة للإعلان غير موجودة.</value></data>
 </root>

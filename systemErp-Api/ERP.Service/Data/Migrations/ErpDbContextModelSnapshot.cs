@@ -10007,6 +10007,131 @@ namespace ERP.Service.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.PlatformAnnouncement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Audience")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("BadgeAr")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("BadgeEn")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("BodyAr")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("BodyEn")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CtaLabelAr")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("CtaLabelEn")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("CtaUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Display")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PlanIds")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("StartsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Style")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TenantIds")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TitleEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive", "StartsAt", "EndsAt");
+
+                    b.ToTable("PlatformAnnouncement");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("8f4b1c2e-6a3d-4e57-9b21-3c5d7e9f0a14"),
+                            Audience = "trial",
+                            BadgeAr = "اكتشف نمو",
+                            BadgeEn = "DISCOVER NUMO",
+                            BodyAr = "جرّب إدارة حساباتك وفواتيرك وتقاريرك في مكان واحد، واكتشف كيف يساعدك نمو على تنظيم أعمال منشأتك.",
+                            BodyEn = "Manage your accounts, invoices, and reports in one place. Discover how Numo can help organize your business.",
+                            CreatedAt = new DateTime(2026, 11, 4, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CtaLabelAr = "اكتشف الباقات",
+                            CtaLabelEn = "Explore plans",
+                            CtaUrl = "/subscription",
+                            Display = "popup",
+                            Frequency = "every_login",
+                            Icon = "campaign",
+                            IsActive = true,
+                            Priority = 0,
+                            Style = "promo",
+                            TitleAr = "استفد من الفترة المجانية لتجربة نمو",
+                            TitleEn = "Try Numo during your free trial"
+                        });
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.PlatformModuleDefinition", b =>
                 {
                     b.Property<string>("Key")

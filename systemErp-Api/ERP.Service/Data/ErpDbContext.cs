@@ -257,6 +257,43 @@ public class ErpDbContext : DbContext
             e.HasIndex(r => new { r.TenantId, r.PromoCodeId });
         });
 
+        // إعلانات المنصة للعملاء (على مستوى المنصة، بلا مرشّح منشأة): يديرها مدير المنصة على القاعدة المشتركة.
+        modelBuilder.Entity<PlatformAnnouncement>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.TitleAr).HasMaxLength(200).IsRequired();
+            e.Property(a => a.TitleEn).HasMaxLength(200);
+            e.Property(a => a.BodyAr).HasMaxLength(2000).IsRequired();
+            e.Property(a => a.BodyEn).HasMaxLength(2000);
+            e.Property(a => a.BadgeAr).HasMaxLength(60);
+            e.Property(a => a.BadgeEn).HasMaxLength(60);
+            e.Property(a => a.CtaLabelAr).HasMaxLength(60);
+            e.Property(a => a.CtaLabelEn).HasMaxLength(60);
+            e.Property(a => a.CtaUrl).HasMaxLength(500);
+            e.Property(a => a.Icon).HasMaxLength(40).IsRequired();
+            e.Property(a => a.Style).HasMaxLength(16).IsRequired();
+            e.Property(a => a.Display).HasMaxLength(16).IsRequired();
+            e.Property(a => a.Audience).HasMaxLength(16).IsRequired();
+            e.Property(a => a.Frequency).HasMaxLength(16).IsRequired();
+            e.Property(a => a.PlanIds).HasMaxLength(1000);
+            e.Property(a => a.TenantIds).HasMaxLength(4000);
+            e.HasIndex(a => new { a.IsActive, a.StartsAt, a.EndsAt });
+            // الإعلان الترويجي للفترة التجريبية كان ثابتاً في الواجهة؛ صار سجلاً يعدّله مدير المنصة أو يعطّله
+            e.HasData(new PlatformAnnouncement
+            {
+                Id = new Guid("8f4b1c2e-6a3d-4e57-9b21-3c5d7e9f0a14"),
+                TitleAr = "استفد من الفترة المجانية لتجربة نمو",
+                TitleEn = "Try Numo during your free trial",
+                BodyAr = "جرّب إدارة حساباتك وفواتيرك وتقاريرك في مكان واحد، واكتشف كيف يساعدك نمو على تنظيم أعمال منشأتك.",
+                BodyEn = "Manage your accounts, invoices, and reports in one place. Discover how Numo can help organize your business.",
+                BadgeAr = "اكتشف نمو", BadgeEn = "DISCOVER NUMO",
+                CtaLabelAr = "اكتشف الباقات", CtaLabelEn = "Explore plans", CtaUrl = "/subscription",
+                Icon = "campaign", Style = AnnouncementStyles.Promo, Display = AnnouncementDisplays.Popup,
+                Audience = AnnouncementAudiences.Trial, Frequency = AnnouncementFrequencies.EveryLogin,
+                IsActive = true, CreatedAt = new DateTime(2026, 11, 4, 0, 0, 0, DateTimeKind.Utc),
+            });
+        });
+
         modelBuilder.Entity<PlatformModuleDefinition>(e =>
         {
             e.HasKey(m => m.Key);

@@ -11,14 +11,16 @@ public class PlatformController : ErpControllerBase
     private readonly IPlatformAccessService _access;
     private readonly IPromoCodeService _promos;
     private readonly IWhatsAppPlatformSettingsService _whatsApp;
+    private readonly IPlatformAnnouncementService _announcements;
 
     public PlatformController(IPlatformSubscriptionService platform, IPlatformAccessService access, IPromoCodeService promos,
-        IWhatsAppPlatformSettingsService whatsApp)
+        IWhatsAppPlatformSettingsService whatsApp, IPlatformAnnouncementService announcements)
     {
         _platform = platform;
         _access = access;
         _promos = promos;
         _whatsApp = whatsApp;
+        _announcements = announcements;
     }
 
     /// <summary>تُسأل من الواجهة لإظهار قسم المنصة؛ متاحة لأي مستخدم مسجّل وتعيد true/false فقط.</summary>
@@ -105,6 +107,25 @@ public class PlatformController : ErpControllerBase
     public async Task<IActionResult> DeletePromoCode(Guid id, CancellationToken ct)
     {
         await _promos.DeleteAsync(id, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
+
+    // ---------- إعلانات العملاء ----------
+    [HttpGet("announcements"), RequirePlatformAdmin]
+    public async Task<IActionResult> Announcements(CancellationToken ct) => Success(await _announcements.ListAsync(ct));
+
+    [HttpPost("announcements"), RequirePlatformAdmin]
+    public async Task<IActionResult> CreateAnnouncement([FromBody] SavePlatformAnnouncementRequestDto request, CancellationToken ct)
+        => Success(await _announcements.CreateAsync(request, ct), Messages.CreatedSuccessfully);
+
+    [HttpPut("announcements/{id:guid}"), RequirePlatformAdmin]
+    public async Task<IActionResult> UpdateAnnouncement(Guid id, [FromBody] SavePlatformAnnouncementRequestDto request, CancellationToken ct)
+        => Success(await _announcements.UpdateAsync(id, request, ct), Messages.UpdatedSuccessfully);
+
+    [HttpDelete("announcements/{id:guid}"), RequirePlatformAdmin]
+    public async Task<IActionResult> DeleteAnnouncement(Guid id, CancellationToken ct)
+    {
+        await _announcements.DeleteAsync(id, ct);
         return Success(Messages.DeletedSuccessfully);
     }
 

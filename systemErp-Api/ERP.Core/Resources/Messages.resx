@@ -245,6 +245,11 @@
   <data name="CreditSaleRequiresCustomer" xml:space="preserve"><value>البيع الآجل يتطلب تحديد العميل.</value></data>
   <data name="CreditSaleRequiresCustomerLink" xml:space="preserve"><value>البيع الآجل/التمويل يتطلب ربط العقد بعميل.</value></data>
   <data name="CurrencyCodeAlreadyExists" xml:space="preserve"><value>رمز العملة مسجّل مسبقاً.</value></data>
+  <data name="BaseCurrencyMustBeActive" xml:space="preserve"><value>العملة الأساسية يجب أن تبقى نشطة.</value></data>
+  <data name="CurrencyCodeInUse" xml:space="preserve"><value>لا يمكن تغيير رمز عملة مستخدمة في مستندات أو حسابات أو بنوك.</value></data>
+  <data name="CannotChangeBaseCurrencyAfterTransactions" xml:space="preserve"><value>لا يمكن تغيير العملة الأساسية بعد تسجيل قيود محاسبية؛ الأرصدة مسجّلة بالعملة الحالية.</value></data>
+  <data name="CurrencyNotDefinedOrInactive" xml:space="preserve"><value>العملة {0} غير معرّفة أو موقوفة؛ عرّفها وفعّلها من شاشة العملات.</value></data>
+  <data name="CurrencyInUseCannotDelete" xml:space="preserve"><value>العملة مستخدمة في مستندات أو حسابات أو بنوك ولا يمكن حذفها؛ يمكنك إيقافها بدلاً من ذلك.</value></data>
   <data name="CurrencyCodeIso3" xml:space="preserve"><value>رمز العملة ISO من 3 أحرف.</value></data>
   <data name="CurrencyPrefix" xml:space="preserve"><value>العملة: </value></data>
   <data name="CurrentPasswordIncorrect" xml:space="preserve"><value>كلمة المرور الحالية غير صحيحة.</value></data>

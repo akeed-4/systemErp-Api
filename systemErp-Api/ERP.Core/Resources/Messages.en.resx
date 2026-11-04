@@ -245,6 +245,11 @@
   <data name="CreditSaleRequiresCustomer" xml:space="preserve"><value>A credit sale requires a customer.</value></data>
   <data name="CreditSaleRequiresCustomerLink" xml:space="preserve"><value>A credit/financed sale requires linking the contract to a customer.</value></data>
   <data name="CurrencyCodeAlreadyExists" xml:space="preserve"><value>The currency code is already registered.</value></data>
+  <data name="BaseCurrencyMustBeActive" xml:space="preserve"><value>The base currency must stay active.</value></data>
+  <data name="CurrencyCodeInUse" xml:space="preserve"><value>The code of a currency used in documents, accounts or banks cannot be changed.</value></data>
+  <data name="CannotChangeBaseCurrencyAfterTransactions" xml:space="preserve"><value>The base currency cannot be changed after journal entries are recorded; balances are kept in the current currency.</value></data>
+  <data name="CurrencyNotDefinedOrInactive" xml:space="preserve"><value>Currency {0} is not defined or is inactive; define and activate it in the Currencies screen.</value></data>
+  <data name="CurrencyInUseCannotDelete" xml:space="preserve"><value>The currency is used in documents, accounts or banks and cannot be deleted; deactivate it instead.</value></data>
   <data name="CurrencyCodeIso3" xml:space="preserve"><value>The currency code must be a 3-letter ISO code.</value></data>
   <data name="CurrencyPrefix" xml:space="preserve"><value>Currency: </value></data>
   <data name="CurrentPasswordIncorrect" xml:space="preserve"><value>The current password is incorrect.</value></data>

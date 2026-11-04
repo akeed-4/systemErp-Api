@@ -32,20 +32,38 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         if (!string.IsNullOrWhiteSpace(d.Code)
             && await Db.Set<BankEntity>().AnyAsync(b => b.Code == d.Code && (existing == null || b.Id != existing.Id), ct))
             throw new ConflictException(Messages.BankCodeInUse);
+
+        // عملة الحساب من شاشة العملات: معرّفة ونشطة (عملة بنك قائم موقوفة لاحقاً تبقى مقبولة ما لم تتغيّر)
+        var code = await CurrencyCodeAsync(d.Currency, ct);
+        var unchanged = existing != null && string.Equals(existing.Currency, code, StringComparison.OrdinalIgnoreCase);
+        if (!unchanged && !await Db.Set<Currency>().AnyAsync(c => c.Code == code && (c.IsBaseCurrency || c.Status != "inactive"), ct))
+            throw new ValidationFailedException(string.Format(Messages.CurrencyNotDefinedOrInactive, code));
     }
+
+    /// <summary>عملة البنك بحروف كبيرة، والفارغة = العملة الأساسية.</summary>
+    private async Task<string> CurrencyCodeAsync(string? currency, CancellationToken ct)
+        => string.IsNullOrWhiteSpace(currency)
+            ? await Db.Set<Currency>().Where(c => c.IsBaseCurrency).Select(c => c.Code).FirstOrDefaultAsync(ct) ?? "SAR"
+            : currency.Trim().ToUpperInvariant();
 
     protected override async Task OnCreatingAsync(BankEntity e, CreateBankEntityDto d, CancellationToken ct)
     {
         e.Country = PartyValidation.NormalizeCountry(e.Country);
+        e.Currency = await CurrencyCodeAsync(e.Currency, ct);
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("bank", "BNK-");
         e.CurrentBalance = e.OpeningBalance;
         e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Bank, e.Id, e.NameAr, e.NameEn, ct);
+        // حساب البنك بعملته (كشف الحساب يعرض الرصيد بها)
+        var account = Db.Set<Account>().Local.FirstOrDefault(a => a.Code == e.AccountCode)
+            ?? await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
+        if (account != null) account.Currency = e.Currency;
         await OpeningBalances.ApplyAsync(_posting, Db, null, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
     }
 
     protected override async Task OnUpdatingAsync(BankEntity e, UpdateBankEntityDto d, CancellationToken ct)
     {
         e.Country = PartyValidation.NormalizeCountry(e.Country);
+        e.Currency = await CurrencyCodeAsync(e.Currency, ct);
         var o = Db.Entry(e).OriginalValues;
         e.AccountCode = o.GetValue<string?>(nameof(BankEntity.AccountCode));
         e.CurrentBalance = o.GetValue<decimal>(nameof(BankEntity.CurrentBalance));
@@ -55,7 +73,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         if (e.OpeningBalance != o.GetValue<decimal>(nameof(BankEntity.OpeningBalance)) || (e.OpeningEntryId == null && e.OpeningBalance != 0))
             await OpeningBalances.ApplyAsync(_posting, Db, e.OpeningEntryId, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
         var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
-        if (acc != null) { acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn; }
+        if (acc != null) { acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn; acc.Currency = e.Currency; }
     }
 
     protected override async Task OnDeletingAsync(BankEntity e, CancellationToken ct)

@@ -223,6 +223,10 @@ public class ErpDbContext : DbContext
             }
         }
 
+        // حلقة مفاتيح Data Protection (على مستوى المنصة): الجدول يُنشأ بهذه المهاجرات، ويُقرأ ويُكتب عبر
+        // DataProtectionKeysDbContext على القاعدة المشتركة وحدها.
+        DataProtectionKeysDbContext.Configure(modelBuilder, excludeFromMigrations: false);
+
         // كتالوج الباقات على مستوى المنصة (ليس تابعاً لمنشأة): بلا مرشّح منشأة، ويُزرع بالقيم الافتراضية.
         // معرّف الباقة رمز نصي (SubscriptionPlanId) يطابق Subscription.PlanType و OnlinePayment.PlanId.
         modelBuilder.Entity<PlanDefinition>(e =>

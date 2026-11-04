@@ -111,8 +111,9 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 });
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 
-if (app.Environment.IsProduction() && string.IsNullOrWhiteSpace(app.Configuration["DataProtection:KeysPath"]))
-    app.Logger.LogWarning("DataProtection:KeysPath غير مضبوط: مفاتيح تشفير أسرار بوابات الدفع محفوظة على هذا السرفر فقط وتضيع عند نقله أو إعادة بنائه.");
+if (app.Environment.IsProduction() && !app.Services.GetRequiredService<IServiceProviderIsService>().IsService(typeof(DataProtectionKeysDbContext))
+    && string.IsNullOrWhiteSpace(app.Configuration["DataProtection:KeysPath"]))
+    app.Logger.LogWarning("مفاتيح تشفير أسرار بوابات الدفع ليست في القاعدة ولا في DataProtection:KeysPath: محفوظة على هذا السرفر فقط وتضيع عند نقله أو إعادة بنائه.");
 // مفاتيح حساب المنصة قد تُحفظ من لوحة مدير المنصة؛ أما روابط الإشعار والعودة فمن هنا وحدها
 if (string.IsNullOrWhiteSpace(paymob.PublicApiUrl) || string.IsNullOrWhiteSpace(paymob.FrontendUrl))
     app.Logger.LogWarning("Paymob:PublicApiUrl/FrontendUrl غير مضبوطين: كل الدفع الإلكتروني (الاشتراكات وروابط الفواتير ونقطة البيع) متوقف حتى يُضبطا.");
@@ -152,6 +153,18 @@ if (app.Configuration.GetValue<bool>("Database:AutoMigrate"))
     using var scope = app.Services.CreateScope();
     // المهاجرات مسجّلة على ErpDbContext: تُطبَّق على القاعدة المشتركة (والمستقلة تُطبَّق عند تجهيزها)
     scope.ServiceProvider.GetRequiredService<ErpDbContext>().Catalog.Database.Migrate();
+}
+
+// مفاتيح التشفير في جدول DataProtectionKeys: تُنقل إليه مفاتيح المجلد القديم (DataProtection:KeysPath) قبل أول استخدام،
+// فلا يُنشأ مفتاح جديد يتجاهلها. الفشل (جدول غير مُرحَّل مثلاً) يُسجَّل ولا يوقف التشغيل.
+try
+{
+    var imported = await ServiceCollectionExtensions.ImportLegacyDataProtectionKeysAsync(app.Services, app.Configuration);
+    if (imported > 0) app.Logger.LogInformation("نُقل {Count} مفتاح تشفير من مجلد DataProtection:KeysPath إلى جدول DataProtectionKeys.", imported);
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "تعذّر نقل مفاتيح التشفير القديمة إلى جدول DataProtectionKeys (هل رُحّلت القاعدة؟).");
 }
 
 app.Run();

@@ -39,7 +39,8 @@ dotnet run --project ERP.Api
 | `Jwt:Key` | مفتاح توقيع الجلسات (32 حرفاً فأكثر) |
 | `ConnectionStrings:DefaultConnection` | قاعدة البيانات |
 | `Email:UserName` / `Password` / `FromAddress` | بريد إرسال رموز استعادة كلمة المرور |
-| `DataProtection:KeysPath` | مجلد دائم لمفاتيح تشفير أسرار بوابات الدفع؛ بدونه تضيع عند نقل السرفر أو إعادة بنائه |
+| `DataProtection:Store` | مكان مفاتيح تشفير أسرار بوابات الدفع: افتراضياً جدول `DataProtectionKeys` في القاعدة المشتركة (تبقى بعد إعادة النشر ونقل السرفر وتتشاركها كل نسخ الخادم)؛ `FileSystem` يعيدها إلى مجلد `KeysPath` |
+| `DataProtection:KeysPath` | المجلد القديم للمفاتيح: عند بدء التشغيل تُنقل مفاتيحه إلى الجدول مرة واحدة فتبقى أسرار Paymob المحفوظة سابقاً مقروءة؛ ومع `Store=FileSystem` هو مكان الحفظ |
 | `Auth:RateLimitPerMinute` | حد محاولات الدخول/التسجيل/الاستعادة لكل عنوان IP في الدقيقة (الافتراضي 20؛ 0 = بلا حد) |
 | `Cors:Origins` | عناوين الواجهة المسموحة |
 

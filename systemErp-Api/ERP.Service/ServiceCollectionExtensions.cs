@@ -49,13 +49,26 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddHttpClient(MetaWhatsAppProvider.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddHttpClient(ERP.Service.Services.Accounting.ZatcaApiClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(45));
-        // مفاتيح تشفير أسرار بوابات الدفع: تُحفظ في مسار دائم (DataProtection:KeysPath) لتبقى صالحة بعد إعادة النشر،
-        // وباسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب. بلا المسار تبقى في ملف المستخدم على السرفر نفسه.
+        // مفاتيح تشفير أسرار بوابات الدفع وسلاسل اتصال القواعد المستقلة، باسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب.
+        // افتراضياً تُحفظ في جدول DataProtectionKeys بالقاعدة المشتركة فتبقى بعد إعادة النشر ونقل السرفر وتتشاركها كل
+        // نسخ الخادم. DataProtection:Store=FileSystem (أو غياب القاعدة) يعيدها إلى مجلد DataProtection:KeysPath.
         var dataProtection = services.AddDataProtection().SetApplicationName("ERP");
         var keysPath = config["DataProtection:KeysPath"];
+        var useDatabase = !string.Equals(config["DataProtection:Store"], "FileSystem", StringComparison.OrdinalIgnoreCase)
+            && (configureDb != null || !string.IsNullOrWhiteSpace(config.GetConnectionString("DefaultConnection")));
+        if (useDatabase)
+        {
+            // القاعدة المشتركة دائماً (لا الموجَّهة بالمنشأة)، وسلسلة الاتصال تُقرأ عند الإنشاء لا عند التسجيل
+            services.AddDbContext<DataProtectionKeysDbContext>(options =>
+            {
+                if (configureDb != null) configureDb(options);
+                else options.UseSqlServer(config.GetConnectionString("DefaultConnection"));
+            });
+            dataProtection.PersistKeysToDbContext<DataProtectionKeysDbContext>();
+        }
         // المسار النسبي يُحسب من مجلد التطبيق (على الاستضافة المشتركة لا يُحمَّل ملف المستخدم فتضيع المفاتيح عند كل إعادة تشغيل)
-        if (!string.IsNullOrWhiteSpace(keysPath))
-            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, keysPath)));
+        else if (!string.IsNullOrWhiteSpace(keysPath))
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(LegacyKeysFolder(keysPath)!));
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -75,5 +88,21 @@ public static class ServiceCollectionExtensions
         // محرك الفواتير المشترك بين خدمات جداول الفواتير (التجارة العامة والمعارض)
         services.AddScoped<ERP.Service.Services.Accounting.TradeInvoiceEngine>();
         return services;
+    }
+
+    /// <summary>مجلد مفاتيح DataProtection:KeysPath (النسبي من مجلد التطبيق)، أو null إن لم يُضبط.</summary>
+    public static string? LegacyKeysFolder(string? keysPath)
+        => string.IsNullOrWhiteSpace(keysPath) ? null : Path.Combine(AppContext.BaseDirectory, keysPath);
+
+    /// <summary>
+    /// عند التخزين في القاعدة: ينقل مفاتيح مجلد DataProtection:KeysPath القديم إلى الجدول (مرة واحدة، دون تكرار)
+    /// قبل أول استخدام للتشفير، فتبقى أسرار Paymob المحفوظة سابقاً قابلة للفك. يُرجع عدد المفاتيح المنقولة.
+    /// </summary>
+    public static async Task<int> ImportLegacyDataProtectionKeysAsync(IServiceProvider services, IConfiguration config, CancellationToken ct = default)
+    {
+        using var scope = services.CreateScope();
+        var keys = scope.ServiceProvider.GetService<DataProtectionKeysDbContext>();
+        if (keys == null) return 0; // التخزين في مجلد، لا شيء يُنقل
+        return await keys.ImportKeysFromFolderAsync(LegacyKeysFolder(config["DataProtection:KeysPath"]), ct);
     }
 }

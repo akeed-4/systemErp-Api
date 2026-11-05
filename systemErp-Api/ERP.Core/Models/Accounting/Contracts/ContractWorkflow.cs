@@ -25,12 +25,43 @@ public static class ContractWorkflows
 {
     public const string Full = "full";
     public const string Simple = "simple";
+
+    public static bool IsValid(string? workflow) => workflow is Full or Simple;
 }
 
 public static class ContractBilling
 {
     public const string AfterReceipt = "after_receipt";
     public const string Direct = "direct";
+    /// <summary>مقاولات بجدول كميات: الاستحقاق من مستخلصات تقيس الكمية المنفذة لكل بند (سابق/حالي/تراكمي)، لا دفعات ولا بيانات تسليم.</summary>
+    public const string BoqCertificate = "boq_certificate";
+
+    public static bool IsValid(string? billing) => billing is AfterReceipt or Direct or BoqCertificate;
+}
+
+/// <summary>الشروط المسمّاة التي تعرفها دالة الانتقال (ContractWorkflowService.BlockersAsync).</summary>
+public static class ContractTransitionConditions
+{
+    public const string CompleteData = "complete_data";
+    public const string BothReviews = "both_reviews";
+    public const string SignedGuaranteeLimit = "signed_guarantee_limit";
+    public const string AllReceived = "all_received";
+    public const string AllBilledRetentionReleased = "all_billed_retention_released";
+
+    public static readonly string[] All = { CompleteData, BothReviews, SignedGuaranteeLimit, AllReceived, AllBilledRetentionReleased };
+}
+
+/// <summary>نوع بند جدول الكميات.</summary>
+public static class ContractBoqLineKinds
+{
+    /// <summary>بند بكمية تُقاس.</summary>
+    public const string Measured = "measured";
+    /// <summary>مبلغ مقطوع: كميته 1 ويُقاس بنسبة إنجاز (كمية كسرية).</summary>
+    public const string LumpSum = "lump_sum";
+    /// <summary>مبلغ احتياطي يُصرف بقدر المنفذ.</summary>
+    public const string Provisional = "provisional";
+
+    public static bool IsValid(string? kind) => kind is Measured or LumpSum or Provisional;
 }
 
 /// <summary>
@@ -94,8 +125,14 @@ public class ContractInvoice : BaseEntity
     public Guid ContractId { get; set; }
     /// <summary>advance | progress | final | retention_release | credit_note</summary>
     public string Kind { get; set; } = string.Empty;
-    public Guid InvoiceId { get; set; }
+    /// <summary>الفاتورة؛ فارغ للإفراج عن الضمان (قيد بلا فاتورة: الضريبة سبق احتسابها في فواتير المستخلصات).</summary>
+    public Guid? InvoiceId { get; set; }
+    /// <summary>رقم الفاتورة، أو رقم القيد للإفراج عن الضمان.</summary>
     public string InvoiceNumber { get; set; } = string.Empty;
+    /// <summary>القيد المرافق: استرداد الدفعة المقدمة، إعادة تصنيف دفعة مقاول الباطن، أو قيد الإفراج عن الضمان.</summary>
+    public Guid? JournalEntryId { get; set; }
+    /// <summary>المستخلص المفوتر (فوترة جدول الكميات).</summary>
+    public Guid? CertificateId { get; set; }
     /// <summary>بيان الاستلام المفوتر (فوترة بعد الاستلام).</summary>
     public Guid? DeliveryNoteId { get; set; }
     /// <summary>للإشعار الدائن: المرتجع الذي سبّبه والفاتورة الأصلية.</summary>

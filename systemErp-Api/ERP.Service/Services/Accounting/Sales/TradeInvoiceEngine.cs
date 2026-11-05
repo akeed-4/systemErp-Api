@@ -405,6 +405,7 @@ public class TradeInvoiceEngine
                 ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
             if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
             if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
+            if (r.RefundPaymentMethod == PaymentMethod.ContractSettlement) throw new ValidationFailedException(Messages.InvalidPaymentMethod);
             if (r.RefundPaymentMethod.HasValue)
                 r.RefundPaymentMethod = await PaymentMethodRules.MethodForAsync(_db, r.RefundPaymentMethod.Value, r.RefundPaymentMethodCode, token);
             if (original is Invoice car)
@@ -550,6 +551,8 @@ public class TradeInvoiceEngine
     {
         var lines = splits.Where(s => s.Amount > 0).ToList();
         if (lines.Count == 0) return;
+        // طريقة ردٍّ يختارها المستخدم لا تكون استقطاع عقد (حسابه يحدده النظام)
+        if (lines.Any(s => s.Method == PaymentMethod.ContractSettlement)) throw new ValidationFailedException(Messages.InvalidPaymentMethod);
         PaymentSplitRules.EnsureDistinctMethods(lines.Select(s => (s.Method, s.PaymentMethodCode)));
         var total = DocumentPricing.Price(
             dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
@@ -1003,6 +1006,10 @@ public class TradeInvoiceEngine
         if (showroom && r.Kind == InvoiceKind.Sales) invoice.InvoiceType = vatRegisteredCustomer ? InvoiceType.TaxInvoice : InvoiceType.Simplified;
         if (r.Kind == InvoiceKind.Sales && invoice.InvoiceType == InvoiceType.TaxInvoice) ValidateTaxInvoiceBuyer(invoice, domesticParty);
 
+        // استقطاع العقد يُرحِّل على حساب يحدده رمزه: مسموح لفواتير المستخلصات التي ينشئها النظام وحدها (والمرتجع يرثه من فاتورته)
+        if (!isReturn && !r.SystemGenerated
+            && (r.PaymentMethod == PaymentMethod.ContractSettlement || r.PaymentSplits.Any(s => s.Method == PaymentMethod.ContractSettlement)))
+            throw new ValidationFailedException(Messages.InvalidPaymentMethod);
         // الدفع: الطريقة المختارة تُعتمد (فعّالة) ونوعها يحدّد نوع الدفع. المرتجع يرث طرق فاتورته (وطريقة الرد تُعتمد في CreateReturnAsync).
         if (!isReturn && !r.IsSplitPayment)
             invoice.PaymentMethod = await PaymentMethodRules.MethodForAsync(_db, r.PaymentMethod, r.PaymentMethodCode, ct);

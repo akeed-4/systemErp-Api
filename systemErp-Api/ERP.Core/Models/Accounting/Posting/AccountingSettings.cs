@@ -33,6 +33,22 @@ public class AccountingSettings : BaseEntity
     public string? InputVatAccountCode { get; set; }
     public string? OutputExciseAccountCode { get; set; }
 
+    // ---- عقود جدول الكميات (المستخلصات): بلا افتراضي؛ الفوترة التي تحتاج حساباً غير محدد تُرفض برسالة الإعداد الناقص ----
+    /// <summary>دفعات مقدمة مستلمة من العملاء على العقود (التزام): يُقيَّد عليها إيراد فاتورة الدفعة، ويُسترد منها بالمستخلصات.</summary>
+    public string? ContractAdvancesReceivedAccountCode { get; set; }
+    /// <summary>دفعات مقدمة مدفوعة لمقاولي الباطن (أصل).</summary>
+    public string? ContractAdvancesPaidAccountCode { get; set; }
+    /// <summary>محتجزات ضمان حسن التنفيذ لدى العملاء (أصل).</summary>
+    public string? ContractRetentionReceivableAccountCode { get; set; }
+    /// <summary>محتجزات ضمان حسن التنفيذ لمقاولي الباطن (التزام).</summary>
+    public string? ContractRetentionPayableAccountCode { get; set; }
+    /// <summary>غرامات تأخير مفروضة علينا في عقود العملاء (مصروف).</summary>
+    public string? ContractPenaltiesExpenseAccountCode { get; set; }
+    /// <summary>غرامات تأخير نفرضها على مقاولي الباطن (إيراد).</summary>
+    public string? ContractPenaltiesIncomeAccountCode { get; set; }
+    /// <summary>الخصومات الأخرى على المستخلصات (مصروف في عقود العملاء، إيراد/استرداد في عقود الموردين).</summary>
+    public string? ContractOtherDeductionsAccountCode { get; set; }
+
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }
     public int? PurchaseReturnPeriodDays { get; set; }

@@ -12,6 +12,9 @@ public static class TreasuryResolver
     /// <param name="code">رمز طريقة دفع مختارة من جدول طرق الدفع: حسابها المرتبط يُقدَّم على الاختيار بالنوع.</param>
     public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured, string? depositsAccount = null, string? code = null)
     {
+        // استقطاع عقد: الرمز هو حساب الاستقطاع نفسه (محتجزات/غرامات/خصومات) يحدده النظام عند إنشاء فاتورة المستخلص
+        if (method == PaymentMethod.ContractSettlement)
+            return string.IsNullOrWhiteSpace(code) ? throw new ValidationFailedException(Messages.InvalidPaymentMethod) : code.Trim();
         if (method != PaymentMethod.CustomerDeposit && !string.IsNullOrWhiteSpace(code))
         {
             var chosen = configured.FirstOrDefault(m => m.Code == code && m.Status == "active" && !string.IsNullOrEmpty(m.LinkedAccountCode));

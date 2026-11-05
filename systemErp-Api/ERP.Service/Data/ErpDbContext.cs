@@ -137,6 +137,9 @@ public class ErpDbContext : DbContext
         (typeof(ContractStatusLog), nameof(ContractStatusLog.ContractId), typeof(CommercialContract)),
         (typeof(ContractInvoice), nameof(ContractInvoice.ContractId), typeof(CommercialContract)),
         (typeof(ContractAttachment), nameof(ContractAttachment.ContractId), typeof(CommercialContract)),
+        (typeof(ContractCertificate), nameof(ContractCertificate.ContractId), typeof(CommercialContract)),
+        // سطر المستخلص يشير لبند جدول الكميات: البند لا يُحذف بعد أن قيس عليه (البنود تُعدَّل في المسودة فقط، قبل أي مستخلص)
+        (typeof(ContractCertificateLine), nameof(ContractCertificateLine.ContractItemId), typeof(CommercialContractItem)),
         // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
 
@@ -374,6 +377,44 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<ContractApproval>().HasIndex(a => new { a.TenantId, a.ContractId, a.Round });
         modelBuilder.Entity<ContractStatusLog>().HasIndex(l => new { l.TenantId, l.ContractId });
         modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.ContractId });
+        // المستخلص يُفوتر مرة واحدة، والدفعة المقدمة فاتورة واحدة لكل عقد
+        modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.CertificateId }).IsUnique()
+            .HasFilter("[CertificateId] IS NOT NULL AND [Kind] <> N'credit_note'");
+        modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.ContractId, i.Kind }).IsUnique()
+            .HasFilter("[Kind] = N'advance'").HasDatabaseName("IX_ContractInvoice_TenantId_ContractId_Advance");
+        modelBuilder.Entity<ContractCertificate>(e =>
+        {
+            e.Property(c => c.CertificateNumber).HasMaxLength(50).IsRequired();
+            e.Property(c => c.Kind).HasMaxLength(16).IsRequired();
+            e.Property(c => c.Status).HasMaxLength(16).IsRequired();
+            e.Property(c => c.InvoiceNumber).HasMaxLength(50);
+            e.HasIndex(c => new { c.TenantId, c.CertificateNumber }).IsUnique();
+            e.HasIndex(c => new { c.TenantId, c.ContractId, c.SequenceNo }).IsUnique();
+            // مستخلص مفتوح (مسودة/مقدَّم) واحد لكل عقد
+            e.HasIndex(c => new { c.TenantId, c.ContractId }).IsUnique()
+                .HasFilter("[Status] IN (N'draft', N'submitted')")
+                .HasDatabaseName("IX_ContractCertificate_TenantId_ContractId_Open");
+        });
+        modelBuilder.Entity<ContractCertificateDeduction>().Property(d => d.Description).HasMaxLength(300).IsRequired();
+        modelBuilder.Entity<ContractCertificateLine>(e =>
+        {
+            e.Property(l => l.LineCode).HasMaxLength(32);
+            e.Property(l => l.SectionName).HasMaxLength(200);
+            e.Property(l => l.LineKind).HasMaxLength(16).IsRequired();
+            e.HasIndex(l => new { l.CertificateId, l.ContractItemId }).IsUnique();
+        });
+        modelBuilder.Entity<CommercialContractItem>(e =>
+        {
+            e.Property(i => i.LineCode).HasMaxLength(32);
+            e.Property(i => i.SectionName).HasMaxLength(200);
+            e.Property(i => i.LineKind).HasMaxLength(16).IsRequired().HasDefaultValue(ContractBoqLineKinds.Measured);
+        });
+        modelBuilder.Entity<CommercialContract>(e =>
+        {
+            e.Property(c => c.ProjectName).HasMaxLength(200);
+            e.Property(c => c.ProjectLocation).HasMaxLength(200);
+            e.Property(c => c.ConsultantName).HasMaxLength(200);
+        });
         // بيان الاستلام لا يُفوتر مرتين (فوترة بعد الاستلام)
         modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.DeliveryNoteId, i.Kind }).IsUnique()
             .HasFilter("[DeliveryNoteId] IS NOT NULL AND [Kind] <> N'credit_note'");

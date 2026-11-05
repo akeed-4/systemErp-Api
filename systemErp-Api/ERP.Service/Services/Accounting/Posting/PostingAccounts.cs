@@ -51,6 +51,21 @@ internal static class PostingAccounts
             DefaultAccounts.InputVat, new[] { AccountCategory.Asset, AccountCategory.Liability }, LockedAfterUse: true),
         new(nameof(AccountingSettings.OutputExciseAccountCode), s => s.OutputExciseAccountCode, (s, v) => s.OutputExciseAccountCode = v,
             DefaultAccounts.OutputExcise, new[] { AccountCategory.Liability }, LockedAfterUse: true),
+        // العقود: الدفعات والمحتجزات تُقفل بعد استخدامها (الاسترداد والإفراج يُقفلان الحساب نفسه الذي قُيِّد عليه)
+        new(nameof(AccountingSettings.ContractAdvancesReceivedAccountCode), s => s.ContractAdvancesReceivedAccountCode,
+            (s, v) => s.ContractAdvancesReceivedAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
+        new(nameof(AccountingSettings.ContractAdvancesPaidAccountCode), s => s.ContractAdvancesPaidAccountCode,
+            (s, v) => s.ContractAdvancesPaidAccountCode = v, null, Asset, LockedAfterUse: true),
+        new(nameof(AccountingSettings.ContractRetentionReceivableAccountCode), s => s.ContractRetentionReceivableAccountCode,
+            (s, v) => s.ContractRetentionReceivableAccountCode = v, null, Asset, LockedAfterUse: true),
+        new(nameof(AccountingSettings.ContractRetentionPayableAccountCode), s => s.ContractRetentionPayableAccountCode,
+            (s, v) => s.ContractRetentionPayableAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
+        new(nameof(AccountingSettings.ContractPenaltiesExpenseAccountCode), s => s.ContractPenaltiesExpenseAccountCode,
+            (s, v) => s.ContractPenaltiesExpenseAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.ContractPenaltiesIncomeAccountCode), s => s.ContractPenaltiesIncomeAccountCode,
+            (s, v) => s.ContractPenaltiesIncomeAccountCode = v, null, Revenue),
+        new(nameof(AccountingSettings.ContractOtherDeductionsAccountCode), s => s.ContractOtherDeductionsAccountCode,
+            (s, v) => s.ContractOtherDeductionsAccountCode = v, null, ProfitOrLoss),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)
@@ -92,6 +107,13 @@ internal static class PostingAccounts
     public static string OutputVat(this AccountingSettings s) => s.OutputVatAccountCode ?? DefaultAccounts.OutputVat;
     public static string InputVat(this AccountingSettings s) => s.InputVatAccountCode ?? DefaultAccounts.InputVat;
     public static string OutputExcise(this AccountingSettings s) => s.OutputExciseAccountCode ?? DefaultAccounts.OutputExcise;
+
+    /// <summary>حساب عقود لا افتراضي له: غير المحدد يُرفض برسالة تذكر الإعداد الناقص بدل الترحيل على حساب مُخمَّن.</summary>
+    public static string ContractAccount(this AccountingSettings s, string key)
+    {
+        var role = Roles.First(r => r.Key == key);
+        return role.Get(s) ?? throw new ValidationFailedException(string.Format(Messages.AccountSettingRequiredForContracts, role.Label));
+    }
 
     /// <summary>حسابات الدوري لا افتراضي لها: مستند بتاريخ دوري سابق بعد مسح حسابه يُرفض برسالة الإعداد الناقص.</summary>
     private static string Required(string? code, string key)

@@ -28,6 +28,7 @@ public static class DocumentNumberTypes
         new("delivery_note", "بيانات التسليم", "Delivery notes", "contracts", "DN-", true),
         new("goods_receipt", "سندات الاستلام", "Goods receipt notes", "contracts", "GRN-", true),
         new("delivery_return", "مرتجعات بيانات التسليم", "Delivery returns", "contracts", "DR-", true),
+        new("contract_certificate", "مستخلصات الأعمال", "Progress certificates", "contracts", "CRT-", false),
         new("inventory_count", "الجرد", "Inventory counts", "inventory", "IC-", true),
         new("stock_transfer", "التحويلات المخزنية", "Stock transfers", "inventory", "TRF-", true),
         new("car_procurement_order", "أوامر شراء السيارات", "Car purchase orders", "showroom", "CPO-", true),

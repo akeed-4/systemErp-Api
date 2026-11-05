@@ -24,6 +24,9 @@ public partial class CreateCommercialContractDto
     public string? RevenueAccountCode { get; set; }
     public string? ReceivableAccountCode { get; set; }
     public string? Notes { get; set; }
+    public string? ProjectName { get; set; }
+    public string? ProjectLocation { get; set; }
+    public string? ConsultantName { get; set; }
     public string? TitleEn { get; set; }
     public string? ReferenceNumber { get; set; }
     public string? PartyCrNumber { get; set; }

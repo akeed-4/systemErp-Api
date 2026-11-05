@@ -504,6 +504,76 @@
   <data name="MilestoneBillingSalesOnly" xml:space="preserve"><value>الفوترة المرحلية لبيانات التسليم البيعية فقط.</value></data>
   <data name="MilestoneNotFound" xml:space="preserve"><value>المستخلص غير موجود</value></data>
   <data name="MilestonePercentagesExceed100" xml:space="preserve"><value>مجموع نسب المستخلصات يتجاوز 100%.</value></data>
+  <data name="MilestoneAmountsExceedContractValue" xml:space="preserve"><value>مجموع مبالغ الدفعات يتجاوز قيمة العقد.</value></data>
+  <data name="BoqLineKindInvalid" xml:space="preserve"><value>نوع بند جدول الكميات غير صالح (بكمية، مبلغ مقطوع، أو احتياطي).</value></data>
+  <data name="BoqOverrunRange" xml:space="preserve"><value>نسبة السماح بتجاوز الكمية يجب أن تكون بين 0 و100.</value></data>
+  <data name="BoqContractMilestonesNotAllowed" xml:space="preserve"><value>عقد جدول الكميات يُستحق بالمستخلصات ولا يُعرَّف له جدول دفعات.</value></data>
+  <data name="BoqContractBilledByCertificates" xml:space="preserve"><value>عقد جدول الكميات يُفوتر بالمستخلصات فقط، لا بالدفعات ولا ببيانات التسليم.</value></data>
+  <data name="BoqCertificatesOnlyForBoq" xml:space="preserve"><value>مستخلصات الكميات لعقود جدول الكميات فقط.</value></data>
+  <data name="CertificateContractNotActive" xml:space="preserve"><value>تُعَد المستخلصات وتُعتمد والعقد «ساري» أو في «الاستلام الأولي» فقط.</value></data>
+  <data name="CertificateOpenExists" xml:space="preserve"><value>يوجد مستخلص مفتوح {0} على العقد: اعتمده أو ألغه قبل إنشاء مستخلص جديد.</value></data>
+  <data name="CertificateAfterFinal" xml:space="preserve"><value>اعتُمد المستخلص الختامي للعقد؛ لا تُنشأ مستخلصات بعده.</value></data>
+  <data name="CertificateNotFound" xml:space="preserve"><value>المستخلص غير موجود.</value></data>
+  <data name="CertificateKindInvalid" xml:space="preserve"><value>نوع المستخلص غير صالح (جاري أو ختامي).</value></data>
+  <data name="CertificatePeriodInvalid" xml:space="preserve"><value>نهاية فترة القياس قبل بدايتها.</value></data>
+  <data name="CertificateLineUnknownItem" xml:space="preserve"><value>بند في المستخلص ليس من جدول كميات العقد.</value></data>
+  <data name="CertificateDuplicateItem" xml:space="preserve"><value>بند مكرر في المستخلص.</value></data>
+  <data name="CertificateNegativeQuantity" xml:space="preserve"><value>الكمية الحالية لا تكون سالبة؛ تصحيح قياس سابق يتم بإشعار دائن.</value></data>
+  <data name="CertificateExceedsQuantity" xml:space="preserve"><value>{0}: الكمية التراكمية {1} تتجاوز الحد المسموح {2}.</value></data>
+  <data name="CertificateStatusInvalid" xml:space="preserve"><value>لا يمكن تنفيذ الإجراء على مستخلص حالته «{0}».</value></data>
+  <data name="CertificateEmpty" xml:space="preserve"><value>المستخلص الجاري يلزمه كمية حالية على بند واحد على الأقل.</value></data>
+  <data name="CertificateNoteRequired" xml:space="preserve"><value>اذكر السبب.</value></data>
+  <data name="CertificatePenaltyNegative" xml:space="preserve"><value>غرامة التأخير لا تكون سالبة.</value></data>
+  <data name="CertificatePenaltyExceedsCap" xml:space="preserve"><value>الغرامة تتجاوز سقف غرامات العقد؛ المتاح {0}.</value></data>
+  <data name="CertificateNetNegative" xml:space="preserve"><value>الخصومات تتجاوز إجمالي المستخلص: الصافي المستحق لا يكون سالباً.</value></data>
+  <data name="CertificateDeductionInvalid" xml:space="preserve"><value>كل خصم آخر يلزمه وصف ومبلغ أكبر من صفر.</value></data>
+  <data name="AdvancePercentRange" xml:space="preserve"><value>نسبة الدفعة المقدمة يجب أن تكون بين 0 و100.</value></data>
+  <data name="ContractTypeCodeInvalid" xml:space="preserve"><value>رمز النوع: حروف إنجليزية صغيرة وأرقام وشرطة سفلية، يبدأ بحرف (2–64).</value></data>
+  <data name="ContractTypeCodeExists" xml:space="preserve"><value>يوجد نوع عقد بالرمز «{0}».</value></data>
+  <data name="ContractTypeNotFound" xml:space="preserve"><value>نوع العقد غير موجود.</value></data>
+  <data name="ContractTypeNameRequired" xml:space="preserve"><value>اسم النوع مطلوب.</value></data>
+  <data name="ContractTypeWorkflowInvalid" xml:space="preserve"><value>المسار غير صالح (كامل أو مبسط).</value></data>
+  <data name="ContractTypeBillingInvalid" xml:space="preserve"><value>طريقة الفوترة غير صالحة.</value></data>
+  <data name="ContractTypeSimpleLimitInvalid" xml:space="preserve"><value>حد التبسيط لا يكون سالباً.</value></data>
+  <data name="ContractTypeBillingLocked" xml:space="preserve"><value>لا تتغير طريقة فوترة نوع عليه عقود ({0})؛ أنشئ نوعاً جديداً.</value></data>
+  <data name="ContractTypeInUse" xml:space="preserve"><value>النوع مستخدم في {0} عقد؛ عطّله بدل الحذف.</value></data>
+  <data name="ContractStageNotFound" xml:space="preserve"><value>حالة العقد غير موجودة.</value></data>
+  <data name="ContractStageNameRequired" xml:space="preserve"><value>اسم الحالة واسمها المختصر مطلوبان.</value></data>
+  <data name="ContractStageSlaInvalid" xml:space="preserve"><value>المدة المستهدفة بين 0 و3650 يوماً.</value></data>
+  <data name="ContractTransitionNotFound" xml:space="preserve"><value>الانتقال غير موجود.</value></data>
+  <data name="ContractTransitionStagesInvalid" xml:space="preserve"><value>حالتا الانتقال يجب أن تكونا من حالات العقد.</value></data>
+  <data name="ContractTransitionSameStage" xml:space="preserve"><value>الانتقال بين حالتين مختلفتين.</value></data>
+  <data name="ContractTransitionExists" xml:space="preserve"><value>يوجد انتقال بين الحالتين؛ عدّله بدل إضافة آخر.</value></data>
+  <data name="ContractTransitionNameRequired" xml:space="preserve"><value>اسم الانتقال (الزر) مطلوب.</value></data>
+  <data name="ContractTransitionActionsRequired" xml:space="preserve"><value>حدد صلاحية واحدة على الأقل للانتقال.</value></data>
+  <data name="ContractTransitionConditionInvalid" xml:space="preserve"><value>الشرط غير معروف لدالة الانتقال.</value></data>
+  <data name="ContractTransitionToneInvalid" xml:space="preserve"><value>لون الزر غير صالح.</value></data>
+  <data name="ContractActionInvalid" xml:space="preserve"><value>الإجراء «{0}» ليس من إجراءات شاشة العقود.</value></data>
+  <data name="ContractAdvanceBilled" xml:space="preserve"><value>صدرت فاتورة الدفعة المقدمة ورُحِّل قيدها.</value></data>
+  <data name="CertificateBilled" xml:space="preserve"><value>صدرت فاتورة المستخلص ورُحِّلت قيودها.</value></data>
+  <data name="RetentionReleased" xml:space="preserve"><value>أُفرج عن ضمان حسن التنفيذ ورُحِّل قيده.</value></data>
+  <data name="ContractAdvanceNotDefined" xml:space="preserve"><value>لم تُحدد نسبة دفعة مقدمة في العقد.</value></data>
+  <data name="ContractAdvanceAlreadyBilled" xml:space="preserve"><value>فُوترت الدفعة المقدمة لهذا العقد مسبقاً.</value></data>
+  <data name="CertificateNothingToInvoice" xml:space="preserve"><value>لا قيمة خاضعة للفوترة في المستخلص بعد استرداد الدفعة المقدمة.</value></data>
+  <data name="RetentionReleaseAfterAcceptance" xml:space="preserve"><value>يُفرج عن ضمان حسن التنفيذ والعقد في «الاستلام الأولي».</value></data>
+  <data name="RetentionNothingToRelease" xml:space="preserve"><value>لا ضمان محتجز متبقٍ للإفراج عنه في فواتير العقد.</value></data>
+  <data name="CustomerAccountMissing" xml:space="preserve"><value>العميل ليس له حساب ذمم في شجرة الحسابات.</value></data>
+  <data name="AccountSettingRequiredForContracts" xml:space="preserve"><value>حدد «{0}» في إعدادات الحسابات (قسم العقود) قبل هذه الفوترة.</value></data>
+  <data name="AccountRole_ContractAdvancesReceivedAccountCode" xml:space="preserve"><value>دفعات مقدمة مستلمة على العقود</value></data>
+  <data name="AccountRole_ContractAdvancesPaidAccountCode" xml:space="preserve"><value>دفعات مقدمة لمقاولي الباطن</value></data>
+  <data name="AccountRole_ContractRetentionReceivableAccountCode" xml:space="preserve"><value>محتجزات ضمان لدى العملاء</value></data>
+  <data name="AccountRole_ContractRetentionPayableAccountCode" xml:space="preserve"><value>محتجزات ضمان لمقاولي الباطن</value></data>
+  <data name="AccountRole_ContractPenaltiesExpenseAccountCode" xml:space="preserve"><value>غرامات تأخير على عقود العملاء</value></data>
+  <data name="AccountRole_ContractPenaltiesIncomeAccountCode" xml:space="preserve"><value>غرامات تأخير على مقاولي الباطن</value></data>
+  <data name="AccountRole_ContractOtherDeductionsAccountCode" xml:space="preserve"><value>خصومات أخرى على المستخلصات</value></data>
+  <data name="CertificateSubmitted" xml:space="preserve"><value>قُدِّم المستخلص للاعتماد.</value></data>
+  <data name="CertificateApproved" xml:space="preserve"><value>اعتُمد المستخلص.</value></data>
+  <data name="CertificateReturned" xml:space="preserve"><value>أُعيد المستخلص للمسودة.</value></data>
+  <data name="CertificateCancelled" xml:space="preserve"><value>أُلغي المستخلص.</value></data>
+  <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>مستخلص ختامي معتمد.</value></data>
+  <data name="ContractOpenCertificate" xml:space="preserve"><value>المستخلص {0} مفتوح: اعتمده أو ألغه أولاً.</value></data>
+  <data name="ContractMissingCertificateInvoicing" xml:space="preserve"><value>فوترة المستخلصات المعتمدة: {0}.</value></data>
+  <data name="ContractMissingBoq" xml:space="preserve"><value>جدول الكميات: أضف بنوداً بكمية وسعر أكبر من صفر.</value></data>
   <data name="MilestonesBilledOnlyWhenActive" xml:space="preserve"><value>لا تُفوتر المستخلصات قبل أن يصبح العقد ساري التنفيذ.</value></data>
   <data name="MinPriceAboveSellingPrice" xml:space="preserve"><value>الحد الأدنى للسعر أعلى من سعر البيع.</value></data>
   <data name="MissingVehiclesReserved" xml:space="preserve"><value>المركبات المفقودة التالية محجوزة بعقود بيع؛ عالج العقد أو أعد العدّ: {0}</value></data>

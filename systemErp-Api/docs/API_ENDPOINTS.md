@@ -173,12 +173,34 @@
 |---|---|
 | GET | `/commercialcontracts` |
 | GET | `/commercialcontracts/stages` |
+| GET | `/commercialcontracts/types` |
+| GET | `/contract-types` |
+| POST | `/contract-types` |
+| PUT | `/contract-types/{id}` |
+| DELETE | `/contract-types/{id}` |
+| GET | `/platform/contract-workflow` |
+| PUT | `/platform/contract-workflow/stages/{stageId}` |
+| POST | `/platform/contract-workflow/transitions` |
+| PUT | `/platform/contract-workflow/transitions/{transitionId}` |
 | POST | `/commercialcontracts` |
 | DELETE | `/commercialcontracts/{id}` |
 | GET | `/commercialcontracts/{id}` |
 | PUT | `/commercialcontracts/{id}` |
 | POST | `/commercialcontracts/{id}/advance-stage` |
 | POST | `/commercialcontracts/{id}/milestones/{milestoneId}/bill` |
+| GET | `/commercialcontracts/{id}/boq-progress` |
+| GET | `/commercialcontracts/{id}/certificates` |
+| GET | `/commercialcontracts/{id}/certificates/template` |
+| GET | `/commercialcontracts/{id}/certificates/{certificateId}` |
+| POST | `/commercialcontracts/{id}/certificates` |
+| PUT | `/commercialcontracts/{id}/certificates/{certificateId}` |
+| POST | `/commercialcontracts/{id}/certificates/{certificateId}/submit` |
+| POST | `/commercialcontracts/{id}/certificates/{certificateId}/approve` |
+| POST | `/commercialcontracts/{id}/certificates/{certificateId}/return` |
+| POST | `/commercialcontracts/{id}/certificates/{certificateId}/cancel` |
+| POST | `/commercialcontracts/{id}/certificates/{certificateId}/bill` |
+| POST | `/commercialcontracts/{id}/advance-invoice` |
+| POST | `/commercialcontracts/{id}/retention-release` |
 
 ## CommercialOrders
 

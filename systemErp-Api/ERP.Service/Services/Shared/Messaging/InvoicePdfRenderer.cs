@@ -219,6 +219,7 @@ public class InvoicePdfRenderer : IInvoicePdfRenderer
         PaymentMethod.BankCard => "بطاقة",
         PaymentMethod.BankTransfer => "تحويل بنكي",
         PaymentMethod.CustomerDeposit => "دفعة مقدمة",
+        PaymentMethod.ContractSettlement => "استقطاعات العقد",
         _ => method.ToString(),
     };
 

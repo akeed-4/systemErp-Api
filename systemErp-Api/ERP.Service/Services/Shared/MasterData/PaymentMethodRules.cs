@@ -31,7 +31,8 @@ public static class PaymentMethodRules
     /// <summary>نوع دفع المستند بعد اعتماد رمزه. العربون لا يُحصَّل بطريقة (يُقفل حساب العربونات) فلا يُتحقق من رمزه.</summary>
     public static async Task<PaymentMethod> MethodForAsync(ErpDbContext db, PaymentMethod method, string? code, CancellationToken ct)
     {
-        if (method == PaymentMethod.CustomerDeposit) return method;
+        // العربون واستقطاع العقد لا يُحصَّلان بطريقة من الجدول (يُقفلان حساباً محدداً)؛ الاستقطاع يقتصر على فواتير النظام (يفحصه المحرك)
+        if (method is PaymentMethod.CustomerDeposit or PaymentMethod.ContractSettlement) return method;
         var chosen = await RequireAsync(db, code, ct);
         return chosen == null ? method : MethodOf(chosen.Type);
     }

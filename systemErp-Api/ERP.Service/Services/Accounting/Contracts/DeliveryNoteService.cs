@@ -55,6 +55,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (r.ContractId.HasValue)
                 contract = await _db.Set<CommercialContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.ContractId, token)
                     ?? throw new ValidationFailedException(Messages.ContractNotFoundDot);
+            if (contract != null && await CommercialContractService.IsBoqContractAsync(_db, contract.ContractType, token))
+                throw new ConflictException(Messages.BoqContractBilledByCertificates);
 
             var note = Mapper.Map<DeliveryNote>(r);
             note.ContractNumber = contract?.ContractNumber ?? r.ContractNumber;
@@ -95,6 +97,10 @@ public class DeliveryNoteService : IDeliveryNoteService
             var keep = (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber);
             Mapper.Apply(r, note);
             (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber) = keep;
+            if (note.ContractId is Guid linkedContractId
+                && await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == linkedContractId).Select(c => c.ContractType).FirstOrDefaultAsync(token) is { } linkedType
+                && await CommercialContractService.IsBoqContractAsync(_db, linkedType, token))
+                throw new ConflictException(Messages.BoqContractBilledByCertificates);
             foreach (var removed in Mapper.SyncCollections(r, note, added => _db.Add(added))) _db.Remove(removed);
             foreach (var i in note.Items) i.ReturnedQty = 0;
             Price(note);
@@ -262,6 +268,14 @@ public class DeliveryNoteService : IDeliveryNoteService
                 }).ToList(),
             }, token);
             note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced;
+            // بيان عقد: الفاتورة تُسجَّل في فواتير العقد وتُضاف لمفوتره كما في فوترة الدفعات
+            if (note.ContractId is Guid billedContractId
+                && await _db.Set<CommercialContract>().FirstOrDefaultAsync(c => c.Id == billedContractId, token) is { } contract)
+            {
+                _db.Add(CommercialContractService.ContractInvoiceFor(contract.Id, "progress", invoice, note.Id));
+                contract.TotalInvoiced += invoice.GrandTotal;
+                contract.RemainingBalance = contract.TotalValueWithVat - contract.TotalInvoiced;
+            }
             await _db.SaveChangesAsync(token);
             return invoice;
         }, ct);
@@ -278,6 +292,9 @@ public class DeliveryNoteService : IDeliveryNoteService
 
             var invoice = await _contracts.BillMilestoneAsync(note.ContractId.Value, milestoneId, date, token);
             note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced;
+            // سطر فواتير العقد الذي أنشأته فوترة الدفعة يُربط بالبيان الذي فُوتر معه
+            var logged = await _db.Set<ContractInvoice>().FirstOrDefaultAsync(i => i.InvoiceId == invoice.Id, token);
+            if (logged != null) logged.DeliveryNoteId = note.Id;
             await _db.SaveChangesAsync(token);
             return invoice;
         }, ct);

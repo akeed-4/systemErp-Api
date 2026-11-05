@@ -504,6 +504,76 @@
   <data name="MilestoneBillingSalesOnly" xml:space="preserve"><value>Milestone billing applies to sales delivery notes only.</value></data>
   <data name="MilestoneNotFound" xml:space="preserve"><value>Milestone not found</value></data>
   <data name="MilestonePercentagesExceed100" xml:space="preserve"><value>Total milestone percentages exceed 100%.</value></data>
+  <data name="MilestoneAmountsExceedContractValue" xml:space="preserve"><value>Total milestone amounts exceed the contract value.</value></data>
+  <data name="BoqLineKindInvalid" xml:space="preserve"><value>Invalid BOQ line kind (measured, lump sum or provisional).</value></data>
+  <data name="BoqOverrunRange" xml:space="preserve"><value>Quantity overrun allowance must be between 0 and 100.</value></data>
+  <data name="BoqContractMilestonesNotAllowed" xml:space="preserve"><value>A BOQ contract is billed through progress certificates and cannot have a payment schedule.</value></data>
+  <data name="BoqContractBilledByCertificates" xml:space="preserve"><value>A BOQ contract is billed through progress certificates only, not milestones or delivery notes.</value></data>
+  <data name="BoqCertificatesOnlyForBoq" xml:space="preserve"><value>Quantity-based progress certificates apply to BOQ contracts only.</value></data>
+  <data name="CertificateContractNotActive" xml:space="preserve"><value>Certificates are prepared and approved only while the contract is Active or in Initial Acceptance.</value></data>
+  <data name="CertificateOpenExists" xml:space="preserve"><value>An open certificate {0} exists on this contract: approve or cancel it before creating a new one.</value></data>
+  <data name="CertificateAfterFinal" xml:space="preserve"><value>The final certificate is approved; no further certificates can be created.</value></data>
+  <data name="CertificateNotFound" xml:space="preserve"><value>Certificate not found.</value></data>
+  <data name="CertificateKindInvalid" xml:space="preserve"><value>Invalid certificate type (interim or final).</value></data>
+  <data name="CertificatePeriodInvalid" xml:space="preserve"><value>The measurement period ends before it starts.</value></data>
+  <data name="CertificateLineUnknownItem" xml:space="preserve"><value>A certificate line is not part of the contract's bill of quantities.</value></data>
+  <data name="CertificateDuplicateItem" xml:space="preserve"><value>Duplicate line in the certificate.</value></data>
+  <data name="CertificateNegativeQuantity" xml:space="preserve"><value>Current quantity cannot be negative; corrections to past measurements are made by credit note.</value></data>
+  <data name="CertificateExceedsQuantity" xml:space="preserve"><value>{0}: cumulative quantity {1} exceeds the allowed limit {2}.</value></data>
+  <data name="CertificateStatusInvalid" xml:space="preserve"><value>This action is not allowed on a certificate with status "{0}".</value></data>
+  <data name="CertificateEmpty" xml:space="preserve"><value>An interim certificate needs a current quantity on at least one line.</value></data>
+  <data name="CertificateNoteRequired" xml:space="preserve"><value>Please give a reason.</value></data>
+  <data name="CertificatePenaltyNegative" xml:space="preserve"><value>The delay penalty cannot be negative.</value></data>
+  <data name="CertificatePenaltyExceedsCap" xml:space="preserve"><value>The penalty exceeds the contract's penalty cap; available: {0}.</value></data>
+  <data name="CertificateNetNegative" xml:space="preserve"><value>Deductions exceed the certificate total: the net payable cannot be negative.</value></data>
+  <data name="CertificateDeductionInvalid" xml:space="preserve"><value>Each other deduction needs a description and an amount greater than zero.</value></data>
+  <data name="AdvancePercentRange" xml:space="preserve"><value>The advance payment percentage must be between 0 and 100.</value></data>
+  <data name="ContractTypeCodeInvalid" xml:space="preserve"><value>Type code: lowercase letters, digits and underscore, starting with a letter (2–64).</value></data>
+  <data name="ContractTypeCodeExists" xml:space="preserve"><value>A contract type with code "{0}" already exists.</value></data>
+  <data name="ContractTypeNotFound" xml:space="preserve"><value>Contract type not found.</value></data>
+  <data name="ContractTypeNameRequired" xml:space="preserve"><value>The type name is required.</value></data>
+  <data name="ContractTypeWorkflowInvalid" xml:space="preserve"><value>Invalid workflow (full or simple).</value></data>
+  <data name="ContractTypeBillingInvalid" xml:space="preserve"><value>Invalid billing method.</value></data>
+  <data name="ContractTypeSimpleLimitInvalid" xml:space="preserve"><value>The simplification limit cannot be negative.</value></data>
+  <data name="ContractTypeBillingLocked" xml:space="preserve"><value>The billing method of a type with contracts ({0}) cannot change; create a new type.</value></data>
+  <data name="ContractTypeInUse" xml:space="preserve"><value>The type is used by {0} contract(s); deactivate it instead of deleting.</value></data>
+  <data name="ContractStageNotFound" xml:space="preserve"><value>Contract stage not found.</value></data>
+  <data name="ContractStageNameRequired" xml:space="preserve"><value>The stage name and short name are required.</value></data>
+  <data name="ContractStageSlaInvalid" xml:space="preserve"><value>Target duration must be between 0 and 3650 days.</value></data>
+  <data name="ContractTransitionNotFound" xml:space="preserve"><value>Transition not found.</value></data>
+  <data name="ContractTransitionStagesInvalid" xml:space="preserve"><value>Both transition stages must be contract stages.</value></data>
+  <data name="ContractTransitionSameStage" xml:space="preserve"><value>A transition must be between two different stages.</value></data>
+  <data name="ContractTransitionExists" xml:space="preserve"><value>A transition between these stages exists; edit it instead.</value></data>
+  <data name="ContractTransitionNameRequired" xml:space="preserve"><value>The transition (button) name is required.</value></data>
+  <data name="ContractTransitionActionsRequired" xml:space="preserve"><value>Choose at least one permission for the transition.</value></data>
+  <data name="ContractTransitionConditionInvalid" xml:space="preserve"><value>The condition is not known to the transition function.</value></data>
+  <data name="ContractTransitionToneInvalid" xml:space="preserve"><value>Invalid button tone.</value></data>
+  <data name="ContractActionInvalid" xml:space="preserve"><value>Action "{0}" is not a contracts-screen action.</value></data>
+  <data name="ContractAdvanceBilled" xml:space="preserve"><value>Advance payment invoice issued and posted.</value></data>
+  <data name="CertificateBilled" xml:space="preserve"><value>Certificate invoice issued and posted.</value></data>
+  <data name="RetentionReleased" xml:space="preserve"><value>Retention released and posted.</value></data>
+  <data name="ContractAdvanceNotDefined" xml:space="preserve"><value>No advance payment percentage is set on the contract.</value></data>
+  <data name="ContractAdvanceAlreadyBilled" xml:space="preserve"><value>The advance payment for this contract has already been invoiced.</value></data>
+  <data name="CertificateNothingToInvoice" xml:space="preserve"><value>Nothing taxable to invoice on this certificate after advance recovery.</value></data>
+  <data name="RetentionReleaseAfterAcceptance" xml:space="preserve"><value>Retention is released while the contract is in Initial Acceptance.</value></data>
+  <data name="RetentionNothingToRelease" xml:space="preserve"><value>No outstanding retention to release on this contract's invoices.</value></data>
+  <data name="CustomerAccountMissing" xml:space="preserve"><value>The customer has no receivable account in the chart of accounts.</value></data>
+  <data name="AccountSettingRequiredForContracts" xml:space="preserve"><value>Set "{0}" in the accounting settings (Contracts section) before this billing.</value></data>
+  <data name="AccountRole_ContractAdvancesReceivedAccountCode" xml:space="preserve"><value>Contract advances received</value></data>
+  <data name="AccountRole_ContractAdvancesPaidAccountCode" xml:space="preserve"><value>Advances paid to subcontractors</value></data>
+  <data name="AccountRole_ContractRetentionReceivableAccountCode" xml:space="preserve"><value>Retention receivable from customers</value></data>
+  <data name="AccountRole_ContractRetentionPayableAccountCode" xml:space="preserve"><value>Retention payable to subcontractors</value></data>
+  <data name="AccountRole_ContractPenaltiesExpenseAccountCode" xml:space="preserve"><value>Delay penalties on customer contracts</value></data>
+  <data name="AccountRole_ContractPenaltiesIncomeAccountCode" xml:space="preserve"><value>Delay penalties on subcontractors</value></data>
+  <data name="AccountRole_ContractOtherDeductionsAccountCode" xml:space="preserve"><value>Other certificate deductions</value></data>
+  <data name="CertificateSubmitted" xml:space="preserve"><value>Certificate submitted for approval.</value></data>
+  <data name="CertificateApproved" xml:space="preserve"><value>Certificate approved.</value></data>
+  <data name="CertificateReturned" xml:space="preserve"><value>Certificate returned to draft.</value></data>
+  <data name="CertificateCancelled" xml:space="preserve"><value>Certificate cancelled.</value></data>
+  <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>An approved final certificate.</value></data>
+  <data name="ContractOpenCertificate" xml:space="preserve"><value>Certificate {0} is open: approve or cancel it first.</value></data>
+  <data name="ContractMissingCertificateInvoicing" xml:space="preserve"><value>Invoicing of approved certificates: {0}.</value></data>
+  <data name="ContractMissingBoq" xml:space="preserve"><value>Bill of quantities: add lines with a quantity and a price greater than zero.</value></data>
   <data name="MilestonesBilledOnlyWhenActive" xml:space="preserve"><value>Milestones cannot be billed before the contract is in effect.</value></data>
   <data name="MinPriceAboveSellingPrice" xml:space="preserve"><value>The minimum price is higher than the selling price.</value></data>
   <data name="MissingVehiclesReserved" xml:space="preserve"><value>The following missing vehicles are reserved by sales contracts; resolve the contract or recount: {0}</value></data>

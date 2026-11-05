@@ -22,6 +22,13 @@ public class SaveAccountingSettingsDto
     public string? OutputVatAccountCode { get; set; }
     public string? InputVatAccountCode { get; set; }
     public string? OutputExciseAccountCode { get; set; }
+    public string? ContractAdvancesReceivedAccountCode { get; set; }
+    public string? ContractAdvancesPaidAccountCode { get; set; }
+    public string? ContractRetentionReceivableAccountCode { get; set; }
+    public string? ContractRetentionPayableAccountCode { get; set; }
+    public string? ContractPenaltiesExpenseAccountCode { get; set; }
+    public string? ContractPenaltiesIncomeAccountCode { get; set; }
+    public string? ContractOtherDeductionsAccountCode { get; set; }
     /// <summary>فترة إرجاع المبيعات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
     public int? SalesReturnPeriodDays { get; set; }
     /// <summary>فترة إرجاع المشتريات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>

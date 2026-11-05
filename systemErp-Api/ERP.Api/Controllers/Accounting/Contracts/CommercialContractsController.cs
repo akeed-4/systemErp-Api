@@ -21,11 +21,14 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     private const string Record = ScopedRecordTypes.CommercialContractKey;
     private readonly ICommercialContractService _contracts;
     private readonly IContractWorkflowService _workflow;
+    private readonly IContractCertificateService _certificates;
+    private readonly IContractBillingService _billing;
     private readonly IPermissionService _permissions;
 
-    public CommercialContractsController(ICommercialContractService s, IContractWorkflowService workflow, IPermissionService permissions) : base(s)
+    public CommercialContractsController(ICommercialContractService s, IContractWorkflowService workflow, IContractCertificateService certificates,
+        IContractBillingService billing, IPermissionService permissions) : base(s)
     {
-        _contracts = s; _workflow = workflow; _permissions = permissions;
+        _contracts = s; _workflow = workflow; _certificates = certificates; _billing = billing; _permissions = permissions;
     }
 
     protected override string? ApprovalHandler => "commercial-contracts";
@@ -33,6 +36,11 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     [HttpGet("stages")]
     public async Task<IActionResult> GetStages(CancellationToken ct)
         => Success(await _contracts.GetStageCatalogAsync(ct));
+
+    /// <summary>أنواع العقود الفعّالة لنموذج العقد (الرمز والاسم والمسار والفوترة).</summary>
+    [HttpGet("types"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> GetTypes([FromServices] IContractTypeService types, CancellationToken ct)
+        => Success(await types.ListAsync(activeOnly: true, ct));
 
     /// <summary>التعديل والحذف في المسودة فقط (ما تسمح به الحالة) مع الصلاحية والنطاق.</summary>
     public override async Task<IActionResult> Update(Guid id, [FromBody] UpdateCommercialContractDto dto, CancellationToken ct)
@@ -103,6 +111,91 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     {
         await _workflow.MoveAsync(id, new MoveContractRequestDto { ToStatus = ERP.Core.Models.Shared.ContractStageDefinition.Draft, Note = dto.Reason }, ct);
         return Success(await _contracts.GetAsync(id, ct), Messages.ContractRejectedToDraft);
+    }
+
+    // ---------- مستخلصات جدول الكميات ----------
+    // الإعداد (إنشاء/تعديل/تقديم/إلغاء) بصلاحية «الاستلام» = استلام الأعمال المنفذة، والاعتماد والإعادة بصلاحية «الاعتماد»؛
+    // كلاهما على سجل العقد (النطاق + ما تسمح به حالة العقد: ساري أو استلام أولي).
+
+    [HttpGet("{id:guid}/boq-progress"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> BoqProgress(Guid id, CancellationToken ct)
+        => Success(await _certificates.ProgressAsync(id, ct));
+
+    [HttpGet("{id:guid}/certificates"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Certificates(Guid id, CancellationToken ct)
+        => Success(await _certificates.ListAsync(id, ct));
+
+    [HttpGet("{id:guid}/certificates/template"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CertificateTemplate(Guid id, CancellationToken ct)
+        => Success(await _certificates.TemplateAsync(id, ct));
+
+    [HttpGet("{id:guid}/certificates/{certificateId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Certificate(Guid id, Guid certificateId, CancellationToken ct)
+        => Success(await _certificates.GetAsync(id, certificateId, ct));
+
+    [HttpPost("{id:guid}/certificates"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CreateCertificate(Guid id, [FromBody] SaveContractCertificateDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _certificates.CreateAsync(id, dto, ct), Messages.CreatedSuccessfully);
+    }
+
+    [HttpPut("{id:guid}/certificates/{certificateId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> UpdateCertificate(Guid id, Guid certificateId, [FromBody] SaveContractCertificateDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _certificates.UpdateAsync(id, certificateId, dto, ct), Messages.UpdatedSuccessfully);
+    }
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/submit"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> SubmitCertificate(Guid id, Guid certificateId, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _certificates.SubmitAsync(id, certificateId, ct), Messages.CertificateSubmitted);
+    }
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/approve"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ApproveCertificate(Guid id, Guid certificateId, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _certificates.ApproveAsync(id, certificateId, ct), Messages.CertificateApproved);
+    }
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/return"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ReturnCertificate(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _certificates.ReturnAsync(id, certificateId, dto, ct), Messages.CertificateReturned);
+    }
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/cancel"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CancelCertificate(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _certificates.CancelAsync(id, certificateId, dto, ct), Messages.CertificateCancelled);
+    }
+
+    // ---------- فوترة عقود جدول الكميات (صلاحية الترحيل كفوترة الدفعات) ----------
+
+    [HttpPost("{id:guid}/advance-invoice"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
+    public async Task<IActionResult> BillAdvance(Guid id, [FromQuery] DateTime? date, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
+        return Success(await _billing.BillAdvanceAsync(id, date, ct), Messages.ContractAdvanceBilled);
+    }
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/bill"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
+    public async Task<IActionResult> BillCertificate(Guid id, Guid certificateId, [FromQuery] DateTime? date, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
+        return Success(await _billing.BillCertificateAsync(id, certificateId, date, ct), Messages.CertificateBilled);
+    }
+
+    [HttpPost("{id:guid}/retention-release"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
+    public async Task<IActionResult> ReleaseRetention(Guid id, [FromQuery] DateTime? date, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
+        return Success(await _billing.ReleaseRetentionAsync(id, date, ct), Messages.RetentionReleased);
     }
 
     [HttpPost("{id:guid}/milestones/{milestoneId:guid}/bill"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]

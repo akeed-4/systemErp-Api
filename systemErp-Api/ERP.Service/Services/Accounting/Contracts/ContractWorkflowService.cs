@@ -345,7 +345,12 @@ public class ContractWorkflowService : IContractWorkflowService
                 if (c.StartDate == null || c.EndDate == null) missing.Add(Messages.ContractMissingDates);
                 if (c.ContractValue <= 0) missing.Add(Messages.ContractMissingValue);
                 // الفوترة بعد الاستلام تُحسب على البنود؛ المباشرة تكفيها البنود أو المستخلصات
-                if (type?.Billing == ContractBilling.Direct)
+                if (type?.Billing == ContractBilling.BoqCertificate)
+                {
+                    // جدول الكميات: بنود بكمية وسعر (قيمة العقد تُحسب منها)
+                    if (c.Items.Count == 0 || c.Items.Any(i => i.Quantity <= 0 || i.UnitPrice <= 0)) missing.Add(Messages.ContractMissingBoq);
+                }
+                else if (type?.Billing == ContractBilling.Direct)
                 {
                     if (c.Items.Count == 0 && c.Milestones.Count == 0) missing.Add(Messages.ContractMissingItemsOrMilestones);
                 }
@@ -376,6 +381,14 @@ public class ContractWorkflowService : IContractWorkflowService
                     var remaining = await RemainingQuantitiesAsync(c, ct);
                     if (remaining.Count > 0) missing.Add(string.Format(Messages.ContractMissingReceipts, string.Join("، ", remaining)));
                 }
+                // جدول الكميات: الاستلام الأولي بعد مستخلص ختامي معتمد، وبلا مستخلص مفتوح
+                else if (type?.Billing == ContractBilling.BoqCertificate)
+                {
+                    await AddOpenCertificateBlockerAsync(c, missing, ct);
+                    if (!await _db.Set<ContractCertificate>().AnyAsync(x => x.ContractId == c.Id && x.Kind == ContractCertificateKinds.Final
+                            && (x.Status == ContractCertificateStatuses.Approved || x.Status == ContractCertificateStatuses.Invoiced), ct))
+                        missing.Add(Messages.ContractMissingFinalCertificate);
+                }
                 break;
 
             case "all_billed_retention_released":
@@ -386,14 +399,26 @@ public class ContractWorkflowService : IContractWorkflowService
                         .Select(n => n.DeliveryNumber).ToListAsync(ct);
                     if (unbilled.Count > 0) missing.Add(string.Format(Messages.ContractMissingInvoicing, string.Join("، ", unbilled)));
                 }
+                else if (type?.Billing == ContractBilling.BoqCertificate)
+                {
+                    // كل مستخلص معتمد مفوتر، ولا مستخلص مفتوح
+                    await AddOpenCertificateBlockerAsync(c, missing, ct);
+                    var unbilledCerts = await _db.Set<ContractCertificate>().AsNoTracking()
+                        .Where(x => x.ContractId == c.Id && x.Status == ContractCertificateStatuses.Approved)
+                        .OrderBy(x => x.SequenceNo).Select(x => x.CertificateNumber).ToListAsync(ct);
+                    if (unbilledCerts.Count > 0) missing.Add(string.Format(Messages.ContractMissingCertificateInvoicing, string.Join("، ", unbilledCerts)));
+                }
                 else
                 {
                     var open = c.Milestones.Where(m => m.Status is ContractMilestoneStatus.Pending or ContractMilestoneStatus.Due)
                         .OrderBy(m => m.MilestoneNumber).Select(m => m.MilestoneNumber.ToString()).ToList();
                     if (open.Count > 0) missing.Add(string.Format(Messages.ContractMissingMilestones, string.Join("، ", open)));
                 }
-                if (c.RetentionAmount > 0 && !await _db.Set<ContractInvoice>().AnyAsync(i => i.ContractId == c.Id && i.Kind == "retention_release", ct))
-                    missing.Add(Messages.ContractMissingRetentionRelease);
+                // الإفراج مطلوب عن الضمان المحتجز فعلاً في فواتير العقد فقط؛ ما لم يُستقطع من فاتورة لا يُنتظر الإفراج عنه
+                var contractInvoices = _db.Set<ContractInvoice>().AsNoTracking().Where(i => i.ContractId == c.Id);
+                var withheld = await contractInvoices.Where(i => i.Kind != "retention_release" && i.Kind != "credit_note").SumAsync(i => i.RetentionAmount, ct);
+                var released = await contractInvoices.Where(i => i.Kind == "retention_release").SumAsync(i => i.GrossAmount, ct);
+                if (withheld - released > 0.01m) missing.Add(Messages.ContractMissingRetentionRelease);
                 break;
 
             case null or "":
@@ -405,6 +430,15 @@ public class ContractWorkflowService : IContractWorkflowService
                 break;
         }
         return missing;
+    }
+
+    /// <summary>مستخلص مفتوح (مسودة/مقدَّم) يمنع الاستلام والإغلاق حتى يُعتمد أو يُلغى.</summary>
+    private async Task AddOpenCertificateBlockerAsync(CommercialContract c, List<string> missing, CancellationToken ct)
+    {
+        var open = await _db.Set<ContractCertificate>().AsNoTracking()
+            .Where(x => x.ContractId == c.Id && (x.Status == ContractCertificateStatuses.Draft || x.Status == ContractCertificateStatuses.Submitted))
+            .Select(x => x.CertificateNumber).FirstOrDefaultAsync(ct);
+        if (open != null) missing.Add(string.Format(Messages.ContractOpenCertificate, open));
     }
 
     /// <summary>بنود العقد التي لم تُستلم كميتها كاملة (صافي الاستلام بعد المرتجع)، بصيغة «الصنف: المتبقي».</summary>

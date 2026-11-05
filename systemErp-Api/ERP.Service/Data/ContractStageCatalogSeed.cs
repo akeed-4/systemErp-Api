@@ -78,5 +78,6 @@ public static class ContractTypeSeed
         new() { Code = "monthly_maintenance", NameAr = "صيانة شهرية", NameEn = "Monthly Maintenance", Workflow = ContractWorkflows.Simple, Billing = ContractBilling.Direct, SortOrder = 2 },
         new() { Code = "construction_project", NameAr = "مشروع إنشائي", NameEn = "Construction Project", Workflow = ContractWorkflows.Full, Billing = ContractBilling.AfterReceipt, RequiresGuarantee = true, SortOrder = 3 },
         new() { Code = "existing_contract", NameAr = "تسجيل عقد قائم", NameEn = "Register Existing Contract", Workflow = ContractWorkflows.Simple, Billing = ContractBilling.Direct, SortOrder = 4 },
+        new() { Code = "construction_boq", NameAr = "مقاولات بجدول كميات", NameEn = "Construction (BOQ)", Workflow = ContractWorkflows.Full, Billing = ContractBilling.BoqCertificate, RequiresGuarantee = true, SortOrder = 5 },
     ];
 }

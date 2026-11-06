@@ -59,6 +59,9 @@ public class AccountingSettingsService : IAccountingSettingsService
             return ToDto(settings);
         }, ct);
 
+    public Task<ContractAccountsSetupDto> InitializeContractAccountsAsync(CancellationToken ct = default)
+        => _tx.RunAsync(token => ContractAccountsSetup.EnsureAsync(_db, token), ct);
+
     /// <summary>0 = بلا حد (يُحفظ فارغاً).</summary>
     private static int? ReturnPeriod(int days)
     {

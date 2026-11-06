@@ -27,6 +27,11 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public int ReviewRound { get; set; } = 1;
     /// <summary>عقد بمسار مبسط (من نوعه أو لأن قيمته دون حد التبسيط) يُثبَّت عند الإنشاء.</summary>
     public bool IsSimplified { get; set; }
+    /// <summary>
+    /// هذا العقد يلزمه ضمان بنكي (رقم ومبلغ وتاريخ انتهاء ساري) قبل تفعيله، على أي مسار. يختاره المستخدم لكل عقد؛
+    /// العقود القائمة قبل الحقل أخذته من نوعها (يلزم ضمان + مسار كامل) كما كانت تُعامل.
+    /// </summary>
+    public bool RequiresGuarantee { get; set; }
     /// <summary>العميل/المورد المرتبط (اختياري) - يحدّد حساب الذمم عند الفوترة.</summary>
     public Guid? PartyId { get; set; }
     /// <summary>customer | supplier</summary>
@@ -81,6 +86,14 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public string? GuaranteeBank { get; set; }
     public decimal? GuaranteeAmount { get; set; }
     public DateTime? GuaranteeExpiry { get; set; }
+
+    // ---- جدولة المستخلصات (عقود المقاولات بجدول كميات فقط؛ انظر ContractCertificateSchedules) ----
+    /// <summary>on_demand (مستخلص متى طُلب) | installments (عدد دفعات محدد) | periodic (مستخلص كل فترة متفق عليها).</summary>
+    public string CertificateSchedule { get; set; } = ContractCertificateSchedules.OnDemand;
+    /// <summary>عدد دفعات المستخلصات (installments): آخرها ختامي، ولا يُنشأ مستخلص بعدها.</summary>
+    public int? CertificateCount { get; set; }
+    /// <summary>طول الفترة بالأشهر (periodic): 1 = شهري. تبدأ من بداية العقد وتنتهي بنهاية الشهر، ويُحسب المنجز في كل فترة.</summary>
+    public int? CertificatePeriodMonths { get; set; }
 
     public virtual ICollection<ContractMilestone> Milestones { get; set; } = new List<ContractMilestone>();
     public virtual ICollection<ContractClause> Clauses { get; set; } = new List<ContractClause>();

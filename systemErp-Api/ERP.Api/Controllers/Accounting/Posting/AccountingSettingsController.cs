@@ -17,4 +17,9 @@ public class AccountingSettingsController : ErpControllerBase
     [HttpPut]
     public async Task<IActionResult> Save([FromBody] SaveAccountingSettingsDto dto, CancellationToken ct)
         => Success(await _settings.SaveAsync(dto, ct), Messages.AccountingSettingsSaved);
+
+    /// <summary>تهيئة حسابات العقود الناقصة وربطها (لا يغيّر الإعدادات المحددة)؛ يعيد تقرير ما أُنشئ وأُعيد استخدامه وما يحتاج تدخلاً.</summary>
+    [HttpPost("contract-accounts")]
+    public async Task<IActionResult> InitializeContractAccounts(CancellationToken ct)
+        => Success(await _settings.InitializeContractAccountsAsync(ct));
 }

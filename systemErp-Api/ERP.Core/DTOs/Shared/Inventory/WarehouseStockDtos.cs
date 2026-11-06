@@ -25,6 +25,11 @@ public class TransferStockDto
     public string ReferenceNumber { get; set; } = string.Empty;
     public Guid? SourceId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>تشغيلة محددة للنقل (الصنف المتتبَّع)؛ فارغ = الأقرب انتهاءً من المستودع المحوَّل منه.</summary>
+    public Guid? ItemBatchId { get; set; }
+    /// <summary>داخلي: سطر مستند التحويل.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? SourceLineId { get; set; }
 }
 
 public class CreateStockTransferDto
@@ -45,6 +50,10 @@ public class StockTransferItemDto
     public string? ItemName { get; set; }
     public string? Unit { get; set; }
     public decimal Quantity { get; set; }
+    /// <summary>للصنف المتتبَّع: تشغيلة مختارة، أو فارغة = الأقرب انتهاءً (FEFO).</summary>
+    public Guid? ItemBatchId { get; set; }
+    public string? BatchNumber { get; set; }
+    public DateTime? ExpiryDate { get; set; }
 }
 
 public class StockTransferDto

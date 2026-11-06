@@ -23,6 +23,22 @@ public static class ContractCertificateKinds
 }
 
 /// <summary>
+/// جدولة مستخلصات عقد المقاولات (يختارها المستخدم لكل عقد):
+/// حسب الطلب، أو عدد دفعات محدد (آخرها ختامي)، أو دوري كل N شهر (فترة كل مستخلص يحددها الخادم، ولا يُقدَّم قبل نهايتها).
+/// </summary>
+public static class ContractCertificateSchedules
+{
+    public const string OnDemand = "on_demand";
+    public const string Installments = "installments";
+    public const string Periodic = "periodic";
+
+    public const int MaxCount = 120;
+    public const int MaxPeriodMonths = 12;
+
+    public static bool IsValid(string? schedule) => schedule is OnDemand or Installments or Periodic;
+}
+
+/// <summary>
 /// مستخلص أعمال على عقد بجدول كميات (فوترة boq_certificate): يقيس لكل بند الكمية المنفذة السابقة والحالية والتراكمية.
 /// السابق يحسبه الخادم من المستخلصات المعتمدة/المفوترة وحدها، والحالي يدخله المستخدم، والقيم كلها من الخادم.
 /// </summary>

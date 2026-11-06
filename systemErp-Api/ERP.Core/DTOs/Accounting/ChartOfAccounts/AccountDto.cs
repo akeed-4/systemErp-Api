@@ -20,4 +20,6 @@ public partial class AccountDto
     public Guid? LinkedEntityId { get; set; }
     public string? Notes { get; set; }
     public CostCenterPolicy CostCenterPolicy { get; set; } = CostCenterPolicy.Optional;
+    public Guid? DefaultCostCenterId { get; set; }
+    public bool IsActive { get; set; } = true;
 }

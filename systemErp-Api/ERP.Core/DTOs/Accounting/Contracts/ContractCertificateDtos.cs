@@ -102,6 +102,23 @@ public class SaveContractCertificateLineDto
     public decimal CurrentQuantity { get; set; }
 }
 
+/// <summary>
+/// تحصيل (عقد عميل) أو سداد (عقد مورد) فاتورة من فواتير العقد — مستخلص أو دفعة مقدمة — بسند يُوزَّع عليها.
+/// المبلغ لا يتجاوز المتبقي على الفاتورة؛ طريقة الدفع المؤسَّسة تحدد حساب الخزينة.
+/// </summary>
+public class ContractPaymentRequestDto
+{
+    /// <summary>فاتورة العقد (من فواتير المستخلصات أو الدفعة المقدمة لهذا العقد).</summary>
+    public Guid InvoiceId { get; set; }
+    public decimal Amount { get; set; }
+    public DateTime? Date { get; set; }
+    /// <summary>طريقة الدفع المؤسَّسة (نقد/بنك/شيك...)؛ وإلا حساب الخزينة صراحةً.</summary>
+    public string? PaymentMethodCode { get; set; }
+    public string? TreasuryAccountCode { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public string? Notes { get; set; }
+}
+
 /// <summary>قيد الإفراج عن الضمان المحتجز: يعيد المبلغ لذمة الطرف ليُحصَّل/يُسدَّد.</summary>
 public class RetentionReleaseResultDto
 {
@@ -149,6 +166,9 @@ public class BoqProgressDto
     /// <summary>صافي فاتورة الدفعة المقدمة (قبل الضريبة)؛ الاسترداد يقتصر عليه.</summary>
     public decimal AdvanceBilled { get; set; }
     public string? AdvanceInvoiceNumber { get; set; }
+    /// <summary>فاتورة الدفعة المقدمة والمتبقي عليها (لتحصيلها/سدادها من شاشة العقد).</summary>
+    public Guid? AdvanceInvoiceId { get; set; }
+    public decimal AdvanceAmountDue { get; set; }
     /// <summary>الضمان المحتجز في الفواتير، والمُفرج عنه، والمتبقي للإفراج.</summary>
     public decimal RetentionInvoiced { get; set; }
     public decimal RetentionReleased { get; set; }
@@ -156,7 +176,50 @@ public class BoqProgressDto
     /// <summary>إجمالي فواتير العقد (الدفعة والمستخلصات شاملة الضريبة)، والمحصّل عليها من السندات الموزّعة.</summary>
     public decimal InvoicedTotal { get; set; }
     public decimal CollectedTotal { get; set; }
+    /// <summary>جدولة المستخلصات المتفق عليها في العقد ومكان كل مستخلص منها.</summary>
+    public CertificateScheduleDto Schedule { get; set; } = new();
     public List<BoqProgressLineDto> Lines { get; set; } = new();
+}
+
+/// <summary>
+/// جدول مستخلصات العقد كما يحسبه الخادم: الدفعات/الفترات المتفق عليها، والمستخلص الذي غطّى كلاً منها، وما يليها.
+/// المستخلصات غير الملغاة تُسند للخانات بترتيبها.
+/// </summary>
+public class CertificateScheduleDto
+{
+    /// <summary>on_demand | installments | periodic</summary>
+    public string Mode { get; set; } = "on_demand";
+    public int? Count { get; set; }
+    public int? PeriodMonths { get; set; }
+    /// <summary>المستخلصات غير الملغاة حتى الآن.</summary>
+    public int Used { get; set; }
+    /// <summary>لا مستخلص جديد: اكتملت الدفعات أو اعتُمد الختامي.</summary>
+    public bool Complete { get; set; }
+    /// <summary>المستخلص التالي: رقمه في الجدول، وفترته (الدوري)، وهل يجب أن يكون ختامياً (آخر دفعة).</summary>
+    public int? NextNumber { get; set; }
+    public DateTime? NextPeriodFrom { get; set; }
+    public DateTime? NextPeriodTo { get; set; }
+    /// <summary>أقرب تاريخ لتقديم المستخلص التالي (نهاية فترته، أو موعد الدفعة المخطط).</summary>
+    public DateTime? NextDueDate { get; set; }
+    public bool NextMustBeFinal { get; set; }
+    public List<CertificateScheduleSlotDto> Slots { get; set; } = new();
+}
+
+public class CertificateScheduleSlotDto
+{
+    public int Number { get; set; }
+    public DateTime? PeriodFrom { get; set; }
+    public DateTime? PeriodTo { get; set; }
+    /// <summary>موعد الاستحقاق: نهاية الفترة (الدوري)، أو موعد موزّع بالتساوي على مدة العقد (الدفعات).</summary>
+    public DateTime? DueDate { get; set; }
+    public Guid? CertificateId { get; set; }
+    public string? CertificateNumber { get; set; }
+    public string? CertificateStatus { get; set; }
+    public string? Kind { get; set; }
+    public decimal? CurrentWorkValue { get; set; }
+    public decimal? NetPayable { get; set; }
+    /// <summary>done (معتمد/مفوتر) | open (مسودة/مقدَّم) | due (حلّ موعده) | upcoming | closed (بعد الختامي)</summary>
+    public string State { get; set; } = "upcoming";
 }
 
 public class BoqProgressLineDto

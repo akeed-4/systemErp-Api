@@ -7,7 +7,18 @@ namespace ERP.Api.Controllers.Shared;
 public class ProductsController : CrudController<ProductDto, CreateProductDto, UpdateProductDto>
 {
     private readonly IProductService _products;
-    public ProductsController(IProductService s) : base(s) => _products = s;
+    private readonly IInventoryService _inventory;
+    public ProductsController(IProductService s, IInventoryService inventory) : base(s) { _products = s; _inventory = inventory; }
+
+    /// <summary>تشغيلات الصنف بأرصدتها (في مستودع أو الكل) مرتبة بالأقرب انتهاءً: اختيار التشغيلة في البيع والتحويل والجرد.</summary>
+    [HttpGet("{id:guid}/batches")]
+    public async Task<IActionResult> Batches(Guid id, [FromQuery] Guid? warehouseId, [FromQuery] bool includeEmpty, CancellationToken ct)
+        => Success(await _inventory.GetBatchesAsync(id, warehouseId, includeEmpty, ct));
+
+    /// <summary>تعديل تاريخي تشغيلة (تصحيح إدخال)؛ رقمها وصنفها ثابتان.</summary>
+    [HttpPut("batches/{batchId:guid}")]
+    public async Task<IActionResult> UpdateBatch(Guid batchId, [FromBody] UpdateItemBatchDto request, CancellationToken ct)
+        => Success(await _inventory.UpdateBatchAsync(batchId, request, ct));
 
     [HttpPost("import"), RequireScreen("master-data", ScreenAction.Import, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> Import([FromBody] List<CreateProductDto> items, CancellationToken ct)

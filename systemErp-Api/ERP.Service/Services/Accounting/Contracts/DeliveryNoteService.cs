@@ -57,6 +57,10 @@ public class DeliveryNoteService : IDeliveryNoteService
                     ?? throw new ValidationFailedException(Messages.ContractNotFoundDot);
             if (contract != null && await CommercialContractService.IsBoqContractAsync(_db, contract.ContractType, token))
                 throw new ConflictException(Messages.BoqContractBilledByCertificates);
+            // التسليم على عقد أكمل مراحل اعتماده فقط (ساري): المسودة والمراجعة والاعتماد لم تُلزم الطرفين بعد،
+            // والموقوف والمغلق والملغي لا تسليم عليها
+            if (contract != null && contract.Stage != ContractStageDefinition.Active)
+                throw new ConflictException(Messages.DeliveryContractNotActive);
 
             var note = Mapper.Map<DeliveryNote>(r);
             note.ContractNumber = contract?.ContractNumber ?? r.ContractNumber;

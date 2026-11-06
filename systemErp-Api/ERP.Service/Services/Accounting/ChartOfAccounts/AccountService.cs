@@ -40,6 +40,17 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             throw new ConflictException(Messages.CannotChangeCodeOfAccountWithEntries);
         if (existing is { IsSystem: true } && (existing.Code != dto.Code || existing.Type != dto.Type))
             throw new ConflictException(Messages.CannotEditSystemAccountCodeOrType);
+        // حسابات النظام تُرحِّل عليها المستندات آلياً (الضريبة، المخزون...): إيقافها يعطّل الترحيل كله
+        if (existing is { IsSystem: true } && dto.IsActive == false)
+            throw new ConflictException(Messages.CannotDeactivateSystemAccount);
+
+        if (dto.DefaultCostCenterId is { } center)
+        {
+            var effectivePolicy = dto.CostCenterPolicy ?? existing?.CostCenterPolicy ?? CostCenterPolicy.Optional;
+            if (effectivePolicy == CostCenterPolicy.None) throw new ValidationFailedException(Messages.DefaultCostCenterNotAllowedForAccount);
+            // مركز جديد يُشترط نشاطه؛ المركز المحفوظ مسبقاً يبقى وإن أُوقف بعدها (الترحيل يرفضه هناك)
+            await CostCenterRules.EnsureUsableAsync(Db, new Guid?[] { center }, ct, requireActive: existing?.DefaultCostCenterId != center);
+        }
     }
 
     protected override async Task OnCreatingAsync(Account entity, CreateAccountDto dto, CancellationToken ct)

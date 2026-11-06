@@ -163,6 +163,11 @@ public class AccountingPostingService : IAccountingPostingService
         if (parents.Count > 0)
             throw new ValidationFailedException(Messages.CannotPostToParentAccountPrefix + string.Join(", ", parents));
 
+        // الحساب الموقوف لا تُرحَّل عليه حركة جديدة؛ قيدا العكس والإقفال صورة لحركات قائمة فيُسمح بهما
+        if (request.SourceType is not (ReversalSource or FiscalPeriodService.ClosingSource)
+            && accounts.FirstOrDefault(a => !a.IsActive) is { } inactive)
+            throw new ValidationFailedException(string.Format(Messages.AccountInactiveNamed, inactive.Code, inactive.NameAr));
+
         var byCode = accounts.ToDictionary(a => a.Code);
         // مركز اختاره المستخدم لحساب في قيد المستند يحلّ محل مركز أسطره، ثم تُطبَّق قواعد المراكز عليه كأي مركز
         if (request.CostCenterByAccount.Count > 0)
@@ -185,10 +190,17 @@ public class AccountingPostingService : IAccountingPostingService
         var manual = IsManual(request.SourceType);
         // باقة بلا مراكز التكلفة (نزلت إليها منشأة كانت تلزم بها حسابات): الإلزام لا يُفرض، فلا يتعذّر الترحيل بلا مركز يُختار
         var centersInPlan = (await _entitlements.GetAsync(ct)).HasFeature(PlanFeatures.CostCenters);
+        // المركز الافتراضي للحساب يُسند للسطر الذي جاء بلا مركز، إن كان المركز نشطاً (الموقوف لا يُسند تلقائياً)
+        var defaults = byCode.Values.Where(a => a.DefaultCostCenterId.HasValue && a.CostCenterPolicy != CostCenterPolicy.None)
+            .Select(a => a.DefaultCostCenterId!.Value).Distinct().ToList();
+        var activeDefaults = !centersInPlan || defaults.Count == 0 ? new HashSet<Guid>()
+            : (await _db.Set<CostCenter>().AsNoTracking().Where(c => defaults.Contains(c.Id) && c.IsActive).Select(c => c.Id).ToListAsync(ct)).ToHashSet();
         var result = new List<PostingLine>(lines.Count);
-        foreach (var line in lines)
+        foreach (var raw in lines)
         {
-            var account = byCode[line.AccountCode];
+            var account = byCode[raw.AccountCode];
+            var line = !raw.CostCenterId.HasValue && account.DefaultCostCenterId is { } fallback && activeDefaults.Contains(fallback)
+                ? raw with { CostCenterId = fallback } : raw;
             switch (account.CostCenterPolicy)
             {
                 case CostCenterPolicy.None when line.CostCenterId.HasValue:

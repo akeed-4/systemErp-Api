@@ -185,6 +185,8 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
                 Type = isIn ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
                 Quantity = Math.Abs(line.VarianceQuantity), UnitCost = unitCost, ReferenceNumber = count.CountNumber, Date = SaudiTime.Today,
                 Notes = $"تسوية جرد {count.CountNumber}", SourceType = SourceType, SourceId = count.Id,
+                // الصنف المتتبَّع: الفرق على تشغيلة السطر (الجديدة المعثور عليها برقمها وتاريخها)؛ السطر بلا تشغيلة: العجز بالأقرب انتهاءً
+                ItemBatchId = line.ItemBatchId, BatchNumber = line.BatchNumber, ExpiryDate = line.ExpiryDate, SourceLineId = line.Id,
             }, ct);
             line.UnitCost = movement.UnitCost;
             line.VarianceValue = movement.ValueChange; // تغيّر القيمة الدفترية بإشارته: يطابق حساب المخزون بلا هللات تقريب

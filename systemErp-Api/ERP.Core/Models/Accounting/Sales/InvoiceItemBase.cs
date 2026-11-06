@@ -33,6 +33,14 @@ public abstract class InvoiceItemBase : BaseEntity
     public string? VatOverrideReason { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
+    /// <summary>
+    /// التشغيلة: في الوارد (شراء، مرتجع بلا أصل) رقمها وتاريخاها تُنشأ أو تُطابَق؛ في الصادر (بيع، مرتجع شراء) تشغيلة مختارة يدوياً،
+    /// وفارغة = تخصيص تلقائي بالأقرب انتهاءً (FEFO). بعد الترحيل تحمل ما خُصِّص فعلاً (التشغيلة، أو ملخص عند التوزيع على أكثر من تشغيلة).
+    /// </summary>
+    public Guid? ItemBatchId { get; set; }
+    public string? BatchNumber { get; set; }
+    public DateTime? ProductionDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
     public Guid? CostCenterId { get; set; }
     /// <summary>حساب إيراد هذا السطر (مبيعات)؛ فارغ = حساب إيراد الفاتورة ثم الافتراضي.</summary>
     public string? RevenueAccountCode { get; set; }

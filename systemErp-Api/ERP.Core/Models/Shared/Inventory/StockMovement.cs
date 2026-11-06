@@ -28,4 +28,6 @@ public class StockMovement : BaseEntity
     public Guid? JournalEntryId { get; set; }
     /// <summary>الحساب المقابل للتسوية اليدوية (فروقات الجرد افتراضياً، أو الأرصدة الافتتاحية لمخزون أول المدة).</summary>
     public string? CounterAccountCode { get; set; }
+    /// <summary>ملخص تشغيلات الحركة للعرض (رقم التشغيلة والصلاحية والكمية)؛ التفصيل في StockMovementBatch.</summary>
+    public string? BatchSummary { get; set; }
 }

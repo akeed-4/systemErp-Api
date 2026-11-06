@@ -41,11 +41,31 @@ internal static class InventoryCountLines
         var ids = count.Lines.Select(l => l.ItemId!.Value).Distinct().ToList();
         var products = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var onHand = await WarehouseQuantitiesAsync(db, count.WarehouseId, ct);
+        var batchOnHand = await BatchQuantitiesAsync(db, count.WarehouseId, ct);
+        var batchIds = count.Lines.Where(l => l.ItemBatchId.HasValue).Select(l => l.ItemBatchId!.Value).Distinct().ToList();
+        var batches = await db.Set<ItemBatch>().AsNoTracking().Where(b => batchIds.Contains(b.Id) || ids.Contains(b.ItemId)).ToListAsync(ct);
         foreach (var line in count.Lines)
         {
             var p = products.GetValueOrDefault(line.ItemId!.Value) ?? throw new ValidationFailedException(Messages.ItemNotFoundInCountLines);
             line.Sku = p.Sku; line.ItemName = p.NameAr; line.Unit = p.Unit;
             line.SystemQuantity = onHand.GetValueOrDefault(p.Id);
+            if (p.TrackBatches)
+            {
+                // تشغيلة جديدة معثور عليها برقم قائم تُربط به؛ ورصيد النظام رصيد التشغيلة (صفر للجديدة)، والسطر بلا تشغيلة برصيد الصنف كله
+                var number = line.BatchNumber?.Trim();
+                var batch = line.ItemBatchId is { } bid ? batches.FirstOrDefault(b => b.Id == bid && b.ItemId == p.Id)
+                    : string.IsNullOrEmpty(number) ? null : batches.FirstOrDefault(b => b.ItemId == p.Id && b.BatchNumber == number);
+                if (batch != null)
+                {
+                    line.ItemBatchId = batch.Id; line.BatchNumber = batch.BatchNumber; line.ExpiryDate = batch.ExpiryDate;
+                    line.SystemQuantity = batchOnHand.GetValueOrDefault(batch.Id);
+                }
+                else if (!string.IsNullOrEmpty(number))
+                {
+                    line.ItemBatchId = null; line.BatchNumber = number; line.SystemQuantity = 0;
+                }
+            }
+            else { line.ItemBatchId = null; line.BatchNumber = null; line.ExpiryDate = null; }
             line.UnitCost = p.AverageCost;
             line.VarianceQuantity = line.CountedQuantity.HasValue ? line.CountedQuantity.Value - line.SystemQuantity : 0;
             line.VarianceValue = Math.Round(line.VarianceQuantity * line.UnitCost, 2);
@@ -108,7 +128,15 @@ internal static class InventoryCountLines
         return await db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == warehouse.Id).ToDictionaryAsync(s => s.ItemId, s => s.Quantity, ct);
     }
 
-    /// <summary>قائمة المتوقَّع من رصيد النظام الحالي لتجهيز جرد جديد.</summary>
+    /// <summary>أرصدة التشغيلات في المستودع المجرود.</summary>
+    private static async Task<Dictionary<Guid, decimal>> BatchQuantitiesAsync(ErpDbContext db, Guid? warehouseId, CancellationToken ct)
+    {
+        var warehouse = await WarehouseStocks.ResolveAsync(db, warehouseId, ct);
+        return await db.Set<BatchStock>().AsNoTracking().Where(s => s.WarehouseId == warehouse.Id)
+            .GroupBy(s => s.ItemBatchId).Select(g => new { g.Key, Qty = g.Sum(s => s.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+    }
+
+    /// <summary>قائمة المتوقَّع من رصيد النظام الحالي لتجهيز جرد جديد (الصنف المتتبَّع: سطر لكل تشغيلة برصيدها).</summary>
     public static async Task<List<InventoryCountLineDto>> SnapshotAsync(ErpDbContext db, InventoryCountSnapshotRequestDto r, CancellationToken ct)
     {
         if (r.Scope == InventoryCountScope.Items)
@@ -116,10 +144,28 @@ internal static class InventoryCountLines
             var q = db.Set<Product>().AsNoTracking();
             if (!string.IsNullOrWhiteSpace(r.Category)) q = q.Where(p => p.Category == r.Category);
             var onHand = await WarehouseQuantitiesAsync(db, r.WarehouseId, ct);
-            return (await q.OrderBy(p => p.Sku).ToListAsync(ct)).Where(p => r.IncludeZeroStock || onHand.GetValueOrDefault(p.Id) != 0).Select(p => new InventoryCountLineDto
+            var batchOnHand = await BatchQuantitiesAsync(db, r.WarehouseId, ct);
+            var products = (await q.OrderBy(p => p.Sku).ToListAsync(ct)).Where(p => r.IncludeZeroStock || onHand.GetValueOrDefault(p.Id) != 0).ToList();
+            var trackedIds = products.Where(p => p.TrackBatches).Select(p => p.Id).ToList();
+            var batches = (await db.Set<ItemBatch>().AsNoTracking().Where(b => trackedIds.Contains(b.ItemId)).ToListAsync(ct))
+                .Where(b => batchOnHand.GetValueOrDefault(b.Id) != 0)
+                .OrderBy(b => b.ExpiryDate == null).ThenBy(b => b.ExpiryDate).ThenBy(b => b.BatchNumber).ToLookup(b => b.ItemId);
+            var lines = new List<InventoryCountLineDto>();
+            foreach (var p in products)
             {
-                ItemId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit, SystemQuantity = onHand.GetValueOrDefault(p.Id), UnitCost = p.AverageCost,
-            }).ToList();
+                if (p.TrackBatches && batches[p.Id].Any())
+                    lines.AddRange(batches[p.Id].Select(b => new InventoryCountLineDto
+                    {
+                        ItemId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit, ItemBatchId = b.Id, BatchNumber = b.BatchNumber, ExpiryDate = b.ExpiryDate,
+                        SystemQuantity = batchOnHand.GetValueOrDefault(b.Id), UnitCost = p.AverageCost,
+                    }));
+                else
+                    lines.Add(new InventoryCountLineDto
+                    {
+                        ItemId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit, SystemQuantity = onHand.GetValueOrDefault(p.Id), UnitCost = p.AverageCost,
+                    });
+            }
+            return lines;
         }
 
         var vehicles = await db.Set<Vehicle>().AsNoTracking().Where(v => InStock.Contains(v.Status)).OrderBy(v => v.ChassisNumber).ToListAsync(ct);

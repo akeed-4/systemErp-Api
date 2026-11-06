@@ -15,6 +15,8 @@ public partial class CommercialContractDto
     public DateTime? StageChangedAt { get; set; }
     public int ReviewRound { get; set; }
     public bool IsSimplified { get; set; }
+    /// <summary>يلزم هذا العقد ضمان بنكي قبل التفعيل.</summary>
+    public bool RequiresGuarantee { get; set; }
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }
     public string PartyName { get; set; } = string.Empty;
@@ -59,6 +61,10 @@ public partial class CommercialContractDto
     public string? GuaranteeBank { get; set; }
     public decimal? GuaranteeAmount { get; set; }
     public DateTime? GuaranteeExpiry { get; set; }
+    /// <summary>جدولة المستخلصات: on_demand | installments | periodic.</summary>
+    public string CertificateSchedule { get; set; } = "on_demand";
+    public int? CertificateCount { get; set; }
+    public int? CertificatePeriodMonths { get; set; }
     public List<ContractMilestoneDto> Milestones { get; set; } = new();
     public List<ContractClauseDto> Clauses { get; set; } = new();
     public List<ContractItemDto> Items { get; set; } = new();

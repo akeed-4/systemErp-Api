@@ -10,6 +10,11 @@ public class InventoryCountLine : BaseEntity
     public string ItemName { get; set; } = string.Empty;
     public string? Unit { get; set; }
 
+    /// <summary>تشغيلة السطر للصنف المتتبَّع: سطر لكل تشغيلة برصيدها؛ والتشغيلة الجديدة المعثور عليها برقمها وتاريخها.</summary>
+    public Guid? ItemBatchId { get; set; }
+    public string? BatchNumber { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+
     public Guid? VehicleId { get; set; }
     public string? ChassisNumber { get; set; }
 

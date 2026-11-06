@@ -268,6 +268,197 @@ public class ContractWorkflowTests : TestBase
         Assert.NotNull((await owner.Get($"/commercialcontracts/{id}")).Data!["signedDate"]);
     }
 
+    // ---------- مسار الاعتماد لكل عقد ----------
+
+    private static object PathBody(Guid party, Guid product, string? workflow, string type = "supply_materials") => new
+    {
+        title = "عقد", contractType = type, workflow, partyName = "عميل", partyId = party, contractValue = 200, vatRate = 15,
+        startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(3),
+        items = new object[] { new { itemId = product, description = "صنف", unit = "PCS", quantity = 2, unitPrice = 100, vatRate = 15 } },
+        milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
+    };
+
+    private static async Task<List<string>> TransitionTargets(Client api, string id)
+        => (await api.Get($"/commercialcontracts/{id}/workflow")).Data!["transitions"]!.AsArray().Select(t => t!["toStatus"].S()).ToList();
+
+    [Fact]
+    public async Task Same_type_can_run_simplified_or_full_per_contract_and_the_path_is_saved_on_the_contract()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+
+        // supply_materials مسارها الافتراضي «كامل»: اختيار «مبسط» للعقد يتخطى المراجعة
+        var simple = await owner.Post("/commercialcontracts", PathBody(party, product, "simple"));
+        Assert.Equal(201, simple.Status);
+        var simpleId = simple.Data!["id"].S();
+        Assert.True((await owner.Get($"/commercialcontracts/{simpleId}")).Data!["isSimplified"]!.GetValue<bool>());
+        Assert.Equal("simple", (await owner.Get($"/commercialcontracts/{simpleId}/workflow")).Data!["workflow"].S());
+        var simpleTargets = await TransitionTargets(owner, simpleId);
+        Assert.Contains("active", simpleTargets);
+        Assert.DoesNotContain("review", simpleTargets);
+        Assert.Equal(409, (await Move(owner, simpleId, "review")).Status);
+        Assert.Equal(200, (await Move(owner, simpleId, "active")).Status);
+
+        // النوع نفسه بمسار «كامل»: المراجعة إلزامية ولا تفعيل مباشر
+        var full = await owner.Post("/commercialcontracts", PathBody(party, product, "full"));
+        var fullId = full.Data!["id"].S();
+        Assert.False(full.Data["isSimplified"]!.GetValue<bool>());
+        Assert.Equal("full", (await owner.Get($"/commercialcontracts/{fullId}/workflow")).Data!["workflow"].S());
+        var fullTargets = await TransitionTargets(owner, fullId);
+        Assert.Contains("review", fullTargets);
+        Assert.DoesNotContain("active", fullTargets);
+        Assert.Equal(409, (await Move(owner, fullId, "active")).Status);
+
+        // والعكس: نوع مبسط افتراضياً (صيانة شهرية) يمكن أن يمشي كاملاً لعقد بعينه
+        var maintenance = await owner.Post("/commercialcontracts", PathBody(party, product, "full", "monthly_maintenance"));
+        Assert.False(maintenance.Data!["isSimplified"]!.GetValue<bool>());
+        Assert.Contains("review", await TransitionTargets(owner, maintenance.Data["id"].S()));
+    }
+
+    [Fact]
+    public async Task Without_a_selected_path_the_type_default_still_applies_and_invalid_paths_are_rejected()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+
+        // عميل قديم أو طلب اعتماد معلّق بلا الحقل: سلوك ما قبل الاختيار كما هو
+        Assert.False((await owner.Post("/commercialcontracts", PathBody(party, product, null))).Data!["isSimplified"]!.GetValue<bool>());
+        Assert.True((await owner.Post("/commercialcontracts", PathBody(party, product, null, "monthly_maintenance"))).Data!["isSimplified"]!.GetValue<bool>());
+
+        var invalid = await owner.Post("/commercialcontracts", PathBody(party, product, "express"));
+        Assert.Equal(400, invalid.Status);
+    }
+
+    [Fact]
+    public async Task Editing_keeps_the_saved_path_and_it_changes_only_in_the_first_draft()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+        var id = (await owner.Post("/commercialcontracts", PathBody(party, product, "simple"))).Data!["id"].S();
+
+        // تعديل بلا مسار لا يعيده لافتراضي النوع (supply_materials = كامل)
+        var kept = await owner.Put($"/commercialcontracts/{id}", PathBody(party, product, null));
+        Assert.Equal(200, kept.Status);
+        Assert.True(kept.Data!["isSimplified"]!.GetValue<bool>());
+
+        // في المسودة الأولى يتغير المسار وتتبعه الانتقالات
+        var changed = await owner.Put($"/commercialcontracts/{id}", PathBody(party, product, "full"));
+        Assert.Equal(200, changed.Status);
+        Assert.False(changed.Data!["isSimplified"]!.GetValue<bool>());
+        Assert.Contains("review", await TransitionTargets(owner, id));
+
+        // بعد إرساله للمراجعة وإعادته للمسودة: المسار مقفل (التحويل لمبسط يتخطى المراجعة التي أعادته)
+        Assert.Equal(200, (await Move(owner, id, "review")).Status);
+        Assert.Equal(200, (await owner.Post($"/commercialcontracts/{id}/review", new { kind = "legal", decision = "return", note = "عدّل البنود" })).Status);
+        Assert.Equal("draft", (await owner.Get($"/commercialcontracts/{id}")).Data!["stage"].S());
+        var locked = await owner.Put($"/commercialcontracts/{id}", PathBody(party, product, "simple"));
+        Assert.Equal(400, locked.Status);
+        Assert.Contains("المسودة الأولى", locked.Body!["message"].S());
+
+        // وتعديل بقية البيانات بنفس المسار مسموح
+        var sameFull = await owner.Put($"/commercialcontracts/{id}", PathBody(party, product, "full"));
+        Assert.Equal(200, sameFull.Status);
+        Assert.False(sameFull.Data!["isSimplified"]!.GetValue<bool>());
+    }
+
+    // ---------- الضمان البنكي اختيار لكل عقد ----------
+
+    private static object GuaranteeBody(Guid party, Guid product, string workflow, bool? requiresGuarantee, string? guaranteeNumber = null) => new
+    {
+        title = "عقد", contractType = "supply_materials", workflow, requiresGuarantee, partyName = "عميل", partyId = party, contractValue = 200, vatRate = 15,
+        startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(3),
+        guaranteeNumber, guaranteeAmount = guaranteeNumber == null ? (decimal?)null : 50m,
+        guaranteeExpiry = guaranteeNumber == null ? (DateTime?)null : DateTime.UtcNow.Date.AddYears(1),
+        items = new object[] { new { itemId = product, description = "صنف", unit = "PCS", quantity = 2, unitPrice = 100, vatRate = 15 } },
+        milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
+    };
+
+    [Fact]
+    public async Task Full_contract_without_a_guarantee_activates_with_reviews_only_no_attachment_needed()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+
+        // supply_materials يلزم نوعه الضمان افتراضياً؛ العقد اختار «بلا ضمان»
+        var created = await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "full", false));
+        Assert.False(created.Data!["requiresGuarantee"]!.GetValue<bool>());
+        var id = created.Data["id"].S();
+        Assert.False((await owner.Get($"/commercialcontracts/{id}/workflow")).Data!["requiresGuarantee"]!.GetValue<bool>());
+
+        Assert.Equal(200, (await Move(owner, id, "review")).Status);
+        await owner.Post($"/commercialcontracts/{id}/review", new { kind = "legal", decision = "approve" });
+        await owner.Post($"/commercialcontracts/{id}/review", new { kind = "financial", decision = "approve" });
+        // بلا ضمان: لا نسخة موقعة مطلوبة (المرفقات مخفية في الواجهة لهذا العقد)
+        var activated = await Move(owner, id, "active");
+        Assert.True(activated.Status == 200, activated.Body?.ToJsonString());
+    }
+
+    [Fact]
+    public async Task Simplified_contract_with_a_guarantee_needs_it_before_activation_and_switching_off_clears_it()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+
+        var id = (await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "simple", true))).Data!["id"].S();
+        var blocked = await Move(owner, id, "active");
+        Assert.Equal(409, blocked.Status);
+        Assert.Contains("الضمان البنكي", blocked.Body!["message"].S());
+
+        // بيانات الضمان من نموذج العقد نفسه
+        var withGuarantee = await owner.Put($"/commercialcontracts/{id}", GuaranteeBody(party, product, "simple", true, "LG-9"));
+        Assert.Equal("LG-9", withGuarantee.Data!["guaranteeNumber"].S());
+
+        // إلغاء الضمان يمسح بياناته، وإعادته بلا بيانات تمنع التفعيل
+        var off = await owner.Put($"/commercialcontracts/{id}", GuaranteeBody(party, product, "simple", false, "LG-9"));
+        Assert.False(off.Data!["requiresGuarantee"]!.GetValue<bool>());
+        Assert.Null(off.Data["guaranteeNumber"]?.GetValue<string?>());
+
+        await owner.Put($"/commercialcontracts/{id}", GuaranteeBody(party, product, "simple", true, "LG-10"));
+        var active = await Move(owner, id, "active");
+        Assert.True(active.Status == 200, active.Body?.ToJsonString());
+    }
+
+    [Fact]
+    public async Task Without_a_guarantee_choice_the_type_default_still_applies_on_create_and_edit_keeps_it()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+
+        var full = await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "full", null));
+        Assert.True(full.Data!["requiresGuarantee"]!.GetValue<bool>()); // نوع يلزمه ضمان + مسار كامل
+        Assert.False((await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "simple", null))).Data!["requiresGuarantee"]!.GetValue<bool>());
+
+        var kept = await owner.Put($"/commercialcontracts/{full.Data["id"].S()}", GuaranteeBody(party, product, "full", null));
+        Assert.True(kept.Data!["requiresGuarantee"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task Delivery_notes_are_accepted_only_on_an_active_contract()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+        var id = (await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "simple", false))).Data!["id"].S();
+        object Note() => new
+        {
+            type = "sales_delivery", partyName = "عميل", partyId = party, contractId = Guid.Parse(id), date = DateTime.UtcNow,
+            items = new[] { new { itemId = product, itemName = "صنف", unit = "PCS", contractQty = 2, deliveredQty = 1, unitPrice = 100, vatRate = 15 } },
+        };
+
+        var draft = await owner.Post("/deliverynotes", Note());
+        Assert.Equal(409, draft.Status);
+        Assert.Contains("مراحل اعتماده", draft.Body!["message"].S());
+
+        Assert.Equal(200, (await Move(owner, id, "active")).Status);
+        Assert.Equal(200, (await owner.Post("/deliverynotes", Note())).Status);
+    }
+
     [Fact]
     public async Task Full_contract_cannot_use_the_simplified_shortcut_and_status_cannot_be_saved_outside_move()
     {

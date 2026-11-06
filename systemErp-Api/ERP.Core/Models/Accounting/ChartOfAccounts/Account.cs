@@ -18,6 +18,10 @@ public class Account : BaseEntity
     public string? Notes { get; set; }
     /// <summary>هل يُحلَّل الحساب بمركز تكلفة عند الترحيل (غير مستخدم / اختياري / إلزامي).</summary>
     public CostCenterPolicy CostCenterPolicy { get; set; } = CostCenterPolicy.Optional;
+    /// <summary>المركز الافتراضي للحساب: يُسند لسطر القيد على الحساب إن جاء بلا مركز (لا يُستخدم مع «غير مستخدم»).</summary>
+    public Guid? DefaultCostCenterId { get; set; }
+    /// <summary>حالة الحساب: الموقوف يبقى في الشجرة والتقارير ولا يُرحَّل عليه قيد جديد.</summary>
+    public bool IsActive { get; set; } = true;
     /// <summary>رمز تزامن (rowversion): ترحيلان متزامنان على الحساب نفسه لا يُضيِّع أحدهما أثر الآخر على الرصيد.</summary>
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 

@@ -27,6 +27,8 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ProductArabicNameRequired);
         if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0 || d.WeightKg < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
         if (d.VatRate is < 0 or > 100) errors.Add(Messages.VatRateRange);
+        if (d.TrackExpiry && !d.TrackBatches) errors.Add(Messages.ExpiryTrackingRequiresBatches);
+        if (d.ShelfLifeDays is < 0 || d.ExpiryAlertDays < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
         if (d.ExciseTaxRate is < 0 or > 100 || d.ExciseRetailPrice < 0 || d.ExciseStandardPrice < 0)
             errors.Add("نسبة الضريبة الانتقائية بين 0 و100 والأسعار المرجعية لا تكون سالبة.");
         if (d.ExciseTaxRate > 0 && d.ExciseRetailPrice <= 0 && d.ExciseStandardPrice <= 0)
@@ -70,6 +72,8 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         e.AverageCost = o.GetValue<decimal>(nameof(Product.AverageCost));
         e.LastPurchaseCost = o.GetValue<decimal>(nameof(Product.LastPurchaseCost));
 
+        await ApplyBatchTrackingChangeAsync(e, o.GetValue<bool>(nameof(Product.TrackBatches)), ct);
+
         // التكلفة المعيارية لصنف دخل حركة أو مستنداً لا يغيّرها إلا صاحب صلاحية إعادة التقييم
         if (e.StandardCost != o.GetValue<decimal?>(nameof(Product.StandardCost)) && await IsUsedAsync(e.Id, ct)
             && !await _permissions.HasPermissionAsync(PermissionService.ItemStandardCostScreenId, ScreenAction.Edit, ct))
@@ -87,6 +91,30 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
     }
 
     protected override async Task OnCreatedAsync(Product e, CancellationToken ct) => await RecountAsync(ct);
+
+    /// <summary>
+    /// تفعيل تتبّع التشغيلات لصنف برصيد قائم: رصيد كل مستودع يدخل تشغيلة «رصيد افتتاحي» بلا صلاحية (فيبقى مجموع التشغيلات = الرصيد)،
+    /// ثم تُستهلك أولاً بعد التشغيلات المؤرخة. الإيقاف ممنوع وفي التشغيلات رصيد (تبقى الأرصدة بلا تتبّع ثم تنفصل عن الرصيد).
+    /// </summary>
+    private async Task ApplyBatchTrackingChangeAsync(Product e, bool wasTracking, CancellationToken ct)
+    {
+        if (!e.TrackBatches) e.TrackExpiry = false;
+        if (wasTracking == e.TrackBatches) return;
+        if (!e.TrackBatches)
+        {
+            if (await Db.Set<BatchStock>().AnyAsync(s => s.ItemId == e.Id && s.Quantity != 0, ct))
+                throw new ConflictException(string.Format(Messages.BatchTrackingCannotBeDisabled, e.NameAr));
+            return;
+        }
+        var balances = await Db.Set<WarehouseStock>().Where(s => s.ItemId == e.Id && s.Quantity != 0).ToListAsync(ct);
+        if (balances.Count == 0) return;
+        var opening = await ItemBatches.OpeningAsync(Db, e.Id, ct);
+        foreach (var b in balances)
+        {
+            var already = await Db.Set<BatchStock>().Where(s => s.ItemId == e.Id && s.WarehouseId == b.WarehouseId).SumAsync(s => s.Quantity, ct);
+            if (b.Quantity - already != 0) await ItemBatches.ApplyAsync(Db, opening, b.WarehouseId, b.Quantity - already, ct);
+        }
+    }
 
     protected override async Task OnDeletingAsync(Product e, CancellationToken ct)
     {

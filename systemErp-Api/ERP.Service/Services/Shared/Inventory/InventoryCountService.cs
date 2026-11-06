@@ -77,7 +77,8 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
         {
             if (d.Lines.Any(l => l.ItemId is null || l.ItemId == Guid.Empty)) errors.Add(Messages.ItemCountLineRequiresItem);
             if (d.Lines.Any(l => !string.IsNullOrWhiteSpace(l.ChassisNumber))) errors.Add(Messages.ItemCountNoVins);
-            if (d.Lines.Where(l => l.ItemId.HasValue).GroupBy(l => l.ItemId).Any(g => g.Count() > 1)) errors.Add(Messages.DuplicateItemInCount);
+            // الصنف المتتبَّع: سطر لكل تشغيلة (بمعرّفها أو رقمها الجديد)
+            if (d.Lines.Where(l => l.ItemId.HasValue).GroupBy(l => (l.ItemId, l.ItemBatchId, Batch: (l.ItemBatchId == null ? l.BatchNumber?.Trim() : null) ?? "")).Any(g => g.Count() > 1)) errors.Add(Messages.DuplicateItemInCount);
             if (d.Lines.Any(l => l.CountedQuantity < 0)) errors.Add(Messages.CountedQtyCannotBeNegative);
         }
         else

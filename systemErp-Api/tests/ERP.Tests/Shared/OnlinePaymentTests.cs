@@ -60,6 +60,18 @@ public class OnlinePaymentTests : TestBase
 
     private static long OrderIdOf(Res payment) => PaymobCallback.OrderIdOf(payment.Data!);
 
+    /// <summary>
+    /// يحذف حساب Paymob المحفوظ من لوحة المنصة فيعود لإعدادات خادم الاختبار، فلا تتأثر الاختبارات اللاحقة على القاعدة نفسها.
+    /// لا يُعاد الحفظ عبر الواجهة: الأسرار تُشفَّر بمفاتيح المضيف المشتق، وقد لا يفكّها المضيف الرئيسي فيصير الدفع «غير مُعدّ».
+    /// </summary>
+    private async Task ResetPlatformGatewayAsync()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>().Catalog;
+        var keys = new[] { PlatformSetting.PaymobBaseUrl, PlatformSetting.PaymobPublicKey, PlatformSetting.PaymobSecretKey, PlatformSetting.PaymobHmacSecret, PlatformSetting.PaymobIntegrationIds };
+        db.Set<PlatformSetting>().RemoveRange(await db.Set<PlatformSetting>().Where(s => keys.Contains(s.Key)).ToListAsync());
+        await db.SaveChangesAsync();
+    }
     private static async Task EnableGatewayAsync(Client api)
     {
         var r = await api.Put("/payments/GatewaySettings", new
@@ -214,12 +226,7 @@ public class OnlinePaymentTests : TestBase
         }
         finally
         {
-            // يعيد حساب المنصة لقيم الاختبار حتى لا تتأثر الاختبارات الأخرى على القاعدة نفسها
-            await platform.Put("/platform/payment-gateway", new
-            {
-                baseUrl = "https://ksa.paymob.com", publicKey = "platform-public", secretKey = "platform-secret",
-                hmacSecret = FakePaymobClient.PlatformHmac, integrationIds = "111",
-            });
+            await ResetPlatformGatewayAsync();
         }
     }
 
@@ -264,11 +271,7 @@ public class OnlinePaymentTests : TestBase
         }
         finally
         {
-            await platform.Put("/platform/payment-gateway", new
-            {
-                baseUrl = "https://ksa.paymob.com", publicKey = "platform-public", secretKey = "platform-secret",
-                hmacSecret = FakePaymobClient.PlatformHmac, integrationIds = "111",
-            });
+            await ResetPlatformGatewayAsync();
         }
     }
 }

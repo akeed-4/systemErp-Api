@@ -27,6 +27,14 @@ public class Product : BaseEntity
     public VatCategory VatCategory { get; set; } = VatCategory.Standard;
     /// <summary>سبب الصفرية/الإعفاء برمز الهيئة (VATEX-SA-…)؛ إلزامي لغير الخاضع.</summary>
     public string? VatExemptionReasonCode { get; set; }
+    /// <summary>تتبّع التشغيلات (Lot/Batch): كل وارد برقم تشغيلة، وكل صادر يُخصَّص من تشغيلات المستودع (FEFO افتراضياً).</summary>
+    public bool TrackBatches { get; set; }
+    /// <summary>تاريخ صلاحية إلزامي لكل تشغيلة واردة، ويُمنع بيع المنتهي (يتطلب تتبّع التشغيلات).</summary>
+    public bool TrackExpiry { get; set; }
+    /// <summary>مدة الصلاحية بالأيام من تاريخ الإنتاج: تقترح تاريخ الانتهاء عند الاستلام (اختياري).</summary>
+    public int? ShelfLifeDays { get; set; }
+    /// <summary>التنبيه قبل انتهاء الصلاحية بعدد أيام (تقرير قرب الانتهاء).</summary>
+    public int ExpiryAlertDays { get; set; } = 30;
     public decimal MinStockLevel { get; set; }
     public string? Notes { get; set; }
     /// <summary>رمز تزامن (rowversion): حركتان متزامنتان على الصنف نفسه لا تبيعان الرصيد مرتين ولا تُفسدان متوسط التكلفة.</summary>

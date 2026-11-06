@@ -57,6 +57,14 @@ Angular → Controller (ERP.Api) → Contract (ERP.Core) → Service (ERP.Servic
 - المحرك المشترك: `ERP.Service/Services/Accounting/Sales/TradeInvoiceEngine.cs`؛ يستقبل نوع الجدول المناسب، ويتعامل مع التحقق والتسعير والترحيل والمرتجعات.
 - الأرقام النهائية والضريبة وآثار المخزون والقيد تحسب في الخادم. لا تعتمد على أرقام الواجهة كمرجع موثوق.
 
+## التشغيلات والصلاحية (Lot/Batch)
+
+- كل حركة كمية تمر من `InventoryService.RecordMovementAsync` (والتحويل `TransferAsync`)؛ للصنف المتتبَّع (`Product.TrackBatches`) تُوزَّع الحركة على التشغيلات عبر `Services/Shared/Inventory/ItemBatches.cs`.
+- الحركة تبقى سطراً واحداً بتكلفة الصنف (التكلفة وإعادة البناء على مستوى الصنف)، وتوزيعها في `StockMovementBatch`، والرصيد لكل تشغيلة في كل مستودع في `BatchStock`.
+- الوارد: رقم التشغيلة (تُنشأ/تُطابَق) وتاريخ الانتهاء الإلزامي مع `TrackExpiry`. الصادر: المختارة أو الأقرب انتهاءً (FEFO) من غير المنتهية؛ البيع من منتهية مرفوض دائماً.
+- المرتجع يعود لتشغيلات أصله، وعكس الفاتورة (تعديل/حذف) يعود لتشغيلاتها ثم يُعلَّم توزيعها `IsReversed`. ما خُصِّص فعلاً يُكتب على سطر المستند (`BatchNumber` / `ExpiryDate`) للعرض والطباعة.
+- اختبارات الدورة: `tests/ERP.Tests/Shared/ItemBatchTests.cs`.
+
 ## سياسات الاعتماد (الموافقات)
 
 - فهرس المستندات والعمليات القابلة للاعتماد: `ERP.Core/Models/Shared/Workflow/ApprovalDocumentCatalog.cs` (يعرضه `GET api/v1/approvals/document-types`). السياسة الواحدة تغطي عدة مستندات (`DocumentTypes`)، ويرفض التحقق أي مستند/عملية خارج الفهرس.

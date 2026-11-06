@@ -21,11 +21,7 @@ internal static class AccountRoleRules
                 if (c == root) return true;
             return false;
         }
-        // حسابات المعرض تُقرأ من إعداداته (كل خاصية حساب فيها) فلا تُخلط بها حسابات البضاعة العامة
-        var car = await SalesCharges.SettingsAsync(db, ct);
-        var showroom = typeof(CarShowroomSettings).GetProperties()
-            .Where(p => p.PropertyType == typeof(string) && p.Name.EndsWith("Account"))
-            .Select(p => p.GetValue(car) as string).OfType<string>().ToHashSet();
+        var showroom = await ShowroomAccountsAsync(db, ct);
 
         var errors = new List<string>();
         foreach (var (role, code) in assignments)
@@ -39,5 +35,14 @@ internal static class AccountRoleRules
             else if (!role.Types.Contains(account.Type)) errors.Add(string.Format(Messages.AccountSettingWrongType, role.Label, code));
         }
         return errors;
+    }
+
+    /// <summary>حسابات المعرض تُقرأ من إعداداته (كل خاصية حساب فيها) فلا تُخلط بها حسابات البضاعة العامة ولا أدوار الترحيل.</summary>
+    public static async Task<HashSet<string>> ShowroomAccountsAsync(ErpDbContext db, CancellationToken ct)
+    {
+        var car = await SalesCharges.SettingsAsync(db, ct);
+        return typeof(CarShowroomSettings).GetProperties()
+            .Where(p => p.PropertyType == typeof(string) && p.Name.EndsWith("Account"))
+            .Select(p => p.GetValue(car) as string).OfType<string>().ToHashSet();
     }
 }

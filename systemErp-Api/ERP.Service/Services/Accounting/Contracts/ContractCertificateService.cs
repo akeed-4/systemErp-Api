@@ -65,6 +65,10 @@ public class ContractCertificateService : IContractCertificateService
             ContractId = contractId, Kind = ContractCertificateKinds.Interim, Status = St.Draft, CertificateDate = SaudiTime.Today,
             SequenceNo = await NextSequenceAsync(contractId, ct),
         };
+        // نوع المستخلص التالي وفترته من جدولة العقد (الدفعة الأخيرة ختامية، والدوري بفترته المحسوبة)
+        var plan = ContractCertificateScheduler.Build(contract, await ScheduledAsync(contractId, null, ct), SaudiTime.Today);
+        if (plan.NextMustBeFinal) cert.Kind = ContractCertificateKinds.Final;
+        if (plan.Mode == ContractCertificateSchedules.Periodic) { cert.PeriodFrom = plan.NextPeriodFrom; cert.PeriodTo = plan.NextPeriodTo; }
         var previous = await CertifiedQuantitiesAsync(contractId, ct);
         // القالب للعرض فقط: لا يُرفض لتجاوز (لا كميات حالية فيه)
         BuildLines(cert, contract, previous, new Dictionary<Guid, decimal>(), validate: false);
@@ -106,6 +110,9 @@ public class ContractCertificateService : IContractCertificateService
         }).ToList();
 
         var certifiedValue = lines.Sum(l => l.CertifiedAmount);
+        var advanceDue = advanceInvoice?.InvoiceId is Guid advanceId
+            && (await InvoiceBalances.ForAsync(_db, new List<Guid> { advanceId }, null, ct)).TryGetValue(advanceId, out var advanceBalance)
+                ? advanceBalance.AmountDue : 0;
         return new BoqProgressDto
         {
             ContractId = contractId, ContractValue = contract.ContractValue, CertifiedValue = certifiedValue,
@@ -115,6 +122,7 @@ public class ContractCertificateService : IContractCertificateService
             MaxPenaltyPercent = contract.MaxPenaltyPercent,
             AdvanceAmount = advance, AdvanceRecovered = recovered, AdvanceOutstanding = Math.Max(0, advanceBilled - recovered),
             AdvanceBilled = advanceBilled, AdvanceInvoiceNumber = advanceInvoice?.InvoiceNumber,
+            AdvanceInvoiceId = advanceInvoice?.InvoiceId, AdvanceAmountDue = advanceDue,
             RetentionInvoiced = retentionInvoiced, RetentionReleased = retentionReleased,
             RetentionOutstanding = Math.Max(0, retentionInvoiced - retentionReleased),
             InvoicedTotal = invoices.Where(i => i.InvoiceId != null).Sum(i => i.TotalAmount), CollectedTotal = collected,
@@ -123,6 +131,7 @@ public class ContractCertificateService : IContractCertificateService
             NetPayableTotal = counted.Sum(c => c.NetPayable),
             HasFinalCertificate = certs.Any(c => c.Kind == ContractCertificateKinds.Final && c.Status is St.Approved or St.Invoiced),
             OpenCertificateId = certs.FirstOrDefault(c => St.IsOpen(c.Status))?.Id,
+            Schedule = ContractCertificateScheduler.Build(contract, await ScheduledAsync(contractId, null, ct), SaudiTime.Today),
             Lines = lines,
         };
     }
@@ -142,6 +151,7 @@ public class ContractCertificateService : IContractCertificateService
             if (await _db.Set<ContractCertificate>().AnyAsync(c => c.ContractId == contractId && c.Kind == ContractCertificateKinds.Final
                     && (c.Status == St.Approved || c.Status == St.Invoiced), token))
                 throw new ConflictException(Messages.CertificateAfterFinal);
+            await ApplyScheduleAsync(contract, request, null, token);
 
             var date = request.CertificateDate?.Date ?? SaudiTime.Today;
             var cert = new ContractCertificate
@@ -170,6 +180,7 @@ public class ContractCertificateService : IContractCertificateService
             ValidateHeader(request);
             var cert = await LoadCertificateAsync(contractId, certificateId, track: true, token);
             RequireStatus(cert, St.Draft);
+            await ApplyScheduleAsync(contract, request, cert.Id, token);
             ApplyHeader(cert, request, request.CertificateDate?.Date ?? cert.CertificateDate);
             BuildLines(cert, contract, await CertifiedQuantitiesAsync(contractId, token), CurrentQuantities(request, contract), validate: true);
             SetDeductions(cert, request.Deductions);
@@ -187,6 +198,10 @@ public class ContractCertificateService : IContractCertificateService
             RequireStatus(cert, St.Draft);
             await RemeasureAsync(cert, contract, token);
             if (cert.Kind == ContractCertificateKinds.Interim && cert.CurrentWorkValue <= 0) throw new ValidationFailedException(Messages.CertificateEmpty);
+            // الدوري: المنجز يُحسب بنهاية الفترة، فالمستخلص الجاري لا يُقدَّم قبلها (الختامي يُقدَّم متى انتهت الأعمال)
+            if (contract.CertificateSchedule == ContractCertificateSchedules.Periodic && cert.Kind == ContractCertificateKinds.Interim
+                && cert.PeriodTo is { } periodEnd && SaudiTime.Today < periodEnd.Date)
+                throw new ConflictException(string.Format(Messages.CertificatePeriodNotEnded, periodEnd.ToString("yyyy-MM-dd")));
             cert.Status = St.Submitted;
             cert.SubmittedAt = DateTime.UtcNow; cert.SubmittedBy = _user.Name ?? "system";
             await SaveAsync(token);
@@ -402,6 +417,34 @@ public class ContractCertificateService : IContractCertificateService
         cert.PeriodFrom = r.PeriodFrom?.Date; cert.PeriodTo = r.PeriodTo?.Date;
         cert.Notes = string.IsNullOrWhiteSpace(r.Notes) ? null : r.Notes.Trim();
     }
+
+    /// <summary>
+    /// يفرض جدولة العقد على المستخلص (الجديد، أو المسودة <paramref name="certificateId"/> في خانتها): لا مستخلص بعد اكتمال
+    /// الدفعات، والدفعة الأخيرة ختامية، والدوري يأخذ فترته المحسوبة لا ما أُرسل.
+    /// </summary>
+    private async Task ApplyScheduleAsync(CommercialContract contract, SaveContractCertificateDto request, Guid? certificateId, CancellationToken ct)
+    {
+        if (contract.CertificateSchedule == ContractCertificateSchedules.OnDemand) return;
+        var plan = ContractCertificateScheduler.Build(contract, await ScheduledAsync(contract.Id, certificateId, ct), SaudiTime.Today);
+        if (contract.CertificateSchedule == ContractCertificateSchedules.Installments && plan.Complete)
+            throw new ConflictException(string.Format(Messages.CertificateScheduleComplete, contract.CertificateCount));
+        if (plan.NextMustBeFinal) request.Kind = ContractCertificateKinds.Final;
+        if (contract.CertificateSchedule == ContractCertificateSchedules.Periodic)
+        {
+            request.PeriodFrom = plan.NextPeriodFrom;
+            request.PeriodTo = plan.NextPeriodTo;
+        }
+    }
+
+    /// <summary>المستخلصات غير الملغاة بترتيبها (عدا <paramref name="excludeId"/>): تشغل خانات الجدولة.</summary>
+    private async Task<List<ScheduledCertificate>> ScheduledAsync(Guid contractId, Guid? excludeId, CancellationToken ct)
+        => (await _db.Set<ContractCertificate>().AsNoTracking()
+                .Where(c => c.ContractId == contractId && c.Status != St.Cancelled && (excludeId == null || c.Id != excludeId))
+                .OrderBy(c => c.SequenceNo)
+                .Select(c => new { c.Id, c.CertificateNumber, c.Status, c.Kind, c.PeriodFrom, c.PeriodTo, c.CurrentWorkValue, c.NetPayable })
+                .ToListAsync(ct))
+            .Select(c => new ScheduledCertificate(c.Id, c.CertificateNumber, c.Status, c.Kind, c.PeriodFrom, c.PeriodTo, c.CurrentWorkValue, c.NetPayable))
+            .ToList();
 
     private static void RequireActive(CommercialContract c)
     {

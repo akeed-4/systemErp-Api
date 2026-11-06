@@ -502,7 +502,7 @@
   <data name="MilestoneAmountsCannotBeNegative" xml:space="preserve"><value>Milestone percentages/amounts cannot be negative.</value></data>
   <data name="MilestoneBilled" xml:space="preserve"><value>Milestone billed</value></data>
   <data name="MilestoneBillingSalesOnly" xml:space="preserve"><value>Milestone billing applies to sales delivery notes only.</value></data>
-  <data name="MilestoneNotFound" xml:space="preserve"><value>Milestone not found</value></data>
+  <data name="MilestoneNotFound" xml:space="preserve"><value>The milestone is not on this contract; its milestones may have changed after an edit. Refresh the contract and pick the milestone again.</value></data>
   <data name="MilestonePercentagesExceed100" xml:space="preserve"><value>Total milestone percentages exceed 100%.</value></data>
   <data name="MilestoneAmountsExceedContractValue" xml:space="preserve"><value>Total milestone amounts exceed the contract value.</value></data>
   <data name="BoqLineKindInvalid" xml:space="preserve"><value>Invalid BOQ line kind (measured, lump sum or provisional).</value></data>
@@ -513,6 +513,12 @@
   <data name="CertificateContractNotActive" xml:space="preserve"><value>Certificates are prepared and approved only while the contract is Active or in Initial Acceptance.</value></data>
   <data name="CertificateOpenExists" xml:space="preserve"><value>An open certificate {0} exists on this contract: approve or cancel it before creating a new one.</value></data>
   <data name="CertificateAfterFinal" xml:space="preserve"><value>The final certificate is approved; no further certificates can be created.</value></data>
+  <data name="CertificateScheduleInvalid" xml:space="preserve"><value>Invalid certificate schedule.</value></data>
+  <data name="CertificateCountRange" xml:space="preserve"><value>The number of certificate installments must be between 1 and {0}.</value></data>
+  <data name="CertificatePeriodMonthsRange" xml:space="preserve"><value>The periodic certificate period must be between 1 and {0} months.</value></data>
+  <data name="CertificateScheduleNeedsStartDate" xml:space="preserve"><value>Periodic certificates require a contract start date (the first period starts there).</value></data>
+  <data name="CertificateScheduleComplete" xml:space="preserve"><value>All certificate installments agreed in the contract ({0}) are used; no further certificate can be created.</value></data>
+  <data name="CertificatePeriodNotEnded" xml:space="preserve"><value>The certificate period ends on {0}; the completed work is submitted after it ends.</value></data>
   <data name="CertificateNotFound" xml:space="preserve"><value>Certificate not found.</value></data>
   <data name="CertificateKindInvalid" xml:space="preserve"><value>Invalid certificate type (interim or final).</value></data>
   <data name="CertificatePeriodInvalid" xml:space="preserve"><value>The measurement period ends before it starts.</value></data>
@@ -559,6 +565,12 @@
   <data name="RetentionNothingToRelease" xml:space="preserve"><value>No outstanding retention to release on this contract's invoices.</value></data>
   <data name="CustomerAccountMissing" xml:space="preserve"><value>The customer has no receivable account in the chart of accounts.</value></data>
   <data name="AccountSettingRequiredForContracts" xml:space="preserve"><value>Set "{0}" in the accounting settings (Contracts section) before this billing.</value></data>
+  <data name="ContractAccountAmbiguous" xml:space="preserve"><value>More than one account fits «{0}»: {1}. Choose one in accounting settings (Contracts section).</value></data>
+  <data name="ContractAccountNoParent" xml:space="preserve"><value>No suitable group exists in the chart of accounts to create «{0}» under; create the account manually and select it in accounting settings.</value></data>
+  <data name="ContractPaymentInvoiceNotOnContract" xml:space="preserve"><value>The invoice is not one of this contract's invoices (certificate or advance).</value></data>
+  <data name="ContractPaymentRecorded" xml:space="preserve"><value>The voucher was recorded and allocated to the invoice.</value></data>
+  <data name="CertificateDirectBillingSimplifiedOnly" xml:space="preserve"><value>Direct certificate billing is for simplified contracts only; a full-path contract approves the certificate first, then bills it.</value></data>
+  <data name="CertificateIssued" xml:space="preserve"><value>The certificate invoice was issued.</value></data>
   <data name="AccountRole_ContractAdvancesReceivedAccountCode" xml:space="preserve"><value>Contract advances received</value></data>
   <data name="AccountRole_ContractAdvancesPaidAccountCode" xml:space="preserve"><value>Advances paid to subcontractors</value></data>
   <data name="AccountRole_ContractRetentionReceivableAccountCode" xml:space="preserve"><value>Retention receivable from customers</value></data>
@@ -570,7 +582,7 @@
   <data name="CertificateApproved" xml:space="preserve"><value>Certificate approved.</value></data>
   <data name="CertificateReturned" xml:space="preserve"><value>Certificate returned to draft.</value></data>
   <data name="CertificateCancelled" xml:space="preserve"><value>Certificate cancelled.</value></data>
-  <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>An approved final certificate.</value></data>
+  <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>An approved final certificate, or every line 100% complete in approved certificates.</value></data>
   <data name="ContractOpenCertificate" xml:space="preserve"><value>Certificate {0} is open: approve or cancel it first.</value></data>
   <data name="ContractMissingCertificateInvoicing" xml:space="preserve"><value>Invoicing of approved certificates: {0}.</value></data>
   <data name="ContractMissingBoq" xml:space="preserve"><value>Bill of quantities: add lines with a quantity and a price greater than zero.</value></data>
@@ -1283,6 +1295,9 @@
   <data name="CostCenterNotAllowedForAccount" xml:space="preserve"><value>Account {0} - {1} does not use cost centers; remove the cost center from its line.</value></data>
   <data name="CostCenterSharesMismatch" xml:space="preserve"><value>The cost center breakdown does not match the document totals.</value></data>
   <data name="CostCenterPolicyInvalid" xml:space="preserve"><value>Invalid cost center setting for the account.</value></data>
+  <data name="DefaultCostCenterNotAllowedForAccount" xml:space="preserve"><value>The account does not use cost centers; it cannot have a default cost center.</value></data>
+  <data name="CannotDeactivateSystemAccount" xml:space="preserve"><value>A system account cannot be deactivated.</value></data>
+  <data name="AccountInactiveNamed" xml:space="preserve"><value>Account {0} - {1} is inactive; nothing can be posted to it.</value></data>
   <data name="VatTreatmentInvalid" xml:space="preserve"><value>The invoice VAT treatment is invalid.</value></data>
   <data name="VatTreatmentReasonRequired" xml:space="preserve"><value>A zero-rated or exempt sales invoice needs an exemption reason (ZATCA code).</value></data>
   <data name="VatTreatmentReasonMismatch" xml:space="preserve"><value>The exemption reason does not match the invoice VAT treatment.</value></data>
@@ -1349,6 +1364,9 @@
   <data name="ContractReviewLegal" xml:space="preserve"><value>legal</value></data>
   <data name="ContractReviewFinancial" xml:space="preserve"><value>financial</value></data>
   <data name="ContractTypeUnknown" xml:space="preserve"><value>Unknown or disabled contract type: {0}</value></data>
+  <data name="DeliveryContractNotActive" xml:space="preserve"><value>Deliveries are allowed only after the contract has completed its approval stages and is active.</value></data>
+  <data name="ContractWorkflowInvalid" xml:space="preserve"><value>The contract approval path must be "simple" or "full".</value></data>
+  <data name="ContractWorkflowLocked" xml:space="preserve"><value>The approval path cannot be changed after the contract was submitted for review; it can only change in the first draft.</value></data>
   <data name="ContractSigningClosed" xml:space="preserve"><value>Signing and guarantee details can only be changed before the contract is activated.</value></data>
   <data name="ContractAttachmentKindInvalid" xml:space="preserve"><value>Invalid attachment kind: signed_copy, guarantee or other.</value></data>
   <data name="ContractAttachmentNotFound" xml:space="preserve"><value>Attachment not found.</value></data>
@@ -1522,4 +1540,15 @@
   <data name="AnnouncementOptionInvalid" xml:space="preserve"><value>Invalid announcement options (style, display, audience, frequency or icon).</value></data>
   <data name="AnnouncementLinkInvalid" xml:space="preserve"><value>The announcement button link must be an internal path starting with / or an https link, with a button label.</value></data>
   <data name="AnnouncementTenantUnknown" xml:space="preserve"><value>One of the companies selected for the announcement does not exist.</value></data>
+  <data name="BatchNumberRequired" xml:space="preserve"><value>Item "{0}" is batch-tracked: enter the batch number on its line.</value></data>
+  <data name="BatchExpiryRequired" xml:space="preserve"><value>Item "{0}" requires an expiry date for batch "{1}".</value></data>
+  <data name="BatchExpiryMismatch" xml:space="preserve"><value>Batch "{1}" of "{0}" is recorded with expiry {2}, which differs from the entered {3}.</value></data>
+  <data name="BatchDatesInvalid" xml:space="preserve"><value>The production date of batch "{0}" is after its expiry date.</value></data>
+  <data name="BatchNotFound" xml:space="preserve"><value>The batch was not found for this item.</value></data>
+  <data name="ExpiredBatchCannotBeIssued" xml:space="preserve"><value>Batch "{1}" of "{0}" expired on {2} and cannot be sold. Write it off with a stock adjustment.</value></data>
+  <data name="InsufficientBatchStock" xml:space="preserve"><value>Insufficient stock in batch "{1}" of "{0}": available {2}, required {3}.</value></data>
+  <data name="InsufficientValidBatchStock" xml:space="preserve"><value>Insufficient unexpired stock of "{0}": available {1}, required {2}{3}.</value></data>
+  <data name="ExpiredStockNote" xml:space="preserve"><value>; expired {0} (not sellable)</value></data>
+  <data name="ExpiryTrackingRequiresBatches" xml:space="preserve"><value>Expiry tracking requires batch tracking to be enabled for the item.</value></data>
+  <data name="BatchTrackingCannotBeDisabled" xml:space="preserve"><value>Batch tracking cannot be turned off for "{0}" while its batches hold stock.</value></data>
 </root>

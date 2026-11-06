@@ -502,7 +502,7 @@
   <data name="MilestoneAmountsCannotBeNegative" xml:space="preserve"><value>نسب/مبالغ المستخلصات لا تكون سالبة.</value></data>
   <data name="MilestoneBilled" xml:space="preserve"><value>تمت فوترة المستخلص</value></data>
   <data name="MilestoneBillingSalesOnly" xml:space="preserve"><value>الفوترة المرحلية لبيانات التسليم البيعية فقط.</value></data>
-  <data name="MilestoneNotFound" xml:space="preserve"><value>المستخلص غير موجود</value></data>
+  <data name="MilestoneNotFound" xml:space="preserve"><value>الدفعة غير موجودة في العقد؛ ربما تغيّرت دفعاته بعد تعديله، حدّث العقد واختر الدفعة من جديد.</value></data>
   <data name="MilestonePercentagesExceed100" xml:space="preserve"><value>مجموع نسب المستخلصات يتجاوز 100%.</value></data>
   <data name="MilestoneAmountsExceedContractValue" xml:space="preserve"><value>مجموع مبالغ الدفعات يتجاوز قيمة العقد.</value></data>
   <data name="BoqLineKindInvalid" xml:space="preserve"><value>نوع بند جدول الكميات غير صالح (بكمية، مبلغ مقطوع، أو احتياطي).</value></data>
@@ -513,6 +513,12 @@
   <data name="CertificateContractNotActive" xml:space="preserve"><value>تُعَد المستخلصات وتُعتمد والعقد «ساري» أو في «الاستلام الأولي» فقط.</value></data>
   <data name="CertificateOpenExists" xml:space="preserve"><value>يوجد مستخلص مفتوح {0} على العقد: اعتمده أو ألغه قبل إنشاء مستخلص جديد.</value></data>
   <data name="CertificateAfterFinal" xml:space="preserve"><value>اعتُمد المستخلص الختامي للعقد؛ لا تُنشأ مستخلصات بعده.</value></data>
+  <data name="CertificateScheduleInvalid" xml:space="preserve"><value>جدولة المستخلصات غير صالحة.</value></data>
+  <data name="CertificateCountRange" xml:space="preserve"><value>عدد دفعات المستخلصات بين 1 و{0}.</value></data>
+  <data name="CertificatePeriodMonthsRange" xml:space="preserve"><value>فترة المستخلص الدوري بين شهر و{0} شهراً.</value></data>
+  <data name="CertificateScheduleNeedsStartDate" xml:space="preserve"><value>المستخلص الدوري يتطلب تاريخ بداية العقد (منه تبدأ الفترة الأولى).</value></data>
+  <data name="CertificateScheduleComplete" xml:space="preserve"><value>اكتملت دفعات المستخلصات المتفق عليها في العقد ({0})؛ لا يُنشأ مستخلص بعدها.</value></data>
+  <data name="CertificatePeriodNotEnded" xml:space="preserve"><value>فترة المستخلص تنتهي في {0}؛ يُقدَّم المنجز بعد نهايتها.</value></data>
   <data name="CertificateNotFound" xml:space="preserve"><value>المستخلص غير موجود.</value></data>
   <data name="CertificateKindInvalid" xml:space="preserve"><value>نوع المستخلص غير صالح (جاري أو ختامي).</value></data>
   <data name="CertificatePeriodInvalid" xml:space="preserve"><value>نهاية فترة القياس قبل بدايتها.</value></data>
@@ -559,6 +565,12 @@
   <data name="RetentionNothingToRelease" xml:space="preserve"><value>لا ضمان محتجز متبقٍ للإفراج عنه في فواتير العقد.</value></data>
   <data name="CustomerAccountMissing" xml:space="preserve"><value>العميل ليس له حساب ذمم في شجرة الحسابات.</value></data>
   <data name="AccountSettingRequiredForContracts" xml:space="preserve"><value>حدد «{0}» في إعدادات الحسابات (قسم العقود) قبل هذه الفوترة.</value></data>
+  <data name="ContractAccountAmbiguous" xml:space="preserve"><value>أكثر من حساب في الشجرة يصلح لـ «{0}»: {1}. اختر أحدها في إعدادات الحسابات (قسم العقود).</value></data>
+  <data name="ContractAccountNoParent" xml:space="preserve"><value>لا توجد في شجرة الحسابات مجموعة مناسبة لإنشاء «{0}» تحتها؛ أنشئ الحساب يدوياً واختره في إعدادات الحسابات.</value></data>
+  <data name="ContractPaymentInvoiceNotOnContract" xml:space="preserve"><value>الفاتورة ليست من فواتير هذا العقد (مستخلص أو دفعة مقدمة).</value></data>
+  <data name="ContractPaymentRecorded" xml:space="preserve"><value>تم تسجيل السند وتوزيعه على الفاتورة.</value></data>
+  <data name="CertificateDirectBillingSimplifiedOnly" xml:space="preserve"><value>الفوترة المباشرة للمستخلص للعقود ذات المسار المبسط فقط؛ العقد الكامل يُعتمد مستخلصه أولاً ثم يُفوتر.</value></data>
+  <data name="CertificateIssued" xml:space="preserve"><value>تم إصدار فاتورة المستخلص.</value></data>
   <data name="AccountRole_ContractAdvancesReceivedAccountCode" xml:space="preserve"><value>دفعات مقدمة مستلمة على العقود</value></data>
   <data name="AccountRole_ContractAdvancesPaidAccountCode" xml:space="preserve"><value>دفعات مقدمة لمقاولي الباطن</value></data>
   <data name="AccountRole_ContractRetentionReceivableAccountCode" xml:space="preserve"><value>محتجزات ضمان لدى العملاء</value></data>
@@ -570,7 +582,7 @@
   <data name="CertificateApproved" xml:space="preserve"><value>اعتُمد المستخلص.</value></data>
   <data name="CertificateReturned" xml:space="preserve"><value>أُعيد المستخلص للمسودة.</value></data>
   <data name="CertificateCancelled" xml:space="preserve"><value>أُلغي المستخلص.</value></data>
-  <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>مستخلص ختامي معتمد.</value></data>
+  <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>مستخلص ختامي معتمد، أو إنجاز كل البنود 100% في المستخلصات المعتمدة.</value></data>
   <data name="ContractOpenCertificate" xml:space="preserve"><value>المستخلص {0} مفتوح: اعتمده أو ألغه أولاً.</value></data>
   <data name="ContractMissingCertificateInvoicing" xml:space="preserve"><value>فوترة المستخلصات المعتمدة: {0}.</value></data>
   <data name="ContractMissingBoq" xml:space="preserve"><value>جدول الكميات: أضف بنوداً بكمية وسعر أكبر من صفر.</value></data>
@@ -1283,6 +1295,9 @@
   <data name="CostCenterNotAllowedForAccount" xml:space="preserve"><value>الحساب {0} - {1} لا يُحلَّل بمراكز التكلفة؛ أزل مركز التكلفة من سطره.</value></data>
   <data name="CostCenterSharesMismatch" xml:space="preserve"><value>توزيع مبالغ المستند على مراكز التكلفة لا يطابق إجمالياته.</value></data>
   <data name="CostCenterPolicyInvalid" xml:space="preserve"><value>إعداد مركز التكلفة للحساب غير صالح.</value></data>
+  <data name="DefaultCostCenterNotAllowedForAccount" xml:space="preserve"><value>الحساب غير محلَّل بمراكز التكلفة؛ لا يُحدَّد له مركز افتراضي.</value></data>
+  <data name="CannotDeactivateSystemAccount" xml:space="preserve"><value>لا يمكن إيقاف حساب نظام أساسي.</value></data>
+  <data name="AccountInactiveNamed" xml:space="preserve"><value>الحساب {0} - {1} موقوف؛ لا يُرحَّل عليه.</value></data>
   <data name="VatTreatmentInvalid" xml:space="preserve"><value>المعالجة الضريبية للفاتورة غير صالحة.</value></data>
   <data name="VatTreatmentReasonRequired" xml:space="preserve"><value>فاتورة المبيعات الصفرية أو المعفاة تحتاج سبب الإعفاء (رمز الهيئة).</value></data>
   <data name="VatTreatmentReasonMismatch" xml:space="preserve"><value>سبب الإعفاء لا يطابق المعالجة الضريبية المختارة للفاتورة.</value></data>
@@ -1349,6 +1364,9 @@
   <data name="ContractReviewLegal" xml:space="preserve"><value>القانونية</value></data>
   <data name="ContractReviewFinancial" xml:space="preserve"><value>المالية</value></data>
   <data name="ContractTypeUnknown" xml:space="preserve"><value>نوع العقد غير معروف أو معطّل: {0}</value></data>
+  <data name="DeliveryContractNotActive" xml:space="preserve"><value>لا يمكن التسليم على العقد قبل اكتمال مراحل اعتماده وتفعيله (ساري).</value></data>
+  <data name="ContractWorkflowInvalid" xml:space="preserve"><value>مسار اعتماد العقد يجب أن يكون «مبسط» أو «كامل».</value></data>
+  <data name="ContractWorkflowLocked" xml:space="preserve"><value>لا يمكن تغيير مسار اعتماد العقد بعد إرساله للمراجعة؛ يتغير المسار في المسودة الأولى فقط.</value></data>
   <data name="ContractSigningClosed" xml:space="preserve"><value>بيانات التوقيع والضمان تُعدَّل قبل تفعيل العقد فقط.</value></data>
   <data name="ContractAttachmentKindInvalid" xml:space="preserve"><value>نوع المرفق غير صحيح: signed_copy أو guarantee أو other.</value></data>
   <data name="ContractAttachmentNotFound" xml:space="preserve"><value>المرفق غير موجود.</value></data>
@@ -1522,4 +1540,15 @@
   <data name="AnnouncementOptionInvalid" xml:space="preserve"><value>خيارات الإعلان (النمط أو طريقة العرض أو الجمهور أو التكرار أو الأيقونة) غير صحيحة.</value></data>
   <data name="AnnouncementLinkInvalid" xml:space="preserve"><value>رابط زر الإعلان يجب أن يكون مساراً داخلياً يبدأ بـ / أو رابط https، مع نص للزر.</value></data>
   <data name="AnnouncementTenantUnknown" xml:space="preserve"><value>إحدى المنشآت المختارة للإعلان غير موجودة.</value></data>
+  <data name="BatchNumberRequired" xml:space="preserve"><value>الصنف «{0}» يُتتبَّع بالتشغيلات: أدخل رقم التشغيلة في سطره.</value></data>
+  <data name="BatchExpiryRequired" xml:space="preserve"><value>الصنف «{0}» يتطلب تاريخ صلاحية للتشغيلة «{1}».</value></data>
+  <data name="BatchExpiryMismatch" xml:space="preserve"><value>التشغيلة «{1}» للصنف «{0}» مسجلة بتاريخ انتهاء {2} يختلف عن المُدخل {3}.</value></data>
+  <data name="BatchDatesInvalid" xml:space="preserve"><value>تاريخ إنتاج التشغيلة «{0}» بعد تاريخ انتهائها.</value></data>
+  <data name="BatchNotFound" xml:space="preserve"><value>التشغيلة غير موجودة لهذا الصنف.</value></data>
+  <data name="ExpiredBatchCannotBeIssued" xml:space="preserve"><value>التشغيلة «{1}» للصنف «{0}» منتهية الصلاحية في {2}: لا يجوز بيعها. تُشطب بتسوية مخزون.</value></data>
+  <data name="InsufficientBatchStock" xml:space="preserve"><value>رصيد التشغيلة «{1}» للصنف «{0}» لا يكفي: المتاح {2} والمطلوب {3}.</value></data>
+  <data name="InsufficientValidBatchStock" xml:space="preserve"><value>الرصيد الصالح للصنف «{0}» لا يكفي: المتاح غير المنتهي {1} والمطلوب {2}{3}.</value></data>
+  <data name="ExpiredStockNote" xml:space="preserve"><value>، ومنتهي الصلاحية {0} (لا يُباع)</value></data>
+  <data name="ExpiryTrackingRequiresBatches" xml:space="preserve"><value>تتبّع الصلاحية يتطلب تفعيل تتبّع التشغيلات للصنف.</value></data>
+  <data name="BatchTrackingCannotBeDisabled" xml:space="preserve"><value>لا يمكن إيقاف تتبّع التشغيلات للصنف «{0}» وفي تشغيلاته رصيد قائم.</value></data>
 </root>

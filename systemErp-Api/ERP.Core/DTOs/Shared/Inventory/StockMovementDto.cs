@@ -27,4 +27,8 @@ public partial class StockMovementDto
     /// يُرحَّل هذا المبلغ نفسه فيبقى حساب المخزون مساوياً لقيمة الأصناف بلا فروق تقريب. محفوظ على الحركة (StockMovement.ValueChange).
     /// </summary>
     public decimal ValueChange { get; set; }
+    /// <summary>ملخص تشغيلات الحركة للعرض (الصنف المتتبَّع).</summary>
+    public string? BatchSummary { get; set; }
+    /// <summary>توزيع الحركة على التشغيلات (يُملأ عند التسجيل فقط).</summary>
+    public List<BatchAllocationDto> Batches { get; set; } = new();
 }

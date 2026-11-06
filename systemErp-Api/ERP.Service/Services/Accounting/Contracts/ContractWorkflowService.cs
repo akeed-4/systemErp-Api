@@ -66,8 +66,9 @@ public class ContractWorkflowService : IContractWorkflowService
             ContractId = c.Id, Status = c.Stage, StatusNameAr = stage?.NameAr ?? c.Stage, StatusNameEn = stage?.NameEn ?? c.Stage,
             Phase = stage?.Phase ?? string.Empty, StatusSince = since, DaysInStatus = days, SlaDays = stage?.SlaDays,
             OverdueDays = stage?.SlaDays is { } sla && days > sla ? days - sla : null,
-            ContractType = c.ContractType, Workflow = type?.Workflow ?? string.Empty, Billing = type?.Billing ?? string.Empty,
-            IsSimplified = c.IsSimplified, RequiresGuarantee = type?.RequiresGuarantee == true && !c.IsSimplified, ReviewRound = c.ReviewRound,
+            // المسار من العقد نفسه (المختار عند إنشائه)، لا من الإعداد الافتراضي لنوعه
+            ContractType = c.ContractType, Workflow = c.IsSimplified ? ContractWorkflows.Simple : ContractWorkflows.Full, Billing = type?.Billing ?? string.Empty,
+            IsSimplified = c.IsSimplified, RequiresGuarantee = c.RequiresGuarantee, ReviewRound = c.ReviewRound,
             Approvals = approvals.Select(a => new ContractApprovalDto { Kind = a.Kind, Decision = a.Decision, UserName = a.UserName, Note = a.Note, DecidedAt = a.DecidedAt }).ToList(),
         };
 
@@ -333,6 +334,16 @@ public class ContractWorkflowService : IContractWorkflowService
     // ---------- الشروط ----------
 
     /// <summary>ما ينقص قبل الانتقال (فارغ = جاهز). كل بند جملة واضحة تقول ماذا ينقص بالضبط.</summary>
+    /// <summary>ضمان العقد (إن اختاره المستخدم لهذا العقد): رقم ومبلغ وتاريخ انتهاء لم يمضِ.</summary>
+    private static void GuaranteeBlockers(CommercialContract c, List<string> missing)
+    {
+        if (!c.RequiresGuarantee) return;
+        if (string.IsNullOrWhiteSpace(c.GuaranteeNumber) || c.GuaranteeAmount is not > 0 || c.GuaranteeExpiry == null)
+            missing.Add(Messages.ContractMissingGuarantee);
+        else if (c.GuaranteeExpiry.Value.Date < SaudiTime.Today)
+            missing.Add(Messages.ContractGuaranteeExpired);
+    }
+
     private async Task<List<string>> BlockersAsync(CommercialContract c, ContractTransition t, ContractTypeDefinition? type,
         List<ContractApproval> approvals, CancellationToken ct)
     {
@@ -355,6 +366,8 @@ public class ContractWorkflowService : IContractWorkflowService
                     if (c.Items.Count == 0 && c.Milestones.Count == 0) missing.Add(Messages.ContractMissingItemsOrMilestones);
                 }
                 else if (c.Items.Count == 0) missing.Add(Messages.ContractMissingItems);
+                // المبسط يُفعَّل من المسودة مباشرة: ضمان العقد (إن اختير) يُفحص هنا بدل خطوة الاعتماد
+                if (t.ToStatus == S.Active) GuaranteeBlockers(c, missing);
                 break;
 
             case "both_reviews":
@@ -363,16 +376,11 @@ public class ContractWorkflowService : IContractWorkflowService
                 break;
 
             case "signed_guarantee_limit":
-                // حد الاعتماد يُفحص مع الصلاحية (403)؛ هنا النسخة الموقعة والضمان
-                if (!await _db.Set<ContractAttachment>().AnyAsync(a => a.ContractId == c.Id && a.Kind == "signed_copy", ct))
+                // حد الاعتماد يُفحص مع الصلاحية (403)؛ هنا النسخة الموقعة والضمان.
+                // النسخة الموقعة تُشترط مع الضمان البنكي فقط: العقد بلا ضمان لا تُعرض له المرفقات في الواجهة
+                if (c.RequiresGuarantee && !await _db.Set<ContractAttachment>().AnyAsync(a => a.ContractId == c.Id && a.Kind == "signed_copy", ct))
                     missing.Add(Messages.ContractMissingSignedCopy);
-                if (type?.RequiresGuarantee == true && !c.IsSimplified)
-                {
-                    if (string.IsNullOrWhiteSpace(c.GuaranteeNumber) || c.GuaranteeAmount is not > 0 || c.GuaranteeExpiry == null)
-                        missing.Add(Messages.ContractMissingGuarantee);
-                    else if (c.GuaranteeExpiry.Value.Date < SaudiTime.Today)
-                        missing.Add(Messages.ContractGuaranteeExpired);
-                }
+                GuaranteeBlockers(c, missing);
                 break;
 
             case "all_received":
@@ -385,8 +393,10 @@ public class ContractWorkflowService : IContractWorkflowService
                 else if (type?.Billing == ContractBilling.BoqCertificate)
                 {
                     await AddOpenCertificateBlockerAsync(c, missing, ct);
+                    // مستخلص ختامي معتمد، أو اكتمال كل البنود 100% في المستخلصات المعتمدة (فلا يلزم ختامي بلا أعمال)
                     if (!await _db.Set<ContractCertificate>().AnyAsync(x => x.ContractId == c.Id && x.Kind == ContractCertificateKinds.Final
-                            && (x.Status == ContractCertificateStatuses.Approved || x.Status == ContractCertificateStatuses.Invoiced), ct))
+                            && (x.Status == ContractCertificateStatuses.Approved || x.Status == ContractCertificateStatuses.Invoiced), ct)
+                        && !await FullyCertifiedAsync(c, ct))
                         missing.Add(Messages.ContractMissingFinalCertificate);
                 }
                 break;
@@ -433,6 +443,19 @@ public class ContractWorkflowService : IContractWorkflowService
     }
 
     /// <summary>مستخلص مفتوح (مسودة/مقدَّم) يمنع الاستلام والإغلاق حتى يُعتمد أو يُلغى.</summary>
+    /// <summary>كل بنود جدول الكميات معتمدة بكاملها (المعتمد ≥ الكمية المعتمدة للبند) في مستخلصات معتمدة/مفوترة.</summary>
+    private async Task<bool> FullyCertifiedAsync(CommercialContract c, CancellationToken ct)
+    {
+        var items = c.Items.Where(i => i.RevisedQuantity > 0).ToList();
+        if (items.Count == 0) return false;
+        var certified = await _db.Set<ContractCertificateLine>().AsNoTracking()
+            .Where(l => l.Certificate.ContractId == c.Id
+                && (l.Certificate.Status == ContractCertificateStatuses.Approved || l.Certificate.Status == ContractCertificateStatuses.Invoiced))
+            .GroupBy(l => l.ContractItemId).Select(g => new { g.Key, Qty = g.Sum(l => l.CurrentQuantity) })
+            .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        return items.All(i => certified.GetValueOrDefault(i.Id) >= i.RevisedQuantity - 0.00005m);
+    }
+
     private async Task AddOpenCertificateBlockerAsync(CommercialContract c, List<string> missing, CancellationToken ct)
     {
         var open = await _db.Set<ContractCertificate>().AsNoTracking()

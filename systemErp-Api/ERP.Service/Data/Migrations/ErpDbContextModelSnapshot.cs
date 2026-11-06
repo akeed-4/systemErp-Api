@@ -48,6 +48,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Currency")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("DefaultCostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsDebitNature")
                         .HasColumnType("bit");
 
@@ -512,6 +518,16 @@ namespace ERP.Service.Data.Migrations
                     b.Property<bool>("AutoRenew")
                         .HasColumnType("bit");
 
+                    b.Property<int?>("CertificateCount")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CertificatePeriodMonths")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CertificateSchedule")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ConsultantName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -616,6 +632,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("RepresentativeName")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RequiresGuarantee")
+                        .HasColumnType("bit");
 
                     b.Property<decimal>("RetentionAmount")
                         .HasPrecision(18, 4)
@@ -3112,6 +3131,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BatchNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3142,7 +3164,13 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ItemBatchId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("ItemId")
@@ -3151,6 +3179,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ItemName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ProductionDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
@@ -9061,6 +9092,58 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("BankEntity");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.BatchStock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ItemBatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemBatchId");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "ItemBatchId", "WarehouseId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ItemId", "WarehouseId");
+
+                    b.ToTable("BatchStock");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.ContractStageDefinition", b =>
                 {
                     b.Property<string>("Id")
@@ -9731,6 +9814,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BatchNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ChassisNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -9741,7 +9827,13 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid>("InventoryCountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ItemBatchId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("ItemId")
@@ -9796,6 +9888,52 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("InventoryCountLine");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.ItemBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BatchNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ProductionDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ExpiryDate");
+
+                    b.HasIndex("TenantId", "ItemId", "BatchNumber")
+                        .IsUnique();
+
+                    b.ToTable("ItemBatch");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.NumberSequence", b =>
@@ -10655,6 +10793,11 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int>("ExpiryAlertDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(30);
+
                     b.Property<decimal>("LastPurchaseCost")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -10684,6 +10827,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int?>("ShelfLifeDays")
+                        .HasColumnType("int");
+
                     b.Property<string>("Sku")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -10694,6 +10840,12 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("TrackBatches")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("TrackExpiry")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -10990,6 +11142,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BatchSummary")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("CounterAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -11066,6 +11221,63 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("StockMovement");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockMovementBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsReversed")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ItemBatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SourceLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid>("StockMovementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemBatchId");
+
+                    b.HasIndex("StockMovementId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "SourceType", "SourceId");
+
+                    b.ToTable("StockMovementBatch");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.StockTransfer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -11125,8 +11337,17 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BatchNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ItemBatchId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("ItemId")
                         .HasColumnType("uniqueidentifier");
@@ -13212,6 +13433,27 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.BatchStock", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.ItemBatch", null)
+                        .WithMany()
+                        .HasForeignKey("ItemBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.InventoryCountApproval", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.InventoryCount", null)
@@ -13232,6 +13474,15 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("InventoryCount");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.ItemBatch", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.PasswordResetOtp", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.User", null)
@@ -13250,6 +13501,21 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("UserRolePermission");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockMovementBatch", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.ItemBatch", null)
+                        .WithMany()
+                        .HasForeignKey("ItemBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.StockMovement", null)
+                        .WithMany()
+                        .HasForeignKey("StockMovementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.StockTransfer", b =>

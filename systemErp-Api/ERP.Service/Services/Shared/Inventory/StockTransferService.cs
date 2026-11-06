@@ -48,24 +48,35 @@ public class StockTransferService : IStockTransferService
                 Date = r.Date ?? SaudiTime.Today, Notes = r.Notes,
                 FromWarehouseId = from.Id, FromWarehouseName = from.NameAr, ToWarehouseId = to.Id, ToWarehouseName = to.NameAr,
             };
-            // سطر واحد لكل صنف: تكرار الصنف يُجمع
-            foreach (var line in r.Items.GroupBy(i => i.ItemId))
+            // سطر واحد لكل صنف وتشغيلة: تكرارهما يُجمع (التشغيلة الفارغة = الأقرب انتهاءً)
+            foreach (var line in r.Items.GroupBy(i => (i.ItemId, i.ItemBatchId)))
             {
-                var product = products.GetValueOrDefault(line.Key) ?? throw new NotFoundException(Messages.ProductNotFound);
+                var product = products.GetValueOrDefault(line.Key.ItemId) ?? throw new NotFoundException(Messages.ProductNotFound);
                 transfer.Items.Add(new StockTransferItem
                 {
                     ItemId = product.Id, Sku = product.Sku, ItemName = product.NameAr, Unit = product.Unit, Quantity = line.Sum(i => i.Quantity),
+                    ItemBatchId = product.TrackBatches ? line.Key.ItemBatchId : null,
                 });
             }
             _db.Add(transfer);
             await _db.SaveChangesAsync(token);
 
             foreach (var item in transfer.Items)
-                await _inventory.TransferAsync(new TransferStockDto
+            {
+                var moved = await _inventory.TransferAsync(new TransferStockDto
                 {
                     ItemId = item.ItemId, FromWarehouseId = from.Id, ToWarehouseId = to.Id, Quantity = item.Quantity, Date = transfer.Date,
                     ReferenceNumber = transfer.TransferNumber, SourceId = transfer.Id, Notes = $"تحويل من {from.NameAr} إلى {to.NameAr}",
+                    ItemBatchId = item.ItemBatchId, SourceLineId = item.Id,
                 }, token);
+                // ما نُقل فعلاً للعرض والطباعة: التشغيلة أو ملخص التوزيع
+                if (moved.Count > 0)
+                {
+                    item.BatchNumber = ItemBatches.Summary(moved.Select(a => (a.BatchNumber, a.ExpiryDate, a.Quantity)));
+                    item.ExpiryDate = moved.Min(a => a.ExpiryDate);
+                }
+            }
+            await _db.SaveChangesAsync(token);
 
             await PostValueAsync(transfer, from, to, token);
             await _audit.LogAsync("create", nameof(StockTransfer), transfer.Id.ToString(), $"{transfer.TransferNumber}: {from.NameAr} ← {to.NameAr}", token);
@@ -125,6 +136,10 @@ public class StockTransferService : IStockTransferService
     {
         Id = t.Id, CreatedAt = t.CreatedAt, TransferNumber = t.TransferNumber, Date = t.Date, Notes = t.Notes,
         FromWarehouseId = t.FromWarehouseId, FromWarehouseName = t.FromWarehouseName, ToWarehouseId = t.ToWarehouseId, ToWarehouseName = t.ToWarehouseName,
-        Items = t.Items.OrderBy(i => i.Sku).Select(i => new StockTransferItemDto { ItemId = i.ItemId, Sku = i.Sku, ItemName = i.ItemName, Unit = i.Unit, Quantity = i.Quantity }).ToList(),
+        Items = t.Items.OrderBy(i => i.Sku).Select(i => new StockTransferItemDto
+        {
+            ItemId = i.ItemId, Sku = i.Sku, ItemName = i.ItemName, Unit = i.Unit, Quantity = i.Quantity,
+            ItemBatchId = i.ItemBatchId, BatchNumber = i.BatchNumber, ExpiryDate = i.ExpiryDate,
+        }).ToList(),
     };
 }

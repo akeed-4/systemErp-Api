@@ -41,6 +41,9 @@ public class InventoryCountLineDto
     public string? Sku { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public string? Unit { get; set; }
+    public Guid? ItemBatchId { get; set; }
+    public string? BatchNumber { get; set; }
+    public DateTime? ExpiryDate { get; set; }
     public Guid? VehicleId { get; set; }
     public string? ChassisNumber { get; set; }
     public decimal SystemQuantity { get; set; }
@@ -76,6 +79,10 @@ public class InventoryCountLineInputDto
 {
     public Guid Id { get; set; }
     public Guid? ItemId { get; set; }
+    /// <summary>تشغيلة السطر (الصنف المتتبَّع): القائمة برقمها، أو تشغيلة جديدة معثور عليها برقمها وتاريخها.</summary>
+    public Guid? ItemBatchId { get; set; }
+    public string? BatchNumber { get; set; }
+    public DateTime? ExpiryDate { get; set; }
     public string? ChassisNumber { get; set; }
     public decimal? CountedQuantity { get; set; }
     public string? Notes { get; set; }

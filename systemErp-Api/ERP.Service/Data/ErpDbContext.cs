@@ -105,6 +105,12 @@ public class ErpDbContext : DbContext
         (typeof(EndOfServiceSettlement), nameof(EndOfServiceSettlement.EmployeeId), typeof(Employee)),
         (typeof(WarehouseStock), nameof(WarehouseStock.ItemId), typeof(Product)),
         (typeof(WarehouseStock), nameof(WarehouseStock.WarehouseId), typeof(Warehouse)),
+        (typeof(ItemBatch), nameof(ItemBatch.ItemId), typeof(Product)),
+        (typeof(BatchStock), nameof(BatchStock.ItemId), typeof(Product)),
+        (typeof(BatchStock), nameof(BatchStock.ItemBatchId), typeof(ItemBatch)),
+        (typeof(BatchStock), nameof(BatchStock.WarehouseId), typeof(Warehouse)),
+        (typeof(StockMovementBatch), nameof(StockMovementBatch.StockMovementId), typeof(StockMovement)),
+        (typeof(StockMovementBatch), nameof(StockMovementBatch.ItemBatchId), typeof(ItemBatch)),
         (typeof(StockTransfer), nameof(StockTransfer.FromWarehouseId), typeof(Warehouse)),
         (typeof(StockTransfer), nameof(StockTransfer.ToWarehouseId), typeof(Warehouse)),
         (typeof(StockTransferItem), nameof(StockTransferItem.ItemId), typeof(Product)),
@@ -581,6 +587,16 @@ public class ErpDbContext : DbContext
         // رصيد واحد لكل صنف في كل مستودع
         modelBuilder.Entity<WarehouseStock>().Property(s => s.RowVersion).IsRowVersion();
         modelBuilder.Entity<WarehouseStock>().HasIndex(s => new { s.TenantId, s.ItemId, s.WarehouseId }).IsUnique();
+        // التشغيلات: رقم فريد لكل صنف، ورصيد واحد لكل تشغيلة في كل مستودع (بتزامن كأرصدة المستودعات)
+        modelBuilder.Entity<ItemBatch>().Property(b => b.BatchNumber).HasMaxLength(64);
+        modelBuilder.Entity<ItemBatch>().HasIndex(b => new { b.TenantId, b.ItemId, b.BatchNumber }).IsUnique();
+        modelBuilder.Entity<ItemBatch>().HasIndex(b => new { b.TenantId, b.ExpiryDate });
+        modelBuilder.Entity<BatchStock>().Property(s => s.RowVersion).IsRowVersion();
+        modelBuilder.Entity<BatchStock>().HasIndex(s => new { s.TenantId, s.ItemBatchId, s.WarehouseId }).IsUnique();
+        modelBuilder.Entity<BatchStock>().HasIndex(s => new { s.TenantId, s.ItemId, s.WarehouseId });
+        modelBuilder.Entity<StockMovementBatch>().HasIndex(b => new { b.TenantId, b.SourceType, b.SourceId });
+        modelBuilder.Entity<StockMovementBatch>().Property(b => b.SourceType).HasMaxLength(50);
+        modelBuilder.Entity<Product>().Property(p => p.ExpiryAlertDays).HasDefaultValue(30);
         // معامل تحويل الوحدة بدقة أعلى: تغيير وحدة الأساس يقسم معاملات النوع (1 ÷ 12...)
         modelBuilder.Entity<UnitOfMeasure>().Property(u => u.ConversionFactor).HasPrecision(18, 8);
         modelBuilder.Entity<UnitOfMeasure>().Property(u => u.UnitType).HasMaxLength(20).HasDefaultValue(UnitTypes.Count);

@@ -191,11 +191,28 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _billing.BillCertificateAsync(id, certificateId, date, ct), Messages.CertificateBilled);
     }
 
+    /// <summary>العقد المبسط: تقديم المستخلص واعتماده وفوترته في خطوة واحدة (صلاحيتا الاعتماد والترحيل معاً).</summary>
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/issue"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
+    public async Task<IActionResult> IssueCertificate(Guid id, Guid certificateId, [FromQuery] DateTime? date, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
+        return Success(await _billing.IssueCertificateAsync(id, certificateId, date, ct), Messages.CertificateIssued);
+    }
+
     [HttpPost("{id:guid}/retention-release"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> ReleaseRetention(Guid id, [FromQuery] DateTime? date, CancellationToken ct)
     {
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
         return Success(await _billing.ReleaseRetentionAsync(id, date, ct), Messages.RetentionReleased);
+    }
+
+    /// <summary>تحصيل (عقد عميل) أو سداد (عقد مورد) فاتورة مستخلص أو دفعة مقدمة بسند موزَّع عليها.</summary>
+    [HttpPost("{id:guid}/payments"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
+    public async Task<IActionResult> RecordPayment(Guid id, [FromBody] ContractPaymentRequestDto request, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
+        return Success(await _billing.RecordPaymentAsync(id, request, ct), Messages.ContractPaymentRecorded);
     }
 
     [HttpPost("{id:guid}/milestones/{milestoneId:guid}/bill"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]

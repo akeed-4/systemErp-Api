@@ -26,6 +26,12 @@ public class ReportsController : ErpControllerBase
         _accounting = accounting; _inventory = inventory;
     }
 
+    /// <summary>تقرير صلاحية التشغيلات: الأرصدة القائمة بحالتها (منتهية / قريبة الانتهاء / صالحة) لمستودع أو للكل.</summary>
+    [HttpGet("BatchExpiry"), RequireScreen("reports")]
+    public async Task<IActionResult> BatchExpiry([FromServices] ERP.Core.Contracts.Shared.IInventoryService inventory, [FromQuery] Guid? warehouseId,
+        [FromQuery] string? status, [FromQuery] int? withinDays, CancellationToken ct)
+        => Success(await inventory.GetExpiryReportAsync(warehouseId, status, withinDays, ct));
+
     // ---------- تقارير مفردة (KPIs) ----------
     /// <summary>مؤشرات لوحة القيادة (FinancialStats).</summary>
     [HttpGet("FinancialStats"), RequireScreen("dashboard")]

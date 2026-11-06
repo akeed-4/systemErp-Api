@@ -17,4 +17,8 @@ public partial class CreateAccountDto
     public string? Notes { get; set; }
     /// <summary>فارغ = يبقى إعداد الحساب كما هو عند التعديل، و«اختياري» عند الإنشاء.</summary>
     public CostCenterPolicy? CostCenterPolicy { get; set; }
+    /// <summary>المركز الافتراضي للحساب؛ فارغ = بلا مركز افتراضي.</summary>
+    public Guid? DefaultCostCenterId { get; set; }
+    /// <summary>فارغ = تبقى حالة الحساب كما هي عند التعديل، و«فعّال» عند الإنشاء.</summary>
+    public bool? IsActive { get; set; }
 }

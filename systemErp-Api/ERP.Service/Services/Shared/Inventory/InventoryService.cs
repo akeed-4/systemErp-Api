@@ -36,6 +36,8 @@ public class InventoryService : IInventoryService
             UnitPrice = r.UnitPrice, ReferenceNumber = r.ReferenceNumber, Notes = r.Notes,
             SourceType = r.SourceType, SourceId = r.SourceId,
         };
+        _db.Add(movement); // معرّفها يُولَّد الآن: توزيع التشغيلات يُسجَّل عليها
+        var batches = await ApplyBatchesAsync(product, movement, r, warehouse.Id, policy, ct);
 
         if (isIn)
         {
@@ -100,9 +102,50 @@ public class InventoryService : IInventoryService
         // فرق القيمتين لا الكمية × التكلفة: مجموع ما يُرحَّل يساوي قيمة الصنف دائماً (لا تتراكم هللات التقريب، ويدخل فيه أثر
         // إعادة تسعير الرصيد في آخر شراء وبالمعيارية وأثر الشراء على رصيد سالب). يُحفظ على الحركة فتقرؤه بطاقة الصنف.
         movement.ValueChange = InventoryValuation.Value(product) - valueBefore;
-        _db.Add(movement);
         await _db.SaveChangesAsync(ct);
-        return Mapper.Map<StockMovementDto>(movement);
+        var dto = Mapper.Map<StockMovementDto>(movement);
+        dto.Batches = batches;
+        return dto;
+    }
+
+    /// <summary>
+    /// توزيع الحركة على التشغيلات للصنف المتتبَّع: توزيع مسبق (مرتجع لتشغيلات أصله، عكس مستند لتشغيلاته) ثم ما بقي؛ الوارد لتشغيلته
+    /// (تُنشأ أو تُطابَق)، والصادر بالمختارة أو الأقرب انتهاءً مع منع بيع المنتهي. الصنف غير المتتبَّع: لا شيء.
+    /// </summary>
+    private async Task<List<BatchAllocationDto>> ApplyBatchesAsync(Product product, StockMovement movement, RecordStockMovementDto r, Guid warehouseId,
+        CostingPolicy policy, CancellationToken ct)
+    {
+        if (!product.TrackBatches) return new();
+        var isIn = movement.Type is StockMovementType.InPurchase or StockMovementType.AdjustmentIn;
+        var parts = new List<BatchAllocationDto>();
+        var left = movement.Quantity;
+        // التوزيع المسبق لا يُرفض على مستوى التشغيلة (العكس يعيد ما سجّله المستند نفسه)؛ رصيد الصنف يُفحص كالعادة
+        if (r.BatchAllocations is { Count: > 0 } preset)
+        {
+            parts.AddRange(ItemBatches.Take(preset.Select(a => new BatchAllocationDto
+                { ItemBatchId = a.ItemBatchId, BatchNumber = a.BatchNumber, ExpiryDate = a.ExpiryDate, Quantity = a.Quantity }).ToList(), left));
+            left -= parts.Sum(a => a.Quantity);
+        }
+        if (left > 0)
+        {
+            if (isIn)
+            {
+                var hasBatch = r.ItemBatchId.HasValue || !string.IsNullOrWhiteSpace(r.BatchNumber);
+                // ما زاد عن توزيع الأصل في المرتجع بلا تشغيلة: للتشغيلة الافتتاحية
+                var batch = !hasBatch && parts.Count > 0 ? await ItemBatches.OpeningAsync(_db, product.Id, ct)
+                    : await ItemBatches.ResolveIncomingAsync(_db, product, r.ItemBatchId, r.BatchNumber, r.ProductionDate, r.ExpiryDate, ct);
+                parts.Add(ItemBatches.Allocation(batch, left));
+            }
+            else
+            {
+                var allowShortage = policy.NegativeInventoryPolicy != "prohibit" || _db.PermitNegativeStock;
+                parts.AddRange(await ItemBatches.AllocateOutAsync(_db, product, warehouseId, left, r.ItemBatchId, movement.Date,
+                    isSale: movement.Type == StockMovementType.OutSales, allowShortage, ct));
+            }
+        }
+        var loaded = (await ItemBatches.LoadAsync(_db, parts.Select(a => a.ItemBatchId).Distinct().ToList(), ct)).ToDictionary(b => b.Id);
+        await ItemBatches.RecordAsync(_db, movement, parts.Select(a => (loaded[a.ItemBatchId], a.Quantity)).ToList(), isIn ? 1 : -1, r.SourceLineId, ct);
+        return parts;
     }
 
     /// <summary>
@@ -167,6 +210,7 @@ public class InventoryService : IInventoryService
 
         // رصيد المستودع: يُسحب أثر الحركة القديمة ثم يُطبَّق الجديد (قد يتغيّر المستودع نفسه)
         await UndoWarehouseEffectAsync(m, ct);
+        await ItemBatches.UndoAsync(_db, m, ct);
         var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId ?? m.WarehouseId, ct);
         var product = await _db.Set<Product>().FirstAsync(p => p.Id == m.ItemId, ct);
         var valueBefore = InventoryValuation.Value(product);
@@ -175,6 +219,8 @@ public class InventoryService : IInventoryService
         m.Date = r.Date ?? m.Date; m.ReferenceNumber = r.ReferenceNumber; m.Notes = r.Notes; m.WarehouseId = warehouse.Id;
         m.ValueChange = Sign(m.Type) * DocumentPricing.Round(m.Quantity * m.UnitCost);
         await WarehouseStocks.ApplyAsync(_db, m.ItemId, warehouse.Id, Sign(m.Type) * m.Quantity, ct);
+        var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
+        await ApplyBatchesAsync(product, m, r, warehouse.Id, policy, ct);
         await ReplayAsync(m.ItemId, new HashSet<Guid>(), ct);
         // ما تغيّر في قيمة الصنف غير قيمة الحركة نفسها = إعادة تسعير بقية الرصيد بإعادة البناء
         InventoryValuation.AddRevaluation(_db, product, InventoryValuation.Value(product) - valueBefore - (m.ValueChange - oldValue),
@@ -190,6 +236,7 @@ public class InventoryService : IInventoryService
         await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, m.Date, ct);
         var product = await _db.Set<Product>().FirstAsync(p => p.Id == m.ItemId, ct);
         var valueBefore = InventoryValuation.Value(product);
+        await ItemBatches.UndoAsync(_db, m, ct);
         _db.Remove(m);
         await UndoWarehouseEffectAsync(m, ct);
         await ReplayAsync(m.ItemId, new HashSet<Guid> { m.Id }, ct);
@@ -231,7 +278,7 @@ public class InventoryService : IInventoryService
     }
 
     // ---------------- المستودعات: التحويل والأرصدة ----------------
-    public async Task TransferAsync(TransferStockDto r, CancellationToken ct = default)
+    public async Task<List<BatchAllocationDto>> TransferAsync(TransferStockDto r, CancellationToken ct = default)
     {
         if (r.Quantity <= 0) throw new ValidationFailedException(Messages.QuantityMustBePositive);
         if (r.FromWarehouseId == r.ToWarehouseId) throw new ValidationFailedException(Messages.TransferWarehousesMustDiffer);
@@ -248,17 +295,30 @@ public class InventoryService : IInventoryService
         if (available < r.Quantity && policy.NegativeInventoryPolicy == "prohibit")
             throw new ConflictException(string.Format(Messages.InsufficientStockInWarehouse, product.NameAr, from.NameAr, available, r.Quantity));
 
+        // التشغيلات: تُخصَّص من المستودع المحوَّل منه (المختارة أو الأقرب انتهاءً) وتنتقل بأرقامها نفسها للمستلم
+        var parts = product.TrackBatches
+            ? await ItemBatches.AllocateOutAsync(_db, product, from.Id, r.Quantity, r.ItemBatchId, r.Date, isSale: false,
+                allowShortage: policy.NegativeInventoryPolicy != "prohibit", ct)
+            : new List<BatchAllocationDto>();
+        var batches = (await ItemBatches.LoadAsync(_db, parts.Select(a => a.ItemBatchId).Distinct().ToList(), ct)).ToDictionary(b => b.Id);
+
         await WarehouseStocks.ApplyAsync(_db, product.Id, from.Id, -r.Quantity, ct);
         await WarehouseStocks.ApplyAsync(_db, product.Id, to.Id, r.Quantity, ct);
         // حركتان للتتبّع فقط: لا طبقة تكلفة ولا تغيير في رصيد الصنف الإجمالي
-        foreach (var (type, warehouseId) in new[] { (StockMovementType.TransferOut, from.Id), (StockMovementType.TransferIn, to.Id) })
-            _db.Add(new StockMovement
+        foreach (var (type, warehouseId, sign) in new[] { (StockMovementType.TransferOut, from.Id, -1), (StockMovementType.TransferIn, to.Id, 1) })
+        {
+            var movement = new StockMovement
             {
                 ItemId = product.Id, ItemName = product.NameAr, WarehouseId = warehouseId, Date = r.Date, Type = type, Quantity = r.Quantity,
                 UnitCost = product.AverageCost, ReferenceNumber = r.ReferenceNumber, Notes = r.Notes, RemainingStock = product.CurrentStock,
                 SourceType = "stock_transfer", SourceId = r.SourceId,
-            });
+            };
+            _db.Add(movement);
+            if (parts.Count > 0)
+                await ItemBatches.RecordAsync(_db, movement, parts.Select(a => (batches[a.ItemBatchId], a.Quantity)).ToList(), sign, r.SourceLineId, ct);
+        }
         await _db.SaveChangesAsync(ct);
+        return parts;
     }
 
     public async Task<List<WarehouseStockDto>> GetWarehouseStockAsync(Guid? itemId, Guid? warehouseId, CancellationToken ct = default)
@@ -274,6 +334,60 @@ public class InventoryService : IInventoryService
                     Quantity = s.Quantity, AverageCost = p.AverageCost, Value = Math.Round(s.Quantity * p.AverageCost, 2),
                 };
         return await q.ToListAsync(ct);
+    }
+
+    // ---------------- التشغيلات والصلاحية ----------------
+    public async Task<List<ItemBatchDto>> GetBatchesAsync(Guid itemId, Guid? warehouseId, bool includeEmpty, CancellationToken ct = default)
+    {
+        var product = await _db.Set<Product>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == itemId, ct) ?? throw new NotFoundException(Messages.ProductNotFound);
+        var batches = await _db.Set<ItemBatch>().AsNoTracking().Where(b => b.ItemId == itemId).ToListAsync(ct);
+        var stock = await _db.Set<BatchStock>().AsNoTracking().Where(s => s.ItemId == itemId && (warehouseId == null || s.WarehouseId == warehouseId))
+            .GroupBy(s => s.ItemBatchId).Select(g => new { g.Key, Qty = g.Sum(s => s.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var today = SaudiTime.Today;
+        return batches.Select(b => new ItemBatchDto
+            {
+                Id = b.Id, ItemId = b.ItemId, BatchNumber = b.BatchNumber, ProductionDate = b.ProductionDate, ExpiryDate = b.ExpiryDate, Notes = b.Notes,
+                Quantity = stock.GetValueOrDefault(b.Id), DaysToExpiry = ItemBatches.DaysToExpiry(b.ExpiryDate, today),
+                ExpiryStatus = ItemBatches.Status(b.ExpiryDate, product.ExpiryAlertDays, today),
+            })
+            .Where(b => includeEmpty || b.Quantity != 0)
+            .OrderBy(b => b.ExpiryDate == null).ThenBy(b => b.ExpiryDate).ThenBy(b => b.BatchNumber).ToList();
+    }
+
+    public async Task<ItemBatchDto> UpdateBatchAsync(Guid batchId, UpdateItemBatchDto r, CancellationToken ct = default)
+    {
+        var batch = await _db.Set<ItemBatch>().FirstOrDefaultAsync(b => b.Id == batchId, ct) ?? throw new NotFoundException(Messages.BatchNotFound);
+        var product = await _db.Set<Product>().AsNoTracking().FirstAsync(p => p.Id == batch.ItemId, ct);
+        if (r.ProductionDate is { } pd && r.ExpiryDate is { } ed && pd.Date > ed.Date)
+            throw new ValidationFailedException(string.Format(Messages.BatchDatesInvalid, batch.BatchNumber));
+        if (product.TrackExpiry && r.ExpiryDate == null)
+            throw new ValidationFailedException(string.Format(Messages.BatchExpiryRequired, product.NameAr, batch.BatchNumber));
+        batch.ProductionDate = r.ProductionDate?.Date;
+        batch.ExpiryDate = r.ExpiryDate?.Date;
+        batch.Notes = string.IsNullOrWhiteSpace(r.Notes) ? null : r.Notes.Trim();
+        await _db.SaveChangesAsync(ct);
+        return (await GetBatchesAsync(batch.ItemId, null, true, ct)).First(b => b.Id == batch.Id);
+    }
+
+    public async Task<List<BatchExpiryRowDto>> GetExpiryReportAsync(Guid? warehouseId, string? status, int? withinDays, CancellationToken ct = default)
+    {
+        var rows = await (from s in _db.Set<BatchStock>().AsNoTracking()
+                          join b in _db.Set<ItemBatch>().AsNoTracking() on s.ItemBatchId equals b.Id
+                          join p in _db.Set<Product>().AsNoTracking() on s.ItemId equals p.Id
+                          join w in _db.Set<Warehouse>().AsNoTracking() on s.WarehouseId equals w.Id
+                          where s.Quantity != 0 && (warehouseId == null || s.WarehouseId == warehouseId)
+                          select new { s, b, p, w }).ToListAsync(ct);
+        var today = SaudiTime.Today;
+        return rows.Select(x => new BatchExpiryRowDto
+            {
+                ItemId = x.p.Id, Sku = x.p.Sku, ItemName = x.p.NameAr, Unit = x.p.Unit, ItemBatchId = x.b.Id, BatchNumber = x.b.BatchNumber,
+                ProductionDate = x.b.ProductionDate, ExpiryDate = x.b.ExpiryDate, DaysToExpiry = ItemBatches.DaysToExpiry(x.b.ExpiryDate, today),
+                ExpiryStatus = ItemBatches.Status(x.b.ExpiryDate, x.p.ExpiryAlertDays, today),
+                WarehouseId = x.w.Id, WarehouseName = x.w.NameAr, Quantity = x.s.Quantity, Value = Math.Round(x.s.Quantity * x.p.AverageCost, 2),
+            })
+            .Where(r => string.IsNullOrWhiteSpace(status) || r.ExpiryStatus == status)
+            .Where(r => withinDays == null || (r.DaysToExpiry is { } d && d <= withinDays))
+            .OrderBy(r => r.ExpiryDate == null).ThenBy(r => r.ExpiryDate).ThenBy(r => r.Sku).ThenBy(r => r.WarehouseName).ToList();
     }
 
     public async Task<StockMovementDto> GetMovementAsync(Guid id, CancellationToken ct = default)

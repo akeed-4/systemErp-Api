@@ -325,10 +325,13 @@ public class TradeInvoiceEngine
                 // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)، وتحمل الحركة تلك القيمة
                 OutUnitCost = restoreAverage ? item.UnitCost : null,
                 UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
-                SourceType = "invoice_reversal", SourceId = invoice.Id,
+                SourceType = "invoice_reversal", SourceId = invoice.Id, SourceLineId = item.Id,
+                // الصنف المتتبَّع: يعود العكس لتشغيلات ترحيل هذا السطر نفسها
+                BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, item.ItemId, item.Id, ct),
             }, ct);
             reversalChange += recorded.ValueChange;
         }
+        await ItemBatches.MarkReversedAsync(_db, "invoice", invoice.Id, ct);
         await _db.SaveChangesAsync(ct);
         // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف
         // الفرق تسوية لأثر هذا المستند على حساب مخزون مستودعه؛ المستند بحساب يدوي (السيارات) يبقى على حساب المخزون العام كما كان
@@ -954,6 +957,14 @@ public class TradeInvoiceEngine
             // مركز الترويسة افتراضي فقط: يُحفظ المركز الفعلي على السطر فلا يغيّر تعديلُ الافتراضي لاحقاً أثرَ المستند
             line.CostCenterId = src.CostCenterId ?? r.CostCenterId;
             line.RevenueAccountCode = isSales && !string.IsNullOrWhiteSpace(src.RevenueAccountCode) ? src.RevenueAccountCode.Trim() : null;
+            // التشغيلة للصنف المتتبَّع فقط (يُخصِّصها الترحيل ويكتب ما خُصِّص فعلاً)
+            if (p?.TrackBatches == true)
+            {
+                line.ItemBatchId = src.ItemBatchId;
+                line.BatchNumber = string.IsNullOrWhiteSpace(src.BatchNumber) ? null : src.BatchNumber.Trim();
+                line.ProductionDate = src.ProductionDate?.Date;
+                line.ExpiryDate = src.ExpiryDate?.Date;
+            }
             invoice.AddLine(line);
         }
 
@@ -1167,6 +1178,67 @@ public class TradeInvoiceEngine
 
     private static bool IsDigits(string? value, int length) => value?.Trim() is { } v && v.Length == length && v.All(char.IsAsciiDigit);
 
+    // ---------------- التشغيلات على أسطر الفاتورة ----------------
+    /// <summary>
+    /// تشغيلة السطر في الحركة: الشراء برقمه وتاريخيه (وارد)؛ البيع ومرتجع الشراء بالتشغيلة المختارة وإلا الأقرب انتهاءً (صادر)؛
+    /// المرتجع على أصل يعود لتشغيلات أصله ما لم تُختر تشغيلة، والمرتجع بلا أصل كالوارد برقمه أو تشغيلته المختارة.
+    /// </summary>
+    private static void ApplyLineBatch(InvoiceBase invoice, InvoiceItemBase item, RecordStockMovementDto movement,
+        Dictionary<Guid, List<BatchAllocationDto>> returnPools)
+    {
+        movement.SourceLineId = item.Id;
+        switch (invoice.Kind)
+        {
+            case InvoiceKind.Purchase:
+                movement.BatchNumber = item.BatchNumber; movement.ProductionDate = item.ProductionDate; movement.ExpiryDate = item.ExpiryDate;
+                break;
+            case InvoiceKind.Sales:
+                movement.ItemBatchId = item.ItemBatchId;
+                break;
+            default: // المرتجعات
+                movement.ItemBatchId = item.ItemBatchId;
+                if (item.ItemBatchId == null && returnPools.TryGetValue(item.ItemId, out var pool))
+                    movement.BatchAllocations = ItemBatches.Take(pool, item.Quantity);
+                else if (item.ItemBatchId == null && invoice.Kind == InvoiceKind.SalesReturn)
+                {
+                    movement.BatchNumber = item.BatchNumber; movement.ProductionDate = item.ProductionDate; movement.ExpiryDate = item.ExpiryDate;
+                }
+                break;
+        }
+    }
+
+    /// <summary>ما خُصِّص فعلاً يُكتب على السطر للعرض والطباعة: تشغيلة واحدة برقمها، أو ملخص التوزيع وأقرب انتهاء.</summary>
+    private static void WriteBackBatches(InvoiceBase invoice, InvoiceItemBase item, List<BatchAllocationDto> parts)
+    {
+        if (parts.Count == 0) return;
+        if (invoice.Kind == InvoiceKind.Purchase)
+        {
+            item.ExpiryDate = parts[0].ExpiryDate; // المقترح من مدة الصلاحية إن لم يُدخل
+            return;
+        }
+        item.BatchNumber = ItemBatches.Summary(parts.Select(a => (a.BatchNumber, a.ExpiryDate, a.Quantity)));
+        item.ExpiryDate = parts.Min(a => a.ExpiryDate);
+    }
+
+    /// <summary>تشغيلات أصل المرتجع لكل صنف (صادرة في البيع، واردة في الشراء) ناقص ما أعادته المرتجعات الأخرى عليه.</summary>
+    private async Task<Dictionary<Guid, List<BatchAllocationDto>>> ReturnBatchPoolsAsync(InvoiceBase invoice, CancellationToken ct)
+    {
+        var pools = new Dictionary<Guid, List<BatchAllocationDto>>();
+        if (invoice.Kind is not (InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn) || invoice.OriginalInvoiceId is not { } originalId) return pools;
+        var otherReturns = await _db.Set<InvoiceBase>().AsNoTracking()
+            .Where(i => i.OriginalInvoiceId == originalId && i.Id != invoice.Id && i.Kind == invoice.Kind).Select(i => i.Id).ToListAsync(ct);
+        foreach (var itemId in invoice.Lines.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct())
+        {
+            var pool = await ItemBatches.OfDocumentAsync(_db, "invoice", originalId, itemId, null, ct);
+            if (pool.Count == 0) continue;
+            foreach (var returnId in otherReturns)
+                foreach (var done in await ItemBatches.OfDocumentAsync(_db, "invoice", returnId, itemId, null, ct))
+                    if (pool.FirstOrDefault(a => a.ItemBatchId == done.ItemBatchId) is { } match) match.Quantity = Math.Max(0, match.Quantity - done.Quantity);
+            pools[itemId] = pool.Where(a => a.Quantity > 0).ToList();
+        }
+        return pools;
+    }
+
     // ---------------- الترحيل: مخزون + قيد + QR ----------------
     /// <param name="preview">معاينة القيد: يتخطى إنشاء/بيع المركبات و QR (لا أثر لهما على القيد) ليُسمح بمعاينة مسودة ناقصة الشواسيه.</param>
     private async Task FinalizeAsync(InvoiceBase invoice, CancellationToken ct, bool preview = false)
@@ -1201,6 +1273,9 @@ public class TradeInvoiceEngine
             originalCosts = (await _db.Set<InvoiceItemBase>().AsNoTracking().Where(i => i.InvoiceId == invoice.OriginalInvoiceId).ToListAsync(ct))
                 .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.First().UnitCost);
 
+        // المرتجع على أصل: يعود لتشغيلات الأصل بترتيبها، بعد خصم ما أعادته مرتجعاته السابقة
+        var returnPools = await ReturnBatchPoolsAsync(invoice, ct);
+
         foreach (var item in invoice.Lines.Where(i => i.ItemId != Guid.Empty))
         {
             var movement = invoice.Kind switch
@@ -1215,8 +1290,10 @@ public class TradeInvoiceEngine
             movement.Date = invoice.IssueDate;
             movement.SourceType = "invoice"; movement.SourceId = invoice.Id;
             movement.WarehouseId = invoice.WarehouseId;
+            ApplyLineBatch(invoice, item, movement, returnPools);
 
             var recorded = await _inventory.RecordMovementAsync(movement, ct);
+            WriteBackBatches(invoice, item, recorded.Batches);
             item.UnitCost = invoice.Kind == InvoiceKind.Purchase ? movement.UnitCost : recorded.UnitCost;
             // تغيّر القيمة الدفترية للصنف لا الكمية × التكلفة: حساب المخزون يبقى مساوياً لقيمة الأصناف بلا هللات تقريب
             // بإشارته: الإضافة بآخر سعر شراء أقل تُنقص قيمة الرصيد كله

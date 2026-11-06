@@ -48,7 +48,7 @@ public class ContractWorkflowSchemaTests : TestBase
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
         var types = await db.Set<ContractTypeDefinition>().IgnoreQueryFilters().Where(t => t.TenantId == api.TenantId).ToListAsync();
-        Assert.Equal(new[] { "supply_materials", "monthly_maintenance", "construction_project", "existing_contract" },
+        Assert.Equal(new[] { "supply_materials", "monthly_maintenance", "construction_project", "existing_contract", "construction_boq" },
             types.OrderBy(t => t.SortOrder).Select(t => t.Code));
         Assert.Equal(ContractBilling.AfterReceipt, types.Single(t => t.Code == "supply_materials").Billing);
 

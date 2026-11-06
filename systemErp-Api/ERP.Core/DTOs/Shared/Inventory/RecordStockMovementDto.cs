@@ -22,4 +22,27 @@ public class RecordStockMovementDto
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public decimal? OutUnitCost { get; set; }
+
+    // ---------------- التشغيلات (الصنف المتتبَّع) ----------------
+    /// <summary>الصادر: تشغيلة مختارة (فارغ = الأقرب انتهاءً FEFO). الوارد: إضافة لتشغيلة قائمة بمعرّفها.</summary>
+    public Guid? ItemBatchId { get; set; }
+    /// <summary>الوارد: رقم التشغيلة (تُنشأ إن لم توجد، وتُطابَق إن وُجدت).</summary>
+    public string? BatchNumber { get; set; }
+    public DateTime? ProductionDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+    /// <summary>داخلي: توزيع محدد مسبقاً على التشغيلات (المرتجع لتشغيلات أصله، وعكس المستند لتشغيلاته) بدل التخصيص.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<BatchAllocationDto>? BatchAllocations { get; set; }
+    /// <summary>داخلي: سطر المستند الذي تخصّه الحركة (لربط تشغيلاتها به).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? SourceLineId { get; set; }
+}
+
+/// <summary>كمية من تشغيلة (موجبة دائماً؛ الاتجاه من نوع الحركة).</summary>
+public class BatchAllocationDto
+{
+    public Guid ItemBatchId { get; set; }
+    public string BatchNumber { get; set; } = string.Empty;
+    public DateTime? ExpiryDate { get; set; }
+    public decimal Quantity { get; set; }
 }

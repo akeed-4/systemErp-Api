@@ -130,6 +130,17 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.ContractItemsInvalid);
         if (d.Items.Any(i => !ContractBoqLineKinds.IsValid(i.LineKind))) errors.Add(Messages.BoqLineKindInvalid);
         if (d.Items.Any(i => i.OverrunPercent is < 0 or > 100)) errors.Add(Messages.BoqOverrunRange);
+        if (d.Workflow != null && !ContractWorkflows.IsValid(d.Workflow.Trim())) errors.Add(Messages.ContractWorkflowInvalid);
+        var schedule = d.CertificateSchedule?.Trim();
+        if (schedule != null && !ContractCertificateSchedules.IsValid(schedule)) errors.Add(Messages.CertificateScheduleInvalid);
+        if (schedule == ContractCertificateSchedules.Installments && d.CertificateCount is not (>= 1 and <= ContractCertificateSchedules.MaxCount))
+            errors.Add(string.Format(Messages.CertificateCountRange, ContractCertificateSchedules.MaxCount));
+        if (schedule == ContractCertificateSchedules.Periodic)
+        {
+            if (d.CertificatePeriodMonths is not (>= 1 and <= ContractCertificateSchedules.MaxPeriodMonths))
+                errors.Add(string.Format(Messages.CertificatePeriodMonthsRange, ContractCertificateSchedules.MaxPeriodMonths));
+            if (!d.StartDate.HasValue) errors.Add(Messages.CertificateScheduleNeedsStartDate);
+        }
         if (existing != null && existing.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled) errors.Add(Messages.CannotEditClosedContract);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
@@ -150,9 +161,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         ApplyBoq(e, type);
         Recalculate(e);
 
-        // الحالة يحددها النظام لا المستخدم: كل عقد جديد «مسودة»، والمسار (المبسط من النوع أو لأن القيمة دون حد التبسيط)
-        // يُثبَّت هنا ليحدد انتقالاته؛ تفعيل المبسط انتقال عادي عبر move (صلاحية الاعتماد وحد يغطي القيمة).
-        e.IsSimplified = ContractTypeCodes.IsSimplified(type, e.ContractValue);
+        // الحالة يحددها النظام لا المستخدم: كل عقد جديد «مسودة». المسار يختاره المستخدم لكل عقد (Workflow) ويُثبَّت هنا
+        // ليحدد انتقالاته؛ بلا اختيار (عميل قديم/طلب اعتماد معلّق) يُشتق من النوع وحد التبسيط كما كان.
+        // تفعيل المبسط انتقال عادي عبر move (صلاحية الاعتماد وحد يغطي القيمة).
+        e.IsSimplified = SelectedSimplified(d.Workflow) ?? ContractTypeCodes.IsSimplified(type, e.ContractValue);
+        // الضمان البنكي اختيار لكل عقد؛ بلا اختيار (عميل قديم) كما كان: من النوع وعلى المسار الكامل فقط
+        ApplyGuarantee(e, d.RequiresGuarantee ?? (type.RequiresGuarantee && !e.IsSimplified));
         e.Stage = ContractStageDefinition.Draft;
         e.Status = StatusFor(e.Stage);
         e.StageChangedAt = DateTime.UtcNow;
@@ -175,6 +189,22 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             ?? throw new ValidationFailedException(string.Format(Messages.ContractTypeUnknown, code));
     }
 
+    /// <summary>بلا ضمان: تُمسح بياناته فلا يبقى ضمان معلّق على عقد لا يلزمه.</summary>
+    private static void ApplyGuarantee(CommercialContract e, bool required)
+    {
+        e.RequiresGuarantee = required;
+        if (required) return;
+        e.GuaranteeNumber = null; e.GuaranteeBank = null; e.GuaranteeAmount = null; e.GuaranteeExpiry = null;
+    }
+
+    /// <summary>مسار العقد الذي اختاره المستخدم: true = مبسط، false = كامل، null = لم يُرسل (التحقق يرفض القيم الأخرى).</summary>
+    private static bool? SelectedSimplified(string? workflow) => workflow?.Trim() switch
+    {
+        ContractWorkflows.Simple => true,
+        ContractWorkflows.Full => false,
+        _ => null,
+    };
+
     protected override async Task OnUpdatingAsync(CommercialContract e, UpdateCommercialContractDto d, CancellationToken ct)
     {
         // التعديل في المسودة فقط (يفحصه المتحكم مع الصلاحية)؛ تغيّر النوع أو القيمة لا يغيّر المسار المثبت عند الإنشاء
@@ -185,9 +215,27 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         e.Status = o.GetValue<ContractStatus>(nameof(CommercialContract.Status));
         e.StageChangedAt = o.GetValue<DateTime?>(nameof(CommercialContract.StageChangedAt));
         e.ReviewRound = o.GetValue<int>(nameof(CommercialContract.ReviewRound));
+        // المسار من العقد نفسه لا من نوعه. يتغير فقط في المسودة الأولى (قبل أي إرسال للمراجعة): بعدها تكون للعقد
+        // جولات مراجعة وقرارات على المسار الكامل، وتحويله لمبسط يتخطاها. null = يبقى كما هو.
         e.IsSimplified = o.GetValue<bool>(nameof(CommercialContract.IsSimplified));
+        if (SelectedSimplified(d.Workflow) is bool selected && selected != e.IsSimplified)
+        {
+            if (e.Stage != ContractStageDefinition.Draft || e.ReviewRound > 1
+                || await Db.Set<ContractStatusLog>().AnyAsync(l => l.ContractId == e.Id && l.FromStatus != null, ct))
+                throw new ValidationFailedException(Messages.ContractWorkflowLocked);
+            e.IsSimplified = selected;
+        }
+        // الضمان يُفعَّل أو يُلغى في المسودة (التعديل في المسودة فقط)؛ null = يبقى كما هو
+        ApplyGuarantee(e, d.RequiresGuarantee ?? o.GetValue<bool>(nameof(CommercialContract.RequiresGuarantee)));
         e.TotalInvoiced = o.GetValue<decimal>(nameof(CommercialContract.TotalInvoiced));
         e.TotalCollected = o.GetValue<decimal>(nameof(CommercialContract.TotalCollected));
+        // جدولة المستخلصات لم تُرسل (عميل قديم): تبقى كما هي
+        if (d.CertificateSchedule == null)
+        {
+            e.CertificateSchedule = o.GetValue<string>(nameof(CommercialContract.CertificateSchedule));
+            e.CertificateCount = o.GetValue<int?>(nameof(CommercialContract.CertificateCount));
+            e.CertificatePeriodMonths = o.GetValue<int?>(nameof(CommercialContract.CertificatePeriodMonths));
+        }
 
         // المستخلصات المفوترة تُقفل: لا تعديل ولا حذف. وغير المفوترة لا تأخذ حالة الفوترة ولا فاتورتها من الطلب.
         foreach (var entry in Db.ChangeTracker.Entries<ContractMilestone>())
@@ -228,6 +276,11 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             i.SectionName = string.IsNullOrWhiteSpace(i.SectionName) ? null : i.SectionName.Trim();
             i.RevisedQuantity = i.Quantity;
         }
+        // الجدولة لعقود المقاولات وحدها، ويُحفظ من إعداداتها ما يخص النمط المختار فقط
+        var schedule = type.Billing == ContractBilling.BoqCertificate ? c.CertificateSchedule?.Trim() : null;
+        c.CertificateSchedule = ContractCertificateSchedules.IsValid(schedule) ? schedule! : ContractCertificateSchedules.OnDemand;
+        if (c.CertificateSchedule != ContractCertificateSchedules.Installments) c.CertificateCount = null;
+        if (c.CertificateSchedule != ContractCertificateSchedules.Periodic) c.CertificatePeriodMonths = null;
         if (type.Billing != ContractBilling.BoqCertificate) return;
 
         if (c.Milestones.Count > 0) throw new ValidationFailedException(Messages.BoqContractMilestonesNotAllowed);

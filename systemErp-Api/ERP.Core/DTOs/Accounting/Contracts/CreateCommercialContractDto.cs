@@ -5,6 +5,16 @@ public partial class CreateCommercialContractDto
     public string ContractNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string ContractType { get; set; } = "supply_materials";
+    /// <summary>
+    /// مسار اعتماد هذا العقد: full | simple، يختاره المستخدم لكل عقد مستقلاً عن نوعه ويُحفظ في IsSimplified.
+    /// null = عميل قديم أو طلب اعتماد معلّق قبل هذا الحقل: يُشتق من النوع وحد التبسيط كما كان. بالتعديل: null = يبقى كما هو.
+    /// </summary>
+    public string? Workflow { get; set; }
+    /// <summary>
+    /// يلزم هذا العقد ضمان بنكي قبل التفعيل؟ false = لا ضمان (تُمسح بياناته). null = عميل قديم: عند الإنشاء من النوع
+    /// (يلزم ضمان + مسار كامل)، وبالتعديل يبقى كما هو.
+    /// </summary>
+    public bool? RequiresGuarantee { get; set; }
     // لا حالة هنا: العقد يبدأ «مسودة» دائماً ولا تتغير حالته إلا عبر move
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }
@@ -50,6 +60,10 @@ public partial class CreateCommercialContractDto
     public string? GuaranteeBank { get; set; }
     public decimal? GuaranteeAmount { get; set; }
     public DateTime? GuaranteeExpiry { get; set; }
+    /// <summary>جدولة المستخلصات (عقود المقاولات): on_demand | installments | periodic. null = حسب الطلب عند الإنشاء، ويبقى كما هو بالتعديل.</summary>
+    public string? CertificateSchedule { get; set; }
+    public int? CertificateCount { get; set; }
+    public int? CertificatePeriodMonths { get; set; }
     public List<ContractMilestoneDto> Milestones { get; set; } = new();
     public List<ContractClauseDto> Clauses { get; set; } = new();
     public List<ContractItemDto> Items { get; set; } = new();

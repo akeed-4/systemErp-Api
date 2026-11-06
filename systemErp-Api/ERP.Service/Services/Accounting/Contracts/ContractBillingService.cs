@@ -28,10 +28,13 @@ public class ContractBillingService : IContractBillingService
     private readonly ISalesInvoiceService _sales;
     private readonly IPurchaseInvoiceService _purchases;
     private readonly IAccountingPostingService _posting;
+    private readonly IVoucherService _vouchers;
+    private readonly IContractCertificateService _certificates;
 
-    public ContractBillingService(ErpDbContext db, ISalesInvoiceService sales, IPurchaseInvoiceService purchases, IAccountingPostingService posting)
+    public ContractBillingService(ErpDbContext db, ISalesInvoiceService sales, IPurchaseInvoiceService purchases, IAccountingPostingService posting,
+        IVoucherService vouchers, IContractCertificateService certificates)
     {
-        _db = db; _sales = sales; _purchases = purchases; _posting = posting;
+        _db = db; _sales = sales; _purchases = purchases; _posting = posting; _vouchers = vouchers; _certificates = certificates;
     }
 
     // ---------- الدفعة المقدمة ----------
@@ -47,6 +50,8 @@ public class ContractBillingService : IContractBillingService
             var amount = DocumentPricing.Round(c.ContractValue * c.AdvancePercent / 100m);
             if (amount <= 0) throw new ValidationFailedException(Messages.ContractAdvanceNotDefined);
 
+            // منشأة قائمة لم تُهيَّأ حسابات عقودها: تُنشأ/تُربط الناقصة فقط (الإعداد المحدد لا يُمس)
+            await ContractAccountsSetup.EnsureMissingAsync(_db, token);
             var settings = await PostingAccounts.SettingsAsync(_db, token);
             var supplier = IsSupplier(c);
             // الحسابان يُطلبان قبل أي ترحيل: لا فاتورة بلا الحساب الذي ستُسترد منه الدفعة
@@ -91,6 +96,8 @@ public class ContractBillingService : IContractBillingService
             if (cert.Status != St.Approved) throw new ConflictException(string.Format(Messages.CertificateStatusInvalid, cert.Status));
             if (cert.TaxableAmount <= 0) throw new ValidationFailedException(Messages.CertificateNothingToInvoice);
 
+            // منشأة قائمة لم تُهيَّأ حسابات عقودها: تُنشأ/تُربط الناقصة فقط (الإعداد المحدد لا يُمس)
+            await ContractAccountsSetup.EnsureMissingAsync(_db, token);
             var settings = await PostingAccounts.SettingsAsync(_db, token);
             var supplier = IsSupplier(c);
             // الاستقطاعات على حساباتها (المتطابقة تُجمع في جزء واحد)؛ الحساب الناقص يُرفض قبل أي ترحيل
@@ -156,6 +163,23 @@ public class ContractBillingService : IContractBillingService
             return invoice;
         }, ct);
 
+    /// <summary>
+    /// العقد المبسط: المستخلص يُفوتر مباشرة بعد إعداده — تقديم واعتماد وفوترة في معاملة واحدة (كلها أو لا شيء)،
+    /// بالقواعد نفسها (إعادة القياس، تجاوز الكميات، الحسابات). العقد الكامل يبقى بدورة الاعتماد المنفصلة.
+    /// </summary>
+    public Task<InvoiceDto> IssueCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default)
+        => new TransactionRunner(_db).RunAsync(async token =>
+        {
+            var simplified = await _db.Set<CommercialContract>().AsNoTracking().Where(x => x.Id == contractId).Select(x => (bool?)x.IsSimplified)
+                .FirstOrDefaultAsync(token) ?? throw new NotFoundException(Messages.ContractNotFound);
+            if (!simplified) throw new ConflictException(Messages.CertificateDirectBillingSimplifiedOnly);
+            var status = await _db.Set<ContractCertificate>().AsNoTracking().Where(x => x.Id == certificateId && x.ContractId == contractId)
+                .Select(x => x.Status).FirstOrDefaultAsync(token) ?? throw new NotFoundException(Messages.CertificateNotFound);
+            if (status == St.Draft) await _certificates.SubmitAsync(contractId, certificateId, token);
+            if (status is St.Draft or St.Submitted) await _certificates.ApproveAsync(contractId, certificateId, token);
+            return await BillCertificateAsync(contractId, certificateId, date, token);
+        }, ct);
+
     // ---------- الإفراج عن الضمان ----------
 
     public Task<RetentionReleaseResultDto> ReleaseRetentionAsync(Guid contractId, DateTime? date = null, CancellationToken ct = default)
@@ -170,6 +194,8 @@ public class ContractBillingService : IContractBillingService
             var amount = withheld - released;
             if (amount <= 0) throw new ConflictException(Messages.RetentionNothingToRelease);
 
+            // منشأة قائمة لم تُهيَّأ حسابات عقودها: تُنشأ/تُربط الناقصة فقط (الإعداد المحدد لا يُمس)
+            await ContractAccountsSetup.EnsureMissingAsync(_db, token);
             var settings = await PostingAccounts.SettingsAsync(_db, token);
             var supplier = IsSupplier(c);
             var retentionAccount = settings.ContractAccount(supplier
@@ -193,6 +219,48 @@ public class ContractBillingService : IContractBillingService
             await _db.SaveChangesAsync(token);
             return new RetentionReleaseResultDto { JournalEntryId = posted.JournalEntryId, EntryNumber = posted.EntryNumber, Amount = amount };
         }, ct);
+
+    // ---------- التحصيل والسداد ----------
+
+    /// <summary>
+    /// تحصيل/سداد فاتورة من فواتير العقد بسند موزَّع عليها: عقد العميل سند قبض على ذمته، وعقد المورد سند صرف لذمته.
+    /// الفاتورة يجب أن تكون من فواتير هذا العقد (مستخلص أو دفعة مقدمة)؛ لا يتعلق بمسار العقد (مبسط/كامل).
+    /// تحقق المبلغ مقابل المتبقي وطريقة الدفع والترحيل في خدمة السندات نفسها (مصدر الحقيقة للتحصيل).
+    /// </summary>
+    public async Task<VoucherDto> RecordPaymentAsync(Guid contractId, ContractPaymentRequestDto r, CancellationToken ct = default)
+    {
+        var c = await _db.Set<CommercialContract>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == contractId, ct)
+            ?? throw new NotFoundException(Messages.ContractNotFound);
+        var supplier = IsSupplier(c);
+        if (c.PartyId == null)
+            throw new ValidationFailedException(supplier ? Messages.LinkContractToSupplierBeforeBilling : Messages.LinkContractToCustomerBeforeBilling);
+        if (r.Amount <= 0) throw new ValidationFailedException(Messages.VoucherAmountMustBePositive);
+
+        var billed = await _db.Set<ContractInvoice>().AsNoTracking()
+            .Where(i => i.ContractId == c.Id && i.InvoiceId == r.InvoiceId && (i.Kind == Advance || i.Kind == "progress" || i.Kind == "final"))
+            .Select(i => new { i.Kind, i.InvoiceNumber, i.CertificateId }).FirstOrDefaultAsync(ct)
+            ?? throw new ValidationFailedException(Messages.ContractPaymentInvoiceNotOnContract);
+
+        var partyAccount = await PartyAccountAsync(c, supplier, ct);
+        var what = billed.Kind == Advance ? "دفعة مقدمة" : "مستخلص";
+        return await _vouchers.CreateAsync(new CreateVoucherDto
+        {
+            SystemGenerated = true,
+            Type = supplier ? VoucherType.Payment : VoucherType.Receipt,
+            Date = (r.Date ?? SaudiTime.Today).Date,
+            Amount = r.Amount,
+            PartyName = c.PartyName,
+            PartyAccountCode = partyAccount,
+            PaymentMethodCode = string.IsNullOrWhiteSpace(r.PaymentMethodCode) ? null : r.PaymentMethodCode.Trim(),
+            TreasuryAccountCode = r.TreasuryAccountCode?.Trim() ?? string.Empty,
+            ReferenceNumber = string.IsNullOrWhiteSpace(r.ReferenceNumber) ? billed.InvoiceNumber : r.ReferenceNumber.Trim(),
+            Notes = string.IsNullOrWhiteSpace(r.Notes)
+                ? $"{(supplier ? "سداد" : "تحصيل")} {what} {billed.InvoiceNumber} - عقد {c.ContractNumber}"
+                : r.Notes.Trim(),
+            CostCenterId = c.CostCenterId,
+            Allocations = new List<VoucherAllocationDto> { new() { InvoiceId = r.InvoiceId, Amount = r.Amount } },
+        }, ct);
+    }
 
     // ---------- مساعدات ----------
 

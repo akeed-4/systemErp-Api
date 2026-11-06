@@ -25,4 +25,8 @@ public class StockTransferItem : BaseEntity
     public string ItemName { get; set; } = string.Empty;
     public string? Unit { get; set; }
     public decimal Quantity { get; set; }
+    /// <summary>تشغيلة السطر (للصنف المتتبَّع): المختارة، أو ملخص ما خُصِّص تلقائياً بالأقرب انتهاءً.</summary>
+    public Guid? ItemBatchId { get; set; }
+    public string? BatchNumber { get; set; }
+    public DateTime? ExpiryDate { get; set; }
 }

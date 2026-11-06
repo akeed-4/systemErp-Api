@@ -28,6 +28,12 @@ public class TenantProvisioningService : ITenantProvisioningService
             });
         }
 
+        // حسابات العقود تحت مجموعات الشجرة الافتراضية نفسها، مربوطة بإعدادات الحسابات (فلا تنبيه إعداد ناقص عند أول فوترة عقد)
+        ContractAccountsSetup.Provision(_db, tenantId, baseCurrencyCode, DefaultAccounts.Chart.Select(a => new ContractAccountsSetup.Node
+        {
+            Code = a.Code, NameAr = a.Ar, NameEn = a.En, Type = a.Type, ParentCode = a.Parent, Level = levelByCode[a.Code],
+        }));
+
         _db.Add(new Currency
         {
             TenantId = tenantId,

@@ -273,4 +273,50 @@ public class ConstructionProjectSetupTests : TestBase
         Assert.Contains("2500", update);
         Assert.Contains("WorkdayEndMinutes", update);
     }
+    // ---------- قائمة المشاريع وملخصها ----------
+
+    [Fact]
+    public async Task Project_list_and_summary_report_progress_statuses_and_alerts_within_access_scope()
+    {
+        var owner = await NewTenantAsync();
+        Ok(await owner.Post("/construction-projects/role-templates"), "templates");
+        var (supervisor, supervisorId) = await UserWithRoleAsync(owner, "المهندس المشرف");
+        var (mine, items, _) = await BoqContractAsync(owner);
+        var (other, _, _) = await BoqContractAsync(owner);
+        var today = DateTime.UtcNow.AddHours(3).Date;
+
+        // مرحلة مضى نصفها بوزن 100 → مخطط 50%، ولا مستخلص معتمد → متأخر عن المخطط
+        Ok(await owner.Put($"/commercialcontracts/{mine}/project/phases", new
+        {
+            phases = new[] { new { name = "الهيكل", plannedStart = today.AddDays(-4), plannedEnd = today.AddDays(5), weightPercent = 100, contractItemIds = new[] { ItemId(items, "صب خرسانة") } } },
+        }), "phases");
+        Ok(await owner.Put($"/commercialcontracts/{mine}/project/profile", new { estimatedBudget = 1000, workdayStart = "07:00", workdayEnd = "17:00" }), "budget");
+        Ok(await owner.Post($"/commercialcontracts/{mine}/project/members", new { userId = supervisorId, role = "site_supervisor" }), "member");
+
+        var summary = await owner.Get($"/commercialcontracts/{mine}/project/summary");
+        Ok(summary, "summary");
+        var s = summary.Data!;
+        Assert.Equal(50m, s["plannedProgressPercent"].D());
+        Assert.Equal(1, s["phaseCount"]!.GetValue<int>());
+        Assert.Equal(0m, s["certifiedProgressPercent"].D());
+        Assert.Equal(1000m, s["estimatedBudget"].D());
+        Assert.Null(s["materialPlanStatus"]?.GetValue<string?>());
+        var alerts = s["alerts"]!.AsArray().Select(a => a.S()).ToList();
+        Assert.Contains("behind_plan", alerts);
+        Assert.Contains("materials_not_approved", alerts);
+        Assert.DoesNotContain("no_phases", alerts);
+        Assert.Equal("site_supervisor", s["team"]!.AsArray().Single()!["role"].S());
+
+        // القائمة: المالك يرى المشروعين، والمشرف مشروعه فقط (نطاق العضوية)
+        var list = await owner.Get("/construction-projects");
+        Ok(list, "list");
+        var ids = list.Data!.AsArray().Select(p => p!["contractId"].S()).ToList();
+        Assert.Contains(mine, ids);
+        Assert.Contains(other, ids);
+        Assert.Contains("no_phases", list.Data!.AsArray().Single(p => p!["contractId"].S() == other)!["alerts"]!.AsArray().Select(a => a.S()));
+        var supervised = await supervisor.Get("/construction-projects");
+        Ok(supervised, "supervisor list");
+        Assert.Equal(new[] { mine }, supervised.Data!.AsArray().Select(p => p!["contractId"].S()).ToArray());
+        Assert.Equal(403, (await supervisor.Get($"/commercialcontracts/{other}/project/summary")).Status);
+    }
 }

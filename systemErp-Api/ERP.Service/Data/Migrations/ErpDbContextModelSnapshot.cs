@@ -4493,7 +4493,7 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("ProductId")
+                    b.Property<Guid?>("ProductId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("ResourceId")
@@ -4535,9 +4535,13 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("ProductId");
 
+                    b.HasIndex("ResourceId");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "ContractId", "ProductId");
+
+                    b.HasIndex("TenantId", "ContractId", "ResourceId");
 
                     b.ToTable("ProjectMaterialRequirement");
                 });
@@ -5460,7 +5464,7 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
-                    b.Property<Guid>("ProductId")
+                    b.Property<Guid?>("ProductId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Quantity")
@@ -5468,6 +5472,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ResourceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("TenantId")
@@ -5490,6 +5497,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ReportId");
+
+                    b.HasIndex("ResourceId");
 
                     b.HasIndex("TenantId");
 
@@ -14087,8 +14096,12 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Shared.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.ConstructionResource", null)
+                        .WithMany()
+                        .HasForeignKey("ResourceId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Plan");
                 });
@@ -14220,14 +14233,18 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Shared.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ERP.Core.Models.Accounting.SiteDailyReport", "Report")
                         .WithMany("Materials")
                         .HasForeignKey("ReportId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.ConstructionResource", null)
+                        .WithMany()
+                        .HasForeignKey("ResourceId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Report");
                 });

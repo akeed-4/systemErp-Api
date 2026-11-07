@@ -10,6 +10,10 @@ public interface IConstructionProjectService
 {
     /// <summary>إعداد المشروع؛ العقد القديم بلا ملف يُعرض بالقيم الافتراضية حتى يُحفظ.</summary>
     Task<ConstructionProjectDto> GetAsync(Guid contractId, CancellationToken ct = default);
+    /// <summary>قائمة مشاريع المقاولات بملخصها، في نطاق وصول المستخدم إلى العقود.</summary>
+    Task<List<ConstructionProjectSummaryDto>> ListAsync(CancellationToken ct = default);
+    /// <summary>ملخص مشروع واحد للوحة المشروع.</summary>
+    Task<ConstructionProjectSummaryDto> SummaryAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>يحفظ الملف، وينشئ مركز تكلفة المشروع إن لم يكن للعقد مركز.</summary>
     Task<ConstructionProjectDto> SaveProfileAsync(Guid contractId, SaveProjectProfileDto request, CancellationToken ct = default);
     Task<ConstructionProjectDto> SavePhasesAsync(Guid contractId, SaveProjectPhasesDto request, CancellationToken ct = default);

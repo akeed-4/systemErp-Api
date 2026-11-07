@@ -101,6 +101,111 @@ public class ConstructionProjectService : IConstructionProjectService
         };
     }
 
+    // ---------- قائمة المشاريع وملخصها ----------
+
+    /// <summary>هامش التأخر: الإنجاز المعتمد أقل من المخطط بأكثر من هذه النقاط.</summary>
+    private const decimal BehindPlanMargin = 10m;
+
+    public Task<List<ConstructionProjectSummaryDto>> ListAsync(CancellationToken ct = default) => SummariesAsync(null, ct);
+
+    public async Task<ConstructionProjectSummaryDto> SummaryAsync(Guid contractId, CancellationToken ct = default)
+    {
+        await LoadContractAsync(contractId, ct);
+        return (await SummariesAsync(contractId, ct)).Single();
+    }
+
+    /// <summary>
+    /// الملخص من البيانات المحفوظة مجمّعة بالعقد: المراحل (الإنجاز المخطط)، والمستخلصات (المعتمد = آخر قيمة تراكمية معتمدة أو مفوترة)،
+    /// والاحتياجات (والمادة غير المربوطة بربطها الحالي)، والتقارير اليومية (التكلفة من المعتمدة فقط بتكلفتها المثبّتة). العقود من
+    /// استعلام عام فيسري عليها نطاق الوصول.
+    /// </summary>
+    private async Task<List<ConstructionProjectSummaryDto>> SummariesAsync(Guid? onlyId, CancellationToken ct)
+    {
+        var boqTypes = await _db.Set<ContractTypeDefinition>().AsNoTracking()
+            .Where(t => t.Billing == ContractBilling.BoqCertificate).Select(t => t.Code).ToListAsync(ct);
+        var contracts = await _db.Set<CommercialContract>().AsNoTracking()
+            .Where(c => boqTypes.Contains(c.ContractType) && (onlyId == null || c.Id == onlyId))
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new
+            {
+                c.Id, c.ContractNumber, c.Title, c.ProjectName, c.ProjectLocation, c.PartyName, c.Stage, c.StartDate, c.EndDate, c.ContractValue,
+            }).ToListAsync(ct);
+        if (contracts.Count == 0) return new();
+        var ids = contracts.Select(c => c.Id).ToList();
+
+        var budgets = await _db.Set<ConstructionProjectProfile>().AsNoTracking().Where(p => ids.Contains(p.ContractId))
+            .ToDictionaryAsync(p => p.ContractId, p => p.EstimatedBudget, ct);
+        var phases = (await _db.Set<ProjectPhase>().AsNoTracking().Where(p => ids.Contains(p.ContractId))
+            .Select(p => new { p.ContractId, p.PlannedStart, p.PlannedEnd, p.WeightPercent }).ToListAsync(ct)).ToLookup(p => p.ContractId);
+        var team = (await (from m in _db.Set<ProjectMember>().AsNoTracking()
+                           join u in _db.Set<User>().AsNoTracking() on m.UserId equals u.Id
+                           where ids.Contains(m.ContractId)
+                           select new { m.ContractId, m.UserId, u.Name, m.Role, m.CreatedAt }).ToListAsync(ct)).ToLookup(m => m.ContractId);
+        var certificates = (await _db.Set<ContractCertificate>().AsNoTracking()
+            .Where(c => ids.Contains(c.ContractId) && c.Status != ContractCertificateStatuses.Cancelled)
+            .Select(c => new { c.ContractId, c.Status, c.SequenceNo, c.CumulativeWorkValue, c.TotalWithVat }).ToListAsync(ct)).ToLookup(c => c.ContractId);
+        var plans = await _db.Set<ProjectMaterialPlan>().AsNoTracking().Where(p => ids.Contains(p.ContractId))
+            .ToDictionaryAsync(p => p.ContractId, p => p.Status, ct);
+        var requirements = (await (from l in _db.Set<ProjectMaterialRequirement>().AsNoTracking()
+                                   join r in _db.Set<ConstructionResource>().AsNoTracking() on l.ResourceId equals r.Id into rs
+                                   from r in rs.DefaultIfEmpty()
+                                   where ids.Contains(l.ContractId)
+                                   select new { l.ContractId, Stocked = (r != null ? r.ProductId : l.ProductId) != null }).ToListAsync(ct))
+            .ToLookup(l => l.ContractId);
+        var reports = (await _db.Set<SiteDailyReport>().AsNoTracking().Where(r => ids.Contains(r.ContractId))
+            .Select(r => new { r.ContractId, r.ReportDate, r.Status }).ToListAsync(ct)).ToLookup(r => r.ContractId);
+        var resourceCost = await (from u in _db.Set<SiteResourceUsage>().AsNoTracking()
+                                  join r in _db.Set<SiteDailyReport>().AsNoTracking() on u.ReportId equals r.Id
+                                  where ids.Contains(r.ContractId) && r.Status == SiteDailyReportStatuses.Approved
+                                  group u by r.ContractId into g
+                                  select new { ContractId = g.Key, Cost = g.Sum(x => x.Cost) }).ToDictionaryAsync(x => x.ContractId, x => x.Cost, ct);
+        var materialCost = await (from m in _db.Set<SiteMaterialUsage>().AsNoTracking()
+                                  join r in _db.Set<SiteDailyReport>().AsNoTracking() on m.ReportId equals r.Id
+                                  where ids.Contains(r.ContractId) && r.Status == SiteDailyReportStatuses.Approved
+                                  group m by r.ContractId into g
+                                  select new { ContractId = g.Key, Cost = g.Sum(x => x.Quantity * x.UnitCost) }).ToDictionaryAsync(x => x.ContractId, x => x.Cost, ct);
+
+        var today = SaudiTime.Today;
+        return contracts.Select(c =>
+        {
+            var ph = phases[c.Id].ToList();
+            var certs = certificates[c.Id].ToList();
+            var certified = certs.Where(x => x.Status is ContractCertificateStatuses.Approved or ContractCertificateStatuses.Invoiced)
+                .OrderByDescending(x => x.SequenceNo).Select(x => x.CumulativeWorkValue).FirstOrDefault();
+            var reqs = requirements[c.Id].ToList();
+            var reps = reports[c.Id].ToList();
+            var budget = budgets.GetValueOrDefault(c.Id);
+            var cost = DocumentPricing.Round(resourceCost.GetValueOrDefault(c.Id) + materialCost.GetValueOrDefault(c.Id));
+            var dto = new ConstructionProjectSummaryDto
+            {
+                ContractId = c.Id, ContractNumber = c.ContractNumber, Title = c.Title, ProjectName = c.ProjectName, ProjectLocation = c.ProjectLocation,
+                PartyName = c.PartyName, Stage = c.Stage, StartDate = c.StartDate, EndDate = c.EndDate, ContractValue = c.ContractValue,
+                EstimatedBudget = budget,
+                ElapsedPercent = c.StartDate is DateTime s && c.EndDate is DateTime e ? Math.Round(PhaseFraction(s, e, today) * 100m, 2) : 0,
+                PlannedProgressPercent = PlannedProgress(ph.Select(p => (p.PlannedStart, p.PlannedEnd, p.WeightPercent)), today),
+                PhaseCount = ph.Count,
+                CertifiedValue = certified,
+                CertifiedProgressPercent = c.ContractValue > 0 ? Math.Round(Math.Min(100m, certified / c.ContractValue * 100m), 2) : 0,
+                InvoicedAmount = certs.Where(x => x.Status == ContractCertificateStatuses.Invoiced).Sum(x => x.TotalWithVat),
+                OpenCertificates = certs.Count(x => x.Status is ContractCertificateStatuses.Draft or ContractCertificateStatuses.Submitted),
+                MaterialPlanStatus = plans.GetValueOrDefault(c.Id), MaterialLines = reqs.Count, MaterialsNotStocked = reqs.Count(r => !r.Stocked),
+                ReportCount = reps.Count, PendingReports = reps.Count(r => r.Status == SiteDailyReportStatuses.Submitted),
+                LastReportDate = reps.Count == 0 ? null : reps.Max(r => r.ReportDate),
+                OperatingCost = cost, BudgetUsedPercent = budget > 0 ? Math.Round(cost / budget * 100m, 2) : null,
+                Team = team[c.Id].OrderBy(m => m.CreatedAt).Select(m => new ProjectTeamMemberDto { UserId = m.UserId, Name = m.Name, Role = m.Role }).ToList(),
+            };
+            var finished = c.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled or ContractStageDefinition.InitialAcceptance;
+            if (dto.PhaseCount == 0) dto.Alerts.Add(ConstructionProjectAlerts.NoPhases);
+            if (dto.MaterialPlanStatus != ProjectMaterialPlanStatuses.Approved) dto.Alerts.Add(ConstructionProjectAlerts.MaterialsNotApproved);
+            if (dto.MaterialsNotStocked > 0) dto.Alerts.Add(ConstructionProjectAlerts.MaterialsNotStocked);
+            if (dto.PendingReports > 0) dto.Alerts.Add(ConstructionProjectAlerts.ReportsPending);
+            if (dto.PhaseCount > 0 && dto.PlannedProgressPercent - dto.CertifiedProgressPercent > BehindPlanMargin) dto.Alerts.Add(ConstructionProjectAlerts.BehindPlan);
+            if (budget > 0 && cost > budget) dto.Alerts.Add(ConstructionProjectAlerts.OverBudget);
+            if (!finished && c.EndDate is DateTime end && end.Date < today) dto.Alerts.Add(ConstructionProjectAlerts.Overdue);
+            return dto;
+        }).ToList();
+    }
+
     // ---------- الملف ----------
 
     public async Task<ConstructionProjectDto> SaveProfileAsync(Guid contractId, SaveProjectProfileDto request, CancellationToken ct = default)

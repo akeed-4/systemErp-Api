@@ -152,6 +152,10 @@ public class ConstructionResourceService
             .Join(Db.Set<WorkItem>(), c => c.WorkItemId, w => w.Id, (c, w) => w.Code + " " + w.NameAr)
             .Distinct().Take(5).ToListAsync(ct);
         if (items.Count > 0) throw new ConflictException(string.Format(Messages.ResourceUsedInWorkItems, string.Join("، ", items)));
+        // مادة عليها احتياج مشروع أو استهلاك موقع تبقى مرجعاً لهما
+        if (await Db.Set<ProjectMaterialRequirement>().AnyAsync(r => r.ResourceId == e.Id, ct)
+            || await Db.Set<SiteMaterialUsage>().AnyAsync(m => m.ResourceId == e.Id, ct))
+            throw new ConflictException(Messages.ResourceUsedInProjects);
     }
 
     /// <summary>

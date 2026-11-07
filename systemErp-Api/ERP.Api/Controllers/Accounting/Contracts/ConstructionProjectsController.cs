@@ -24,6 +24,10 @@ public class ConstructionProjectsController : ErpControllerBase
     [HttpGet, RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _projects.GetAsync(id, ct));
 
+    /// <summary>ملخص المشروع للوحة المشروع: الإنجاز والتكلفة والحالات والتنبيهات.</summary>
+    [HttpGet("summary"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Summary(Guid id, CancellationToken ct) => Success(await _projects.SummaryAsync(id, ct));
+
     [HttpPut("profile"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> SaveProfile(Guid id, [FromBody] SaveProjectProfileDto dto, CancellationToken ct)
         => Success(await _projects.SaveProfileAsync(id, dto, ct), Messages.ProjectSetupSaved);
@@ -86,8 +90,17 @@ public class SiteDailyReportsController : ErpControllerBase
 {
     private const string Screen = PermissionCatalog.SiteDailyReportsScreenId;
     private readonly ISiteDailyReportService _reports;
+    private readonly IProjectMaterialService _materials;
 
-    public SiteDailyReportsController(ISiteDailyReportService reports) => _reports = reports;
+    public SiteDailyReportsController(ISiteDailyReportService reports, IProjectMaterialService materials)
+    {
+        _reports = reports; _materials = materials;
+    }
+
+    /// <summary>مواد المكتبة لبند في التقرير: تحليل البند، أو المكتبة عامة لبند غير مرتبط أو مع all.</summary>
+    [HttpGet("material-options"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> MaterialOptions(Guid id, [FromQuery] Guid itemId, [FromQuery] bool all, CancellationToken ct)
+        => Success(await _materials.CandidatesAsync(id, itemId, all, ct));
 
     [HttpGet, RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> List(Guid id, [FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
@@ -142,15 +155,23 @@ public class SiteDailyReportsController : ErpControllerBase
         => Success(await _reports.ResourceUsageAsync(id, filter, ct));
 }
 
-/// <summary>أدوار المقاولات الجاهزة (مدير المشروع، المهندس المشرف، مراقب التكاليف، ...): إنشاؤها إداري كإنشاء أي دور.</summary>
+/// <summary>
+/// مشاريع المقاولات خارج سجل عقد: قائمة المشاريع بملخصها (في نطاق وصول المستخدم إلى العقود)، وأدوار المقاولات الجاهزة
+/// (مدير المشروع، المهندس المشرف، مراقب التكاليف، ...) وإنشاؤها إداري كإنشاء أي دور.
+/// </summary>
 [Route("api/v1/construction-projects")]
 [RequireModule(PlatformModules.Accounting)]
+// القائمة (GET) تُرشَّح بنطاق الوصول إلى العقود: المشرف يرى مشاريعه
+[ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
-public class ConstructionRoleTemplatesController : ErpControllerBase
+public class ConstructionProjectsIndexController : ErpControllerBase
 {
     private readonly IConstructionProjectService _projects;
 
-    public ConstructionRoleTemplatesController(IConstructionProjectService projects) => _projects = projects;
+    public ConstructionProjectsIndexController(IConstructionProjectService projects) => _projects = projects;
+
+    [HttpGet, RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.View)]
+    public async Task<IActionResult> List(CancellationToken ct) => Success(await _projects.ListAsync(ct));
 
     [HttpPost("role-templates"), RequireScreen("user-permissions", ScreenAction.Create)]
     public async Task<IActionResult> CreateRoleTemplates(CancellationToken ct) => Success(await _projects.CreateRoleTemplatesAsync(ct));

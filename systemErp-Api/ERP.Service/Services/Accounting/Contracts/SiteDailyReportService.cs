@@ -228,8 +228,10 @@ public class SiteDailyReportService : ISiteDailyReportService
             });
         }
 
-        var productIds = materials.Select(m => m.ProductId).Distinct().ToList();
-        var products = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        // المواد من مكتبة المقاولات (لا صنف مخزني مباشر): الوحدة وتكلفتها من المادة، والصنف من ربطها إن وُجد
+        var materialIds = materials.Where(m => m.ResourceId.HasValue).Select(m => m.ResourceId!.Value).Distinct().ToList();
+        var library = await _db.Set<ConstructionResource>().AsNoTracking().Include(r => r.Components)
+            .Where(r => materialIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
         var newMaterials = new List<SiteMaterialUsage>();
         var materialKeys = new HashSet<(Guid, Guid)>();
         for (var k = 0; k < materials.Count; k++)
@@ -237,13 +239,14 @@ public class SiteDailyReportService : ISiteDailyReportService
             var m = materials[k];
             var row = k + 1;
             if (!lines.ContainsKey(m.ContractItemId)) errors.Add(string.Format(Messages.SiteMaterialItemInvalid, row));
-            if (!products.TryGetValue(m.ProductId, out var product)) errors.Add(string.Format(Messages.SiteMaterialProductNotFound, row));
+            var material = m.ResourceId is Guid rid ? library.GetValueOrDefault(rid) : null;
+            if (material == null || !ProjectMaterialAnalysis.IsMaterial(material)) errors.Add(string.Format(Messages.SiteMaterialResourceInvalid, row));
             if (m.Quantity <= 0) errors.Add(string.Format(Messages.SiteMaterialQuantityInvalid, row));
-            if (!materialKeys.Add((m.ContractItemId, m.ProductId))) errors.Add(string.Format(Messages.SiteMaterialDuplicate, row));
+            if (m.ResourceId is Guid key && !materialKeys.Add((m.ContractItemId, key))) errors.Add(string.Format(Messages.SiteMaterialDuplicate, row));
             newMaterials.Add(new SiteMaterialUsage
             {
-                ContractItemId = m.ContractItemId, ProductId = m.ProductId, Quantity = m.Quantity, Unit = product?.Unit ?? string.Empty,
-                UnitCost = product == null ? 0 : ReferenceCost(product), Notes = Trim(m.Notes, 300),
+                ContractItemId = m.ContractItemId, ResourceId = material?.Id, ProductId = material?.ProductId, Quantity = m.Quantity,
+                Unit = material?.Unit ?? string.Empty, UnitCost = material?.StandardCost ?? 0, Notes = Trim(m.Notes, 300),
             });
         }
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
@@ -257,9 +260,6 @@ public class SiteDailyReportService : ISiteDailyReportService
         foreach (var u in newUsages) report.Resources.Add(u);
         foreach (var m in newMaterials) report.Materials.Add(m);
     }
-
-    /// <summary>تكلفة الوحدة التقديرية للمادة: المعيارية، وإلا المتوسط، وإلا آخر شراء.</summary>
-    private static decimal ReferenceCost(Product p) => p.StandardCost is > 0 ? p.StandardCost.Value : p.AverageCost > 0 ? p.AverageCost : p.LastPurchaseCost;
 
     // ---------- التقارير ----------
 
@@ -319,20 +319,23 @@ public class SiteDailyReportService : ISiteDailyReportService
 
     // ---------- الحسابات ----------
 
-    /// <summary>بيانات العرض المشتركة: بنود العقد، وموارد المشروع، والأصناف المستخدمة.</summary>
+    /// <summary>بيانات العرض المشتركة: بنود العقد، وموارد المشروع، ومواد المكتبة، والأصناف (لأسماء الأسطر القديمة بلا مادة).</summary>
     public sealed record SummaryContext(
         IReadOnlyDictionary<Guid, CommercialContractItem> Lines,
         IReadOnlyDictionary<Guid, ProjectResource> Resources,
+        IReadOnlyDictionary<Guid, ConstructionResource> Materials,
         IReadOnlyDictionary<Guid, Product> Products);
 
     private async Task<SummaryContext> ContextAsync(CommercialContract contract, IEnumerable<SiteDailyReport> reports, CancellationToken ct)
     {
         var list = reports.ToList();
-        var resourceIds = list.SelectMany(r => r.Resources).Select(u => u.ProjectResourceId).Distinct().ToList();
-        var productIds = list.SelectMany(r => r.Materials).Select(m => m.ProductId).Distinct().ToList();
+        var used = list.SelectMany(r => r.Materials).ToList();
+        var materialIds = used.Where(m => m.ResourceId.HasValue).Select(m => m.ResourceId!.Value).Distinct().ToList();
+        var productIds = used.Where(m => m.ResourceId == null && m.ProductId.HasValue).Select(m => m.ProductId!.Value).Distinct().ToList();
         var resources = await _db.Set<ProjectResource>().AsNoTracking().Where(r => r.ContractId == contract.Id).ToDictionaryAsync(r => r.Id, ct);
+        var materials = await _db.Set<ConstructionResource>().AsNoTracking().Where(r => materialIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
         var products = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        return new SummaryContext(contract.Items.ToDictionary(i => i.Id), resources, products);
+        return new SummaryContext(contract.Items.ToDictionary(i => i.Id), resources, materials, products);
     }
 
     /// <summary>
@@ -455,7 +458,10 @@ public class SiteDailyReportService : ISiteDailyReportService
             }).OrderBy(u => u.ResourceName).ToList(),
             Materials = r.Materials.Select(m => new SiteMaterialUsageDto
             {
-                Id = m.Id, ContractItemId = m.ContractItemId, ProductId = m.ProductId, ProductName = ctx.Products.GetValueOrDefault(m.ProductId)?.NameAr,
+                Id = m.Id, ContractItemId = m.ContractItemId, ResourceId = m.ResourceId, ProductId = m.ProductId,
+                ResourceCode = m.ResourceId is Guid rc ? ctx.Materials.GetValueOrDefault(rc)?.Code : null,
+                ResourceName = m.ResourceId is Guid rn ? ctx.Materials.GetValueOrDefault(rn)?.NameAr
+                    : m.ProductId is Guid pn ? ctx.Products.GetValueOrDefault(pn)?.NameAr : null,
                 Unit = m.Unit, Quantity = m.Quantity, UnitCost = m.UnitCost, Cost = DocumentPricing.Round(m.Quantity * m.UnitCost), Notes = m.Notes,
             }).ToList(),
             Summary = Summarize(r, ctx),

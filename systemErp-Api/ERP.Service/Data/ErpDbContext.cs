@@ -148,6 +148,9 @@ public class ErpDbContext : DbContext
         // الاحتياج يشير للعقد وللصنف: لا يُحذف عقد أو صنف له احتياجات
         (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ContractId), typeof(CommercialContract)),
         (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ProductId), typeof(Product)),
+        // مادة المكتبة في الاحتياج وفي استهلاك الموقع: لا تُحذف مادة عليها احتياج أو استهلاك
+        (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ResourceId), typeof(ConstructionResource)),
+        (typeof(SiteMaterialUsage), nameof(SiteMaterialUsage.ResourceId), typeof(ConstructionResource)),
         // موارد المشروع وخطته وتقاريره اليومية على العقد؛ والمورد المستخدم في تقرير والمادة المستهلكة لا يُحذفان
         (typeof(ProjectResource), nameof(ProjectResource.ContractId), typeof(CommercialContract)),
         (typeof(ProjectDailyPlan), nameof(ProjectDailyPlan.ContractId), typeof(CommercialContract)),
@@ -453,6 +456,7 @@ public class ErpDbContext : DbContext
             e.Property(r => r.BaselineQuantity).HasPrecision(18, 4);
             e.Property(r => r.RowVersion).IsRowVersion();
             e.HasIndex(r => new { r.TenantId, r.ContractId, r.ProductId });
+            e.HasIndex(r => new { r.TenantId, r.ContractId, r.ResourceId });
         });
         // إعداد مشروع المقاولات: ملف واحد لكل عقد. القيد على العقد «منع الحذف» (كبقية تابعيه)، وحذف المسودة يحذفها صراحة. مرجع بند المرحلة لسطر العقد بلا قيد.
         modelBuilder.Entity<ConstructionProjectProfile>(e =>

@@ -1590,21 +1590,21 @@
   <data name="WorkItemCodeExists" xml:space="preserve"><value>Item code "{0}" is used by another item.</value></data>
   <data name="WorkItemResourceNotFound" xml:space="preserve"><value>One of the resources used in the item was not found.</value></data>
   <data name="ResourceUsedInWorkItems" xml:space="preserve"><value>The resource is used in library items ({0}); deactivate it instead of deleting, or remove it from them first.</value></data>
+  <data name="ResourceUsedInProjects" xml:space="preserve"><value>The material is used in project requirements or daily reports; deactivate it instead of deleting.</value></data>
   <data name="ContractWorkItemNotFound" xml:space="preserve"><value>A BOQ line refers to an item that does not exist in the construction library; add it again from the library.</value></data>
   <data name="ProjectMaterialsOnlyForBoq" xml:space="preserve"><value>Material requirements are only for construction (BOQ) contracts.</value></data>
   <data name="ProjectMaterialsContractClosed" xml:space="preserve"><value>Material requirements of a closed or cancelled contract cannot be changed.</value></data>
   <data name="ProjectMaterialPlanStatusInvalid" xml:space="preserve"><value>This action is not allowed on a requirements plan in status "{0}".</value></data>
   <data name="ProjectMaterialPlanNotFound" xml:space="preserve"><value>No saved requirements plan for this contract.</value></data>
   <data name="ProjectMaterialPlanEmpty" xml:space="preserve"><value>Add at least one requirement before submitting.</value></data>
-  <data name="ProjectMaterialLineInvalid" xml:space="preserve"><value>Line {0}: an item and a positive quantity are required.</value></data>
-  <data name="ProjectMaterialProductNotFound" xml:space="preserve"><value>Line {0}: the item does not exist.</value></data>
+  <data name="ProjectMaterialLineInvalid" xml:space="preserve"><value>Line {0}: a library material and a positive quantity are required.</value></data>
+  <data name="ProjectMaterialResourceInvalid" xml:space="preserve"><value>Line {0}: the material is not in the construction library or is not of type material.</value></data>
   <data name="ProjectMaterialBoqItemInvalid" xml:space="preserve"><value>Line {0}: the item is not in the contract bill of quantities.</value></data>
   <data name="ProjectMaterialSubItemInvalid" xml:space="preserve"><value>Line {0}: the sub-item does not belong to the selected item.</value></data>
-  <data name="ProjectMaterialDuplicate" xml:space="preserve"><value>Line {0}: the item is repeated for the same BOQ item; combine its quantity in one line.</value></data>
+  <data name="ProjectMaterialDuplicate" xml:space="preserve"><value>Line {0}: the material is repeated for the same BOQ item; combine its quantity in one line.</value></data>
   <data name="ProjectMaterialReturnNoteRequired" xml:space="preserve"><value>A reason for returning is required.</value></data>
-  <data name="ProjectMaterialResourceNotLinked" xml:space="preserve"><value>Material "{0}" in the library is not linked to a stock item; link it and derive again.</value></data>
-  <data name="ProjectMaterialUnitMismatch" xml:space="preserve"><value>Could not convert the unit of material "{0}" ({1}) to the item unit ({2}).</value></data>
-  <data name="ProjectMaterialWorkItemMissing" xml:space="preserve"><value>Item "{0}" no longer exists in the library.</value></data>
+  <data name="ProjectMaterialLineNotFound" xml:space="preserve"><value>The item is not in the contract BOQ.</value></data>
+  <data name="ProjectMaterialLegacyLines" xml:space="preserve"><value>Some lines have no library material; choose their material and save before submitting.</value></data>
   <data name="ProjectMaterialNoLibraryLines" xml:space="preserve"><value>No library items in the bill of quantities; add the requirements manually.</value></data>
   <data name="ProjectMaterialPlanSaved" xml:space="preserve"><value>Material requirements saved.</value></data>
   <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>Material requirements submitted for approval.</value></data>
@@ -1668,9 +1668,9 @@
   <data name="SiteResourceIdleReasonRequired" xml:space="preserve"><value>Resources, line {0}: choose the reason for idle hours.</value></data>
   <data name="SiteResourceDuplicate" xml:space="preserve"><value>Resources, line {0}: the resource is repeated on the same item.</value></data>
   <data name="SiteMaterialItemInvalid" xml:space="preserve"><value>Materials, line {0}: the item is not in the BOQ or is a main item with sub-items.</value></data>
-  <data name="SiteMaterialProductNotFound" xml:space="preserve"><value>Materials, line {0}: the product does not exist.</value></data>
+  <data name="SiteMaterialResourceInvalid" xml:space="preserve"><value>Materials, line {0}: the material is not in the construction library or is not of type material.</value></data>
   <data name="SiteMaterialQuantityInvalid" xml:space="preserve"><value>Materials, line {0}: the quantity must be greater than zero.</value></data>
-  <data name="SiteMaterialDuplicate" xml:space="preserve"><value>Materials, line {0}: the product is repeated on the same item.</value></data>
+  <data name="SiteMaterialDuplicate" xml:space="preserve"><value>Materials, line {0}: the material is repeated on the same item.</value></data>
   <data name="SiteReportSaved" xml:space="preserve"><value>Daily report saved.</value></data>
   <data name="SiteReportSubmitted" xml:space="preserve"><value>Daily report submitted for approval.</value></data>
   <data name="SiteReportApproved" xml:space="preserve"><value>Daily report approved.</value></data>

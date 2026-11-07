@@ -1590,21 +1590,21 @@
   <data name="WorkItemCodeExists" xml:space="preserve"><value>رمز البند «{0}» مستخدم لبند آخر.</value></data>
   <data name="WorkItemResourceNotFound" xml:space="preserve"><value>أحد الموارد المستخدمة في البند غير موجود.</value></data>
   <data name="ResourceUsedInWorkItems" xml:space="preserve"><value>المورد مستخدم في بنود المكتبة ({0})؛ أوقفه بدل حذفه أو أزله منها أولاً.</value></data>
+  <data name="ResourceUsedInProjects" xml:space="preserve"><value>المادة مستخدمة في احتياجات مشاريع أو تقارير يومية؛ أوقفها بدل حذفها.</value></data>
   <data name="ContractWorkItemNotFound" xml:space="preserve"><value>أحد بنود جدول الكميات يشير إلى بند غير موجود في مكتبة المقاولات؛ أعد إضافته من المكتبة.</value></data>
   <data name="ProjectMaterialsOnlyForBoq" xml:space="preserve"><value>احتياجات المواد لعقود المقاولات بجدول كميات فقط.</value></data>
   <data name="ProjectMaterialsContractClosed" xml:space="preserve"><value>لا تُعدَّل احتياجات مواد عقد مغلق أو ملغى.</value></data>
   <data name="ProjectMaterialPlanStatusInvalid" xml:space="preserve"><value>لا يمكن تنفيذ الإجراء على خطة احتياجات حالتها «{0}».</value></data>
   <data name="ProjectMaterialPlanNotFound" xml:space="preserve"><value>لا توجد خطة احتياجات محفوظة لهذا العقد.</value></data>
   <data name="ProjectMaterialPlanEmpty" xml:space="preserve"><value>أضف احتياجاً واحداً على الأقل قبل التقديم.</value></data>
-  <data name="ProjectMaterialLineInvalid" xml:space="preserve"><value>السطر {0}: الصنف والكمية الموجبة مطلوبان.</value></data>
-  <data name="ProjectMaterialProductNotFound" xml:space="preserve"><value>السطر {0}: الصنف غير موجود.</value></data>
+  <data name="ProjectMaterialLineInvalid" xml:space="preserve"><value>السطر {0}: مادة المكتبة والكمية الموجبة مطلوبتان.</value></data>
+  <data name="ProjectMaterialResourceInvalid" xml:space="preserve"><value>السطر {0}: المادة غير موجودة في مكتبة المقاولات أو ليست من نوع مادة.</value></data>
   <data name="ProjectMaterialBoqItemInvalid" xml:space="preserve"><value>السطر {0}: البند غير موجود في جدول كميات العقد.</value></data>
   <data name="ProjectMaterialSubItemInvalid" xml:space="preserve"><value>السطر {0}: البند الفرعي لا يتبع البند المحدد.</value></data>
-  <data name="ProjectMaterialDuplicate" xml:space="preserve"><value>السطر {0}: الصنف مكرر للبند نفسه؛ اجمع كميته في سطر واحد.</value></data>
+  <data name="ProjectMaterialDuplicate" xml:space="preserve"><value>السطر {0}: المادة مكررة للبند نفسه؛ اجمع كميتها في سطر واحد.</value></data>
   <data name="ProjectMaterialReturnNoteRequired" xml:space="preserve"><value>سبب الإعادة مطلوب.</value></data>
-  <data name="ProjectMaterialResourceNotLinked" xml:space="preserve"><value>المادة «{0}» في المكتبة غير مرتبطة بصنف مخزني؛ اربطها ثم أعد الاشتقاق.</value></data>
-  <data name="ProjectMaterialUnitMismatch" xml:space="preserve"><value>تعذّر تحويل وحدة المادة «{0}» ({1}) إلى وحدة الصنف ({2}).</value></data>
-  <data name="ProjectMaterialWorkItemMissing" xml:space="preserve"><value>البند «{0}» لم يعد موجوداً في المكتبة.</value></data>
+  <data name="ProjectMaterialLineNotFound" xml:space="preserve"><value>البند غير موجود في جدول كميات العقد.</value></data>
+  <data name="ProjectMaterialLegacyLines" xml:space="preserve"><value>بعض الأسطر بلا مادة من المكتبة؛ اختر مادتها واحفظ قبل التقديم.</value></data>
   <data name="ProjectMaterialNoLibraryLines" xml:space="preserve"><value>لا بنود من المكتبة في جدول الكميات؛ أضف الاحتياجات يدوياً.</value></data>
   <data name="ProjectMaterialPlanSaved" xml:space="preserve"><value>حُفظت احتياجات المواد.</value></data>
   <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>قُدّمت احتياجات المواد للاعتماد.</value></data>
@@ -1668,9 +1668,9 @@
   <data name="SiteResourceIdleReasonRequired" xml:space="preserve"><value>الموارد، السطر {0}: اختر سبب ساعات التوقف.</value></data>
   <data name="SiteResourceDuplicate" xml:space="preserve"><value>الموارد، السطر {0}: المورد مكرر على البند نفسه.</value></data>
   <data name="SiteMaterialItemInvalid" xml:space="preserve"><value>المواد، السطر {0}: البند غير موجود في جدول الكميات أو بند رئيسي بفروع.</value></data>
-  <data name="SiteMaterialProductNotFound" xml:space="preserve"><value>المواد، السطر {0}: الصنف غير موجود.</value></data>
+  <data name="SiteMaterialResourceInvalid" xml:space="preserve"><value>المواد، السطر {0}: المادة غير موجودة في مكتبة المقاولات أو ليست من نوع مادة.</value></data>
   <data name="SiteMaterialQuantityInvalid" xml:space="preserve"><value>المواد، السطر {0}: الكمية يجب أن تكون أكبر من صفر.</value></data>
-  <data name="SiteMaterialDuplicate" xml:space="preserve"><value>المواد، السطر {0}: الصنف مكرر على البند نفسه.</value></data>
+  <data name="SiteMaterialDuplicate" xml:space="preserve"><value>المواد، السطر {0}: المادة مكررة على البند نفسه.</value></data>
   <data name="SiteReportSaved" xml:space="preserve"><value>حُفظ التقرير اليومي.</value></data>
   <data name="SiteReportSubmitted" xml:space="preserve"><value>قُدّم التقرير اليومي للاعتماد.</value></data>
   <data name="SiteReportApproved" xml:space="preserve"><value>اعتُمد التقرير اليومي.</value></data>

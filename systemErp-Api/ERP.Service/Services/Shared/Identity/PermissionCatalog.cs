@@ -86,7 +86,7 @@ public static class PermissionCatalog
             Crud(), new[] { "construction", "construction/library" }, InheritsFrom: CommercialContractsScreenId),
         // مشاريع المقاولات (العقد هو المشروع): إعداد المشروع (الملف، ساعات العمل، المراحل، الأعضاء) ولوحاته؛ ترث صلاحية العقود
         new(ConstructionProjectsScreenId, "contracts", "مشاريع المقاولات (الإعداد والمتابعة)", "Construction Projects (Setup & Monitoring)",
-            new[] { A.View, A.Edit }.Concat(Docs).ToArray(), Array.Empty<string>(), InheritsFrom: CommercialContractsScreenId),
+            new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/projects" }, InheritsFrom: CommercialContractsScreenId),
         // التقرير اليومي للموقع: المشرف يسجّل ويقدّم، والمهندس المسؤول يعتمد أو يعيد (الاعتماد)؛ يرث صلاحية العقود حتى تُحفظ له صلاحية
         new(SiteDailyReportsScreenId, "contracts", "التقرير اليومي للموقع (الإنجاز بالساعة)", "Site Daily Reports (Hourly Progress)",
             Crud(A.Submit, A.Approve), new[] { "construction/site-reports" }, InheritsFrom: CommercialContractsScreenId),

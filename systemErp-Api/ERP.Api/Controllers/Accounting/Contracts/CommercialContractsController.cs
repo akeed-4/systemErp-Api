@@ -48,6 +48,14 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _materials.DeriveAsync(id, ct));
     }
 
+    /// <summary>مواد المكتبة لسطر في جدول الكميات (تحليل البند بكمية مقترحة، أو المكتبة عامة) للإضافة اليدوية.</summary>
+    [HttpGet("{id:guid}/material-requirements/candidates"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> MaterialRequirementCandidates(Guid id, [FromQuery] Guid lineId, [FromQuery] bool all, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _materials.CandidatesAsync(id, lineId, all, ct));
+    }
+
     [HttpPut("{id:guid}/material-requirements"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> SaveMaterialRequirements(Guid id, [FromBody] SaveProjectMaterialPlanDto dto, CancellationToken ct)
     {

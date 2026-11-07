@@ -73,3 +73,22 @@ public class ProjectMember : BaseEntity
     public string Role { get; set; } = ProjectMemberRoles.SiteSupervisor;
     public string? Notes { get; set; }
 }
+
+/// <summary>تنبيهات ملخص المشروع (رموز تترجمها الواجهة).</summary>
+public static class ConstructionProjectAlerts
+{
+    /// <summary>لا مراحل تنفيذ: لا إنجاز مخطط.</summary>
+    public const string NoPhases = "no_phases";
+    /// <summary>لا خطة احتياجات، أو لم تُعتمد بعد.</summary>
+    public const string MaterialsNotApproved = "materials_not_approved";
+    /// <summary>احتياجات موادها غير مربوطة بالمخزون.</summary>
+    public const string MaterialsNotStocked = "materials_not_stocked";
+    /// <summary>تقارير يومية بانتظار الاعتماد.</summary>
+    public const string ReportsPending = "reports_pending";
+    /// <summary>الإنجاز المعتمد متأخر عن المخطط بأكثر من الهامش.</summary>
+    public const string BehindPlan = "behind_plan";
+    /// <summary>التكلفة التشغيلية تجاوزت الميزانية التقديرية.</summary>
+    public const string OverBudget = "over_budget";
+    /// <summary>انتهت مدة العقد والمشروع لم يُستلم.</summary>
+    public const string Overdue = "overdue";
+}

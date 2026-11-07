@@ -91,6 +91,9 @@ public class SiteDailyReportTests : TestBase
         var api = await NewTenantAsync();
         var p = await ProjectAsync(api);
         var cement = await SeedProductAsync(api, "CEM", stock: 100, cost: 40);
+        // المادة من مكتبة المقاولات مربوطة بالصنف: وحدتها وتكلفتها منه (40)
+        var cementMaterial = await api.Post("/construction-resources", new { nameAr = "أسمنت", resourceType = "material", unit = "PCS", costSource = "product", productId = cement });
+        Ok(cementMaterial, "library material");
         var list = await AddResourceAsync(api, p.Id, new { kind = "owned_equipment", name = "حفار 1", rate = 100, fuelPerHour = 30, maintenancePerHour = 10, operatorPerHour = 20 });
         list = await AddResourceAsync(api, p.Id, new { kind = "engineer", name = "م. خالد", rateBasis = "month", rate = 20800, hoursPerDay = 8, daysPerMonth = 26 });
         list = await AddResourceAsync(api, p.Id, new { kind = "labor", name = "عمال صب", rateBasis = "day", rate = 200, hoursPerDay = 8 });
@@ -117,7 +120,7 @@ public class SiteDailyReportTests : TestBase
                 new { projectResourceId = ResourceId(list, "م. خالد"), hours = 4, overtimeHours = 1 },
                 new { projectResourceId = ResourceId(list, "عمال صب"), contractItemId = p.Concrete, hours = 4, idleHours = 0.5, idleReason = "weather" },
             },
-            materials = new[] { new { contractItemId = p.Concrete, productId = cement, quantity = 10 } },
+            materials = new[] { new { contractItemId = p.Concrete, resourceId = cementMaterial.Data!["id"].G(), quantity = 10 } },
         });
         Ok(created, "create report");
         var s = created.Data!["summary"]!;

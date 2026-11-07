@@ -168,9 +168,14 @@ public class SiteMaterialUsage : BaseEntity
 {
     public Guid ReportId { get; set; }
     public Guid ContractItemId { get; set; }
-    public Guid ProductId { get; set; }
+    /// <summary>مادة مكتبة المقاولات المستهلكة (فارغة في أسطر قديمة سبقت الربط بالمكتبة).</summary>
+    public Guid? ResourceId { get; set; }
+    /// <summary>الصنف المخزني لمادة المكتبة وقت الحفظ (فارغ للمادة غير المربوطة).</summary>
+    public Guid? ProductId { get; set; }
     public decimal Quantity { get; set; }
+    /// <summary>وحدة الكمية: وحدة المادة وقت الحفظ.</summary>
     public string Unit { get; set; } = string.Empty;
+    /// <summary>تكلفة وحدة المادة في المكتبة وقت الحفظ.</summary>
     public decimal UnitCost { get; set; }
     public string? Notes { get; set; }
 

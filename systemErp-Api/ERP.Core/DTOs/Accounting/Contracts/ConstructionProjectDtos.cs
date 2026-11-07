@@ -102,3 +102,59 @@ public class ConstructionRoleTemplatesResultDto
     public List<string> Created { get; set; } = new();
     public List<string> Existing { get; set; } = new();
 }
+
+/// <summary>
+/// ملخص مشروع مقاولات (عقد بجدول كميات) لقائمة المشاريع ولوحة المشروع: الجدول الزمني والإنجاز المخطط والمعتمد بالمستخلصات،
+/// والميزانية والتكلفة التشغيلية من التقارير المعتمدة، وحالة الاحتياجات والمستخلصات والتقارير، والتنبيهات. كل الأرقام من الخادم.
+/// </summary>
+public class ConstructionProjectSummaryDto
+{
+    public Guid ContractId { get; set; }
+    public string ContractNumber { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? ProjectName { get; set; }
+    public string? ProjectLocation { get; set; }
+    public string? PartyName { get; set; }
+    public string Stage { get; set; } = string.Empty;
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public decimal ContractValue { get; set; }
+    public decimal EstimatedBudget { get; set; }
+
+    /// <summary>نسبة المدة المنقضية من مدة العقد اليوم.</summary>
+    public decimal ElapsedPercent { get; set; }
+    /// <summary>الإنجاز المخطط اليوم من أوزان المراحل.</summary>
+    public decimal PlannedProgressPercent { get; set; }
+    public int PhaseCount { get; set; }
+    /// <summary>الأعمال المعتمدة بالمستخلصات (آخر قيمة تراكمية معتمدة أو مفوترة) ونسبتها من قيمة العقد.</summary>
+    public decimal CertifiedValue { get; set; }
+    public decimal CertifiedProgressPercent { get; set; }
+    public decimal InvoicedAmount { get; set; }
+    public int OpenCertificates { get; set; }
+
+    /// <summary>فارغة إن لم تُنشأ خطة احتياجات.</summary>
+    public string? MaterialPlanStatus { get; set; }
+    public int MaterialLines { get; set; }
+    /// <summary>احتياجات موادها غير مربوطة بصنف مخزني.</summary>
+    public int MaterialsNotStocked { get; set; }
+
+    public int ReportCount { get; set; }
+    /// <summary>تقارير يومية مقدَّمة بانتظار الاعتماد.</summary>
+    public int PendingReports { get; set; }
+    public DateTime? LastReportDate { get; set; }
+    /// <summary>التكلفة التشغيلية من التقارير المعتمدة (الموارد والمواد؛ لا تُرحَّل).</summary>
+    public decimal OperatingCost { get; set; }
+    /// <summary>التكلفة التشغيلية من الميزانية التقديرية (فارغة بلا ميزانية).</summary>
+    public decimal? BudgetUsedPercent { get; set; }
+
+    public List<ProjectTeamMemberDto> Team { get; set; } = new();
+    /// <summary>رموز تنبيه تترجمها الواجهة (<c>ConstructionProjectAlerts</c>).</summary>
+    public List<string> Alerts { get; set; } = new();
+}
+
+public class ProjectTeamMemberDto
+{
+    public Guid UserId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+}

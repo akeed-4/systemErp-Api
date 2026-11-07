@@ -89,12 +89,16 @@ public class SiteResourceUsageDto
     public string? Notes { get; set; }
 }
 
+/// <summary>مادة مستهلكة على بند: من مكتبة المقاولات (إلزامية عند الحفظ)، والصنف المخزني للقراءة من ربط المادة وقت الحفظ.</summary>
 public class SiteMaterialUsageDto
 {
     public Guid? Id { get; set; }
     public Guid ContractItemId { get; set; }
-    public Guid ProductId { get; set; }
-    public string? ProductName { get; set; }
+    public Guid? ResourceId { get; set; }
+    public string? ResourceCode { get; set; }
+    public string? ResourceName { get; set; }
+    /// <summary>للقراءة فقط.</summary>
+    public Guid? ProductId { get; set; }
     public string? Unit { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitCost { get; set; }

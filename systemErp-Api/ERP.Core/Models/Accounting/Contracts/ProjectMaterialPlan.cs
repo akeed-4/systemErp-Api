@@ -18,6 +18,42 @@ public static class ProjectMaterialSources
 }
 
 /// <summary>
+/// تشخيص الاشتقاق لكل سطر في جدول الكميات: حالة السطر، وسبب التخطي، وتنبيهات مواده. رموز تترجمها الواجهة.
+/// </summary>
+public static class ProjectMaterialDiagnostics
+{
+    // حالة السطر
+    public const string Derived = "derived";
+    public const string Warning = "warning";
+    public const string Skipped = "skipped";
+
+    // أسباب التخطي
+    /// <summary>البند غير مرتبط ببند في المكتبة (مضاف يدوياً أو مستورد).</summary>
+    public const string NotLinked = "not_linked";
+    /// <summary>بند المكتبة المصدر لم يعد موجوداً.</summary>
+    public const string WorkItemMissing = "work_item_missing";
+    /// <summary>البند الفرعي بلا مصدر في المكتبة (لا بند فرعي مرتبط).</summary>
+    public const string SubItemNoSource = "sub_no_source";
+    /// <summary>البند الرئيسي للفرعي غير مرتبط بالمكتبة.</summary>
+    public const string ParentNotLinked = "parent_not_linked";
+    /// <summary>تحليل البند في المكتبة بلا مواد (عمالة ومعدات فقط، أو فارغ).</summary>
+    public const string NoMaterials = "no_materials";
+
+    // تنبيهات المادة (تُشتق رغمها)
+    /// <summary>المادة غير مربوطة بصنف مخزني: لا تُصرف ولا تُشترى حتى تُربط.</summary>
+    public const string NotStocked = "not_stocked";
+    /// <summary>وحدة المادة لا تتحول لوحدة صنفها المخزني: الرصيد لا يُقارن.</summary>
+    public const string UnitMismatch = "unit_mismatch";
+}
+
+/// <summary>نطاق اختيار المادة: تحليل البند في المكتبة، أو مواد المكتبة عامة (لسطر غير مرتبط أو عند الطلب).</summary>
+public static class ProjectMaterialCandidateScopes
+{
+    public const string Item = "item";
+    public const string Library = "library";
+}
+
+/// <summary>
 /// احتياجات المواد المعتمدة لمشروع (عقد مقاولات بجدول كميات؛ العقد هو المشروع): خطة واحدة لكل عقد. تُشتق من تحليل البنود في
 /// المكتبة أو تُدخل يدوياً، ثم تُعتمد فتصبح النسخة الأساسية (Baseline) التي تُقارن بها طلبات الشراء. نسخة مستقلة: تعديل المكتبة
 /// لا يغيّرها، والمعتمدة لا تُعدَّل إلا بتعديل معتمد مسجَّل.
@@ -39,8 +75,10 @@ public class ProjectMaterialPlan : BaseEntity
 }
 
 /// <summary>
-/// احتياج مادة (صنف مخزني) لبند في جدول الكميات: البند الرئيسي (<see cref="BoqItemId"/>) والبند الفرعي (<see cref="SubItemId"/>)
-/// سطران في العقد نفسه. الكمية بوحدة الصنف المخزنية. الكمية المعتمدة = الأساسية + التعديلات المعتمدة (لاحقاً).
+/// احتياج مادة من مكتبة المقاولات (<see cref="ResourceId"/>: مورد من نوع مادة) لبند في جدول الكميات: البند الرئيسي
+/// (<see cref="BoqItemId"/>) والبند الفرعي (<see cref="SubItemId"/>) سطران في العقد نفسه. الكمية بوحدة المادة (<see cref="Unit"/>)،
+/// والصنف المخزني اختياري يُؤخذ من ربط المادة: المادة غير المربوطة احتياج صحيح لا يُصرف ولا يُشترى حتى تُربط.
+/// الكمية المعتمدة = الأساسية + التعديلات المعتمدة (لاحقاً).
 /// </summary>
 public class ProjectMaterialRequirement : BaseEntity
 {
@@ -51,10 +89,11 @@ public class ProjectMaterialRequirement : BaseEntity
     public Guid? BoqItemId { get; set; }
     /// <summary>سطر البند الفرعي تحت <see cref="BoqItemId"/> إن وُجد.</summary>
     public Guid? SubItemId { get; set; }
-    public Guid ProductId { get; set; }
-    /// <summary>مورد المكتبة الذي اشتُق منه الاحتياج (للتتبع فقط).</summary>
+    /// <summary>الصنف المخزني لمادة المكتبة وقت الحفظ (فارغ للمادة غير المربوطة؛ العرض يأخذ ربط المادة الحالي).</summary>
+    public Guid? ProductId { get; set; }
+    /// <summary>مادة المكتبة (مورد من نوع مادة): هوية الاحتياج. فارغة في أسطر قديمة سبقت الربط بالمكتبة.</summary>
     public Guid? ResourceId { get; set; }
-    /// <summary>وحدة الصنف المخزنية وقت الحفظ.</summary>
+    /// <summary>وحدة الكمية: وحدة مادة المكتبة وقت الحفظ (وفي الأسطر القديمة وحدة الصنف).</summary>
     public string Unit { get; set; } = string.Empty;
     public decimal BaselineQuantity { get; set; }
     public string Source { get; set; } = ProjectMaterialSources.Manual;

@@ -144,8 +144,17 @@ public class ErpDbContext : DbContext
         (typeof(ContractInvoice), nameof(ContractInvoice.ContractId), typeof(CommercialContract)),
         (typeof(ContractAttachment), nameof(ContractAttachment.ContractId), typeof(CommercialContract)),
         (typeof(ContractCertificate), nameof(ContractCertificate.ContractId), typeof(CommercialContract)),
+        (typeof(ProjectMaterialPlan), nameof(ProjectMaterialPlan.ContractId), typeof(CommercialContract)),
+        // الاحتياج يشير للعقد وللصنف: لا يُحذف عقد أو صنف له احتياجات
+        (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ContractId), typeof(CommercialContract)),
+        (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ProductId), typeof(Product)),
         // سطر المستخلص يشير لبند جدول الكميات: البند لا يُحذف بعد أن قيس عليه (البنود تُعدَّل في المسودة فقط، قبل أي مستخلص)
         (typeof(ContractCertificateLine), nameof(ContractCertificateLine.ContractItemId), typeof(CommercialContractItem)),
+        (typeof(ConstructionResource), nameof(ConstructionResource.ProductId), typeof(Product)),
+        (typeof(ConstructionResource), nameof(ConstructionResource.HrDepartmentId), typeof(Department)),
+        // مكوّن المورد المركّب يشير لمورد آخر: المورد الداخل في مركّب لا يُحذف (والمركّب يحذف مكوناته معه)
+        (typeof(ConstructionResourceComponent), nameof(ConstructionResourceComponent.ComponentResourceId), typeof(ConstructionResource)),
+        (typeof(WorkItemComponent), nameof(WorkItemComponent.ResourceId), typeof(ConstructionResource)),
         // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
 
@@ -170,6 +179,8 @@ public class ErpDbContext : DbContext
         (typeof(MaterialRequisition), nameof(MaterialRequisition.RequisitionNumber)),
         (typeof(CommercialOrder), nameof(CommercialOrder.OrderNumber)),
         (typeof(CommercialContract), nameof(CommercialContract.ContractNumber)),
+        (typeof(ConstructionResource), nameof(ConstructionResource.Code)),
+        (typeof(WorkItem), nameof(WorkItem.Code)),
         (typeof(Agreement), nameof(Agreement.AgreementNumber)),
         (typeof(DeliveryNote), nameof(DeliveryNote.DeliveryNumber)),
         (typeof(DeliveryReturnNote), nameof(DeliveryReturnNote.ReturnNumber)),
@@ -414,6 +425,72 @@ public class ErpDbContext : DbContext
             e.Property(i => i.LineCode).HasMaxLength(32);
             e.Property(i => i.SectionName).HasMaxLength(200);
             e.Property(i => i.LineKind).HasMaxLength(16).IsRequired().HasDefaultValue(ContractBoqLineKinds.Measured);
+            e.Property(i => i.UnitDescription).HasMaxLength(200);
+            // مصدر السطر في المكتبة بلا قيد (نسخة مستقلة)، ومفهرس لتقارير «أين استُخدم البند»
+            e.HasIndex(i => new { i.TenantId, i.WorkItemId });
+        });
+        // احتياجات مواد المشروع: خطة واحدة لكل عقد، وأسطرها تُحذف معها. مرجع البند/البند الفرعي بلا قيد (أسطر العقد تُستبدل في مسودته).
+        modelBuilder.Entity<ProjectMaterialPlan>(e =>
+        {
+            e.Property(p => p.Status).HasMaxLength(16).IsRequired();
+            e.Property(p => p.Notes).HasMaxLength(1000);
+            e.Property(p => p.ReturnNote).HasMaxLength(500);
+            e.Property(p => p.SubmittedBy).HasMaxLength(200);
+            e.Property(p => p.ApprovedBy).HasMaxLength(200);
+            e.HasIndex(p => new { p.TenantId, p.ContractId }).IsUnique();
+        });
+        modelBuilder.Entity<ProjectMaterialRequirement>(e =>
+        {
+            e.Property(r => r.Unit).HasMaxLength(20).IsRequired();
+            e.Property(r => r.Source).HasMaxLength(16).IsRequired();
+            e.Property(r => r.Notes).HasMaxLength(500);
+            e.Property(r => r.BaselineQuantity).HasPrecision(18, 4);
+            e.Property(r => r.RowVersion).IsRowVersion();
+            e.HasIndex(r => new { r.TenantId, r.ContractId, r.ProductId });
+        });
+        modelBuilder.Entity<ConstructionResource>(e =>
+        {
+            e.Property(r => r.Code).HasMaxLength(32).IsRequired();
+            e.Property(r => r.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(r => r.NameEn).HasMaxLength(200);
+            e.Property(r => r.ResourceType).HasMaxLength(16).IsRequired();
+            e.Property(r => r.Unit).HasMaxLength(20).IsRequired();
+            e.Property(r => r.Notes).HasMaxLength(500);
+            e.Property(r => r.CostSource).HasMaxLength(16).IsRequired().HasDefaultValue(ResourceCostSources.Manual);
+            e.Property(r => r.HrJobTitle).HasMaxLength(200);
+            e.Property(r => r.HoursPerUnit).HasDefaultValue(1m);
+        });
+        modelBuilder.Entity<WorkItem>(e =>
+        {
+            e.Property(w => w.Code).HasMaxLength(32).IsRequired();
+            e.Property(w => w.NameAr).HasMaxLength(500).IsRequired();
+            e.Property(w => w.NameEn).HasMaxLength(500);
+            e.Property(w => w.SectionName).HasMaxLength(200);
+            e.Property(w => w.Unit).HasMaxLength(20).IsRequired();
+            e.Property(w => w.UnitDescription).HasMaxLength(200);
+            e.Property(w => w.LineKind).HasMaxLength(16).IsRequired();
+            e.Property(w => w.PricingMode).HasMaxLength(16).IsRequired();
+            e.Property(w => w.Notes).HasMaxLength(1000);
+        });
+        modelBuilder.Entity<WorkItemSubItem>(e =>
+        {
+            e.Property(s => s.LineCode).HasMaxLength(32);
+            e.Property(s => s.Description).HasMaxLength(500).IsRequired();
+            e.Property(s => s.Unit).HasMaxLength(20).IsRequired();
+            e.Property(s => s.QuantityMode).HasMaxLength(16).IsRequired();
+            e.Property(s => s.QuantityFactor).HasPrecision(18, 6);
+        });
+        // احتياج البند: يُحذف مع البند، ومرجعه لبنده الفرعي بلا قيد (مسار حذف واحد)، ومورده لا يُحذف وهو مستخدم
+        modelBuilder.Entity<WorkItemComponent>(e =>
+        {
+            e.Property(c => c.QuantityMode).HasMaxLength(16).IsRequired();
+            e.Property(c => c.ConsumptionFactor).HasPrecision(18, 6);
+            e.HasIndex(c => c.SubItemId);
+        });
+        modelBuilder.Entity<ConstructionResourceComponent>(e =>
+        {
+            e.Property(c => c.Quantity).HasPrecision(18, 6);
+            e.HasIndex(c => new { c.ResourceId, c.ComponentResourceId }).IsUnique();
         });
         modelBuilder.Entity<CommercialContract>(e =>
         {

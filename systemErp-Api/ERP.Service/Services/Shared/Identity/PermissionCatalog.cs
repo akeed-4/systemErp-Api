@@ -81,6 +81,9 @@ public static class PermissionCatalog
         // أنواع العقود (المسار والفوترة وحد التبسيط): ترث صلاحية العقود حتى تُحفظ لها صلاحية مستقلة
         new(ContractTypesScreenId, "contracts", "أنواع العقود", "Contract Types",
             new[] { A.View, A.Edit }, new[] { "contract-types" }, InheritsFrom: CommercialContractsScreenId),
+        // مكتبة المقاولات (الموارد والبنود القياسية وتصنيفها): ترث صلاحية العقود حتى تُحفظ لها صلاحية مستقلة
+        new(ConstructionLibraryScreenId, "contracts", "مكتبة المقاولات (الموارد والبنود)", "Construction Library (Resources & Items)",
+            Crud(), new[] { "construction", "construction/library" }, InheritsFrom: CommercialContractsScreenId),
 
         new("sales", "sales", "فواتير المبيعات ونقاط البيع (POS)", "Sales Invoices & POS",
             Crud(A.Approve, A.Post, A.Cancel, A.Discount),
@@ -152,6 +155,7 @@ public static class PermissionCatalog
 
     public const string CommercialContractsScreenId = "commercial-contracts";
     public const string ContractTypesScreenId = "contract-types";
+    public const string ConstructionLibraryScreenId = "construction-library";
     public const string WhatsAppScreenId = "whatsapp";
     public const string WhatsAppSendScreenId = "whatsapp-send";
     public const string PurchaseLandedCostsScreenId = "purchase-landed-costs";

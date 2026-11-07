@@ -72,6 +72,14 @@ Angular → Controller (ERP.Api) → Contract (ERP.Core) → Service (ERP.Servic
 - بقية المستندات تُحجز عمليتها: المتحكم يستدعي `HoldForApprovalAsync(handler, action, id, payload)` بعد فحص الصلاحية (أو `ApprovalHandler` في `CrudController`)؛ فتُجرَّب داخل معاملة تُلغى للتحقق وبناء ملخص المعتمِد، وتُحفظ بطلب اعتماد (202) ولا تُنفَّذ إلا عند الاعتماد النهائي في `ApprovalDecisionService` عبر `IApprovalGate.ExecuteAsync`.
 - لإضافة مستند جديد: أضفه للفهرس، وسجّل معالجه في `ERP.Service/Services/Shared/Workflow/ApprovalRegistry.cs` (خدمته وعملياته)، واستدعِ البوابة في إجراءات متحكمه. العمليات التي تُرسل للهيئة بعد معاملتها تُسجَّل بـ `dryRun: false`.
 
+## مكتبة المقاولات
+
+- شاشة صلاحيات `construction-library` (ترث العقود). بند العقد `CommercialContractItem` يحمل الكمية والسعر ووصف الوحدة، وعليه يُقاس المستخلص؛ لا تحليل تكلفة على بند العقد (حُذف بالهجرة `RemoveContractItemAnalysis`).
+- البنود الفرعية في جدول الكميات: العميل يرسل `IsSubItem` والترتيب، و`ApplyBoq`/`LinkSubItems` يربط كل فرعي بأقرب سطر رئيسي قبله (`ParentItemId`، بلا قيد) ويعلّم الرئيسي ذا الفروع `IsGroup`. المجموعة سعرها = مجموع فروعها ÷ كميتها وإجماليها مجموعها، ولا تدخل `ContractValue` ولا المستخلصات ولا فحص الاكتمال؛ الفروع هي التي تُسعَّر وتُقاس (الهجرة `ContractItemSubItems`).
+- سطر العقد يحفظ مصدره في المكتبة `CommercialContractItem.WorkItemId` (نسخة مستقلة بلا قيد، مفهرس للتقارير)؛ التحقق يشترط وجود البند حين يُرسل المصدر لأول مرة.
+- الموارد `ConstructionResource` على `api/v1/construction-resources` (رمز فريد اختياري يُولَّد بنوعه، وحدة معرّفة، ومصدر التكلفة `CostSource`: يدوي، أو الصنف المخزني للمادة بتحويل الوحدة، أو شؤون الموظفين للعمالة عبر `HrLaborCost`: متوسط التكلفة المحمّلة لموظفي المسمى الوظيفي الفعّالين ÷ 208 ساعة × ساعات الوحدة، ويشترط صلاحية `hr`). إعادة الحساب بـ `refresh-costs`، والمهن والأقسام (أعداد فقط) بـ `hr-labor-options`. المورد المركّب (`composite`) مكوناته `ConstructionResourceComponent`، تكلفته تُعاد بعد كل حفظ وتحديث بترتيب الاعتماد، ويُمنع التكرار والدورة وحذف مورد داخل مركّب أو بند.
+- البنود `IWorkItemService` على `api/v1/work-items`: `WorkItem` (سعر يدوي أو تكلفة + نسبة) و`WorkItemSubItem` و`WorkItemComponent` (احتياج من مورد لكل وحدة من مالكه). التكلفة والسعر والهامش تُحسب عند القراءة من تكاليف الموارد الحالية. حفظ البند يقبل `UnitCost` على الاحتياج لتعديل تكلفة المورد اليدوي نفسه (ثم إعادة المركّبات عبر `ResourceCostRules`). الواجهة لا تعرض شاشة موارد؛ الموارد تُنشأ من محرر البند. الأنواع في `ConstructionLibraryTypes.cs`، ومساعدات الوحدات والأصناف في `ConstructionUnits.cs`.
+
 ## تتبع تغيير منظم
 
 1. حدد endpoint من خدمة الواجهة أو `docs/API_ENDPOINTS.md`.

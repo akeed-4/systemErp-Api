@@ -12,6 +12,12 @@ public partial class CreateInvoiceDto
     /// <summary>داخلي: مستند ينشئه النظام (نقاط البيع، التحويل من عقد/طلب...) فيبقى ترقيمه تلقائياً دائماً.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool SystemGenerated { get; set; }
+    /// <summary>
+    /// داخلي: فاتورة مستخلص عقد مقاولات لا تخضع لفحص الحد الائتماني للعميل؛ سقفها العقد المعتمد (الكميات المتعاقد عليها)،
+    /// والعمل منفَّذ فعلاً فلا يُؤخَّر إثبات استحقاقه. لا يُقرأ من الطلب فلا يتجاوز به عميل API الحد.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SkipCreditLimit { get; set; }
     public Guid Uuid { get; set; }
     public DateTime IssueDate { get; set; }
     public string IssueTime { get; set; } = string.Empty;

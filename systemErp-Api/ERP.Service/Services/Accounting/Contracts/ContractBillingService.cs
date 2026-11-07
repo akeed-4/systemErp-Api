@@ -120,6 +120,7 @@ public class ContractBillingService : IContractBillingService
                 + (cert.AdvanceRecovery > 0 ? $" — أعمال {cert.CurrentWorkValue:0.00} ناقص استرداد دفعة مقدمة {cert.AdvanceRecovery:0.00}" : string.Empty);
             var request = await InvoiceRequestAsync(c, title, cert.TaxableAmount, cert.VatRate, day,
                 "contract_certificate", cert.Id, cert.CertificateNumber, token);
+            request.SkipCreditLimit = true; // المستخلص يحكمه العقد لا الحد الائتماني للعميل
             if (!supplier && !string.IsNullOrWhiteSpace(c.RevenueAccountCode)) request.RevenueAccountCode = c.RevenueAccountCode;
             if (settlements.Count > 0)
             {

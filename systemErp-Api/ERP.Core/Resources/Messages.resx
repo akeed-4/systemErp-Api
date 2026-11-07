@@ -507,6 +507,7 @@
   <data name="MilestoneAmountsExceedContractValue" xml:space="preserve"><value>مجموع مبالغ الدفعات يتجاوز قيمة العقد.</value></data>
   <data name="BoqLineKindInvalid" xml:space="preserve"><value>نوع بند جدول الكميات غير صالح (بكمية، مبلغ مقطوع، أو احتياطي).</value></data>
   <data name="BoqOverrunRange" xml:space="preserve"><value>نسبة السماح بتجاوز الكمية يجب أن تكون بين 0 و100.</value></data>
+  <data name="BoqSubItemWithoutParent" xml:space="preserve"><value>البند الفرعي يجب أن يأتي تحت بند رئيسي في جدول الكميات.</value></data>
   <data name="BoqContractMilestonesNotAllowed" xml:space="preserve"><value>عقد جدول الكميات يُستحق بالمستخلصات ولا يُعرَّف له جدول دفعات.</value></data>
   <data name="BoqContractBilledByCertificates" xml:space="preserve"><value>عقد جدول الكميات يُفوتر بالمستخلصات فقط، لا بالدفعات ولا ببيانات التسليم.</value></data>
   <data name="BoqCertificatesOnlyForBoq" xml:space="preserve"><value>مستخلصات الكميات لعقود جدول الكميات فقط.</value></data>
@@ -617,7 +618,7 @@
   <data name="UnitTypeAlreadyHasBase" xml:space="preserve"><value>النوع لديه وحدة أساس ({0}). أنشئ الوحدة مربوطة بها بمعامل التحويل، ثم اجعلها الأساس بالتعديل إن أردت.</value></data>
   <data name="UnitTypeHasNoBase" xml:space="preserve"><value>لا توجد وحدة أساس لهذا النوع بعد؛ اجعل هذه الوحدة وحدة الأساس.</value></data>
   <data name="UnitBaseMustMatchType" xml:space="preserve"><value>وحدة الأساس {0} ليست من نوع هذه الوحدة؛ اختر وحدة أساس من النوع نفسه.</value></data>
-  <data name="UnitTypeInvalid" xml:space="preserve"><value>نوع الوحدة غير صحيح؛ الأنواع: عدد، وزن، سائل، طول.</value></data>
+  <data name="UnitTypeInvalid" xml:space="preserve"><value>نوع الوحدة غير صحيح؛ الأنواع: عدد، وزن، سائل، طول، مساحة، وقت.</value></data>
   <data name="NoNetQuantitiesToBill" xml:space="preserve"><value>لا توجد كميات صافية لفوترتها (البيان مُرتجع بالكامل).</value></data>
   <data name="NoneValue" xml:space="preserve"><value>لا يوجد</value></data>
   <data name="NoOpenShift" xml:space="preserve"><value>لا توجد وردية مفتوحة.</value></data>
@@ -1551,4 +1552,61 @@
   <data name="ExpiredStockNote" xml:space="preserve"><value>، ومنتهي الصلاحية {0} (لا يُباع)</value></data>
   <data name="ExpiryTrackingRequiresBatches" xml:space="preserve"><value>تتبّع الصلاحية يتطلب تفعيل تتبّع التشغيلات للصنف.</value></data>
   <data name="BatchTrackingCannotBeDisabled" xml:space="preserve"><value>لا يمكن إيقاف تتبّع التشغيلات للصنف «{0}» وفي تشغيلاته رصيد قائم.</value></data>
+  <data name="BoqSubItemInvalid" xml:space="preserve"><value>البند «{0}»: البند الفرعي «{1}» غير مكتمل؛ الوصف والوحدة مطلوبان، والكمية (أو معاملها من كمية البند) أكبر من صفر، والتكلفة غير سالبة.</value></data>
+  <data name="BoqUnitUnknown" xml:space="preserve"><value>البند «{0}»: وحدة القياس «{1}» غير معرّفة في وحدات القياس.</value></data>
+  <data name="LabelConstructionResource" xml:space="preserve"><value>المورد</value></data>
+  <data name="ResourceTypeInvalid" xml:space="preserve"><value>نوع المورد غير صالح (مادة، عمالة، معدة، مقاول باطن، أخرى).</value></data>
+  <data name="ResourceUnitRequired" xml:space="preserve"><value>وحدة المورد مطلوبة.</value></data>
+  <data name="ResourceUnitUnknown" xml:space="preserve"><value>وحدة القياس «{0}» غير معرّفة في وحدات القياس.</value></data>
+  <data name="ResourceCostNegative" xml:space="preserve"><value>تكلفة المورد لا تكون سالبة.</value></data>
+  <data name="ResourceProductMaterialOnly" xml:space="preserve"><value>ربط صنف مخزني متاح لمورد من نوع «مادة» فقط.</value></data>
+  <data name="ResourceProductCostNeedsProduct" xml:space="preserve"><value>«التكلفة من الصنف» تتطلب ربط المورد بصنف مخزني.</value></data>
+  <data name="ResourceProductNotFound" xml:space="preserve"><value>الصنف المرتبط بالمورد غير موجود.</value></data>
+  <data name="ResourceUnitIncompatible" xml:space="preserve"><value>وحدة المورد «{0}» لا تتحول إلى وحدة الصنف «{1}»؛ يجب أن تكونا من نوع قياس واحد.</value></data>
+  <data name="ResourceCodeExists" xml:space="preserve"><value>رمز المورد «{0}» مستخدم لمورد آخر.</value></data>
+  <data name="ResourceCostsRefreshed" xml:space="preserve"><value>حُدّثت تكلفة {0} مورد من مصادرها.</value></data>
+  <data name="ResourceCostSourceInvalid" xml:space="preserve"><value>مصدر تكلفة المورد غير صالح (يدوي، الصنف المخزني، شؤون الموظفين، مركّب).</value></data>
+  <data name="ResourceHrLaborOnly" xml:space="preserve"><value>التكلفة من شؤون الموظفين لمورد من نوع «عمالة» فقط.</value></data>
+  <data name="ResourceHrJobRequired" xml:space="preserve"><value>اختر المهنة (المسمى الوظيفي) من شؤون الموظفين.</value></data>
+  <data name="ResourceHoursPerUnitPositive" xml:space="preserve"><value>ساعات العمل في وحدة المورد يجب أن تكون أكبر من صفر.</value></data>
+  <data name="ResourceHrUnitNotTime" xml:space="preserve"><value>وحدة مورد العمالة المرتبط بشؤون الموظفين يجب أن تكون من نوع «وقت» (ساعة، يوم)، لا «{0}».</value></data>
+  <data name="ResourceHrDepartmentNotFound" xml:space="preserve"><value>القسم المحدد للمهنة غير موجود.</value></data>
+  <data name="ResourceHrNoEmployees" xml:space="preserve"><value>لا موظفين فعّالين بالمسمى الوظيفي «{0}» لحساب تكلفة المهنة.</value></data>
+  <data name="ResourceHrForbidden" xml:space="preserve"><value>تكلفة العمالة من شؤون الموظفين مشتقة من الرواتب، وتتطلب صلاحية عرض شؤون الموظفين.</value></data>
+  <data name="ResourceCompositeEmpty" xml:space="preserve"><value>المورد المركّب يحتاج مكوّناً واحداً على الأقل.</value></data>
+  <data name="ResourceComponentInvalid" xml:space="preserve"><value>كمية كل مكوّن يجب أن تكون أكبر من صفر، والهدر بين 0 و100.</value></data>
+  <data name="ResourceComponentDuplicate" xml:space="preserve"><value>المكوّن مكرر في المورد المركّب؛ اجمع كميته في سطر واحد.</value></data>
+  <data name="ResourceComponentSelf" xml:space="preserve"><value>لا يكون المورد مكوّناً في نفسه.</value></data>
+  <data name="ResourceComponentNotFound" xml:space="preserve"><value>أحد مكونات المورد المركّب غير موجود.</value></data>
+  <data name="ResourceComponentCycle" xml:space="preserve"><value>أحد المكونات يحوي هذا المورد في مكوناته (دورة)؛ أزل المكوّن الذي يسببها.</value></data>
+  <data name="ResourceUsedInComposite" xml:space="preserve"><value>المورد داخل في موارد مركّبة ({0})؛ أوقفه بدل حذفه أو أزله منها أولاً.</value></data>
+  <data name="LabelWorkItem" xml:space="preserve"><value>البند</value></data>
+  <data name="WorkItemUnitRequired" xml:space="preserve"><value>وحدة البند مطلوبة.</value></data>
+  <data name="WorkItemStandardQuantityPositive" xml:space="preserve"><value>الكمية القياسية للبند يجب أن تكون أكبر من صفر.</value></data>
+  <data name="WorkItemPricingInvalid" xml:space="preserve"><value>طريقة سعر البند غير صالحة (يدوي، أو التكلفة + نسبة).</value></data>
+  <data name="WorkItemPriceNegative" xml:space="preserve"><value>سعر البيع ونسبة المصاريف والربح لا يكونان سالبين.</value></data>
+  <data name="WorkItemComponentInvalid" xml:space="preserve"><value>البند «{0}»: كل احتياج يحتاج مورداً، ومعاملاً (أو كمية ثابتة) أكبر من صفر، وهدراً بين 0 و100.</value></data>
+  <data name="WorkItemCodeExists" xml:space="preserve"><value>رمز البند «{0}» مستخدم لبند آخر.</value></data>
+  <data name="WorkItemResourceNotFound" xml:space="preserve"><value>أحد الموارد المستخدمة في البند غير موجود.</value></data>
+  <data name="ResourceUsedInWorkItems" xml:space="preserve"><value>المورد مستخدم في بنود المكتبة ({0})؛ أوقفه بدل حذفه أو أزله منها أولاً.</value></data>
+  <data name="ContractWorkItemNotFound" xml:space="preserve"><value>أحد بنود جدول الكميات يشير إلى بند غير موجود في مكتبة المقاولات؛ أعد إضافته من المكتبة.</value></data>
+  <data name="ProjectMaterialsOnlyForBoq" xml:space="preserve"><value>احتياجات المواد لعقود المقاولات بجدول كميات فقط.</value></data>
+  <data name="ProjectMaterialsContractClosed" xml:space="preserve"><value>لا تُعدَّل احتياجات مواد عقد مغلق أو ملغى.</value></data>
+  <data name="ProjectMaterialPlanStatusInvalid" xml:space="preserve"><value>لا يمكن تنفيذ الإجراء على خطة احتياجات حالتها «{0}».</value></data>
+  <data name="ProjectMaterialPlanNotFound" xml:space="preserve"><value>لا توجد خطة احتياجات محفوظة لهذا العقد.</value></data>
+  <data name="ProjectMaterialPlanEmpty" xml:space="preserve"><value>أضف احتياجاً واحداً على الأقل قبل التقديم.</value></data>
+  <data name="ProjectMaterialLineInvalid" xml:space="preserve"><value>السطر {0}: الصنف والكمية الموجبة مطلوبان.</value></data>
+  <data name="ProjectMaterialProductNotFound" xml:space="preserve"><value>السطر {0}: الصنف غير موجود.</value></data>
+  <data name="ProjectMaterialBoqItemInvalid" xml:space="preserve"><value>السطر {0}: البند غير موجود في جدول كميات العقد.</value></data>
+  <data name="ProjectMaterialSubItemInvalid" xml:space="preserve"><value>السطر {0}: البند الفرعي لا يتبع البند المحدد.</value></data>
+  <data name="ProjectMaterialDuplicate" xml:space="preserve"><value>السطر {0}: الصنف مكرر للبند نفسه؛ اجمع كميته في سطر واحد.</value></data>
+  <data name="ProjectMaterialReturnNoteRequired" xml:space="preserve"><value>سبب الإعادة مطلوب.</value></data>
+  <data name="ProjectMaterialResourceNotLinked" xml:space="preserve"><value>المادة «{0}» في المكتبة غير مرتبطة بصنف مخزني؛ اربطها ثم أعد الاشتقاق.</value></data>
+  <data name="ProjectMaterialUnitMismatch" xml:space="preserve"><value>تعذّر تحويل وحدة المادة «{0}» ({1}) إلى وحدة الصنف ({2}).</value></data>
+  <data name="ProjectMaterialWorkItemMissing" xml:space="preserve"><value>البند «{0}» لم يعد موجوداً في المكتبة.</value></data>
+  <data name="ProjectMaterialNoLibraryLines" xml:space="preserve"><value>لا بنود من المكتبة في جدول الكميات؛ أضف الاحتياجات يدوياً.</value></data>
+  <data name="ProjectMaterialPlanSaved" xml:space="preserve"><value>حُفظت احتياجات المواد.</value></data>
+  <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>قُدّمت احتياجات المواد للاعتماد.</value></data>
+  <data name="ProjectMaterialPlanApproved" xml:space="preserve"><value>اعتُمدت احتياجات المواد.</value></data>
+  <data name="ProjectMaterialPlanReturned" xml:space="preserve"><value>أُعيدت احتياجات المواد للمسودة.</value></data>
 </root>

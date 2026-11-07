@@ -24,11 +24,58 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     private readonly IContractCertificateService _certificates;
     private readonly IContractBillingService _billing;
     private readonly IPermissionService _permissions;
+    private readonly IProjectMaterialService _materials;
 
     public CommercialContractsController(ICommercialContractService s, IContractWorkflowService workflow, IContractCertificateService certificates,
-        IContractBillingService billing, IPermissionService permissions) : base(s)
+        IContractBillingService billing, IPermissionService permissions, IProjectMaterialService materials) : base(s)
     {
-        _contracts = s; _workflow = workflow; _certificates = certificates; _billing = billing; _permissions = permissions;
+        _contracts = s; _workflow = workflow; _certificates = certificates; _billing = billing; _permissions = permissions; _materials = materials;
+    }
+
+    // ---------- احتياجات مواد المشروع (العقد هو المشروع): التعديل للإعداد والتقديم، والاعتماد للاعتماد والإعادة ----------
+
+    private const string MaterialsApproval = "contract-material-requirements";
+
+    [HttpGet("{id:guid}/material-requirements"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> MaterialRequirements(Guid id, CancellationToken ct)
+        => Success(await _materials.GetAsync(id, ct));
+
+    /// <summary>معاينة الاحتياجات من جدول الكميات وتحليل بنود المكتبة (لا تُحفظ).</summary>
+    [HttpPost("{id:guid}/material-requirements/derive"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> DeriveMaterialRequirements(Guid id, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Edit, Record, id, ct: ct);
+        return Success(await _materials.DeriveAsync(id, ct));
+    }
+
+    [HttpPut("{id:guid}/material-requirements"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> SaveMaterialRequirements(Guid id, [FromBody] SaveProjectMaterialPlanDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Edit, Record, id, ct: ct);
+        return Success(await _materials.SaveAsync(id, dto, ct), Messages.ProjectMaterialPlanSaved);
+    }
+
+    [HttpPost("{id:guid}/material-requirements/submit"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> SubmitMaterialRequirements(Guid id, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Edit, Record, id, ct: ct);
+        return Success(await _materials.SubmitAsync(id, ct), Messages.ProjectMaterialPlanSubmitted);
+    }
+
+    /// <summary>الاعتماد يمر بسياسة الاعتماد إن وُجدت (يُحجز بطلب اعتماد ويُنفَّذ عند الاعتماد النهائي).</summary>
+    [HttpPost("{id:guid}/material-requirements/approve"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ApproveMaterialRequirements(Guid id, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        if (await HoldForApprovalAsync(MaterialsApproval, ApprovalDocumentCatalog.Approve, id, null, ct) is { } held) return held;
+        return Success(await _materials.ApproveAsync(id, ct), Messages.ProjectMaterialPlanApproved);
+    }
+
+    [HttpPost("{id:guid}/material-requirements/return"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ReturnMaterialRequirements(Guid id, [FromBody] ProjectMaterialPlanActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _materials.ReturnAsync(id, dto, ct), Messages.ProjectMaterialPlanReturned);
     }
 
     protected override string? ApprovalHandler => "commercial-contracts";

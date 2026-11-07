@@ -507,6 +507,7 @@
   <data name="MilestoneAmountsExceedContractValue" xml:space="preserve"><value>Total milestone amounts exceed the contract value.</value></data>
   <data name="BoqLineKindInvalid" xml:space="preserve"><value>Invalid BOQ line kind (measured, lump sum or provisional).</value></data>
   <data name="BoqOverrunRange" xml:space="preserve"><value>Quantity overrun allowance must be between 0 and 100.</value></data>
+  <data name="BoqSubItemWithoutParent" xml:space="preserve"><value>A sub-item must come under a main item in the bill of quantities.</value></data>
   <data name="BoqContractMilestonesNotAllowed" xml:space="preserve"><value>A BOQ contract is billed through progress certificates and cannot have a payment schedule.</value></data>
   <data name="BoqContractBilledByCertificates" xml:space="preserve"><value>A BOQ contract is billed through progress certificates only, not milestones or delivery notes.</value></data>
   <data name="BoqCertificatesOnlyForBoq" xml:space="preserve"><value>Quantity-based progress certificates apply to BOQ contracts only.</value></data>
@@ -617,7 +618,7 @@
   <data name="UnitTypeAlreadyHasBase" xml:space="preserve"><value>This type already has a base unit ({0}). Create the unit linked to it with a conversion factor, then edit it to make it the base if needed.</value></data>
   <data name="UnitTypeHasNoBase" xml:space="preserve"><value>This type has no base unit yet; make this unit the base unit.</value></data>
   <data name="UnitBaseMustMatchType" xml:space="preserve"><value>Base unit {0} is not of this unit's type; pick a base unit of the same type.</value></data>
-  <data name="UnitTypeInvalid" xml:space="preserve"><value>Invalid unit type; types are: count, weight, volume, length.</value></data>
+  <data name="UnitTypeInvalid" xml:space="preserve"><value>Invalid unit type; types are: count, weight, volume, length, area, time.</value></data>
   <data name="NoNetQuantitiesToBill" xml:space="preserve"><value>No net quantities to bill (the delivery note is fully returned).</value></data>
   <data name="NoneValue" xml:space="preserve"><value>none</value></data>
   <data name="NoOpenShift" xml:space="preserve"><value>There is no open shift.</value></data>
@@ -1551,4 +1552,61 @@
   <data name="ExpiredStockNote" xml:space="preserve"><value>; expired {0} (not sellable)</value></data>
   <data name="ExpiryTrackingRequiresBatches" xml:space="preserve"><value>Expiry tracking requires batch tracking to be enabled for the item.</value></data>
   <data name="BatchTrackingCannotBeDisabled" xml:space="preserve"><value>Batch tracking cannot be turned off for "{0}" while its batches hold stock.</value></data>
+  <data name="BoqSubItemInvalid" xml:space="preserve"><value>Item "{0}": sub-item "{1}" is incomplete; description and unit are required, quantity (or its factor of the item quantity) must be greater than zero, and cost cannot be negative.</value></data>
+  <data name="BoqUnitUnknown" xml:space="preserve"><value>Item "{0}": unit of measure "{1}" is not defined in units of measure.</value></data>
+  <data name="LabelConstructionResource" xml:space="preserve"><value>resource</value></data>
+  <data name="ResourceTypeInvalid" xml:space="preserve"><value>Invalid resource type (material, labour, equipment, subcontract, other).</value></data>
+  <data name="ResourceUnitRequired" xml:space="preserve"><value>Resource unit is required.</value></data>
+  <data name="ResourceUnitUnknown" xml:space="preserve"><value>Unit of measure "{0}" is not defined in units of measure.</value></data>
+  <data name="ResourceCostNegative" xml:space="preserve"><value>Resource cost cannot be negative.</value></data>
+  <data name="ResourceProductMaterialOnly" xml:space="preserve"><value>Only a material resource can be linked to a stock item.</value></data>
+  <data name="ResourceProductCostNeedsProduct" xml:space="preserve"><value>"Cost from stock item" requires linking the resource to a stock item.</value></data>
+  <data name="ResourceProductNotFound" xml:space="preserve"><value>The stock item linked to the resource was not found.</value></data>
+  <data name="ResourceUnitIncompatible" xml:space="preserve"><value>Resource unit "{0}" cannot be converted to the stock item unit "{1}"; both must be of the same measure type.</value></data>
+  <data name="ResourceCodeExists" xml:space="preserve"><value>Resource code "{0}" is used by another resource.</value></data>
+  <data name="ResourceCostsRefreshed" xml:space="preserve"><value>Updated the cost of {0} resources from their sources.</value></data>
+  <data name="ResourceCostSourceInvalid" xml:space="preserve"><value>Invalid resource cost source (manual, stock item, human resources, composite).</value></data>
+  <data name="ResourceHrLaborOnly" xml:space="preserve"><value>Cost from human resources applies to a labour resource only.</value></data>
+  <data name="ResourceHrJobRequired" xml:space="preserve"><value>Select the trade (job title) from human resources.</value></data>
+  <data name="ResourceHoursPerUnitPositive" xml:space="preserve"><value>Working hours per resource unit must be greater than zero.</value></data>
+  <data name="ResourceHrUnitNotTime" xml:space="preserve"><value>A labour resource linked to human resources must use a time unit (hour, day), not "{0}".</value></data>
+  <data name="ResourceHrDepartmentNotFound" xml:space="preserve"><value>The department selected for the trade was not found.</value></data>
+  <data name="ResourceHrNoEmployees" xml:space="preserve"><value>No active employees with job title "{0}" to calculate the trade cost.</value></data>
+  <data name="ResourceHrForbidden" xml:space="preserve"><value>Labour cost from human resources is derived from salaries and requires permission to view human resources.</value></data>
+  <data name="ResourceCompositeEmpty" xml:space="preserve"><value>A composite resource needs at least one component.</value></data>
+  <data name="ResourceComponentInvalid" xml:space="preserve"><value>Each component quantity must be greater than zero, and waste between 0 and 100.</value></data>
+  <data name="ResourceComponentDuplicate" xml:space="preserve"><value>A component is repeated in the composite resource; combine its quantity in one line.</value></data>
+  <data name="ResourceComponentSelf" xml:space="preserve"><value>A resource cannot be a component of itself.</value></data>
+  <data name="ResourceComponentNotFound" xml:space="preserve"><value>One of the composite resource components was not found.</value></data>
+  <data name="ResourceComponentCycle" xml:space="preserve"><value>One of the components contains this resource among its components (a cycle); remove the component causing it.</value></data>
+  <data name="ResourceUsedInComposite" xml:space="preserve"><value>The resource is used in composite resources ({0}); deactivate it instead of deleting, or remove it from them first.</value></data>
+  <data name="LabelWorkItem" xml:space="preserve"><value>item</value></data>
+  <data name="WorkItemUnitRequired" xml:space="preserve"><value>The item unit is required.</value></data>
+  <data name="WorkItemStandardQuantityPositive" xml:space="preserve"><value>The item standard quantity must be greater than zero.</value></data>
+  <data name="WorkItemPricingInvalid" xml:space="preserve"><value>Invalid item pricing mode (manual, or cost plus percentage).</value></data>
+  <data name="WorkItemPriceNegative" xml:space="preserve"><value>Selling price and overhead/profit percentage cannot be negative.</value></data>
+  <data name="WorkItemComponentInvalid" xml:space="preserve"><value>Item "{0}": each requirement needs a resource, a factor (or fixed quantity) greater than zero, and waste between 0 and 100.</value></data>
+  <data name="WorkItemCodeExists" xml:space="preserve"><value>Item code "{0}" is used by another item.</value></data>
+  <data name="WorkItemResourceNotFound" xml:space="preserve"><value>One of the resources used in the item was not found.</value></data>
+  <data name="ResourceUsedInWorkItems" xml:space="preserve"><value>The resource is used in library items ({0}); deactivate it instead of deleting, or remove it from them first.</value></data>
+  <data name="ContractWorkItemNotFound" xml:space="preserve"><value>A BOQ line refers to an item that does not exist in the construction library; add it again from the library.</value></data>
+  <data name="ProjectMaterialsOnlyForBoq" xml:space="preserve"><value>Material requirements are only for construction (BOQ) contracts.</value></data>
+  <data name="ProjectMaterialsContractClosed" xml:space="preserve"><value>Material requirements of a closed or cancelled contract cannot be changed.</value></data>
+  <data name="ProjectMaterialPlanStatusInvalid" xml:space="preserve"><value>This action is not allowed on a requirements plan in status "{0}".</value></data>
+  <data name="ProjectMaterialPlanNotFound" xml:space="preserve"><value>No saved requirements plan for this contract.</value></data>
+  <data name="ProjectMaterialPlanEmpty" xml:space="preserve"><value>Add at least one requirement before submitting.</value></data>
+  <data name="ProjectMaterialLineInvalid" xml:space="preserve"><value>Line {0}: an item and a positive quantity are required.</value></data>
+  <data name="ProjectMaterialProductNotFound" xml:space="preserve"><value>Line {0}: the item does not exist.</value></data>
+  <data name="ProjectMaterialBoqItemInvalid" xml:space="preserve"><value>Line {0}: the item is not in the contract bill of quantities.</value></data>
+  <data name="ProjectMaterialSubItemInvalid" xml:space="preserve"><value>Line {0}: the sub-item does not belong to the selected item.</value></data>
+  <data name="ProjectMaterialDuplicate" xml:space="preserve"><value>Line {0}: the item is repeated for the same BOQ item; combine its quantity in one line.</value></data>
+  <data name="ProjectMaterialReturnNoteRequired" xml:space="preserve"><value>A reason for returning is required.</value></data>
+  <data name="ProjectMaterialResourceNotLinked" xml:space="preserve"><value>Material "{0}" in the library is not linked to a stock item; link it and derive again.</value></data>
+  <data name="ProjectMaterialUnitMismatch" xml:space="preserve"><value>Could not convert the unit of material "{0}" ({1}) to the item unit ({2}).</value></data>
+  <data name="ProjectMaterialWorkItemMissing" xml:space="preserve"><value>Item "{0}" no longer exists in the library.</value></data>
+  <data name="ProjectMaterialNoLibraryLines" xml:space="preserve"><value>No library items in the bill of quantities; add the requirements manually.</value></data>
+  <data name="ProjectMaterialPlanSaved" xml:space="preserve"><value>Material requirements saved.</value></data>
+  <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>Material requirements submitted for approval.</value></data>
+  <data name="ProjectMaterialPlanApproved" xml:space="preserve"><value>Material requirements approved.</value></data>
+  <data name="ProjectMaterialPlanReturned" xml:space="preserve"><value>Material requirements returned to draft.</value></data>
 </root>

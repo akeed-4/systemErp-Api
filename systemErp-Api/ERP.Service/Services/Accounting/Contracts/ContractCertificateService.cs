@@ -375,7 +375,7 @@ public class ContractCertificateService : IContractCertificateService
     /// <summary>الكميات الحالية من الطلب: بنود العقد فقط، بلا تكرار، ولا سالب.</summary>
     private static Dictionary<Guid, decimal> CurrentQuantities(SaveContractCertificateDto request, CommercialContract contract)
     {
-        var itemIds = contract.Items.Select(i => i.Id).ToHashSet();
+        var itemIds = contract.Items.Where(i => !i.IsGroup).Select(i => i.Id).ToHashSet();
         var errors = new List<string>();
         if (request.Lines.Any(l => !itemIds.Contains(l.ContractItemId))) errors.Add(Messages.CertificateLineUnknownItem);
         if (request.Lines.GroupBy(l => l.ContractItemId).Any(g => g.Count() > 1)) errors.Add(Messages.CertificateDuplicateItem);
@@ -398,7 +398,8 @@ public class ContractCertificateService : IContractCertificateService
 
     private static string Label(CommercialContractItem i) => string.IsNullOrWhiteSpace(i.LineCode) ? i.Description : $"{i.LineCode} {i.Description}";
 
-    private static IEnumerable<CommercialContractItem> Sorted(CommercialContract c) => c.Items.OrderBy(i => i.SortOrder).ThenBy(i => i.CreatedAt);
+    /// <summary>أسطر القياس بترتيبها: السطر الرئيسي ذو الفروع (مجموعة) لا يُقاس؛ فروعه هي التي تُقاس وتُسعَّر.</summary>
+    private static IEnumerable<CommercialContractItem> Sorted(CommercialContract c) => c.Items.Where(i => !i.IsGroup).OrderBy(i => i.SortOrder).ThenBy(i => i.CreatedAt);
 
     // ---------- التحقق والتحميل ----------
 

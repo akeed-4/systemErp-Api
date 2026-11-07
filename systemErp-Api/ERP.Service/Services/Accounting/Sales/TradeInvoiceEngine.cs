@@ -1043,7 +1043,8 @@ public class TradeInvoiceEngine
         if (hasCredit && !r.PartyId.HasValue)
             throw new ValidationFailedException(isSales ? Messages.CreditSaleRequiresCustomer : Messages.CreditPurchaseRequiresSupplier);
 
-        if (hasCredit && r.Kind == InvoiceKind.Sales)
+        // فواتير المستخلصات معفاة: سقفها العقد لا الحد الائتماني (انظر CreateInvoiceDto.SkipCreditLimit)
+        if (hasCredit && r.Kind == InvoiceKind.Sales && !r.SkipCreditLimit)
         {
             var customer = await _db.Set<Customer>().AsNoTracking().FirstAsync(x => x.Id == r.PartyId, ct);
             var creditPart = (invoice.PaymentMethod == PaymentMethod.Credit && !r.IsSplitPayment

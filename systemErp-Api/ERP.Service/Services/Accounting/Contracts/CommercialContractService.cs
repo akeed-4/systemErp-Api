@@ -110,7 +110,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     protected override IQueryable<CommercialContract> ApplyFilters(IQueryable<CommercialContract> q, PaginationParams p)
         => string.IsNullOrWhiteSpace(p.Status) ? q : q.Where(c => c.Stage == p.Status);
 
-    protected override Task ValidateAsync(CreateCommercialContractDto d, CommercialContract? existing, CancellationToken ct)
+    protected override async Task ValidateAsync(CreateCommercialContractDto d, CommercialContract? existing, CancellationToken ct)
     {
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(d.Title)) errors.Add(Messages.ContractTitleRequired);
@@ -143,7 +143,14 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         }
         if (existing != null && existing.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled) errors.Add(Messages.CannotEditClosedContract);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
-        return Task.CompletedTask;
+
+        // مصدر السطر في مكتبة المقاولات (للتتبع): البند موجود حين يُرسل لأول مرة؛ السطر القديم يبقى بمصدره ولو حُذف من المكتبة
+        var workItemIds = d.Items.Where(i => i.WorkItemId.HasValue).Select(i => i.WorkItemId!.Value).Distinct().ToList();
+        if (workItemIds.Count == 0) return;
+        var known = existing?.Items.Where(i => i.WorkItemId.HasValue).Select(i => i.WorkItemId!.Value).ToHashSet() ?? new HashSet<Guid>();
+        var fresh = workItemIds.Where(id => !known.Contains(id)).ToList();
+        if (fresh.Count > 0 && await Db.Set<WorkItem>().CountAsync(w => fresh.Contains(w.Id), ct) != fresh.Count)
+            throw new ValidationFailedException(Messages.ContractWorkItemNotFound);
     }
 
     protected override async Task OnCreatingAsync(CommercialContract e, CreateCommercialContractDto d, CancellationToken ct)
@@ -269,13 +276,16 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     private static void ApplyBoq(CommercialContract c, ContractTypeDefinition type)
     {
         var order = 0;
-        foreach (var i in c.Items.OrderBy(i => i.SortOrder == 0 ? int.MaxValue : i.SortOrder).ToList())
+        var ordered = c.Items.OrderBy(i => i.SortOrder == 0 ? int.MaxValue : i.SortOrder).ToList();
+        foreach (var i in ordered)
         {
             i.SortOrder = ++order;
             i.LineCode = string.IsNullOrWhiteSpace(i.LineCode) ? null : i.LineCode.Trim();
             i.SectionName = string.IsNullOrWhiteSpace(i.SectionName) ? null : i.SectionName.Trim();
+            i.UnitDescription = string.IsNullOrWhiteSpace(i.UnitDescription) ? null : i.UnitDescription.Trim();
             i.RevisedQuantity = i.Quantity;
         }
+        LinkSubItems(ordered, type.Billing == ContractBilling.BoqCertificate);
         // الجدولة لعقود المقاولات وحدها، ويُحفظ من إعداداتها ما يخص النمط المختار فقط
         var schedule = type.Billing == ContractBilling.BoqCertificate ? c.CertificateSchedule?.Trim() : null;
         c.CertificateSchedule = ContractCertificateSchedules.IsValid(schedule) ? schedule! : ContractCertificateSchedules.OnDemand;
@@ -284,7 +294,37 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (type.Billing != ContractBilling.BoqCertificate) return;
 
         if (c.Milestones.Count > 0) throw new ValidationFailedException(Messages.BoqContractMilestonesNotAllowed);
-        c.ContractValue = DocumentPricing.Round(c.Items.Sum(i => i.Quantity * i.UnitPrice));
+        // السطر الرئيسي ذو الفروع لا يُحتسب: قيمة العقد من الأسطر المسعّرة فعلاً (العادية والفرعية)
+        c.ContractValue = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * i.UnitPrice));
+    }
+
+    /// <summary>
+    /// البنود الفرعية في جدول الكميات: كل سطر فرعي يتبع أقرب سطر رئيسي قبله بالترتيب، والرئيسي الذي له فروع «مجموعة»
+    /// سعر وحدته للعرض = مجموع فروعه ÷ كميته. غير عقود المقاولات لا فروع لها.
+    /// </summary>
+    private static void LinkSubItems(List<CommercialContractItem> ordered, bool boq)
+    {
+        CommercialContractItem? parent = null;
+        foreach (var i in ordered)
+        {
+            if (i.Id == Guid.Empty) i.Id = Guid.NewGuid(); // معرّف الأب قبل الحفظ لربط فروعه
+            i.IsGroup = false;
+            if (!boq) i.IsSubItem = false;
+            if (!i.IsSubItem)
+            {
+                i.ParentItemId = null;
+                parent = i;
+                continue;
+            }
+            if (parent == null) throw new ValidationFailedException(Messages.BoqSubItemWithoutParent);
+            i.ParentItemId = parent.Id;
+            parent.IsGroup = true;
+        }
+        foreach (var group in ordered.Where(i => i.IsGroup))
+        {
+            var sum = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.UnitPrice));
+            group.UnitPrice = group.Quantity > 0 ? Math.Round(sum / group.Quantity, 4) : 0;
+        }
     }
 
     /// <summary>
@@ -305,8 +345,11 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         c.VatAmount = DocumentPricing.Round(c.ContractValue * c.VatRate / 100m);
         c.TotalValueWithVat = c.ContractValue + c.VatAmount;
         c.RetentionAmount = DocumentPricing.Round(c.ContractValue * c.RetentionPercent / 100m);
-        foreach (var i in c.Items)
+        foreach (var i in c.Items.Where(i => !i.IsGroup))
             i.TotalWithVat = DocumentPricing.Round(i.Quantity * i.UnitPrice * (1 + i.VatRate / 100m));
+        // إجمالي السطر الرئيسي = مجموع فروعه بالضبط (لا كمية × سعر مقرّب)
+        foreach (var g in c.Items.Where(i => i.IsGroup))
+            g.TotalWithVat = c.Items.Where(x => x.ParentItemId == g.Id).Sum(x => x.TotalWithVat);
         var n = 1;
         foreach (var m in c.Milestones.OrderBy(m => m.MilestoneNumber == 0 ? int.MaxValue : m.MilestoneNumber))
         {

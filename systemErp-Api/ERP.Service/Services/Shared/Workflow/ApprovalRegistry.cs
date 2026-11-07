@@ -1,5 +1,6 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.Contracts.CarShowroom;
+using ERP.Core.DTOs.Accounting.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using static ERP.Core.Models.Shared.ApprovalDocumentCatalog;
 
@@ -158,6 +159,11 @@ public static class ApprovalRegistry
             .Create<CreateCommercialContractDto>(Create, (s, d, ct) => s.CreateAsync(d, ct))
             .Update<UpdateCommercialContractDto>(Edit, (s, id, d, ct) => s.UpdateAsync(id, d, ct))
             .Delete(Delete, (s, id, ct) => s.DeleteAsync(id, ct)).Handler;
+
+        // احتياجات مواد المشروع: المعرّف هو العقد (خطة واحدة لكل عقد)، والمبلغ تكلفتها التقديرية
+        yield return For<IProjectMaterialService, ProjectMaterialPlanDto>("contract-material-requirements", "project_material_plan")
+            .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(p => p.EstimatedCost)
+            .Act(Approve, (s, id, ct) => s.ApproveAsync(id, ct)).Handler;
 
         // ---------------- الموارد البشرية ----------------
         yield return For<IPayrollService, PayrollRunDto>("payroll", "payroll")

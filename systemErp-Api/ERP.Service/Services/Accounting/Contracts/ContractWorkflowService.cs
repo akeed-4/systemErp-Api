@@ -446,7 +446,7 @@ public class ContractWorkflowService : IContractWorkflowService
     /// <summary>كل بنود جدول الكميات معتمدة بكاملها (المعتمد ≥ الكمية المعتمدة للبند) في مستخلصات معتمدة/مفوترة.</summary>
     private async Task<bool> FullyCertifiedAsync(CommercialContract c, CancellationToken ct)
     {
-        var items = c.Items.Where(i => i.RevisedQuantity > 0).ToList();
+        var items = c.Items.Where(i => !i.IsGroup && i.RevisedQuantity > 0).ToList();
         if (items.Count == 0) return false;
         var certified = await _db.Set<ContractCertificateLine>().AsNoTracking()
             .Where(l => l.Certificate.ContractId == c.Id

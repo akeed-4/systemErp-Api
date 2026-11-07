@@ -25,5 +25,25 @@ public class CommercialContractItem : BaseEntity
     public decimal OverrunPercent { get; set; }
     public int SortOrder { get; set; }
 
+    /// <summary>وصف الوحدة كما يرد في جدول الكميات (مثل «عمود كامل بالقاعدة»).</summary>
+    public string? UnitDescription { get; set; }
+    /// <summary>
+    /// البند القياسي في مكتبة المقاولات الذي نُسخ منه السطر (للتتبع والتقارير). نسخة مستقلة: تعديل المكتبة أو حذف البند منها
+    /// لا يغيّر العقد، فلا قيد قاعدة بيانات عليه.
+    /// </summary>
+    public Guid? WorkItemId { get; set; }
+    /// <summary>البند الفرعي في المكتبة الذي نُسخ منه السطر الفرعي (لاشتقاق احتياجاته)؛ نسخة مستقلة بلا قيد كـ <see cref="WorkItemId"/>.</summary>
+    public Guid? WorkSubItemId { get; set; }
+
+    /// <summary>سطر فرعي (يرسله العميل): يتبع أقرب سطر رئيسي قبله في ترتيب جدول الكميات.</summary>
+    public bool IsSubItem { get; set; }
+    /// <summary>يضبطه الخادم من الترتيب: السطر الرئيسي الذي يتبعه هذا السطر الفرعي (نفس العقد، بلا قيد قاعدة بيانات).</summary>
+    public Guid? ParentItemId { get; set; }
+    /// <summary>
+    /// يضبطه الخادم: سطر رئيسي له أسطر فرعية. قيمته مجموع فروعه (سعر وحدته = المجموع ÷ كميته للعرض)، ولا يدخل قيمة العقد
+    /// ولا المستخلصات؛ فروعه هي التي تُسعَّر وتُقاس.
+    /// </summary>
+    public bool IsGroup { get; set; }
+
     public virtual CommercialContract Contract { get; set; } = null!;
 }

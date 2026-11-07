@@ -148,6 +148,12 @@ public class ErpDbContext : DbContext
         // الاحتياج يشير للعقد وللصنف: لا يُحذف عقد أو صنف له احتياجات
         (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ContractId), typeof(CommercialContract)),
         (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ProductId), typeof(Product)),
+        // موارد المشروع وخطته وتقاريره اليومية على العقد؛ والمورد المستخدم في تقرير والمادة المستهلكة لا يُحذفان
+        (typeof(ProjectResource), nameof(ProjectResource.ContractId), typeof(CommercialContract)),
+        (typeof(ProjectDailyPlan), nameof(ProjectDailyPlan.ContractId), typeof(CommercialContract)),
+        (typeof(SiteDailyReport), nameof(SiteDailyReport.ContractId), typeof(CommercialContract)),
+        (typeof(SiteResourceUsage), nameof(SiteResourceUsage.ProjectResourceId), typeof(ProjectResource)),
+        (typeof(SiteMaterialUsage), nameof(SiteMaterialUsage.ProductId), typeof(Product)),
         // سطر المستخلص يشير لبند جدول الكميات: البند لا يُحذف بعد أن قيس عليه (البنود تُعدَّل في المسودة فقط، قبل أي مستخلص)
         (typeof(ContractCertificateLine), nameof(ContractCertificateLine.ContractItemId), typeof(CommercialContractItem)),
         (typeof(ConstructionResource), nameof(ConstructionResource.ProductId), typeof(Product)),
@@ -447,6 +453,79 @@ public class ErpDbContext : DbContext
             e.Property(r => r.BaselineQuantity).HasPrecision(18, 4);
             e.Property(r => r.RowVersion).IsRowVersion();
             e.HasIndex(r => new { r.TenantId, r.ContractId, r.ProductId });
+        });
+        // إعداد مشروع المقاولات: ملف واحد لكل عقد. القيد على العقد «منع الحذف» (كبقية تابعيه)، وحذف المسودة يحذفها صراحة. مرجع بند المرحلة لسطر العقد بلا قيد.
+        modelBuilder.Entity<ConstructionProjectProfile>(e =>
+        {
+            e.Property(p => p.Notes).HasMaxLength(1000);
+            e.HasIndex(p => new { p.TenantId, p.ContractId }).IsUnique();
+            e.HasOne<CommercialContract>().WithMany().HasForeignKey(p => p.ContractId);
+        });
+        modelBuilder.Entity<ProjectPhase>(e =>
+        {
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Notes).HasMaxLength(500);
+            e.Property(p => p.WeightPercent).HasPrecision(9, 4);
+            e.HasIndex(p => new { p.TenantId, p.ContractId });
+            e.HasOne<CommercialContract>().WithMany().HasForeignKey(p => p.ContractId);
+            e.HasMany(p => p.Items).WithOne(i => i.Phase).HasForeignKey(i => i.PhaseId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProjectPhaseItem>(e => e.HasIndex(i => new { i.TenantId, i.PhaseId, i.ContractItemId }).IsUnique());
+        modelBuilder.Entity<ProjectMember>(e =>
+        {
+            e.Property(m => m.Role).HasMaxLength(32).IsRequired();
+            e.Property(m => m.Notes).HasMaxLength(300);
+            e.HasIndex(m => new { m.TenantId, m.ContractId, m.UserId }).IsUnique();
+            // استعلام نطاق «المسندة إليه» يبحث بالمستخدم
+            e.HasIndex(m => new { m.TenantId, m.UserId });
+            // المستخدم بلا قيد (دليل المستخدمين يُنسخ بين قواعد المنشآت)؛ الخدمة تتحقق أنه فعّال عند الإسناد
+            e.HasOne<CommercialContract>().WithMany().HasForeignKey(m => m.ContractId);
+        });
+        // موارد المشروع بتكلفة ساعتها، وخطة الإنجاز اليومية، والتقرير اليومي بأسطره (تُحذف معه). مراجع بنود العقد بلا قيد.
+        modelBuilder.Entity<ProjectResource>(e =>
+        {
+            e.Property(r => r.Kind).HasMaxLength(32).IsRequired();
+            e.Property(r => r.Name).HasMaxLength(200).IsRequired();
+            e.Property(r => r.Code).HasMaxLength(50);
+            e.Property(r => r.Category).HasMaxLength(100);
+            e.Property(r => r.RateBasis).HasMaxLength(16).IsRequired();
+            e.Property(r => r.Notes).HasMaxLength(500);
+            e.HasIndex(r => new { r.TenantId, r.ContractId });
+            e.HasIndex(r => new { r.TenantId, r.EmployeeId });
+        });
+        modelBuilder.Entity<ProjectDailyPlan>(e =>
+        {
+            e.Property(p => p.Notes).HasMaxLength(300);
+            e.HasIndex(p => new { p.TenantId, p.ContractId, p.ContractItemId, p.EffectiveFrom }).IsUnique();
+        });
+        modelBuilder.Entity<SiteDailyReport>(e =>
+        {
+            e.Property(r => r.Status).HasMaxLength(16).IsRequired();
+            e.Property(r => r.Notes).HasMaxLength(1000);
+            e.Property(r => r.ReturnNote).HasMaxLength(500);
+            e.Property(r => r.PreparedBy).HasMaxLength(200);
+            e.Property(r => r.SubmittedBy).HasMaxLength(200);
+            e.Property(r => r.ApprovedBy).HasMaxLength(200);
+            e.HasIndex(r => new { r.TenantId, r.ContractId, r.ReportDate }).IsUnique();
+            e.HasMany(r => r.Hours).WithOne(h => h.Report).HasForeignKey(h => h.ReportId);
+            e.HasMany(r => r.Resources).WithOne(u => u.Report).HasForeignKey(u => u.ReportId);
+            e.HasMany(r => r.Materials).WithOne(m => m.Report).HasForeignKey(m => m.ReportId);
+        });
+        modelBuilder.Entity<SiteHourEntry>(e =>
+        {
+            e.Property(h => h.DowntimeReason).HasMaxLength(32);
+            e.Property(h => h.Notes).HasMaxLength(300);
+            e.HasIndex(h => new { h.TenantId, h.ContractItemId });
+        });
+        modelBuilder.Entity<SiteResourceUsage>(e =>
+        {
+            e.Property(u => u.IdleReason).HasMaxLength(32);
+            e.Property(u => u.Notes).HasMaxLength(300);
+        });
+        modelBuilder.Entity<SiteMaterialUsage>(e =>
+        {
+            e.Property(m => m.Unit).HasMaxLength(20).IsRequired();
+            e.Property(m => m.Notes).HasMaxLength(300);
         });
         modelBuilder.Entity<ConstructionResource>(e =>
         {
@@ -794,8 +873,23 @@ public class ErpDbContext : DbContext
     private static string FilterMethodFor(Type type)
     {
         if (!typeof(IScopedRecord).IsAssignableFrom(type)) return nameof(ApplyTenantFilter);
+        if (type == typeof(CommercialContract)) return nameof(ApplyContractScopedFilter);
         return type.GetProperty("WarehouseId")?.PropertyType == typeof(Guid?) ? nameof(ApplyBranchScopedFilter) : nameof(ApplyScopedFilter);
     }
+
+    /// <summary>
+    /// العقد (مستند بفرع) كمرشّح الفرع، ونطاق «المسندة إليه» يشمل عضوية المشروع (<see cref="ProjectMember"/>):
+    /// مشرف المشروع يرى المشاريع التي هو عضو فيها، ومن نطاقه «الكل» أو صلاحيته كاملة لا يتقيّد (ScopeMode = 0).
+    /// </summary>
+    private void ApplyContractScopedFilter<T>(ModelBuilder modelBuilder) where T : CommercialContract
+        => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId && (ScopeMode == 0
+            || (ScopeMode == 1 && (e.WarehouseId == null || ScopeWarehouseIds.Contains(e.WarehouseId.Value)))
+            || (ScopeMode == 2 && e.CreatedByUserId != null && ScopeUserIds.Contains(e.CreatedByUserId.Value))
+            || (ScopeMode == 3 && e.CreatedByUserId == ScopeUserId)
+            || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId
+                || Set<ProjectMember>().Any(m => m.ContractId == e.Id && m.UserId == ScopeUserId))))
+            && (!WarehouseFilterOn || e.WarehouseId == null || WarehouseFilterIds.Contains(e.WarehouseId.Value))
+            && (!WarehouseOwnerOnly || e.CreatedByUserId == WarehouseOwnerId));
 
     /// <summary>مستند بلا مستودع: نطاق «فروع محددة» لا يقيّده.</summary>
     private void ApplyScopedFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity, IScopedRecord

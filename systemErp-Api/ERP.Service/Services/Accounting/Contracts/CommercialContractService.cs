@@ -167,6 +167,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         foreach (var m in e.Milestones) ResetBillingFields(m);
         ApplyBoq(e, type);
         Recalculate(e);
+        // عقد المقاولات هو المشروع: ملفه ومركز تكلفته يُنشآن معه
+        if (type.Billing == ContractBilling.BoqCertificate) await ConstructionProjectService.CreateForContractAsync(Db, e, ct);
 
         // الحالة يحددها النظام لا المستخدم: كل عقد جديد «مسودة». المسار يختاره المستخدم لكل عقد (Workflow) ويُثبَّت هنا
         // ليحدد انتقالاته؛ بلا اختيار (عميل قديم/طلب اعتماد معلّق) يُشتق من النوع وحد التبسيط كما كان.
@@ -267,6 +269,37 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             throw new ConflictException(Messages.CannotDeleteContractWithBilledMilestones);
         if (await Db.Set<DeliveryNote>().AnyAsync(n => n.ContractId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteContractWithDeliveryNotes);
+        // الحذف للمسودة وحدها؛ بعدها للعقد أثر (مراجعات معتمدة، مستخلصات، فواتير) فيُلغى ولا يُحذف
+        if (e.Stage != ContractStageDefinition.Draft) throw new ConflictException(Messages.ContractDeleteDraftOnly);
+        if (await Db.Set<ContractCertificate>().AnyAsync(c => c.ContractId == e.Id, ct) || await Db.Set<ContractInvoice>().AnyAsync(i => i.ContractId == e.Id, ct))
+            throw new ConflictException(Messages.CannotDeleteContractWithBilledMilestones);
+
+        // سجلات المسودة التابعة لها (سجل الحالات، قرارات المراجعة المُعادة، المرفقات، خطة الاحتياجات) تُحذف معها في المعاملة نفسها.
+        // قيودها تبقى «منع الحذف» في قاعدة البيانات، فلا يُحذف عقد بعد المسودة بأثرها مهما كان المسار.
+        Db.RemoveRange(await Db.Set<ContractStatusLog>().Where(l => l.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ContractApproval>().Where(a => a.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ContractAttachment>().Where(a => a.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ProjectMaterialRequirement>().Where(r => r.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ProjectMaterialPlan>().Where(p => p.ContractId == e.Id).ToListAsync(ct));
+        // إعداد المشروع (بنود المراحل تُحذف مع مراحلها)، ومركز التكلفة الذي أُنشئ للمشروع تلقائياً إن لم يُستخدم في قيد أو عقد آخر
+        Db.RemoveRange(await Db.Set<ProjectMember>().Where(m => m.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ProjectPhase>().Where(p => p.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ConstructionProjectProfile>().Where(p => p.ContractId == e.Id).ToListAsync(ct));
+        // التقارير اليومية (أسطرها معها) ثم الموارد التي تشير إليها، وخطة الإنجاز
+        // الاستخدامات تُحمَّل لتُحذف قبل مواردها (قيدها «منع الحذف»)
+        Db.RemoveRange(await Db.Set<SiteDailyReport>().Include(r => r.Resources).Where(r => r.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ProjectResource>().Where(r => r.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ProjectDailyPlan>().Where(p => p.ContractId == e.Id).ToListAsync(ct));
+        if (e.CostCenterId is Guid centerId)
+        {
+            var auto = ConstructionProjectService.CostCenterPrefix + e.ContractNumber;
+            var center = await Db.Set<CostCenter>().FirstOrDefaultAsync(c => c.Id == centerId && (c.Code == auto || c.Code.StartsWith(auto + "-")), ct);
+            if (center != null
+                && !await Db.Set<JournalEntryLine>().AnyAsync(l => l.CostCenterId == centerId, ct)
+                && !await Db.Set<CostCenter>().AnyAsync(c => c.ParentId == centerId, ct)
+                && !await Db.Set<CommercialContract>().AnyAsync(c => c.CostCenterId == centerId && c.Id != e.Id, ct))
+                Db.Remove(center);
+        }
     }
 
     /// <summary>

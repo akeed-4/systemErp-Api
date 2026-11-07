@@ -84,6 +84,12 @@ public static class PermissionCatalog
         // مكتبة المقاولات (الموارد والبنود القياسية وتصنيفها): ترث صلاحية العقود حتى تُحفظ لها صلاحية مستقلة
         new(ConstructionLibraryScreenId, "contracts", "مكتبة المقاولات (الموارد والبنود)", "Construction Library (Resources & Items)",
             Crud(), new[] { "construction", "construction/library" }, InheritsFrom: CommercialContractsScreenId),
+        // مشاريع المقاولات (العقد هو المشروع): إعداد المشروع (الملف، ساعات العمل، المراحل، الأعضاء) ولوحاته؛ ترث صلاحية العقود
+        new(ConstructionProjectsScreenId, "contracts", "مشاريع المقاولات (الإعداد والمتابعة)", "Construction Projects (Setup & Monitoring)",
+            new[] { A.View, A.Edit }.Concat(Docs).ToArray(), Array.Empty<string>(), InheritsFrom: CommercialContractsScreenId),
+        // التقرير اليومي للموقع: المشرف يسجّل ويقدّم، والمهندس المسؤول يعتمد أو يعيد (الاعتماد)؛ يرث صلاحية العقود حتى تُحفظ له صلاحية
+        new(SiteDailyReportsScreenId, "contracts", "التقرير اليومي للموقع (الإنجاز بالساعة)", "Site Daily Reports (Hourly Progress)",
+            Crud(A.Submit, A.Approve), new[] { "construction/site-reports" }, InheritsFrom: CommercialContractsScreenId),
 
         new("sales", "sales", "فواتير المبيعات ونقاط البيع (POS)", "Sales Invoices & POS",
             Crud(A.Approve, A.Post, A.Cancel, A.Discount),
@@ -156,6 +162,8 @@ public static class PermissionCatalog
     public const string CommercialContractsScreenId = "commercial-contracts";
     public const string ContractTypesScreenId = "contract-types";
     public const string ConstructionLibraryScreenId = "construction-library";
+    public const string ConstructionProjectsScreenId = "construction-projects";
+    public const string SiteDailyReportsScreenId = "site-daily-reports";
     public const string WhatsAppScreenId = "whatsapp";
     public const string WhatsAppSendScreenId = "whatsapp-send";
     public const string PurchaseLandedCostsScreenId = "purchase-landed-costs";

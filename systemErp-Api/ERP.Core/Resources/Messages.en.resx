@@ -131,6 +131,7 @@
   <data name="CannotDeleteBrandWithVehicles" xml:space="preserve"><value>A brand that has vehicles cannot be deleted.</value></data>
   <data name="CannotDeleteContractWithBilledMilestones" xml:space="preserve"><value>Cannot delete a contract that has billed milestones.</value></data>
   <data name="CannotDeleteContractWithDeliveryNotes" xml:space="preserve"><value>Cannot delete a contract that has delivery notes.</value></data>
+  <data name="ContractDeleteDraftOnly" xml:space="preserve"><value>A contract can only be deleted while in draft; cancel it afterwards.</value></data>
   <data name="CannotDeleteConvertedQuotation" xml:space="preserve"><value>A converted quotation cannot be deleted.</value></data>
   <data name="CannotDeleteConvertedRequisition" xml:space="preserve"><value>A converted requisition cannot be deleted.</value></data>
   <data name="CannotDeleteCostCenterWithEntries" xml:space="preserve"><value>Cannot delete a cost center that has entries.</value></data>
@@ -1609,4 +1610,69 @@
   <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>Material requirements submitted for approval.</value></data>
   <data name="ProjectMaterialPlanApproved" xml:space="preserve"><value>Material requirements approved.</value></data>
   <data name="ProjectMaterialPlanReturned" xml:space="preserve"><value>Material requirements returned to draft.</value></data>
+  <!-- Construction project setup -->
+  <data name="ProjectOnlyForBoq" xml:space="preserve"><value>Project setup is only for construction contracts with a bill of quantities.</value></data>
+  <data name="ProjectContractClosed" xml:space="preserve"><value>The project setup of a closed or cancelled contract cannot be changed.</value></data>
+  <data name="ProjectCostCenterDescription" xml:space="preserve"><value>Project cost center of contract {0} (created automatically).</value></data>
+  <data name="ProjectTimeInvalid" xml:space="preserve"><value>Time "{0}" is invalid; use HH:mm.</value></data>
+  <data name="ProjectWorkdayInvalid" xml:space="preserve"><value>The workday end must be after its start.</value></data>
+  <data name="ProjectBreakInvalid" xml:space="preserve"><value>A break needs a start and a later end within working hours.</value></data>
+  <data name="ProjectBudgetNegative" xml:space="preserve"><value>The estimated budget cannot be negative.</value></data>
+  <data name="ProjectPhaseNameRequired" xml:space="preserve"><value>Phase {0}: name is required.</value></data>
+  <data name="ProjectPhaseDatesInvalid" xml:space="preserve"><value>Phase "{0}": end date is before start date.</value></data>
+  <data name="ProjectPhaseWeightInvalid" xml:space="preserve"><value>Phase "{0}": weight must be above 0 and at most 100.</value></data>
+  <data name="ProjectPhaseWeightTotal" xml:space="preserve"><value>Phase weights total {0}%, which exceeds 100%.</value></data>
+  <data name="ProjectPhaseItemInvalid" xml:space="preserve"><value>Phase "{0}": an item is not in the contract BOQ or is a main item with sub-items.</value></data>
+  <data name="ProjectPhaseItemDuplicate" xml:space="preserve"><value>Item "{0}" is in more than one phase.</value></data>
+  <data name="ProjectMemberRoleInvalid" xml:space="preserve"><value>Unknown project member role.</value></data>
+  <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>The user does not exist or is inactive.</value></data>
+  <data name="ProjectMemberExists" xml:space="preserve"><value>The user is already a project member.</value></data>
+  <data name="ProjectMemberNotFound" xml:space="preserve"><value>The member is not in this project.</value></data>
+  <data name="ProjectSetupSaved" xml:space="preserve"><value>Project setup saved.</value></data>
+  <!-- Project resources and daily plan -->
+  <data name="ProjectResourceKindInvalid" xml:space="preserve"><value>Unknown resource type (owned equipment, rented equipment, engineer, labour).</value></data>
+  <data name="ProjectResourceBasisInvalid" xml:space="preserve"><value>Unknown rate basis (hour, day, month).</value></data>
+  <data name="ProjectResourceCostNegative" xml:space="preserve"><value>Rate and hourly costs cannot be negative.</value></data>
+  <data name="ProjectResourceHoursPerDayInvalid" xml:space="preserve"><value>Hours per day must be between 1 and 24.</value></data>
+  <data name="ProjectResourceDaysPerMonthInvalid" xml:space="preserve"><value>Days per month must be between 1 and 31.</value></data>
+  <data name="ProjectResourceOvertimeInvalid" xml:space="preserve"><value>The overtime multiplier must be between 1 and 5.</value></data>
+  <data name="ProjectResourceRentalPeriodInvalid" xml:space="preserve"><value>The rental end is before its start.</value></data>
+  <data name="ProjectResourceEmployeeNotFound" xml:space="preserve"><value>The employee does not exist.</value></data>
+  <data name="ProjectResourceSupplierRequired" xml:space="preserve"><value>Rented equipment needs the renting supplier.</value></data>
+  <data name="ProjectResourceAssetNotFound" xml:space="preserve"><value>The fixed asset does not exist.</value></data>
+  <data name="ProjectResourceLibraryNotFound" xml:space="preserve"><value>The library resource does not exist.</value></data>
+  <data name="ProjectResourceNameRequired" xml:space="preserve"><value>Resource name is required (or choose the employee).</value></data>
+  <data name="ProjectResourceCostRequired" xml:space="preserve"><value>The hourly cost is zero: enter the rate or hourly costs.</value></data>
+  <data name="ProjectResourceNotFound" xml:space="preserve"><value>The resource is not in this project.</value></data>
+  <data name="ProjectResourceInUse" xml:space="preserve"><value>The resource is used in daily reports and cannot be deleted; deactivate it instead.</value></data>
+  <data name="ProjectPlanItemInvalid" xml:space="preserve"><value>Daily plan, line {0}: the item is not in the BOQ or is a main item with sub-items.</value></data>
+  <data name="ProjectPlanTargetInvalid" xml:space="preserve"><value>Daily plan "{0}": the hourly target must be greater than zero.</value></data>
+  <data name="ProjectPlanDateRequired" xml:space="preserve"><value>Daily plan "{0}": the effective date is required.</value></data>
+  <data name="ProjectPlanDuplicate" xml:space="preserve"><value>Daily plan "{0}" is duplicated for effective date {1}.</value></data>
+  <!-- Site daily report -->
+  <data name="SiteReportDateRequired" xml:space="preserve"><value>The report date is required.</value></data>
+  <data name="SiteReportExists" xml:space="preserve"><value>A daily report already exists for this project on {0}.</value></data>
+  <data name="SiteReportNotFound" xml:space="preserve"><value>The daily report is not in this project.</value></data>
+  <data name="SiteReportStatusInvalid" xml:space="preserve"><value>The action cannot be done on a report with status "{0}".</value></data>
+  <data name="SiteReportEmpty" xml:space="preserve"><value>Record progress for at least one slot before submitting.</value></data>
+  <data name="SiteReportReturnNoteRequired" xml:space="preserve"><value>A return reason is required.</value></data>
+  <data name="SiteHourSlotInvalid" xml:space="preserve"><value>Progress, line {0}: invalid slot (HH:mm, end after start).</value></data>
+  <data name="SiteHourItemInvalid" xml:space="preserve"><value>Progress, line {0}: the item is not in the BOQ or is a main item with sub-items.</value></data>
+  <data name="SiteHourQuantityNegative" xml:space="preserve"><value>Progress, line {0}: target and actual cannot be negative.</value></data>
+  <data name="SiteDowntimeInvalid" xml:space="preserve"><value>Progress, line {0}: downtime minutes must be between zero and the slot length.</value></data>
+  <data name="SiteDowntimeReasonRequired" xml:space="preserve"><value>Progress, line {0}: choose the downtime reason.</value></data>
+  <data name="SiteHourDuplicate" xml:space="preserve"><value>Progress, line {0}: the item is repeated in the same slot.</value></data>
+  <data name="SiteResourceInvalid" xml:space="preserve"><value>Resources, line {0}: the resource is not in the project or is inactive.</value></data>
+  <data name="SiteResourceHoursInvalid" xml:space="preserve"><value>Resources, line {0}: hours cannot be negative and must total between zero and 24.</value></data>
+  <data name="SiteResourceItemInvalid" xml:space="preserve"><value>Resources, line {0}: the item is not in the BOQ or is a main item with sub-items.</value></data>
+  <data name="SiteResourceIdleReasonRequired" xml:space="preserve"><value>Resources, line {0}: choose the reason for idle hours.</value></data>
+  <data name="SiteResourceDuplicate" xml:space="preserve"><value>Resources, line {0}: the resource is repeated on the same item.</value></data>
+  <data name="SiteMaterialItemInvalid" xml:space="preserve"><value>Materials, line {0}: the item is not in the BOQ or is a main item with sub-items.</value></data>
+  <data name="SiteMaterialProductNotFound" xml:space="preserve"><value>Materials, line {0}: the product does not exist.</value></data>
+  <data name="SiteMaterialQuantityInvalid" xml:space="preserve"><value>Materials, line {0}: the quantity must be greater than zero.</value></data>
+  <data name="SiteMaterialDuplicate" xml:space="preserve"><value>Materials, line {0}: the product is repeated on the same item.</value></data>
+  <data name="SiteReportSaved" xml:space="preserve"><value>Daily report saved.</value></data>
+  <data name="SiteReportSubmitted" xml:space="preserve"><value>Daily report submitted for approval.</value></data>
+  <data name="SiteReportApproved" xml:space="preserve"><value>Daily report approved.</value></data>
+  <data name="SiteReportReturned" xml:space="preserve"><value>Daily report returned to draft.</value></data>
 </root>

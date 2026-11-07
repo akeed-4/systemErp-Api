@@ -18,6 +18,10 @@ public class AuditTrailInterceptor : SaveChangesInterceptor
         typeof(Product), typeof(ProductCategory), typeof(UnitOfMeasure), typeof(Customer), typeof(Supplier), typeof(BankEntity),
         typeof(Currency), typeof(PaymentMethodItem), typeof(Warehouse), typeof(Account), typeof(CostCenter), typeof(FixedAsset), typeof(Employee),
         typeof(User), typeof(UserRolePermission), typeof(Tenant), typeof(ZatcaConfig), typeof(CostingPolicy), typeof(PosInvoiceSettings),
+        // مشاريع المقاولات: الملف والمراحل والأعضاء
+        typeof(ConstructionProjectProfile), typeof(ProjectPhase), typeof(ProjectPhaseItem), typeof(ProjectMember),
+        // موارد المشروع وخطته والتقرير اليومي بأسطره (التسجيل والتعديل والاعتماد)
+        typeof(ProjectResource), typeof(ProjectDailyPlan), typeof(SiteDailyReport), typeof(SiteHourEntry), typeof(SiteResourceUsage), typeof(SiteMaterialUsage),
     };
 
     // حقول يحدّثها النظام مع كل حركة (أرصدة، كميات، تكلفة، طوابع): تغيّرها وحده ليس تعديلاً من مستخدم

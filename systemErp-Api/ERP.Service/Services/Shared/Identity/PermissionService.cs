@@ -468,7 +468,7 @@ public class PermissionService : IPermissionService
             DataScope.All => true,
             DataScope.Branches => facts.WarehouseId == null || settings.WarehouseIds.Contains(facts.WarehouseId.Value),
             DataScope.Own => facts.CreatedByUserId == me,
-            DataScope.Assigned => facts.AssignedToUserId == me || facts.CreatedByUserId == me,
+            DataScope.Assigned => facts.AssignedToUserId == me || facts.CreatedByUserId == me || (me.HasValue && facts.MemberUserIds.Contains(me.Value)),
             DataScope.Department => facts.CreatedByUserId is { } c && (c == me || (await DepartmentUsersAsync(subject, ct)).Contains(c)),
             _ => false,
         };

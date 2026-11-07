@@ -131,6 +131,7 @@
   <data name="CannotDeleteBrandWithVehicles" xml:space="preserve"><value>لا يمكن حذف ماركة عليها مركبات.</value></data>
   <data name="CannotDeleteContractWithBilledMilestones" xml:space="preserve"><value>لا يمكن حذف عقد له مستخلصات مفوترة.</value></data>
   <data name="CannotDeleteContractWithDeliveryNotes" xml:space="preserve"><value>لا يمكن حذف عقد له بيانات تسليم.</value></data>
+  <data name="ContractDeleteDraftOnly" xml:space="preserve"><value>يُحذف العقد في المسودة فقط؛ بعدها يُلغى.</value></data>
   <data name="CannotDeleteConvertedQuotation" xml:space="preserve"><value>لا يمكن حذف عرض تم تحويله.</value></data>
   <data name="CannotDeleteConvertedRequisition" xml:space="preserve"><value>لا يمكن حذف طلب تم تحويله.</value></data>
   <data name="CannotDeleteCostCenterWithEntries" xml:space="preserve"><value>لا يمكن حذف مركز تكلفة عليه حركات.</value></data>
@@ -1609,4 +1610,69 @@
   <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>قُدّمت احتياجات المواد للاعتماد.</value></data>
   <data name="ProjectMaterialPlanApproved" xml:space="preserve"><value>اعتُمدت احتياجات المواد.</value></data>
   <data name="ProjectMaterialPlanReturned" xml:space="preserve"><value>أُعيدت احتياجات المواد للمسودة.</value></data>
+  <!-- إعداد مشروع المقاولات -->
+  <data name="ProjectOnlyForBoq" xml:space="preserve"><value>إعداد المشروع لعقود المقاولات بجدول كميات فقط.</value></data>
+  <data name="ProjectContractClosed" xml:space="preserve"><value>لا يُعدَّل إعداد مشروع عقده مغلق أو ملغى.</value></data>
+  <data name="ProjectCostCenterDescription" xml:space="preserve"><value>مركز تكلفة مشروع العقد {0} (أُنشئ تلقائياً).</value></data>
+  <data name="ProjectTimeInvalid" xml:space="preserve"><value>الوقت «{0}» غير صحيح؛ الصيغة HH:mm.</value></data>
+  <data name="ProjectWorkdayInvalid" xml:space="preserve"><value>نهاية يوم العمل يجب أن تكون بعد بدايته.</value></data>
+  <data name="ProjectBreakInvalid" xml:space="preserve"><value>الاستراحة تحتاج بداية ونهاية بعدها، وضمن ساعات العمل.</value></data>
+  <data name="ProjectBudgetNegative" xml:space="preserve"><value>الميزانية التقديرية لا تكون سالبة.</value></data>
+  <data name="ProjectPhaseNameRequired" xml:space="preserve"><value>المرحلة {0}: الاسم مطلوب.</value></data>
+  <data name="ProjectPhaseDatesInvalid" xml:space="preserve"><value>المرحلة «{0}»: تاريخ النهاية قبل البداية.</value></data>
+  <data name="ProjectPhaseWeightInvalid" xml:space="preserve"><value>المرحلة «{0}»: الوزن بين 0 و100 (أكبر من صفر).</value></data>
+  <data name="ProjectPhaseWeightTotal" xml:space="preserve"><value>مجموع أوزان المراحل {0}% يتجاوز 100%.</value></data>
+  <data name="ProjectPhaseItemInvalid" xml:space="preserve"><value>المرحلة «{0}»: بند غير موجود في جدول كميات العقد أو بند رئيسي بفروع.</value></data>
+  <data name="ProjectPhaseItemDuplicate" xml:space="preserve"><value>البند «{0}» في أكثر من مرحلة.</value></data>
+  <data name="ProjectMemberRoleInvalid" xml:space="preserve"><value>دور العضو في المشروع غير معروف.</value></data>
+  <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>المستخدم غير موجود أو غير فعّال.</value></data>
+  <data name="ProjectMemberExists" xml:space="preserve"><value>المستخدم عضو في المشروع مسبقاً.</value></data>
+  <data name="ProjectMemberNotFound" xml:space="preserve"><value>العضو غير موجود في هذا المشروع.</value></data>
+  <data name="ProjectSetupSaved" xml:space="preserve"><value>حُفظ إعداد المشروع.</value></data>
+  <!-- موارد المشروع وخطة الإنجاز -->
+  <data name="ProjectResourceKindInvalid" xml:space="preserve"><value>نوع المورد غير معروف (آلية مملوكة، آلية مستأجرة، مهندس، عمالة).</value></data>
+  <data name="ProjectResourceBasisInvalid" xml:space="preserve"><value>أساس السعر غير معروف (ساعة، يوم، شهر).</value></data>
+  <data name="ProjectResourceCostNegative" xml:space="preserve"><value>السعر والتكاليف بالساعة لا تكون سالبة.</value></data>
+  <data name="ProjectResourceHoursPerDayInvalid" xml:space="preserve"><value>ساعات اليوم بين 1 و24.</value></data>
+  <data name="ProjectResourceDaysPerMonthInvalid" xml:space="preserve"><value>أيام الشهر بين 1 و31.</value></data>
+  <data name="ProjectResourceOvertimeInvalid" xml:space="preserve"><value>معامل الساعة الإضافية بين 1 و5.</value></data>
+  <data name="ProjectResourceRentalPeriodInvalid" xml:space="preserve"><value>نهاية الإيجار قبل بدايته.</value></data>
+  <data name="ProjectResourceEmployeeNotFound" xml:space="preserve"><value>الموظف غير موجود.</value></data>
+  <data name="ProjectResourceSupplierRequired" xml:space="preserve"><value>الآلية المستأجرة تحتاج المورد المؤجر.</value></data>
+  <data name="ProjectResourceAssetNotFound" xml:space="preserve"><value>الأصل الثابت غير موجود.</value></data>
+  <data name="ProjectResourceLibraryNotFound" xml:space="preserve"><value>مورد المكتبة غير موجود.</value></data>
+  <data name="ProjectResourceNameRequired" xml:space="preserve"><value>اسم المورد مطلوب (أو اختر الموظف).</value></data>
+  <data name="ProjectResourceCostRequired" xml:space="preserve"><value>تكلفة الساعة صفر: أدخل السعر أو تكاليف الساعة.</value></data>
+  <data name="ProjectResourceNotFound" xml:space="preserve"><value>المورد غير موجود في هذا المشروع.</value></data>
+  <data name="ProjectResourceInUse" xml:space="preserve"><value>المورد مستخدم في تقارير يومية فلا يُحذف؛ عطّله بدلاً من ذلك.</value></data>
+  <data name="ProjectPlanItemInvalid" xml:space="preserve"><value>خطة الإنجاز، السطر {0}: البند غير موجود في جدول الكميات أو بند رئيسي بفروع.</value></data>
+  <data name="ProjectPlanTargetInvalid" xml:space="preserve"><value>خطة الإنجاز «{0}»: المستهدف بالساعة يجب أن يكون أكبر من صفر.</value></data>
+  <data name="ProjectPlanDateRequired" xml:space="preserve"><value>خطة الإنجاز «{0}»: تاريخ السريان مطلوب.</value></data>
+  <data name="ProjectPlanDuplicate" xml:space="preserve"><value>خطة الإنجاز «{0}» مكررة بتاريخ السريان {1}.</value></data>
+  <!-- التقرير اليومي للموقع -->
+  <data name="SiteReportDateRequired" xml:space="preserve"><value>تاريخ التقرير مطلوب.</value></data>
+  <data name="SiteReportExists" xml:space="preserve"><value>يوجد تقرير يومي لهذا المشروع بتاريخ {0}.</value></data>
+  <data name="SiteReportNotFound" xml:space="preserve"><value>التقرير اليومي غير موجود في هذا المشروع.</value></data>
+  <data name="SiteReportStatusInvalid" xml:space="preserve"><value>لا يمكن تنفيذ الإجراء على تقرير حالته «{0}».</value></data>
+  <data name="SiteReportEmpty" xml:space="preserve"><value>سجّل إنجاز فترة واحدة على الأقل قبل التقديم.</value></data>
+  <data name="SiteReportReturnNoteRequired" xml:space="preserve"><value>سبب الإعادة مطلوب.</value></data>
+  <data name="SiteHourSlotInvalid" xml:space="preserve"><value>الإنجاز، السطر {0}: الفترة غير صحيحة (الصيغة HH:mm والنهاية بعد البداية).</value></data>
+  <data name="SiteHourItemInvalid" xml:space="preserve"><value>الإنجاز، السطر {0}: البند غير موجود في جدول الكميات أو بند رئيسي بفروع.</value></data>
+  <data name="SiteHourQuantityNegative" xml:space="preserve"><value>الإنجاز، السطر {0}: المستهدف والمنفَّذ لا يكونان سالبين.</value></data>
+  <data name="SiteDowntimeInvalid" xml:space="preserve"><value>الإنجاز، السطر {0}: دقائق التوقف بين صفر وطول الفترة.</value></data>
+  <data name="SiteDowntimeReasonRequired" xml:space="preserve"><value>الإنجاز، السطر {0}: اختر سبب التوقف.</value></data>
+  <data name="SiteHourDuplicate" xml:space="preserve"><value>الإنجاز، السطر {0}: البند مكرر في الفترة نفسها.</value></data>
+  <data name="SiteResourceInvalid" xml:space="preserve"><value>الموارد، السطر {0}: المورد غير موجود في المشروع أو معطّل.</value></data>
+  <data name="SiteResourceHoursInvalid" xml:space="preserve"><value>الموارد، السطر {0}: الساعات غير سالبة ومجموعها بين صفر و24.</value></data>
+  <data name="SiteResourceItemInvalid" xml:space="preserve"><value>الموارد، السطر {0}: البند غير موجود في جدول الكميات أو بند رئيسي بفروع.</value></data>
+  <data name="SiteResourceIdleReasonRequired" xml:space="preserve"><value>الموارد، السطر {0}: اختر سبب ساعات التوقف.</value></data>
+  <data name="SiteResourceDuplicate" xml:space="preserve"><value>الموارد، السطر {0}: المورد مكرر على البند نفسه.</value></data>
+  <data name="SiteMaterialItemInvalid" xml:space="preserve"><value>المواد، السطر {0}: البند غير موجود في جدول الكميات أو بند رئيسي بفروع.</value></data>
+  <data name="SiteMaterialProductNotFound" xml:space="preserve"><value>المواد، السطر {0}: الصنف غير موجود.</value></data>
+  <data name="SiteMaterialQuantityInvalid" xml:space="preserve"><value>المواد، السطر {0}: الكمية يجب أن تكون أكبر من صفر.</value></data>
+  <data name="SiteMaterialDuplicate" xml:space="preserve"><value>المواد، السطر {0}: الصنف مكرر على البند نفسه.</value></data>
+  <data name="SiteReportSaved" xml:space="preserve"><value>حُفظ التقرير اليومي.</value></data>
+  <data name="SiteReportSubmitted" xml:space="preserve"><value>قُدّم التقرير اليومي للاعتماد.</value></data>
+  <data name="SiteReportApproved" xml:space="preserve"><value>اعتُمد التقرير اليومي.</value></data>
+  <data name="SiteReportReturned" xml:space="preserve"><value>أُعيد التقرير اليومي للمسودة.</value></data>
 </root>

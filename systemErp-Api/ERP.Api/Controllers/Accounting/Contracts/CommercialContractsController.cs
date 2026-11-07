@@ -32,7 +32,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         _contracts = s; _workflow = workflow; _certificates = certificates; _billing = billing; _permissions = permissions; _materials = materials;
     }
 
-    // ---------- احتياجات مواد المشروع (العقد هو المشروع): التعديل للإعداد والتقديم، والاعتماد للاعتماد والإعادة ----------
+    // ---------- احتياجات مواد المشروع (العقد هو المشروع): الاستلام للإعداد والتقديم (كالمستخلصات، في مراحل التنفيذ)، والاعتماد للاعتماد والإعادة ----------
 
     private const string MaterialsApproval = "contract-material-requirements";
 
@@ -44,21 +44,21 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     [HttpPost("{id:guid}/material-requirements/derive"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> DeriveMaterialRequirements(Guid id, CancellationToken ct)
     {
-        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Edit, Record, id, ct: ct);
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
         return Success(await _materials.DeriveAsync(id, ct));
     }
 
     [HttpPut("{id:guid}/material-requirements"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> SaveMaterialRequirements(Guid id, [FromBody] SaveProjectMaterialPlanDto dto, CancellationToken ct)
     {
-        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Edit, Record, id, ct: ct);
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
         return Success(await _materials.SaveAsync(id, dto, ct), Messages.ProjectMaterialPlanSaved);
     }
 
     [HttpPost("{id:guid}/material-requirements/submit"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> SubmitMaterialRequirements(Guid id, CancellationToken ct)
     {
-        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Edit, Record, id, ct: ct);
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
         return Success(await _materials.SubmitAsync(id, ct), Messages.ProjectMaterialPlanSubmitted);
     }
 

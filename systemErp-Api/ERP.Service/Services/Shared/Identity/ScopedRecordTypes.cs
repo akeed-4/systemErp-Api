@@ -26,6 +26,8 @@ public sealed class RecordFacts
     public Guid? WarehouseId { get; init; }
     public Guid? CreatedByUserId { get; init; }
     public Guid? AssignedToUserId { get; init; }
+    /// <summary>أعضاء المشروع (عقد المقاولات): يدخلون في نطاق «المسندة إليه» كالمسند إليه.</summary>
+    public IReadOnlyCollection<Guid> MemberUserIds { get; set; } = Array.Empty<Guid>();
 }
 
 public static class ScopedRecordTypes
@@ -67,7 +69,12 @@ public static class ScopedRecordTypes
     private static async Task<RecordFacts?> LoadCoreAsync<T>(ErpDbContext db, ScopedRecordType type, Guid id, CancellationToken ct) where T : BaseEntity
     {
         var entity = await db.Set<T>().AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct);
-        return entity == null ? null : Facts(type, entity);
+        if (entity == null) return null;
+        var facts = Facts(type, entity);
+        // العقد هو مشروع المقاولات: أعضاؤه ضمن نطاق «المسندة إليه»
+        if (entity is CommercialContract)
+            facts.MemberUserIds = await db.Set<ProjectMember>().AsNoTracking().Where(m => m.ContractId == id).Select(m => m.UserId).ToListAsync(ct);
+        return facts;
     }
 
     private static async Task<List<RecordFacts>> SearchCoreAsync<T>(ErpDbContext db, ScopedRecordType type, string term, CancellationToken ct) where T : BaseEntity

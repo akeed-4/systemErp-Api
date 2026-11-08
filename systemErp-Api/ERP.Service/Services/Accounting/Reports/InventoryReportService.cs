@@ -207,19 +207,37 @@ public class InventoryReportService : IInventoryReportService
         var items = _db.Set<InvoiceItemBase>().AsNoTracking(); // بنود كل جداول الفواتير (البند يشير إلى رأس جدوله)
         if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
         if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate < q.EndExclusive());
+        if (q.WarehouseId.HasValue) inv = inv.Where(i => i.WarehouseId == q.WarehouseId.Value);
         if (!string.IsNullOrWhiteSpace(q.DocType) && Enum.TryParse<InvoiceKind>(q.DocType.Replace("_", ""), true, out var kind))
             inv = inv.Where(i => i.Kind == kind);
         var moduleScope = ReportModuleScope.Normalize(q.Module);
         if (moduleScope != null) inv = inv.Where(i => moduleScope.Contains(i.Module));
-        // كل فاتورة مرحّلة تدخل كما في القيد، مرتبطة بالهيئة أم لا: الإيراد صافيها قبل الضريبة والضريبة عمود مستقل
-        return inv.Select(i => new CommercialTradeRowDto
-        {
-            Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,
-            ItemsCount = items.Count(it => it.InvoiceId == i.Id), Subtotal = i.Subtotal, DiscountTotal = i.DiscountTotal, VatTotal = i.VatTotal, GrandTotal = i.GrandTotal,
-            CogsTotal = i.TotalCost, GrossProfit = i.GrossProfit,
-            GrossProfitMarginPercent = i.Subtotal == 0 ? 0m : Math.Round(i.GrossProfit / i.Subtotal * 100, 2),
-            ZatcaStatus = i.ZatcaStatus,
-        });
+        var users = _db.Set<User>().AsNoTracking();
+        // كل فاتورة مرحّلة تدخل كما في القيد، مرتبطة بالهيئة أم لا: الإيراد صافيها قبل الضريبة والضريبة عمود مستقل.
+        // المرتجع بالسالب في كل المبالغ (مجمل الربح مخزّن بإشارته أصلاً) فتصح إجماليات الأعمدة.
+        // نسبة الربح على التكلفة؛ ومندوب المبيعات المسند إليه المستند وإلا منشئه.
+        return from i in inv
+               let s = i.IsReturn || i.Kind == InvoiceKind.SalesReturn || i.Kind == InvoiceKind.PurchaseReturn ? -1m : 1m
+               select new CommercialTradeRowDto
+               {
+                   Id = i.Id, DocNumber = i.InvoiceNumber, Date = i.IssueDate, Type = i.Kind, PartyName = i.PartyName, VatNumber = i.PartyVatNumber,
+                   ItemsCount = items.Count(it => it.InvoiceId == i.Id),
+                   GrossTotal = s * (i.Subtotal + i.DiscountTotal),
+                   InvoiceDiscount = s * i.InvoiceDiscount,
+                   ItemsDiscountTotal = s * i.ItemsDiscountTotal,
+                   DiscountTotal = s * i.DiscountTotal,
+                   Subtotal = s * i.Subtotal,
+                   ExciseTaxTotal = s * i.ExciseTaxTotal,
+                   AmountAfterOtherTaxes = s * (i.Subtotal + i.ExciseTaxTotal),
+                   VatTotal = s * i.VatTotal,
+                   GrandTotal = s * i.GrandTotal,
+                   CurrencyCode = i.CurrencyCode, ExchangeRate = i.ExchangeRate,
+                   CogsTotal = s * i.TotalCost, GrossProfit = i.GrossProfit,
+                   GrossProfitMarginPercent = i.Subtotal == 0 ? 0m : Math.Round(i.GrossProfit / i.Subtotal * 100, 2),
+                   ProfitPercent = i.TotalCost == 0 ? 0m : Math.Round(i.GrossProfit / i.TotalCost * 100, 2),
+                   SalesRepName = users.Where(u => u.Id == (i.AssignedToUserId ?? i.CreatedByUserId)).Select(u => u.Name).FirstOrDefault(),
+                   ZatcaStatus = i.ZatcaStatus,
+               };
     }
 
     public Task<LoadResult> LoadInventoryAuditAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)

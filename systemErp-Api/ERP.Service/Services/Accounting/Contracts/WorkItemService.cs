@@ -166,6 +166,23 @@ public class WorkItemService : IWorkItemService
             }, token);
         }, ct);
 
+    public async Task<List<WorkItemProductUsageDto>> ProductUsageAsync(Guid productId, CancellationToken ct = default)
+    {
+        var resourceIds = await _db.Set<ConstructionResource>().AsNoTracking().Where(r => r.ProductId == productId).Select(r => r.Id).ToListAsync(ct);
+        // المادة المربوطة مباشرة، أو داخل مورد مركّب في الاحتياجات
+        var composites = resourceIds.Count == 0 ? new List<Guid>() : await _db.Set<ConstructionResourceComponent>().AsNoTracking()
+            .Where(c => resourceIds.Contains(c.ComponentResourceId)).Select(c => c.ResourceId).Distinct().ToListAsync(ct);
+        var all = resourceIds.Concat(composites).Distinct().ToList();
+        var viaMaterial = all.Count == 0 ? new List<Guid>() : await _db.Set<WorkItemComponent>().AsNoTracking()
+            .Where(c => all.Contains(c.ResourceId)).Select(c => c.WorkItemId).Distinct().ToListAsync(ct);
+        return await _db.Set<WorkItem>().AsNoTracking().Where(w => w.ProductId == productId || viaMaterial.Contains(w.Id))
+            .OrderBy(w => w.Code).Take(100)
+            .Select(w => new WorkItemProductUsageDto
+            {
+                Id = w.Id, Code = w.Code, NameAr = w.NameAr, IsActive = w.IsActive, Via = w.ProductId == productId ? "service" : "material",
+            }).ToListAsync(ct);
+    }
+
     /// <summary>موارد البند المنشأ من صنف: يعيد استخدام الموجود ويُنشئ الناقص عبر خدمة الموارد (برمزها وتكلفتها وتحققها).</summary>
     private sealed class FromProductResources(ErpDbContext db, IConstructionResourceService service, string fallbackUnit)
     {

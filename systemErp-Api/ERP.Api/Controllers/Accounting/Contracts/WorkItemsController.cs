@@ -42,6 +42,10 @@ public class WorkItemsController : ErpControllerBase
     public async Task<IActionResult> CreateFromProduct([FromBody] CreateWorkItemFromProductDto request, CancellationToken ct)
         => Success(await _items.CreateFromProductAsync(request.ProductId, ct), "تم إنشاء البند من الصنف؛ راجع احتياجاته وسعره.");
 
+    /// <summary>بنود المكتبة التي تستخدم الصنف (لبطاقة الصنف: أثر تغيير تكلفته).</summary>
+    [HttpGet("product-usage/{productId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ProductUsage(Guid productId, CancellationToken ct) => Success(await _items.ProductUsageAsync(productId, ct));
+
     [HttpDelete("{id:guid}"), RequireScreen(Screen, ScreenAction.Delete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

@@ -116,3 +116,13 @@ public class CreateWorkItemFromProductDto
 {
     public Guid ProductId { get; set; }
 }
+
+/// <summary>بند مكتبة يستخدم صنفاً: صنفه الخدمي (service)، أو مادة مربوطة به في احتياجاته (material).</summary>
+public class WorkItemProductUsageDto
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string Via { get; set; } = "material";
+    public bool IsActive { get; set; }
+}

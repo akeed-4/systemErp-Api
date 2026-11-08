@@ -17,4 +17,6 @@ public interface IWorkItemService
     /// المربوطة بها، ويُنشأ المورد الناقص. الصنف الخدمي يُربط بالبند.
     /// </summary>
     Task<WorkItemDto> CreateFromProductAsync(Guid productId, CancellationToken ct = default);
+    /// <summary>بنود المكتبة التي تستخدم الصنف (صنفها الخدمي، أو مادة مربوطة به في احتياجاتها) لبطاقة الصنف.</summary>
+    Task<List<WorkItemProductUsageDto>> ProductUsageAsync(Guid productId, CancellationToken ct = default);
 }

@@ -580,6 +580,8 @@
   <data name="AccountRole_ContractPenaltiesExpenseAccountCode" xml:space="preserve"><value>غرامات تأخير على عقود العملاء</value></data>
   <data name="AccountRole_ContractPenaltiesIncomeAccountCode" xml:space="preserve"><value>غرامات تأخير على مقاولي الباطن</value></data>
   <data name="AccountRole_ContractOtherDeductionsAccountCode" xml:space="preserve"><value>خصومات أخرى على المستخلصات</value></data>
+  <data name="AccountRole_ProjectMaterialsWipAccountCode" xml:space="preserve"><value>مواد مشاريع تحت التنفيذ</value></data>
+  <data name="AccountRole_ContractCostOfRevenueAccountCode" xml:space="preserve"><value>تكلفة إيرادات العقود</value></data>
   <data name="CertificateSubmitted" xml:space="preserve"><value>قُدِّم المستخلص للاعتماد.</value></data>
   <data name="CertificateApproved" xml:space="preserve"><value>اعتُمد المستخلص.</value></data>
   <data name="CertificateReturned" xml:space="preserve"><value>أُعيد المستخلص للمسودة.</value></data>

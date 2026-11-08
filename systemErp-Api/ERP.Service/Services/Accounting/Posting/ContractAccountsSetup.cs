@@ -66,6 +66,13 @@ internal static class ContractAccountsSetup
         new(nameof(AccountingSettings.ContractOtherDeductionsAccountCode), AccountCategory.Expense,
             "خصومات العقود الأخرى", "Other Contract Deductions", ExpenseAnchors,
             new[] { "استقطاعات العقود الأخرى", "خصومات أخرى على العقود", "other contract deductions", "contract deductions" }),
+        // مواد المشاريع: الصرف للمشروع أصل تحت التنفيذ حتى يُفوتر مستخلصه، ثم تكلفة إيرادات (لا مصروف مباشر عند الصرف)
+        new(nameof(AccountingSettings.ProjectMaterialsWipAccountCode), AccountCategory.Asset,
+            "مواد مشاريع تحت التنفيذ", "Project Materials Under Construction", AssetAnchors,
+            new[] { "مواد مشاريع تحت التنفيذ", "أعمال تحت التنفيذ", "مشاريع تحت التنفيذ", "project materials under construction", "work in progress", "construction in progress" }),
+        new(nameof(AccountingSettings.ContractCostOfRevenueAccountCode), AccountCategory.Expense,
+            "تكلفة إيرادات العقود", "Contract Cost of Revenue", ExpenseAnchors,
+            new[] { "تكلفة إيرادات العقود", "تكلفة إيرادات المشاريع", "تكلفة الإيرادات", "contract cost of revenue", "cost of revenue" }),
     };
 
     public static IEnumerable<string> RoleKeys => Specs.Select(s => s.Role);

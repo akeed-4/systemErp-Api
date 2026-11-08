@@ -426,7 +426,8 @@ public class ContractWorkflowService : IContractWorkflowService
                 }
                 // الإفراج مطلوب عن الضمان المحتجز فعلاً في فواتير العقد فقط؛ ما لم يُستقطع من فاتورة لا يُنتظر الإفراج عنه
                 var contractInvoices = _db.Set<ContractInvoice>().AsNoTracking().Where(i => i.ContractId == c.Id);
-                var withheld = await contractInvoices.Where(i => i.Kind != "retention_release" && i.Kind != "credit_note").SumAsync(i => i.RetentionAmount, ct);
+                var withheld = await contractInvoices.Where(i => i.Kind != "retention_release" && i.Kind != "credit_note").SumAsync(i => i.RetentionAmount, ct)
+                    - await contractInvoices.Where(i => i.Kind == "credit_note").SumAsync(i => i.RetentionAmount, ct); // ضمان فواتير أُلغيت
                 var released = await contractInvoices.Where(i => i.Kind == "retention_release").SumAsync(i => i.GrossAmount, ct);
                 if (withheld - released > 0.01m) missing.Add(Messages.ContractMissingRetentionRelease);
                 break;

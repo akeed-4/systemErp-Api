@@ -57,6 +57,12 @@ public class ProjectMaterialIssueDocDto
 {
     public Guid Id { get; set; }
     public Guid ContractId { get; set; }
+    /// <summary>للعرض والطباعة: رقم العقد واسم المشروع وموقعه والعميل واسم المستودع.</summary>
+    public string? ContractNumber { get; set; }
+    public string? ProjectName { get; set; }
+    public string? ProjectLocation { get; set; }
+    public string? PartyName { get; set; }
+    public string? WarehouseName { get; set; }
     public string IssueNumber { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public Guid? WarehouseId { get; set; }
@@ -68,6 +74,8 @@ public class ProjectMaterialIssueDocDto
     public string Status { get; set; } = "draft";
     public decimal TotalCost { get; set; }
     public Guid? JournalEntryId { get; set; }
+    /// <summary>الحساب المدين عند الترحيل (مواد مشاريع تحت التنفيذ)؛ فارغ لمستند قديم رُحِّل مصروفاً أو بجرد دوري.</summary>
+    public string? DebitAccountCode { get; set; }
     public string? Notes { get; set; }
     public DateTime? PostedAt { get; set; }
     public string? PostedBy { get; set; }
@@ -78,6 +86,9 @@ public class ProjectMaterialIssueDocDto
 public class ProjectMaterialIssueLineDto
 {
     public Guid Id { get; set; }
+    public Guid? BoqItemId { get; set; }
+    public string? BoqLineCode { get; set; }
+    public string? BoqDescription { get; set; }
     public Guid ProductId { get; set; }
     public string Sku { get; set; } = string.Empty;
     public string ItemName { get; set; } = string.Empty;
@@ -86,6 +97,8 @@ public class ProjectMaterialIssueLineDto
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
     public string? Notes { get; set; }
+    /// <summary>المختار من السطر في مستخلصات غير ملغاة.</summary>
+    public decimal CertifiedQuantity { get; set; }
     // للقراءة (أعمدة المستند): من متابعة المشروع وقت القراءة، دون هذا المستند
     public decimal RequiredQuantity { get; set; }
     public decimal DeliveredBefore { get; set; }
@@ -110,7 +123,58 @@ public class SaveProjectMaterialIssueDto
 
 public class SaveProjectMaterialIssueLineDto
 {
+    /// <summary>بند جدول الكميات (سطر قياس في العقد نفسه)، إلزامي.</summary>
+    public Guid? BoqItemId { get; set; }
     public Guid ProductId { get; set; }
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }
+}
+
+/// <summary>صف قائمة أذونات التسليم لكل المشاريع (في نطاق وصول المستخدم إلى العقود)، بترقيم وفلترة وفرز من السرفر.</summary>
+public class ProjectMaterialIssueRowDto
+{
+    public Guid Id { get; set; }
+    public Guid ContractId { get; set; }
+    public string ContractNumber { get; set; } = string.Empty;
+    public string? ProjectName { get; set; }
+    public string IssueNumber { get; set; } = string.Empty;
+    public DateTime Date { get; set; }
+    public Guid? WarehouseId { get; set; }
+    public string? WarehouseName { get; set; }
+    public string ReceiverType { get; set; } = string.Empty;
+    public string ReceiverName { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public decimal TotalCost { get; set; }
+    public int LineCount { get; set; }
+    public DateTime? PostedAt { get; set; }
+    public string? PostedBy { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+/// <summary>
+/// مواد كل بند في جدول الكميات لكل صنف: المخطط (الاحتياجات المعتمدة على البند بوحدة الصنف)، والمسلَّم بأذونات مرحّلة وتكلفته الفعلية،
+/// والمتبقي، وما اختير في المستخلصات غير الملغاة (والمفوتر منها) بتكلفته، والرصيد تحت التنفيذ (المسلَّم غير المفوتر).
+/// </summary>
+public class ProjectBoqMaterialLineDto
+{
+    public Guid ContractItemId { get; set; }
+    public string? LineCode { get; set; }
+    public string BoqDescription { get; set; } = string.Empty;
+    public Guid ProductId { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string ItemName { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal PlannedQuantity { get; set; }
+    public decimal DeliveredQuantity { get; set; }
+    public decimal RemainingQuantity { get; set; }
+    public decimal DeliveredCost { get; set; }
+    /// <summary>المختار في مستخلصات غير ملغاة.</summary>
+    public decimal CertifiedQuantity { get; set; }
+    public decimal CertifiedCost { get; set; }
+    /// <summary>المفوتر منه (اعتُرفت تكلفته).</summary>
+    public decimal InvoicedCost { get; set; }
+    /// <summary>تكلفة المسلَّم غير المفوتر بعد (ما يبقى في مواد تحت التنفيذ لهذا البند).</summary>
+    public decimal OutstandingCost { get; set; }
+    /// <summary>المسلَّم تجاوز المخطط على هذا البند (تنبيه؛ الحد الملزم هو المطلوب للصنف في دراسة الجدوى).</summary>
+    public bool OverPlanned { get; set; }
 }

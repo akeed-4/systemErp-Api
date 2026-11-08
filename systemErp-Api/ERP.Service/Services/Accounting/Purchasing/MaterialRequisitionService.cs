@@ -47,23 +47,18 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     }
 
     /// <summary>
-    /// طلب شراء لمشروع: العقد موجود، وموقع التوريد (المستودع أو موقع المشروع وعنوانه افتراضياً موقع المشروع)، والكميات ضمن
-    /// احتياجات المشروع المعتمدة ناقص ما طُلب في طلباته الأخرى. الطلب العام بلا مشروع يُورَّد للمستودع.
+    /// طلب شراء لمشروع: العقد موجود، والكميات ضمن احتياجات المشروع المعتمدة ناقص ما طُلب في طلباته الأخرى.
+    /// التوريد دائماً للمستودع: فاتورة الشراء تزيد مخزونه، والمواد لا تُعدّ مسلَّمة للمشروع إلا بإذن تسليم مرحّل.
+    /// خيار «موقع المشروع» كان وصفياً بلا أثر مخزني أو محاسبي فأُلغي؛ الطلبات القديمة تحتفظ بقيمتها للعرض فقط.
     /// </summary>
     private async Task ValidateProjectAsync(CreateMaterialRequisitionDto d, MaterialRequisition? existing, CancellationToken ct)
     {
-        d.DeliveryLocation = string.IsNullOrWhiteSpace(d.DeliveryLocation) ? RequisitionDeliveryLocations.Warehouse : d.DeliveryLocation.Trim();
-        if (!RequisitionDeliveryLocations.IsValid(d.DeliveryLocation)) throw new ValidationFailedException("موقع التوريد غير صالح.");
-        if (d.ContractId is not { } contractId)
-        {
-            d.DeliveryLocation = RequisitionDeliveryLocations.Warehouse;
-            return;
-        }
+        d.DeliveryLocation = RequisitionDeliveryLocations.Warehouse;
+        d.DeliveryAddress = null;
+        if (d.ContractId is not { } contractId) return;
         var contract = await Db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId)
-            .Select(c => new { c.ProjectLocation, c.WarehouseId }).FirstOrDefaultAsync(ct)
+            .Select(c => new { c.WarehouseId }).FirstOrDefaultAsync(ct)
             ?? throw new ValidationFailedException(Messages.ContractNotFound);
-        if (d.DeliveryLocation == RequisitionDeliveryLocations.ProjectSite && string.IsNullOrWhiteSpace(d.DeliveryAddress))
-            d.DeliveryAddress = contract.ProjectLocation;
         d.WarehouseId ??= contract.WarehouseId;
         await _supply.EnsureRequisitionWithinPlanAsync(contractId, existing?.Id,
             d.Items.Select(i => (i.ItemId, i.ApprovedQuantity ?? i.RequestedQuantity)).ToList(), ct);

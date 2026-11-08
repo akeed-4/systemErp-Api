@@ -48,6 +48,13 @@ public class AccountingSettings : BaseEntity
     public string? ContractPenaltiesIncomeAccountCode { get; set; }
     /// <summary>الخصومات الأخرى على المستخلصات (مصروف في عقود العملاء، إيراد/استرداد في عقود الموردين).</summary>
     public string? ContractOtherDeductionsAccountCode { get; set; }
+    /// <summary>
+    /// مواد مشاريع تحت التنفيذ (أصل): يُحمَّل عليها صرف مواد المشروع من المستودع (بدل المصروف)، وتُخفَّض بتكلفة المواد
+    /// المختارة في المستخلص عند فوترته (إلى تكلفة الإيرادات).
+    /// </summary>
+    public string? ProjectMaterialsWipAccountCode { get; set; }
+    /// <summary>تكلفة إيرادات العقود (مصروف): التكلفة الفعلية لمواد المستخلص المفوتر، مقابل المواد تحت التنفيذ.</summary>
+    public string? ContractCostOfRevenueAccountCode { get; set; }
 
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }

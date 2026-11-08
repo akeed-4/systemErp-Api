@@ -426,6 +426,9 @@ public class TradeInvoiceEngine
             var original = await Detailed(_db.Set<TOriginal>().AsNoTracking()).FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, token)
                 ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
             if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
+            // فاتورة المستخلص تُلغى من المستخلص نفسه (يعكس معها قيدي الاسترداد والتكلفة ويعيد كمياته)؛ المرتجع الحر يفصلها عن مستخلصها
+            if (original.ReferenceType == "contract_certificate" && !r.SystemGenerated)
+                throw new ConflictException("فاتورة المستخلص تُلغى من شاشة المستخلصات (إلغاء الفاتورة) لا بمرتجع مستقل.");
             if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
             if (r.RefundPaymentMethod == PaymentMethod.ContractSettlement) throw new ValidationFailedException(Messages.InvalidPaymentMethod);
             if (r.RefundPaymentMethod.HasValue)

@@ -14,6 +14,10 @@ public interface IContractBillingService
     /// <summary>العقد المبسط: تقديم المستخلص واعتماده وفوترته في خطوة واحدة.</summary>
     Task<InvoiceDto> IssueCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default);
     Task<RetentionReleaseResultDto> ReleaseRetentionAsync(Guid contractId, DateTime? date = null, CancellationToken ct = default);
+    /// <summary>
+    /// إلغاء فاتورة مستخلص مفوتر بإشعار (مرتجع كامل) وعكس قيدي الاسترداد وتكلفة المواد؛ المستخلص يصير ملغى فتعود كمياته ومواده متاحة.
+    /// </summary>
+    Task<ContractCertificateDto> CancelCertificateInvoiceAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct = default);
     /// <summary>تحصيل/سداد فاتورة عقد (مستخلص أو دفعة مقدمة) بسند قبض/صرف موزَّع عليها؛ على أي مسار (مبسط أو كامل).</summary>
     Task<VoucherDto> RecordPaymentAsync(Guid contractId, ContractPaymentRequestDto request, CancellationToken ct = default);
 }

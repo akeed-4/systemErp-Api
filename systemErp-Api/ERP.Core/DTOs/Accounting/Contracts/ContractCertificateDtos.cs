@@ -39,6 +39,65 @@ public class ContractCertificateDto
     public decimal AmountDue { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ContractCertificateLineDto> Lines { get; set; } = new();
+    /// <summary>التكلفة الفعلية لكميات المواد المختارة، وقيد اعترافها عند الفوترة (تكلفة إيرادات / مواد تحت التنفيذ).</summary>
+    public decimal MaterialCost { get; set; }
+    public Guid? CostJournalEntryId { get; set; }
+    public Guid? AdvanceJournalEntryId { get; set; }
+    /// <summary>إلغاء الفاتورة: إشعارها الدائن/المدين ووقته ومنفّذه.</summary>
+    public Guid? CreditNoteInvoiceId { get; set; }
+    public string? CreditNoteNumber { get; set; }
+    public DateTime? InvoiceCancelledAt { get; set; }
+    public string? InvoiceCancelledBy { get; set; }
+    /// <summary>كميات أذونات تسليم المواد المختارة في المستخلص (مرجع الإذن وتكلفته الفعلية).</summary>
+    public List<ContractCertificateMaterialDto> Materials { get; set; } = new();
+}
+
+public class ContractCertificateMaterialDto
+{
+    public Guid Id { get; set; }
+    public Guid IssueId { get; set; }
+    public Guid IssueLineId { get; set; }
+    public Guid ContractItemId { get; set; }
+    public Guid ProductId { get; set; }
+    public string IssueNumber { get; set; } = string.Empty;
+    public DateTime IssueDate { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string ItemName { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
+}
+
+/// <summary>
+/// سطر إذن تسليم مرحّل مؤهَّل للاختيار في مستخلص، على بنده في جدول الكميات: المسلَّم وتكلفته الفعلية، وما اختير منه في مستخلصات
+/// أخرى غير ملغاة، والمتبقي، والمختار في المستخلص الحالي.
+/// </summary>
+public class CertificateMaterialOptionDto
+{
+    public Guid IssueId { get; set; }
+    public Guid IssueLineId { get; set; }
+    public string IssueNumber { get; set; } = string.Empty;
+    public DateTime IssueDate { get; set; }
+    public Guid ContractItemId { get; set; }
+    public string? LineCode { get; set; }
+    public string BoqDescription { get; set; } = string.Empty;
+    public Guid ProductId { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string ItemName { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal DeliveredQuantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
+    /// <summary>المختار في مستخلصات أخرى غير ملغاة (المفوترة وغير المفوترة).</summary>
+    public decimal BilledQuantity { get; set; }
+    public decimal BilledCost { get; set; }
+    public decimal RemainingQuantity { get; set; }
+    public decimal RemainingCost { get; set; }
+    /// <summary>المختار في المستخلص المطلوب (عند تعديله).</summary>
+    public decimal SelectedQuantity { get; set; }
+    /// <summary>بلا أصل تحت التنفيذ (رُحِّل بجرد دوري): يُختار للربط ولا يولّد قيد تكلفة عند الفوترة.</summary>
+    public bool CostRecognizedAtDelivery { get; set; }
 }
 
 public class ContractCertificateLineDto
@@ -88,6 +147,16 @@ public class SaveContractCertificateDto
     public decimal PenaltyAmount { get; set; }
     public List<SaveContractCertificateLineDto> Lines { get; set; } = new();
     public List<SaveContractCertificateDeductionDto> Deductions { get; set; } = new();
+    /// <summary>
+    /// كميات أذونات التسليم المختارة (تحل محل السابقة). فارغ (null) عند التعديل = تبقى المختارة كما هي، فلا يُسقطها عميل قديم.
+    /// </summary>
+    public List<SaveContractCertificateMaterialDto>? Materials { get; set; }
+}
+
+public class SaveContractCertificateMaterialDto
+{
+    public Guid IssueLineId { get; set; }
+    public decimal Quantity { get; set; }
 }
 
 public class SaveContractCertificateDeductionDto

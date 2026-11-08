@@ -93,7 +93,18 @@ public class ContractCertificate : BaseEntity
     /// <summary>قيد استرداد الدفعة المقدمة المرافق للفاتورة (إن وُجد استرداد).</summary>
     public Guid? AdvanceJournalEntryId { get; set; }
 
+    /// <summary>التكلفة الفعلية لكميات المواد المسلَّمة المختارة (<see cref="Materials"/>)، من تكلفة الصرف (FIFO/المتوسط) لا من السعر.</summary>
+    public decimal MaterialCost { get; set; }
+    /// <summary>قيد تكلفة الإيرادات عند الفوترة: مدين تكلفة إيرادات العقود / دائن مواد مشاريع تحت التنفيذ.</summary>
+    public Guid? CostJournalEntryId { get; set; }
+    /// <summary>إلغاء فاتورة المستخلص: الإشعار الدائن/المدين (مرتجع كامل) الذي عكسها.</summary>
+    public Guid? CreditNoteInvoiceId { get; set; }
+    public string? CreditNoteNumber { get; set; }
+    public DateTime? InvoiceCancelledAt { get; set; }
+    public string? InvoiceCancelledBy { get; set; }
+
     public virtual ICollection<ContractCertificateLine> Lines { get; set; } = new List<ContractCertificateLine>();
+    public virtual ICollection<ContractCertificateMaterial> Materials { get; set; } = new List<ContractCertificateMaterial>();
     public virtual ICollection<ContractCertificateDeduction> Deductions { get; set; } = new List<ContractCertificateDeduction>();
 }
 
@@ -103,6 +114,32 @@ public class ContractCertificateDeduction : BaseEntity
     public Guid CertificateId { get; set; }
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public int SortOrder { get; set; }
+
+    public virtual ContractCertificate Certificate { get; set; } = null!;
+}
+
+/// <summary>
+/// كمية من سطر إذن تسليم مواد مرحّل، مختارة في المستخلص على بندها في جدول الكميات. التكلفة من تكلفة الصرف الفعلية للسطر
+/// (الجزء الأخير يأخذ باقي تكلفته فلا يبقى كسر تقريب). المتاح = كمية السطر − المختار في مستخلصات أخرى غير ملغاة؛ إلغاء المستخلص
+/// (أو إلغاء فاتورته) يعيد الكمية متاحة. البيانات الوصفية لقطة للعرض.
+/// </summary>
+public class ContractCertificateMaterial : BaseEntity
+{
+    public Guid CertificateId { get; set; }
+    public Guid IssueId { get; set; }
+    public Guid IssueLineId { get; set; }
+    /// <summary>بند جدول الكميات (من سطر الإذن).</summary>
+    public Guid ContractItemId { get; set; }
+    public Guid ProductId { get; set; }
+    public string IssueNumber { get; set; } = string.Empty;
+    public DateTime IssueDate { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string ItemName { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
     public int SortOrder { get; set; }
 
     public virtual ContractCertificate Certificate { get; set; } = null!;

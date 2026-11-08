@@ -11,6 +11,8 @@ namespace ERP.Service.Services.Accounting;
 /// تُعاد قراءتها من القاعدة عند كل حفظ وتقديم واعتماد (لا تُقبل من الطلب)؛ التراكمي لا يتجاوز الكمية المعتمدة × (1 + السماح)؛
 /// مستخلص مفتوح واحد لكل عقد (وفهرس فريد مفلتر يمنع السباق)؛ لا كميات حالية سالبة (التصحيح بإشعار دائن لاحقاً).
 /// الصلاحيات (الاستلام للإعداد، الاعتماد للاعتماد والإعادة) ونطاق السجل يفحصها المتحكم على سجل العقد.
+/// مواد المستخلص: كميات من أذونات تسليم مرحّلة على بنود يقيسها المستخلص، بتكلفتها الفعلية؛ المتاح يُعاد حسابه من القاعدة عند كل
+/// حفظ وتقديم واعتماد (وعند الفوترة)، فلا تُختار الكمية نفسها في مستخلصين غير ملغيين.
 /// </summary>
 public class ContractCertificateService : IContractCertificateService
 {
@@ -28,7 +30,7 @@ public class ContractCertificateService : IContractCertificateService
     public async Task<List<ContractCertificateDto>> ListAsync(Guid contractId, CancellationToken ct = default)
     {
         await LoadContractAsync(contractId, track: false, ct);
-        var list = await _db.Set<ContractCertificate>().AsNoTracking().Include(c => c.Lines).Include(c => c.Deductions).AsSplitQuery()
+        var list = await _db.Set<ContractCertificate>().AsNoTracking().Include(c => c.Lines).Include(c => c.Deductions).Include(c => c.Materials).AsSplitQuery()
             .Where(c => c.ContractId == contractId).OrderByDescending(c => c.SequenceNo).ToListAsync(ct);
         var dtos = list.Select(ToDto).ToList();
         await ApplyCollectionsAsync(dtos, ct);
@@ -88,9 +90,12 @@ public class ContractCertificateService : IContractCertificateService
         var recovered = counted.Sum(c => c.AdvanceRecovery);
         var invoices = await _db.Set<ContractInvoice>().AsNoTracking().Where(i => i.ContractId == contractId && i.Kind != "credit_note")
             .Select(i => new { i.Kind, i.InvoiceId, i.InvoiceNumber, i.TotalAmount, i.RetentionAmount, i.GrossAmount }).ToListAsync(ct);
+        // فواتير مستخلصات أُلغيت بإشعار: ضمانها وإجماليها يُطرحان (الإشعار يحمل مبالغ ما ألغاه)
+        var cancelled = await _db.Set<ContractInvoice>().AsNoTracking().Where(i => i.ContractId == contractId && i.Kind == "credit_note")
+            .GroupBy(i => 1).Select(g => new { Retention = g.Sum(i => i.RetentionAmount), Total = g.Sum(i => i.TotalAmount) }).FirstOrDefaultAsync(ct);
         var advanceInvoice = invoices.FirstOrDefault(i => i.Kind == "advance");
         var advanceBilled = advanceInvoice?.GrossAmount ?? 0;
-        var retentionInvoiced = invoices.Where(i => i.Kind != "retention_release").Sum(i => i.RetentionAmount);
+        var retentionInvoiced = invoices.Where(i => i.Kind != "retention_release").Sum(i => i.RetentionAmount) - (cancelled?.Retention ?? 0);
         var retentionReleased = invoices.Where(i => i.Kind == "retention_release").Sum(i => i.GrossAmount);
         var invoiceIds = invoices.Where(i => i.InvoiceId != null).Select(i => i.InvoiceId!.Value).ToList();
         var collected = invoiceIds.Count == 0 ? 0
@@ -125,7 +130,7 @@ public class ContractCertificateService : IContractCertificateService
             AdvanceInvoiceId = advanceInvoice?.InvoiceId, AdvanceAmountDue = advanceDue,
             RetentionInvoiced = retentionInvoiced, RetentionReleased = retentionReleased,
             RetentionOutstanding = Math.Max(0, retentionInvoiced - retentionReleased),
-            InvoicedTotal = invoices.Where(i => i.InvoiceId != null).Sum(i => i.TotalAmount), CollectedTotal = collected,
+            InvoicedTotal = invoices.Where(i => i.InvoiceId != null).Sum(i => i.TotalAmount) - (cancelled?.Total ?? 0), CollectedTotal = collected,
             RetentionHeld = counted.Sum(c => c.RetentionAmount), PenaltiesTotal = counted.Sum(c => c.PenaltyAmount),
             PenaltyCap = PenaltyCap(contract), OtherDeductionsTotal = counted.Sum(c => c.OtherDeductions),
             NetPayableTotal = counted.Sum(c => c.NetPayable),
@@ -165,6 +170,7 @@ public class ContractCertificateService : IContractCertificateService
             };
             ApplyHeader(cert, request, date);
             BuildLines(cert, contract, await CertifiedQuantitiesAsync(contractId, token), CurrentQuantities(request, contract), validate: true);
+            await ApplyMaterialsAsync(cert, contract, request.Materials ?? new(), token);
             SetDeductions(cert, request.Deductions);
             ApplyDeductions(cert, contract, await PriorDeductionsAsync(contractId, token), request.PenaltyAmount, validate: true);
             _db.Add(cert);
@@ -183,6 +189,7 @@ public class ContractCertificateService : IContractCertificateService
             await ApplyScheduleAsync(contract, request, cert.Id, token);
             ApplyHeader(cert, request, request.CertificateDate?.Date ?? cert.CertificateDate);
             BuildLines(cert, contract, await CertifiedQuantitiesAsync(contractId, token), CurrentQuantities(request, contract), validate: true);
+            await ApplyMaterialsAsync(cert, contract, request.Materials, token);
             SetDeductions(cert, request.Deductions);
             ApplyDeductions(cert, contract, await PriorDeductionsAsync(contractId, token), request.PenaltyAmount, validate: true);
             await SaveAsync(token);
@@ -297,7 +304,128 @@ public class ContractCertificateService : IContractCertificateService
     {
         BuildLines(cert, contract, await CertifiedQuantitiesAsync(contract.Id, ct),
             cert.Lines.ToDictionary(l => l.ContractItemId, l => l.CurrentQuantity), validate: true);
+        await ApplyMaterialsAsync(cert, contract, null, ct);
         ApplyDeductions(cert, contract, await PriorDeductionsAsync(contract.Id, ct), cert.PenaltyAmount, validate: true);
+    }
+
+    // ---------- المواد المسلَّمة ----------
+
+    /// <summary>
+    /// كميات أذونات التسليم المختارة (تحل محل السابقة، أو تُعاد كما هي حين <paramref name="requested"/> فارغ) بعد التحقق من القاعدة:
+    /// الإذن من هذا العقد ومرحّل (لا ملغى ولا مسودة)، والسطر على بند يقيس المستخلص أعماله حتى الآن (تراكمي موجب)، والكمية موجبة
+    /// ولا تتجاوز المتبقي = المسلَّم − المختار في مستخلصات أخرى غير ملغاة. التكلفة = الكمية × تكلفة الصرف الفعلية، والجزء الأخير
+    /// يأخذ باقي تكلفة السطر فلا يبقى كسر. عقد المورد (مقاول باطن) لا مواد فيه: المواد تُصرف لمشروعنا مع العميل.
+    /// </summary>
+    private async Task ApplyMaterialsAsync(ContractCertificate cert, CommercialContract contract, List<SaveContractCertificateMaterialDto>? requested, CancellationToken ct)
+    {
+        var wanted = requested ?? cert.Materials.Select(m => new SaveContractCertificateMaterialDto { IssueLineId = m.IssueLineId, Quantity = m.Quantity }).ToList();
+        var errors = new List<string>();
+        if (wanted.Any(m => m.Quantity < 0)) errors.Add("كمية المادة في المستخلص لا تكون سالبة.");
+        wanted = wanted.Where(m => m.Quantity > 0).ToList();
+        if (wanted.GroupBy(m => m.IssueLineId).Any(g => g.Count() > 1)) errors.Add("سطر إذن التسليم مكرر في مواد المستخلص.");
+        if (wanted.Count > 0 && string.Equals(contract.PartyType, "supplier", StringComparison.OrdinalIgnoreCase))
+            errors.Add("مواد المشروع المسلَّمة تُختار في مستخلصات عقود العملاء فقط.");
+        if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+
+        foreach (var old in cert.Materials.ToList())
+        {
+            cert.Materials.Remove(old);
+            if (_db.Entry(old).State != EntityState.Detached) _db.Remove(old);
+        }
+        cert.MaterialCost = 0;
+        if (wanted.Count == 0) return;
+
+        var ids = wanted.Select(m => m.IssueLineId).ToList();
+        // متتبَّعة: يُلمس رمز تزامنها فيتعارض الاختيار مع إلغاء الإذن (أو اختيار آخر) في اللحظة نفسها
+        var lines = await _db.Set<ProjectMaterialIssueLine>().Include(l => l.Issue).Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
+        var others = await CertifiedMaterials.ByIssueLineAsync(_db, contract.Id, cert.Id, ct);
+        var measured = cert.Lines.ToDictionary(l => l.ContractItemId, l => l.CumulativeQuantity);
+        var labels = contract.Items.ToDictionary(i => i.Id, Label);
+        var order = 0;
+        foreach (var w in wanted)
+        {
+            if (!lines.TryGetValue(w.IssueLineId, out var line) || line.Issue.ContractId != contract.Id)
+            {
+                errors.Add("سطر إذن التسليم المختار ليس من أذونات هذا المشروع.");
+                continue;
+            }
+            var issue = line.Issue;
+            if (issue.Status != ProjectMaterialIssueStatuses.Posted)
+            {
+                errors.Add($"الإذن {issue.IssueNumber} غير مرحّل أو ملغى: لا تُختار منه مواد.");
+                continue;
+            }
+            if (line.BoqItemId is not { } boqItemId)
+            {
+                errors.Add($"«{line.ItemName}» في الإذن {issue.IssueNumber} غير مربوط ببند في جدول الكميات.");
+                continue;
+            }
+            if (measured.GetValueOrDefault(boqItemId) <= 0)
+            {
+                errors.Add($"«{line.ItemName}» ({issue.IssueNumber}): البند {labels.GetValueOrDefault(boqItemId, "?")} بلا أعمال مقيسة حتى هذا المستخلص؛ تُعترف تكلفة مواده مع إيراده.");
+                continue;
+            }
+            var (otherQty, otherCost) = others.GetValueOrDefault(line.Id);
+            var available = line.Quantity - otherQty;
+            if (w.Quantity > available + 0.00005m)
+            {
+                errors.Add($"«{line.ItemName}» ({issue.IssueNumber}): الكمية {w.Quantity:0.####} تتجاوز المتبقي غير المختار {Math.Max(0, available):0.####} (المسلَّم {line.Quantity:0.####} − المختار في مستخلصات أخرى {otherQty:0.####}).");
+                continue;
+            }
+            var all = Math.Abs(w.Quantity - available) <= 0.00005m;
+            var cost = all ? line.TotalCost - otherCost : DocumentPricing.Round(w.Quantity * line.UnitCost);
+            cert.Materials.Add(new ContractCertificateMaterial
+            {
+                CertificateId = cert.Id, IssueId = issue.Id, IssueLineId = line.Id, ContractItemId = boqItemId, ProductId = line.ProductId,
+                IssueNumber = issue.IssueNumber, IssueDate = issue.Date, Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit,
+                Quantity = all ? available : w.Quantity, UnitCost = line.UnitCost, TotalCost = cost, SortOrder = ++order,
+            });
+            _db.Entry(line).State = EntityState.Modified;
+        }
+        if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+        cert.MaterialCost = cert.Materials.Sum(m => m.TotalCost);
+    }
+
+    /// <summary>
+    /// أسطر الأذونات المرحّلة المؤهَّلة للاختيار (على بنود جدول الكميات)، بالمسلَّم وتكلفته والمختار في مستخلصات أخرى غير ملغاة والمتبقي
+    /// والمختار في <paramref name="certificateId"/>. تُعرض الأسطر ذات المتبقي أو المختارة في هذا المستخلص فقط.
+    /// </summary>
+    public async Task<List<CertificateMaterialOptionDto>> MaterialOptionsAsync(Guid contractId, Guid? certificateId, CancellationToken ct = default)
+    {
+        var contract = await LoadContractAsync(contractId, track: false, ct);
+        var items = contract.Items.ToDictionary(i => i.Id);
+        var rows = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
+            .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted && l.BoqItemId != null)
+            .Select(l => new
+            {
+                l.Id, l.IssueId, l.Issue.IssueNumber, l.Issue.Date, l.Issue.DebitAccountCode, l.Issue.JournalEntryId, BoqItemId = l.BoqItemId!.Value,
+                l.ProductId, l.Sku, l.ItemName, l.Unit, l.Quantity, l.UnitCost, l.TotalCost, l.SortOrder,
+            })
+            .ToListAsync(ct);
+        var others = await CertifiedMaterials.ByIssueLineAsync(_db, contractId, certificateId, ct);
+        var selected = certificateId is { } cid
+            ? await _db.Set<ContractCertificateMaterial>().AsNoTracking().Where(m => m.CertificateId == cid)
+                .ToDictionaryAsync(m => m.IssueLineId, m => m.Quantity, ct)
+            : new Dictionary<Guid, decimal>();
+        return rows.Where(r => items.ContainsKey(r.BoqItemId))
+            .Select(r =>
+            {
+                var (q, c) = others.GetValueOrDefault(r.Id);
+                var item = items[r.BoqItemId];
+                return new CertificateMaterialOptionDto
+                {
+                    IssueId = r.IssueId, IssueLineId = r.Id, IssueNumber = r.IssueNumber, IssueDate = r.Date,
+                    ContractItemId = r.BoqItemId, LineCode = item.LineCode, BoqDescription = item.Description,
+                    ProductId = r.ProductId, Sku = r.Sku, ItemName = r.ItemName, Unit = r.Unit,
+                    DeliveredQuantity = r.Quantity, UnitCost = r.UnitCost, TotalCost = r.TotalCost,
+                    BilledQuantity = q, BilledCost = c, RemainingQuantity = Math.Max(0, r.Quantity - q), RemainingCost = Math.Max(0, r.TotalCost - c),
+                    SelectedQuantity = selected.GetValueOrDefault(r.Id),
+                    CostRecognizedAtDelivery = r.DebitAccountCode == null,
+                };
+            })
+            .Where(o => o.RemainingQuantity > 0 || o.SelectedQuantity > 0)
+            .OrderBy(o => items[o.ContractItemId].SortOrder).ThenBy(o => o.IssueDate).ThenBy(o => o.IssueNumber).ThenBy(o => o.Sku)
+            .ToList();
     }
 
     private readonly record struct PriorDeductions(decimal AdvanceBilled, decimal AdvanceRecovered, decimal Penalties);
@@ -481,7 +609,7 @@ public class ContractCertificateService : IContractCertificateService
 
     private async Task<ContractCertificate> LoadCertificateAsync(Guid contractId, Guid certificateId, bool track, CancellationToken ct)
     {
-        var q = _db.Set<ContractCertificate>().Include(c => c.Lines).Include(c => c.Deductions).AsSplitQuery();
+        var q = _db.Set<ContractCertificate>().Include(c => c.Lines).Include(c => c.Deductions).Include(c => c.Materials).AsSplitQuery();
         return await (track ? q : q.AsNoTracking()).FirstOrDefaultAsync(c => c.Id == certificateId && c.ContractId == contractId, ct)
             ?? throw new NotFoundException(Messages.CertificateNotFound);
     }
@@ -513,6 +641,7 @@ public class ContractCertificateService : IContractCertificateService
             return line;
         }).ToList();
         dto.Deductions = c.Deductions.OrderBy(d => d.SortOrder).Select(d => Mapper.Map<ContractCertificateDeductionDto>(d)).ToList();
+        dto.Materials = c.Materials.OrderBy(m => m.SortOrder).Select(m => Mapper.Map<ContractCertificateMaterialDto>(m)).ToList();
         return dto;
     }
 }

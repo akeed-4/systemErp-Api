@@ -22,4 +22,6 @@ public interface IContractCertificateService
     Task<ContractCertificateDto> ReturnAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct = default);
     /// <summary>إلغاء مسودة أو مقدَّم بسبب إلزامي (المعتمد لا يُلغى؛ يُصحَّح لاحقاً بإشعار دائن).</summary>
     Task<ContractCertificateDto> CancelAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct = default);
+    /// <summary>أسطر أذونات تسليم المواد المرحّلة المؤهَّلة للاختيار في المستخلص (بالمتبقي والمختار في <paramref name="certificateId"/>).</summary>
+    Task<List<CertificateMaterialOptionDto>> MaterialOptionsAsync(Guid contractId, Guid? certificateId, CancellationToken ct = default);
 }

@@ -27,6 +27,10 @@ public class ProjectSupplyController : ErpControllerBase
     public async Task<IActionResult> Tracking(Guid id, [FromQuery] Guid? warehouseId, [FromQuery] Guid? exceptRequisitionId, CancellationToken ct)
         => Success(await _supply.TrackingAsync(id, warehouseId, exceptRequisitionId, ct));
 
+    /// <summary>مواد كل بند في جدول الكميات (المخطط، المسلَّم وتكلفته، المختار في المستخلصات، المتبقي تحت التنفيذ).</summary>
+    [HttpGet("material-tracking/boq"), RequireScreen(Projects, ScreenAction.View)]
+    public async Task<IActionResult> BoqMaterials(Guid id, CancellationToken ct) => Success(await _supply.BoqMaterialsAsync(id, ct));
+
     [HttpGet("material-issues"), RequireScreen(Issues, ScreenAction.View)]
     public async Task<IActionResult> List(Guid id, CancellationToken ct) => Success(await _supply.ListIssuesAsync(id, ct));
 
@@ -61,4 +65,22 @@ public class ProjectSupplyController : ErpControllerBase
     [HttpPost("material-issues/{issueId:guid}/cancel"), RequireScreen(Issues, ScreenAction.Cancel)]
     public async Task<IActionResult> Cancel(Guid id, Guid issueId, [FromBody] CancelProductionOrderDto request, CancellationToken ct)
         => Success(await _supply.CancelIssueAsync(id, issueId, request.Reason, ct), "تم إلغاء صرف المواد وعكس أثره.");
+}
+
+/// <summary>
+/// أذونات تسليم المواد لكل المشاريع (شاشة المستندات المستقلة في قائمة المقاولات): القائمة بترقيم وفلترة من السرفر، في نطاق وصول
+/// المستخدم إلى العقود. فتح الإذن وحفظه وترحيله وإلغاؤه تبقى على مسار سجل العقد (`commercialcontracts/{id}/material-issues`).
+/// </summary>
+[Route("api/v1/project-material-issues")]
+[RequireModule(PlatformModules.Accounting)]
+[ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
+[RequireFeature(PlanFeatures.CommercialCycle)]
+public class ProjectMaterialIssuesIndexController : ErpControllerBase
+{
+    private readonly IProjectSupplyService _supply;
+
+    public ProjectMaterialIssuesIndexController(IProjectSupplyService supply) => _supply = supply;
+
+    [HttpGet("load"), RequireScreen(PermissionCatalog.ProjectMaterialIssuesScreenId, ScreenAction.View)]
+    public async Task<IActionResult> Load(DataSourceLoadOptions loadOptions, CancellationToken ct) => Ok(await _supply.LoadIssuesAsync(loadOptions, ct));
 }

@@ -16,6 +16,10 @@ namespace ERP.Service.Services.Accounting;
 /// على حساباتها، فيبقى على ذمة الطرف الصافي المستحق وحده (ويُحسب منه المتبقي والتحصيل). الاسترداد بقيد مرافق:
 /// العميل من «الدفعات المستلمة» إلى الإيراد، والمورد من الخدمات المشتراة إلى «الدفعات المدفوعة».</item>
 /// <item>الإفراج عن الضمان: قيد بلا فاتورة (الضريبة سبقت في المستخلصات) يعيد المحتجز لذمة الطرف.</item>
+/// <item>تكلفة المواد: مع فاتورة المستخلص قيد مدين «تكلفة إيرادات العقود» / دائن «مواد مشاريع تحت التنفيذ» بالتكلفة الفعلية لكميات
+/// أذونات التسليم المختارة فيه (لا السعر ولا تقدير جدول الكميات). المخزون خرج عند التسليم فلا يُقيَّد هنا مرة أخرى.</item>
+/// <item>إلغاء فاتورة المستخلص: مرتجع كامل (إشعار دائن/مدين) بمنطق المرتجعات نفسه، وعكس قيدي الاسترداد والتكلفة، والمستخلص يصير
+/// ملغى فتعود كمياته ومواده متاحة. مرة واحدة (فهرس فريد للإشعار)، وللمستخلص الأخير غير المحصّل فقط.</item>
 /// </list>
 /// الحسابات من إعدادات المحاسبة بلا افتراضي: غير المحدد يُرفض برسالة الإعداد الناقص. كل عملية في معاملة واحدة.
 /// </summary>
@@ -30,11 +34,17 @@ public class ContractBillingService : IContractBillingService
     private readonly IAccountingPostingService _posting;
     private readonly IVoucherService _vouchers;
     private readonly IContractCertificateService _certificates;
+    private readonly ISalesReturnService _salesReturns;
+    private readonly IPurchaseReturnService _purchaseReturns;
+    private readonly ICurrentUser _user;
+    private readonly IAuditService _audit;
 
     public ContractBillingService(ErpDbContext db, ISalesInvoiceService sales, IPurchaseInvoiceService purchases, IAccountingPostingService posting,
-        IVoucherService vouchers, IContractCertificateService certificates)
+        IVoucherService vouchers, IContractCertificateService certificates, ISalesReturnService salesReturns, IPurchaseReturnService purchaseReturns,
+        ICurrentUser user, IAuditService audit)
     {
         _db = db; _sales = sales; _purchases = purchases; _posting = posting; _vouchers = vouchers; _certificates = certificates;
+        _salesReturns = salesReturns; _purchaseReturns = purchaseReturns; _user = user; _audit = audit;
     }
 
     // ---------- الدفعة المقدمة ----------
@@ -91,10 +101,12 @@ public class ContractBillingService : IContractBillingService
         {
             var c = await LoadBoqContractAsync(contractId, token);
             RequireActive(c);
-            var cert = await _db.Set<ContractCertificate>().FirstOrDefaultAsync(x => x.Id == certificateId && x.ContractId == contractId, token)
+            var cert = await _db.Set<ContractCertificate>().Include(x => x.Materials).FirstOrDefaultAsync(x => x.Id == certificateId && x.ContractId == contractId, token)
                 ?? throw new NotFoundException(Messages.CertificateNotFound);
             if (cert.Status != St.Approved) throw new ConflictException(string.Format(Messages.CertificateStatusInvalid, cert.Status));
             if (cert.TaxableAmount <= 0) throw new ValidationFailedException(Messages.CertificateNothingToInvoice);
+            // تكلفة المواد: ما رُحِّل تسليمه على أصل تحت التنفيذ يُنقل لتكلفة الإيرادات من الحساب نفسه (الجرد الدوري بلا أصل فلا قيد)
+            var materialCost = await MaterialCostByWipAsync(cert, token);
 
             // منشأة قائمة لم تُهيَّأ حسابات عقودها: تُنشأ/تُربط الناقصة فقط (الإعداد المحدد لا يُمس)
             await ContractAccountsSetup.EnsureMissingAsync(_db, token);
@@ -111,6 +123,7 @@ public class ContractBillingService : IContractBillingService
             Settle(supplier ? nameof(AccountingSettings.ContractRetentionPayableAccountCode) : nameof(AccountingSettings.ContractRetentionReceivableAccountCode), cert.RetentionAmount);
             Settle(supplier ? nameof(AccountingSettings.ContractPenaltiesIncomeAccountCode) : nameof(AccountingSettings.ContractPenaltiesExpenseAccountCode), cert.PenaltyAmount);
             Settle(nameof(AccountingSettings.ContractOtherDeductionsAccountCode), cert.OtherDeductions);
+            var costAccount = materialCost.Count > 0 ? settings.ContractAccount(nameof(AccountingSettings.ContractCostOfRevenueAccountCode)) : null;
             var advanceAccount = cert.AdvanceRecovery > 0
                 ? settings.ContractAccount(supplier ? nameof(AccountingSettings.ContractAdvancesPaidAccountCode) : nameof(AccountingSettings.ContractAdvancesReceivedAccountCode))
                 : null;
@@ -149,6 +162,19 @@ public class ContractBillingService : IContractBillingService
                 journal = (await PostAsync(c, day, note, cert.CertificateNumber, "contract_certificate", cert.Id, lines[0], lines[1], token)).JournalEntryId;
             }
 
+            if (costAccount != null)
+            {
+                var note = $"تكلفة مواد مستخلص {cert.CertificateNumber} - فاتورة {invoice.InvoiceNumber} - عقد {c.ContractNumber}";
+                var total = materialCost.Values.Sum();
+                var lines = new List<PostingLine> { new(costAccount, total, 0, note, c.CostCenterId) };
+                lines.AddRange(materialCost.Select(w => new PostingLine(w.Key, 0, w.Value, note, c.CostCenterId)));
+                cert.CostJournalEntryId = (await _posting.PostAsync(new GenericPostingRequest
+                {
+                    Date = day, Description = note, SourceType = "contract_certificate_cost", SourceId = cert.Id, SourceNumber = invoice.InvoiceNumber,
+                    WarehouseId = c.WarehouseId, Lines = lines,
+                }, token)).JournalEntryId;
+            }
+
             cert.Status = St.Invoiced;
             cert.InvoiceId = invoice.Id; cert.InvoiceNumber = invoice.InvoiceNumber; cert.InvoicedAt = DateTime.UtcNow;
             cert.AdvanceJournalEntryId = journal;
@@ -181,6 +207,88 @@ public class ContractBillingService : IContractBillingService
             return await BillCertificateAsync(contractId, certificateId, date, token);
         }, ct);
 
+    /// <summary>
+    /// تكلفة المواد المختارة في المستخلص مجمّعة بحساب «تحت التنفيذ» الذي حُمِّل عليه تسليمها. يتحقق أن أذوناتها ما زالت مرحّلة
+    /// (إلغاء الإذن ممنوع ما دامت كمياته مختارة، وهذا حارس أخير). الإذن بلا أصل (جرد دوري/قديم مصروف) لا يولّد قيداً: تكلفته سبقت.
+    /// </summary>
+    private async Task<Dictionary<string, decimal>> MaterialCostByWipAsync(ContractCertificate cert, CancellationToken ct)
+    {
+        if (cert.Materials.Count == 0) return new();
+        var issueIds = cert.Materials.Select(m => m.IssueId).Distinct().ToList();
+        var issues = await _db.Set<ProjectMaterialIssue>().AsNoTracking().Where(i => issueIds.Contains(i.Id))
+            .Select(i => new { i.Id, i.IssueNumber, i.Status, i.DebitAccountCode }).ToDictionaryAsync(i => i.Id, ct);
+        var stale = issueIds.Where(id => !issues.TryGetValue(id, out var i) || i.Status != ProjectMaterialIssueStatuses.Posted).ToList();
+        if (stale.Count > 0)
+            throw new ConflictException($"أذونات تسليم في المستخلص لم تعد مرحّلة ({string.Join("، ", stale.Select(id => issues.GetValueOrDefault(id)?.IssueNumber ?? "?"))}): أعد المستخلص وحدّث مواده.");
+        return cert.Materials.Where(m => issues[m.IssueId].DebitAccountCode != null)
+            .GroupBy(m => issues[m.IssueId].DebitAccountCode!)
+            .Select(g => (Account: g.Key, Cost: DocumentPricing.Round(g.Sum(m => m.TotalCost))))
+            .Where(x => x.Cost != 0)
+            .ToDictionary(x => x.Account, x => x.Cost);
+    }
+
+    // ---------- إلغاء فاتورة المستخلص ----------
+
+    /// <summary>
+    /// يلغي فاتورة مستخلص مفوتر: مرتجع كامل بمنطق المرتجعات (يعكس الإيراد/الخدمات والضريبة والاستقطاعات كما رُحِّلت)، ثم يعكس قيد
+    /// استرداد الدفعة وقيد تكلفة المواد، ويصير المستخلص ملغى فتعود كمياته ومواده متاحة لمستخلص جديد. يُسجَّل إشعار الإلغاء في سجل
+    /// فواتير العقد (فهرس فريد يمنع الإلغاء المزدوج). شروطه: المستخلص الأخير غير الملغى، ولا تحصيل على فاتورته، ولا إفراج عن الضمان،
+    /// والختامي لا يُلغى بعد الاستلام الأولي. القيود الأصلية تبقى في السجل وتُعكس بقيود مؤرخة، فلا يُعاد كتابة التاريخ.
+    /// </summary>
+    public Task<ContractCertificateDto> CancelCertificateInvoiceAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct = default)
+        => new TransactionRunner(_db).RunAsync(async token =>
+        {
+            var reason = string.IsNullOrWhiteSpace(request.Note) ? throw new ValidationFailedException(Messages.CertificateNoteRequired) : request.Note.Trim();
+            var c = await LoadBoqContractAsync(contractId, token);
+            RequireActive(c);
+            var cert = await _db.Set<ContractCertificate>().FirstOrDefaultAsync(x => x.Id == certificateId && x.ContractId == contractId, token)
+                ?? throw new NotFoundException(Messages.CertificateNotFound);
+            if (cert.Status != St.Invoiced || cert.InvoiceId is not { } invoiceId)
+                throw new ConflictException(string.Format(Messages.CertificateStatusInvalid, cert.Status));
+            if (cert.Kind == ContractCertificateKinds.Final && c.Stage != ContractStageDefinition.Active)
+                throw new ConflictException("المستخلص الختامي لا تُلغى فاتورته بعد الاستلام الأولي.");
+            var later = await _db.Set<ContractCertificate>().AsNoTracking()
+                .Where(x => x.ContractId == contractId && x.SequenceNo > cert.SequenceNo && x.Status != St.Cancelled)
+                .Select(x => x.CertificateNumber).ToListAsync(token);
+            if (later.Count > 0)
+                throw new ConflictException($"بُني على هذا المستخلص ما بعده ({string.Join("، ", later)}): ألغِ المستخلصات اللاحقة أولاً.");
+            if (await _db.Set<VoucherAllocation>().AnyAsync(a => a.InvoiceId == invoiceId, token))
+                throw new ConflictException("على فاتورة المستخلص تحصيل/سداد: ألغِ السند أولاً ثم ألغِ الفاتورة.");
+            if (await _db.Set<ContractInvoice>().AnyAsync(i => i.ContractId == contractId && i.Kind == RetentionRelease, token))
+                throw new ConflictException("أُفرج عن ضمان العقد: لا تُلغى فواتير مستخلصاته.");
+            var billed = await _db.Set<ContractInvoice>().AsNoTracking()
+                .FirstOrDefaultAsync(i => i.CertificateId == cert.Id && i.Kind != "credit_note", token);
+
+            var supplier = IsSupplier(c);
+            var text = $"إلغاء فاتورة مستخلص {cert.CertificateNumber} ({cert.InvoiceNumber}) - عقد {c.ContractNumber}: {reason}";
+            var returnRequest = new CreateReturnInvoiceRequestDto
+            {
+                OriginalInvoiceId = invoiceId, ReturnReason = text, SystemGenerated = true, ReturnDate = SaudiTime.Today,
+            };
+            // مرتجع كامل بتوزيع أصله: الآجل يعود على الذمة، والاستقطاعات تعود من حساباتها
+            var credit = supplier ? await _purchaseReturns.CreateFromInvoiceAsync(returnRequest, token) : await _salesReturns.CreateFromInvoiceAsync(returnRequest, token);
+
+            if (cert.AdvanceJournalEntryId is { } advance) await _posting.ReverseAsync(advance, text, token);
+            if (cert.CostJournalEntryId is { } cost) await _posting.ReverseAsync(cost, text, token);
+
+            _db.Add(new ContractInvoice
+            {
+                ContractId = c.Id, Kind = "credit_note", InvoiceId = credit.Id, InvoiceNumber = credit.InvoiceNumber, CertificateId = cert.Id,
+                RelatedInvoiceId = invoiceId, GrossAmount = billed?.GrossAmount ?? cert.CurrentWorkValue,
+                AdvanceDeduction = billed?.AdvanceDeduction ?? cert.AdvanceRecovery, RetentionAmount = billed?.RetentionAmount ?? cert.RetentionAmount,
+                VatAmount = credit.VatTotal, TotalAmount = credit.GrandTotal, IssuedAt = credit.IssueDate,
+            });
+            AddInvoiced(c, -credit.GrandTotal);
+            cert.Status = St.Cancelled;
+            cert.ReturnNote = reason;
+            cert.CreditNoteInvoiceId = credit.Id; cert.CreditNoteNumber = credit.InvoiceNumber;
+            cert.InvoiceCancelledAt = DateTime.UtcNow; cert.InvoiceCancelledBy = _user.Name ?? "system";
+            await _db.SaveChangesAsync(token);
+            await _audit.LogAsync("CONTRACT_CERTIFICATE_INVOICE_CANCELLED", nameof(ContractCertificate), cert.Id.ToString(),
+                $"{text} — إشعار {credit.InvoiceNumber} بإجمالي {credit.GrandTotal:0.00}، وعُكس قيد التكلفة {cert.MaterialCost:0.00}", token);
+            return await _certificates.GetAsync(contractId, cert.Id, token);
+        }, ct);
+
     // ---------- الإفراج عن الضمان ----------
 
     public Task<RetentionReleaseResultDto> ReleaseRetentionAsync(Guid contractId, DateTime? date = null, CancellationToken ct = default)
@@ -190,7 +298,9 @@ public class ContractBillingService : IContractBillingService
             // الإفراج بعد الاستلام الأولي (والإغلاق يشترطه)
             if (c.Stage != ContractStageDefinition.InitialAcceptance) throw new ConflictException(Messages.RetentionReleaseAfterAcceptance);
             var invoices = _db.Set<ContractInvoice>().Where(i => i.ContractId == c.Id && i.Kind != "credit_note");
-            var withheld = await invoices.Where(i => i.Kind != RetentionRelease).SumAsync(i => i.RetentionAmount, token);
+            // ضمان فواتير مستخلصات أُلغيت بإشعار لم يعد محتجزاً
+            var cancelledRetention = await _db.Set<ContractInvoice>().Where(i => i.ContractId == c.Id && i.Kind == "credit_note").SumAsync(i => i.RetentionAmount, token);
+            var withheld = await invoices.Where(i => i.Kind != RetentionRelease).SumAsync(i => i.RetentionAmount, token) - cancelledRetention;
             var released = await invoices.Where(i => i.Kind == RetentionRelease).SumAsync(i => i.GrossAmount, token);
             var amount = withheld - released;
             if (amount <= 0) throw new ConflictException(Messages.RetentionNothingToRelease);

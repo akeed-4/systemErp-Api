@@ -66,6 +66,11 @@ internal static class PostingAccounts
             (s, v) => s.ContractPenaltiesIncomeAccountCode = v, null, Revenue),
         new(nameof(AccountingSettings.ContractOtherDeductionsAccountCode), s => s.ContractOtherDeductionsAccountCode,
             (s, v) => s.ContractOtherDeductionsAccountCode = v, null, ProfitOrLoss),
+        // مواد المشاريع: الأصل يُقفل بعد استخدامه (المستخلص يُخفّض الحساب نفسه الذي حُمِّل عليه الصرف)
+        new(nameof(AccountingSettings.ProjectMaterialsWipAccountCode), s => s.ProjectMaterialsWipAccountCode,
+            (s, v) => s.ProjectMaterialsWipAccountCode = v, null, Asset, LockedAfterUse: true),
+        new(nameof(AccountingSettings.ContractCostOfRevenueAccountCode), s => s.ContractCostOfRevenueAccountCode,
+            (s, v) => s.ContractCostOfRevenueAccountCode = v, null, Expense),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)

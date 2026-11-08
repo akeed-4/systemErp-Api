@@ -1,9 +1,10 @@
 namespace ERP.Core.Models.Accounting;
 
 /// <summary>
-/// صرف مواد من المستودع لمشروع (عقد مقاولات): لجهة استلام محددة، ولا يتجاوز صرف أي صنف الكمية المطلوبة في احتياجات المشروع المعتمدة
-/// (دراسة الجدوى) ناقص ما سُلِّم سابقاً. الترحيل: حركة صرف بالتكلفة من المستودع، وقيد مدين تكلفة مواد المشاريع (بمركز تكلفة المشروع)
-/// / دائن مخزون المستودع. الإلغاء يعكس الحركة والقيد.
+/// إذن تسليم مواد من المستودع لمشروع (عقد مقاولات): لجهة استلام محددة، وكل سطر على بند في جدول الكميات، ولا يتجاوز صرف أي صنف
+/// الكمية المطلوبة في احتياجات المشروع المعتمدة (دراسة الجدوى) ناقص ما سُلِّم سابقاً. الترحيل: حركة صرف بالتكلفة الفعلية من المستودع،
+/// وقيد مدين «مواد مشاريع تحت التنفيذ» (أصل، بمركز تكلفة المشروع) / دائن مخزون المستودع؛ التكلفة تُعترف عند فوترة المستخلص الذي
+/// يختار هذه الكميات. الإلغاء يعكس الحركة والقيد (ويُمنع ما دامت كمياته في مستخلص غير ملغى).
 /// </summary>
 public class ProjectMaterialIssue : BaseEntity
 {
@@ -26,6 +27,11 @@ public class ProjectMaterialIssue : BaseEntity
     public decimal TotalCost { get; set; }
     public Guid? CostCenterId { get; set; }
     public Guid? JournalEntryId { get; set; }
+    /// <summary>
+    /// الحساب المدين في قيد الترحيل: «مواد مشاريع تحت التنفيذ» وقت الترحيل، ومنه يُخفَّض عند فوترة المستخلص.
+    /// فارغ = لا أصل تحت التنفيذ: مستند قديم رُحِّل مصروفاً مباشراً (517)، أو بجرد دوري بلا قيد؛ فلا يُعترف بتكلفته مرة أخرى.
+    /// </summary>
+    public string? DebitAccountCode { get; set; }
     public string? Notes { get; set; }
     public DateTime? PostedAt { get; set; }
     public string? PostedBy { get; set; }
@@ -37,6 +43,8 @@ public class ProjectMaterialIssue : BaseEntity
 public class ProjectMaterialIssueLine : BaseEntity
 {
     public Guid IssueId { get; set; }
+    /// <summary>بند جدول الكميات (سطر قياس غير مجموعة في العقد نفسه). فارغ في مستندات سبقت الربط بالبنود.</summary>
+    public Guid? BoqItemId { get; set; }
     public Guid ProductId { get; set; }
     public string Sku { get; set; } = string.Empty;
     public string ItemName { get; set; } = string.Empty;
@@ -48,6 +56,8 @@ public class ProjectMaterialIssueLine : BaseEntity
     public decimal TotalCost { get; set; }
     public string? Notes { get; set; }
     public int SortOrder { get; set; }
+    /// <summary>رمز تزامن: اختيار الكمية في مستخلص وإلغاء المستند في الوقت نفسه لا يمرّان معاً دون اكتشاف.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public virtual ProjectMaterialIssue Issue { get; set; } = null!;
 }
@@ -71,12 +81,12 @@ public static class ProjectIssueReceiverTypes
     public static bool IsValid(string? type) => type is SiteEngineer or Supervisor or Subcontractor or Storekeeper or Other;
 }
 
-/// <summary>موقع توريد مواد طلب الشراء.</summary>
+/// <summary>موقع توريد مواد طلب الشراء: المستودع دائماً للطلبات الجديدة (التسليم للمشروع بإذن تسليم).</summary>
 public static class RequisitionDeliveryLocations
 {
-    /// <summary>للمستودع، ثم تُصرف للمشروع بمستند صرف.</summary>
+    /// <summary>للمستودع، ثم تُصرف للمشروع بإذن تسليم.</summary>
     public const string Warehouse = "warehouse";
-    /// <summary>مباشرة لموقع المشروع.</summary>
+    /// <summary>قيمة قديمة وصفية بلا أثر (لم تعد تُقبل في الحفظ؛ تبقى في الطلبات السابقة للعرض).</summary>
     public const string ProjectSite = "project_site";
 
     public static bool IsValid(string? value) => value is Warehouse or ProjectSite;

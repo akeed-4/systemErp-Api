@@ -24,12 +24,15 @@ public class ContractAccountsSetupTests : TestBase
         ("contractPenaltiesIncomeAccountCode", "424", "42", "revenue"),
         ("contractPenaltiesExpenseAccountCode", "532", "52", "expense"),
         ("contractOtherDeductionsAccountCode", "533", "52", "expense"),
+        ("projectMaterialsWipAccountCode", "1134", "113", "asset"),
+        ("contractCostOfRevenueAccountCode", "534", "52", "expense"),
     };
 
     private static readonly string[] SetupFields =
     {
         "ContractAdvancesReceivedAccountCode", "ContractRetentionPayableAccountCode", "ContractRetentionReceivableAccountCode",
         "ContractAdvancesPaidAccountCode", "ContractPenaltiesIncomeAccountCode", "ContractPenaltiesExpenseAccountCode", "ContractOtherDeductionsAccountCode",
+        "ProjectMaterialsWipAccountCode", "ContractCostOfRevenueAccountCode",
     };
 
     private static Task<Res> Initialize(Client api) => api.Post("/accounting-settings/contract-accounts");
@@ -85,7 +88,7 @@ public class ContractAccountsSetupTests : TestBase
         // تشغيل التهيئة على منشأة جديدة: كل شيء «باقٍ» ولا حساب مكرر
         var report = await Initialize(api);
         Assert.Equal(200, report.Status);
-        Assert.Equal(7, report.Data!["kept"]!.GetValue<int>());
+        Assert.Equal(9, report.Data!["kept"]!.GetValue<int>());
         Assert.Equal(0, report.Data["created"]!.GetValue<int>());
         Assert.Equal(1, await CountAsync(api, q => q.Where(a => a.NameAr == "دفعات مقدمة مستلمة على العقود")));
     }
@@ -99,20 +102,20 @@ public class ContractAccountsSetupTests : TestBase
 
         var first = await Initialize(api);
         Assert.Equal(200, first.Status);
-        Assert.Equal(7, first.Data!["created"]!.GetValue<int>());
+        Assert.Equal(9, first.Data!["created"]!.GetValue<int>());
         await AssertDefaultLayoutAsync(api);
-        Assert.Equal(accountsBefore + 7, await CountAsync(api, q => q));
+        Assert.Equal(accountsBefore + 9, await CountAsync(api, q => q));
 
         var second = await Initialize(api);
-        Assert.Equal(7, second.Data!["kept"]!.GetValue<int>());
-        Assert.Equal(accountsBefore + 7, await CountAsync(api, q => q));
+        Assert.Equal(9, second.Data!["kept"]!.GetValue<int>());
+        Assert.Equal(accountsBefore + 9, await CountAsync(api, q => q));
 
         // مُسح الربط بعد الإنشاء: يُعرف الحساب المُنشأ باسمه ولا يُنشأ ثانٍ
         Assert.Equal(200, (await api.Put("/accounting-settings", new { contractAdvancesReceivedAccountCode = "" })).Status);
         var third = await Initialize(api);
         Assert.Equal("reused", Status(third, "ContractAdvancesReceivedAccountCode"));
         Assert.Equal("218", await Setting(api, "contractAdvancesReceivedAccountCode"));
-        Assert.Equal(accountsBefore + 7, await CountAsync(api, q => q));
+        Assert.Equal(accountsBefore + 9, await CountAsync(api, q => q));
     }
 
     [Fact]

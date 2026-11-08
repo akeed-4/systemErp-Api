@@ -184,6 +184,11 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     public async Task<IActionResult> CertificateTemplate(Guid id, CancellationToken ct)
         => Success(await _certificates.TemplateAsync(id, ct));
 
+    /// <summary>أسطر أذونات تسليم المواد المرحّلة المتاحة للاختيار في المستخلص (والمختارة في <paramref name="certificateId"/>).</summary>
+    [HttpGet("{id:guid}/certificates/material-options"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CertificateMaterialOptions(Guid id, [FromQuery] Guid? certificateId, CancellationToken ct)
+        => Success(await _certificates.MaterialOptionsAsync(id, certificateId, ct));
+
     [HttpGet("{id:guid}/certificates/{certificateId:guid}"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Certificate(Guid id, Guid certificateId, CancellationToken ct)
         => Success(await _certificates.GetAsync(id, certificateId, ct));
@@ -253,6 +258,17 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
         return Success(await _billing.IssueCertificateAsync(id, certificateId, date, ct), Messages.CertificateIssued);
+    }
+
+    /// <summary>
+    /// إلغاء فاتورة مستخلص مفوتر بإشعار (مرتجع كامل) مع عكس قيدي الاسترداد وتكلفة المواد: عملية ترحيل عكسية، فصلاحيتها صلاحية
+    /// الفوترة نفسها (الترحيل) على سجل العقد في مراحل التنفيذ.
+    /// </summary>
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/cancel-invoice"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
+    public async Task<IActionResult> CancelCertificateInvoice(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
+        return Success(await _billing.CancelCertificateInvoiceAsync(id, certificateId, dto, ct), "تم إلغاء فاتورة المستخلص وعكس قيودها.");
     }
 
     [HttpPost("{id:guid}/retention-release"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]

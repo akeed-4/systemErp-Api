@@ -176,6 +176,8 @@ public class ErpDbContext : DbContext
         (typeof(ProjectMaterialIssue), nameof(ProjectMaterialIssue.ContractId), typeof(CommercialContract)),
         (typeof(ProjectMaterialIssueLine), nameof(ProjectMaterialIssueLine.ProductId), typeof(Product)),
         (typeof(MaterialRequisition), nameof(MaterialRequisition.ContractId), typeof(CommercialContract)),
+        // مواد المستخلص تشير لسطر إذن التسليم: لا يُحذف سطر اختير في مستخلص (المرحّل لا يُحذف أصلاً، والإلغاء يُمنع ما دام مختاراً)
+        (typeof(ContractCertificateMaterial), nameof(ContractCertificateMaterial.IssueLineId), typeof(ProjectMaterialIssueLine)),
         // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
 
@@ -422,6 +424,9 @@ public class ErpDbContext : DbContext
             .HasFilter("[CertificateId] IS NOT NULL AND [Kind] <> N'credit_note'");
         modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.ContractId, i.Kind }).IsUnique()
             .HasFilter("[Kind] = N'advance'").HasDatabaseName("IX_ContractInvoice_TenantId_ContractId_Advance");
+        // فاتورة المستخلص تُلغى مرة واحدة: إشعار إلغاء واحد لكل مستخلص (يمنع العكس المزدوج عند التزامن)
+        modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.CertificateId, i.Kind }).IsUnique()
+            .HasFilter("[CertificateId] IS NOT NULL AND [Kind] = N'credit_note'").HasDatabaseName("IX_ContractInvoice_TenantId_CertificateId_CreditNote");
         modelBuilder.Entity<ContractCertificate>(e =>
         {
             e.Property(c => c.CertificateNumber).HasMaxLength(50).IsRequired();
@@ -436,6 +441,17 @@ public class ErpDbContext : DbContext
                 .HasDatabaseName("IX_ContractCertificate_TenantId_ContractId_Open");
         });
         modelBuilder.Entity<ContractCertificateDeduction>().Property(d => d.Description).HasMaxLength(300).IsRequired();
+        modelBuilder.Entity<ContractCertificate>().Property(c => c.CreditNoteNumber).HasMaxLength(50);
+        modelBuilder.Entity<ContractCertificateMaterial>(e =>
+        {
+            e.Property(m => m.IssueNumber).HasMaxLength(50).IsRequired();
+            e.Property(m => m.Sku).HasMaxLength(100);
+            e.Property(m => m.ItemName).HasMaxLength(300);
+            e.Property(m => m.Unit).HasMaxLength(20);
+            e.HasOne(m => m.Certificate).WithMany(c => c.Materials).HasForeignKey(m => m.CertificateId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(m => new { m.CertificateId, m.IssueLineId }).IsUnique();
+            e.HasIndex(m => new { m.TenantId, m.IssueLineId });
+        });
         modelBuilder.Entity<ContractCertificateLine>(e =>
         {
             e.Property(l => l.LineCode).HasMaxLength(32);
@@ -831,6 +847,7 @@ public class ErpDbContext : DbContext
             e.Property(i => i.Status).HasMaxLength(16).IsRequired();
             e.Property(i => i.ReceiverType).HasMaxLength(32).IsRequired();
             e.Property(i => i.ReceiverName).HasMaxLength(200);
+            e.Property(i => i.DebitAccountCode).HasMaxLength(50);
             e.HasIndex(i => new { i.TenantId, i.ContractId, i.Status });
         });
         modelBuilder.Entity<ProjectMaterialIssueLine>(e =>
@@ -838,7 +855,9 @@ public class ErpDbContext : DbContext
             e.Property(l => l.Sku).HasMaxLength(100);
             e.Property(l => l.ItemName).HasMaxLength(300);
             e.Property(l => l.Unit).HasMaxLength(20);
+            e.Property(l => l.RowVersion).IsRowVersion();
             e.HasOne(l => l.Issue).WithMany(i => i.Lines).HasForeignKey(l => l.IssueId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(l => new { l.TenantId, l.BoqItemId });
         });
         modelBuilder.Entity<MaterialRequisition>().Property(r => r.DeliveryLocation).HasMaxLength(20).HasDefaultValue(RequisitionDeliveryLocations.Warehouse);
         modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.ContractId });

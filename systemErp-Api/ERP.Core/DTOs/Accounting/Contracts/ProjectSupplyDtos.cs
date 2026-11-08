@@ -33,6 +33,13 @@ public class ProjectMaterialTrackingLineDto
     public decimal PurchasedQuantity { get; set; }
     /// <summary>سُلِّم للمشروع بمستندات صرف مرحّلة.</summary>
     public decimal DeliveredQuantity { get; set; }
+    /// <summary>أُعيد من الموقع للمستودع (يُطرح من المسلَّم أعلاه)، وهُدر أو تلف في الموقع.</summary>
+    public decimal ReturnedQuantity { get; set; }
+    public decimal WastedQuantity { get; set; }
+    /// <summary>المستهلك في التقارير اليومية المعتمدة (محوّلاً لوحدة الصنف).</summary>
+    public decimal ConsumedQuantity { get; set; }
+    /// <summary>عهدة الموقع = المسلَّم الصافي − الهدر − المستهلك (سالب = استهلاك مسجَّل أكثر من المسلَّم).</summary>
+    public decimal CustodyQuantity { get; set; }
     public decimal RemainingToRequest { get; set; }
     public decimal RemainingToDeliver { get; set; }
     /// <summary>الرصيد في مستودع المشروع (أو مستودع الطلب).</summary>
@@ -72,6 +79,8 @@ public class ProjectMaterialIssueDocDto
     public Guid? ReceiverSupplierId { get; set; }
     public Guid? RequisitionId { get; set; }
     public string Status { get; set; } = "draft";
+    /// <summary>issue | return | waste</summary>
+    public string Kind { get; set; } = "issue";
     public decimal TotalCost { get; set; }
     public Guid? JournalEntryId { get; set; }
     /// <summary>الحساب المدين عند الترحيل (مواد مشاريع تحت التنفيذ)؛ فارغ لمستند قديم رُحِّل مصروفاً أو بجرد دوري.</summary>
@@ -97,6 +106,10 @@ public class ProjectMaterialIssueLineDto
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
     public string? Notes { get; set; }
+    /// <summary>الإرجاع والهدر: سطر التسليم المصدر.</summary>
+    public Guid? SourceLineId { get; set; }
+    /// <summary>سطر التسليم: المسحوب منه بإرجاع أو هدر مرحّل.</summary>
+    public decimal WithdrawnQuantity { get; set; }
     /// <summary>المختار من السطر في مستخلصات غير ملغاة.</summary>
     public decimal CertifiedQuantity { get; set; }
     // للقراءة (أعمدة المستند): من متابعة المشروع وقت القراءة، دون هذا المستند
@@ -116,6 +129,8 @@ public class SaveProjectMaterialIssueDto
     public Guid? ReceiverSupplierId { get; set; }
     public Guid? RequisitionId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>issue (افتراضي) | return | waste.</summary>
+    public string? Kind { get; set; }
     /// <summary>ترحيل مباشر بعد الحفظ.</summary>
     public bool Post { get; set; }
     public List<SaveProjectMaterialIssueLineDto> Lines { get; set; } = new();
@@ -123,7 +138,9 @@ public class SaveProjectMaterialIssueDto
 
 public class SaveProjectMaterialIssueLineDto
 {
-    /// <summary>بند جدول الكميات (سطر قياس في العقد نفسه)، إلزامي.</summary>
+    /// <summary>الإرجاع والهدر: سطر التسليم المرحّل المصدر (الصنف والبند والتكلفة منه).</summary>
+    public Guid? SourceLineId { get; set; }
+    /// <summary>بند جدول الكميات (سطر قياس في العقد نفسه)، إلزامي للتسليم.</summary>
     public Guid? BoqItemId { get; set; }
     public Guid ProductId { get; set; }
     public decimal Quantity { get; set; }
@@ -146,6 +163,7 @@ public class ProjectMaterialIssueRowDto
     public string Status { get; set; } = string.Empty;
     public decimal TotalCost { get; set; }
     public int LineCount { get; set; }
+    public string Kind { get; set; } = "issue";
     public DateTime? PostedAt { get; set; }
     public string? PostedBy { get; set; }
     public DateTime CreatedAt { get; set; }

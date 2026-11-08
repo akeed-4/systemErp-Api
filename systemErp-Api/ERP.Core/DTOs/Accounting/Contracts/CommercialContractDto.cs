@@ -58,6 +58,16 @@ public partial class CommercialContractDto
     public bool AutoRenew { get; set; }
     public string Currency { get; set; } = "SAR";
     public Guid? CostCenterId { get; set; }
+    /// <summary>عقد العميل (المشروع) لعقد مقاول الباطن.</summary>
+    public Guid? ParentContractId { get; set; }
+    /// <summary>المناقصة: الحالة (فارغة = بلا مناقصة) وبياناتها ونتيجتها.</summary>
+    public string? TenderStatus { get; set; }
+    public string? TenderNumber { get; set; }
+    public DateTime? TenderIssueDate { get; set; }
+    public DateTime? TenderDeadline { get; set; }
+    public string? TenderRequirements { get; set; }
+    public DateTime? TenderDecidedAt { get; set; }
+    public string? TenderResultNote { get; set; }
     public decimal AdvancePercent { get; set; }
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }

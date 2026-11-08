@@ -25,11 +25,12 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     private readonly IContractBillingService _billing;
     private readonly IPermissionService _permissions;
     private readonly IProjectMaterialService _materials;
+    private readonly IContractVariationService _variations;
 
     public CommercialContractsController(ICommercialContractService s, IContractWorkflowService workflow, IContractCertificateService certificates,
-        IContractBillingService billing, IPermissionService permissions, IProjectMaterialService materials) : base(s)
+        IContractBillingService billing, IPermissionService permissions, IProjectMaterialService materials, IContractVariationService variations) : base(s)
     {
-        _contracts = s; _workflow = workflow; _certificates = certificates; _billing = billing; _permissions = permissions; _materials = materials;
+        _contracts = s; _workflow = workflow; _certificates = certificates; _billing = billing; _permissions = permissions; _materials = materials; _variations = variations;
     }
 
     // ---------- احتياجات مواد المشروع (العقد هو المشروع): الاستلام للإعداد والتقديم (كالمستخلصات، في مراحل التنفيذ)، والاعتماد للاعتماد والإعادة ----------
@@ -84,6 +85,98 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     {
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
         return Success(await _materials.ReturnAsync(id, dto, ct), Messages.ProjectMaterialPlanReturned);
+    }
+
+    // ---------- المناقصة (مسودة عقد المقاولات قبل الترسية) ----------
+    // نقل الحالة بصلاحية التعديل على سجل العقد (المسودة تسمح بها)؛ الخادم يحصرها في المسودة.
+
+    [HttpGet("{id:guid}/tender"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Tender(Guid id, [FromServices] IContractTenderService tenders, CancellationToken ct)
+        => Success(await tenders.GetAsync(id, ct));
+
+    [HttpGet("{id:guid}/tender/revisions"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> TenderRevisions(Guid id, [FromServices] IContractTenderService tenders, CancellationToken ct)
+        => Success(await tenders.RevisionsAsync(id, ct));
+
+    [HttpPost("{id:guid}/tender/move"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> MoveTender(Guid id, [FromBody] MoveTenderDto dto, [FromServices] IContractTenderService tenders, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Edit, Record, id, ct: ct);
+        return Success(await tenders.MoveAsync(id, dto, ct), "تم تحديث حالة المناقصة.");
+    }
+
+    // ---------- أوامر التغيير (عقود جدول الكميات السارية) ----------
+    // الإعداد والتقديم والإلغاء بصلاحية «الاستلام» كالمستخلصات، والاعتماد والإعادة والرفض بصلاحية «الاعتماد»، على سجل العقد.
+    // الاعتماد وحده يغيّر العقد ويمر بسياسة الاعتماد إن وُجدت.
+
+    private const string VariationsApproval = "contract-variations";
+
+    [HttpGet("{id:guid}/variations"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Variations(Guid id, CancellationToken ct)
+        => Success(await _variations.SummaryAsync(id, ct));
+
+    [HttpGet("{id:guid}/variations/{variationId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Variation(Guid id, Guid variationId, CancellationToken ct)
+        => Success(await _variations.GetAsync(id, variationId, ct));
+
+    [HttpPost("{id:guid}/variations"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CreateVariation(Guid id, [FromBody] SaveContractVariationDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _variations.CreateAsync(id, dto, ct), Messages.CreatedSuccessfully);
+    }
+
+    [HttpPut("{id:guid}/variations/{variationId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> UpdateVariation(Guid id, Guid variationId, [FromBody] SaveContractVariationDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _variations.UpdateAsync(id, variationId, dto, ct), Messages.UpdatedSuccessfully);
+    }
+
+    [HttpDelete("{id:guid}/variations/{variationId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> DeleteVariation(Guid id, Guid variationId, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        await _variations.DeleteAsync(id, variationId, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
+
+    [HttpPost("{id:guid}/variations/{variationId:guid}/submit"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> SubmitVariation(Guid id, Guid variationId, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _variations.SubmitAsync(id, variationId, ct), "تم تقديم أمر التغيير للاعتماد.");
+    }
+
+    /// <summary>الاعتماد يمر بسياسة الاعتماد إن وُجدت (يُحجز بطلب اعتماد ويُنفَّذ عند الاعتماد النهائي).</summary>
+    [HttpPost("{id:guid}/variations/{variationId:guid}/approve"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ApproveVariation(Guid id, Guid variationId, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        if (await _variations.ContractIdOfAsync(variationId, ct) != id) return NotFound();
+        if (await HoldForApprovalAsync(VariationsApproval, ApprovalDocumentCatalog.Approve, variationId, null, ct) is { } held) return held;
+        return Success(await _variations.ApproveAsync(variationId, ct), "تم اعتماد أمر التغيير وتعديل العقد.");
+    }
+
+    [HttpPost("{id:guid}/variations/{variationId:guid}/return"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ReturnVariation(Guid id, Guid variationId, [FromBody] ContractVariationActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _variations.ReturnAsync(id, variationId, dto, ct), "أُعيد أمر التغيير للمسودة.");
+    }
+
+    [HttpPost("{id:guid}/variations/{variationId:guid}/reject"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> RejectVariation(Guid id, Guid variationId, [FromBody] ContractVariationActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _variations.RejectAsync(id, variationId, dto, ct), "تم رفض أمر التغيير.");
+    }
+
+    [HttpPost("{id:guid}/variations/{variationId:guid}/cancel"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CancelVariation(Guid id, Guid variationId, [FromBody] ContractVariationActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _variations.CancelAsync(id, variationId, dto, ct), "تم إلغاء أمر التغيير.");
     }
 
     protected override string? ApprovalHandler => "commercial-contracts";
@@ -292,4 +385,19 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
         return Success(await _contracts.BillMilestoneAsync(id, milestoneId, date, ct), Messages.MilestoneBilled);
     }
+}
+
+/// <summary>سجل المناقصات لكل العقود (في نطاق وصول المستخدم إلى العقود): الحالة والموعد والقيم.</summary>
+[Route("api/v1/tenders")]
+[RequireModule(PlatformModules.Accounting)]
+[ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
+[RequireFeature(PlanFeatures.CommercialCycle)]
+public class TendersIndexController : ErpControllerBase
+{
+    private readonly IContractTenderService _tenders;
+
+    public TendersIndexController(IContractTenderService tenders) => _tenders = tenders;
+
+    [HttpGet, RequireScreen(PermissionCatalog.CommercialContractsScreenId, ScreenAction.View)]
+    public async Task<IActionResult> List(CancellationToken ct) => Success(await _tenders.ListAsync(ct));
 }

@@ -24,6 +24,8 @@ public class ProjectMaterialIssue : BaseEntity
     /// <summary>طلب الشراء الذي وُرِّد للموقع ويُصرف منه (اختياري، للتتبع).</summary>
     public Guid? RequisitionId { get; set; }
     public string Status { get; set; } = ProjectMaterialIssueStatuses.Draft;
+    /// <summary>نوع المستند: تسليم للموقع، أو إرجاع من الموقع للمستودع، أو هدر/تالف في الموقع (ProjectMaterialIssueKinds).</summary>
+    public string Kind { get; set; } = ProjectMaterialIssueKinds.Issue;
     public decimal TotalCost { get; set; }
     public Guid? CostCenterId { get; set; }
     public Guid? JournalEntryId { get; set; }
@@ -45,6 +47,8 @@ public class ProjectMaterialIssueLine : BaseEntity
     public Guid IssueId { get; set; }
     /// <summary>بند جدول الكميات (سطر قياس غير مجموعة في العقد نفسه). فارغ في مستندات سبقت الربط بالبنود.</summary>
     public Guid? BoqItemId { get; set; }
+    /// <summary>الإرجاع والهدر: سطر إذن التسليم المرحّل الذي تُسحب منه الكمية (بتكلفته الفعلية نفسها).</summary>
+    public Guid? SourceLineId { get; set; }
     public Guid ProductId { get; set; }
     public string Sku { get; set; } = string.Empty;
     public string ItemName { get; set; } = string.Empty;
@@ -90,4 +94,17 @@ public static class RequisitionDeliveryLocations
     public const string ProjectSite = "project_site";
 
     public static bool IsValid(string? value) => value is Warehouse or ProjectSite;
+}
+
+/// <summary>
+/// أنواع مستند مواد المشروع (المستند نفسه وترقيمه ودورته): التسليم يصرف من المستودع إلى «مواد تحت التنفيذ»؛ الإرجاع يعيد كمية من
+/// سطر تسليم مرحّل إلى المستودع (مدين المخزون / دائن تحت التنفيذ بتكلفة التسليم)؛ والهدر يعترف بتكلفة كمية تالفة أو مفقودة في الموقع
+/// (مدين تكلفة إيرادات العقود بمركز المشروع / دائن تحت التنفيذ) بلا حركة مخزون. المسحوب من سطر بالإرجاع والهدر والمستخلصات ≤ كميته.
+/// </summary>
+public static class ProjectMaterialIssueKinds
+{
+    public const string Issue = "issue";
+    public const string Return = "return";
+    public const string Waste = "waste";
+    public static bool IsValid(string? kind) => kind is Issue or Return or Waste;
 }

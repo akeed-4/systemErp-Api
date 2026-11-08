@@ -124,7 +124,10 @@ public class ConstructionProjectService : IConstructionProjectService
         var boqTypes = await _db.Set<ContractTypeDefinition>().AsNoTracking()
             .Where(t => t.Billing == ContractBilling.BoqCertificate).Select(t => t.Code).ToListAsync(ct);
         var contracts = await _db.Set<CommercialContract>().AsNoTracking()
-            .Where(c => boqTypes.Contains(c.ContractType) && (onlyId == null || c.Id == onlyId))
+            // عقد مقاول الباطن (مورد) ليس مشروعاً (يظهر في قسم مقاولي الباطن لمشروعه)، والمناقصة لا تصير مشروعاً حتى تُرسى
+            .Where(c => boqTypes.Contains(c.ContractType) && (onlyId == null
+                ? c.PartyType != "supplier" && (c.TenderStatus == null || c.TenderStatus == ContractTenderStatuses.Awarded)
+                : c.Id == onlyId))
             .OrderByDescending(c => c.CreatedAt)
             .Select(c => new
             {
@@ -169,7 +172,8 @@ public class ConstructionProjectService : IConstructionProjectService
         var requisitionCounts = await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.ContractId != null && ids.Contains(r.ContractId.Value) && r.Status != "rejected")
             .GroupBy(r => r.ContractId!.Value).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var issuedCost = await _db.Set<ProjectMaterialIssue>().AsNoTracking().Where(i => ids.Contains(i.ContractId) && i.Status == ProjectMaterialIssueStatuses.Posted)
-            .GroupBy(i => i.ContractId).Select(g => new { g.Key, Cost = g.Sum(i => i.TotalCost) }).ToDictionaryAsync(x => x.Key, x => x.Cost, ct);
+            // الصافي: التسليم − الإرجاع للمستودع (الهدر تكلفة مستهلكة تبقى)
+            .GroupBy(i => i.ContractId).Select(g => new { g.Key, Cost = g.Sum(i => i.Kind == ProjectMaterialIssueKinds.Return ? -i.TotalCost : i.TotalCost) }).ToDictionaryAsync(x => x.Key, x => x.Cost, ct);
 
         var today = SaudiTime.Today;
         return contracts.Select(c =>

@@ -179,6 +179,15 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("PreviousInventoryMethod")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ProjectAbsorbedCostAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProjectEquipmentCostAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProjectLaborCostAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ProjectMaterialsWipAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -608,6 +617,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("ParentContractId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("PartyCrNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -708,6 +720,31 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("TenderDeadline")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("TenderDecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("TenderIssueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TenderNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TenderRequirements")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("TenderResultNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("TenderStatus")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<decimal>("TenderValue")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -750,10 +787,14 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ParentContractId");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "ContractNumber")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "TenderStatus");
 
                     b.ToTable("CommercialContract");
                 });
@@ -797,6 +838,9 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)")
                         .HasDefaultValue("measured");
+
+                    b.Property<Guid?>("MainContractItemId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("OverrunPercent")
                         .HasPrecision(18, 4)
@@ -846,6 +890,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("VariationId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("VatRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -861,6 +908,10 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("ContractId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "MainContractItemId");
+
+                    b.HasIndex("TenantId", "VariationId");
 
                     b.HasIndex("TenantId", "WorkItemId");
 
@@ -1985,6 +2036,74 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("ContractStatusLog");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractTenderRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("ContractValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DiscountPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("EstimatedCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("LinesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("RevisionNo")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SubmittedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TenderValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId", "RevisionNo")
+                        .IsUnique();
+
+                    b.ToTable("ContractTenderRevision");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractTransition", b =>
                 {
                     b.Property<int>("Id")
@@ -2285,6 +2404,209 @@ namespace ERP.Service.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ContractTypeDefinition");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractVariation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ClientReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("ContractValueAfter")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("ContractValueBefore")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CostChange")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DecidedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("EndDateAfter")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EndDateBefore")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ExtensionDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ReturnNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SubmittedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("ValueChange")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("VariationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VariationNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "VariationNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ContractId", "SequenceNo")
+                        .IsUnique();
+
+                    b.ToTable("ContractVariation");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractVariationLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("ContractItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("CostAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("EstimatedUnitCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("LineCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("LineKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal?>("QuantityAfter")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("QuantityBefore")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("QuantityChange")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("SectionName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VariationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractItemId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("VariationId");
+
+                    b.ToTable("ContractVariationLine");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CostCenter", b =>
@@ -4612,6 +4934,11 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("JournalEntryId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
@@ -4716,6 +5043,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("SourceLineId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -4744,6 +5074,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "BoqItemId");
+
+                    b.HasIndex("TenantId", "SourceLineId");
 
                     b.ToTable("ProjectMaterialIssueLine");
                 });
@@ -5678,12 +6010,23 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid>("ContractId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CostJournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("PostedEquipmentCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("PostedLaborCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("PreparedBy")
                         .HasMaxLength(200)
@@ -14314,6 +14657,14 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialContract", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ParentContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialContractItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.CommercialContract", "Contract")
@@ -14485,6 +14836,40 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("ContractId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractTenderRevision", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractVariation", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractVariationLine", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContractItem", null)
+                        .WithMany()
+                        .HasForeignKey("ContractItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.ContractVariation", "Variation")
+                        .WithMany("Lines")
+                        .HasForeignKey("VariationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Variation");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CostCenter", b =>
@@ -15836,6 +16221,11 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Lines");
 
                     b.Navigation("Materials");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractVariation", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNote", b =>

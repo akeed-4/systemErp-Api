@@ -144,6 +144,12 @@ public class ErpDbContext : DbContext
         (typeof(ContractInvoice), nameof(ContractInvoice.ContractId), typeof(CommercialContract)),
         (typeof(ContractAttachment), nameof(ContractAttachment.ContractId), typeof(CommercialContract)),
         (typeof(ContractCertificate), nameof(ContractCertificate.ContractId), typeof(CommercialContract)),
+        // أمر التغيير على العقد، وسطره على البند القائم: البند لا يُحذف بعد أن ورد في أمر (البند الجديد مرجعه بلا قيد)
+        (typeof(ContractVariation), nameof(ContractVariation.ContractId), typeof(CommercialContract)),
+        (typeof(ContractTenderRevision), nameof(ContractTenderRevision.ContractId), typeof(CommercialContract)),
+        // عقد مقاول الباطن على عقد المشروع: لا يُحذف مشروع له عقود باطن (بند المشروع على سطر الباطن مرجع بلا قيد)
+        (typeof(CommercialContract), nameof(CommercialContract.ParentContractId), typeof(CommercialContract)),
+        (typeof(ContractVariationLine), nameof(ContractVariationLine.ContractItemId), typeof(CommercialContractItem)),
         (typeof(ProjectMaterialPlan), nameof(ProjectMaterialPlan.ContractId), typeof(CommercialContract)),
         // الاحتياج يشير للعقد وللصنف: لا يُحذف عقد أو صنف له احتياجات
         (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ContractId), typeof(CommercialContract)),
@@ -440,6 +446,47 @@ public class ErpDbContext : DbContext
                 .HasFilter("[Status] IN (N'draft', N'submitted')")
                 .HasDatabaseName("IX_ContractCertificate_TenantId_ContractId_Open");
         });
+        modelBuilder.Entity<CommercialContract>(e =>
+        {
+            e.Property(c => c.TenderStatus).HasMaxLength(16);
+            e.Property(c => c.TenderNumber).HasMaxLength(100);
+            e.Property(c => c.TenderRequirements).HasMaxLength(4000);
+            e.Property(c => c.TenderResultNote).HasMaxLength(1000);
+            e.HasIndex(c => new { c.TenantId, c.TenderStatus });
+        });
+        // مستند مواد المشروع بنوعه (تسليم/إرجاع/هدر)، والسحب من سطر تسليم (مرجع بلا قيد، مفهرس لحساب المتاح)
+        modelBuilder.Entity<ProjectMaterialIssue>().Property(i => i.Kind).HasMaxLength(16).IsRequired();
+        modelBuilder.Entity<ProjectMaterialIssueLine>().HasIndex(l => new { l.TenantId, l.SourceLineId });
+        modelBuilder.Entity<ContractTenderRevision>(e =>
+        {
+            e.Property(r => r.SubmittedBy).HasMaxLength(200);
+            e.Property(r => r.Note).HasMaxLength(1000);
+            e.HasIndex(r => new { r.TenantId, r.ContractId, r.RevisionNo }).IsUnique();
+        });
+        modelBuilder.Entity<ContractVariation>(e =>
+        {
+            e.Property(v => v.VariationNumber).HasMaxLength(50).IsRequired();
+            e.Property(v => v.Title).HasMaxLength(300).IsRequired();
+            e.Property(v => v.Reason).HasMaxLength(2000);
+            e.Property(v => v.ClientReference).HasMaxLength(100);
+            e.Property(v => v.Status).HasMaxLength(16).IsRequired();
+            e.Property(v => v.ReturnNote).HasMaxLength(1000);
+            e.Property(v => v.Notes).HasMaxLength(2000);
+            e.HasIndex(v => new { v.TenantId, v.VariationNumber }).IsUnique();
+            e.HasIndex(v => new { v.TenantId, v.ContractId, v.SequenceNo }).IsUnique();
+        });
+        modelBuilder.Entity<ContractVariationLine>(e =>
+        {
+            e.Property(l => l.Description).HasMaxLength(1000).IsRequired();
+            e.Property(l => l.Unit).HasMaxLength(50).IsRequired();
+            e.Property(l => l.LineCode).HasMaxLength(32);
+            e.Property(l => l.SectionName).HasMaxLength(200);
+            e.Property(l => l.LineKind).HasMaxLength(16).IsRequired();
+            e.Property(l => l.Notes).HasMaxLength(500);
+            e.HasOne(l => l.Variation).WithMany(v => v.Lines).HasForeignKey(l => l.VariationId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CommercialContractItem>().HasIndex(i => new { i.TenantId, i.VariationId });
+        modelBuilder.Entity<CommercialContractItem>().HasIndex(i => new { i.TenantId, i.MainContractItemId });
         modelBuilder.Entity<ContractCertificateDeduction>().Property(d => d.Description).HasMaxLength(300).IsRequired();
         modelBuilder.Entity<ContractCertificate>().Property(c => c.CreditNoteNumber).HasMaxLength(50);
         modelBuilder.Entity<ContractCertificateMaterial>(e =>

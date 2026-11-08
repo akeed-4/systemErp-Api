@@ -29,6 +29,7 @@ public static class DocumentNumberTypes
         new("goods_receipt", "سندات الاستلام", "Goods receipt notes", "contracts", "GRN-", true),
         new("delivery_return", "مرتجعات بيانات التسليم", "Delivery returns", "contracts", "DR-", true),
         new("contract_certificate", "مستخلصات الأعمال", "Progress certificates", "contracts", "CRT-", false),
+        new("contract_variation", "أوامر التغيير", "Variation orders", "contracts", "VO-", false),
         new("inventory_count", "الجرد", "Inventory counts", "inventory", "IC-", true),
         new("stock_transfer", "التحويلات المخزنية", "Stock transfers", "inventory", "TRF-", true),
         new("production_order", "مستندات التصنيع", "Production orders", "inventory", "MFG-", true),

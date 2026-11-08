@@ -123,6 +123,10 @@ public class ContractCertificateLineDto
     public decimal CompletionPercent { get; set; }
     /// <summary>نسبة إنجاز هذا المستخلص وحده = الكمية الحالية ÷ الكمية المعتمدة × 100 (يحسبها الخادم من لقطة السطر).</summary>
     public decimal CurrentCompletionPercent { get; set; }
+    /// <summary>المنفذ في التقارير اليومية المعتمدة حتى نهاية فترة المستخلص (فارغ = المشروع بلا تقارير معتمدة).</summary>
+    public decimal? SiteExecutedQuantity { get; set; }
+    /// <summary>التراكمي المطالب به يتجاوز المنفذ المعتمد في الموقع (تنبيه؛ لا يمنع).</summary>
+    public bool ExceedsSite { get; set; }
 }
 
 public class ContractCertificateDeductionDto

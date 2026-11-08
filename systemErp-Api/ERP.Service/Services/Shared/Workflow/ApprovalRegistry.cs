@@ -165,6 +165,11 @@ public static class ApprovalRegistry
             .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(p => p.EstimatedCost)
             .Act(Approve, (s, id, ct) => s.ApproveAsync(id, ct)).Handler;
 
+        // أمر التغيير: المعرّف هو الأمر، والمبلغ أثره على قيمة العقد (القيمة المطلقة لحدود الاعتماد)
+        yield return For<IContractVariationService, ContractVariationDto>("contract-variations", "contract_variation")
+            .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(v => Math.Abs(v.ValueChange))
+            .Act(Approve, (s, id, ct) => s.ApproveAsync(id, ct)).Handler;
+
         // ---------------- الموارد البشرية ----------------
         yield return For<IPayrollService, PayrollRunDto>("payroll", "payroll")
             .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(r => r.TotalNet)

@@ -81,6 +81,7 @@ public static class ApprovalDocumentCatalog
         // العقود
         new("commercial_contract", "contracts", "عقد تجاري", "Commercial contract", new[] { Create, Edit, Delete }),
         new("project_material_plan", "contracts", "احتياجات مواد المشروع", "Project material requirements", new[] { Approve }),
+        new("contract_variation", "contracts", "أمر تغيير", "Variation order", new[] { Approve }),
 
         // الموارد البشرية
         new("payroll", "hr", "مسير رواتب", "Payroll run", new[] { Approve, Post }),

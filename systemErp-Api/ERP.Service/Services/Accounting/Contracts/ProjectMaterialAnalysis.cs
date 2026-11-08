@@ -90,7 +90,7 @@ internal sealed class ProjectMaterialAnalysis
             if (!_works.TryGetValue(parentWork, out var parentItem)) { sub.SkipReason = Dg.WorkItemMissing; return sub; }
             var subName = parentItem.SubItems.FirstOrDefault(s => s.Id == librarySub)?.Description;
             if (subName == null) { sub.SkipReason = Dg.SubItemNoSource; return sub; }
-            AddComponents(sub, parentItem.Components.Where(c => c.SubItemId == librarySub), line.Quantity, subName);
+            AddComponents(sub, parentItem.Components.Where(c => c.SubItemId == librarySub), line.RevisedQuantity, subName);
             Close(sub);
             return sub;
         }
@@ -98,11 +98,11 @@ internal sealed class ProjectMaterialAnalysis
         var result = new LineResult { Line = line, BoqItemId = line.Id };
         if (line.WorkItemId is not Guid workId) { result.SkipReason = Dg.NotLinked; return result; }
         if (!_works.TryGetValue(workId, out var work)) { result.SkipReason = Dg.WorkItemMissing; return result; }
-        AddComponents(result, work.Components.Where(c => c.SubItemId == null), line.Quantity, null);
+        AddComponents(result, work.Components.Where(c => c.SubItemId == null), line.RevisedQuantity, null);
         if (!line.IsGroup)
             foreach (var s in work.SubItems.OrderBy(s => s.SortOrder))
             {
-                var subQty = s.QuantityMode == BoqQuantityModes.PerUnit ? line.Quantity * s.QuantityFactor : s.Quantity;
+                var subQty = s.QuantityMode == BoqQuantityModes.PerUnit ? line.RevisedQuantity * s.QuantityFactor : s.Quantity;
                 AddComponents(result, work.Components.Where(c => c.SubItemId == s.Id), subQty, s.Description);
             }
         Close(result);

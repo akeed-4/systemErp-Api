@@ -71,6 +71,13 @@ internal static class PostingAccounts
             (s, v) => s.ProjectMaterialsWipAccountCode = v, null, Asset, LockedAfterUse: true),
         new(nameof(AccountingSettings.ContractCostOfRevenueAccountCode), s => s.ContractCostOfRevenueAccountCode,
             (s, v) => s.ContractCostOfRevenueAccountCode = v, null, Expense),
+        // تحميل العمالة والمعدات على المشاريع من التقارير اليومية المعتمدة (مدين تكلفة المشروع / دائن المحمّل)
+        new(nameof(AccountingSettings.ProjectLaborCostAccountCode), s => s.ProjectLaborCostAccountCode,
+            (s, v) => s.ProjectLaborCostAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.ProjectEquipmentCostAccountCode), s => s.ProjectEquipmentCostAccountCode,
+            (s, v) => s.ProjectEquipmentCostAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.ProjectAbsorbedCostAccountCode), s => s.ProjectAbsorbedCostAccountCode,
+            (s, v) => s.ProjectAbsorbedCostAccountCode = v, null, Expense),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)

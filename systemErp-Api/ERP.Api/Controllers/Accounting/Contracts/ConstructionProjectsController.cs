@@ -28,6 +28,16 @@ public class ConstructionProjectsController : ErpControllerBase
     [HttpGet("summary"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Summary(Guid id, CancellationToken ct) => Success(await _projects.SummaryAsync(id, ct));
 
+    /// <summary>تكلفة المشروع وربحيته من القيود على مركز تكلفته مقابل المخطط، مع التوقع عند الاكتمال.</summary>
+    [HttpGet("cost-report"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CostReport(Guid id, [FromServices] IProjectCostService costs, CancellationToken ct)
+        => Success(await costs.ReportAsync(id, ct));
+
+    /// <summary>مقاولو الباطن للمشروع: عقود الموردين المرتبطة به بموقف مستخلصاتها، وتغطية بنوده.</summary>
+    [HttpGet("subcontracts"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Subcontracts(Guid id, [FromServices] IProjectSubcontractService subcontracts, CancellationToken ct)
+        => Success(await subcontracts.GetAsync(id, ct));
+
     [HttpPut("profile"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> SaveProfile(Guid id, [FromBody] SaveProjectProfileDto dto, CancellationToken ct)
         => Success(await _projects.SaveProfileAsync(id, dto, ct), Messages.ProjectSetupSaved);
@@ -135,6 +145,11 @@ public class SiteDailyReportsController : ErpControllerBase
     [HttpPost("{reportId:guid}/approve"), RequireScreen(Screen, ScreenAction.Approve)]
     public async Task<IActionResult> Approve(Guid id, Guid reportId, CancellationToken ct)
         => Success(await _reports.ApproveAsync(id, reportId, ct), Messages.SiteReportApproved);
+
+    /// <summary>ترحيل قيد تحميل العمالة والمعدات للتقارير المعتمدة قبل تفعيله (صلاحية الاعتماد).</summary>
+    [HttpPost("post-costs"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> PostPendingCosts(Guid id, CancellationToken ct)
+        => Success(await _reports.PostPendingCostsAsync(id, ct));
 
     [HttpPost("{reportId:guid}/return"), RequireScreen(Screen, ScreenAction.Approve)]
     public async Task<IActionResult> Return(Guid id, Guid reportId, [FromBody] SiteReportActionDto dto, CancellationToken ct)

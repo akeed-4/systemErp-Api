@@ -12,4 +12,6 @@ public interface IInventoryReportService
     Task<LoadResult> LoadItemMovementsAsync(ReportQueryDto query, DataSourceLoadOptions options, CancellationToken ct = default);
     Task<LoadResult> LoadItemLedgerAsync(ReportQueryDto query, DataSourceLoadOptions options, CancellationToken ct = default);
     Task<LoadResult> LoadCommercialTradeAsync(ReportQueryDto query, DataSourceLoadOptions options, CancellationToken ct = default);
+    /// <summary>الحركة التجارية لكل صنف: المبيعات (DocType=sales، افتراضي) أو المشتريات (purchase) بمرتجعاتها.</summary>
+    Task<LoadResult> LoadItemTradeAsync(ReportQueryDto query, DataSourceLoadOptions options, CancellationToken ct = default);
 }

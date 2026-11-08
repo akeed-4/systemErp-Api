@@ -584,6 +584,9 @@
   <data name="AccountRole_ContractOtherDeductionsAccountCode" xml:space="preserve"><value>خصومات أخرى على المستخلصات</value></data>
   <data name="AccountRole_ProjectMaterialsWipAccountCode" xml:space="preserve"><value>مواد مشاريع تحت التنفيذ</value></data>
   <data name="AccountRole_ContractCostOfRevenueAccountCode" xml:space="preserve"><value>تكلفة إيرادات العقود</value></data>
+  <data name="AccountRole_ProjectLaborCostAccountCode" xml:space="preserve"><value>تكلفة عمالة المشاريع</value></data>
+  <data name="AccountRole_ProjectEquipmentCostAccountCode" xml:space="preserve"><value>تكلفة معدات المشاريع</value></data>
+  <data name="AccountRole_ProjectAbsorbedCostAccountCode" xml:space="preserve"><value>تكاليف محمّلة على المشاريع</value></data>
   <data name="CertificateSubmitted" xml:space="preserve"><value>قُدِّم المستخلص للاعتماد.</value></data>
   <data name="CertificateApproved" xml:space="preserve"><value>اعتُمد المستخلص.</value></data>
   <data name="CertificateReturned" xml:space="preserve"><value>أُعيد المستخلص للمسودة.</value></data>

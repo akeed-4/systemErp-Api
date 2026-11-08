@@ -2,6 +2,7 @@ using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
+using K = ERP.Core.Models.Accounting.ProjectMaterialIssueKinds;
 
 namespace ERP.Service.Services.Accounting;
 
@@ -52,7 +53,12 @@ public class ProjectSupplyService : IProjectSupplyService
 
         var requested = await RequestedAsync(contractId, exceptRequisitionId, ct);
         var purchased = await PurchasedAsync(contractId, ct);
-        var delivered = await DeliveredAsync(contractId, null, ct);
+        var movements = await MovementsAsync(contractId, null, ct);
+        var delivered = movements.GroupBy(x => x.ProductId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Kind == K.Return ? -x.Quantity : x.Kind == K.Issue ? x.Quantity : 0));
+        var returned = movements.Where(x => x.Kind == K.Return).GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        var wasted = movements.Where(x => x.Kind == K.Waste).GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        var consumed = await ConsumedAsync(contractId, ct);
 
         var ids = required.Keys.Concat(requested.Keys).Concat(purchased.Keys).Concat(delivered.Keys).Distinct().ToList();
         var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id))
@@ -74,7 +80,10 @@ public class ProjectSupplyService : IProjectSupplyService
             {
                 ProductId = id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit,
                 RequiredQuantity = Math.Round(req, Decimals), RequestedQuantity = r, PurchasedQuantity = purchased.GetValueOrDefault(id),
-                DeliveredQuantity = d, RemainingToRequest = Math.Max(0, Math.Round(req - r, Decimals)),
+                DeliveredQuantity = d, ReturnedQuantity = returned.GetValueOrDefault(id), WastedQuantity = wasted.GetValueOrDefault(id),
+                ConsumedQuantity = Math.Round(consumed.GetValueOrDefault(id), Decimals),
+                CustodyQuantity = Math.Round(d - wasted.GetValueOrDefault(id) - consumed.GetValueOrDefault(id), Decimals),
+                RemainingToRequest = Math.Max(0, Math.Round(req - r, Decimals)),
                 RemainingToDeliver = Math.Max(0, Math.Round(req - d, Decimals)), WarehouseStock = stock.GetValueOrDefault(id),
                 UnitCost = unitCost, OutsidePlan = !required.ContainsKey(id),
             };
@@ -116,12 +125,33 @@ public class ProjectSupplyService : IProjectSupplyService
             .GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
     }
 
+    /// <summary>المسلَّم الصافي لكل صنف = التسليم − الإرجاع للمستودع (الهدر يبقى مسلَّماً: استُهلك في الموقع).</summary>
     private async Task<Dictionary<Guid, decimal>> DeliveredAsync(Guid contractId, Guid? exceptIssueId, CancellationToken ct)
-        => (await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
-                .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted
-                    && (exceptIssueId == null || l.IssueId != exceptIssueId))
-                .Select(l => new { l.ProductId, l.Quantity }).ToListAsync(ct))
-            .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        => (await MovementsAsync(contractId, exceptIssueId, ct))
+            .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Kind == K.Return ? -x.Quantity : x.Kind == K.Issue ? x.Quantity : 0));
+
+    private sealed record Movement(Guid ProductId, string Kind, decimal Quantity, decimal Cost, Guid? BoqItemId);
+
+    /// <summary>أسطر مستندات المواد المرحّلة للمشروع بأنواعها (المستند الأقدم بلا نوع = تسليم).</summary>
+    private async Task<List<Movement>> MovementsAsync(Guid contractId, Guid? exceptIssueId, CancellationToken ct)
+        => await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
+            .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted
+                && (exceptIssueId == null || l.IssueId != exceptIssueId))
+            .Select(l => new Movement(l.ProductId, l.Issue.Kind, l.Quantity, l.TotalCost, l.BoqItemId)).ToListAsync(ct);
+
+    /// <summary>المستهلك لكل صنف في التقارير اليومية المعتمدة، محوّلاً من وحدة المادة لوحدة الصنف (غير القابل للتحويل يُتخطى).</summary>
+    private async Task<Dictionary<Guid, decimal>> ConsumedAsync(Guid contractId, CancellationToken ct)
+    {
+        var rows = await (from m in _db.Set<SiteMaterialUsage>().AsNoTracking()
+                          join r in _db.Set<SiteDailyReport>().AsNoTracking() on m.ReportId equals r.Id
+                          join p in _db.Set<Product>().AsNoTracking() on m.ProductId equals p.Id
+                          where r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved
+                          select new { ProductId = p.Id, m.Quantity, m.Unit, ProductUnit = p.Unit }).ToListAsync(ct);
+        if (rows.Count == 0) return new();
+        var units = await BoqUnits.LoadAsync(_db, ct);
+        return rows.Select(x => new { x.ProductId, Q = string.Equals(x.Unit, x.ProductUnit, StringComparison.OrdinalIgnoreCase) ? x.Quantity : units.Convert(x.Quantity, x.Unit, x.ProductUnit) })
+            .Where(x => x.Q.HasValue).GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Q!.Value));
+    }
 
     /// <summary>المطلوب لكل صنف من الاحتياجات المعتمدة؛ يرفض إن لم تُعتمد.</summary>
     private async Task<Dictionary<Guid, decimal>> RequiredAsync(Guid contractId, CancellationToken ct)
@@ -170,7 +200,7 @@ public class ProjectSupplyService : IProjectSupplyService
                        IssueNumber = i.IssueNumber, Date = i.Date, WarehouseId = i.WarehouseId,
                        WarehouseName = _db.Set<Warehouse>().Where(w => w.Id == i.WarehouseId).Select(w => w.NameAr).FirstOrDefault(),
                        ReceiverType = i.ReceiverType, ReceiverName = i.ReceiverName, Status = i.Status, TotalCost = i.TotalCost,
-                       LineCount = i.Lines.Count, PostedAt = i.PostedAt, PostedBy = i.PostedBy, CreatedAt = i.CreatedAt,
+                       LineCount = i.Lines.Count, Kind = i.Kind, PostedAt = i.PostedAt, PostedBy = i.PostedBy, CreatedAt = i.CreatedAt,
                    };
         return EntityLoader.LoadRowsAsync(rows, options, nameof(ProjectMaterialIssueRowDto.Id), ct,
             EntityLoader.Desc(nameof(ProjectMaterialIssueRowDto.Date)), EntityLoader.Desc(nameof(ProjectMaterialIssueRowDto.CreatedAt)));
@@ -246,12 +276,31 @@ public class ProjectSupplyService : IProjectSupplyService
                 .Select(m => m.Certificate.CertificateNumber).Distinct().ToListAsync(token);
             if (certified.Count > 0)
                 throw new ConflictException($"كميات من الإذن {issue.IssueNumber} مختارة في المستخلص {string.Join("، ", certified)}: أخرجها منه أو ألغِه (أو ألغِ فاتورته) قبل إلغاء الإذن.");
+            // تسليم سُحب منه بإرجاع أو هدر مرحّل: يُلغى ذلك المستند أولاً
+            var lineIds = issue.Lines.Select(l => l.Id).ToList();
+            var withdrawals = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
+                .Where(l => l.SourceLineId != null && lineIds.Contains(l.SourceLineId.Value) && l.Issue.Status == ProjectMaterialIssueStatuses.Posted)
+                .Select(l => l.Issue.IssueNumber).Distinct().ToListAsync(token);
+            if (withdrawals.Count > 0)
+                throw new ConflictException($"من الإذن {issue.IssueNumber} كميات مُرجعة أو مهدرة بالمستند {string.Join("، ", withdrawals)}: ألغِه أولاً.");
             // رمز التزامن على الأسطر: اختيارها في مستخلص بالتوازي مع هذا الإلغاء يفشل أحدهما بدل أن يمرّا معاً
             foreach (var line in issue.Lines) _db.Entry(line).State = EntityState.Modified;
             var note = $"إلغاء صرف مواد {issue.IssueNumber}: {reason.Trim()}";
             if (issue.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, note, token);
             decimal residual = 0;
-            foreach (var line in issue.Lines.Where(l => l.Quantity > 0))
+            // الإرجاع يُعكس بحركة صادر من المستودع (والفرق عن تكلفة الإرجاع إعادة تقييم)، والهدر بلا حركة مخزون
+            if (issue.Kind == K.Return)
+                foreach (var line in issue.Lines.Where(l => l.Quantity > 0))
+                {
+                    var outMove = await _inventory.RecordMovementAsync(new RecordStockMovementDto
+                    {
+                        ItemId = line.ProductId, WarehouseId = issue.WarehouseId, Quantity = line.Quantity, Type = StockMovementType.AdjustmentOut,
+                        ReferenceNumber = issue.IssueNumber, Date = issue.Date, Notes = note,
+                        SourceType = SourceType + "_reversal", SourceId = issue.Id, SourceLineId = line.Id,
+                    }, token);
+                    residual += line.TotalCost + outMove.ValueChange;
+                }
+            foreach (var line in issue.Lines.Where(l => l.Quantity > 0 && issue.Kind == K.Issue))
             {
                 var back = await _inventory.RecordMovementAsync(new RecordStockMovementDto
                 {
@@ -280,6 +329,14 @@ public class ProjectSupplyService : IProjectSupplyService
     // ---------------- البناء والترحيل ----------------
     private async Task ApplyAsync(CommercialContract contract, ProjectMaterialIssue issue, SaveProjectMaterialIssueDto r, CancellationToken ct)
     {
+        var kind = string.IsNullOrWhiteSpace(r.Kind) ? (issue.Kind ?? K.Issue) : r.Kind.Trim();
+        if (!K.IsValid(kind)) throw new ValidationFailedException("نوع مستند المواد غير صالح.");
+        issue.Kind = kind;
+        if (kind != K.Issue)
+        {
+            await ApplyWithdrawalAsync(contract, issue, r, ct);
+            return;
+        }
         if (!ProjectIssueReceiverTypes.IsValid(r.ReceiverType)) throw new ValidationFailedException("جهة الاستلام غير صالحة.");
         if (string.IsNullOrWhiteSpace(r.ReceiverName)) throw new ValidationFailedException("اسم المستلم في الموقع مطلوب.");
         var lines = r.Lines.Where(l => l.ProductId != Guid.Empty && l.Quantity > 0).ToList();
@@ -325,6 +382,126 @@ public class ProjectSupplyService : IProjectSupplyService
         await EnsureWithinPlanAsync(contract.Id, issue, ct);
     }
 
+    /// <summary>
+    /// الإرجاع والهدر: كل سطر يسحب كمية من سطر تسليم مرحّل لهذا المشروع، فيأخذ صنفه وبنده وتكلفته الفعلية. المستودع للإرجاع هو المستودع
+    /// المستلِم (المختار، وإلا مستودع العقد). جهة «الاستلام» هنا من أعاد المواد أو أثبت الهدر.
+    /// </summary>
+    private async Task ApplyWithdrawalAsync(CommercialContract contract, ProjectMaterialIssue issue, SaveProjectMaterialIssueDto r, CancellationToken ct)
+    {
+        if (!ProjectIssueReceiverTypes.IsValid(r.ReceiverType)) throw new ValidationFailedException("جهة المُرجِع غير صالحة.");
+        if (string.IsNullOrWhiteSpace(r.ReceiverName)) throw new ValidationFailedException("اسم المسؤول في الموقع مطلوب.");
+        if (r.Lines.Any(l => l.Quantity < 0)) throw new ValidationFailedException(Messages.QuantityMustBePositive);
+        var lines = r.Lines.Where(l => l.SourceLineId.HasValue && l.Quantity > 0).ToList();
+        if (lines.Count == 0) throw new ValidationFailedException("اختر سطراً واحداً على الأقل من أذونات التسليم بكمية موجبة.");
+        if (lines.GroupBy(l => l.SourceLineId).Any(g => g.Count() > 1)) throw new ValidationFailedException("سطر التسليم مكرر في المستند.");
+        var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId ?? contract.WarehouseId, ct);
+
+        issue.Date = (r.Date ?? SaudiTime.Today).Date;
+        issue.WarehouseId = warehouse.Id;
+        issue.ReceiverType = r.ReceiverType;
+        issue.ReceiverName = r.ReceiverName.Trim();
+        issue.ReceiverEmployeeId = r.ReceiverEmployeeId;
+        issue.ReceiverSupplierId = r.ReceiverSupplierId;
+        issue.RequisitionId = null;
+        issue.Notes = string.IsNullOrWhiteSpace(r.Notes) ? null : r.Notes.Trim();
+
+        var ids = lines.Select(l => l.SourceLineId!.Value).ToList();
+        var sources = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking().Include(l => l.Issue).Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
+        var sort = 0;
+        foreach (var l in lines)
+        {
+            if (!sources.TryGetValue(l.SourceLineId!.Value, out var src) || src.Issue.ContractId != contract.Id || src.Issue.Kind != K.Issue)
+                throw new ValidationFailedException("السطر المختار ليس من أذونات تسليم هذا المشروع.");
+            var line = new ProjectMaterialIssueLine
+            {
+                Id = Guid.NewGuid(), IssueId = issue.Id, SourceLineId = src.Id, BoqItemId = src.BoqItemId, ProductId = src.ProductId, Sku = src.Sku,
+                ItemName = src.ItemName, Unit = src.Unit, Quantity = l.Quantity, UnitCost = src.UnitCost,
+                TotalCost = DocumentPricing.Round(l.Quantity * src.UnitCost), Notes = string.IsNullOrWhiteSpace(l.Notes) ? null : l.Notes.Trim(), SortOrder = sort++,
+            };
+            issue.Lines.Add(line);
+            if (_db.Entry(issue).State != EntityState.Detached) _db.Add(line);
+        }
+        await EnsureWithdrawableAsync(contract.Id, issue, ct);
+    }
+
+    /// <summary>
+    /// المسحوب من كل سطر تسليم ≤ كميته − المسحوب بمستندات مرحّلة أخرى − المختار في مستخلصات غير ملغاة؛ والإذن المصدر مرحّل
+    /// (والقديم المرحّل مصروفاً لا يُسحب منه في الجرد المستمر: تكلفته اعتُرفت عند تسليمه). يُعاد الفحص عند الترحيل.
+    /// </summary>
+    private async Task EnsureWithdrawableAsync(Guid contractId, ProjectMaterialIssue doc, CancellationToken ct)
+    {
+        var ids = doc.Lines.Select(l => l.SourceLineId!.Value).ToList();
+        var sources = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking().Include(l => l.Issue).Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
+        var withdrawn = await CertifiedMaterials.WithdrawnByLineAsync(_db, contractId, doc.Id, ct);
+        var certified = await CertifiedMaterials.ByIssueLineAsync(_db, contractId, null, ct);
+        var periodic = (await PostingAccounts.SettingsAsync(_db, ct)).IsPeriodic(doc.Date);
+        foreach (var line in doc.Lines)
+        {
+            var src = sources[line.SourceLineId!.Value];
+            if (src.Issue.Status != ProjectMaterialIssueStatuses.Posted)
+                throw new ValidationFailedException($"«{line.ItemName}»: الإذن {src.Issue.IssueNumber} غير مرحّل أو ملغى.");
+            if (!periodic && src.Issue.DebitAccountCode == null)
+                throw new ValidationFailedException($"«{line.ItemName}»: الإذن {src.Issue.IssueNumber} قديم رُحِّل مصروفاً؛ لا يُرجع منه ولا يُهدر بهذا المستند.");
+            var available = src.Quantity - withdrawn.GetValueOrDefault(src.Id).Quantity - certified.GetValueOrDefault(src.Id).Quantity;
+            if (line.Quantity > available + 0.00005m)
+                throw new ValidationFailedException($"«{line.ItemName}» ({src.Issue.IssueNumber}): الكمية {line.Quantity:0.####} تتجاوز المتاح {Math.Max(0, available):0.####} (المسلَّم − المُرجَع والمهدر − المختار في المستخلصات).");
+        }
+    }
+
+    /// <summary>
+    /// ترحيل الإرجاع والهدر. الإرجاع: حركة وارد للمستودع بتكلفة التسليم، وقيد مدين المخزون / دائن المواد تحت التنفيذ. الهدر: بلا حركة،
+    /// وقيد مدين تكلفة إيرادات العقود بمركز المشروع / دائن المواد تحت التنفيذ. الحساب الدائن هو حساب الإذن المصدر نفسه. الجرد الدوري بلا قيد.
+    /// </summary>
+    private async Task PostWithdrawalAsync(CommercialContract contract, ProjectMaterialIssue doc, CancellationToken ct)
+    {
+        await EnsureWithdrawableAsync(contract.Id, doc, ct);
+        var isReturn = doc.Kind == K.Return;
+        var note = $"{(isReturn ? "إرجاع مواد من موقع" : "هدر مواد في موقع")} مشروع {contract.ContractNumber} - {doc.IssueNumber} - {doc.ReceiverName}";
+        if (isReturn)
+            foreach (var line in doc.Lines.OrderBy(l => l.SortOrder))
+                await _inventory.RecordMovementAsync(new RecordStockMovementDto
+                {
+                    ItemId = line.ProductId, WarehouseId = doc.WarehouseId, Quantity = line.Quantity, Type = StockMovementType.AdjustmentIn,
+                    UnitCost = line.UnitCost, ReferenceNumber = doc.IssueNumber, Date = doc.Date, Notes = note,
+                    SourceType = SourceType, SourceId = doc.Id, SourceLineId = line.Id,
+                }, ct);
+        doc.TotalCost = doc.Lines.Sum(l => l.TotalCost);
+        doc.DebitAccountCode = null;
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
+        if (!accounts.IsPeriodic(doc.Date) && doc.TotalCost > 0)
+        {
+            var srcIds = doc.Lines.Select(l => l.SourceLineId!.Value).ToList();
+            var wipOf = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking().Where(l => srcIds.Contains(l.Id))
+                .Select(l => new { l.Id, Wip = l.Issue.DebitAccountCode! }).ToDictionaryAsync(x => x.Id, x => x.Wip, ct);
+            string debit;
+            if (isReturn)
+            {
+                debit = await accounts.InventoryAsync(_db, doc.WarehouseId, ct);
+                await DefaultAccounts.EnsureAsync(_db, ct, debit);
+            }
+            else
+            {
+                await ContractAccountsSetup.EnsureMissingAsync(_db, ct);
+                accounts = await PostingAccounts.SettingsAsync(_db, ct);
+                debit = accounts.ContractAccount(nameof(AccountingSettings.ContractCostOfRevenueAccountCode));
+            }
+            var lines = new List<PostingLine> { new(debit, doc.TotalCost, 0, note, doc.CostCenterId) };
+            lines.AddRange(doc.Lines.GroupBy(l => wipOf[l.SourceLineId!.Value])
+                .Select(g => new PostingLine(g.Key, 0, g.Sum(l => l.TotalCost), note, doc.CostCenterId)));
+            doc.JournalEntryId = (await _posting.PostAsync(new GenericPostingRequest
+            {
+                Date = doc.Date, Description = note, SourceType = SourceType, SourceId = doc.Id, SourceNumber = doc.IssueNumber, Lines = lines,
+            }, ct)).JournalEntryId;
+            doc.DebitAccountCode = debit;
+        }
+        doc.Status = ProjectMaterialIssueStatuses.Posted;
+        doc.PostedAt = SaudiTime.Now;
+        doc.PostedBy = _user.Name;
+        await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync(isReturn ? "PROJECT_MATERIAL_RETURN_POSTED" : "PROJECT_MATERIAL_WASTE_POSTED", nameof(ProjectMaterialIssue), doc.Id.ToString(),
+            $"{note} بتكلفة {doc.TotalCost:0.00}", ct);
+    }
+
     /// <summary>التسليم الحالي لكل صنف ≤ المطلوب في دراسة الجدوى − المسلَّم سابقاً (المستندات المرحّلة الأخرى).</summary>
     private async Task EnsureWithinPlanAsync(Guid contractId, ProjectMaterialIssue issue, CancellationToken ct)
     {
@@ -344,6 +521,11 @@ public class ProjectSupplyService : IProjectSupplyService
 
     private async Task PostCoreAsync(CommercialContract contract, ProjectMaterialIssue issue, CancellationToken ct)
     {
+        if (issue.Kind is K.Return or K.Waste)
+        {
+            await PostWithdrawalAsync(contract, issue, ct);
+            return;
+        }
         await EnsureWithinPlanAsync(contract.Id, issue, ct); // صرف آخر رُحِّل بعد حفظ المسودة
         var note = $"صرف مواد {issue.IssueNumber} لمشروع {contract.ContractNumber} - {issue.ReceiverName}";
         decimal total = 0;
@@ -419,6 +601,7 @@ public class ProjectSupplyService : IProjectSupplyService
 
     /// <summary>بيانات القراءة المشتركة لأذونات العقد: وصف بنود جدول الكميات، والمختار من كل سطر في مستخلصات غير ملغاة (استعلامان للعقد كله).</summary>
     private sealed record IssueExtras(Dictionary<Guid, BoqLabel> Boq, Dictionary<Guid, (decimal Quantity, decimal Cost)> Certified,
+        Dictionary<Guid, (decimal Quantity, decimal Cost)> Withdrawn,
         ProjectHeader? Project, Dictionary<Guid, string> Warehouses);
     private sealed record BoqLabel(string? Code, string Description);
     private sealed record ProjectHeader(string ContractNumber, string? ProjectName, string? ProjectLocation, string? PartyName);
@@ -432,7 +615,8 @@ public class ProjectSupplyService : IProjectSupplyService
         var warehouses = await _db.Set<Warehouse>().AsNoTracking()
             .Where(w => _db.Set<ProjectMaterialIssue>().Any(i => i.ContractId == contractId && i.WarehouseId == w.Id))
             .ToDictionaryAsync(w => w.Id, w => w.NameAr, ct);
-        return new IssueExtras(boq, await CertifiedMaterials.ByIssueLineAsync(_db, contractId, null, ct), project, warehouses);
+        return new IssueExtras(boq, await CertifiedMaterials.ByIssueLineAsync(_db, contractId, null, ct),
+            await CertifiedMaterials.WithdrawnByLineAsync(_db, contractId, null, ct), project, warehouses);
     }
 
     // ---------- مواد البنود ----------
@@ -448,11 +632,12 @@ public class ProjectSupplyService : IProjectSupplyService
             ? plan.Lines.Where(l => l.ProductId.HasValue && l.ProductQuantity.HasValue && (l.SubItemId ?? l.BoqItemId).HasValue)
                 .GroupBy(l => ((l.SubItemId ?? l.BoqItemId)!.Value, l.ProductId!.Value)).ToDictionary(g => g.Key, g => g.Sum(l => l.ProductQuantity!.Value))
             : new Dictionary<(Guid, Guid), decimal>();
-        var delivered = (await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
-                .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted && l.BoqItemId != null)
-                .GroupBy(l => new { Boq = l.BoqItemId!.Value, l.ProductId })
-                .Select(g => new { g.Key.Boq, g.Key.ProductId, Q = g.Sum(l => l.Quantity), C = g.Sum(l => l.TotalCost) }).ToListAsync(ct))
-            .ToDictionary(x => (x.Boq, x.ProductId), x => (Q: x.Q, C: x.C));
+        // المسلَّم الصافي (التسليم − الإرجاع) وتكلفته، والهدر بتكلفته (اعتُرف به عند ترحيله فلا يبقى تحت التنفيذ)
+        var moves = (await MovementsAsync(contractId, null, ct)).Where(m => m.BoqItemId != null).ToList();
+        var delivered = moves.GroupBy(m => (m.BoqItemId!.Value, m.ProductId)).ToDictionary(g => g.Key, g => (
+            Q: g.Sum(m => m.Kind == K.Return ? -m.Quantity : m.Kind == K.Issue ? m.Quantity : 0),
+            C: g.Sum(m => m.Kind == K.Return ? -m.Cost : m.Kind == K.Issue ? m.Cost : 0),
+            W: g.Where(m => m.Kind == K.Waste).Sum(m => m.Cost)));
         var certified = (await CertifiedMaterials.Active(_db, contractId)
                 .GroupBy(m => new { m.ContractItemId, m.ProductId, Invoiced = m.Certificate.Status == ContractCertificateStatuses.Invoiced })
                 .Select(g => new { g.Key.ContractItemId, g.Key.ProductId, g.Key.Invoiced, Q = g.Sum(m => m.Quantity), C = g.Sum(m => m.TotalCost) }).ToListAsync(ct))
@@ -475,7 +660,7 @@ public class ProjectSupplyService : IProjectSupplyService
                 {
                     ContractItemId = k.Item1, LineCode = item.LineCode, BoqDescription = item.Description, ProductId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit,
                     PlannedQuantity = Math.Round(planQty, Decimals), DeliveredQuantity = d.Q, RemainingQuantity = Math.Max(0, Math.Round(planQty - d.Q, Decimals)),
-                    DeliveredCost = d.C, CertifiedQuantity = c.Q, CertifiedCost = c.C, InvoicedCost = c.Invoiced, OutstandingCost = d.C - c.Invoiced,
+                    DeliveredCost = d.C, CertifiedQuantity = c.Q, CertifiedCost = c.C, InvoicedCost = c.Invoiced, OutstandingCost = d.C - c.Invoiced - d.W,
                     OverPlanned = d.Q > planQty + 0.0001m,
                 };
             }).ToList();
@@ -488,7 +673,7 @@ public class ProjectSupplyService : IProjectSupplyService
         WarehouseName = i.WarehouseId is { } wid ? extras.Warehouses.GetValueOrDefault(wid) : null,
         IssueNumber = i.IssueNumber, Date = i.Date, WarehouseId = i.WarehouseId, ReceiverType = i.ReceiverType,
         ReceiverName = i.ReceiverName, ReceiverEmployeeId = i.ReceiverEmployeeId, ReceiverSupplierId = i.ReceiverSupplierId, RequisitionId = i.RequisitionId,
-        Status = i.Status, TotalCost = i.TotalCost, JournalEntryId = i.JournalEntryId, DebitAccountCode = i.DebitAccountCode, Notes = i.Notes,
+        Status = i.Status, Kind = i.Kind, TotalCost = i.TotalCost, JournalEntryId = i.JournalEntryId, DebitAccountCode = i.DebitAccountCode, Notes = i.Notes,
         PostedAt = i.PostedAt, PostedBy = i.PostedBy, CancelReason = i.CancelReason,
         Lines = i.Lines.OrderBy(l => l.SortOrder).Select(l =>
         {
@@ -499,6 +684,7 @@ public class ProjectSupplyService : IProjectSupplyService
                 Id = l.Id, BoqItemId = l.BoqItemId, BoqLineCode = boq?.Code, BoqDescription = boq?.Description,
                 ProductId = l.ProductId, Sku = l.Sku, ItemName = l.ItemName, Unit = l.Unit, Quantity = l.Quantity,
                 UnitCost = l.UnitCost, TotalCost = l.TotalCost, Notes = l.Notes, CertifiedQuantity = extras.Certified.GetValueOrDefault(l.Id).Quantity,
+                SourceLineId = l.SourceLineId, WithdrawnQuantity = extras.Withdrawn.GetValueOrDefault(l.Id).Quantity,
                 RequiredQuantity = Math.Round(req, Decimals), DeliveredBefore = before, RemainingBefore = Math.Max(0, Math.Round(req - before, Decimals)),
             };
         }).ToList(),

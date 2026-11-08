@@ -19,7 +19,7 @@ public partial class ContractItemDto
     public string? LineCode { get; set; }
     public string? SectionName { get; set; }
     public string LineKind { get; set; } = "measured";
-    /// <summary>للقراءة: يضبطها الخادم (= الكمية حتى تُعتمد ملاحق).</summary>
+    /// <summary>للقراءة: الكمية بعد أوامر التغيير المعتمدة (= الكمية الأصلية حتى يُعتمد أمر تغيير)؛ عليها يُقاس المستخلص.</summary>
     public decimal RevisedQuantity { get; set; }
     public decimal OverrunPercent { get; set; }
     public int SortOrder { get; set; }
@@ -39,4 +39,8 @@ public partial class ContractItemDto
     public bool IsGroup { get; set; }
     /// <summary>تكلفة الوحدة التقديرية (دراسة الجدوى)؛ للمجموعة يحسبها الخادم من فروعها.</summary>
     public decimal EstimatedUnitCost { get; set; }
+    /// <summary>للقراءة: أمر التغيير الذي أضاف البند (كميته الأصلية صفر وكميته المعدلة من الأمر).</summary>
+    public Guid? VariationId { get; set; }
+    /// <summary>عقد مقاول الباطن: بند عقد المشروع الذي ينفذه هذا السطر (اختياري، من عقد المشروع نفسه).</summary>
+    public Guid? MainContractItemId { get; set; }
 }

@@ -73,6 +73,16 @@ internal static class ContractAccountsSetup
         new(nameof(AccountingSettings.ContractCostOfRevenueAccountCode), AccountCategory.Expense,
             "تكلفة إيرادات العقود", "Contract Cost of Revenue", ExpenseAnchors,
             new[] { "تكلفة إيرادات العقود", "تكلفة إيرادات المشاريع", "تكلفة الإيرادات", "contract cost of revenue", "cost of revenue" }),
+        // تحميل العمالة والمعدات المعتمدة في التقارير اليومية على المشروع، ومقابله المحمّل (دائن يقابل الرواتب والإهلاك الفعلية)
+        new(nameof(AccountingSettings.ProjectLaborCostAccountCode), AccountCategory.Expense,
+            "تكلفة عمالة المشاريع", "Project Labor Cost", ExpenseAnchors,
+            new[] { "تكلفة عمالة المشاريع", "عمالة المشاريع", "project labor cost", "project labour cost" }),
+        new(nameof(AccountingSettings.ProjectEquipmentCostAccountCode), AccountCategory.Expense,
+            "تكلفة معدات المشاريع", "Project Equipment Cost", ExpenseAnchors,
+            new[] { "تكلفة معدات المشاريع", "تشغيل معدات المشاريع", "project equipment cost" }),
+        new(nameof(AccountingSettings.ProjectAbsorbedCostAccountCode), AccountCategory.Expense,
+            "تكاليف محمّلة على المشاريع", "Costs Absorbed by Projects", ExpenseAnchors,
+            new[] { "تكاليف محملة على المشاريع", "تكاليف محمّلة على المشاريع", "costs absorbed by projects", "absorbed costs" }),
     };
 
     public static IEnumerable<string> RoleKeys => Specs.Select(s => s.Role);

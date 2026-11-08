@@ -144,6 +144,16 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             if (!d.StartDate.HasValue) errors.Add(Messages.CertificateScheduleNeedsStartDate);
         }
         if (existing != null && existing.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled) errors.Add(Messages.CannotEditClosedContract);
+        await ValidateParentAsync(d, existing, errors, ct);
+        // المناقصة المقدَّمة أو الخاسرة لا تُعدَّل (يُعاد العطاء للتسعير أولاً فيبقى العرض المقدَّم كما سُجِّل)
+        if (existing != null && ContractTenderStatuses.LocksEditing(existing.TenderStatus))
+            errors.Add("العطاء مقدَّم أو خاسر: أعده للتسعير من شاشة المناقصات قبل التعديل.");
+        if (existing == null && d.TenderStatus != null && d.TenderStatus != ContractTenderStatuses.New)
+            errors.Add("المناقصة الجديدة تبدأ بحالة «جديدة».");
+        if (existing == null && d.TenderStatus != null && (IsSupplier(d.PartyType) || d.ParentContractId != null))
+            errors.Add("المناقصة لعقد عميل (لا لعقد مقاول باطن).");
+        if (d.TenderIssueDate.HasValue && d.TenderDeadline.HasValue && d.TenderDeadline < d.TenderIssueDate)
+            errors.Add("آخر موعد للتقديم قبل تاريخ طرح المناقصة.");
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         // مصدر السطر في مكتبة المقاولات (للتتبع): البند موجود حين يُرسل لأول مرة؛ السطر القديم يبقى بمصدره ولو حُذف من المكتبة
@@ -153,6 +163,48 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         var fresh = workItemIds.Where(id => !known.Contains(id)).ToList();
         if (fresh.Count > 0 && await Db.Set<WorkItem>().CountAsync(w => fresh.Contains(w.Id), ct) != fresh.Count)
             throw new ValidationFailedException(Messages.ContractWorkItemNotFound);
+    }
+
+    private static bool IsSupplier(string? partyType) => string.Equals(partyType, "supplier", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// عقد مقاول الباطن: الربط بعقد المشروع لعقد مورد وحده، والمشروع عقد عميل بجدول كميات (ليس عقد باطن آخر) غير ملغى ولا مغلق.
+    /// بنود المشروع المرتبطة بأسطر الباطن من عقد المشروع نفسه وليست مجموعات؛ بلا مشروع لا ربط بنود.
+    /// </summary>
+    private async Task ValidateParentAsync(CreateCommercialContractDto d, CommercialContract? existing, List<string> errors, CancellationToken ct)
+    {
+        var mainItemIds = d.Items.Where(i => i.MainContractItemId.HasValue).Select(i => i.MainContractItemId!.Value).Distinct().ToList();
+        if (d.ParentContractId is not Guid parentId)
+        {
+            if (mainItemIds.Count > 0) errors.Add("ربط أسطر الباطن ببنود المشروع يحتاج اختيار عقد المشروع.");
+            return;
+        }
+        if (!IsSupplier(d.PartyType)) { errors.Add("الربط بعقد المشروع لعقد مقاول الباطن (عقد مورد) وحده."); return; }
+        if (existing != null && existing.Id == parentId) { errors.Add("لا يرتبط العقد بنفسه."); return; }
+        var parent = await Db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == parentId)
+            .Select(c => new { c.PartyType, c.ParentContractId, c.ContractType, c.Stage }).FirstOrDefaultAsync(ct);
+        if (parent == null) { errors.Add("عقد المشروع غير موجود."); return; }
+        if (IsSupplier(parent.PartyType) || parent.ParentContractId != null || !await IsBoqContractAsync(Db, parent.ContractType, ct))
+            errors.Add("عقد المشروع يجب أن يكون عقد عميل بجدول كميات.");
+        if (parent.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled)
+            errors.Add("عقد المشروع مغلق أو ملغى.");
+        if (mainItemIds.Count > 0)
+        {
+            var valid = await Db.Set<CommercialContractItem>().AsNoTracking()
+                .CountAsync(i => i.ContractId == parentId && !i.IsGroup && mainItemIds.Contains(i.Id), ct);
+            if (valid != mainItemIds.Count) errors.Add("بند المشروع المرتبط بسطر الباطن ليس من عقد المشروع أو أنه مجموعة.");
+        }
+    }
+
+    /// <summary>عقد الباطن المرتبط بمشروع يأخذ مركز تكلفته (فتُحمَّل مستخلصاته على المشروع)؛ وبلا مشروع لا ربط بنود.</summary>
+    private async Task ApplyParentAsync(CommercialContract e, CancellationToken ct)
+    {
+        if (e.ParentContractId is not Guid parentId)
+        {
+            foreach (var i in e.Items) i.MainContractItemId = null;
+            return;
+        }
+        e.CostCenterId = await Db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == parentId).Select(c => c.CostCenterId).FirstOrDefaultAsync(ct);
     }
 
     protected override async Task OnCreatingAsync(CommercialContract e, CreateCommercialContractDto d, CancellationToken ct)
@@ -169,8 +221,15 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         foreach (var m in e.Milestones) ResetBillingFields(m);
         ApplyBoq(e, type);
         Recalculate(e);
-        // عقد المقاولات هو المشروع: ملفه ومركز تكلفته يُنشآن معه
-        if (type.Billing == ContractBilling.BoqCertificate) await ConstructionProjectService.CreateForContractAsync(Db, e, ct);
+        await ApplyParentAsync(e, ct);
+        // المناقصة لعقد مقاولات وحده؛ تبدأ «جديدة» ونتيجتها من مسارها لا من الطلب
+        if (e.TenderStatus != null && type.Billing != ContractBilling.BoqCertificate)
+            throw new ValidationFailedException("المناقصة لعقود المقاولات (جدول الكميات) وحدها.");
+        e.TenderDecidedAt = null; e.TenderResultNote = null;
+        // عقد المقاولات للعميل هو المشروع: ملفه ومركز تكلفته يُنشآن معه. عقد مقاول الباطن (مورد) ليس مشروعاً: يتبع مشروعه.
+        // والمناقصة لا مشروع لها حتى تُرسى (يُنشأ عند الترسية).
+        if (type.Billing == ContractBilling.BoqCertificate && !IsSupplier(e.PartyType) && e.TenderStatus == null)
+            await ConstructionProjectService.CreateForContractAsync(Db, e, ct);
 
         // الحالة يحددها النظام لا المستخدم: كل عقد جديد «مسودة». المسار يختاره المستخدم لكل عقد (Workflow) ويُثبَّت هنا
         // ليحدد انتقالاته؛ بلا اختيار (عميل قديم/طلب اعتماد معلّق) يُشتق من النوع وحد التبسيط كما كان.
@@ -227,6 +286,10 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         e.Status = o.GetValue<ContractStatus>(nameof(CommercialContract.Status));
         e.StageChangedAt = o.GetValue<DateTime?>(nameof(CommercialContract.StageChangedAt));
         e.ReviewRound = o.GetValue<int>(nameof(CommercialContract.ReviewRound));
+        // حالة المناقصة ونتيجتها من مسار المناقصة وحده (IContractTenderService)
+        e.TenderStatus = o.GetValue<string?>(nameof(CommercialContract.TenderStatus));
+        e.TenderDecidedAt = o.GetValue<DateTime?>(nameof(CommercialContract.TenderDecidedAt));
+        e.TenderResultNote = o.GetValue<string?>(nameof(CommercialContract.TenderResultNote));
         // المسار من العقد نفسه لا من نوعه. يتغير فقط في المسودة الأولى (قبل أي إرسال للمراجعة): بعدها تكون للعقد
         // جولات مراجعة وقرارات على المسار الكامل، وتحويله لمبسط يتخطاها. null = يبقى كما هو.
         e.IsSimplified = o.GetValue<bool>(nameof(CommercialContract.IsSimplified));
@@ -264,12 +327,15 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         }
         ApplyBoq(e, type);
         Recalculate(e);
+        await ApplyParentAsync(e, ct);
     }
 
     protected override async Task OnDeletingAsync(CommercialContract e, CancellationToken ct)
     {
         if (e.TotalInvoiced > 0 || await Db.Set<ContractMilestone>().AnyAsync(m => m.ContractId == e.Id && m.InvoiceId != null, ct))
             throw new ConflictException(Messages.CannotDeleteContractWithBilledMilestones);
+        if (await Db.Set<CommercialContract>().AnyAsync(c => c.ParentContractId == e.Id, ct))
+            throw new ConflictException("للمشروع عقود مقاولي باطن مرتبطة به: لا يُحذف العقد.");
         if (await Db.Set<DeliveryNote>().AnyAsync(n => n.ContractId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteContractWithDeliveryNotes);
         if (await Db.Set<ProjectMaterialIssue>().AnyAsync(i => i.ContractId == e.Id, ct)
@@ -283,6 +349,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         // سجلات المسودة التابعة لها (سجل الحالات، قرارات المراجعة المُعادة، المرفقات، خطة الاحتياجات) تُحذف معها في المعاملة نفسها.
         // قيودها تبقى «منع الحذف» في قاعدة البيانات، فلا يُحذف عقد بعد المسودة بأثرها مهما كان المسار.
         Db.RemoveRange(await Db.Set<ContractStatusLog>().Where(l => l.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ContractTenderRevision>().Where(r => r.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ContractApproval>().Where(a => a.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ContractAttachment>().Where(a => a.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ProjectMaterialRequirement>().Where(r => r.ContractId == e.Id).ToListAsync(ct));
@@ -328,7 +395,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             i.LineCode = string.IsNullOrWhiteSpace(i.LineCode) ? null : i.LineCode.Trim();
             i.SectionName = string.IsNullOrWhiteSpace(i.SectionName) ? null : i.SectionName.Trim();
             i.UnitDescription = string.IsNullOrWhiteSpace(i.UnitDescription) ? null : i.UnitDescription.Trim();
-            i.RevisedQuantity = i.Quantity;
+            i.RevisedQuantity = i.Quantity; // التعديل في المسودة وحدها، قبل أي أمر تغيير
+            i.VariationId = null; // يضبطه اعتماد أمر التغيير وحده
             // بلا سعر عطاء (عميل قديم أو عقد قبل الحقل): السعر المرسل هو سعر العطاء
             if (i.TenderUnitPrice <= 0) i.TenderUnitPrice = i.UnitPrice;
             if (boq) i.UnitPrice = Math.Round(i.TenderUnitPrice * factor, 4);

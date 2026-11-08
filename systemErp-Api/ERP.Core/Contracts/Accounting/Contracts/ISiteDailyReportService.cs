@@ -18,6 +18,8 @@ public interface ISiteDailyReportService
     Task DeleteAsync(Guid contractId, Guid reportId, CancellationToken ct = default);
     Task<SiteDailyReportDto> SubmitAsync(Guid contractId, Guid reportId, CancellationToken ct = default);
     Task<SiteDailyReportDto> ApproveAsync(Guid contractId, Guid reportId, CancellationToken ct = default);
+    /// <summary>قيد تحميل العمالة والمعدات للتقارير المعتمدة التي لم يُرحَّل تحميلها (اعتُمدت قبل التفعيل)؛ يعيد عددها.</summary>
+    Task<int> PostPendingCostsAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>إعادة المقدَّم للمسودة بسبب إلزامي.</summary>
     Task<SiteDailyReportDto> ReturnAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default);
 

@@ -31,6 +31,9 @@ public class SaveAccountingSettingsDto
     public string? ContractOtherDeductionsAccountCode { get; set; }
     public string? ProjectMaterialsWipAccountCode { get; set; }
     public string? ContractCostOfRevenueAccountCode { get; set; }
+    public string? ProjectLaborCostAccountCode { get; set; }
+    public string? ProjectEquipmentCostAccountCode { get; set; }
+    public string? ProjectAbsorbedCostAccountCode { get; set; }
     /// <summary>فترة إرجاع المبيعات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
     public int? SalesReturnPeriodDays { get; set; }
     /// <summary>فترة إرجاع المشتريات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>

@@ -57,6 +57,14 @@ public partial class CreateCommercialContractDto
     public bool AutoRenew { get; set; }
     public string Currency { get; set; } = "SAR";
     public Guid? CostCenterId { get; set; }
+    /// <summary>عقد مقاول الباطن: عقد العميل (المشروع) الذي ينفذ جزءاً منه (عقد مورد فقط). مركز التكلفة يؤخذ منه.</summary>
+    public Guid? ParentContractId { get; set; }
+    /// <summary>عقد جديد كمناقصة: "new" (عقد مقاولات لعميل). بعد الإنشاء تتغير الحالة من مسار المناقصة وحده ولا تُقبل من الحفظ.</summary>
+    public string? TenderStatus { get; set; }
+    public string? TenderNumber { get; set; }
+    public DateTime? TenderIssueDate { get; set; }
+    public DateTime? TenderDeadline { get; set; }
+    public string? TenderRequirements { get; set; }
     public decimal AdvancePercent { get; set; }
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }

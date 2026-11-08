@@ -584,6 +584,9 @@
   <data name="AccountRole_ContractOtherDeductionsAccountCode" xml:space="preserve"><value>Other certificate deductions</value></data>
   <data name="AccountRole_ProjectMaterialsWipAccountCode" xml:space="preserve"><value>Project materials under construction</value></data>
   <data name="AccountRole_ContractCostOfRevenueAccountCode" xml:space="preserve"><value>Contract cost of revenue</value></data>
+  <data name="AccountRole_ProjectLaborCostAccountCode" xml:space="preserve"><value>Project labor cost</value></data>
+  <data name="AccountRole_ProjectEquipmentCostAccountCode" xml:space="preserve"><value>Project equipment cost</value></data>
+  <data name="AccountRole_ProjectAbsorbedCostAccountCode" xml:space="preserve"><value>Costs absorbed by projects</value></data>
   <data name="CertificateSubmitted" xml:space="preserve"><value>Certificate submitted for approval.</value></data>
   <data name="CertificateApproved" xml:space="preserve"><value>Certificate approved.</value></data>
   <data name="CertificateReturned" xml:space="preserve"><value>Certificate returned to draft.</value></data>

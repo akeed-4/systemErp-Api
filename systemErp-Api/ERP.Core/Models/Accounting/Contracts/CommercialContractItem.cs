@@ -55,6 +55,10 @@ public class CommercialContractItem : BaseEntity
     /// لا تدخل الفوترة ولا المستخلصات؛ مقارنتها بسعر البيع هامش البند المخطط.
     /// </summary>
     public decimal EstimatedUnitCost { get; set; }
+    /// <summary>أمر التغيير الذي أضاف البند بعد التعاقد (فارغ = بند العقد الأصلي، وكميته الأصلية <see cref="Quantity"/> صفر).</summary>
+    public Guid? VariationId { get; set; }
+    /// <summary>عقد مقاول الباطن: بند عقد المشروع (العميل) الذي ينفذه السطر؛ نسخة مرجعية بلا قيد.</summary>
+    public Guid? MainContractItemId { get; set; }
 
     public virtual CommercialContract Contract { get; set; } = null!;
 }

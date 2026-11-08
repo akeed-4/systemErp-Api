@@ -119,6 +119,13 @@ public class SiteDailyReport : BaseEntity
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedBy { get; set; }
     public Guid? ApprovedByUserId { get; set; }
+    /// <summary>
+    /// قيد تحميل العمالة والمعدات المملوكة على المشروع عند الاعتماد (مدين تكلفة عمالة/معدات المشاريع بمركز المشروع / دائن التكاليف المحمّلة)
+    /// بتكلفة الساعة المثبّتة على الأسطر. المعدات المستأجرة لا تُحمَّل (تكلفتها من فاتورة الإيجار). فارغ = لم يُرحَّل (عقد بلا مركز، أو لا تكلفة).
+    /// </summary>
+    public Guid? CostJournalEntryId { get; set; }
+    public decimal PostedLaborCost { get; set; }
+    public decimal PostedEquipmentCost { get; set; }
 
     public virtual ICollection<SiteHourEntry> Hours { get; set; } = new List<SiteHourEntry>();
     public virtual ICollection<SiteResourceUsage> Resources { get; set; } = new List<SiteResourceUsage>();

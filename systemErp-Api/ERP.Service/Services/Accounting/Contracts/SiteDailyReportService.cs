@@ -21,10 +21,11 @@ public class SiteDailyReportService : ISiteDailyReportService
     private readonly ErpDbContext _db;
     private readonly ITransactionRunner _tx;
     private readonly ICurrentUser _user;
+    private readonly IAccountingPostingService _posting;
 
-    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user)
+    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user, IAccountingPostingService posting)
     {
-        _db = db; _tx = tx; _user = user;
+        _db = db; _tx = tx; _user = user; _posting = posting;
     }
 
     // ---------- القراءة ----------
@@ -133,11 +134,70 @@ public class SiteDailyReportService : ISiteDailyReportService
             r.Status = St.Submitted; r.SubmittedAt = DateTime.UtcNow; r.SubmittedBy = _user.Name; r.ReturnNote = null;
         }, ct);
 
-    public Task<SiteDailyReportDto> ApproveAsync(Guid contractId, Guid reportId, CancellationToken ct = default)
-        => TransitionAsync(contractId, reportId, St.Submitted, r =>
+    /// <summary>الاعتماد يثبّت الإنجاز ويحمّل تكلفة العمالة والمعدات المملوكة على المشروع بقيد في المعاملة نفسها.</summary>
+    public async Task<SiteDailyReportDto> ApproveAsync(Guid contractId, Guid reportId, CancellationToken ct = default)
+    {
+        await _tx.RunAsync(async token =>
         {
-            r.Status = St.Approved; r.ApprovedAt = DateTime.UtcNow; r.ApprovedBy = _user.Name; r.ApprovedByUserId = _user.UserId;
+            var contract = await P.LoadBoqContractAsync(_db, contractId, token);
+            P.EnsureEditable(contract);
+            var report = await LoadTrackedAsync(contractId, reportId, token);
+            EnsureStatus(report, St.Submitted);
+            report.Status = St.Approved; report.ApprovedAt = DateTime.UtcNow; report.ApprovedBy = _user.Name; report.ApprovedByUserId = _user.UserId;
+            await PostCostAsync(report, contract, token);
+            await _db.SaveChangesAsync(token);
         }, ct);
+        return await GetAsync(contractId, reportId, ct);
+    }
+
+    public Task<int> PostPendingCostsAsync(Guid contractId, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var contract = await P.LoadBoqContractAsync(_db, contractId, token);
+            var reports = await Full().Where(r => r.ContractId == contractId && r.Status == St.Approved && r.CostJournalEntryId == null)
+                .OrderBy(r => r.ReportDate).ToListAsync(token);
+            var posted = 0;
+            foreach (var r in reports)
+            {
+                await PostCostAsync(r, contract, token);
+                if (r.CostJournalEntryId != null) posted++;
+            }
+            await _db.SaveChangesAsync(token);
+            return posted;
+        }, ct);
+
+    /// <summary>
+    /// قيد تحميل التقرير المعتمد: العمالة والمهندسون على «تكلفة عمالة المشاريع»، والمعدات المملوكة على «تكلفة معدات المشاريع»،
+    /// كلاهما بمركز تكلفة المشروع، مقابل «التكاليف المحمّلة على المشاريع» بلا مركز (فلا يتغير إجمالي مصروف المنشأة ولا تُحتسب
+    /// الرواتب والإهلاك مرتين). المعدات المستأجرة تكلفتها من فاتورة الإيجار على مركز المشروع، فلا تُحمَّل هنا. عقد بلا مركز أو تقرير بلا
+    /// تكلفة: لا قيد (يبقى تشغيلياً ويُنبَّه عنه في تقرير التكلفة).
+    /// </summary>
+    private async Task PostCostAsync(SiteDailyReport report, CommercialContract contract, CancellationToken ct)
+    {
+        if (contract.CostCenterId is not Guid cc) return;
+        var kinds = await _db.Set<ProjectResource>().AsNoTracking().Where(x => x.ContractId == contract.Id)
+            .ToDictionaryAsync(x => x.Id, x => x.Kind, ct);
+        string? KindOf(Guid id) => kinds.GetValueOrDefault(id);
+        var labor = DocumentPricing.Round(report.Resources.Where(u => KindOf(u.ProjectResourceId) is ProjectResourceKinds.Labor or ProjectResourceKinds.Engineer).Sum(u => u.Cost));
+        var equipment = DocumentPricing.Round(report.Resources.Where(u => KindOf(u.ProjectResourceId) == ProjectResourceKinds.OwnedEquipment).Sum(u => u.Cost));
+        if (labor + equipment <= 0) return;
+
+        await ContractAccountsSetup.EnsureMissingAsync(_db, ct);
+        var settings = await PostingAccounts.SettingsAsync(_db, ct);
+        var note = $"تحميل عمالة ومعدات التقرير اليومي {report.ReportDate:yyyy-MM-dd} - عقد {contract.ContractNumber}";
+        var lines = new List<PostingLine>();
+        if (labor > 0) lines.Add(new(settings.ContractAccount(nameof(AccountingSettings.ProjectLaborCostAccountCode)), labor, 0, note, cc));
+        if (equipment > 0) lines.Add(new(settings.ContractAccount(nameof(AccountingSettings.ProjectEquipmentCostAccountCode)), equipment, 0, note, cc));
+        lines.Add(new(settings.ContractAccount(nameof(AccountingSettings.ProjectAbsorbedCostAccountCode)), 0, labor + equipment, note));
+        var posted = await _posting.PostAsync(new GenericPostingRequest
+        {
+            Date = report.ReportDate, Description = note, SourceType = ProjectCostService.SiteCostSource, SourceId = report.Id,
+            SourceNumber = contract.ContractNumber, WarehouseId = contract.WarehouseId, Lines = lines,
+        }, ct);
+        report.CostJournalEntryId = posted.JournalEntryId;
+        report.PostedLaborCost = labor;
+        report.PostedEquipmentCost = equipment;
+    }
 
     public Task<SiteDailyReportDto> ReturnAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default)
     {

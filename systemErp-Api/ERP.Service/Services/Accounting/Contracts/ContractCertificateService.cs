@@ -34,6 +34,7 @@ public class ContractCertificateService : IContractCertificateService
             .Where(c => c.ContractId == contractId).OrderByDescending(c => c.SequenceNo).ToListAsync(ct);
         var dtos = list.Select(ToDto).ToList();
         await ApplyCollectionsAsync(dtos, ct);
+        await ApplySiteAsync(contractId, dtos, ct);
         return dtos;
     }
 
@@ -41,6 +42,7 @@ public class ContractCertificateService : IContractCertificateService
     {
         var dto = ToDto(await LoadCertificateAsync(contractId, certificateId, track: false, ct));
         await ApplyCollectionsAsync(new List<ContractCertificateDto> { dto }, ct);
+        await ApplySiteAsync(contractId, new List<ContractCertificateDto> { dto }, ct);
         return dto;
     }
 
@@ -75,7 +77,34 @@ public class ContractCertificateService : IContractCertificateService
         // القالب للعرض فقط: لا يُرفض لتجاوز (لا كميات حالية فيه)
         BuildLines(cert, contract, previous, new Dictionary<Guid, decimal>(), validate: false);
         ApplyDeductions(cert, contract, await PriorDeductionsAsync(contractId, ct), penalty: 0, validate: false);
-        return ToDto(cert);
+        var dto = ToDto(cert);
+        await ApplySiteAsync(contractId, new List<ContractCertificateDto> { dto }, ct);
+        return dto;
+    }
+
+    /// <summary>
+    /// المنفذ في الموقع لكل بند: مجموع الكميات الفعلية في التقارير اليومية المعتمدة حتى نهاية فترة المستخلص (أو تاريخه)، وتنبيه حين
+    /// يتجاوزه التراكمي المطالب به. مشروع بلا تقارير معتمدة لا يُقارن (فارغ). عقد الباطن يُقاس على تقارير مشروعه لا تقاريره.
+    /// </summary>
+    internal async Task ApplySiteAsync(Guid contractId, List<ContractCertificateDto> certificates, CancellationToken ct)
+    {
+        if (certificates.Count == 0) return;
+        var rows = await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
+                          join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
+                          where r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved
+                          select new { h.ContractItemId, r.ReportDate, h.ActualQuantity }).ToListAsync(ct);
+        if (rows.Count == 0) return;
+        foreach (var c in certificates)
+        {
+            var cutoff = (c.PeriodTo ?? c.CertificateDate).Date;
+            var executed = rows.Where(x => x.ReportDate.Date <= cutoff).GroupBy(x => x.ContractItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.ActualQuantity));
+            foreach (var l in c.Lines)
+            {
+                var done = executed.GetValueOrDefault(l.ContractItemId);
+                l.SiteExecutedQuantity = done;
+                l.ExceedsSite = l.CumulativeQuantity > done + 0.00005m && l.CurrentQuantity > 0;
+            }
+        }
     }
 
     public async Task<BoqProgressDto> ProgressAsync(Guid contractId, CancellationToken ct = default)
@@ -339,6 +368,7 @@ public class ContractCertificateService : IContractCertificateService
         // متتبَّعة: يُلمس رمز تزامنها فيتعارض الاختيار مع إلغاء الإذن (أو اختيار آخر) في اللحظة نفسها
         var lines = await _db.Set<ProjectMaterialIssueLine>().Include(l => l.Issue).Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
         var others = await CertifiedMaterials.ByIssueLineAsync(_db, contract.Id, cert.Id, ct);
+        var withdrawn = await CertifiedMaterials.WithdrawnByLineAsync(_db, contract.Id, null, ct);
         var measured = cert.Lines.ToDictionary(l => l.ContractItemId, l => l.CumulativeQuantity);
         var labels = contract.Items.ToDictionary(i => i.Id, Label);
         var order = 0;
@@ -350,7 +380,7 @@ public class ContractCertificateService : IContractCertificateService
                 continue;
             }
             var issue = line.Issue;
-            if (issue.Status != ProjectMaterialIssueStatuses.Posted)
+            if (issue.Status != ProjectMaterialIssueStatuses.Posted || issue.Kind != ProjectMaterialIssueKinds.Issue)
             {
                 errors.Add($"الإذن {issue.IssueNumber} غير مرحّل أو ملغى: لا تُختار منه مواد.");
                 continue;
@@ -366,6 +396,9 @@ public class ContractCertificateService : IContractCertificateService
                 continue;
             }
             var (otherQty, otherCost) = others.GetValueOrDefault(line.Id);
+            // المُرجَع للمستودع والمهدر في الموقع سُحبا من السطر (الهدر اعتُرفت تكلفته عند ترحيله): كالمختار في مستخلص آخر
+            var (wQty, wCost) = withdrawn.GetValueOrDefault(line.Id);
+            otherQty += wQty; otherCost += wCost;
             var available = line.Quantity - otherQty;
             if (w.Quantity > available + 0.00005m)
             {
@@ -395,7 +428,8 @@ public class ContractCertificateService : IContractCertificateService
         var contract = await LoadContractAsync(contractId, track: false, ct);
         var items = contract.Items.ToDictionary(i => i.Id);
         var rows = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
-            .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted && l.BoqItemId != null)
+            .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted
+                && l.Issue.Kind == ProjectMaterialIssueKinds.Issue && l.BoqItemId != null)
             .Select(l => new
             {
                 l.Id, l.IssueId, l.Issue.IssueNumber, l.Issue.Date, l.Issue.DebitAccountCode, l.Issue.JournalEntryId, BoqItemId = l.BoqItemId!.Value,
@@ -403,6 +437,7 @@ public class ContractCertificateService : IContractCertificateService
             })
             .ToListAsync(ct);
         var others = await CertifiedMaterials.ByIssueLineAsync(_db, contractId, certificateId, ct);
+        var withdrawn = await CertifiedMaterials.WithdrawnByLineAsync(_db, contractId, null, ct);
         var selected = certificateId is { } cid
             ? await _db.Set<ContractCertificateMaterial>().AsNoTracking().Where(m => m.CertificateId == cid)
                 .ToDictionaryAsync(m => m.IssueLineId, m => m.Quantity, ct)
@@ -411,6 +446,8 @@ public class ContractCertificateService : IContractCertificateService
             .Select(r =>
             {
                 var (q, c) = others.GetValueOrDefault(r.Id);
+                var (wq, wc) = withdrawn.GetValueOrDefault(r.Id);
+                q += wq; c += wc;
                 var item = items[r.BoqItemId];
                 return new CertificateMaterialOptionDto
                 {

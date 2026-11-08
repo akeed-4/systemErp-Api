@@ -240,6 +240,59 @@ public class InventoryReportService : IInventoryReportService
                };
     }
 
+    /// <summary>
+    /// الحركة التجارية لكل صنف: بنود الفواتير المرحّلة (مبيعات ومرتجعها، أو مشتريات ومرتجعها) مجمّعة بالصنف. القيمة قبل الضريبة بعد خصم
+    /// البند؛ المرتجع منفصل ويُطرح في الصافي؛ وفي المبيعات تكلفة المباع (الكمية × تكلفة الوحدة المثبّتة على البند) ومجمل الربح.
+    /// البنود بلا صنف (خدمة حرة أو بند عقد) لا تدخل تقرير الأصناف.
+    /// </summary>
+    private IQueryable<ItemTradeRowDto> ItemTradeQuery(ReportQueryDto q)
+    {
+        var purchases = string.Equals(q.DocType, "purchase", StringComparison.OrdinalIgnoreCase);
+        var (main, ret) = purchases ? (InvoiceKind.Purchase, InvoiceKind.PurchaseReturn) : (InvoiceKind.Sales, InvoiceKind.SalesReturn);
+        var inv = _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Status == "posted" && (i.Kind == main || i.Kind == ret));
+        if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
+        if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate < q.EndExclusive());
+        if (q.WarehouseId.HasValue) inv = inv.Where(i => i.WarehouseId == q.WarehouseId.Value);
+        var moduleScope = ReportModuleScope.Normalize(q.Module);
+        if (moduleScope != null) inv = inv.Where(i => moduleScope.Contains(i.Module));
+        if (q.ItemId.HasValue) inv = inv.Where(i => _db.Set<InvoiceItemBase>().Any(it => it.InvoiceId == i.Id && it.ItemId == q.ItemId));
+
+        var lines = from it in _db.Set<InvoiceItemBase>().AsNoTracking()
+                    join i in inv on it.InvoiceId equals i.Id
+                    where it.ItemId != Guid.Empty && (!q.ItemId.HasValue || it.ItemId == q.ItemId)
+                    let isRet = i.IsReturn || i.Kind == ret
+                    select new
+                    {
+                        it.ItemId, it.Sku, it.ItemName, it.Unit, i.Id, i.PartyName, i.IssueDate, isRet,
+                        it.Quantity, it.TotalBeforeVat, it.VatAmount, LineCost = it.Quantity * it.UnitCost,
+                    };
+        return from l in lines
+               group l by l.ItemId into g
+               let qty = g.Where(x => !x.isRet).Sum(x => x.Quantity)
+               let value = g.Where(x => !x.isRet).Sum(x => x.TotalBeforeVat)
+               let rQty = g.Where(x => x.isRet).Sum(x => x.Quantity)
+               let rValue = g.Where(x => x.isRet).Sum(x => x.TotalBeforeVat)
+               let cost = purchases ? 0m : g.Sum(x => x.isRet ? -x.LineCost : x.LineCost)
+               select new ItemTradeRowDto
+               {
+                   ItemId = g.Key, Sku = g.Max(x => x.Sku), ItemName = g.Max(x => x.ItemName), Unit = g.Max(x => x.Unit),
+                   DocumentsCount = g.Select(x => x.Id).Distinct().Count(), PartiesCount = g.Select(x => x.PartyName).Distinct().Count(),
+                   Quantity = qty, Value = value, ReturnQuantity = rQty, ReturnValue = rValue,
+                   NetQuantity = qty - rQty, NetValue = value - rValue,
+                   AveragePrice = qty - rQty == 0 ? 0m : Math.Round((value - rValue) / (qty - rQty), 4),
+                   VatTotal = g.Sum(x => x.isRet ? -x.VatAmount : x.VatAmount),
+                   Cost = cost, Profit = purchases ? 0m : value - rValue - cost,
+                   ProfitPercent = purchases || value - rValue == 0 ? 0m : Math.Round((value - rValue - cost) / (value - rValue) * 100, 2),
+                   LastDate = g.Max(x => (DateTime?)x.IssueDate),
+               };
+    }
+
+    public Task<LoadResult> LoadItemTradeAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+    {
+        ValidatePeriod(q);
+        return ReportLoader.LoadAsync(ItemTradeQuery(q), options, nameof(ItemTradeRowDto.ItemId), ct, EntityLoader.Desc(nameof(ItemTradeRowDto.NetValue)));
+    }
+
     public Task<LoadResult> LoadInventoryAuditAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
     {
         ValidatePeriod(q, includeStart: false);

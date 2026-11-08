@@ -55,6 +55,15 @@ public class AccountingSettings : BaseEntity
     public string? ProjectMaterialsWipAccountCode { get; set; }
     /// <summary>تكلفة إيرادات العقود (مصروف): التكلفة الفعلية لمواد المستخلص المفوتر، مقابل المواد تحت التنفيذ.</summary>
     public string? ContractCostOfRevenueAccountCode { get; set; }
+    /// <summary>تكلفة عمالة المشاريع (مصروف بمركز المشروع): ساعات العمالة والمهندسين المعتمدة في التقارير اليومية بسعرها المعياري.</summary>
+    public string? ProjectLaborCostAccountCode { get; set; }
+    /// <summary>تكلفة معدات المشاريع المملوكة (مصروف بمركز المشروع): ساعات تشغيلها المعتمدة بسعرها المعياري.</summary>
+    public string? ProjectEquipmentCostAccountCode { get; set; }
+    /// <summary>
+    /// تكاليف محمّلة على المشاريع (مصروف دائن الطبيعة بلا مركز): مقابل قيد التحميل، فلا يتغير إجمالي مصروف المنشأة؛
+    /// الرواتب والإهلاك الفعلية تبقى على حساباتها، والفرق بينها وبين المحمّل انحراف سعر.
+    /// </summary>
+    public string? ProjectAbsorbedCostAccountCode { get; set; }
 
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }

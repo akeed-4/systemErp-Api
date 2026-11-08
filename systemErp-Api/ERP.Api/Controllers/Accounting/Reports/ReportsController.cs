@@ -106,6 +106,11 @@ public class ReportsController : ErpControllerBase
     public async Task<IActionResult> Ledger([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadItemLedgerAsync(q, loadOptions, ct));
 
+    /// <summary>الحركة التجارية لكل صنف: docType=sales (افتراضي) أو purchase، بمرتجعاتها.</summary>
+    [HttpGet("ItemTrade"), RequireScreen("reports")]
+    public async Task<IActionResult> ItemTrade([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _inventory.LoadItemTradeAsync(q, loadOptions, ct));
+
     [HttpGet("TradeCommercial"), RequireScreen("reports")]
     public async Task<IActionResult> Trade([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadCommercialTradeAsync(q, loadOptions, ct));

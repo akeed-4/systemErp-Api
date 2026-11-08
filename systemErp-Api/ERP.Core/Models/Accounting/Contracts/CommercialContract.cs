@@ -88,6 +88,25 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public bool AutoRenew { get; set; }
     public string Currency { get; set; } = "SAR";
     public Guid? CostCenterId { get; set; }
+    /// <summary>
+    /// عقد مقاول الباطن (عقد مورد): عقد العميل (المشروع) الذي ينفذ جزءاً منه. يأخذ مركز تكلفة المشروع فتُحمَّل مستخلصاته عليه،
+    /// ولا يُنشأ له مشروع مستقل.
+    /// </summary>
+    public Guid? ParentContractId { get; set; }
+
+    // ---- المناقصة (قبل الترسية؛ انظر ContractTenderStatuses) ----
+    /// <summary>حالة المناقصة؛ فارغة = عقد بلا مناقصة.</summary>
+    public string? TenderStatus { get; set; }
+    /// <summary>رقم المناقصة لدى الجهة المالكة.</summary>
+    public string? TenderNumber { get; set; }
+    public DateTime? TenderIssueDate { get; set; }
+    /// <summary>آخر موعد لتقديم العرض.</summary>
+    public DateTime? TenderDeadline { get; set; }
+    /// <summary>شروط التأهيل والضمانات المطلوبة (ضمان ابتدائي وغيره).</summary>
+    public string? TenderRequirements { get; set; }
+    public DateTime? TenderDecidedAt { get; set; }
+    /// <summary>ملاحظة النتيجة (سبب الخسارة، سعر المنافس الفائز، …).</summary>
+    public string? TenderResultNote { get; set; }
     /// <summary>نسبة الدفعة المقدمة من قيمة العقد؛ تُخصم بالنسبة نفسها من كل فاتورة مرحلية.</summary>
     public decimal AdvancePercent { get; set; }
     public decimal RetentionPercent { get; set; }

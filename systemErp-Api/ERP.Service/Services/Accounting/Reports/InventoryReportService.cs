@@ -12,6 +12,12 @@ public class InventoryReportService : IInventoryReportService
     private readonly ErpDbContext _db;
     public InventoryReportService(ErpDbContext db) => _db = db;
 
+    private static void ValidatePeriod(ReportQueryDto q, bool includeStart = true)
+    {
+        if (includeStart && q.DateFrom.HasValue && q.DateTo.HasValue && q.DateFrom.Value.Date > q.DateTo.Value.Date)
+            throw new ValidationFailedException("تاريخ البداية يجب أن يكون في أو قبل تاريخ النهاية.");
+    }
+
     private sealed class SignedMovement
     {
         public Guid Id { get; set; }
@@ -62,15 +68,48 @@ public class InventoryReportService : IInventoryReportService
 
     private IQueryable<InventoryAuditRowDto> InventoryAuditQuery(ReportQueryDto q)
     {
-        // لمستودع بعينه: الكمية رصيده فيه، بالتكلفة الموحّدة للصنف
+        // لمستودع بعينه: الكمية رصيده فيه، بالتكلفة الموحّدة للصنف.
         var stocks = _db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == q.WarehouseId);
         var rows = q.WarehouseId.HasValue
-            ? ProductsQuery(q).Select(p => new { p, Quantity = stocks.Where(s => s.ItemId == p.Id).Sum(s => s.Quantity) })
-            : ProductsQuery(q).Select(p => new { p, Quantity = p.CurrentStock });
+            ? ProductsQuery(q).Select(p => new { p, Quantity = stocks.Where(s => s.ItemId == p.Id).Sum(s => s.Quantity), UnitCost = p.AverageCost })
+            : ProductsQuery(q).Select(p => new { p, Quantity = p.CurrentStock, UnitCost = p.AverageCost });
+
+        // الجرد لقطة رصيد حتى نهاية اليوم المحدد. نرجع صافي حركات ما بعده من الرصيد الحالي؛
+        // تكلفة الوحدة التاريخية تُستعاد من تغيّر قيمة المخزون على مستوى المنشأة.
+        if (q.EndExclusive() is { } end)
+        {
+            var laterForWarehouse = SignedMovements(q).Where(m => m.Date >= end)
+                .GroupBy(m => m.ItemId)
+                .Select(g => new { ItemId = g.Key, Quantity = g.Sum(m => m.Sign * m.Quantity) });
+            var laterForCompany = SignedMovements(new ReportQueryDto()).Where(m => m.Date >= end)
+                .GroupBy(m => m.ItemId)
+                .Select(g => new
+                {
+                    ItemId = g.Key,
+                    Quantity = g.Sum(m => m.Sign * m.Quantity),
+                    Value = g.Sum(m => m.ValueChange),
+                });
+
+            rows = from r in rows
+                   join w in laterForWarehouse on r.p.Id equals w.ItemId into warehouseChanges
+                   from w in warehouseChanges.DefaultIfEmpty()
+                   join c in laterForCompany on r.p.Id equals c.ItemId into companyChanges
+                   from c in companyChanges.DefaultIfEmpty()
+                   let historicalCompanyQuantity = r.p.CurrentStock - ((decimal?)c.Quantity ?? 0m)
+                   let historicalCompanyValue = r.p.CurrentStock * r.p.AverageCost - ((decimal?)c.Value ?? 0m)
+                   select new
+                   {
+                       p = r.p,
+                       Quantity = r.Quantity - ((decimal?)w.Quantity ?? 0m),
+                       UnitCost = historicalCompanyQuantity == 0 ? r.p.AverageCost : historicalCompanyValue / historicalCompanyQuantity,
+                   };
+        }
+
         return rows.Select(r => new InventoryAuditRowDto
         {
             ItemId = r.p.Id, Sku = r.p.Sku, Barcode = r.p.Barcode, ItemName = r.p.NameAr, Category = r.p.Category, Unit = r.p.Unit,
-            SystemQuantity = r.Quantity, AverageUnitCost = r.p.AverageCost, SystemValuation = Math.Round(r.Quantity * r.p.AverageCost, 2),
+            SystemQuantity = r.Quantity, AverageUnitCost = r.UnitCost,
+            SystemValuation = Math.Round(r.Quantity * r.UnitCost, 2),
         });
     }
 
@@ -184,12 +223,27 @@ public class InventoryReportService : IInventoryReportService
     }
 
     public Task<LoadResult> LoadInventoryAuditAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(InventoryAuditQuery(q), options, nameof(InventoryAuditRowDto.ItemId), ct, EntityLoader.Asc(nameof(InventoryAuditRowDto.Sku)));
+    {
+        ValidatePeriod(q, includeStart: false);
+        return ReportLoader.LoadAsync(InventoryAuditQuery(q), options, nameof(InventoryAuditRowDto.ItemId), ct, EntityLoader.Asc(nameof(InventoryAuditRowDto.Sku)));
+    }
+
     public Task<LoadResult> LoadItemMovementsAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(ItemMovementsQuery(q), options, nameof(ItemMovementSummaryRowDto.ItemId), ct, EntityLoader.Asc(nameof(ItemMovementSummaryRowDto.Sku)));
+    {
+        ValidatePeriod(q);
+        return ReportLoader.LoadAsync(ItemMovementsQuery(q), options, nameof(ItemMovementSummaryRowDto.ItemId), ct, EntityLoader.Asc(nameof(ItemMovementSummaryRowDto.Sku)));
+    }
+
     public Task<LoadResult> LoadItemLedgerAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(ItemLedgerQuery(q), options, nameof(DetailedItemLedgerEntryDto.Id), ct,
+    {
+        ValidatePeriod(q);
+        return ReportLoader.LoadAsync(ItemLedgerQuery(q), options, nameof(DetailedItemLedgerEntryDto.Id), ct,
             EntityLoader.Asc(nameof(DetailedItemLedgerEntryDto.Date)), EntityLoader.Asc(nameof(DetailedItemLedgerEntryDto.CreatedAt)));
+    }
+
     public Task<LoadResult> LoadCommercialTradeAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
-        => ReportLoader.LoadAsync(CommercialTradeQuery(q), options, nameof(CommercialTradeRowDto.Id), ct, EntityLoader.Asc(nameof(CommercialTradeRowDto.Date)));
+    {
+        ValidatePeriod(q);
+        return ReportLoader.LoadAsync(CommercialTradeQuery(q), options, nameof(CommercialTradeRowDto.Id), ct, EntityLoader.Asc(nameof(CommercialTradeRowDto.Date)));
+    }
 }

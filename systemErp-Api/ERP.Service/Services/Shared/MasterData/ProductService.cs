@@ -20,6 +20,18 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
     protected override IQueryable<Product> ApplyFilters(IQueryable<Product> q, PaginationParams p)
         => string.IsNullOrWhiteSpace(p.Status) ? q : q.Where(x => x.Category == p.Status); // Status = رمز التصنيف في شاشة الأصناف
 
+    /// <summary>طول المفتاح المفهرس BarcodeLookupKey (LEFT([Barcode], 450)).</summary>
+    private const int BarcodeLookupKeyLength = 450;
+
+    /// <summary>
+    /// الباركود مستخدم لصنف آخر: المطابقة بالقيمة الأصلية كما هي، ويُضاف المفتاح المفهرس حين يساوي الباركود كاملاً
+    /// (حتى 450 حرفاً) ليُبحث بالفهرس بدل مسح الجدول؛ الأطول يُقارن بالقيمة الأصلية وحدها كما كان.
+    /// </summary>
+    private Task<bool> BarcodeInUseAsync(string barcode, Guid? exceptId, CancellationToken ct)
+        => barcode.Length <= BarcodeLookupKeyLength
+            ? Db.Set<Product>().AnyAsync(p => p.BarcodeLookupKey == barcode && p.Barcode == barcode && (exceptId == null || p.Id != exceptId), ct)
+            : Db.Set<Product>().AnyAsync(p => p.Barcode == barcode && (exceptId == null || p.Id != exceptId), ct);
+
     protected override async Task ValidateAsync(CreateProductDto d, Product? existing, CancellationToken ct)
     {
         var errors = FieldErrors(d);
@@ -27,8 +39,7 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
 
         if (await Db.Set<Product>().AnyAsync(p => p.Sku == d.Sku && (existing == null || p.Id != existing.Id), ct))
             throw new ConflictException(Messages.SkuInUse);
-        if (!string.IsNullOrWhiteSpace(d.Barcode)
-            && await Db.Set<Product>().AnyAsync(p => p.Barcode == d.Barcode && (existing == null || p.Id != existing.Id), ct))
+        if (!string.IsNullOrWhiteSpace(d.Barcode) && await BarcodeInUseAsync(d.Barcode, existing?.Id, ct))
             throw new ConflictException(Messages.BarcodeInUse);
         if (!string.IsNullOrWhiteSpace(d.Category) && !await Db.Set<ProductCategory>().AnyAsync(c => c.Code == d.Category, ct))
             throw new ValidationFailedException(Messages.ProductCategoryNotFound);

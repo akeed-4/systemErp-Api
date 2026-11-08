@@ -744,6 +744,29 @@ public class ErpDbContext : DbContext
         // الأرصدة والمخزون: تعارض التزامن يُرفض (ويُعاد تنفيذ المعاملة) بدل أن يُكتب رصيد فوق رصيد
         modelBuilder.Entity<Account>().Property(a => a.RowVersion).IsRowVersion();
         modelBuilder.Entity<Product>().Property(p => p.RowVersion).IsRowVersion();
+        // فهرس آمن للأعمدة النصية غير المحدودة: مفتاح قصير محسوب، مع مقارنة Barcode الأصلية للتحقق الدقيق.
+        // بلا مرشح: مرشح على [Barcode] لا يطابقه استعلام يرشّح بالمفتاح وحده فيُمسح الجدول، والمرشح على العمود المحسوب غير مسموح.
+        modelBuilder.Entity<Product>().Property(p => p.BarcodeLookupKey)
+            .HasMaxLength(450).HasComputedColumnSql("CONVERT(nvarchar(450), LEFT([Barcode], 450))", stored: true);
+        modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.BarcodeLookupKey });
+        // فهارس مسارات القراءة الكثيفة (أُثبتت بخطط التنفيذ الفعلية): طبقات FIFO وتاريخ الصنف تُقرأ مع كل حركة مخزون،
+        // وحركات المستند عند إلغاء ترحيله
+        modelBuilder.Entity<StockMovement>().HasIndex(m => new { m.TenantId, m.ItemId, m.Date, m.CreatedAt });
+        modelBuilder.Entity<StockMovement>().HasIndex(m => new { m.TenantId, m.SourceId }).HasFilter("[SourceId] IS NOT NULL");
+        // قوائم فواتير المبيعات والمشتريات (الأحدث بالتاريخ ثم الرقم)، وفواتير الطرف للكشوف والأعمار
+        foreach (var t in new[] { typeof(SalesInvoice), typeof(PurchaseInvoice) })
+        {
+            modelBuilder.Entity(t).HasIndex(nameof(InvoiceBase.TenantId), nameof(InvoiceBase.IssueDate), nameof(InvoiceBase.InvoiceNumber), nameof(BaseEntity.Id))
+                .IsDescending(false, true, true, true);
+            modelBuilder.Entity(t).HasIndex(nameof(InvoiceBase.TenantId), nameof(InvoiceBase.PartyId), nameof(InvoiceBase.IssueDate));
+        }
+        // مرتجعات الفاتورة تُقرأ من كل جداول InvoiceBase
+        modelBuilder.Entity<InvoiceBase>().HasIndex(i => new { i.TenantId, i.OriginalInvoiceId }).HasFilter("[OriginalInvoiceId] IS NOT NULL");
+        // استبعاد الفواتير المعلّقة للاعتماد داخل كل قائمة فواتير
+        modelBuilder.Entity<ApprovalRequest>().HasIndex(r => new { r.TenantId, r.DocumentId }).IncludeProperties(r => r.Status);
+        // الفرز الافتراضي لشبكات الأصناف والعملاء (الأحدث أولاً)
+        modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.CreatedAt, p.Id }).IsDescending(false, true, true);
+        modelBuilder.Entity<Customer>().HasIndex(c => new { c.TenantId, c.CreatedAt, c.Id }).IsDescending(false, true, true);
         // رصيد واحد لكل صنف في كل مستودع
         modelBuilder.Entity<WarehouseStock>().Property(s => s.RowVersion).IsRowVersion();
         modelBuilder.Entity<WarehouseStock>().HasIndex(s => new { s.TenantId, s.ItemId, s.WarehouseId }).IsUnique();

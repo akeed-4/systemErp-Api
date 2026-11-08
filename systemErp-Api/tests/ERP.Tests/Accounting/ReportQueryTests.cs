@@ -212,6 +212,35 @@ public class ReportQueryTests : TestBase
     }
 
     [Fact]
+    public async Task Inventory_reports_apply_selected_period_and_audit_as_of_end_date()
+    {
+        var (api, product, _) = await SeededAsync();
+        var today = SaudiTime.Today;
+        var from = today.ToString("yyyy-MM-dd");
+        var to = from;
+        var previousDay = today.AddDays(-1).ToString("yyyy-MM-dd");
+
+        var movement = Assert.Single(await RowsAsync(api, $"/reports/ItemMovements?itemId={product}&dateFrom={from}&dateTo={to}"));
+        Assert.Equal(0, movement!["openingStock"].D());
+        Assert.Equal(4, movement["purchaseInQty"].D());
+        Assert.Equal(5, movement["salesOutQty"].D());
+        Assert.Equal(9, movement["closingStock"].D());
+
+        var ledger = await RowsAsync(api, $"/reports/ItemLedger?itemId={product}&dateFrom={from}&dateTo={to}");
+        Assert.Equal(4, ledger.Count);
+        Assert.Equal(9, ledger[^1]!["runningStockBalance"].D());
+        Assert.Empty(await RowsAsync(api, $"/reports/ItemLedger?itemId={product}&dateFrom={previousDay}&dateTo={previousDay}"));
+
+        var auditBeforeOpening = Assert.Single(await RowsAsync(api, $"/reports/InventoryAudit?itemId={product}&dateTo={previousDay}"));
+        Assert.Equal(0, auditBeforeOpening!["systemQuantity"].D());
+        Assert.Equal(0, auditBeforeOpening["systemValuation"].D());
+        var auditToday = Assert.Single(await RowsAsync(api, $"/reports/InventoryAudit?itemId={product}&dateTo={to}"));
+        Assert.Equal(9, auditToday!["systemQuantity"].D());
+
+        Assert.Equal(400, (await api.Get($"/reports/ItemMovements?itemId={product}&dateFrom=2100-01-02&dateTo=2100-01-01")).Status);
+    }
+
+    [Fact]
     public async Task Car_reports_return_real_rows_from_the_database()
     {
         var api = await NewTenantAsync();

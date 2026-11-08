@@ -3329,6 +3329,9 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId", "InvoiceNumber")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "OriginalInvoiceId")
+                        .HasFilter("[OriginalInvoiceId] IS NOT NULL");
+
                     b.ToTable((string)null);
 
                     b.UseTpcMappingStrategy();
@@ -10017,6 +10020,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("TenantId", "DocumentId");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("TenantId", "DocumentId"), new[] { "Status" });
+
                     b.ToTable("ApprovalRequest");
                 });
 
@@ -10687,6 +10694,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true);
 
                     b.ToTable("Customer");
                 });
@@ -11863,6 +11873,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Barcode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("BarcodeLookupKey")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)")
+                        .HasComputedColumnSql("CONVERT(nvarchar(450), LEFT([Barcode], 450))", true);
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -11968,8 +11984,13 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("TenantId", "BarcodeLookupKey");
+
                     b.HasIndex("TenantId", "Sku")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true);
 
                     b.ToTable("Product");
                 });
@@ -12310,6 +12331,11 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "SourceId")
+                        .HasFilter("[SourceId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "ItemId", "Date", "CreatedAt");
 
                     b.ToTable("StockMovement");
                 });
@@ -13578,6 +13604,11 @@ namespace ERP.Service.Data.Migrations
                 {
                     b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
 
+                    b.HasIndex("TenantId", "PartyId", "IssueDate");
+
+                    b.HasIndex("TenantId", "IssueDate", "InvoiceNumber", "Id")
+                        .IsDescending(false, true, true, true);
+
                     b.ToTable("PurchaseInvoice");
                 });
 
@@ -13591,6 +13622,11 @@ namespace ERP.Service.Data.Migrations
             modelBuilder.Entity("ERP.Core.Models.Accounting.SalesInvoice", b =>
                 {
                     b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
+
+                    b.HasIndex("TenantId", "PartyId", "IssueDate");
+
+                    b.HasIndex("TenantId", "IssueDate", "InvoiceNumber", "Id")
+                        .IsDescending(false, true, true, true);
 
                     b.ToTable("SalesInvoice");
                 });

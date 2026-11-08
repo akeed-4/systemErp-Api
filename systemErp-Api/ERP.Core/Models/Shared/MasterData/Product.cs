@@ -5,6 +5,8 @@ public class Product : BaseEntity
 {
     public string Sku { get; set; } = string.Empty;
     public string? Barcode { get; set; }
+    /// <summary>مفتاح مفهرس للبحث الدقيق في الباركود؛ يحافظ على قيمة الباركود الأصلية كاملة.</summary>
+    public string? BarcodeLookupKey { get; private set; }
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;

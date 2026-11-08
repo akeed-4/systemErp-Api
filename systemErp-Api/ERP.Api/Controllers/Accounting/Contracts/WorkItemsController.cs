@@ -29,6 +29,14 @@ public class WorkItemsController : ErpControllerBase
     [HttpPut("{id:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveWorkItemDto dto, CancellationToken ct) => Success(await _items.UpdateAsync(id, dto, ct));
 
+    /// <summary>ينشئ صنفاً خدمياً من البند أو يحدّث المرتبط به (يحتاج صلاحية إضافة الأصناف أيضاً).</summary>
+    [HttpPost("{id:guid}/service-item"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> SyncServiceItem(Guid id, [FromServices] IPermissionService permissions, CancellationToken ct)
+    {
+        if (!await permissions.HasPermissionAsync("master-data", ScreenAction.Create, ct)) throw new ForbiddenException();
+        return Success(await _items.SyncServiceItemAsync(id, ct), "تم ربط البند بصنف خدمي يُباع في كل الوحدات.");
+    }
+
     [HttpDelete("{id:guid}"), RequireScreen(Screen, ScreenAction.Delete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

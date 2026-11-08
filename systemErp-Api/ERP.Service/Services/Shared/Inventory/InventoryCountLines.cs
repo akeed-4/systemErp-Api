@@ -141,7 +141,8 @@ internal static class InventoryCountLines
     {
         if (r.Scope == InventoryCountScope.Items)
         {
-            var q = db.Set<Product>().AsNoTracking();
+            // الجرد للأصناف ذات الرصيد: الخدمي والمجمّع والمركّب بلا وجود مخزني
+            var q = db.Set<Product>().AsNoTracking().Where(p => p.ItemType == ProductItemTypes.Stock || p.ItemType == ProductItemTypes.Manufactured);
             if (!string.IsNullOrWhiteSpace(r.Category)) q = q.Where(p => p.Category == r.Category);
             var onHand = await WarehouseQuantitiesAsync(db, r.WarehouseId, ct);
             var batchOnHand = await BatchQuantitiesAsync(db, r.WarehouseId, ct);

@@ -12,6 +12,11 @@ public partial class CreateMaterialRequisitionDto
     public string? SupplierName { get; set; }
     public Guid? WarehouseId { get; set; }
     public string? WarehouseName { get; set; }
+    /// <summary>المشروع (عقد مقاولات): الكميات تُقارن باحتياجاته المعتمدة وما طُلب سابقاً.</summary>
+    public Guid? ContractId { get; set; }
+    /// <summary>warehouse | project_site</summary>
+    public string? DeliveryLocation { get; set; }
+    public string? DeliveryAddress { get; set; }
     public decimal TotalEstimatedCost { get; set; }
     public string Status { get; set; } = "draft";
     public string? ApprovedBy { get; set; }

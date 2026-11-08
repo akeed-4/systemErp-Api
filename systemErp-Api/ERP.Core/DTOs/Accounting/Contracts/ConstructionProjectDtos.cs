@@ -120,6 +120,13 @@ public class ConstructionProjectSummaryDto
     public DateTime? EndDate { get; set; }
     public decimal ContractValue { get; set; }
     public decimal EstimatedBudget { get; set; }
+    /// <summary>دراسة الجدوى: التكلفة التقديرية من جدول الكميات، والهامش المخطط مقابل قيمة العقد.</summary>
+    public decimal EstimatedCost { get; set; }
+    public decimal? PlannedMargin { get; set; }
+    public decimal? PlannedMarginPercent { get; set; }
+    /// <summary>التوريد: طلبات شراء المشروع (غير المرفوضة)، وتكلفة المواد المصروفة له فعلاً.</summary>
+    public int Requisitions { get; set; }
+    public decimal IssuedMaterialsCost { get; set; }
 
     /// <summary>نسبة المدة المنقضية من مدة العقد اليوم.</summary>
     public decimal ElapsedPercent { get; set; }

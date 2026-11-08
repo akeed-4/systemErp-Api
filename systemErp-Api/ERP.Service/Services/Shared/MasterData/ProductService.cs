@@ -45,12 +45,78 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
             throw new ValidationFailedException(Messages.ProductCategoryNotFound);
         if (!string.IsNullOrWhiteSpace(d.Unit) && !await Db.Set<UnitOfMeasure>().AnyAsync(u => u.Code == d.Unit, ct))
             throw new ValidationFailedException(Messages.UnitOfMeasureNotFound);
+        await ValidateItemTypeAsync(d, existing, ct);
+    }
+
+    /// <summary>المكونات المتحقق منها لهذا الحفظ (تُكتب بعد حفظ الصنف)؛ null = لا تغيير على مكوناته.</summary>
+    private List<ProductComponentDto>? _pendingComponents;
+
+    /// <summary>
+    /// طبيعة الصنف ومكوناته: الخدمي والمجمّع والمركّب بلا رصيد ولا تتبّع تشغيلات؛ تحويل صنف له حركات مخزنية إلى طبيعة بلا رصيد ممنوع
+    /// (يبقى رصيده وقيمته بلا صنف يحملهما)، وتحويل صنف له مكونات إلى طبيعة بلا مكونات يحذفها.
+    /// </summary>
+    private async Task ValidateItemTypeAsync(CreateProductDto d, Product? existing, CancellationToken ct)
+    {
+        var type = ProductItemTypes.Normalize(d.ItemType);
+        if (!ProductItemTypes.IsValid(type)) throw new ValidationFailedException("طبيعة الصنف غير صالحة.");
+        d.ItemType = type;
+        if (!ProductItemTypes.TracksStock(type))
+        {
+            d.TrackBatches = false; d.TrackExpiry = false; d.MinStockLevel = 0;
+            if (existing != null && ProductItemTypes.TracksStock(existing.ItemType)
+                && (existing.CurrentStock != 0 || await Db.Set<StockMovement>().AnyAsync(m => m.ItemId == existing.Id, ct)))
+                throw new ConflictException($"«{existing.NameAr}» له حركات مخزنية: لا يتحول إلى صنف بلا رصيد (خدمي أو مجمّع أو مركّب).");
+            if (existing != null && ProductItemTypes.TracksStock(existing.ItemType)
+                && await Db.Set<ProductComponent>().AnyAsync(c => c.ComponentProductId == existing.Id, ct)
+                && type != ProductItemTypes.Service)
+                throw new ConflictException($"«{existing.NameAr}» مكوّن في صنف آخر: لا يتحول إلى صنف مجمّع أو مركّب.");
+        }
+        if (type == ProductItemTypes.Service && existing != null
+            && await Db.Set<ProductComponent>().AnyAsync(c => c.ComponentProductId == existing.Id && c.ProductId != existing.Id
+                && Db.Set<Product>().Any(p => p.Id == c.ProductId && (p.ItemType == ProductItemTypes.Kit || p.ItemType == ProductItemTypes.Composite)), ct))
+            throw new ConflictException($"«{existing.NameAr}» مكوّن في صنف مجمّع أو مركّب: لا يتحول إلى خدمي.");
+
+        if (d.Components != null)
+            _pendingComponents = await ProductComponents.ValidateAsync(Db, existing?.Id, type, d.Components, ct);
+        else if (!ProductItemTypes.HasComponents(type))
+            _pendingComponents = new(); // طبيعة بلا مكونات: تُحذف مكوناته السابقة إن وُجدت
+        else if (existing == null || !ProductItemTypes.HasComponents(existing.ItemType)
+                 || (ProductItemTypes.SellsComponents(type) != ProductItemTypes.SellsComponents(existing.ItemType)))
+        {
+            // صنف جديد (أو تغيّرت طبيعته) بلا مكونات مرسلة: تُتحقق مكوناته الحالية بطبيعته الجديدة
+            var current = existing == null ? new List<ProductComponentDto>() : (await ProductComponents.DescribeAsync(Db, existing.Id, ct)).Lines;
+            _pendingComponents = await ProductComponents.ValidateAsync(Db, existing?.Id, type, current, ct);
+        }
+    }
+
+    public override async Task<ProductDto> GetAsync(Guid id, CancellationToken ct = default)
+    {
+        var dto = await base.GetAsync(id, ct);
+        dto.ItemType = ProductItemTypes.Normalize(dto.ItemType);
+        if (ProductItemTypes.HasComponents(dto.ItemType))
+        {
+            var (lines, cost) = await ProductComponents.DescribeAsync(Db, id, ct);
+            dto.Components = lines;
+            dto.EstimatedComponentsCost = cost;
+        }
+        else dto.Components = new();
+        return dto;
+    }
+
+    private async Task WritePendingComponentsAsync(Guid productId, CancellationToken ct)
+    {
+        if (_pendingComponents == null) return;
+        var lines = _pendingComponents;
+        _pendingComponents = null;
+        await ProductComponents.ReplaceAsync(Db, productId, lines, ct);
     }
 
     /// <summary>قواعد حقول الصنف التي لا تحتاج قاعدة البيانات (مشتركة بين الحفظ المفرد والاستيراد الجماعي).</summary>
     private static List<string> FieldErrors(CreateProductDto d)
     {
         var errors = new List<string>();
+        d.ItemType = ProductItemTypes.Normalize(d.ItemType);
+        if (!ProductItemTypes.IsValid(d.ItemType)) errors.Add("طبيعة الصنف غير صالحة.");
         if (string.IsNullOrWhiteSpace(d.Sku)) errors.Add(Messages.SkuRequired);
         if (string.IsNullOrWhiteSpace(d.NameAr)) errors.Add(Messages.ProductArabicNameRequired);
         if (d.SellingPrice < 0 || d.StandardCost < 0 || d.MinStockLevel < 0 || d.WeightKg < 0) errors.Add(Messages.PricesAndReorderCannotBeNegative);
@@ -122,6 +188,10 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
                 d.Category = categoryByKey.TryGetValue(CategoryKey(d.Category), out var code) ? code : string.Empty;
 
                 var error = FieldErrors(d).FirstOrDefault();
+                // الاستيراد للأصناف بلا مكونات: المجمّع والمركّب والمنتج الصناعي تُعرَّف مكوناتها من شاشة الصنف
+                if (error == null && ProductItemTypes.HasComponents(d.ItemType))
+                    error = "الصنف المجمّع أو المركّب أو المنتج الصناعي يُعرَّف من شاشة الصنف بمكوناته، لا بالاستيراد.";
+                if (error == null && d.ItemType == ProductItemTypes.Service) { d.TrackBatches = false; d.TrackExpiry = false; }
                 if (error == null && skus.Contains(d.Sku)) error = Messages.SkuInUse;
                 if (error == null && d.Barcode != null && barcodes.Contains(d.Barcode)) error = Messages.BarcodeInUse;
                 if (error == null && d.Unit.Length > 0 && !units.Contains(d.Unit)) error = Messages.UnitOfMeasureNotFound;
@@ -250,7 +320,7 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
             throw new ForbiddenException(string.Format(Messages.StandardCostLockedForUsedItem, e.NameAr));
 
         // بالتكلفة المعيارية: تغيير المعيارية يعيد تسعير الرصيد القائم بها فوراً، وفرق قيمته قيد إعادة تقييم
-        if (e.StandardCost is not { } standard || standard == e.AverageCost) return;
+        if (e.StandardCost is not { } standard || standard == e.AverageCost || !ProductItemTypes.TracksStock(e.ItemType)) return;
         var method = await Db.Set<CostingPolicy>().AsNoTracking().Select(p => (CostingMethod?)p.Method).FirstOrDefaultAsync(ct);
         if (method != CostingMethod.Standard) return;
         var before = InventoryValuation.Value(e);
@@ -260,7 +330,13 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         await InventoryValuation.PostRevaluationAsync(Db, _posting, new[] { (e.Id, InventoryValuation.Value(e) - before) }, description, e.Id, ct);
     }
 
-    protected override async Task OnCreatedAsync(Product e, CancellationToken ct) => await RecountAsync(ct);
+    protected override async Task OnCreatedAsync(Product e, CancellationToken ct)
+    {
+        await WritePendingComponentsAsync(e.Id, ct);
+        await RecountAsync(ct);
+    }
+
+    protected override Task OnUpdatedAsync(Product e, CancellationToken ct) => WritePendingComponentsAsync(e.Id, ct);
 
     /// <summary>
     /// تفعيل تتبّع التشغيلات لصنف برصيد قائم: رصيد كل مستودع يدخل تشغيلة «رصيد افتتاحي» بلا صلاحية (فيبقى مجموع التشغيلات = الرصيد)،
@@ -292,6 +368,15 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
             throw new ConflictException(Messages.CannotDeleteProductWithMovements);
         if (await Db.Set<InvoiceItemBase>().AnyAsync(i => i.ItemId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteProductUsedInInvoices);
+        var owner = await Db.Set<ProductComponent>().Where(c => c.ComponentProductId == e.Id)
+            .Join(Db.Set<Product>(), c => c.ProductId, p => p.Id, (c, p) => p.NameAr).FirstOrDefaultAsync(ct);
+        if (owner != null) throw new ConflictException($"«{e.NameAr}» مكوّن في الصنف «{owner}»: احذفه من مكوناته أولاً.");
+        if (await Db.Set<ProductionOrder>().AnyAsync(o => o.ProductId == e.Id, ct)
+            || await Db.Set<ProductionOrderLine>().AnyAsync(l => l.ComponentProductId == e.Id, ct))
+            throw new ConflictException($"«{e.NameAr}» مستخدم في مستندات تصنيع ولا يُحذف.");
+        Db.RemoveRange(await Db.Set<ProductComponent>().Where(c => c.ProductId == e.Id).ToListAsync(ct));
+        // بند مكتبة المقاولات المرتبط به يبقى بلا صنف خدمي
+        foreach (var w in await Db.Set<WorkItem>().Where(w => w.ProductId == e.Id).ToListAsync(ct)) w.ProductId = null;
     }
 
     /// <summary>الصنف «مستخدم» إن دخل حركة مخزنية أو فاتورة (أو مرتجعها) أو نقطة بيع أو سند تسليم أو جرداً.</summary>

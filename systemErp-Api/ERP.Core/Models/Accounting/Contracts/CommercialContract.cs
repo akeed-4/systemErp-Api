@@ -46,6 +46,8 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public DateTime? EndDate { get; set; }
 
     public decimal ContractValue { get; set; }
+    /// <summary>التكلفة التقديرية للمشروع (دراسة الجدوى): مجموع كميات الأسطر المسعّرة × تكلفتها التقديرية. يحسبها الخادم.</summary>
+    public decimal EstimatedCost { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     public decimal TotalValueWithVat { get; set; }

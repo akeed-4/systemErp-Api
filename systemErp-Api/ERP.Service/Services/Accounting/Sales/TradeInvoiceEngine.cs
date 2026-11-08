@@ -113,6 +113,11 @@ public class TradeInvoiceEngine
         var dto = Mapper.Map<InvoiceDto>(invoice);
         dto.JournalCostCenters = JournalCostCenterMap.Unpack(invoice.JournalCostCentersJson);
         dto.AmountDue = amountDue;
+        // مكونات المجمّع/المركّب من لقطة السطر (المركّب تُطبع مكوناته بكمياتها بلا سعر)
+        var withComponents = invoice.Lines.Where(l => l.ComponentsJson != null).ToDictionary(l => l.Id);
+        if (withComponents.Count > 0)
+            foreach (var item in dto.Items)
+                if (withComponents.TryGetValue(item.Id, out var line)) item.Components = InvoiceLineStock.Components(line);
         return dto;
     }
 
@@ -287,7 +292,7 @@ public class TradeInvoiceEngine
                 .AnyAsync(l => l.InvoiceId == invoice.Id && l.Voucher.Status == PurchaseLandedCostStatus.Approved, ct))
             throw new ConflictException(Messages.PurchaseInvoiceHasLandedCosts);
 
-        var stockItems = invoice.Lines.Where(i => i.ItemId != Guid.Empty).ToList();
+        var stockItems = invoice.Lines.Where(InvoiceLineStock.MovesItself).ToList();
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
         // شراء تلته حركات على أصنافه: يُعكس بتكلفته الحالية، وأي فرق عن أثره الأصلي يُرحَّل بقيد إعادة تقييم أدناه
         var restoreAverage = false;
@@ -312,7 +317,7 @@ public class TradeInvoiceEngine
         if (forDelete && invoice.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, reason, ct);
 
         // أثر الفاتورة الأصلي على قيمة المخزون (ما رُحِّل لحساب المخزون): تكلفتها ناقص تكلفة بنود الخدمات
-        var serviceCost = invoice.Lines.Where(i => i.ItemId == Guid.Empty && i.UnitCost > 0).Sum(i => Math.Round(i.Quantity * i.UnitCost, 2));
+        var serviceCost = invoice.Lines.Where(i => InvoiceLineStock.IsNonStock(i) && i.UnitCost > 0).Sum(i => Math.Round(i.Quantity * i.UnitCost, 2));
         var originalStockChange = invoice.Kind == InvoiceKind.Purchase ? invoice.TotalCost - serviceCost : -(invoice.TotalCost - serviceCost);
         decimal reversalChange = 0;
         foreach (var item in stockItems)
@@ -331,6 +336,20 @@ public class TradeInvoiceEngine
             }, ct);
             reversalChange += recorded.ValueChange;
         }
+        // المجمّع والمركّب: تعود مكوناته بتكلفة خروجها المحفوظة على السطر (لا من تعريف الصنف الحالي)
+        foreach (var item in invoice.Lines.Where(InvoiceLineStock.SellsComponents))
+            foreach (var c in InvoiceLineStock.Components(item).Where(c => c.Quantity > 0))
+            {
+                var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
+                {
+                    ItemId = c.ItemId, WarehouseId = invoice.WarehouseId, Quantity = c.Quantity,
+                    Type = StockMovementType.AdjustmentIn, UnitCost = c.UnitCost,
+                    UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
+                    SourceType = "invoice_reversal", SourceId = invoice.Id, SourceLineId = item.Id,
+                    BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, c.ItemId, item.Id, ct),
+                }, ct);
+                reversalChange += recorded.ValueChange;
+            }
         await ItemBatches.MarkReversedAsync(_db, "invoice", invoice.Id, ct);
         await _db.SaveChangesAsync(ct);
         // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف
@@ -898,6 +917,14 @@ public class TradeInvoiceEngine
         var products = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var missing = productIds.Where(id => !products.ContainsKey(id)).ToList();
         if (missing.Count > 0) throw new ValidationFailedException(Messages.ItemsNotFoundInInvoice);
+        // المجمّع والمركّب لا وجود لهما إلا حركة بيع: لا يُشتريان (تُشترى مكوناتهما)
+        var kitIds = products.Values.Where(p => ProductItemTypes.SellsComponents(p.ItemType)).Select(p => p.Id).ToList();
+        if (kitIds.Count > 0 && r.Kind is (InvoiceKind.Purchase or InvoiceKind.PurchaseReturn))
+            throw new ValidationFailedException($"«{products[kitIds[0]].NameAr}» صنف مجمّع أو مركّب لا يُشترى: تُشترى مكوناته.");
+        var kitComponents = await ProductComponents.LoadAsync(_db, kitIds, ct);
+        var componentIds = kitComponents.Values.SelectMany(c => c).Where(c => c.ComponentProductId.HasValue).Select(c => c.ComponentProductId!.Value).Distinct().ToList();
+        var componentProducts = await _db.Set<Product>().AsNoTracking().Where(p => componentIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Sku, p.NameAr, p.Unit }).ToDictionaryAsync(p => p.Id, ct);
         // المراكز من المنشأة ونشطة قبل حفظ المسودة نفسها (المرتجع يتبع مراكز أصله ولو أُوقفت بعده)
         r.JournalCostCenters = JournalCostCenterMap.Normalize(r.JournalCostCenters);
         await CostCenterRules.EnsureUsableAsync(_db, r.Items.Select(i => i.CostCenterId).Append(r.CostCenterId)
@@ -945,7 +972,25 @@ public class TradeInvoiceEngine
             line.Sku = string.IsNullOrWhiteSpace(src.Sku) ? p?.Sku ?? string.Empty : src.Sku;
             line.Unit = string.IsNullOrWhiteSpace(src.Unit) ? p?.Unit ?? string.Empty : src.Unit;
             line.Quantity = src.Quantity; line.UnitPrice = src.UnitPrice; line.Discount = src.Discount;
-            line.UnitCost = src.ItemId == Guid.Empty ? src.UnitCost : 0; // بند الخدمة يحمل تكلفته (مثل تكلفة السيارة) لأن لا مخزون يحسبها
+            line.ItemType = p == null ? ProductItemTypes.Service : ProductItemTypes.Normalize(p.ItemType);
+            // بند الخدمة يحمل تكلفته (مثل تكلفة السيارة) لأن لا مخزون يحسبها؛ والصنف الخدمي تكلفته المعيارية (والمرتجع تكلفة أصله)
+            line.UnitCost = p == null ? src.UnitCost
+                : line.ItemType == ProductItemTypes.Service ? (isReturn && src.UnitCost > 0 ? src.UnitCost : p.StandardCost ?? 0) : 0;
+            if (p != null && ProductItemTypes.SellsComponents(line.ItemType))
+            {
+                var parts = kitComponents.GetValueOrDefault(p.Id)?.Where(c => c.Kind == ProductComponentKinds.Item && c.ComponentProductId.HasValue).ToList();
+                if (parts == null || parts.Count == 0)
+                    throw new ValidationFailedException($"«{p.NameAr}» صنف مجمّع أو مركّب بلا مكونات: عرّف مكوناته في شاشة الأصناف.");
+                InvoiceLineStock.SetComponents(line, parts.Select(c =>
+                {
+                    var cp = componentProducts[c.ComponentProductId!.Value];
+                    return new InvoiceLineComponent
+                    {
+                        ItemId = cp.Id, Sku = cp.Sku, ItemName = cp.NameAr, Unit = cp.Unit,
+                        QuantityPerUnit = c.Quantity, Quantity = Math.Round(src.Quantity * c.Quantity, 4),
+                    };
+                }).ToList());
+            }
             line.VatAmountOverride = src.VatAmountOverride;
             line.VatCategory = src.VatCategory ?? (src.VatRate > 0 || src.VatAmountOverride > 0 ? VatCategory.Standard : VatCategory.ZeroRated);
             line.VatExemptionReasonCode = VatExemptionReasons.Find(src.VatExemptionReasonCode)?.Code;
@@ -1228,7 +1273,7 @@ public class TradeInvoiceEngine
         if (invoice.Kind is not (InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn) || invoice.OriginalInvoiceId is not { } originalId) return pools;
         var otherReturns = await _db.Set<InvoiceBase>().AsNoTracking()
             .Where(i => i.OriginalInvoiceId == originalId && i.Id != invoice.Id && i.Kind == invoice.Kind).Select(i => i.Id).ToListAsync(ct);
-        foreach (var itemId in invoice.Lines.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct())
+        foreach (var itemId in invoice.Lines.Where(InvoiceLineStock.MovesItself).Select(i => i.ItemId).Distinct())
         {
             var pool = await ItemBatches.OfDocumentAsync(_db, "invoice", originalId, itemId, null, ct);
             if (pool.Count == 0) continue;
@@ -1270,14 +1315,54 @@ public class TradeInvoiceEngine
         var stockByCenter = new CostCenterTotals(); // تغيّر قيمة المخزون لكل مركز تكلفة من أسطره
 
         Dictionary<Guid, decimal> originalCosts = new();
+        Dictionary<Guid, InvoiceItemBase> originalLines = new();
         if (invoice.Kind == InvoiceKind.SalesReturn && invoice.OriginalInvoiceId.HasValue)
-            originalCosts = (await _db.Set<InvoiceItemBase>().AsNoTracking().Where(i => i.InvoiceId == invoice.OriginalInvoiceId).ToListAsync(ct))
-                .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.First().UnitCost);
+        {
+            originalLines = (await _db.Set<InvoiceItemBase>().AsNoTracking().Where(i => i.InvoiceId == invoice.OriginalInvoiceId).ToListAsync(ct))
+                .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.First());
+            originalCosts = originalLines.ToDictionary(x => x.Key, x => x.Value.UnitCost);
+        }
 
         // المرتجع على أصل: يعود لتشغيلات الأصل بترتيبها، بعد خصم ما أعادته مرتجعاته السابقة
         var returnPools = await ReturnBatchPoolsAsync(invoice, ct);
 
-        foreach (var item in invoice.Lines.Where(i => i.ItemId != Guid.Empty))
+        // المجمّع والمركّب: تُصرف مكوناته (أو تعود في المرتجع) بكمياتها، وتكلفة السطر مجموع قيمة ما خرج منها
+        foreach (var item in invoice.Lines.Where(InvoiceLineStock.SellsComponents))
+        {
+            var components = InvoiceLineStock.Components(item);
+            // المرتجع على أصل: المكونات التي خرجت فعلاً مع الأصل بتكلفتها، بنسبة الكمية المرتجعة
+            if (invoice.Kind == InvoiceKind.SalesReturn && originalLines.TryGetValue(item.ItemId, out var origin) && origin.Quantity > 0
+                && InvoiceLineStock.Components(origin) is { Count: > 0 } sold)
+                components = sold.Select(c => new InvoiceLineComponent
+                {
+                    ItemId = c.ItemId, Sku = c.Sku, ItemName = c.ItemName, Unit = c.Unit, QuantityPerUnit = c.QuantityPerUnit,
+                    Quantity = Math.Round(c.Quantity * item.Quantity / origin.Quantity, 4), UnitCost = c.UnitCost,
+                }).ToList();
+            if (components.Count == 0) throw new ValidationFailedException($"«{item.ItemName}» صنف مجمّع أو مركّب بلا مكونات.");
+            decimal lineValue = 0;
+            foreach (var c in components.Where(c => c.Quantity > 0))
+            {
+                var isSale = invoice.Kind == InvoiceKind.Sales;
+                var inCost = c.UnitCost;
+                if (!isSale && inCost <= 0)
+                    inCost = await _db.Set<Product>().AsNoTracking().Where(p => p.Id == c.ItemId).Select(p => p.AverageCost).FirstOrDefaultAsync(ct);
+                var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
+                {
+                    ItemId = c.ItemId, Quantity = c.Quantity, WarehouseId = invoice.WarehouseId,
+                    Type = isSale ? StockMovementType.OutSales : StockMovementType.AdjustmentIn, UnitCost = isSale ? 0 : inCost,
+                    UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate,
+                    Notes = $"مكوّن {item.ItemName}", SourceType = "invoice", SourceId = invoice.Id, SourceLineId = item.Id,
+                }, ct);
+                c.UnitCost = isSale ? recorded.UnitCost : inCost;
+                lineValue += isSale ? -recorded.ValueChange : recorded.ValueChange;
+            }
+            InvoiceLineStock.SetComponents(item, components);
+            item.UnitCost = item.Quantity == 0 ? 0 : Math.Round(lineValue / item.Quantity, 4);
+            totalCost += lineValue;
+            stockByCenter.Add(item.CostCenterId, lineValue);
+        }
+
+        foreach (var item in invoice.Lines.Where(InvoiceLineStock.MovesItself))
         {
             var movement = invoice.Kind switch
             {
@@ -1304,7 +1389,7 @@ public class TradeInvoiceEngine
         }
         var stockCost = totalCost; // قيمة ما دخل/خرج من المخزون فعلاً (الأصناف المخزنية فقط)
         var costByCenter = stockByCenter.Copy(); // تكلفة المبيعات لكل مركز: مخزون أسطره ثم تكلفة بنود خدماته
-        foreach (var svc in invoice.Lines.Where(i => i.ItemId == Guid.Empty && i.UnitCost > 0))
+        foreach (var svc in invoice.Lines.Where(i => InvoiceLineStock.IsNonStock(i) && i.UnitCost > 0))
         {
             var svcCost = Math.Round(svc.Quantity * svc.UnitCost, 2);
             totalCost += svcCost;
@@ -1315,23 +1400,23 @@ public class TradeInvoiceEngine
 
         // الجرد الدوري: الأصناف تُقيَّم في بضاعة آخر المدة، فحساب مخزون يدوي على مستند أصناف يُثبتها مرتين (السيارات خارجه)
         if (!string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) && invoice is not Invoice { VehicleLines.Count: > 0 }
-            && invoice.Lines.Any(i => i.ItemId != Guid.Empty) && (await PostingAccounts.SettingsAsync(_db, ct)).IsPeriodic(invoice.IssueDate))
+            && invoice.Lines.Any(i => !InvoiceLineStock.IsNonStock(i)) && (await PostingAccounts.SettingsAsync(_db, ct)).IsPeriodic(invoice.IssueDate))
             throw new ValidationFailedException(Messages.PeriodicManualInventoryAccount);
 
         // مشتريات: البنود غير المخزنية (خدمات/مصروفات) لا تدخل حساب المخزون، إلا إن حدّد المستند حساب مخزون صراحةً
         // (شراء السيارات: بنودها وصفية وهي مخزون فعلاً).
         var expenseAmount = isSales || !string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) ? 0
-            : Math.Min(baseNet, DocumentPricing.Round(invoice.Lines.Where(i => i.ItemId == Guid.Empty).Sum(i => i.TotalBeforeVat) * fx));
+            : Math.Min(baseNet, DocumentPricing.Round(invoice.Lines.Where(InvoiceLineStock.IsNonStock).Sum(i => i.TotalBeforeVat) * fx));
         if (expenseAmount > 0) await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.PurchasedServices);
         // المخزون بتغيّر قيمته الدفترية لا بسعر المستند: مرتجع المشتريات يخرج بتكلفته الحالية، والشراء بالمعيارية يدخل بها،
         // وما زاد أو نقص عن صافي المستند فرق سعر. البنود غير المخزنية على حساب مخزون صريح تدخله بصافيها.
         decimal? inventoryAmount = null;
         string? varianceAccount = null;
         var hasVehicleLines = invoice is Invoice { VehicleLines.Count: > 0 };
-        if (!isSales && !hasVehicleLines && invoice.Lines.Any(i => i.ItemId != Guid.Empty))
+        if (!isSales && !hasVehicleLines && invoice.Lines.Any(i => !InvoiceLineStock.IsNonStock(i)))
         {
             var nonStockNet = string.IsNullOrWhiteSpace(invoice.InventoryAccountCode) ? 0
-                : DocumentPricing.Round(invoice.Lines.Where(i => i.ItemId == Guid.Empty).Sum(i => i.TotalBeforeVat) * fx);
+                : DocumentPricing.Round(invoice.Lines.Where(InvoiceLineStock.IsNonStock).Sum(i => i.TotalBeforeVat) * fx);
             inventoryAmount = stockCost + nonStockNet;
             if (inventoryAmount != baseNet - expenseAmount)
             {
@@ -1427,7 +1512,7 @@ public class TradeInvoiceEngine
         foreach (var (line, amount) in LineNets(invoice, fx, baseNet))
         {
             net.Add(line.CostCenterId, amount);
-            if (line.ItemId == Guid.Empty) nonStock.Add(line.CostCenterId, amount);
+            if (InvoiceLineStock.IsNonStock(line)) nonStock.Add(line.CostCenterId, amount);
         }
         var expense = CostCenterTotals.Apportion(expenseAmount, nonStock);
         CostCenterTotals? inventory = null;

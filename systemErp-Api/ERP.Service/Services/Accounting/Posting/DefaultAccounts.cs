@@ -59,6 +59,8 @@ public static class DefaultAccounts
     public const string VehicleExpenses = "529";
     public const string PurchaseCancellationLoss = "530";
     public const string PurchaseFreightExpense = "531"; // التكاليف الإضافية للمشتريات التي لا تدخل تكلفة الأصناف (شحن، نقل، تأمين)
+    public const string ProjectMaterialsCost = "517"; // تكلفة مواد المشاريع المصروفة من المستودعات (بمركز تكلفة المشروع)
+    public const string AppliedManufacturingCosts = "516"; // تكاليف تصنيع محمّلة على المنتجات (شغل اليد والمصاريف غير المباشرة): دائن عند التصنيع
 
     public static readonly (string Code, string Ar, string En, AccountCategory Type, string? Parent)[] Chart =
     {
@@ -113,6 +115,8 @@ public static class DefaultAccounts
         ("513",  "فروقات جرد المخزون",              "Inventory Adjustments",     AccountCategory.Expense,   "51"),
         ("514",  "فروق أسعار المشتريات",            "Purchase Price Variance",   AccountCategory.Expense,   "51"),
         ("515",  "تكلفة إضافات وخدمات السيارات",    "Cost of Car Add-ons and Services", AccountCategory.Expense, "51"),
+        ("516",  "تكاليف تصنيع محمّلة على المنتجات", "Applied Manufacturing Costs", AccountCategory.Expense,  "51"),
+        ("517",  "تكلفة مواد المشاريع",             "Project Materials Cost",    AccountCategory.Expense,   "51"),
         ("52",   "المصروفات التشغيلية",             "Operating Expenses",        AccountCategory.Expense,   "5"),
         ("521",  "مصروفات نثرية من الصندوق",        "Petty Cash Expenses",       AccountCategory.Expense,   "52"),
         ("522",  "عجز نقدية الصندوق",               "Cash Shortage",             AccountCategory.Expense,   "52"),

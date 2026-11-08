@@ -128,7 +128,7 @@ public class ConstructionProjectService : IConstructionProjectService
             .OrderByDescending(c => c.CreatedAt)
             .Select(c => new
             {
-                c.Id, c.ContractNumber, c.Title, c.ProjectName, c.ProjectLocation, c.PartyName, c.Stage, c.StartDate, c.EndDate, c.ContractValue,
+                c.Id, c.ContractNumber, c.Title, c.ProjectName, c.ProjectLocation, c.PartyName, c.Stage, c.StartDate, c.EndDate, c.ContractValue, c.EstimatedCost,
             }).ToListAsync(ct);
         if (contracts.Count == 0) return new();
         var ids = contracts.Select(c => c.Id).ToList();
@@ -165,6 +165,12 @@ public class ConstructionProjectService : IConstructionProjectService
                                   group m by r.ContractId into g
                                   select new { ContractId = g.Key, Cost = g.Sum(x => x.Quantity * x.UnitCost) }).ToDictionaryAsync(x => x.ContractId, x => x.Cost, ct);
 
+        // التوريد: طلبات شراء المشروع، وتكلفة المواد المصروفة له فعلاً (مستندات الصرف المرحّلة)
+        var requisitionCounts = await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.ContractId != null && ids.Contains(r.ContractId.Value) && r.Status != "rejected")
+            .GroupBy(r => r.ContractId!.Value).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
+        var issuedCost = await _db.Set<ProjectMaterialIssue>().AsNoTracking().Where(i => ids.Contains(i.ContractId) && i.Status == ProjectMaterialIssueStatuses.Posted)
+            .GroupBy(i => i.ContractId).Select(g => new { g.Key, Cost = g.Sum(i => i.TotalCost) }).ToDictionaryAsync(x => x.Key, x => x.Cost, ct);
+
         var today = SaudiTime.Today;
         return contracts.Select(c =>
         {
@@ -181,6 +187,9 @@ public class ConstructionProjectService : IConstructionProjectService
                 ContractId = c.Id, ContractNumber = c.ContractNumber, Title = c.Title, ProjectName = c.ProjectName, ProjectLocation = c.ProjectLocation,
                 PartyName = c.PartyName, Stage = c.Stage, StartDate = c.StartDate, EndDate = c.EndDate, ContractValue = c.ContractValue,
                 EstimatedBudget = budget,
+                EstimatedCost = c.EstimatedCost, PlannedMargin = c.EstimatedCost > 0 ? c.ContractValue - c.EstimatedCost : null,
+                PlannedMarginPercent = c.EstimatedCost > 0 && c.ContractValue > 0 ? Math.Round((c.ContractValue - c.EstimatedCost) / c.ContractValue * 100m, 2) : null,
+                Requisitions = requisitionCounts.GetValueOrDefault(c.Id), IssuedMaterialsCost = issuedCost.GetValueOrDefault(c.Id),
                 ElapsedPercent = c.StartDate is DateTime s && c.EndDate is DateTime e ? Math.Round(PhaseFraction(s, e, today) * 100m, 2) : 0,
                 PlannedProgressPercent = PlannedProgress(ph.Select(p => (p.PlannedStart, p.PlannedEnd, p.WeightPercent)), today),
                 PhaseCount = ph.Count,

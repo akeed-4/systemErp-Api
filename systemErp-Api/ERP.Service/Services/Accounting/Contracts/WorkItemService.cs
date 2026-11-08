@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
@@ -17,10 +18,12 @@ public class WorkItemService : IWorkItemService
     private readonly ErpDbContext _db;
     private readonly ITransactionRunner _tx;
     private readonly INumberSequenceService _numbers;
+    /// <summary>خدمة الأصناف تُطلب عند ربط صنف خدمي فقط (تجنّب سلسلة اعتماديات في كل طلب للمكتبة).</summary>
+    private readonly IServiceProvider _services;
 
-    public WorkItemService(ErpDbContext db, ITransactionRunner tx, INumberSequenceService numbers)
+    public WorkItemService(ErpDbContext db, ITransactionRunner tx, INumberSequenceService numbers, IServiceProvider services)
     {
-        _db = db; _tx = tx; _numbers = numbers;
+        _db = db; _tx = tx; _numbers = numbers; _services = services;
     }
 
     // ---------- القراءة ----------
@@ -30,15 +33,70 @@ public class WorkItemService : IWorkItemService
         var items = await _db.Set<WorkItem>().AsNoTracking().Include(w => w.SubItems).Include(w => w.Components).AsSplitQuery()
             .OrderBy(w => w.SectionName).ThenBy(w => w.Code).ToListAsync(ct);
         var costs = await ResourceCostsAsync(items.SelectMany(w => w.Components).Select(c => c.ResourceId), ct);
-        return items.Select(w => (WorkItemSummaryDto)Build(w, costs, full: false)).ToList();
+        var list = items.Select(w => (WorkItemSummaryDto)Build(w, costs, full: false)).ToList();
+        await FillProductsAsync(list, ct);
+        return list;
     }
 
     public async Task<WorkItemDto> GetAsync(Guid id, CancellationToken ct = default)
     {
         var item = await LoadAsync(id, track: false, ct);
         var costs = await ResourceCostsAsync(item.Components.Select(c => c.ResourceId), ct);
-        return Build(item, costs, full: true);
+        var dto = Build(item, costs, full: true);
+        await FillProductsAsync(new[] { dto }, ct);
+        return dto;
     }
+
+    /// <summary>رمز الصنف الخدمي المرتبط واسمه.</summary>
+    private async Task FillProductsAsync(IEnumerable<WorkItemSummaryDto> items, CancellationToken ct)
+    {
+        var list = items.Where(i => i.ProductId.HasValue).ToList();
+        if (list.Count == 0) return;
+        var ids = list.Select(i => i.ProductId!.Value).Distinct().ToList();
+        var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id))
+            .Select(p => new { p.Id, p.Sku, p.NameAr }).ToDictionaryAsync(p => p.Id, ct);
+        foreach (var i in list)
+            if (products.TryGetValue(i.ProductId!.Value, out var p)) { i.ProductSku = p.Sku; i.ProductName = p.NameAr; }
+    }
+
+    /// <summary>
+    /// صنف خدمي من البند: يُنشأ برمز البند (أو برمز مشتق إن كان مستخدماً) واسمه ووحدته، وسعر بيعه سعر البند وتكلفته المعيارية تكلفة
+    /// وحدة تحليله؛ وإن كان مرتبطاً يُحدَّث بها. بعدها يُباع البند في الفواتير وعروض الأسعار ونقاط البيع كأي صنف خدمي.
+    /// </summary>
+    public Task<WorkItemDto> SyncServiceItemAsync(Guid id, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var current = await GetAsync(id, token);
+            var products = _services.GetRequiredService<IProductService>();
+            Guid productId;
+            var existing = current.ProductId is { } linkedId && await _db.Set<Product>().AnyAsync(p => p.Id == linkedId, token)
+                ? await products.GetAsync(linkedId, token) : null;
+            if (existing != null)
+            {
+                var update = Mapper.Map<UpdateProductDto>(existing);
+                update.Components = null;
+                update.NameAr = current.NameAr; update.NameEn = current.NameEn; update.Unit = current.Unit;
+                update.SellingPrice = current.SellPrice; update.StandardCost = current.UnitCost > 0 ? current.UnitCost : existing.StandardCost;
+                productId = (await products.UpdateAsync(existing.Id, update, token)).Id;
+            }
+            else
+            {
+                var sku = current.Code;
+                for (var n = 2; await _db.Set<Product>().AnyAsync(p => p.Sku == sku, token); n++) sku = $"{current.Code}-{n}";
+                var category = await _db.Set<ProductCategory>().AsNoTracking().OrderBy(c => c.Code).Select(c => c.Code).FirstOrDefaultAsync(token) ?? string.Empty;
+                productId = (await products.CreateAsync(new CreateProductDto
+                {
+                    Sku = sku, NameAr = current.NameAr, NameEn = current.NameEn, Unit = current.Unit, Category = category,
+                    ItemType = ProductItemTypes.Service, SellingPrice = current.SellPrice,
+                    StandardCost = current.UnitCost > 0 ? current.UnitCost : null,
+                    Notes = $"من بند مكتبة المقاولات {current.Code}",
+                }, token)).Id;
+            }
+            var item = await _db.Set<WorkItem>().FirstAsync(w => w.Id == id, token);
+            item.ProductId = productId;
+            await SaveAsync(token);
+            return await GetAsync(id, token);
+        }, ct);
 
     // ---------- الحفظ ----------
 
@@ -117,6 +175,13 @@ public class WorkItemService : IWorkItemService
         var ids = allComponents.Select(c => c.ResourceId).Distinct().ToList();
         if (ids.Count > 0 && await _db.Set<ConstructionResource>().CountAsync(r => ids.Contains(r.Id), ct) != ids.Count)
             errors.Add(Messages.WorkItemResourceNotFound);
+        if (d.ProductId is { } productId)
+        {
+            var linked = await _db.Set<Product>().AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.NameAr, p.ItemType }).FirstOrDefaultAsync(ct);
+            if (linked == null) errors.Add(Messages.ProductNotFound);
+            else if (ProductItemTypes.Normalize(linked.ItemType) != ProductItemTypes.Service)
+                errors.Add($"«{linked.NameAr}» ليس صنفاً خدمياً: بند المكتبة يُربط بصنف خدمي.");
+        }
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors.Distinct().ToList());
     }
 
@@ -134,6 +199,7 @@ public class WorkItemService : IWorkItemService
         item.MarkupPercent = d.PricingMode == WorkItemPricingModes.CostPlus ? d.MarkupPercent : 0;
         item.Notes = Trim(d.Notes, 1000);
         item.IsActive = d.IsActive;
+        item.ProductId = d.ProductId;
     }
 
     private void SyncSubItems(WorkItem item, List<WorkItemSubItemDto> requested, bool tracked)
@@ -275,7 +341,7 @@ public class WorkItemService : IWorkItemService
             SubItemCount = w.SubItems.Count, ComponentCount = w.Components.Count,
             UnitCost = unitCost, SellPrice = sell, Margin = margin, MarginPercent = unitCost > 0 && sell > 0 ? Math.Round(margin / sell * 100m, 2) : 0,
             StandardQuantity = w.StandardQuantity, PricingMode = w.PricingMode, ManualSellPrice = w.SellPrice, MarkupPercent = w.MarkupPercent,
-            Notes = w.Notes, TotalCost = totalCost,
+            Notes = w.Notes, TotalCost = totalCost, ProductId = w.ProductId,
         };
         if (full) { dto.SubItems = subs; dto.Components = direct; }
         return dto;

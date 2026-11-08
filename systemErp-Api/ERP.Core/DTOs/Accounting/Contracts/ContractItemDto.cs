@@ -31,4 +31,6 @@ public partial class ContractItemDto
     public Guid? ParentItemId { get; set; }
     /// <summary>للقراءة: سطر رئيسي له فروع؛ قيمته مجموعها ولا يدخل قيمة العقد ولا المستخلصات (يضبطه الخادم).</summary>
     public bool IsGroup { get; set; }
+    /// <summary>تكلفة الوحدة التقديرية (دراسة الجدوى)؛ للمجموعة يحسبها الخادم من فروعها.</summary>
+    public decimal EstimatedUnitCost { get; set; }
 }

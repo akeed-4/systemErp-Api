@@ -9,10 +9,12 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     private readonly INumberSequenceService _numbers;
     private readonly IPurchaseInvoiceService _invoices;
     private readonly ICurrentUser _user;
+    private readonly IProjectSupplyService _supply;
 
-    public MaterialRequisitionService(ErpDbContext db, INumberSequenceService numbers, IPurchaseInvoiceService invoices, ICurrentUser user) : base(db)
+    public MaterialRequisitionService(ErpDbContext db, INumberSequenceService numbers, IPurchaseInvoiceService invoices, ICurrentUser user,
+        IProjectSupplyService supply) : base(db)
     {
-        _numbers = numbers; _invoices = invoices; _user = user;
+        _numbers = numbers; _invoices = invoices; _user = user; _supply = supply;
     }
 
     protected override string Label => Messages.LabelPurchaseRequisition;
@@ -41,6 +43,42 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             throw new ValidationFailedException(Messages.SupplierNotFound);
         if (d.WarehouseId.HasValue && !await Db.Set<Warehouse>().AnyAsync(w => w.Id == d.WarehouseId, ct))
             throw new ValidationFailedException(Messages.WarehouseNotFound);
+        await ValidateProjectAsync(d, existing, ct);
+    }
+
+    /// <summary>
+    /// طلب شراء لمشروع: العقد موجود، وموقع التوريد (المستودع أو موقع المشروع وعنوانه افتراضياً موقع المشروع)، والكميات ضمن
+    /// احتياجات المشروع المعتمدة ناقص ما طُلب في طلباته الأخرى. الطلب العام بلا مشروع يُورَّد للمستودع.
+    /// </summary>
+    private async Task ValidateProjectAsync(CreateMaterialRequisitionDto d, MaterialRequisition? existing, CancellationToken ct)
+    {
+        d.DeliveryLocation = string.IsNullOrWhiteSpace(d.DeliveryLocation) ? RequisitionDeliveryLocations.Warehouse : d.DeliveryLocation.Trim();
+        if (!RequisitionDeliveryLocations.IsValid(d.DeliveryLocation)) throw new ValidationFailedException("موقع التوريد غير صالح.");
+        if (d.ContractId is not { } contractId)
+        {
+            d.DeliveryLocation = RequisitionDeliveryLocations.Warehouse;
+            return;
+        }
+        var contract = await Db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId)
+            .Select(c => new { c.ProjectLocation, c.WarehouseId }).FirstOrDefaultAsync(ct)
+            ?? throw new ValidationFailedException(Messages.ContractNotFound);
+        if (d.DeliveryLocation == RequisitionDeliveryLocations.ProjectSite && string.IsNullOrWhiteSpace(d.DeliveryAddress))
+            d.DeliveryAddress = contract.ProjectLocation;
+        d.WarehouseId ??= contract.WarehouseId;
+        await _supply.EnsureRequisitionWithinPlanAsync(contractId, existing?.Id,
+            d.Items.Select(i => (i.ItemId, i.ApprovedQuantity ?? i.RequestedQuantity)).ToList(), ct);
+    }
+
+    protected override MaterialRequisitionDto ToDto(MaterialRequisition entity)
+    {
+        var dto = base.ToDto(entity);
+        if (entity.ContractId is { } id)
+        {
+            var c = Db.Set<CommercialContract>().AsNoTracking().Where(x => x.Id == id).Select(x => new { x.ContractNumber, x.ProjectName, x.Title }).FirstOrDefault();
+            dto.ContractNumber = c?.ContractNumber;
+            dto.ProjectName = c?.ProjectName ?? c?.Title;
+        }
+        return dto;
     }
 
     protected override async Task OnCreatingAsync(MaterialRequisition e, CreateMaterialRequisitionDto d, CancellationToken ct)

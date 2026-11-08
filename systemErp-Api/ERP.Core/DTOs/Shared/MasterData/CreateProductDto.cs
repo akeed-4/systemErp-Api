@@ -6,6 +6,8 @@ public partial class CreateProductDto
     public string? Barcode { get; set; }
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    /// <summary>طبيعة الصنف: stock | service | kit | composite | manufactured (الفارغ = stock).</summary>
+    public string? ItemType { get; set; }
     public string Category { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public decimal CurrentStock { get; set; }
@@ -32,4 +34,6 @@ public partial class CreateProductDto
     public int ExpiryAlertDays { get; set; } = 30;
     public decimal MinStockLevel { get; set; }
     public string? Notes { get; set; }
+    /// <summary>مكونات الصنف: إن أُرسلت تُستبدل بها مكوناته كاملة؛ الغائبة (null) تُبقي مكوناته كما هي.</summary>
+    public List<ProductComponentDto>? Components { get; set; }
 }

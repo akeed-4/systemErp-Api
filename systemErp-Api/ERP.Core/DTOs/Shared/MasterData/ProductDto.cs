@@ -10,6 +10,8 @@ public partial class ProductDto
     public string? Barcode { get; set; }
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    /// <summary>طبيعة الصنف: stock | service | kit | composite | manufactured.</summary>
+    public string ItemType { get; set; } = "stock";
     public string Category { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public decimal CurrentStock { get; set; }
@@ -36,4 +38,8 @@ public partial class ProductDto
     public int ExpiryAlertDays { get; set; } = 30;
     public decimal MinStockLevel { get; set; }
     public string? Notes { get; set; }
+    /// <summary>مكونات المجمّع/المركّب/المنتج الصناعي: تُقرأ عند فتح صنف واحد فقط (فارغة في القوائم).</summary>
+    public List<ProductComponentDto>? Components { get; set; }
+    /// <summary>تكلفة الوحدة التقديرية من المكونات بتكلفتها الحالية (عند فتح صنف واحد).</summary>
+    public decimal? EstimatedComponentsCost { get; set; }
 }

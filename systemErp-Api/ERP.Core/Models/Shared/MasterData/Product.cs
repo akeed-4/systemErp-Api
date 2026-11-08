@@ -9,6 +9,8 @@ public class Product : BaseEntity
     public string? BarcodeLookupKey { get; private set; }
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    /// <summary>طبيعة الصنف (<see cref="ProductItemTypes"/>): بضاعة، خدمي، مجمّع، مركّب، منتج صناعي.</summary>
+    public string ItemType { get; set; } = ProductItemTypes.Stock;
     public string Category { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public decimal CurrentStock { get; set; }

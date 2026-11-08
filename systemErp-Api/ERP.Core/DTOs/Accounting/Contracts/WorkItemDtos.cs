@@ -21,6 +21,10 @@ public class WorkItemSummaryDto
     public decimal Margin { get; set; }
     public decimal MarginPercent { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    /// <summary>الصنف الخدمي المرتبط (يبيع البند في بقية الوحدات).</summary>
+    public Guid? ProductId { get; set; }
+    public string? ProductSku { get; set; }
+    public string? ProductName { get; set; }
 }
 
 /// <summary>البند كاملاً للتعديل والعرض: المدخلات وما يحسبه الخادم.</summary>
@@ -56,6 +60,8 @@ public class SaveWorkItemDto
     public decimal MarkupPercent { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>ربط بصنف خدمي قائم (فارغ = بلا ربط).</summary>
+    public Guid? ProductId { get; set; }
     public List<WorkItemSubItemDto> SubItems { get; set; } = new();
     public List<WorkItemComponentDto> Components { get; set; } = new();
 }

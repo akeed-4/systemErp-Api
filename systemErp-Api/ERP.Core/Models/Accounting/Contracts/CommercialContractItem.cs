@@ -44,6 +44,11 @@ public class CommercialContractItem : BaseEntity
     /// ولا المستخلصات؛ فروعه هي التي تُسعَّر وتُقاس.
     /// </summary>
     public bool IsGroup { get; set; }
+    /// <summary>
+    /// تكلفة الوحدة التقديرية (دراسة الجدوى): تُقترح من تكلفة تحليل البند في المكتبة وتُعدَّل. للمجموعة = مجموع تكلفة فروعه ÷ كميته.
+    /// لا تدخل الفوترة ولا المستخلصات؛ مقارنتها بسعر البيع هامش البند المخطط.
+    /// </summary>
+    public decimal EstimatedUnitCost { get; set; }
 
     public virtual CommercialContract Contract { get; set; } = null!;
 }

@@ -25,7 +25,11 @@ public partial class CommercialContractDto
     public string? PartyEmail { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    /// <summary>موقع العقد (المعرض/المستودع) المختوم من موقع الجلسة عند الإنشاء.</summary>
+    public Guid? WarehouseId { get; set; }
     public decimal ContractValue { get; set; }
+    /// <summary>للقراءة: التكلفة التقديرية للمشروع من أسطر جدول الكميات.</summary>
+    public decimal EstimatedCost { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     public decimal TotalValueWithVat { get; set; }

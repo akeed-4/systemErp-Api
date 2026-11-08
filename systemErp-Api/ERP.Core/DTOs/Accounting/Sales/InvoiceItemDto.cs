@@ -40,4 +40,8 @@ public partial class InvoiceItemDto
     public DateTime? ExpiryDate { get; set; }
     public Guid? CostCenterId { get; set; }
     public string? RevenueAccountCode { get; set; }
+    /// <summary>للقراءة: طبيعة الصنف المحفوظة على السطر (stock | service | kit | composite | manufactured).</summary>
+    public string? ItemType { get; set; }
+    /// <summary>للقراءة: مكونات الصنف المجمّع/المركّب بكمياتها للسطر (تُطبع للمركّب بلا سعر).</summary>
+    public List<InvoiceLineComponent>? Components { get; set; }
 }

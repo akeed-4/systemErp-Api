@@ -44,4 +44,14 @@ public abstract class InvoiceItemBase : BaseEntity
     public Guid? CostCenterId { get; set; }
     /// <summary>حساب إيراد هذا السطر (مبيعات)؛ فارغ = حساب إيراد الفاتورة ثم الافتراضي.</summary>
     public string? RevenueAccountCode { get; set; }
+    /// <summary>
+    /// لقطة طبيعة الصنف وقت الحفظ (<see cref="ProductItemTypes"/>): تحدد أثر السطر على المخزون عند الترحيل وعكسه، فلا يغيّره
+    /// تعديل الصنف لاحقاً. الفارغ (أسطر قديمة) = بضاعة للصنف، وبند خدمة لسطر بلا صنف.
+    /// </summary>
+    public string? ItemType { get; set; }
+    /// <summary>
+    /// لقطة مكونات الصنف المجمّع/المركّب (JSON من <see cref="InvoiceLineComponent"/>): كمياتها للسطر كله، وتكلفتها بعد الترحيل.
+    /// منها يُعكس السطر ويُرجع، وتُطبع مكونات المركّب.
+    /// </summary>
+    public string? ComponentsJson { get; set; }
 }

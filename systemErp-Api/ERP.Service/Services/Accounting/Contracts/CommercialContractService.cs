@@ -127,7 +127,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (d.MaxPenaltyPercent is < 0 or > 100) errors.Add(Messages.MaxPenaltyRange);
         if (d.LatePenaltyPerDay < 0) errors.Add(Messages.DailyPenaltyCannotBeNegative);
         if (d.DurationMonths is < 1) errors.Add(Messages.ContractMinimumOneMonth);
-        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.ContractItemsInvalid);
+        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.EstimatedUnitCost < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.ContractItemsInvalid);
         if (d.Items.Any(i => !ContractBoqLineKinds.IsValid(i.LineKind))) errors.Add(Messages.BoqLineKindInvalid);
         if (d.Items.Any(i => i.OverrunPercent is < 0 or > 100)) errors.Add(Messages.BoqOverrunRange);
         if (d.Workflow != null && !ContractWorkflows.IsValid(d.Workflow.Trim())) errors.Add(Messages.ContractWorkflowInvalid);
@@ -221,6 +221,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         var type = await ResolveTypeAsync(e, ct, o.GetValue<string>(nameof(CommercialContract.ContractType)));
         e.ContractNumber = o.GetValue<string>(nameof(CommercialContract.ContractNumber));
         e.Stage = o.GetValue<string>(nameof(CommercialContract.Stage));
+        e.WarehouseId ??= o.GetValue<Guid?>(nameof(CommercialContract.WarehouseId)); // بلا موقع في الطلب: يبقى موقعه
         e.Status = o.GetValue<ContractStatus>(nameof(CommercialContract.Status));
         e.StageChangedAt = o.GetValue<DateTime?>(nameof(CommercialContract.StageChangedAt));
         e.ReviewRound = o.GetValue<int>(nameof(CommercialContract.ReviewRound));
@@ -269,6 +270,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             throw new ConflictException(Messages.CannotDeleteContractWithBilledMilestones);
         if (await Db.Set<DeliveryNote>().AnyAsync(n => n.ContractId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteContractWithDeliveryNotes);
+        if (await Db.Set<ProjectMaterialIssue>().AnyAsync(i => i.ContractId == e.Id, ct)
+            || await Db.Set<MaterialRequisition>().AnyAsync(r => r.ContractId == e.Id, ct))
+            throw new ConflictException("للمشروع طلبات شراء أو مستندات صرف مواد: لا يُحذف العقد.");
         // الحذف للمسودة وحدها؛ بعدها للعقد أثر (مراجعات معتمدة، مستخلصات، فواتير) فيُلغى ولا يُحذف
         if (e.Stage != ContractStageDefinition.Draft) throw new ConflictException(Messages.ContractDeleteDraftOnly);
         if (await Db.Set<ContractCertificate>().AnyAsync(c => c.ContractId == e.Id, ct) || await Db.Set<ContractInvoice>().AnyAsync(i => i.ContractId == e.Id, ct))
@@ -324,11 +328,14 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         c.CertificateSchedule = ContractCertificateSchedules.IsValid(schedule) ? schedule! : ContractCertificateSchedules.OnDemand;
         if (c.CertificateSchedule != ContractCertificateSchedules.Installments) c.CertificateCount = null;
         if (c.CertificateSchedule != ContractCertificateSchedules.Periodic) c.CertificatePeriodMonths = null;
+        c.EstimatedCost = 0; // يُحسب لعقود جدول الكميات وحدها، لا يُقبل من الطلب
         if (type.Billing != ContractBilling.BoqCertificate) return;
 
         if (c.Milestones.Count > 0) throw new ValidationFailedException(Messages.BoqContractMilestonesNotAllowed);
         // السطر الرئيسي ذو الفروع لا يُحتسب: قيمة العقد من الأسطر المسعّرة فعلاً (العادية والفرعية)
         c.ContractValue = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * i.UnitPrice));
+        // دراسة الجدوى: التكلفة التقديرية من الأسطر المسعّرة نفسها (المجموعة تُحسب من فروعها ولا تُكرر)
+        c.EstimatedCost = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * Math.Max(0, i.EstimatedUnitCost)));
     }
 
     /// <summary>
@@ -357,6 +364,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         {
             var sum = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.UnitPrice));
             group.UnitPrice = group.Quantity > 0 ? Math.Round(sum / group.Quantity, 4) : 0;
+            var cost = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.EstimatedUnitCost));
+            group.EstimatedUnitCost = group.Quantity > 0 ? Math.Round(cost / group.Quantity, 4) : 0;
         }
     }
 

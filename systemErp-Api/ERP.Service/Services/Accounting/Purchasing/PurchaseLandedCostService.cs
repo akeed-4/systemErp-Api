@@ -278,7 +278,7 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
 
         var targets = new List<Target>();
         foreach (var invoice in invoiceIds.Select(id => invoices.First(i => i.Id == id)))
-            foreach (var group in invoice.Items.Where(i => i.ItemId != Guid.Empty && i.Quantity > 0).OrderBy(i => i.CreatedAt).GroupBy(i => i.ItemId))
+            foreach (var group in invoice.Items.Where(i => i.ItemId != Guid.Empty && ProductItemTypes.TracksStock(i.ItemType) && i.Quantity > 0).OrderBy(i => i.CreatedAt).GroupBy(i => i.ItemId))
             {
                 var left = returned.GetValueOrDefault((invoice.Id, group.Key));
                 foreach (var item in group)

@@ -65,6 +65,22 @@ Angular → Controller (ERP.Api) → Contract (ERP.Core) → Service (ERP.Servic
 - المرتجع يعود لتشغيلات أصله، وعكس الفاتورة (تعديل/حذف) يعود لتشغيلاتها ثم يُعلَّم توزيعها `IsReversed`. ما خُصِّص فعلاً يُكتب على سطر المستند (`BatchNumber` / `ExpiryDate`) للعرض والطباعة.
 - اختبارات الدورة: `tests/ERP.Tests/Shared/ItemBatchTests.cs`.
 
+## طبيعة الصنف والمكونات والتصنيع
+
+- `Product.ItemType` (`ProductItemTypes`): `stock` بضاعة، `service` خدمي، `kit` مجمّع، `composite` مركّب، `manufactured` منتج صناعي. الرصيد والحركات للبضاعة والمنتج الصناعي فقط (`TracksStock`)؛ `InventoryService.RecordMovementAsync` و`TransferAsync` يرفضان غيرهما، والجرد لا يلتقطهما.
+- المكونات في `ProductComponent` (جدول مستقل بلا ملاحة على الصنف حتى لا تثقل القوائم): صنف بكميته لكل وحدة (`item`) أو مصروف غير مباشر بمبلغه وحسابه الدائن (`overhead`، للمنتج الصناعي). التحقق والقراءة والحفظ في `ProductComponents`؛ `GET products/{id}` وحده يعيدها مع التكلفة التقديرية، والحفظ يستبدلها إن أُرسلت `Components`.
+- الفاتورة: كل سطر يحفظ لقطة `ItemType`، والمجمّع/المركّب لقطة مكوناته `ComponentsJson` (`InvoiceLineComponent`). قواعد الأثر في `InvoiceLineStock`: الخدمي وبند بلا صنف بلا حركة (والخدمي تكلفته المعيارية تكلفة خدمة)، والمجمّع/المركّب تُصرف مكوناته وتُحفظ تكلفتها على اللقطة فيُعكس ويُرجع منها. المجمّع والمركّب لا يُشتريان. الطباعة تعرض مكونات المركّب بلا سعر.
+- مستند التصنيع `ProductionOrder` (`IProductionOrderService` على `api/v1/production-orders`، شاشة `production-orders` ترث الجرد، ترقيم `production_order`): الأسطر من مكونات المنتج (`template`)، والترحيل يصرف المواد بتكلفتها ويدخل المنتج بمجموع المواد والخدمات والمصاريف، والقيد مدين مخزون المنتج / دائن مخزون المواد وحسابات التحميل (الافتراضي `516` تكاليف تصنيع محمّلة)، والفرق على حساب فروق التكلفة. الجرد الدوري بلا قيد. الإلغاء يعكس الحركات والقيد مع إعادة تقييم للفرق (الهجرة `ItemTypesComponentsProduction`).
+- بند مكتبة المقاولات يرتبط بصنف خدمي (`WorkItem.ProductId`)؛ `POST work-items/{id}/service-item` ينشئه من البند أو يزامن اسمه وسعره وتكلفته، فيُباع البند في كل الوحدات.
+
+## دورة توريد مواد المشروع
+
+- دراسة الجدوى = جدول كميات عقد المقاولات: كل سطر بسعر البيع و`EstimatedUnitCost` (المجموعة من فروعها)، و`CommercialContract.EstimatedCost` مجموعها؛ ملخص المشروع يعرض الهامش المخطط. الكميات المطلوبة من المواد = الاحتياجات المعتمدة (`ProjectMaterialPlan`) محوّلة لوحدة الصنف.
+- `IProjectSupplyService` (`ProjectSupplyController` على `commercialcontracts/{id}`): `material-tracking` لكل صنف (المطلوب، المطلوب شراؤه من طلبات المشروع غير المرفوضة، المشترى من فواتير الشراء المرحّلة المحوّلة منها، المسلَّم بمستندات الصرف المرحّلة، المتبقي للطلب وللتسليم)، و`material-issues` مستند صرف المواد للمشروع (`ProjectMaterialIssue`، شاشة `project-material-issues` ترث المشاريع، ترقيم `project_material_issue`).
+- طلب الشراء (`MaterialRequisition`) يحمل `ContractId` وموقع التوريد `DeliveryLocation` (مستودع / موقع المشروع وعنوانه). مع المشروع: الأصناف من الاحتياجات المعتمدة، والكمية ≤ المطلوب − ما طُلب في طلباته الأخرى (`EnsureRequisitionWithinPlanAsync`).
+- الصرف: جهة استلام (`ReceiverType` واسمها)، والتسليم الحالي ≤ المطلوب − المسلَّم سابقاً (يُعاد الفحص عند الترحيل). الترحيل يصرف بالتكلفة من المستودع وقيده مدين `517` تكلفة مواد المشاريع بمركز تكلفة العقد / دائن مخزون المستودع؛ الإلغاء يعكس الحركة والقيد (الهجرة `ProjectSupplyCycle`).
+- موقع العقد `WarehouseId`: يُختم من موقع الجلسة عند الإنشاء، ويُرسل في `CreateCommercialContractDto` مع «كل المواقع»، والتعديل بلا موقع يُبقيه.
+
 ## سياسات الاعتماد (الموافقات)
 
 - فهرس المستندات والعمليات القابلة للاعتماد: `ERP.Core/Models/Shared/Workflow/ApprovalDocumentCatalog.cs` (يعرضه `GET api/v1/approvals/document-types`). السياسة الواحدة تغطي عدة مستندات (`DocumentTypes`)، ويرفض التحقق أي مستند/عملية خارج الفهرس.

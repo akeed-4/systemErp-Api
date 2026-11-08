@@ -23,6 +23,9 @@ public class InventoryService : IInventoryService
         var product = await _db.Set<Product>().FirstOrDefaultAsync(p => p.Id == r.ItemId, ct)
             ?? throw new NotFoundException(Messages.ProductNotFound);
         if (r.Type is StockMovementType.TransferIn or StockMovementType.TransferOut) throw new ValidationFailedException(Messages.ManualAdjustmentTypeOnly);
+        // الخدمي والمجمّع والمركّب بلا وجود مخزني: المجمّع والمركّب يُصرفان من مكوناتهما
+        if (!ProductItemTypes.TracksStock(product.ItemType))
+            throw new ValidationFailedException($"«{product.NameAr}» صنف بلا رصيد مخزني (خدمي أو مجمّع أو مركّب): لا حركة مخزنية عليه.");
         var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId, ct);
 
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
@@ -287,6 +290,8 @@ public class InventoryService : IInventoryService
 
         var product = await _db.Set<Product>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == r.ItemId, ct)
             ?? throw new NotFoundException(Messages.ProductNotFound);
+        if (!ProductItemTypes.TracksStock(product.ItemType))
+            throw new ValidationFailedException($"«{product.NameAr}» صنف بلا رصيد مخزني: لا يُحوَّل بين المستودعات.");
         var from = await WarehouseStocks.ResolveAsync(_db, r.FromWarehouseId, ct);
         var to = await WarehouseStocks.ResolveAsync(_db, r.ToWarehouseId, ct);
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();

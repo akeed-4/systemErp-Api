@@ -27,6 +27,11 @@ public class WorkItem : BaseEntity
     public decimal MarkupPercent { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>
+    /// الصنف الخدمي الذي يبيع هذا البند في بقية الوحدات (فواتير، عروض أسعار، نقاط البيع) بوحدته وسعره؛ اختياري.
+    /// يُنشأ من البند أو يُربط بصنف خدمي قائم، و«مزامنة» تحدّث اسمه وسعره وتكلفته من البند.
+    /// </summary>
+    public Guid? ProductId { get; set; }
 
     public virtual ICollection<WorkItemSubItem> SubItems { get; set; } = new List<WorkItemSubItem>();
     /// <summary>كل احتياجات البند: المباشرة (<c>SubItemId = null</c>) والتابعة لبنوده الفرعية.</summary>

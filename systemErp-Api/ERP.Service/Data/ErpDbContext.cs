@@ -164,6 +164,18 @@ public class ErpDbContext : DbContext
         // مكوّن المورد المركّب يشير لمورد آخر: المورد الداخل في مركّب لا يُحذف (والمركّب يحذف مكوناته معه)
         (typeof(ConstructionResourceComponent), nameof(ConstructionResourceComponent.ComponentResourceId), typeof(ConstructionResource)),
         (typeof(WorkItemComponent), nameof(WorkItemComponent.ResourceId), typeof(ConstructionResource)),
+        // مكونات الصنف: المالك والمكوّن صنفان؛ الصنف الداخل في مكونات غيره لا يُحذف (والمالك يحذف مكوناته صراحة)
+        (typeof(ProductComponent), nameof(ProductComponent.ProductId), typeof(Product)),
+        (typeof(ProductComponent), nameof(ProductComponent.ComponentProductId), typeof(Product)),
+        // مستند التصنيع: المنتج ومواده لا تُحذف بعد دخولها مستنداً
+        (typeof(ProductionOrder), nameof(ProductionOrder.ProductId), typeof(Product)),
+        (typeof(ProductionOrderLine), nameof(ProductionOrderLine.ComponentProductId), typeof(Product)),
+        // بند المكتبة المرتبط بصنف خدمي يبيعه في كل الوحدات
+        (typeof(WorkItem), nameof(WorkItem.ProductId), typeof(Product)),
+        // صرف مواد المشروع وطلب شراء المشروع: لا يُحذف عقد أو صنف عليه صرف أو طلب
+        (typeof(ProjectMaterialIssue), nameof(ProjectMaterialIssue.ContractId), typeof(CommercialContract)),
+        (typeof(ProjectMaterialIssueLine), nameof(ProjectMaterialIssueLine.ProductId), typeof(Product)),
+        (typeof(MaterialRequisition), nameof(MaterialRequisition.ContractId), typeof(CommercialContract)),
         // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
 
@@ -190,6 +202,8 @@ public class ErpDbContext : DbContext
         (typeof(CommercialContract), nameof(CommercialContract.ContractNumber)),
         (typeof(ConstructionResource), nameof(ConstructionResource.Code)),
         (typeof(WorkItem), nameof(WorkItem.Code)),
+        (typeof(ProductionOrder), nameof(ProductionOrder.OrderNumber)),
+        (typeof(ProjectMaterialIssue), nameof(ProjectMaterialIssue.IssueNumber)),
         (typeof(Agreement), nameof(Agreement.AgreementNumber)),
         (typeof(DeliveryNote), nameof(DeliveryNote.DeliveryNumber)),
         (typeof(DeliveryReturnNote), nameof(DeliveryReturnNote.ReturnNumber)),
@@ -787,6 +801,57 @@ public class ErpDbContext : DbContext
         // توزيع السند يُقرأ بفاتورته (المرجع بلا قيد لأن الفاتورة في أحد جداول InvoiceBase)
         modelBuilder.Entity<VoucherAllocation>().HasIndex(a => a.InvoiceId);
         modelBuilder.Entity<Product>().Property(p => p.VatCategory).HasDefaultValue(VatCategory.Standard);
+        // طبيعة الصنف: الأصناف القائمة «بضاعة»، والقوائم تُصفّى بها
+        modelBuilder.Entity<Product>().Property(p => p.ItemType).HasMaxLength(20).HasDefaultValue(ProductItemTypes.Stock);
+        modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.ItemType });
+        modelBuilder.Entity<InvoiceItemBase>().Property(i => i.ItemType).HasMaxLength(20);
+        // مكونات الصنف تُقرأ بمالكها، ويُفحص بها استخدام الصنف مكوّناً
+        modelBuilder.Entity<ProductComponent>(e =>
+        {
+            e.Property(c => c.Kind).HasMaxLength(16).IsRequired();
+            e.Property(c => c.Quantity).HasPrecision(18, 6);
+            e.Property(c => c.Name).HasMaxLength(200);
+            e.Property(c => c.AccountCode).HasMaxLength(32);
+            e.HasIndex(c => c.ProductId);
+            e.HasIndex(c => c.ComponentProductId);
+        });
+        modelBuilder.Entity<ProductionOrder>(e =>
+        {
+            e.Property(o => o.OrderNumber).HasMaxLength(50).IsRequired();
+            e.Property(o => o.Status).HasMaxLength(16).IsRequired();
+            e.Property(o => o.ProductName).HasMaxLength(300);
+            e.Property(o => o.ProductSku).HasMaxLength(100);
+            e.Property(o => o.Unit).HasMaxLength(20);
+            e.Property(o => o.BatchNumber).HasMaxLength(100);
+            e.HasIndex(o => new { o.TenantId, o.Date });
+        });
+        modelBuilder.Entity<ProjectMaterialIssue>(e =>
+        {
+            e.Property(i => i.IssueNumber).HasMaxLength(50).IsRequired();
+            e.Property(i => i.Status).HasMaxLength(16).IsRequired();
+            e.Property(i => i.ReceiverType).HasMaxLength(32).IsRequired();
+            e.Property(i => i.ReceiverName).HasMaxLength(200);
+            e.HasIndex(i => new { i.TenantId, i.ContractId, i.Status });
+        });
+        modelBuilder.Entity<ProjectMaterialIssueLine>(e =>
+        {
+            e.Property(l => l.Sku).HasMaxLength(100);
+            e.Property(l => l.ItemName).HasMaxLength(300);
+            e.Property(l => l.Unit).HasMaxLength(20);
+            e.HasOne(l => l.Issue).WithMany(i => i.Lines).HasForeignKey(l => l.IssueId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<MaterialRequisition>().Property(r => r.DeliveryLocation).HasMaxLength(20).HasDefaultValue(RequisitionDeliveryLocations.Warehouse);
+        modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.ContractId });
+        modelBuilder.Entity<ProductionOrderLine>(e =>
+        {
+            e.Property(l => l.Kind).HasMaxLength(16).IsRequired();
+            e.Property(l => l.Name).HasMaxLength(300);
+            e.Property(l => l.Sku).HasMaxLength(100);
+            e.Property(l => l.Unit).HasMaxLength(20);
+            e.Property(l => l.AccountCode).HasMaxLength(32);
+            e.Property(l => l.StandardQuantity).HasPrecision(18, 4);
+            e.HasOne(l => l.Order).WithMany(o => o.Lines).HasForeignKey(l => l.ProductionOrderId).OnDelete(DeleteBehavior.Cascade);
+        });
         // الفواتير القائمة «أساسي»: كل سطر بتصنيفه كما رُحِّل
         foreach (var t in new[] { typeof(Invoice), typeof(SalesInvoice), typeof(PurchaseInvoice), typeof(SalesReturn), typeof(PurchaseReturn) })
             modelBuilder.Entity(t).Property(nameof(InvoiceBase.VatTreatment)).HasDefaultValue(InvoiceVatTreatment.Standard);

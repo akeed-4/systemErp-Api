@@ -88,6 +88,9 @@ public static class PermissionCatalog
         new(ConstructionProjectsScreenId, "contracts", "مشاريع المقاولات (الإعداد والمتابعة)", "Construction Projects (Setup & Monitoring)",
             new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/projects" }, InheritsFrom: CommercialContractsScreenId),
         // التقرير اليومي للموقع: المشرف يسجّل ويقدّم، والمهندس المسؤول يعتمد أو يعيد (الاعتماد)؛ يرث صلاحية العقود حتى تُحفظ له صلاحية
+        // صرف مواد المستودع للمشاريع: أمين المستودع يُنشئ ويرحّل، والإلغاء يعكس الأثر؛ يرث صلاحية مشاريع المقاولات حتى تُحفظ له صلاحية
+        new(ProjectMaterialIssuesScreenId, "contracts", "صرف مواد المستودع للمشاريع", "Project Material Issues",
+            Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: ConstructionProjectsScreenId),
         new(SiteDailyReportsScreenId, "contracts", "التقرير اليومي للموقع (الإنجاز بالساعة)", "Site Daily Reports (Hourly Progress)",
             Crud(A.Submit, A.Approve), new[] { "construction/site-reports" }, InheritsFrom: CommercialContractsScreenId),
 
@@ -119,6 +122,8 @@ public static class PermissionCatalog
             Crud(A.Approve, A.Post, A.Cancel), new[] { "vouchers" }),
 
         new("warehouses", "inventory", "المستودعات", "Warehouses", Crud(), new[] { "master-data/warehouses" }),
+        new(ProductionOrdersScreenId, "inventory", "مستندات التصنيع (تحويل المواد إلى منتج)", "Production Orders",
+            Crud(A.Post, A.Cancel), new[] { "production-orders" }, InheritsFrom: "inventory-counts"),
         new("inventory-counts", "inventory", "جرد المخزون والمركبات واعتماده", "Inventory Counts & Approvals",
             Crud(A.Approve, A.Reject, A.Cancel), new[] { "inventory-counts", "showroom/inventory-counts" }, Legacy: CancelFromEdit),
 
@@ -164,9 +169,11 @@ public static class PermissionCatalog
     public const string ConstructionLibraryScreenId = "construction-library";
     public const string ConstructionProjectsScreenId = "construction-projects";
     public const string SiteDailyReportsScreenId = "site-daily-reports";
+    public const string ProjectMaterialIssuesScreenId = "project-material-issues";
     public const string WhatsAppScreenId = "whatsapp";
     public const string WhatsAppSendScreenId = "whatsapp-send";
     public const string PurchaseLandedCostsScreenId = "purchase-landed-costs";
+    public const string ProductionOrdersScreenId = "production-orders";
 
     private static readonly Dictionary<string, PermissionScreenDefinition> ById = Screens.ToDictionary(s => s.Id);
     private static readonly Dictionary<A, PermissionActionDefinition> ActionsByEnum = Actions.ToDictionary(a => a.Action);

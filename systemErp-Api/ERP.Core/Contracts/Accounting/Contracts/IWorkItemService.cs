@@ -10,4 +10,6 @@ public interface IWorkItemService
     Task<WorkItemDto> CreateAsync(SaveWorkItemDto request, CancellationToken ct = default);
     Task<WorkItemDto> UpdateAsync(Guid id, SaveWorkItemDto request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    /// <summary>ينشئ صنفاً خدمياً من البند (أو يحدّث المرتبط به) برمزه واسمه ووحدته وسعره وتكلفته، ويربطه به.</summary>
+    Task<WorkItemDto> SyncServiceItemAsync(Guid id, CancellationToken ct = default);
 }

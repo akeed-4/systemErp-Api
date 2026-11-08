@@ -19,6 +19,13 @@ public class MaterialRequisition : BaseEntity, IScopedRecord
     public Guid? WarehouseId { get; set; }
     public string? WarehouseName { get; set; }
     
+    /// <summary>المشروع (عقد مقاولات) الذي يُطلب له: كمياته تُقارن باحتياجات المشروع المعتمدة وما طُلب سابقاً.</summary>
+    public Guid? ContractId { get; set; }
+    /// <summary>موقع التوريد (<see cref="RequisitionDeliveryLocations"/>): المستودع، أو موقع المشروع مباشرة.</summary>
+    public string DeliveryLocation { get; set; } = RequisitionDeliveryLocations.Warehouse;
+    /// <summary>عنوان موقع التوريد (موقع المشروع افتراضياً).</summary>
+    public string? DeliveryAddress { get; set; }
+
     public decimal TotalEstimatedCost { get; set; }
     public string Status { get; set; } = "draft";
     

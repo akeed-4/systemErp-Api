@@ -37,6 +37,11 @@ public class WorkItemsController : ErpControllerBase
         return Success(await _items.SyncServiceItemAsync(id, ct), "تم ربط البند بصنف خدمي يُباع في كل الوحدات.");
     }
 
+    /// <summary>بند جديد من صنف قائم في شاشة الأصناف (مكوناته احتياجات البند)؛ يُفتح بعدها للمراجعة.</summary>
+    [HttpPost("from-product"), RequireScreen(Screen, ScreenAction.Create)]
+    public async Task<IActionResult> CreateFromProduct([FromBody] CreateWorkItemFromProductDto request, CancellationToken ct)
+        => Success(await _items.CreateFromProductAsync(request.ProductId, ct), "تم إنشاء البند من الصنف؛ راجع احتياجاته وسعره.");
+
     [HttpDelete("{id:guid}"), RequireScreen(Screen, ScreenAction.Delete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

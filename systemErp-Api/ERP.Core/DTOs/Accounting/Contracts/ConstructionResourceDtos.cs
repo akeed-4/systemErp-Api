@@ -90,3 +90,45 @@ public class HrDepartmentOptionDto
     public string? NameEn { get; set; }
     public int EmployeeCount { get; set; }
 }
+
+/// <summary>مادة في المكتبة غير مربوطة بصنف مخزني، والأصناف المرشحة لربطها (الأقوى أولاً).</summary>
+public class ResourceLinkSuggestionDto
+{
+    public Guid ResourceId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    /// <summary>عدد بنود المكتبة التي تستخدمه.</summary>
+    public int UsageCount { get; set; }
+    public List<ResourceLinkCandidateDto> Candidates { get; set; } = new();
+}
+
+public class ResourceLinkCandidateDto
+{
+    public Guid ProductId { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal Cost { get; set; }
+    /// <summary>sku = الرمز أو الباركود يطابق رمز المادة، name = الاسم مطابق، similar = الاسم متشابه.</summary>
+    public string Match { get; set; } = "similar";
+    /// <summary>وحدة المادة تتحوّل لوحدة الصنف (شرط الربط).</summary>
+    public bool UnitCompatible { get; set; }
+}
+
+public class LinkResourcesToProductsDto
+{
+    public List<ResourceProductLinkDto> Links { get; set; } = new();
+}
+
+public class ResourceProductLinkDto
+{
+    public Guid ResourceId { get; set; }
+    public Guid ProductId { get; set; }
+}
+
+public class ResourceLinkResultDto
+{
+    public int Linked { get; set; }
+    public List<string> Skipped { get; set; } = new();
+}

@@ -238,6 +238,114 @@ public class ConstructionResourceService
         return result;
     }
 
+    // ---------- ربط المواد بأصناف المخزون ----------
+
+    private const int MaxSuggestions = 300;
+    private const int CandidatesPerResource = 3;
+
+    /// <summary>أصناف لها رصيد (بضاعة أو منتج صناعي): وحدها تُربط بها مادة.</summary>
+    private IQueryable<Product> StockProducts()
+        => Db.Set<Product>().AsNoTracking().Where(p => p.ItemType == null || p.ItemType == "" || p.ItemType == ProductItemTypes.Stock
+            || p.ItemType == ProductItemTypes.Manufactured);
+
+    /// <summary>
+    /// مرشحو الربط لكل مادة فعّالة غير مربوطة: رمز الصنف أو باركوده = رمز المادة، ثم الاسم مطابق، ثم الاسم يحوي اسم المادة أو كلمتها الأولى.
+    /// المواد الأكثر استخداماً في البنود أولاً.
+    /// </summary>
+    public async Task<List<ResourceLinkSuggestionDto>> LinkSuggestionsAsync(CancellationToken ct = default)
+    {
+        var usage = await Db.Set<WorkItemComponent>().AsNoTracking().GroupBy(c => c.ResourceId)
+            .Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+        var resources = (await Db.Set<ConstructionResource>().AsNoTracking()
+                .Where(r => r.IsActive && r.ResourceType == BoqResourceTypes.Material && r.ProductId == null && r.CostSource != ResourceCostSources.Composite)
+                .Select(r => new { r.Id, r.Code, r.NameAr, r.Unit }).ToListAsync(ct))
+            .OrderByDescending(r => usage.GetValueOrDefault(r.Id)).ThenBy(r => r.Code).Take(MaxSuggestions).ToList();
+        if (resources.Count == 0) return new();
+
+        var units = await BoqUnits.LoadAsync(Db, ct);
+        var codes = resources.Select(r => r.Code).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList();
+        var names = resources.Select(r => r.NameAr.Trim()).Where(n => n.Length > 0).Distinct().ToList();
+        var exact = await StockProducts()
+            .Where(p => codes.Contains(p.Sku) || (p.Barcode != null && codes.Contains(p.Barcode)) || names.Contains(p.NameAr))
+            .Select(p => new { p.Id, p.Sku, p.Barcode, p.NameAr, p.Unit, p.StandardCost, p.AverageCost, p.LastPurchaseCost })
+            .Take(5000).ToListAsync(ct);
+
+        var result = new List<ResourceLinkSuggestionDto>();
+        foreach (var r in resources)
+        {
+            var name = r.NameAr.Trim();
+            var found = new List<ResourceLinkCandidateDto>();
+            void Add(Guid id, string sku, string productName, string unit, decimal? standard, decimal average, decimal last, string match)
+            {
+                if (found.Count >= CandidatesPerResource || found.Any(f => f.ProductId == id)) return;
+                found.Add(new ResourceLinkCandidateDto
+                {
+                    ProductId = id, Sku = sku, NameAr = productName, Unit = unit, Match = match,
+                    Cost = standard is > 0 ? standard.Value : average > 0 ? average : last,
+                    UnitCompatible = units.Find(unit) == null || units.Convert(1m, r.Unit, unit) != null,
+                });
+            }
+            foreach (var p in exact.Where(p => !string.IsNullOrWhiteSpace(r.Code) && (p.Sku == r.Code || p.Barcode == r.Code)))
+                Add(p.Id, p.Sku, p.NameAr, p.Unit, p.StandardCost, p.AverageCost, p.LastPurchaseCost, "sku");
+            foreach (var p in exact.Where(p => string.Equals(p.NameAr.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+                Add(p.Id, p.Sku, p.NameAr, p.Unit, p.StandardCost, p.AverageCost, p.LastPurchaseCost, "name");
+            if (found.Count < CandidatesPerResource && name.Length >= 3)
+            {
+                var word = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(w => w.Length >= 3) ?? name;
+                var similar = await StockProducts().Where(p => p.NameAr.Contains(name) || p.NameAr.Contains(word))
+                    .OrderBy(p => p.NameAr.Contains(name) ? 0 : 1).ThenBy(p => p.NameAr.Length)
+                    .Select(p => new { p.Id, p.Sku, p.NameAr, p.Unit, p.StandardCost, p.AverageCost, p.LastPurchaseCost })
+                    .Take(CandidatesPerResource + 2).ToListAsync(ct);
+                foreach (var p in similar) Add(p.Id, p.Sku, p.NameAr, p.Unit, p.StandardCost, p.AverageCost, p.LastPurchaseCost, "similar");
+            }
+            result.Add(new ResourceLinkSuggestionDto
+            {
+                ResourceId = r.Id, Code = r.Code, NameAr = r.NameAr, Unit = r.Unit, UsageCount = usage.GetValueOrDefault(r.Id), Candidates = found,
+            });
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// ربط دفعة: المادة غير مربوطة، والصنف له رصيد، والوحدة تتحوّل لوحدة الصنف؛ فتصبح تكلفتها من الصنف وتتبعها البنود والمركّبات.
+    /// ما لا يحقق الشروط يُتخطى بسببه دون إيقاف البقية.
+    /// </summary>
+    public Task<ResourceLinkResultDto> LinkProductsAsync(LinkResourcesToProductsDto request, CancellationToken ct = default)
+        => new TransactionRunner(Db).RunAsync(async token =>
+        {
+            var result = new ResourceLinkResultDto();
+            var links = (request.Links ?? new()).GroupBy(l => l.ResourceId).Select(g => g.Last()).ToList();
+            if (links.Count == 0) return result;
+            var resourceIds = links.Select(l => l.ResourceId).ToList();
+            var resources = await Db.Set<ConstructionResource>().Where(r => resourceIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, token);
+            var productIds = links.Select(l => l.ProductId).Distinct().ToList();
+            var stockIds = (await StockProducts().Where(p => productIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(token)).ToHashSet();
+            var products = await BoqProducts.LoadAsync(Db, links.Select(l => (Guid?)l.ProductId), token);
+            var units = await BoqUnits.LoadAsync(Db, token);
+            var now = DateTime.UtcNow;
+            foreach (var link in links)
+            {
+                if (!resources.TryGetValue(link.ResourceId, out var r)) { result.Skipped.Add("مادة غير موجودة."); continue; }
+                var label = $"{r.Code} {r.NameAr}";
+                if (r.ResourceType != BoqResourceTypes.Material) { result.Skipped.Add($"{label}: ليست مادة."); continue; }
+                if (r.ProductId.HasValue) { result.Skipped.Add($"{label}: مربوطة بصنف مسبقاً."); continue; }
+                if (r.CostSource == ResourceCostSources.Composite) { result.Skipped.Add($"{label}: مركّبة، تكلفتها من مكوناتها."); continue; }
+                if (!stockIds.Contains(link.ProductId) || products.Find(link.ProductId) is not { } product)
+                { result.Skipped.Add($"{label}: الصنف غير موجود أو بلا رصيد."); continue; }
+                var factor = ConversionToProduct(units, r.Unit, product);
+                if (factor == null && units.Find(product.Unit) != null)
+                { result.Skipped.Add($"{label}: " + string.Format(Messages.ResourceUnitIncompatible, r.Unit, product.Unit)); continue; }
+                r.ProductId = product.Id;
+                r.CostSource = ResourceCostSources.Product;
+                if (product.Cost > 0) r.StandardCost = ProductCost(product, factor);
+                r.CostUpdatedAt = now;
+                result.Linked++;
+            }
+            await SaveAsync(token);
+            if (await RecomputeCompositesAsync(token) > 0) await SaveAsync(token);
+            return result;
+        }, ct);
+
     public async Task<HrLaborOptionsDto> HrLaborOptionsAsync(CancellationToken ct = default)
     {
         await RequireHrAccessAsync(ct);

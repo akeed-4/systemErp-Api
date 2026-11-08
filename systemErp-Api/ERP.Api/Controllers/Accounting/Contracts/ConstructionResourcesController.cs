@@ -24,6 +24,18 @@ public class ConstructionResourcesController : CrudController<ConstructionResour
         return Success(result, string.Format(Messages.ResourceCostsRefreshed, result.Updated));
     }
 
+    /// <summary>المواد غير المربوطة بصنف ومرشحوها للربط التلقائي.</summary>
+    [HttpGet("link-suggestions"), RequireScreen(PermissionCatalog.ConstructionLibraryScreenId, ScreenAction.View)]
+    public async Task<IActionResult> LinkSuggestions(CancellationToken ct) => Success(await _resources.LinkSuggestionsAsync(ct));
+
+    /// <summary>ربط مواد بأصناف دفعة واحدة (بعد مراجعة المستخدم للمرشحين).</summary>
+    [HttpPost("link-products"), RequireScreen(PermissionCatalog.ConstructionLibraryScreenId, ScreenAction.Edit)]
+    public async Task<IActionResult> LinkProducts([FromBody] LinkResourcesToProductsDto request, CancellationToken ct)
+    {
+        var result = await _resources.LinkProductsAsync(request, ct);
+        return Success(result, $"تم ربط {result.Linked} مادة بأصنافها.");
+    }
+
     /// <summary>المهن والأقسام من شؤون الموظفين لربط مورد العمالة (أعداد فقط)؛ الخدمة تشترط صلاحية شؤون الموظفين.</summary>
     [HttpGet("hr-labor-options"), RequireScreen(PermissionCatalog.ConstructionLibraryScreenId, ScreenAction.View), RequireModule(PlatformModules.Hr)]
     public async Task<IActionResult> HrLaborOptions(CancellationToken ct)

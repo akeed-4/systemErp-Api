@@ -98,6 +98,117 @@ public class WorkItemService : IWorkItemService
             return await GetAsync(id, token);
         }, ct);
 
+    /// <summary>
+    /// بند من صنف قائم (تعريف الصنف مرة واحدة في شاشة الأصناف):
+    /// <list type="bullet">
+    /// <item>البند: اسم الصنف ووحدته وسعر بيعه، ورمزه رمز الصنف إن لم يكن لبند آخر. الصنف الخدمي يُربط بالبند (فلا يتكرر صنف بيعه).</item>
+    /// <item>الاحتياجات لكل وحدة: مكونات الصنف (المجمّع/المركّب/المنتج الصناعي) بكمياتها وهدرها، أو الصنف نفسه إن كان بضاعة بلا مكونات.</item>
+    /// <item>المورد: المادة المربوطة بالصنف المكوّن إن وُجدت، وإلا تُنشأ مادة مربوطة (تكلفتها من الصنف). المكوّن الخدمي والمصروف غير المباشر
+    /// مورد «أخرى» يدوي بتكلفته (يُعاد استخدام الموجود بالاسم والوحدة).</item>
+    /// </list>
+    /// </summary>
+    public Task<WorkItemDto> CreateFromProductAsync(Guid productId, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var product = await _db.Set<Product>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == productId, token)
+                ?? throw new ValidationFailedException(Messages.ProductNotFound);
+            var type = ProductItemTypes.Normalize(product.ItemType);
+            if (type == ProductItemTypes.Service)
+            {
+                var linked = await _db.Set<WorkItem>().AsNoTracking().Where(w => w.ProductId == productId).Select(w => w.Code + " " + w.NameAr).FirstOrDefaultAsync(token);
+                if (linked != null) throw new ConflictException($"الصنف «{product.NameAr}» مرتبط بالبند {linked}.");
+            }
+
+            var components = await _db.Set<ProductComponent>().AsNoTracking().Where(c => c.ProductId == productId)
+                .OrderBy(c => c.SortOrder).ToListAsync(token);
+            var componentIds = components.Where(c => c.Kind == ProductComponentKinds.Item && c.ComponentProductId.HasValue)
+                .Select(c => c.ComponentProductId!.Value).Distinct().ToList();
+            var parts = await _db.Set<Product>().AsNoTracking().Where(p => componentIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);
+
+            var resources = new FromProductResources(_db, _services.GetRequiredService<IConstructionResourceService>(), product.Unit);
+            var needs = new List<WorkItemComponentDto>();
+            void Add(Guid resourceId, decimal factor, decimal waste) => needs.Add(new WorkItemComponentDto
+            {
+                ResourceId = resourceId, QuantityMode = BoqQuantityModes.PerUnit, ConsumptionFactor = factor, WastePercent = waste,
+            });
+
+            if (ProductItemTypes.HasComponents(type))
+            {
+                foreach (var c in components)
+                {
+                    if (c.Kind == ProductComponentKinds.Overhead)
+                    {
+                        if (c.UnitCost > 0 && !string.IsNullOrWhiteSpace(c.Name))
+                            Add(await resources.OtherAsync(c.Name!.Trim(), product.Unit, c.UnitCost, token), 1m, 0m);
+                    }
+                    else if (c.ComponentProductId is { } partId && parts.TryGetValue(partId, out var part) && c.Quantity > 0)
+                        Add(await resources.ForProductAsync(part, token), c.Quantity, c.WastePercent);
+                }
+            }
+            else if (ProductItemTypes.TracksStock(type))
+                Add(await resources.ForProductAsync(product, token), 1m, 0m); // مادة واحدة: البند توريدها
+
+            var code = product.Sku?.Trim();
+            if (string.IsNullOrEmpty(code) || await _db.Set<WorkItem>().AnyAsync(w => w.Code == code, token)) code = null;
+            return await CreateAsync(new SaveWorkItemDto
+            {
+                Code = code,
+                NameAr = product.NameAr,
+                NameEn = product.NameEn,
+                Unit = product.Unit,
+                StandardQuantity = 1m,
+                LineKind = ContractBoqLineKinds.Measured,
+                PricingMode = WorkItemPricingModes.Manual,
+                SellPrice = product.SellingPrice,
+                Notes = $"من الصنف {product.Sku}",
+                ProductId = type == ProductItemTypes.Service ? product.Id : null,
+                Components = needs,
+            }, token);
+        }, ct);
+
+    /// <summary>موارد البند المنشأ من صنف: يعيد استخدام الموجود ويُنشئ الناقص عبر خدمة الموارد (برمزها وتكلفتها وتحققها).</summary>
+    private sealed class FromProductResources(ErpDbContext db, IConstructionResourceService service, string fallbackUnit)
+    {
+        private readonly Dictionary<string, Guid> _cache = new();
+
+        /// <summary>البضاعة/المنتج الصناعي = مادة مربوطة بالصنف؛ الخدمي والمجمّع = مورد «أخرى» يدوي بتكلفة الصنف.</summary>
+        public async Task<Guid> ForProductAsync(Product p, CancellationToken ct)
+        {
+            if (!ProductItemTypes.TracksStock(p.ItemType))
+                return await OtherAsync(p.NameAr, string.IsNullOrWhiteSpace(p.Unit) ? fallbackUnit : p.Unit, Cost(p), ct);
+            var key = "p:" + p.Id;
+            if (_cache.TryGetValue(key, out var id)) return id;
+            // المادة المربوطة بالصنف بوحدته أولاً، ثم بأي وحدة
+            var existing = await db.Set<ConstructionResource>().AsNoTracking()
+                .Where(r => r.ProductId == p.Id && r.ResourceType == BoqResourceTypes.Material && r.IsActive)
+                .OrderBy(r => r.Unit == p.Unit ? 0 : 1).ThenBy(r => r.Code).Select(r => (Guid?)r.Id).FirstOrDefaultAsync(ct);
+            id = existing ?? (await service.CreateAsync(new CreateConstructionResourceDto
+            {
+                NameAr = p.NameAr, NameEn = p.NameEn, ResourceType = BoqResourceTypes.Material, Unit = p.Unit,
+                CostSource = ResourceCostSources.Product, ProductId = p.Id,
+            }, ct)).Id;
+            return _cache[key] = id;
+        }
+
+        public async Task<Guid> OtherAsync(string name, string unit, decimal cost, CancellationToken ct)
+        {
+            var key = $"o:{name}|{unit}";
+            if (_cache.TryGetValue(key, out var id)) return id;
+            var existing = await db.Set<ConstructionResource>().AsNoTracking()
+                .Where(r => r.NameAr == name && r.Unit == unit && r.ResourceType == BoqResourceTypes.Other
+                    && r.CostSource == ResourceCostSources.Manual && r.IsActive)
+                .Select(r => (Guid?)r.Id).FirstOrDefaultAsync(ct);
+            id = existing ?? (await service.CreateAsync(new CreateConstructionResourceDto
+            {
+                NameAr = name, ResourceType = BoqResourceTypes.Other, Unit = unit, StandardCost = cost, CostSource = ResourceCostSources.Manual,
+            }, ct)).Id;
+            return _cache[key] = id;
+        }
+
+        private static decimal Cost(Product p)
+            => p.StandardCost is > 0 ? p.StandardCost.Value : p.AverageCost > 0 ? p.AverageCost : p.LastPurchaseCost;
+    }
+
     // ---------- الحفظ ----------
 
     public Task<WorkItemDto> CreateAsync(SaveWorkItemDto request, CancellationToken ct = default)

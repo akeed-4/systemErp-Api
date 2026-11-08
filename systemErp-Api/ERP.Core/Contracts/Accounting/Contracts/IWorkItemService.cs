@@ -12,4 +12,9 @@ public interface IWorkItemService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     /// <summary>ينشئ صنفاً خدمياً من البند (أو يحدّث المرتبط به) برمزه واسمه ووحدته وسعره وتكلفته، ويربطه به.</summary>
     Task<WorkItemDto> SyncServiceItemAsync(Guid id, CancellationToken ct = default);
+    /// <summary>
+    /// ينشئ بنداً من صنف قائم: الاسم والوحدة وسعر البيع منه، ومكوناته (أو الصنف نفسه إن كان بضاعة) احتياجات بموارد المكتبة
+    /// المربوطة بها، ويُنشأ المورد الناقص. الصنف الخدمي يُربط بالبند.
+    /// </summary>
+    Task<WorkItemDto> CreateFromProductAsync(Guid productId, CancellationToken ct = default);
 }

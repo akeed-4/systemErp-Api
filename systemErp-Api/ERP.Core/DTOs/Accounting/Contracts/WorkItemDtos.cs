@@ -108,3 +108,11 @@ public class WorkItemComponentDto
     public decimal Quantity { get; set; }
     public decimal TotalCost { get; set; }
 }
+
+/// <summary>
+/// إنشاء بند مكتبة من صنف قائم في شاشة الأصناف (بدل إعادة تعريفه): الاسم والوحدة وسعر البيع من الصنف، ومكوناته احتياجات البند.
+/// </summary>
+public class CreateWorkItemFromProductDto
+{
+    public Guid ProductId { get; set; }
+}

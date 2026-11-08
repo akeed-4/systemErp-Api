@@ -11,4 +11,10 @@ public interface IConstructionResourceService : ICrudService<ConstructionResourc
 
     /// <summary>المهن والأقسام من شؤون الموظفين لربط مورد العمالة (أعداد فقط، بلا رواتب).</summary>
     Task<HrLaborOptionsDto> HrLaborOptionsAsync(CancellationToken ct = default);
+
+    /// <summary>المواد غير المربوطة بصنف مخزني ومرشحوها من الأصناف (بالرمز، ثم الاسم المطابق، ثم المتشابه).</summary>
+    Task<List<ResourceLinkSuggestionDto>> LinkSuggestionsAsync(CancellationToken ct = default);
+
+    /// <summary>يربط مواد بأصناف دفعة واحدة: تكلفتها تصبح من الصنف. يتخطى غير المتوافق بسببه.</summary>
+    Task<ResourceLinkResultDto> LinkProductsAsync(LinkResourcesToProductsDto request, CancellationToken ct = default);
 }

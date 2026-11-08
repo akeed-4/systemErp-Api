@@ -30,6 +30,14 @@ public partial class CommercialContractDto
     public decimal ContractValue { get; set; }
     /// <summary>للقراءة: التكلفة التقديرية للمشروع من أسطر جدول الكميات.</summary>
     public decimal EstimatedCost { get; set; }
+    /// <summary>تسعير العطاء: نسب المصاريف غير المباشرة والمخاطر والربح فوق التكلفة المباشرة.</summary>
+    public decimal OverheadPercent { get; set; }
+    public decimal RiskPercent { get; set; }
+    public decimal ProfitPercent { get; set; }
+    /// <summary>خصم التفاوض الموزّع على أسعار البنود.</summary>
+    public decimal DiscountPercent { get; set; }
+    /// <summary>للقراءة: قيمة العطاء قبل الخصم؛ الفرق عن <see cref="ContractValue"/> هو مبلغ الخصم.</summary>
+    public decimal TenderValue { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     public decimal TotalValueWithVat { get; set; }

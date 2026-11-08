@@ -7,7 +7,13 @@ public partial class ContractItemDto
     public string Description { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    /// <summary>
+    /// سعر الوحدة المتعاقد عليه. في جدول الكميات للقراءة: يحسبه الخادم = سعر العطاء × (1 − خصم التفاوض).
+    /// عميل لا يرسل سعر العطاء يُعامل هذا السعر سعرَ عطاء.
+    /// </summary>
     public decimal UnitPrice { get; set; }
+    /// <summary>سعر الوحدة في العطاء قبل خصم التفاوض (جدول الكميات). صفر = يؤخذ من <see cref="UnitPrice"/>.</summary>
+    public decimal TenderUnitPrice { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal TotalWithVat { get; set; }
     public string? LineCode { get; set; }

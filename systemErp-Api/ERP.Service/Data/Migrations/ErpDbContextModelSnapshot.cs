@@ -563,6 +563,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("DiscountPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<int?>("DurationMonths")
                         .HasColumnType("int");
 
@@ -600,6 +604,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("OverheadPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<string>("PartyCrNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -621,6 +629,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("PartyVatNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("ProfitPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("ProjectLocation")
                         .HasMaxLength(200)
@@ -663,6 +675,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<int>("ReviewRound")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("RiskPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<string>("ScopeOfWork")
                         .HasColumnType("nvarchar(max)");
 
@@ -691,6 +707,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TenderValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("TermsAndConditions")
                         .HasColumnType("nvarchar(max)");
@@ -802,6 +822,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TenderUnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal>("TotalWithVat")
                         .HasPrecision(18, 4)

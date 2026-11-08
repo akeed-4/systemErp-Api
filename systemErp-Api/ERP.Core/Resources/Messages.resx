@@ -536,6 +536,8 @@
   <data name="CertificateNetNegative" xml:space="preserve"><value>الخصومات تتجاوز إجمالي المستخلص: الصافي المستحق لا يكون سالباً.</value></data>
   <data name="CertificateDeductionInvalid" xml:space="preserve"><value>كل خصم آخر يلزمه وصف ومبلغ أكبر من صفر.</value></data>
   <data name="AdvancePercentRange" xml:space="preserve"><value>نسبة الدفعة المقدمة يجب أن تكون بين 0 و100.</value></data>
+  <data name="TenderMarkupRange" xml:space="preserve"><value>نسب المصاريف غير المباشرة والمخاطر والربح يجب أن تكون بين 0 و1000.</value></data>
+  <data name="TenderDiscountRange" xml:space="preserve"><value>نسبة خصم التفاوض يجب أن تكون من 0 إلى أقل من 100.</value></data>
   <data name="ContractTypeCodeInvalid" xml:space="preserve"><value>رمز النوع: حروف إنجليزية صغيرة وأرقام وشرطة سفلية، يبدأ بحرف (2–64).</value></data>
   <data name="ContractTypeCodeExists" xml:space="preserve"><value>يوجد نوع عقد بالرمز «{0}».</value></data>
   <data name="ContractTypeNotFound" xml:space="preserve"><value>نوع العقد غير موجود.</value></data>

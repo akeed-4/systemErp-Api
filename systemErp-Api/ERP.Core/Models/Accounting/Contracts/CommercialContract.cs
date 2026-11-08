@@ -48,6 +48,23 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public decimal ContractValue { get; set; }
     /// <summary>التكلفة التقديرية للمشروع (دراسة الجدوى): مجموع كميات الأسطر المسعّرة × تكلفتها التقديرية. يحسبها الخادم.</summary>
     public decimal EstimatedCost { get; set; }
+
+    // ---- تسعير العطاء (عقود جدول الكميات) ----
+    // سعر الوحدة المقترح = التكلفة المباشرة × (1 + مجموع النسب الثلاث). النسب تُحفظ مرجعاً لكيفية بناء العطاء،
+    // والسعر النهائي يبقى سعر العطاء المُدخل في كل سطر.
+    /// <summary>نسبة المصاريف غير المباشرة (إدارة الموقع، التأمينات، الضمانات) فوق التكلفة المباشرة.</summary>
+    public decimal OverheadPercent { get; set; }
+    /// <summary>نسبة احتياطي المخاطر فوق التكلفة المباشرة.</summary>
+    public decimal RiskPercent { get; set; }
+    /// <summary>نسبة الربح المستهدف فوق التكلفة المباشرة.</summary>
+    public decimal ProfitPercent { get; set; }
+    /// <summary>
+    /// خصم التفاوض: يُطبَّق بالنسبة نفسها على سعر عطاء كل سطر، فيبقى مجموع جدول الكميات مساوياً لقيمة العقد. يحفظه الخادم صفراً لغير جدول الكميات.
+    /// </summary>
+    public decimal DiscountPercent { get; set; }
+    /// <summary>قيمة العطاء قبل خصم التفاوض = مجموع الكمية × سعر العطاء. يحسبها الخادم (= قيمة العقد بلا خصم).</summary>
+    public decimal TenderValue { get; set; }
+
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     public decimal TotalValueWithVat { get; set; }

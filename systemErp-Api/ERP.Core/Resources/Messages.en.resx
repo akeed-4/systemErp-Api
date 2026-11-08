@@ -536,6 +536,8 @@
   <data name="CertificateNetNegative" xml:space="preserve"><value>Deductions exceed the certificate total: the net payable cannot be negative.</value></data>
   <data name="CertificateDeductionInvalid" xml:space="preserve"><value>Each other deduction needs a description and an amount greater than zero.</value></data>
   <data name="AdvancePercentRange" xml:space="preserve"><value>The advance payment percentage must be between 0 and 100.</value></data>
+  <data name="TenderMarkupRange" xml:space="preserve"><value>Overhead, risk and profit percentages must be between 0 and 1000.</value></data>
+  <data name="TenderDiscountRange" xml:space="preserve"><value>The negotiation discount must be from 0 to less than 100 percent.</value></data>
   <data name="ContractTypeCodeInvalid" xml:space="preserve"><value>Type code: lowercase letters, digits and underscore, starting with a letter (2–64).</value></data>
   <data name="ContractTypeCodeExists" xml:space="preserve"><value>A contract type with code "{0}" already exists.</value></data>
   <data name="ContractTypeNotFound" xml:space="preserve"><value>Contract type not found.</value></data>

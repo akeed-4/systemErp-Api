@@ -8,7 +8,13 @@ public class CommercialContractItem : BaseEntity
     public string Description { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    /// <summary>
+    /// سعر الوحدة المتعاقد عليه (بعد خصم التفاوض). في جدول الكميات يحسبه الخادم من <see cref="TenderUnitPrice"/>، وعليه تُبنى
+    /// قيمة العقد والمستخلصات.
+    /// </summary>
     public decimal UnitPrice { get; set; }
+    /// <summary>سعر الوحدة في العطاء قبل خصم التفاوض (ما يُدخله المستخدم). للمجموعة يحسبه الخادم من فروعها.</summary>
+    public decimal TenderUnitPrice { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal TotalWithVat { get; set; }
 

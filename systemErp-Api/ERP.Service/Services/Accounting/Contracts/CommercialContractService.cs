@@ -127,7 +127,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (d.MaxPenaltyPercent is < 0 or > 100) errors.Add(Messages.MaxPenaltyRange);
         if (d.LatePenaltyPerDay < 0) errors.Add(Messages.DailyPenaltyCannotBeNegative);
         if (d.DurationMonths is < 1) errors.Add(Messages.ContractMinimumOneMonth);
-        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.EstimatedUnitCost < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.ContractItemsInvalid);
+        if (d.Items.Any(i => i.Quantity <= 0 || i.UnitPrice < 0 || i.TenderUnitPrice < 0 || i.EstimatedUnitCost < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.ContractItemsInvalid);
+        if (d.OverheadPercent is < 0 or > 1000 || d.RiskPercent is < 0 or > 1000 || d.ProfitPercent is < 0 or > 1000) errors.Add(Messages.TenderMarkupRange);
+        if (d.DiscountPercent is < 0 or >= 100) errors.Add(Messages.TenderDiscountRange);
         if (d.Items.Any(i => !ContractBoqLineKinds.IsValid(i.LineKind))) errors.Add(Messages.BoqLineKindInvalid);
         if (d.Items.Any(i => i.OverrunPercent is < 0 or > 100)) errors.Add(Messages.BoqOverrunRange);
         if (d.Workflow != null && !ContractWorkflows.IsValid(d.Workflow.Trim())) errors.Add(Messages.ContractWorkflowInvalid);
@@ -309,9 +311,15 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     /// <summary>
     /// بنود العقد كجدول كميات: الكمية المعتمدة = الكمية (حتى تُعتمد ملاحق)، والترتيب يُكمل تلقائياً. وفي عقد بجدول كميات
     /// قيمة العقد يحسبها الخادم من البنود (الكمية × السعر)، والاستحقاق بالمستخلصات فلا جدول دفعات.
+    /// تسعير العطاء: المستخدم يُدخل سعر العطاء لكل سطر، وخصم التفاوض يُطبَّق بالنسبة نفسها على كل سعر، فسعر الوحدة
+    /// المتعاقد عليه = سعر العطاء × (1 − الخصم)، وقيمة العقد مجموع الأسطر بعده فتبقى مطابقة لجدول الكميات.
     /// </summary>
     private static void ApplyBoq(CommercialContract c, ContractTypeDefinition type)
     {
+        var boq = type.Billing == ContractBilling.BoqCertificate;
+        // الخصم ونسب العطاء لجدول الكميات وحده؛ غيره يُدخل قيمته وأسعاره مباشرة
+        if (!boq) { c.DiscountPercent = 0; c.OverheadPercent = 0; c.RiskPercent = 0; c.ProfitPercent = 0; }
+        var factor = 1 - c.DiscountPercent / 100m;
         var order = 0;
         var ordered = c.Items.OrderBy(i => i.SortOrder == 0 ? int.MaxValue : i.SortOrder).ToList();
         foreach (var i in ordered)
@@ -321,19 +329,26 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             i.SectionName = string.IsNullOrWhiteSpace(i.SectionName) ? null : i.SectionName.Trim();
             i.UnitDescription = string.IsNullOrWhiteSpace(i.UnitDescription) ? null : i.UnitDescription.Trim();
             i.RevisedQuantity = i.Quantity;
+            // بلا سعر عطاء (عميل قديم أو عقد قبل الحقل): السعر المرسل هو سعر العطاء
+            if (i.TenderUnitPrice <= 0) i.TenderUnitPrice = i.UnitPrice;
+            if (boq) i.UnitPrice = Math.Round(i.TenderUnitPrice * factor, 4);
+            else i.TenderUnitPrice = i.UnitPrice;
         }
-        LinkSubItems(ordered, type.Billing == ContractBilling.BoqCertificate);
+        LinkSubItems(ordered, boq);
         // الجدولة لعقود المقاولات وحدها، ويُحفظ من إعداداتها ما يخص النمط المختار فقط
-        var schedule = type.Billing == ContractBilling.BoqCertificate ? c.CertificateSchedule?.Trim() : null;
+        var schedule = boq ? c.CertificateSchedule?.Trim() : null;
         c.CertificateSchedule = ContractCertificateSchedules.IsValid(schedule) ? schedule! : ContractCertificateSchedules.OnDemand;
         if (c.CertificateSchedule != ContractCertificateSchedules.Installments) c.CertificateCount = null;
         if (c.CertificateSchedule != ContractCertificateSchedules.Periodic) c.CertificatePeriodMonths = null;
         c.EstimatedCost = 0; // يُحسب لعقود جدول الكميات وحدها، لا يُقبل من الطلب
-        if (type.Billing != ContractBilling.BoqCertificate) return;
+        c.TenderValue = c.ContractValue; // غير جدول الكميات: قيمته المُدخلة، بلا خصم
+        if (!boq) return;
 
         if (c.Milestones.Count > 0) throw new ValidationFailedException(Messages.BoqContractMilestonesNotAllowed);
-        // السطر الرئيسي ذو الفروع لا يُحتسب: قيمة العقد من الأسطر المسعّرة فعلاً (العادية والفرعية)
+        // السطر الرئيسي ذو الفروع لا يُحتسب: قيمة العقد من الأسطر المسعّرة فعلاً (العادية والفرعية) بعد الخصم
         c.ContractValue = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * i.UnitPrice));
+        // قيمة العطاء قبل الخصم من الأسطر نفسها؛ الفرق عن قيمة العقد هو مبلغ خصم التفاوض
+        c.TenderValue = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * i.TenderUnitPrice));
         // دراسة الجدوى: التكلفة التقديرية من الأسطر المسعّرة نفسها (المجموعة تُحسب من فروعها ولا تُكرر)
         c.EstimatedCost = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * Math.Max(0, i.EstimatedUnitCost)));
     }
@@ -364,6 +379,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         {
             var sum = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.UnitPrice));
             group.UnitPrice = group.Quantity > 0 ? Math.Round(sum / group.Quantity, 4) : 0;
+            var tender = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.TenderUnitPrice));
+            group.TenderUnitPrice = group.Quantity > 0 ? Math.Round(tender / group.Quantity, 4) : 0;
             var cost = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.EstimatedUnitCost));
             group.EstimatedUnitCost = group.Quantity > 0 ? Math.Round(cost / group.Quantity, 4) : 0;
         }

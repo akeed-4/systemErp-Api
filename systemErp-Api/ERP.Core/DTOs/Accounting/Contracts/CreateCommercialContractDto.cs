@@ -29,7 +29,14 @@ public partial class CreateCommercialContractDto
     public string? PartyEmail { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    /// <summary>في عقد جدول الكميات يحسبها الخادم من البنود بعد الخصم؛ ما يُرسل هنا يُتجاهل.</summary>
     public decimal ContractValue { get; set; }
+    /// <summary>تسعير العطاء (جدول الكميات): نسب المصاريف غير المباشرة والمخاطر والربح فوق التكلفة المباشرة (مرجعية).</summary>
+    public decimal OverheadPercent { get; set; }
+    public decimal RiskPercent { get; set; }
+    public decimal ProfitPercent { get; set; }
+    /// <summary>خصم التفاوض (0 إلى أقل من 100): يوزّعه الخادم على أسعار البنود بالنسبة نفسها.</summary>
+    public decimal DiscountPercent { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     public decimal TotalValueWithVat { get; set; }

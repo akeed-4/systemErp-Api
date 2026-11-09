@@ -266,24 +266,35 @@ public class InventoryReportService : IInventoryReportService
                         it.ItemId, it.Sku, it.ItemName, it.Unit, i.Id, i.PartyName, i.IssueDate, isRet,
                         it.Quantity, it.TotalBeforeVat, it.VatAmount, LineCost = it.Quantity * it.UnitCost,
                     };
-        return from l in lines
-               group l by l.ItemId into g
-               let qty = g.Where(x => !x.isRet).Sum(x => x.Quantity)
-               let value = g.Where(x => !x.isRet).Sum(x => x.TotalBeforeVat)
-               let rQty = g.Where(x => x.isRet).Sum(x => x.Quantity)
-               let rValue = g.Where(x => x.isRet).Sum(x => x.TotalBeforeVat)
-               let cost = purchases ? 0m : g.Sum(x => x.isRet ? -x.LineCost : x.LineCost)
+        // التجميع أولاً بمجاميع شرطية بسيطة (لا let ولا Where داخل المجموعة: EF لا يترجم Select على المجموعة بلا تجميع)،
+        // ثم الحقول المشتقة في إسقاط ثانٍ على نتيجة التجميع؛ يبقى استعلاماً واحداً فالترقيم والفلترة والإجماليات من السرفر.
+        var totals = from l in lines
+                     group l by l.ItemId into g
+                     select new
+                     {
+                         ItemId = g.Key, Sku = g.Max(x => x.Sku), ItemName = g.Max(x => x.ItemName), Unit = g.Max(x => x.Unit),
+                         DocumentsCount = g.Select(x => x.Id).Distinct().Count(), PartiesCount = g.Select(x => x.PartyName).Distinct().Count(),
+                         Qty = g.Sum(x => x.isRet ? 0m : x.Quantity),
+                         Value = g.Sum(x => x.isRet ? 0m : x.TotalBeforeVat),
+                         RQty = g.Sum(x => x.isRet ? x.Quantity : 0m),
+                         RValue = g.Sum(x => x.isRet ? x.TotalBeforeVat : 0m),
+                         Cost = g.Sum(x => x.isRet ? -x.LineCost : x.LineCost),
+                         VatTotal = g.Sum(x => x.isRet ? -x.VatAmount : x.VatAmount),
+                         LastDate = g.Max(x => (DateTime?)x.IssueDate),
+                     };
+        return from t in totals
+               let cost = purchases ? 0m : t.Cost
                select new ItemTradeRowDto
                {
-                   ItemId = g.Key, Sku = g.Max(x => x.Sku), ItemName = g.Max(x => x.ItemName), Unit = g.Max(x => x.Unit),
-                   DocumentsCount = g.Select(x => x.Id).Distinct().Count(), PartiesCount = g.Select(x => x.PartyName).Distinct().Count(),
-                   Quantity = qty, Value = value, ReturnQuantity = rQty, ReturnValue = rValue,
-                   NetQuantity = qty - rQty, NetValue = value - rValue,
-                   AveragePrice = qty - rQty == 0 ? 0m : Math.Round((value - rValue) / (qty - rQty), 4),
-                   VatTotal = g.Sum(x => x.isRet ? -x.VatAmount : x.VatAmount),
-                   Cost = cost, Profit = purchases ? 0m : value - rValue - cost,
-                   ProfitPercent = purchases || value - rValue == 0 ? 0m : Math.Round((value - rValue - cost) / (value - rValue) * 100, 2),
-                   LastDate = g.Max(x => (DateTime?)x.IssueDate),
+                   ItemId = t.ItemId, Sku = t.Sku, ItemName = t.ItemName, Unit = t.Unit,
+                   DocumentsCount = t.DocumentsCount, PartiesCount = t.PartiesCount,
+                   Quantity = t.Qty, Value = t.Value, ReturnQuantity = t.RQty, ReturnValue = t.RValue,
+                   NetQuantity = t.Qty - t.RQty, NetValue = t.Value - t.RValue,
+                   AveragePrice = t.Qty - t.RQty == 0 ? 0m : Math.Round((t.Value - t.RValue) / (t.Qty - t.RQty), 4),
+                   VatTotal = t.VatTotal,
+                   Cost = cost, Profit = purchases ? 0m : t.Value - t.RValue - cost,
+                   ProfitPercent = purchases || t.Value - t.RValue == 0 ? 0m : Math.Round((t.Value - t.RValue - cost) / (t.Value - t.RValue) * 100, 2),
+                   LastDate = t.LastDate,
                };
     }
 

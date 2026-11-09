@@ -47,3 +47,64 @@ public class DashboardShowroomDto
     public decimal CashPurchases { get; set; }
     public decimal CreditPurchases { get; set; }
 }
+
+/// <summary>
+/// أداء المبيعات لفترة (أسبوع/شهر/سنة حتى اليوم) وموقع: الصافي قبل الضريبة بعد المرتجعات، والتكلفة = الصافي − الربح الإجمالي
+/// المخزّن على الفاتورة، والمقارنة بالمدة نفسها من الفترة السابقة. المبالغ بالعملة الأساسية، والملغاة مستبعدة.
+/// </summary>
+public class SalesPerformanceDto
+{
+    /// <summary>week | month | year.</summary>
+    public string Period { get; set; } = "month";
+    public DateTime From { get; set; }
+    public DateTime To { get; set; }
+    public DateTime PreviousFrom { get; set; }
+    public DateTime PreviousTo { get; set; }
+    public Guid? WarehouseId { get; set; }
+    public SalesPerformanceTotalsDto Current { get; set; } = new();
+    public SalesPerformanceTotalsDto Previous { get; set; } = new();
+    /// <summary>الاتجاه: أيام الأسبوع أو الشهر، أو أشهر السنة.</summary>
+    public List<SalesPerformanceBucketDto> Trend { get; set; } = new();
+    /// <summary>التوزيع على المواقع (بلا تقييد بموقع واحد)؛ المستند بلا موقع تحت «بلا موقع».</summary>
+    public List<SalesPerformanceSiteDto> Sites { get; set; } = new();
+    public List<SalesPerformancePartyDto> TopCustomers { get; set; } = new();
+}
+
+public class SalesPerformanceTotalsDto
+{
+    public decimal Sales { get; set; }
+    public decimal Cost { get; set; }
+    public decimal Profit { get; set; }
+    /// <summary>هامش الربح % من الصافي (null بلا مبيعات).</summary>
+    public decimal? MarginPercent { get; set; }
+    public decimal Returns { get; set; }
+    public decimal Vat { get; set; }
+    public int InvoiceCount { get; set; }
+    public decimal AverageInvoice { get; set; }
+    public decimal Purchases { get; set; }
+}
+
+public class SalesPerformanceBucketDto
+{
+    /// <summary>yyyy-MM-dd لليوم، أو yyyy-MM للشهر.</summary>
+    public string Key { get; set; } = string.Empty;
+    public decimal Sales { get; set; }
+    public decimal Cost { get; set; }
+    public decimal Profit { get; set; }
+}
+
+public class SalesPerformanceSiteDto
+{
+    public Guid? WarehouseId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Sales { get; set; }
+    public decimal Profit { get; set; }
+    public int InvoiceCount { get; set; }
+}
+
+public class SalesPerformancePartyDto
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Sales { get; set; }
+    public int InvoiceCount { get; set; }
+}

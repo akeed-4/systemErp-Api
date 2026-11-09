@@ -38,6 +38,19 @@ public class ConstructionProjectService : IConstructionProjectService
         db.Add(new ConstructionProjectProfile { ContractId = contract.Id });
     }
 
+    /// <summary>المركز التلقائي السابق (باسم المشروع) يُحذف إن لم يستخدمه قيد أو مركز فرعي أو عقد آخر.</summary>
+    private async Task RemoveUnusedAutoCenterAsync(Guid? centerId, CommercialContract contract, CancellationToken ct)
+    {
+        if (centerId is not Guid id) return;
+        var auto = CostCenterPrefix + contract.ContractNumber;
+        var center = await _db.Set<CostCenter>().FirstOrDefaultAsync(c => c.Id == id && (c.Code == auto || c.Code.StartsWith(auto + "-")), ct);
+        if (center != null
+            && !await _db.Set<JournalEntryLine>().AnyAsync(l => l.CostCenterId == id, ct)
+            && !await _db.Set<CostCenter>().AnyAsync(c => c.ParentId == id, ct)
+            && !await _db.Set<CommercialContract>().AnyAsync(c => c.CostCenterId == id && c.Id != contract.Id, ct))
+            _db.Remove(center);
+    }
+
     private static async Task EnsureCostCenterAsync(ErpDbContext db, CommercialContract contract, CancellationToken ct)
     {
         if (contract.CostCenterId.HasValue) return;
@@ -239,7 +252,22 @@ public class ConstructionProjectService : IConstructionProjectService
                     errors.Add(Messages.ProjectBreakInvalid);
             }
             if (request.EstimatedBudget < 0) errors.Add(Messages.ProjectBudgetNegative);
+            var oldCenter = contract.CostCenterId;
+            var changeCenter = request.CostCenterId is Guid wanted && wanted != oldCenter;
+            if (changeCenter)
+            {
+                if (!await _db.Set<CostCenter>().AnyAsync(c => c.Id == request.CostCenterId && c.IsActive, token))
+                    errors.Add("مركز التكلفة المختار غير موجود أو غير نشط.");
+                // مركز عليه قيود: تغييره يفصل تكاليف المشروع المرحّلة عن مركزه الجديد فتنقسم تقاريره
+                else if (oldCenter is Guid used && await _db.Set<JournalEntryLine>().AnyAsync(l => l.CostCenterId == used, token))
+                    errors.Add("مركز تكلفة المشروع الحالي عليه قيود مرحّلة؛ لا يُغيَّر بعد الترحيل.");
+            }
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+            if (changeCenter)
+            {
+                contract.CostCenterId = request.CostCenterId;
+                await RemoveUnusedAutoCenterAsync(oldCenter, contract, token);
+            }
 
             var profile = await _db.Set<ConstructionProjectProfile>().FirstOrDefaultAsync(p => p.ContractId == contractId, token);
             if (profile == null)
@@ -426,11 +454,16 @@ public class ConstructionProjectService : IConstructionProjectService
         var name = FirstText(d.Name, employee?.NameAr);
         if (name.Length == 0) errors.Add(Messages.ProjectResourceNameRequired);
         var rate = d.Rate;
-        // المهندس من الموظف بلا تكلفة مُدخلة: التكلفة الشهرية = الراتب الأساسي والبدلات
-        if (d.Kind == ProjectResourceKinds.Engineer && employee != null && rate == 0)
+        string? code = d.Code, category = d.Category;
+        // مهندس أو عامل مربوط بموظف: شؤون الموظفين مصدر بياناته وأجرته. التكلفة الشهرية المحمّلة (الراتب والبدلات وحصة المنشأة
+        // في التأمينات ومخصص نهاية الخدمة) أساسها الشهر، ورقمه ومسماه منه ما لم يُدخلا
+        var fromHr = employee != null && (d.Kind == ProjectResourceKinds.Engineer || d.Kind == ProjectResourceKinds.Labor);
+        if (fromHr)
         {
-            rate = employee.BasicSalary + employee.HousingAllowance + employee.TransportAllowance + employee.OtherAllowances;
+            rate = HrLaborCost.MonthlyCost(employee!, DateTime.UtcNow.Date);
             basis = ProjectRateBases.Month;
+            code = string.IsNullOrWhiteSpace(code) ? employee!.Code : code;
+            category = string.IsNullOrWhiteSpace(category) ? employee!.JobTitle : category;
         }
         var multiplier = d.OvertimeMultiplier ?? (ProjectResourceKinds.IsEquipment(d.Kind) ? 1m : 1.5m);
         var (hourly, overtime) = HourlyCost(basis ?? ProjectRateBases.Hour, rate, d.HoursPerDay, d.DaysPerMonth,
@@ -447,7 +480,7 @@ public class ConstructionProjectService : IConstructionProjectService
             entity = new ProjectResource { ContractId = contractId };
             _db.Add(entity);
         }
-        entity.Kind = d.Kind; entity.Name = name[..Math.Min(name.Length, 200)]; entity.Code = Trim(d.Code, 50); entity.Category = Trim(d.Category, 100);
+        entity.Kind = d.Kind; entity.Name = name[..Math.Min(name.Length, 200)]; entity.Code = Trim(code, 50); entity.Category = Trim(category, 100);
         entity.LibraryResourceId = d.LibraryResourceId; entity.FixedAssetId = d.Kind == ProjectResourceKinds.OwnedEquipment ? d.FixedAssetId : null;
         entity.SupplierId = d.Kind == ProjectResourceKinds.RentedEquipment ? d.SupplierId : null; entity.EmployeeId = d.EmployeeId;
         entity.RateBasis = basis!; entity.Rate = rate; entity.FuelPerHour = d.FuelPerHour; entity.MaintenancePerHour = d.MaintenancePerHour;
@@ -564,9 +597,10 @@ public class ConstructionProjectService : IConstructionProjectService
             [Contracts] = With("view", "receive"), [Projects] = With("view"), [Library] = With("view"),
             [SiteReports] = With("view", "create", "edit", "delete", "submit", "approve"),
         }),
+        // التقرير اليومي وحده: مشاريعه وبنودها وموارده من مسارات التقرير نفسه، فلا تظهر له العقود ولا المشاريع ولا المكتبة
         new("مشرف الموقع", "Site Supervisor", "مقاولات: تسجيل الإنجاز اليومي بالساعة في مشاريعه المسندة إليه وتقديمه.", DataScope.Assigned, new()
         {
-            [Contracts] = With("view"), [Projects] = With("view"), [SiteReports] = With("view", "create", "edit", "delete", "submit"),
+            [SiteReports] = With("view", "create", "edit", "delete", "submit"),
         }),
         new("مراقب التكاليف", "Cost Controller", "مقاولات: الميزانيات وتكاليف البنود ومكتبة التكلفة.", DataScope.All, new()
         {

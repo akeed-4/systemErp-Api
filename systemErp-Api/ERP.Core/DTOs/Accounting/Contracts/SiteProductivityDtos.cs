@@ -209,6 +209,29 @@ public class SiteReportListItemDto
     public decimal TotalCost { get; set; }
 }
 
+/// <summary>
+/// مشروع يمكن للمستخدم التسجيل فيه (لقائمة اختيار المشروع في التقرير اليومي): الهوية فقط بلا أرقام مالية، كي لا يحتاج
+/// المشرف صلاحية العقود أو المشاريع.
+/// </summary>
+public class SiteReportProjectDto
+{
+    public Guid ContractId { get; set; }
+    public string ContractNumber { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? ProjectName { get; set; }
+    public string? ProjectLocation { get; set; }
+}
+
+/// <summary>سطر قياس في جدول كميات المشروع (بلا الرئيسي ذي الفروع) لقوائم البنود في التقرير اليومي.</summary>
+public class SiteReportBoqLineDto
+{
+    public Guid Id { get; set; }
+    public string? LineCode { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public bool IsSubItem { get; set; }
+}
+
 // ---------- تقارير الإنجاز ----------
 
 /// <summary>مرشحات تقارير الإنجاز: الفترة والبند والمورد؛ المعتمد فقط افتراضاً.</summary>

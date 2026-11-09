@@ -12,6 +12,8 @@ namespace ERP.Api.Controllers.Accounting;
 /// بانتقالات جدول ContractTransition وصلاحياتها وشروطها؛ والمراجعة القانونية/المالية والتوقيع والضمان والمرفقات من مسارات مستقلة.
 /// </summary>
 [Route("api/v1/commercialcontracts"), RequireScreen(PermissionCatalog.CommercialContractsScreenId)]
+// مسارات جدول الكميات ومشروعه (الاحتياجات، المناقصة، أوامر التغيير، التقدم، المستخلصات) تتطلب إضافة المقاولات بسمة على الإجراء،
+// وإنشاء عقد بجدول كميات يتحقق منها الخادم (CommercialContractService)
 [RequireModule(PlatformModules.Accounting)]
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
@@ -37,11 +39,13 @@ public class CommercialContractsController : CrudController<CommercialContractDt
 
     private const string MaterialsApproval = "contract-material-requirements";
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/material-requirements"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> MaterialRequirements(Guid id, CancellationToken ct)
         => Success(await _materials.GetAsync(id, ct));
 
     /// <summary>معاينة الاحتياجات من جدول الكميات وتحليل بنود المكتبة (لا تُحفظ).</summary>
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/material-requirements/derive"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> DeriveMaterialRequirements(Guid id, CancellationToken ct)
     {
@@ -50,6 +54,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     }
 
     /// <summary>مواد المكتبة لسطر في جدول الكميات (تحليل البند بكمية مقترحة، أو المكتبة عامة) للإضافة اليدوية.</summary>
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/material-requirements/candidates"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> MaterialRequirementCandidates(Guid id, [FromQuery] Guid lineId, [FromQuery] bool all, CancellationToken ct)
     {
@@ -57,6 +62,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _materials.CandidatesAsync(id, lineId, all, ct));
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPut("{id:guid}/material-requirements"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> SaveMaterialRequirements(Guid id, [FromBody] SaveProjectMaterialPlanDto dto, CancellationToken ct)
     {
@@ -64,6 +70,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _materials.SaveAsync(id, dto, ct), Messages.ProjectMaterialPlanSaved);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/material-requirements/submit"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> SubmitMaterialRequirements(Guid id, CancellationToken ct)
     {
@@ -72,6 +79,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     }
 
     /// <summary>الاعتماد يمر بسياسة الاعتماد إن وُجدت (يُحجز بطلب اعتماد ويُنفَّذ عند الاعتماد النهائي).</summary>
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/material-requirements/approve"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ApproveMaterialRequirements(Guid id, CancellationToken ct)
     {
@@ -80,6 +88,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _materials.ApproveAsync(id, ct), Messages.ProjectMaterialPlanApproved);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/material-requirements/return"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ReturnMaterialRequirements(Guid id, [FromBody] ProjectMaterialPlanActionDto dto, CancellationToken ct)
     {
@@ -90,14 +99,17 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     // ---------- المناقصة (مسودة عقد المقاولات قبل الترسية) ----------
     // نقل الحالة بصلاحية التعديل على سجل العقد (المسودة تسمح بها)؛ الخادم يحصرها في المسودة.
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/tender"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Tender(Guid id, [FromServices] IContractTenderService tenders, CancellationToken ct)
         => Success(await tenders.GetAsync(id, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/tender/revisions"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> TenderRevisions(Guid id, [FromServices] IContractTenderService tenders, CancellationToken ct)
         => Success(await tenders.RevisionsAsync(id, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/tender/move"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> MoveTender(Guid id, [FromBody] MoveTenderDto dto, [FromServices] IContractTenderService tenders, CancellationToken ct)
     {
@@ -111,14 +123,17 @@ public class CommercialContractsController : CrudController<CommercialContractDt
 
     private const string VariationsApproval = "contract-variations";
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/variations"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Variations(Guid id, CancellationToken ct)
         => Success(await _variations.SummaryAsync(id, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/variations/{variationId:guid}"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Variation(Guid id, Guid variationId, CancellationToken ct)
         => Success(await _variations.GetAsync(id, variationId, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/variations"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> CreateVariation(Guid id, [FromBody] SaveContractVariationDto dto, CancellationToken ct)
     {
@@ -126,6 +141,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _variations.CreateAsync(id, dto, ct), Messages.CreatedSuccessfully);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPut("{id:guid}/variations/{variationId:guid}"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> UpdateVariation(Guid id, Guid variationId, [FromBody] SaveContractVariationDto dto, CancellationToken ct)
     {
@@ -133,6 +149,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _variations.UpdateAsync(id, variationId, dto, ct), Messages.UpdatedSuccessfully);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpDelete("{id:guid}/variations/{variationId:guid}"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> DeleteVariation(Guid id, Guid variationId, CancellationToken ct)
     {
@@ -141,6 +158,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(Messages.DeletedSuccessfully);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/variations/{variationId:guid}/submit"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> SubmitVariation(Guid id, Guid variationId, CancellationToken ct)
     {
@@ -149,6 +167,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     }
 
     /// <summary>الاعتماد يمر بسياسة الاعتماد إن وُجدت (يُحجز بطلب اعتماد ويُنفَّذ عند الاعتماد النهائي).</summary>
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/variations/{variationId:guid}/approve"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ApproveVariation(Guid id, Guid variationId, CancellationToken ct)
     {
@@ -158,6 +177,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _variations.ApproveAsync(variationId, ct), "تم اعتماد أمر التغيير وتعديل العقد.");
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/variations/{variationId:guid}/return"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ReturnVariation(Guid id, Guid variationId, [FromBody] ContractVariationActionDto dto, CancellationToken ct)
     {
@@ -165,6 +185,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _variations.ReturnAsync(id, variationId, dto, ct), "أُعيد أمر التغيير للمسودة.");
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/variations/{variationId:guid}/reject"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> RejectVariation(Guid id, Guid variationId, [FromBody] ContractVariationActionDto dto, CancellationToken ct)
     {
@@ -172,6 +193,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _variations.RejectAsync(id, variationId, dto, ct), "تم رفض أمر التغيير.");
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/variations/{variationId:guid}/cancel"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> CancelVariation(Guid id, Guid variationId, [FromBody] ContractVariationActionDto dto, CancellationToken ct)
     {
@@ -265,27 +287,33 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     // الإعداد (إنشاء/تعديل/تقديم/إلغاء) بصلاحية «الاستلام» = استلام الأعمال المنفذة، والاعتماد والإعادة بصلاحية «الاعتماد»؛
     // كلاهما على سجل العقد (النطاق + ما تسمح به حالة العقد: ساري أو استلام أولي).
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/boq-progress"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> BoqProgress(Guid id, CancellationToken ct)
         => Success(await _certificates.ProgressAsync(id, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/certificates"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Certificates(Guid id, CancellationToken ct)
         => Success(await _certificates.ListAsync(id, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/certificates/template"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> CertificateTemplate(Guid id, CancellationToken ct)
         => Success(await _certificates.TemplateAsync(id, ct));
 
     /// <summary>أسطر أذونات تسليم المواد المرحّلة المتاحة للاختيار في المستخلص (والمختارة في <paramref name="certificateId"/>).</summary>
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/certificates/material-options"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> CertificateMaterialOptions(Guid id, [FromQuery] Guid? certificateId, CancellationToken ct)
         => Success(await _certificates.MaterialOptionsAsync(id, certificateId, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpGet("{id:guid}/certificates/{certificateId:guid}"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Certificate(Guid id, Guid certificateId, CancellationToken ct)
         => Success(await _certificates.GetAsync(id, certificateId, ct));
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> CreateCertificate(Guid id, [FromBody] SaveContractCertificateDto dto, CancellationToken ct)
     {
@@ -293,6 +321,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _certificates.CreateAsync(id, dto, ct), Messages.CreatedSuccessfully);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPut("{id:guid}/certificates/{certificateId:guid}"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> UpdateCertificate(Guid id, Guid certificateId, [FromBody] SaveContractCertificateDto dto, CancellationToken ct)
     {
@@ -300,6 +329,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _certificates.UpdateAsync(id, certificateId, dto, ct), Messages.UpdatedSuccessfully);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/submit"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> SubmitCertificate(Guid id, Guid certificateId, CancellationToken ct)
     {
@@ -307,6 +337,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _certificates.SubmitAsync(id, certificateId, ct), Messages.CertificateSubmitted);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/approve"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ApproveCertificate(Guid id, Guid certificateId, CancellationToken ct)
     {
@@ -314,6 +345,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _certificates.ApproveAsync(id, certificateId, ct), Messages.CertificateApproved);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/return"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ReturnCertificate(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
     {
@@ -321,6 +353,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _certificates.ReturnAsync(id, certificateId, dto, ct), Messages.CertificateReturned);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/cancel"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> CancelCertificate(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
     {
@@ -337,6 +370,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _billing.BillAdvanceAsync(id, date, ct), Messages.ContractAdvanceBilled);
     }
 
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/bill"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> BillCertificate(Guid id, Guid certificateId, [FromQuery] DateTime? date, CancellationToken ct)
     {
@@ -345,6 +379,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     }
 
     /// <summary>العقد المبسط: تقديم المستخلص واعتماده وفوترته في خطوة واحدة (صلاحيتا الاعتماد والترحيل معاً).</summary>
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/issue"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> IssueCertificate(Guid id, Guid certificateId, [FromQuery] DateTime? date, CancellationToken ct)
     {
@@ -357,6 +392,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     /// إلغاء فاتورة مستخلص مفوتر بإشعار (مرتجع كامل) مع عكس قيدي الاسترداد وتكلفة المواد: عملية ترحيل عكسية، فصلاحيتها صلاحية
     /// الفوترة نفسها (الترحيل) على سجل العقد في مراحل التنفيذ.
     /// </summary>
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/cancel-invoice"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> CancelCertificateInvoice(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
     {
@@ -389,7 +425,7 @@ public class CommercialContractsController : CrudController<CommercialContractDt
 
 /// <summary>سجل المناقصات لكل العقود (في نطاق وصول المستخدم إلى العقود): الحالة والموعد والقيم.</summary>
 [Route("api/v1/tenders")]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class TendersIndexController : ErpControllerBase

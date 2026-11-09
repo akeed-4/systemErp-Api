@@ -73,6 +73,8 @@ public class SaveProjectProfileDto
     public string? BreakStart { get; set; }
     public string? BreakEnd { get; set; }
     public string? Notes { get; set; }
+    /// <summary>مركز تكلفة المشروع من المراكز المعرّفة؛ بلا قيمة يبقى الحالي (أو التلقائي باسم المشروع).</summary>
+    public Guid? CostCenterId { get; set; }
 }
 
 /// <summary>المراحل كاملة (تستبدل المحفوظ).</summary>

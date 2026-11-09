@@ -28,14 +28,22 @@ internal static class HrLaborCost
         if (staff.Count == 0) return new Rate(0, 0);
 
         var today = DateTime.UtcNow.Date;
-        var monthly = staff.Select(e =>
-        {
-            var wage = e.BasicSalary + e.HousingAllowance + e.TransportAllowance + e.OtherAllowances;
-            var gosi = (e.BasicSalary + e.HousingAllowance) * e.EmployerGosiRate / 100m;
-            var years = Math.Max(0, (decimal)(today - e.HireDate.Date).TotalDays / DaysPerYear);
-            var endOfService = years < HalfRateYears ? wage / 24m : wage / 12m;
-            return wage + gosi + endOfService;
-        }).Average();
+        var monthly = staff.Select(e => Monthly(e.BasicSalary, e.HousingAllowance, e.TransportAllowance, e.OtherAllowances, e.EmployerGosiRate, e.HireDate, today)).Average();
         return new Rate(monthly / ProductiveHoursPerMonth, staff.Count);
+    }
+
+    /// <summary>
+    /// التكلفة الشهرية المحمّلة لموظف بعينه (لمورد مشروع مربوط بموظف: مهندس أو عامل) بالقاعدة نفسها أعلاه.
+    /// </summary>
+    public static decimal MonthlyCost(Employee e, DateTime today)
+        => Math.Round(Monthly(e.BasicSalary, e.HousingAllowance, e.TransportAllowance, e.OtherAllowances, e.EmployerGosiRate, e.HireDate, today), 2);
+
+    private static decimal Monthly(decimal basic, decimal housing, decimal transport, decimal other, decimal employerGosiRate, DateTime hireDate, DateTime today)
+    {
+        var wage = basic + housing + transport + other;
+        var gosi = (basic + housing) * employerGosiRate / 100m;
+        var years = Math.Max(0, (decimal)(today - hireDate.Date).TotalDays / DaysPerYear);
+        var endOfService = years < HalfRateYears ? wage / 24m : wage / 12m;
+        return wage + gosi + endOfService;
     }
 }

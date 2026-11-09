@@ -12511,6 +12511,18 @@ namespace ERP.Service.Data.Migrations
                         },
                         new
                         {
+                            Key = "construction",
+                            DescriptionAr = "المناقصات وعقود جدول الكميات والمشاريع والتقارير اليومية والمواد والمستخلصات. سعرها حسب الاتفاق.",
+                            DescriptionEn = "Tenders, BOQ contracts, projects, daily site reports, materials and certificates. Priced by agreement.",
+                            Icon = "engineering",
+                            IsActive = true,
+                            NameAr = "المقاولات",
+                            NameEn = "Construction",
+                            Number = 6,
+                            SortOrder = 6
+                        },
+                        new
+                        {
                             Key = "whatsapp",
                             DescriptionAr = "ربط رقم واتساب المنشأة وإرسال الفواتير للعملاء منه.",
                             DescriptionEn = "Connect the company WhatsApp number and send invoices to customers from it.",

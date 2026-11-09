@@ -12,9 +12,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     private readonly IPurchaseInvoiceService _purchases;
     private readonly ICurrentUser _user;
 
-    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices, IPurchaseInvoiceService purchases, ICurrentUser user) : base(db)
+    private readonly ISubscriptionEntitlements _entitlements;
+
+    public CommercialContractService(ErpDbContext db, INumberSequenceService numbers, ISalesInvoiceService invoices, IPurchaseInvoiceService purchases, ICurrentUser user,
+        ISubscriptionEntitlements entitlements) : base(db)
     {
-        _numbers = numbers; _invoices = invoices; _purchases = purchases; _user = user;
+        _numbers = numbers; _invoices = invoices; _purchases = purchases; _user = user; _entitlements = entitlements;
     }
 
     protected override string Label => Messages.LabelContract;
@@ -145,6 +148,13 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         }
         if (existing != null && existing.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled) errors.Add(Messages.CannotEditClosedContract);
         await ValidateParentAsync(d, existing, errors, ct);
+        // عقد بجدول كميات (مقاولات أو مقاول باطن): إضافة المقاولات مرخّصة (سعرها باتفاق، يمنحها مدير المنصة)
+        if (await IsBoqContractAsync(Db, d.ContractType, ct) && !(await _entitlements.GetAsync(ct)).Allows(PlatformModules.Construction))
+            errors.Add("عقود المقاولات (جدول الكميات) تتطلب إضافة المقاولات في اشتراكك. تواصل مع إدارة المنصة لتفعيلها.");
+        // مركز التكلفة المختار من المراكز المعرّفة (بلا اختيار: يُنشأ للمشروع مركز تلقائي، ويرث عقد الباطن مركز مشروعه)
+        if (d.CostCenterId is Guid centerId && d.ParentContractId == null
+            && !await Db.Set<CostCenter>().AnyAsync(c => c.Id == centerId && c.IsActive, ct))
+            errors.Add("مركز التكلفة المختار غير موجود أو غير نشط.");
         // المناقصة المقدَّمة أو الخاسرة لا تُعدَّل (يُعاد العطاء للتسعير أولاً فيبقى العرض المقدَّم كما سُجِّل)
         if (existing != null && ContractTenderStatuses.LocksEditing(existing.TenderStatus))
             errors.Add("العطاء مقدَّم أو خاسر: أعده للتسعير من شاشة المناقصات قبل التعديل.");
@@ -283,6 +293,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         e.ContractNumber = o.GetValue<string>(nameof(CommercialContract.ContractNumber));
         e.Stage = o.GetValue<string>(nameof(CommercialContract.Stage));
         e.WarehouseId ??= o.GetValue<Guid?>(nameof(CommercialContract.WarehouseId)); // بلا موقع في الطلب: يبقى موقعه
+        e.CostCenterId ??= o.GetValue<Guid?>(nameof(CommercialContract.CostCenterId)); // بلا مركز في الطلب: يبقى مركزه (لا يضيع التلقائي)
         e.Status = o.GetValue<ContractStatus>(nameof(CommercialContract.Status));
         e.StageChangedAt = o.GetValue<DateTime?>(nameof(CommercialContract.StageChangedAt));
         e.ReviewRound = o.GetValue<int>(nameof(CommercialContract.ReviewRound));

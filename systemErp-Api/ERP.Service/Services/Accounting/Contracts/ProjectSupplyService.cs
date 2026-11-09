@@ -380,6 +380,7 @@ public class ProjectSupplyService : IProjectSupplyService
             if (_db.Entry(issue).State != EntityState.Detached) _db.Add(line);
         }
         await EnsureWithinPlanAsync(contract.Id, issue, ct);
+        await EnsureInStockAsync(issue, ct);
     }
 
     /// <summary>
@@ -519,6 +520,23 @@ public class ProjectSupplyService : IProjectSupplyService
         }
     }
 
+    /// <summary>
+    /// التسليم للمشروع خروج فعلي من المستودع: لا يتجاوز رصيد الصنف في مستودع الإذن أياً كانت سياسة المخزون السالب
+    /// (السالب مقبول لمزامنة البيع غير المتصل فقط). المادة تُطلب وتُشترى وتُستلم في المستودع أولاً.
+    /// </summary>
+    private async Task EnsureInStockAsync(ProjectMaterialIssue issue, CancellationToken ct)
+    {
+        // المستودع نفسه الذي تُسجَّل منه حركة الصرف عند الترحيل (المحدد، وإلا الافتراضي)
+        var warehouseId = (await WarehouseStocks.ResolveAsync(_db, issue.WarehouseId, ct)).Id;
+        foreach (var g in issue.Lines.GroupBy(l => l.ProductId))
+        {
+            var qty = g.Sum(l => l.Quantity);
+            var stock = await WarehouseStocks.QuantityAsync(_db, g.Key, warehouseId, ct);
+            if (qty > stock + 0.0001m)
+                throw new ValidationFailedException($"«{g.First().ItemName}»: التسليم {qty:0.####} يتجاوز رصيد المستودع {Math.Max(0, stock):0.####}. اطلب المادة واشترِها واستلمها في المستودع أولاً.");
+        }
+    }
+
     private async Task PostCoreAsync(CommercialContract contract, ProjectMaterialIssue issue, CancellationToken ct)
     {
         if (issue.Kind is K.Return or K.Waste)
@@ -527,6 +545,7 @@ public class ProjectSupplyService : IProjectSupplyService
             return;
         }
         await EnsureWithinPlanAsync(contract.Id, issue, ct); // صرف آخر رُحِّل بعد حفظ المسودة
+        await EnsureInStockAsync(issue, ct); // رصيد صرفه مستند آخر بعد حفظ المسودة
         var note = $"صرف مواد {issue.IssueNumber} لمشروع {contract.ContractNumber} - {issue.ReceiverName}";
         decimal total = 0;
         foreach (var line in issue.Lines.OrderBy(l => l.SortOrder))

@@ -233,6 +233,8 @@ public class WorkItemService : IWorkItemService
         {
             await ValidateAsync(request, null, token);
             var item = new WorkItem();
+            // تُنشأ البنود الفرعية والاحتياجات أدناه وتُربط بمعرّف الأب مباشرة قبل الحفظ.
+            item.Id = Guid.NewGuid();
             Apply(item, request);
             item.Code = string.IsNullOrWhiteSpace(request.Code) ? await NextCodeAsync(token) : request.Code.Trim();
             _db.Add(item);

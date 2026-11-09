@@ -8,7 +8,7 @@ namespace ERP.Api.Controllers.Accounting;
 
 /// <summary>موارد مكتبة المقاولات (مادة/عمالة/معدة...) بتكلفتها المعيارية؛ شاشة «مكتبة المقاولات».</summary>
 [Route("api/v1/construction-resources"), RequireScreen(PermissionCatalog.ConstructionLibraryScreenId)]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class ConstructionResourcesController : CrudController<ConstructionResourceDto, CreateConstructionResourceDto, UpdateConstructionResourceDto>
 {

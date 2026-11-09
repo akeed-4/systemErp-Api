@@ -8,7 +8,7 @@ namespace ERP.Api.Controllers.Accounting;
 
 /// <summary>مكتبة البنود (المقاولات): البند الأساسي ببنوده الفرعية واحتياجاته؛ شاشة «مكتبة المقاولات».</summary>
 [Route("api/v1/work-items")]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class WorkItemsController : ErpControllerBase
 {

@@ -256,6 +256,8 @@ public class OnlinePaymentService : IOnlinePaymentService
                     .Select(s => (DateTime?)s.ExpiryDate).Max();
                 foreach (var s in open) s.Status = SubscriptionStatus.Expired;
                 var sub = SubscriptionCatalog.NewSubscription(await SubscriptionCatalog.GetAsync(_db, p.PlanId!, forSale: false, ct), p.BillingCycle!.Value, "Paymob");
+                // الإضافات المتفق عليها لا تسقط بالتجديد (من آخر اشتراك ولو انتهى)
+                SubscriptionCatalog.CarryAgreementAddOns(sub, await _db.Set<Subscription>().OrderByDescending(s => s.StartDate).Take(1).ToListAsync(ct));
                 sub.TransactionReference = p.ProviderTransactionId?.ToString() ?? p.SpecialReference;
                 if (trialEnd.HasValue) sub.ExpiryDate += trialEnd.Value - sub.StartDate;
                 if (p.PromoCode != null)

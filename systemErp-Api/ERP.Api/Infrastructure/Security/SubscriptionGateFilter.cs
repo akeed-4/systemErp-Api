@@ -58,6 +58,7 @@ public class SubscriptionGateFilter : IAsyncAuthorizationFilter
         PlatformModules.Pos => "وحدة نقاط البيع",
         PlatformModules.Hr => "وحدة شؤون الموظفين",
         PlatformModules.WhatsApp => "إضافة واتساب للأعمال",
+        PlatformModules.Construction => "إضافة المقاولات",
         _ => module,
     };
 }

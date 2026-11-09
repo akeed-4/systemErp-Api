@@ -23,6 +23,11 @@ public static class PlatformModules
     /// ليست وحدة دفاتر: لا قيود ولا سندات ولا تقارير لها، فلا تدخل في <see cref="All"/> ولا يصح اشتراك بها وحدها.
     /// </summary>
     public const string WhatsApp = "whatsapp";
+    /// <summary>
+    /// المقاولات: المكتبة والمناقصات وعقود جدول الكميات ومشاريعها (المراحل والموارد والتقارير اليومية والمواد والمستخلصات).
+    /// إضافة فوق النظام المحاسبي تُمنح صراحةً كشؤون الموظفين، وسعرها باتفاق مع العميل لا ضمن سعر الباقة.
+    /// </summary>
+    public const string Construction = "construction";
 
     /// <summary>الدليل المركزي للوحدات التي لها شاشات فعلية في النظام.</summary>
     public static readonly PlatformModuleDefinition[] Catalog =
@@ -31,11 +36,14 @@ public static class PlatformModules
         new() { Number = 2, Key = CarShowroom, NameAr = "معارض السيارات", NameEn = "Car Showroom", DescriptionAr = "مخزون المركبات والشراء والاستيراد وعقود البيع وتقارير المعرض.", DescriptionEn = "Vehicle inventory, procurement, sales contracts and showroom reports.", Icon = "directions_car", SortOrder = 2 },
         new() { Number = 3, Key = Pos, NameAr = "نقاط البيع", NameEn = "Point of Sale", DescriptionAr = "البيع بالورديات والباركود والمرتجعات وطرق الدفع.", DescriptionEn = "Shift-based sales, barcode, returns and payment methods.", Icon = "point_of_sale", SortOrder = 3 },
         new() { Number = 4, Key = Hr, NameAr = "شؤون الموظفين", NameEn = "Human Resources", DescriptionAr = "الموظفون والإجازات والحضور والسلف والرواتب ونهاية الخدمة.", DescriptionEn = "Employees, leaves, attendance, loans, payroll and end of service.", Icon = "groups", SortOrder = 4 },
+        new() { Number = 6, Key = Construction, NameAr = "المقاولات", NameEn = "Construction", DescriptionAr = "المناقصات وعقود جدول الكميات والمشاريع والتقارير اليومية والمواد والمستخلصات. سعرها حسب الاتفاق.", DescriptionEn = "Tenders, BOQ contracts, projects, daily site reports, materials and certificates. Priced by agreement.", Icon = "engineering", SortOrder = 6 },
         new() { Number = 5, Key = WhatsApp, NameAr = "واتساب للأعمال", NameEn = "WhatsApp Business", DescriptionAr = "ربط رقم واتساب المنشأة وإرسال الفواتير للعملاء منه.", DescriptionEn = "Connect the company WhatsApp number and send invoices to customers from it.", Icon = "chat", SortOrder = 5 },
     };
 
     /// <summary>الإضافات: تُرخَّص مع وحدة دفاتر ولا تحمل قيوداً ولا تقارير.</summary>
-    public static readonly string[] AddOns = { WhatsApp };
+    public static readonly string[] AddOns = { WhatsApp, Construction };
+    /// <summary>إضافات بسعر حسب الاتفاق مع العميل (لا تدخل في سعر الباقة، يمنحها مدير المنصة بعد الاتفاق).</summary>
+    public static readonly string[] PricedByAgreement = { Construction };
     /// <summary>وحدات الدفاتر: وحدة القيد والسند والتقرير.</summary>
     public static readonly string[] All = Catalog.Select(module => module.Key).Except(AddOns).ToArray();
     /// <summary>كل ما يحمله الاشتراك: وحدات الدفاتر والإضافات.</summary>
@@ -51,6 +59,7 @@ public static class PlatformModules
         var unknown = list.Where(m => !Licensable.Contains(m)).ToList();
         if (unknown.Count > 0) throw new ValidationFailedException($"وحدة غير معروفة: {string.Join("، ", unknown)}.");
         if (!list.Any(All.Contains)) throw new ValidationFailedException("يجب اختيار وحدة واحدة على الأقل.");
+        if (list.Contains(Construction) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة المقاولات تتطلب النظام المحاسبي.");
         return Licensable.Where(list.Contains).ToArray();
     }
 

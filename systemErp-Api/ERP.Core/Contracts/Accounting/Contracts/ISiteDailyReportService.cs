@@ -9,6 +9,8 @@ namespace ERP.Core.Contracts.Accounting;
 /// </summary>
 public interface ISiteDailyReportService
 {
+    /// <summary>أسطر القياس في جدول كميات المشروع (للتقرير وحده: لا تحتاج صلاحية العقود).</summary>
+    Task<List<SiteReportBoqLineDto>> BoqLinesAsync(Guid contractId, CancellationToken ct = default);
     Task<List<SiteReportListItemDto>> ListAsync(Guid contractId, DateTime? from, DateTime? to, CancellationToken ct = default);
     /// <summary>تقرير اليوم إن وُجد، وإلا قالب جديد من فترات ساعات العمل وخطة الإنجاز (بلا معرّف).</summary>
     Task<SiteDailyReportDto> DayAsync(Guid contractId, DateTime date, CancellationToken ct = default);

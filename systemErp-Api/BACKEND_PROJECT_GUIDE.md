@@ -96,6 +96,7 @@ Angular → Controller (ERP.Api) → Contract (ERP.Core) → Service (ERP.Servic
 
 ## مكتبة المقاولات
 
+- المقاولات إضافة مرخّصة `PlatformModules.Construction` فوق المحاسبة، سعرها باتفاق مع العميل (`PricedByAgreement`): لا تُضاف لباقة، ويمنحها مدير المنصة من «الوحدات»، وتنتقل للاشتراك الجديد عند التجديد أو تغيير الباقة (`SubscriptionCatalog.CarryAgreementAddOns`). متحكمات المقاولات بـ `RequireModule(Construction)`، ومسارات جدول الكميات في متحكم العقود بسمة على الإجراء، وحفظ عقد بجدول كميات يتحقق منها في `CommercialContractService`. الهجرة `ConstructionAddOn` منحتها لمن لديه بيانات مقاولات.
 - شاشة صلاحيات `construction-library` (ترث العقود). بند العقد `CommercialContractItem` يحمل الكمية والسعر ووصف الوحدة، وعليه يُقاس المستخلص؛ لا تحليل تكلفة على بند العقد (حُذف بالهجرة `RemoveContractItemAnalysis`).
 - البنود الفرعية في جدول الكميات: العميل يرسل `IsSubItem` والترتيب، و`ApplyBoq`/`LinkSubItems` يربط كل فرعي بأقرب سطر رئيسي قبله (`ParentItemId`، بلا قيد) ويعلّم الرئيسي ذا الفروع `IsGroup`. المجموعة سعرها = مجموع فروعها ÷ كميتها وإجماليها مجموعها، ولا تدخل `ContractValue` ولا المستخلصات ولا فحص الاكتمال؛ الفروع هي التي تُسعَّر وتُقاس (الهجرة `ContractItemSubItems`).
 - احتياجات مواد المشروع (العقد هو المشروع، `ContractId`، بلا جدول مشاريع): `ProjectMaterialPlan` واحدة لكل عقد بجدول كميات، وأسطرها `ProjectMaterialRequirement`.

@@ -11,7 +11,7 @@ namespace ERP.Api.Controllers.Accounting;
 /// على العقد (المشرف بنطاق «المسندة إليه» لا يصل إلا لمشاريعه). الشاشة «مشاريع المقاولات» (ترث صلاحية العقود).
 /// </summary>
 [Route("api/v1/commercialcontracts/{id:guid}/project")]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class ConstructionProjectsController : ErpControllerBase
@@ -93,7 +93,7 @@ public class ConstructionProjectsController : ErpControllerBase
 /// الإضافة والتعديل والتقديم للمشرف، والاعتماد والإعادة للمهندس المسؤول (صلاحية الاعتماد).
 /// </summary>
 [Route("api/v1/commercialcontracts/{id:guid}/site-reports")]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class SiteDailyReportsController : ErpControllerBase
@@ -101,11 +101,20 @@ public class SiteDailyReportsController : ErpControllerBase
     private const string Screen = PermissionCatalog.SiteDailyReportsScreenId;
     private readonly ISiteDailyReportService _reports;
     private readonly IProjectMaterialService _materials;
+    private readonly IConstructionProjectService _projects;
 
-    public SiteDailyReportsController(ISiteDailyReportService reports, IProjectMaterialService materials)
+    public SiteDailyReportsController(ISiteDailyReportService reports, IProjectMaterialService materials, IConstructionProjectService projects)
     {
-        _reports = reports; _materials = materials;
+        _reports = reports; _materials = materials; _projects = projects;
     }
+
+    // بيانات التقرير بصلاحيته وحدها (مشرف الموقع لا يحتاج صلاحية العقود أو المشاريع): أسطر جدول الكميات، وموارد المشروع
+
+    [HttpGet("lines"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Lines(Guid id, CancellationToken ct) => Success(await _reports.BoqLinesAsync(id, ct));
+
+    [HttpGet("project-resources"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ProjectResources(Guid id, CancellationToken ct) => Success(await _projects.ResourcesAsync(id, ct));
 
     /// <summary>مواد المكتبة لبند في التقرير: تحليل البند، أو المكتبة عامة لبند غير مرتبط أو مع all.</summary>
     [HttpGet("material-options"), RequireScreen(Screen, ScreenAction.View)]
@@ -175,7 +184,7 @@ public class SiteDailyReportsController : ErpControllerBase
 /// (مدير المشروع، المهندس المشرف، مراقب التكاليف، ...) وإنشاؤها إداري كإنشاء أي دور.
 /// </summary>
 [Route("api/v1/construction-projects")]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 // القائمة (GET) تُرشَّح بنطاق الوصول إلى العقود: المشرف يرى مشاريعه
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
@@ -187,6 +196,14 @@ public class ConstructionProjectsIndexController : ErpControllerBase
 
     [HttpGet, RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.View)]
     public async Task<IActionResult> List(CancellationToken ct) => Success(await _projects.ListAsync(ct));
+
+    /// <summary>مشاريع التقرير اليومي بصلاحيته وحدها (في نطاق المستخدم): الهوية فقط بلا أرقام مالية.</summary>
+    [HttpGet("site-report-projects"), RequireScreen(PermissionCatalog.SiteDailyReportsScreenId, ScreenAction.View)]
+    public async Task<IActionResult> SiteReportProjects(CancellationToken ct)
+        => Success((await _projects.ListAsync(ct)).Select(p => new SiteReportProjectDto
+        {
+            ContractId = p.ContractId, ContractNumber = p.ContractNumber, Title = p.Title, ProjectName = p.ProjectName, ProjectLocation = p.ProjectLocation,
+        }).ToList());
 
     [HttpPost("role-templates"), RequireScreen("user-permissions", ScreenAction.Create)]
     public async Task<IActionResult> CreateRoleTemplates(CancellationToken ct) => Success(await _projects.CreateRoleTemplatesAsync(ct));

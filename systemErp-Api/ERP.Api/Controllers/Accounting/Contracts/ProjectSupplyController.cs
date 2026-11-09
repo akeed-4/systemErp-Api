@@ -11,7 +11,7 @@ namespace ERP.Api.Controllers.Accounting;
 /// ومستندات صرف مواد المستودع للمشروع.
 /// </summary>
 [Route("api/v1/commercialcontracts/{id:guid}")]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class ProjectSupplyController : ErpControllerBase
@@ -72,7 +72,7 @@ public class ProjectSupplyController : ErpControllerBase
 /// المستخدم إلى العقود. فتح الإذن وحفظه وترحيله وإلغاؤه تبقى على مسار سجل العقد (`commercialcontracts/{id}/material-issues`).
 /// </summary>
 [Route("api/v1/project-material-issues")]
-[RequireModule(PlatformModules.Accounting)]
+[RequireModule(PlatformModules.Construction)]
 [ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class ProjectMaterialIssuesIndexController : ErpControllerBase

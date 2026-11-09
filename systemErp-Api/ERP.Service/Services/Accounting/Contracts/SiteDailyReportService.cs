@@ -30,6 +30,14 @@ public class SiteDailyReportService : ISiteDailyReportService
 
     // ---------- القراءة ----------
 
+    public async Task<List<SiteReportBoqLineDto>> BoqLinesAsync(Guid contractId, CancellationToken ct = default)
+    {
+        var contract = await P.LoadBoqContractAsync(_db, contractId, ct);
+        return contract.Items.Where(i => !i.IsGroup).OrderBy(i => i.SortOrder)
+            .Select(i => new SiteReportBoqLineDto { Id = i.Id, LineCode = i.LineCode, Description = i.Description, Unit = i.Unit, IsSubItem = i.IsSubItem })
+            .ToList();
+    }
+
     public async Task<List<SiteReportListItemDto>> ListAsync(Guid contractId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         var contract = await P.LoadBoqContractAsync(_db, contractId, ct);

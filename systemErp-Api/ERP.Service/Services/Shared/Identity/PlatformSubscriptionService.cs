@@ -272,6 +272,9 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
 
         var method = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "manual" : request.PaymentMethod.Trim();
         var sub = SubscriptionCatalog.NewSubscription(plan, request.BillingCycle, method, request.Modules);
+        // بلا وحدات صريحة: وحدات الباقة + الإضافات المتفق عليها من الاشتراك السابق
+        if (request.Modules == null)
+            SubscriptionCatalog.CarryAgreementAddOns(sub, await _db.Set<Subscription>().OrderByDescending(s => s.StartDate).Take(1).ToListAsync(ct));
         sub.TransactionReference = $"ADM-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
         _db.Add(sub);
         await _db.SaveChangesAsync(ct);
@@ -412,7 +415,11 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         plan.MaxInvoicesPerMonth = r.MaxInvoicesPerMonth;
         plan.Branches = r.Branches;
         plan.ZatcaPhase2Enabled = r.ZatcaPhase2Enabled;
-        plan.ModuleKeys = PlatformModules.ToCsv(PlatformModules.Normalize(r.Modules));
+        var planModules = PlatformModules.Normalize(r.Modules);
+        // الإضافة بسعر حسب الاتفاق (المقاولات) تُمنح للمنشأة من وحداتها بعد الاتفاق، لا ضمن سعر الباقة
+        if (planModules.Any(PlatformModules.PricedByAgreement.Contains))
+            throw new ValidationFailedException("المقاولات إضافة بسعر حسب الاتفاق: تُمنح للمنشأة من «الوحدات» بعد الاتفاق، ولا تُضاف للباقة.");
+        plan.ModuleKeys = PlatformModules.ToCsv(planModules);
         if (r.FeatureKeys != null) plan.FeatureKeys = PlanFeatures.ToCsv(PlanFeatures.Normalize(r.FeatureKeys));
         else if (isNew) plan.FeatureKeys = PlanFeatures.AllCsv;
         plan.IsActive = r.IsActive;

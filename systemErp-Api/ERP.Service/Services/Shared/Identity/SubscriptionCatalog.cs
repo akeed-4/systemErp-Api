@@ -105,6 +105,18 @@ public static class SubscriptionCatalog
         return trial;
     }
 
+    /// <summary>
+    /// الإضافات بسعر حسب الاتفاق (المقاولات) ليست في الباقة: تنتقل من الاشتراك السابق إلى الجديد عند التجديد أو تغيير الباقة
+    /// (ما دام الجديد يشمل النظام المحاسبي) فلا تسقط بالتجديد؛ وإلغاؤها من «الوحدات» صراحةً.
+    /// </summary>
+    public static void CarryAgreementAddOns(Subscription next, IEnumerable<Subscription> previous)
+    {
+        var modules = PlatformModules.Parse(next.ModuleKeys).ToList();
+        if (!modules.Contains(PlatformModules.Accounting)) return;
+        var carried = previous.SelectMany(s => PlatformModules.Parse(s.ModuleKeys)).Where(PlatformModules.PricedByAgreement.Contains).Except(modules).ToList();
+        if (carried.Count > 0) next.ModuleKeys = PlatformModules.ToCsv(PlatformModules.Normalize(modules.Concat(carried)));
+    }
+
     public static Subscription NewSubscription(SubscriptionPlanDto plan, SubscriptionBillingCycle cycle, string paymentMethod, IEnumerable<string>? modules = null)
     {
         var price = cycle == SubscriptionBillingCycle.Yearly ? plan.PriceYearly : plan.PriceMonthly;

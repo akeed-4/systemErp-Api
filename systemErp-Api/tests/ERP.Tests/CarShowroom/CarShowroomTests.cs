@@ -289,6 +289,50 @@ public class CarShowroomTests : TestBase
     }
 
     [Fact]
+    public async Task Car_reports_page_filter_and_summarize_in_the_database()
+    {
+        var api = await NewTenantAsync();
+        foreach (var (prefix, price) in new[] { ('A', 50000m), ('B', 60000m), ('C', 70000m) })
+        {
+            var vid = await SeedCarAsync(api, prefix, selling: price);
+            if (prefix == 'C') continue; // تبقى في المخزون
+            Assert.Equal(201, (await api.Post("/carsalescontracts/QuickSale", new { contract = new { cycleType = "corporate", buyerName = $"شركة {prefix}", buyerNationalIdOrCr = "7001234567",
+                buyerPhone = "0550000000", vehicleId = vid, sellingPrice = price, vatMode = "standard_15", paymentMethod = "bank_transfer", condition = "new" } })).Status);
+        }
+        static string E(string json) => Uri.EscapeDataString(json);
+
+        // صفحة من صف واحد، لكن العدد الكلي والملخص محسوبان على كل البيانات لا على الصفحة
+        var page = await api.Get($"/reports/car/ProfitLoss?skip=0&take=1&requireTotalCount=true&sort={E("[{\"selector\":\"sellingPrice\",\"desc\":true}]")}"
+            + $"&totalSummary={E("[{\"selector\":\"sellingPrice\",\"summaryType\":\"sum\"},{\"selector\":\"profitAmount\",\"summaryType\":\"sum\"}]")}");
+        Assert.Equal(200, page.Status);
+        Assert.Single(page.Body!["data"]!.AsArray());
+        Assert.Equal(2, page.Body["totalCount"]!.GetValue<int>());
+        Assert.Equal(60000, page.Body["data"]![0]!["sellingPrice"].D());
+        Assert.Equal(110000, page.Body["summary"]![0].D());
+
+        var search = await api.Get($"/reports/car/SalesPerformance?requireTotalCount=true&filter={E("[\"buyerName\",\"contains\",\"B\"]")}");
+        Assert.Equal(1, search.Body!["totalCount"]!.GetValue<int>());
+
+        var stock = await api.Get($"/reports/car/VinInventory?requireTotalCount=true&totalSummary={E("[{\"selector\":\"daysInStock\",\"summaryType\":\"avg\"}]")}");
+        Assert.Equal(1, stock.Body!["totalCount"]!.GetValue<int>());
+
+        var monthly = await api.Get($"/reports/car/DailyMonthlySales?totalSummary={E("[{\"selector\":\"carsSoldCount\",\"summaryType\":\"sum\"}]")}");
+        Assert.Equal(2, monthly.Body!["summary"]![0].D());
+
+        var sorts = new Dictionary<string, string>
+        {
+            ["ZatcaMarginTax"] = "contractNumber", ["ProcurementTracking"] = "orderNumber",
+            ["InstallmentsReceivable"] = "contractNumber", ["SuppliersProcurement"] = "supplierName",
+        };
+        foreach (var (path, field) in sorts)
+        {
+            var r = await api.Get($"/reports/car/{path}?skip=0&take=5&requireTotalCount=true&sort={E($"[{{\"selector\":\"{field}\"}}]")}"
+                + $"&filter={E($"[\"{field}\",\"contains\",\"x\"]")}");
+            Assert.True(r.Status == 200, path);
+        }
+    }
+
+    [Fact]
     public async Task Quick_sale_rolls_everything_back_when_a_later_step_fails()
     {
         var api = await NewTenantAsync();

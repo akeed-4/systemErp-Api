@@ -9,4 +9,5 @@ public class CostCenter : BaseEntity
     public bool IsActive { get; set; } = true;
     /// <summary>المركز الأب (هرم اختياري)؛ تقارير المركز تشمل مراكزه الفرعية.</summary>
     public Guid? ParentId { get; set; }
+    public Guid? ParentCostCenterId { get; set; }
 }

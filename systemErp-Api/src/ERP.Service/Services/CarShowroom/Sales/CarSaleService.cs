@@ -27,20 +27,48 @@ public class CarSaleService : ICarSaleService
         _db = db; _numbers = numbers; _invoices = invoices; _user = user; _tx = tx; _audit = audit;
     }
 
-    public async Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams p, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
+    /// <summary>أعمدة الفرز المسموحة (أسماء حقول CarSalesContractDto).</summary>
+    private static readonly Dictionary<string, System.Linq.Expressions.Expression<Func<CarSalesContract, object>>> SortColumns = new()
+    {
+        ["contractNumber"] = c => c.ContractNumber, ["date"] = c => c.Date, ["buyerName"] = c => c.BuyerName,
+        ["vehicleDescription"] = c => c.VehicleDescription, ["vin"] = c => c.Vin, ["cycleType"] = c => c.CycleType,
+        ["vatMode"] = c => c.VatMode, ["paymentMethod"] = c => c.PaymentMethod, ["status"] = c => c.Status,
+        ["sellingPrice"] = c => c.SellingPrice, ["totalWithVat"] = c => c.TotalWithVat, ["vatAmount"] = c => c.VatAmount,
+    };
+
+    /// <summary>مرشّحات القائمة والملخص (مصدر واحد).</summary>
+    private IQueryable<CarSalesContract> Filtered(PaginationParams p, CarSalesCycleType? cycleType)
     {
         var q = _db.Set<CarSalesContract>().AsNoTracking().AsQueryable();
         if (cycleType.HasValue) q = q.Where(c => c.CycleType == cycleType);
         if (Enum.TryParse<SalesContractStatus>(p.Status, true, out var st)) q = q.Where(c => c.Status == st);
         if (p.StartDate.HasValue) q = q.Where(c => c.Date >= p.StartDate);
-        if (p.EndDate.HasValue) q = q.Where(c => c.Date <= p.EndDate);
+        if (ListQuery.EndExclusive(p) is { } end) q = q.Where(c => c.Date < end);
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
             var t = p.SearchTerm.Trim();
-            q = q.Where(c => c.ContractNumber.Contains(t) || c.BuyerName.Contains(t) || c.Vin.Contains(t) || c.BuyerNationalIdOrCr.Contains(t));
+            q = q.Where(c => c.ContractNumber.Contains(t) || c.BuyerName.Contains(t) || c.Vin.Contains(t) || c.BuyerNationalIdOrCr.Contains(t)
+                || c.VehicleDescription.Contains(t) || (c.FinancingBankName != null && c.FinancingBankName.Contains(t)));
         }
+        return q;
+    }
+
+    /// <summary>إجماليات كامل النتيجة المرشّحة (الصيغ في <see cref="CarSalesContractSummaryDto"/>).</summary>
+    public async Task<CarSalesContractSummaryDto> SummaryAsync(PaginationParams p, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
+        => await Filtered(p, cycleType).GroupBy(_ => 1).Select(g => new CarSalesContractSummaryDto
+        {
+            Count = g.Count(),
+            NetBeforeVat = g.Sum(c => c.NetPriceBeforeVat ?? c.SellingPrice),
+            VatAmount = g.Sum(c => c.VatAmount), TotalWithVat = g.Sum(c => c.TotalWithVat),
+            CostPrice = g.Sum(c => c.CostPrice), ProfitMargin = g.Sum(c => c.ProfitMargin),
+        }).FirstOrDefaultAsync(ct) ?? new CarSalesContractSummaryDto();
+
+    public async Task<PagedResult<CarSalesContractDto>> ListAsync(PaginationParams p, CarSalesCycleType? cycleType = null, CancellationToken ct = default)
+    {
+        var q = Filtered(p, cycleType);
         var total = await q.CountAsync(ct);
-        var items = await q.OrderByDescending(c => c.Date).ThenByDescending(c => c.ContractNumber)
+        var items = await ListQuery.Sort(q, p, SortColumns,
+                x => x.OrderByDescending(c => c.Date).ThenByDescending(c => c.ContractNumber).ThenByDescending(c => c.Id), c => c.Id)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
         return new PagedResult<CarSalesContractDto>
         {

@@ -88,22 +88,47 @@ public class AccountingReportService : IAccountingReportService
         };
     }
 
+    /// <summary>إجماليات الفواتير المرحّلة لكل نوع مستند (≤ 4 صفوف) بتجميع SQL واحد.</summary>
+    private sealed record KindTotals(InvoiceKind Kind, int Count, decimal Subtotal, decimal TotalCost, decimal VatTotal, decimal GrandTotal, decimal CreditSubtotal);
+
+    private async Task<Dictionary<InvoiceKind, KindTotals>> PostedTotalsByKindAsync(CancellationToken ct)
+        => (await _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted")
+                .GroupBy(i => i.Kind)
+                .Select(g => new KindTotals(g.Key, g.Count(), g.Sum(i => i.Subtotal), g.Sum(i => i.TotalCost), g.Sum(i => i.VatTotal), g.Sum(i => i.GrandTotal),
+                    g.Sum(i => i.PaymentMethod == PaymentMethod.Credit ? i.Subtotal : 0)))
+                .ToListAsync(ct))
+            .ToDictionary(t => t.Kind);
+
+    private static KindTotals Of(Dictionary<InvoiceKind, KindTotals> totals, InvoiceKind kind)
+        => totals.GetValueOrDefault(kind) ?? new KindTotals(kind, 0, 0, 0, 0, 0, 0);
+
+    /// <summary>
+    /// مؤشرات مالية بتجميع SQL (لا تحميل للفواتير أو الحسابات في الذاكرة). الصيغ كما كانت:
+    /// المبيعات/المشتريات/التكلفة = صافي المرحّل بعد المرتجعات بلا ضريبة؛ أرصدة الحسابات = Σ أرصدة الحسابات الطرفية تحت البادئة.
+    /// </summary>
     public async Task<FinancialStatsDto> GetFinancialStatsAsync(CancellationToken ct = default)
     {
-        var invoices = await _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted")
-            .Select(i => new { i.Kind, i.Subtotal, i.TotalCost }).ToListAsync(ct);
-        var sales = invoices.Where(i => i.Kind == InvoiceKind.Sales).Sum(i => i.Subtotal) - invoices.Where(i => i.Kind == InvoiceKind.SalesReturn).Sum(i => i.Subtotal);
-        var purchases = invoices.Where(i => i.Kind == InvoiceKind.Purchase).Sum(i => i.Subtotal) - invoices.Where(i => i.Kind == InvoiceKind.PurchaseReturn).Sum(i => i.Subtotal);
-        var cogs = invoices.Where(i => i.Kind == InvoiceKind.Sales).Sum(i => i.TotalCost) - invoices.Where(i => i.Kind == InvoiceKind.SalesReturn).Sum(i => i.TotalCost);
+        var t = await PostedTotalsByKindAsync(ct);
+        var sales = Of(t, InvoiceKind.Sales).Subtotal - Of(t, InvoiceKind.SalesReturn).Subtotal;
+        var purchases = Of(t, InvoiceKind.Purchase).Subtotal - Of(t, InvoiceKind.PurchaseReturn).Subtotal;
+        var cogs = Of(t, InvoiceKind.Sales).TotalCost - Of(t, InvoiceKind.SalesReturn).TotalCost;
 
         var vouchers = await _db.Set<Voucher>().AsNoTracking().GroupBy(v => v.Type).Select(g => new { g.Key, Sum = g.Sum(v => v.Amount) }).ToListAsync(ct);
-        var leaves = await LeavesAsync(ct);
-        decimal Under(string prefix) => leaves.Where(a => a.Code.StartsWith(prefix)).Sum(a => a.Balance);
 
-        var opex = Under("52");
-        var outputVat = Under(DefaultAccounts.OutputVat); var inputVat = Under(DefaultAccounts.InputVat);
+        // الحساب الطرفي = لا حساب فرعي يشير إليه؛ المجاميع حسب البادئة تُحسب في استعلام واحد
+        var accounts = _db.Set<Account>().AsNoTracking();
+        var b = await accounts.Where(a => !accounts.Any(c => c.ParentCode == a.Code)).GroupBy(_ => 1).Select(g => new
+        {
+            Opex = g.Sum(a => a.Code.StartsWith("52") ? a.Balance : 0),
+            OutputVat = g.Sum(a => a.Code.StartsWith(DefaultAccounts.OutputVat) ? a.Balance : 0),
+            InputVat = g.Sum(a => a.Code.StartsWith(DefaultAccounts.InputVat) ? a.Balance : 0),
+            Banks = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Banks) ? a.Balance : 0),
+            Receivables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Receivables) ? a.Balance : 0),
+            Payables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Payables) ? a.Balance : 0),
+        }).FirstOrDefaultAsync(ct);
         var inventory = await _db.Set<Product>().AsNoTracking().SumAsync(p => p.CurrentStock * p.AverageCost, ct);
 
+        decimal opex = b?.Opex ?? 0, outputVat = b?.OutputVat ?? 0, inputVat = b?.InputVat ?? 0;
         return new FinancialStatsDto
         {
             TotalSales = sales, TotalPurchases = purchases,
@@ -111,9 +136,125 @@ public class AccountingReportService : IAccountingReportService
             TotalPayments = vouchers.FirstOrDefault(v => v.Key == VoucherType.Payment)?.Sum ?? 0,
             CogsTotal = cogs, OperatingExpenses = opex, NetProfit = sales - cogs - opex,
             InventoryValuation = inventory, OutputVat = outputVat, InputVat = inputVat, NetVatPayable = outputVat - inputVat,
-            CashAndBankBalance = Under(DefaultAccounts.Banks), ReceivablesBalance = Under(DefaultAccounts.Receivables), PayablesBalance = Under(DefaultAccounts.Payables),
+            CashAndBankBalance = b?.Banks ?? 0, ReceivablesBalance = b?.Receivables ?? 0, PayablesBalance = b?.Payables ?? 0,
         };
     }
+
+    /// <summary>مؤشرات لوحة التحكم (الصيغ موثّقة في <see cref="DashboardSummaryDto"/>).</summary>
+    public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(int months = 9, CancellationToken ct = default)
+    {
+        if (months is < 1 or > 36) throw new ValidationFailedException("عدد الأشهر بين 1 و 36.");
+        var t = await PostedTotalsByKindAsync(ct);
+        KindTotals s = Of(t, InvoiceKind.Sales), sr = Of(t, InvoiceKind.SalesReturn), p = Of(t, InvoiceKind.Purchase), pr = Of(t, InvoiceKind.PurchaseReturn);
+
+        var dto = new DashboardSummaryDto
+        {
+            NetSales = s.Subtotal - sr.Subtotal,
+            NetCostOfSales = s.TotalCost - sr.TotalCost,
+            NetOutputVat = s.VatTotal - sr.VatTotal,
+            NetPurchases = p.Subtotal - pr.Subtotal,
+            NetPurchasesWithVat = p.GrandTotal - pr.GrandTotal,
+            NetInputVat = p.VatTotal - pr.VatTotal,
+            NetCreditPurchases = p.CreditSubtotal - pr.CreditSubtotal,
+            SalesCount = s.Count, SalesReturnsCount = sr.Count, PurchasesCount = p.Count, PurchaseReturnsCount = pr.Count,
+            VouchersCount = await _db.Set<Voucher>().AsNoTracking().CountAsync(ct),
+            PostedJournalEntriesCount = await _db.Set<JournalEntry>().AsNoTracking().CountAsync(e => e.Status == JournalEntryStatus.Posted, ct),
+        };
+        dto.GrossProfit = dto.NetSales - dto.NetCostOfSales;
+        dto.NetCashPurchases = dto.NetPurchases - dto.NetCreditPurchases;
+
+        // الاتجاه الشهري: تجميع SQL حسب (السنة، الشهر، النوع) ثم ملء الأشهر الخالية بأصفار
+        var now = DateTime.UtcNow;
+        var since = new DateTime(now.Year, now.Month, 1).AddMonths(-(months - 1));
+        var monthly = await _db.Set<Invoice>().AsNoTracking().Where(i => i.Status == "posted" && i.IssueDate >= since)
+            .GroupBy(i => new { i.IssueDate.Year, i.IssueDate.Month, i.Kind })
+            .Select(g => new { g.Key.Year, g.Key.Month, g.Key.Kind, Subtotal = g.Sum(i => i.Subtotal), Cost = g.Sum(i => i.TotalCost) })
+            .ToListAsync(ct);
+        for (var m = 0; m < months; m++)
+        {
+            var d = since.AddMonths(m);
+            decimal Sum(InvoiceKind k, bool cost) => monthly.Where(x => x.Year == d.Year && x.Month == d.Month && x.Kind == k).Sum(x => cost ? x.Cost : x.Subtotal);
+            var netSales = Sum(InvoiceKind.Sales, false) - Sum(InvoiceKind.SalesReturn, false);
+            var netCost = Sum(InvoiceKind.Sales, true) - Sum(InvoiceKind.SalesReturn, true);
+            dto.Monthly.Add(new DashboardMonthDto
+            {
+                Year = d.Year, Month = d.Month, NetSales = netSales, GrossProfit = netSales - netCost,
+                NetPurchases = Sum(InvoiceKind.Purchase, false) - Sum(InvoiceKind.PurchaseReturn, false),
+            });
+        }
+        return dto;
+    }
+
+    // ---------- دفتر اليومية العام (أسطر القيود) ----------
+
+    private IQueryable<JournalLedgerRowDto> JournalLedgerQuery(ReportQueryDto q)
+    {
+        var entries = _db.Set<JournalEntry>().AsNoTracking();
+        if (q.DateFrom.HasValue) entries = entries.Where(e => e.Date >= q.DateFrom);
+        if (ListQuery.EndExclusive(q.DateTo) is { } end) entries = entries.Where(e => e.Date < end);
+        return entries.SelectMany(e => e.Lines, (e, l) => new JournalLedgerRowDto
+            {
+                Id = l.Id, JournalEntryId = e.Id, Date = e.Date, EntryNumber = e.EntryNumber, Description = e.Description,
+                ReferenceType = e.ReferenceType, ReferenceNumber = e.ReferenceNumber, Status = e.Status,
+                AccountCode = l.AccountCode, AccountName = l.AccountName, Debit = l.Debit, Credit = l.Credit, Notes = l.Notes,
+            })
+            .OrderByDescending(r => r.Date).ThenByDescending(r => r.EntryNumber).ThenBy(r => r.Id);
+    }
+
+    public Task<LoadResult> LoadJournalLedgerAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(JournalLedgerQuery(q), options, ct, "-Date", "-EntryNumber", "Id");
+
+    // ---------- توزيع مدفوعات المبيعات ----------
+
+    /// <summary>
+    /// فواتير البيع غير المرتبطة بأسطر مركبات (نفس نطاق شاشة المبيعات القياسية التي بُني عليها التقرير).
+    /// القواعد موثّقة في <see cref="SalesPaymentBreakdownRowDto"/>.
+    /// </summary>
+    private IQueryable<SalesPaymentBreakdownRowDto> SalesPaymentBreakdownQuery(ReportQueryDto q)
+    {
+        var customers = _db.Set<Customer>().AsNoTracking();
+        var inv = _db.Set<Invoice>().AsNoTracking().Where(i => i.Kind == InvoiceKind.Sales && !i.VehicleLines.Any());
+        if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
+        if (ListQuery.EndExclusive(q.DateTo) is { } end) inv = inv.Where(i => i.IssueDate < end);
+
+        return inv
+            .Select(i => new
+            {
+                i,
+                HasSplits = i.PaymentSplits.Any(),
+                // بلا أسطر مجزأة: الفاتورة غير الآجلة والمعتمدة مدفوعة بكامل قيمتها بطريقتها
+                Direct = i.PaymentMethod != PaymentMethod.Credit && i.Status != "draft" && i.Status != "cancelled" ? i.GrandTotal : 0m,
+                Cust = customers.Where(c => c.Id == i.PartyId).Select(c => new { c.Phone, c.Email, c.City, c.VatNumber }).FirstOrDefault(),
+            })
+            .Select(x => new
+            {
+                x.i, x.Cust,
+                Cash = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.Cash).Sum(s => (decimal?)s.Amount) ?? 0 : (x.i.PaymentMethod == PaymentMethod.Cash ? x.Direct : 0),
+                Card = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.BankCard).Sum(s => (decimal?)s.Amount) ?? 0 : (x.i.PaymentMethod == PaymentMethod.BankCard ? x.Direct : 0),
+                Transfer = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.BankTransfer).Sum(s => (decimal?)s.Amount) ?? 0 : (x.i.PaymentMethod == PaymentMethod.BankTransfer ? x.Direct : 0),
+                Credit = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.Credit).Sum(s => (decimal?)s.Amount) ?? 0 : 0,
+            })
+            .Select(y => new SalesPaymentBreakdownRowDto
+            {
+                Id = y.i.Id, Number = y.i.InvoiceNumber, Date = y.i.IssueDate, Time = y.i.IssueTime, InvoiceStatus = y.i.Status,
+                Customer = y.i.PartyName,
+                Phone = y.i.PartyPhone != null && y.i.PartyPhone != "" ? y.i.PartyPhone : y.Cust!.Phone,
+                Email = y.i.PartyEmail != null && y.i.PartyEmail != "" ? y.i.PartyEmail : y.Cust!.Email,
+                Address = y.i.PartyAddress != null && y.i.PartyAddress != "" ? y.i.PartyAddress : y.Cust!.City,
+                VatNumber = y.i.PartyVatNumber != null && y.i.PartyVatNumber != "" ? y.i.PartyVatNumber : y.Cust!.VatNumber,
+                ItemQuantity = y.i.Items.Sum(it => (decimal?)it.Quantity) ?? 0,
+                Subtotal = y.i.Subtotal, Discounts = y.i.DiscountTotal, Tax = y.i.VatTotal, Grand = y.i.GrandTotal,
+                PaidCash = y.Cash, PaidBankCard = y.Card, PaidBankTransfer = y.Transfer, PaidCredit = y.Credit,
+                Paid = y.Cash + y.Card + y.Transfer + y.Credit,
+                Balance = y.i.GrandTotal - (y.Cash + y.Card + y.Transfer + y.Credit) > 0 ? y.i.GrandTotal - (y.Cash + y.Card + y.Transfer + y.Credit) : 0,
+                PaymentStatus = y.i.GrandTotal - (y.Cash + y.Card + y.Transfer + y.Credit) <= 0 ? "paid"
+                    : y.Cash + y.Card + y.Transfer + y.Credit > 0 ? "partial" : "unpaid",
+            })
+            .OrderByDescending(r => r.Date).ThenByDescending(r => r.Time).ThenByDescending(r => r.Number).ThenBy(r => r.Id);
+    }
+
+    public Task<LoadResult> LoadSalesPaymentBreakdownAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => ReportLoader.LoadAsync(SalesPaymentBreakdownQuery(q), options, ct, "-Date", "-Time", "-Number", "Id");
 
     public async Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, CancellationToken ct = default)
     {

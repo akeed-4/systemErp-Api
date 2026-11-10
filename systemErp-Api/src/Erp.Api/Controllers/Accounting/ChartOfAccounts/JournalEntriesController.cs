@@ -11,7 +11,9 @@ public class JournalEntriesController : ErpControllerBase
     private readonly IJournalService _journal;
     public JournalEntriesController(IJournalService journal) => _journal = journal;
 
-    [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _journal.ListAsync(q, ct));
+    [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, [FromQuery] string? referenceType, CancellationToken ct) => Success(await _journal.ListAsync(q, referenceType, ct));
+    /// <summary>إجماليات كامل النتيجة المرشّحة (نفس مرشّحات القائمة وصلاحيتها).</summary>
+    [HttpGet("Summary")] public async Task<IActionResult> Summary([FromQuery] PaginationParams q, [FromQuery] string? referenceType, CancellationToken ct) => Success(await _journal.SummaryAsync(q, referenceType, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _journal.GetAsync(id, ct));
 
     [HttpPost]

@@ -6,7 +6,10 @@ namespace ERP.Core.Contracts.Accounting;
 
 public interface IJournalService
 {
-    Task<PagedResult<JournalEntryDto>> ListAsync(PaginationParams query, CancellationToken ct = default);
+    /// <summary>referenceType اختياري بمطابقة تامة (manual = القيود اليدوية).</summary>
+    Task<PagedResult<JournalEntryDto>> ListAsync(PaginationParams query, string? referenceType = null, CancellationToken ct = default);
+    /// <summary>إجماليات كامل النتيجة المرشّحة بنفس مرشّحات ListAsync.</summary>
+    Task<JournalEntrySummaryDto> SummaryAsync(PaginationParams query, string? referenceType = null, CancellationToken ct = default);
     Task<JournalEntryDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>قيد يدوي مرحَّل مباشرة. يجب أن يتوازن المدين والدائن.</summary>
     Task<JournalEntryDto> CreateManualAsync(CreateJournalEntryDto request, CancellationToken ct = default);

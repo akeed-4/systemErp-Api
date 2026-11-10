@@ -27,12 +27,44 @@ public class InvoicesController : ErpControllerBase
         if (!await _permissions.HasPermissionAsync(ScreenFor(kind), action, ct)) throw new ForbiddenException();
     }
 
-    [HttpGet]
-    public async Task<IActionResult> List([FromQuery] InvoiceKind? kind, [FromQuery] PaginationParams q, [FromQuery] bool? hasVehicleLines, CancellationToken ct)
+    /// <summary>بلا kind يلزم عرض المبيعات والمشتريات معًا (كما كان)؛ مع kind تكفي صلاحية شاشة ذلك النوع.</summary>
+    private async Task RequireListView(InvoiceKind? kind, CancellationToken ct)
     {
         if (kind.HasValue) await Require(kind.Value, ScreenAction.View, ct);
         else { await Require(InvoiceKind.Sales, ScreenAction.View, ct); await Require(InvoiceKind.Purchase, ScreenAction.View, ct); }
-        return Success(await _invoices.ListAsync(kind, q, hasVehicleLines, ct));
+    }
+
+    /// <summary>
+    /// صفحة من الفواتير. مرشّحات اختيارية: kind، hasVehicleLines، paymentType (cash|credit)، originalHasVehicleLines، invoiceNumber (مطابقة تامة)،
+    /// إضافة إلى PaginationParams: pageNumber/pageSize (≤ 1000)، searchTerm، sortBy/isDescending، startDate/endDate (اليوم الأخير شامل)، status.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> List([FromQuery] InvoiceListQueryDto filter, [FromQuery] PaginationParams q, CancellationToken ct)
+    {
+        await RequireListView(filter.Kind, ct);
+        return Success(await _invoices.ListAsync(filter, q, ct));
+    }
+
+    /// <summary>إجماليات كامل النتيجة المرشّحة (نفس مرشّحات القائمة وصلاحياتها)، لا الصفحة الحالية.</summary>
+    [HttpGet("Summary")]
+    public async Task<IActionResult> Summary([FromQuery] InvoiceListQueryDto filter, [FromQuery] PaginationParams q, CancellationToken ct)
+    {
+        await RequireListView(filter.Kind, ct);
+        return Success(await _invoices.SummaryAsync(filter, q, ct));
+    }
+
+    /// <summary>
+    /// البحث العام (شريط البحث): فواتير البيع ومرتجعاتها وفواتير الشراء، مقيّدًا بالأنواع التي يملك المستخدم صلاحية عرض شاشتها فقط.
+    /// لا صلاحية على أي نوع = 403. take ≤ 50.
+    /// </summary>
+    [HttpGet("Search")]
+    public async Task<IActionResult> Search([FromQuery] string? term, [FromQuery] int take = 10, CancellationToken ct = default)
+    {
+        var allowed = new List<InvoiceKind>();
+        foreach (var kind in new[] { InvoiceKind.Sales, InvoiceKind.SalesReturn, InvoiceKind.Purchase })
+            if (await _permissions.HasPermissionAsync(ScreenFor(kind), ScreenAction.View, ct)) allowed.Add(kind);
+        if (allowed.Count == 0) throw new ForbiddenException();
+        return Success(await _invoices.SearchAsync(term ?? string.Empty, allowed, take, ct));
     }
 
     [HttpGet("{id:guid}")]

@@ -12,6 +12,8 @@ public class VouchersController : ErpControllerBase
     public VouchersController(IVoucherService vouchers) => _vouchers = vouchers;
 
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _vouchers.ListAsync(q, ct));
+    /// <summary>إجماليات كامل النتيجة المرشّحة (نفس مرشّحات القائمة وصلاحية شاشة السندات).</summary>
+    [HttpGet("Summary")] public async Task<IActionResult> Summary([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _vouchers.SummaryAsync(q, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _vouchers.GetAsync(id, ct));
 
     [HttpPost]

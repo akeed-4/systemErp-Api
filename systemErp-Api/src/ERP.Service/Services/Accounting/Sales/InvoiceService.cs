@@ -23,28 +23,110 @@ public class InvoiceService : IInvoiceService
     }
 
     // ---------------- القراءة ----------------
-    public async Task<PagedResult<InvoiceDto>> ListAsync(InvoiceKind? kind, PaginationParams p, bool? hasVehicleLines = null, CancellationToken ct = default)
+    /// <summary>أعمدة الفرز المسموحة (أسماء حقول InvoiceDto).</summary>
+    private static readonly Dictionary<string, System.Linq.Expressions.Expression<Func<Invoice, object>>> SortColumns = new()
+    {
+        ["invoiceNumber"] = i => i.InvoiceNumber, ["issueDate"] = i => i.IssueDate,
+        ["partyName"] = i => i.PartyName, ["status"] = i => i.Status, ["paymentMethod"] = i => i.PaymentMethod,
+        ["subtotal"] = i => i.Subtotal, ["discountTotal"] = i => i.DiscountTotal, ["vatTotal"] = i => i.VatTotal,
+        ["grandTotal"] = i => i.GrandTotal, ["totalCost"] = i => i.TotalCost, ["grossProfit"] = i => i.GrossProfit,
+        ["zatcaStatus"] = i => i.ZatcaStatus,
+    };
+
+    /// <summary>
+    /// مرشّحات القائمة والملخص معًا (مصدر واحد حتى لا يختلف العدد/الإجمالي عن الصفوف).
+    /// العزل بين المنشآت يتم عبر مرشّح الاستعلام العام على TenantId.
+    /// </summary>
+    private IQueryable<Invoice> Filtered(InvoiceListQueryDto f, PaginationParams p)
     {
         var q = _db.Set<Invoice>().AsNoTracking().AsQueryable();
-        if (kind.HasValue) q = q.Where(i => i.Kind == kind);
-        if (hasVehicleLines.HasValue) q = hasVehicleLines.Value ? q.Where(i => i.VehicleLines.Any()) : q.Where(i => !i.VehicleLines.Any());
+        if (f.Kind.HasValue) q = q.Where(i => i.Kind == f.Kind);
+        if (f.HasVehicleLines.HasValue) q = f.HasVehicleLines.Value ? q.Where(i => i.VehicleLines.Any()) : q.Where(i => !i.VehicleLines.Any());
+        if (f.OriginalHasVehicleLines.HasValue)
+        {
+            var withVehicles = f.OriginalHasVehicleLines.Value;
+            var invoices = _db.Set<Invoice>().AsNoTracking();
+            q = q.Where(i => i.OriginalInvoiceId != null
+                && invoices.Any(o => o.Id == i.OriginalInvoiceId && o.VehicleLines.Any()) == withVehicles);
+        }
+        if (!string.IsNullOrWhiteSpace(f.PaymentType))
+        {
+            q = f.PaymentType.Trim().ToLowerInvariant() switch
+            {
+                "credit" => q.Where(i => i.PaymentMethod == PaymentMethod.Credit),
+                "cash" => q.Where(i => i.PaymentMethod != PaymentMethod.Credit),
+                _ => throw new ValidationFailedException("paymentType يجب أن يكون cash أو credit."),
+            };
+        }
+        if (!string.IsNullOrWhiteSpace(f.InvoiceNumber)) q = q.Where(i => i.InvoiceNumber == f.InvoiceNumber.Trim());
+        if (!string.IsNullOrWhiteSpace(f.ZatcaQrCode)) q = q.Where(i => i.ZatcaQrCode == f.ZatcaQrCode.Trim());
         if (!string.IsNullOrWhiteSpace(p.Status)) q = q.Where(i => i.Status == p.Status);
         if (p.StartDate.HasValue) q = q.Where(i => i.IssueDate >= p.StartDate);
-        if (p.EndDate.HasValue) q = q.Where(i => i.IssueDate <= p.EndDate);
+        if (ListQuery.EndExclusive(p) is { } end) q = q.Where(i => i.IssueDate < end);
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
             var t = p.SearchTerm.Trim();
-            q = q.Where(i => i.InvoiceNumber.Contains(t) || i.PartyName.Contains(t) || (i.PartyVatNumber != null && i.PartyVatNumber.Contains(t)));
+            if (Guid.TryParse(t, out var id)) q = q.Where(i => i.Id == id || i.Uuid == id);
+            else q = q.Where(i => i.InvoiceNumber.Contains(t) || i.PartyName.Contains(t)
+                || (i.PartyVatNumber != null && i.PartyVatNumber.Contains(t))
+                || (i.Notes != null && i.Notes.Contains(t))
+                || (i.ReferenceNumber != null && i.ReferenceNumber.Contains(t))       // رقم فاتورة المورد / المرجع
+                || (i.OriginalInvoiceNumber != null && i.OriginalInvoiceNumber.Contains(t))
+                || (i.ReturnReason != null && i.ReturnReason.Contains(t))
+                || i.Uuid.ToString().Contains(t)
+                // رقم الشاسيه: في أسطر مركبات الفاتورة، أو في أسطر الفاتورة الأصلية للمرتجع
+                || i.VehicleLines.Any(v => v.Vin != null && v.Vin.Contains(t))
+                || (i.OriginalInvoiceId != null && _db.Set<Invoice>().Any(o => o.Id == i.OriginalInvoiceId && o.VehicleLines.Any(v => v.Vin != null && v.Vin.Contains(t)))));
         }
+        return q;
+    }
+
+    public async Task<PagedResult<InvoiceDto>> ListAsync(InvoiceListQueryDto f, PaginationParams p, CancellationToken ct = default)
+    {
+        var q = Filtered(f, p);
         var total = await q.CountAsync(ct);
-        var items = await q.Include(i => i.Items).Include(i => i.PaymentSplits)
-            .OrderByDescending(i => i.IssueDate).ThenByDescending(i => i.InvoiceNumber)
+        var ordered = ListQuery.Sort(q, p, SortColumns,
+            x => x.OrderByDescending(i => i.IssueDate).ThenByDescending(i => i.InvoiceNumber).ThenByDescending(i => i.Id),
+            i => i.Id);
+        var items = await ordered.Include(i => i.Items).Include(i => i.PaymentSplits)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).AsSplitQuery().ToListAsync(ct);
         return new PagedResult<InvoiceDto>
         {
             Items = items.Select(Mapper.Map<InvoiceDto>).ToList(),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
+    }
+
+    /// <summary>
+    /// بحث عام في أنواع مستندات محددة (يحددها المستدعي حسب صلاحيات المستخدم)، بنفس حقول بحث القائمة.
+    /// يُعيد أحدث <paramref name="take"/> نتيجة (حد أعلى 50) والعدد الكلي للمطابقات.
+    /// </summary>
+    public async Task<PagedResult<InvoiceDto>> SearchAsync(string term, IReadOnlyCollection<InvoiceKind> kinds, int take = 10, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(term) || kinds.Count == 0) return new PagedResult<InvoiceDto> { PageNumber = 1, PageSize = 0 };
+        take = Math.Clamp(take, 1, 50);
+        var q = Filtered(new InvoiceListQueryDto(), new PaginationParams { SearchTerm = term }).Where(i => kinds.Contains(i.Kind));
+        var total = await q.CountAsync(ct);
+        var items = await q.OrderByDescending(i => i.IssueDate).ThenByDescending(i => i.InvoiceNumber).ThenByDescending(i => i.Id)
+            .Take(take).ToListAsync(ct);
+        return new PagedResult<InvoiceDto> { Items = items.Select(Mapper.Map<InvoiceDto>).ToList(), TotalCount = total, PageNumber = 1, PageSize = take };
+    }
+
+    /// <summary>إجماليات كامل النتيجة المرشّحة باستعلام تجميع واحد في SQL (الصيغ موثّقة في <see cref="InvoiceSummaryDto"/>).</summary>
+    public async Task<InvoiceSummaryDto> SummaryAsync(InvoiceListQueryDto f, PaginationParams p, CancellationToken ct = default)
+    {
+        var row = await Filtered(f, p).GroupBy(_ => 1).Select(g => new InvoiceSummaryDto
+        {
+            Count = g.Count(),
+            Subtotal = g.Sum(i => i.Subtotal), DiscountTotal = g.Sum(i => i.DiscountTotal),
+            VatTotal = g.Sum(i => i.VatTotal), GrandTotal = g.Sum(i => i.GrandTotal),
+            TotalCost = g.Sum(i => i.TotalCost), GrossProfit = g.Sum(i => i.GrossProfit),
+            CashCount = g.Count(i => i.PaymentMethod != PaymentMethod.Credit),
+            CashGrandTotal = g.Sum(i => i.PaymentMethod != PaymentMethod.Credit ? i.GrandTotal : 0),
+            CreditCount = g.Count(i => i.PaymentMethod == PaymentMethod.Credit),
+            CreditGrandTotal = g.Sum(i => i.PaymentMethod == PaymentMethod.Credit ? i.GrandTotal : 0),
+        }).FirstOrDefaultAsync(ct);
+        return row ?? new InvoiceSummaryDto();
     }
 
     public async Task<InvoiceDto> GetAsync(Guid id, CancellationToken ct = default)

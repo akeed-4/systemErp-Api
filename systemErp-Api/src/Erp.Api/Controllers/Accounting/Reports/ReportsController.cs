@@ -26,6 +26,11 @@ public class ReportsController : ErpControllerBase
     [HttpGet("FinancialStats"), RequireScreen("dashboard")]
     public async Task<IActionResult> Stats(CancellationToken ct) => Success(await _accounting.GetFinancialStatsAsync(ct));
 
+    /// <summary>مؤشرات لوحة التحكم واتجاهها الشهري (الفواتير المرحّلة صافية من المرتجعات، بلا ضريبة).</summary>
+    [HttpGet("DashboardSummary"), RequireScreen("dashboard")]
+    public async Task<IActionResult> Dashboard([FromQuery] int months = 9, CancellationToken ct = default)
+        => Success(await _accounting.GetDashboardSummaryAsync(months, ct));
+
     [HttpGet("FinancialSummary"), RequireScreen("reports")]
     public async Task<IActionResult> Summary(CancellationToken ct) => Success(await _accounting.GetFinancialSummaryAsync(ct));
 
@@ -46,6 +51,16 @@ public class ReportsController : ErpControllerBase
     [HttpGet("AccountStatement/{code}/Entries"), RequireScreen("reports")]
     public async Task<IActionResult> StatementEntries(string code, [FromQuery] DateTime? from, [FromQuery] DateTime? to, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _accounting.LoadAccountStatementEntriesAsync(code, from, to, loadOptions, ct));
+
+    /// <summary>دفتر اليومية العام (dateFrom/dateTo + خيارات DevExtreme).</summary>
+    [HttpGet("JournalLedger"), RequireScreen("reports")]
+    public async Task<IActionResult> JournalLedger([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadJournalLedgerAsync(q, loadOptions, ct));
+
+    /// <summary>توزيع مدفوعات المبيعات (dateFrom/dateTo + خيارات DevExtreme).</summary>
+    [HttpGet("SalesPaymentBreakdown"), RequireScreen("reports")]
+    public async Task<IActionResult> SalesPaymentBreakdown([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadSalesPaymentBreakdownAsync(q, loadOptions, ct));
 
     [HttpGet("InventoryAudit"), RequireScreen("reports")]
     public async Task<IActionResult> Audit([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)

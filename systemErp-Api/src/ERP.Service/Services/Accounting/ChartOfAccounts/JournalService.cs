@@ -16,19 +16,53 @@ public class JournalService : IJournalService
         _db = db; _posting = posting; _tx = tx;
     }
 
-    public async Task<PagedResult<JournalEntryDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
+    /// <summary>أعمدة الفرز المسموحة (أسماء حقول JournalEntryDto).</summary>
+    private static readonly Dictionary<string, System.Linq.Expressions.Expression<Func<JournalEntry, object>>> SortColumns = new()
+    {
+        ["entryNumber"] = e => e.EntryNumber, ["date"] = e => e.Date, ["description"] = e => e.Description,
+        ["referenceType"] = e => e.ReferenceType!, ["referenceNumber"] = e => e.ReferenceNumber!,
+        ["totalDebit"] = e => e.TotalDebit, ["totalCredit"] = e => e.TotalCredit, ["status"] = e => e.Status,
+    };
+
+    /// <summary>مرشّحات القائمة والملخص (مصدر واحد). referenceType مطابقة تامة (مثل manual لقيود اليومية اليدوية).</summary>
+    private IQueryable<JournalEntry> Filtered(PaginationParams p, string? referenceType)
     {
         var q = _db.Set<JournalEntry>().AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(referenceType))
+        {
+            var rt = referenceType.Trim();
+            // القيد بلا نوع مرجع يُعدّ يدويًا (كما تعرضه الواجهة)
+            q = string.Equals(rt, "manual", StringComparison.OrdinalIgnoreCase)
+                ? q.Where(e => e.ReferenceType == null || e.ReferenceType == "" || e.ReferenceType == "manual")
+                : q.Where(e => e.ReferenceType == rt);
+        }
         if (p.StartDate.HasValue) q = q.Where(e => e.Date >= p.StartDate);
-        if (p.EndDate.HasValue) q = q.Where(e => e.Date <= p.EndDate);
+        if (ListQuery.EndExclusive(p) is { } end) q = q.Where(e => e.Date < end);
         if (!string.IsNullOrWhiteSpace(p.Status) && Enum.TryParse<JournalEntryStatus>(p.Status, true, out var st)) q = q.Where(e => e.Status == st);
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
             var t = p.SearchTerm.Trim();
             q = q.Where(e => e.EntryNumber.Contains(t) || e.Description.Contains(t) || (e.ReferenceNumber != null && e.ReferenceNumber.Contains(t)));
         }
+        return q;
+    }
+
+    /// <summary>إجماليات كامل النتيجة المرشّحة (الصيغ في <see cref="JournalEntrySummaryDto"/>).</summary>
+    public async Task<JournalEntrySummaryDto> SummaryAsync(PaginationParams p, string? referenceType = null, CancellationToken ct = default)
+        => await Filtered(p, referenceType).GroupBy(_ => 1).Select(g => new JournalEntrySummaryDto
+        {
+            Count = g.Count(),
+            TotalDebit = g.Sum(e => e.TotalDebit), TotalCredit = g.Sum(e => e.TotalCredit),
+            UnbalancedCount = g.Count(e => e.TotalDebit != e.TotalCredit),
+        }).FirstOrDefaultAsync(ct) ?? new JournalEntrySummaryDto();
+
+    public async Task<PagedResult<JournalEntryDto>> ListAsync(PaginationParams p, string? referenceType = null, CancellationToken ct = default)
+    {
+        var q = Filtered(p, referenceType);
         var total = await q.CountAsync(ct);
-        var items = await q.Include(e => e.Lines).OrderByDescending(e => e.Date).ThenByDescending(e => e.EntryNumber)
+        var ordered = ListQuery.Sort(q, p, SortColumns,
+            x => x.OrderByDescending(e => e.Date).ThenByDescending(e => e.EntryNumber).ThenByDescending(e => e.Id), e => e.Id);
+        var items = await ordered.Include(e => e.Lines)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
         return new PagedResult<JournalEntryDto>
         {

@@ -17,19 +17,52 @@ public class VoucherService : IVoucherService
         _db = db; _posting = posting; _numbers = numbers; _tx = tx;
     }
 
-    public async Task<PagedResult<VoucherDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
+    /// <summary>أعمدة الفرز المسموحة (أسماء حقول VoucherDto).</summary>
+    private static readonly Dictionary<string, System.Linq.Expressions.Expression<Func<Voucher, object>>> SortColumns = new()
+    {
+        ["voucherNumber"] = v => v.VoucherNumber, ["date"] = v => v.Date, ["type"] = v => v.Type,
+        ["amount"] = v => v.Amount, ["partyName"] = v => v.PartyName, ["paymentMethod"] = v => v.PaymentMethod,
+        ["referenceNumber"] = v => v.ReferenceNumber!,
+    };
+
+    /// <summary>مرشّحات القائمة والملخص (مصدر واحد). Status = نوع السند (receipt | payment).</summary>
+    private IQueryable<Voucher> Filtered(PaginationParams p)
     {
         var q = _db.Set<Voucher>().AsNoTracking().AsQueryable();
         if (p.StartDate.HasValue) q = q.Where(v => v.Date >= p.StartDate);
-        if (p.EndDate.HasValue) q = q.Where(v => v.Date <= p.EndDate);
+        if (ListQuery.EndExclusive(p) is { } end) q = q.Where(v => v.Date < end);
         if (!string.IsNullOrWhiteSpace(p.Status) && Enum.TryParse<VoucherType>(p.Status, true, out var type)) q = q.Where(v => v.Type == type);
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
             var t = p.SearchTerm.Trim();
-            q = q.Where(v => v.VoucherNumber.Contains(t) || v.PartyName.Contains(t) || (v.ReferenceNumber != null && v.ReferenceNumber.Contains(t)));
+            q = q.Where(v => v.VoucherNumber.Contains(t) || v.PartyName.Contains(t)
+                || (v.ReferenceNumber != null && v.ReferenceNumber.Contains(t)) || v.Notes.Contains(t));
         }
+        return q;
+    }
+
+    /// <summary>إجماليات كامل النتيجة المرشّحة (الصيغ في <see cref="VoucherSummaryDto"/>).</summary>
+    public async Task<VoucherSummaryDto> SummaryAsync(PaginationParams p, CancellationToken ct = default)
+    {
+        var row = await Filtered(p).GroupBy(_ => 1).Select(g => new VoucherSummaryDto
+        {
+            Count = g.Count(),
+            ReceiptCount = g.Count(v => v.Type == VoucherType.Receipt),
+            ReceiptTotal = g.Sum(v => v.Type == VoucherType.Receipt ? v.Amount : 0),
+            PaymentCount = g.Count(v => v.Type == VoucherType.Payment),
+            PaymentTotal = g.Sum(v => v.Type == VoucherType.Payment ? v.Amount : 0),
+        }).FirstOrDefaultAsync(ct) ?? new VoucherSummaryDto();
+        row.NetCashFlow = row.ReceiptTotal - row.PaymentTotal;
+        return row;
+    }
+
+    public async Task<PagedResult<VoucherDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
+    {
+        var q = Filtered(p);
         var total = await q.CountAsync(ct);
-        var items = await q.Include(v => v.PaymentSplits).OrderByDescending(v => v.Date).ThenByDescending(v => v.VoucherNumber)
+        var ordered = ListQuery.Sort(q, p, SortColumns,
+            x => x.OrderByDescending(v => v.Date).ThenByDescending(v => v.VoucherNumber).ThenByDescending(v => v.Id), v => v.Id);
+        var items = await ordered.Include(v => v.PaymentSplits)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
         return new PagedResult<VoucherDto>
         {

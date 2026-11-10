@@ -7,6 +7,8 @@ namespace ERP.Core.Contracts.Accounting;
 public interface IVoucherService
 {
     Task<PagedResult<VoucherDto>> ListAsync(PaginationParams query, CancellationToken ct = default);
+    /// <summary>إجماليات كامل النتيجة المرشّحة بنفس مرشّحات ListAsync.</summary>
+    Task<VoucherSummaryDto> SummaryAsync(PaginationParams query, CancellationToken ct = default);
     Task<VoucherDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>ينشئ السند ويرحّل قيده في معاملة واحدة.</summary>
     Task<VoucherDto> CreateAsync(CreateVoucherDto request, CancellationToken ct = default);

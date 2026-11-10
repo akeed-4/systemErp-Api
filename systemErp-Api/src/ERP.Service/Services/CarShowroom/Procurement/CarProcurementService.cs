@@ -31,20 +31,52 @@ public class CarProcurementService : ICarProcurementService
         _db = db; _numbers = numbers; _invoices = invoices; _posting = posting; _tx = tx; _audit = audit;
     }
 
-    public async Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams p, string? purchaseCycle = null, CancellationToken ct = default)
+    /// <summary>أعمدة الفرز المسموحة (أسماء حقول CarProcurementOrderDto).</summary>
+    private static readonly Dictionary<string, System.Linq.Expressions.Expression<Func<CarProcurementOrder, object>>> SortColumns = new()
+    {
+        ["orderNumber"] = o => o.OrderNumber, ["date"] = o => o.Date, ["supplierName"] = o => o.SupplierName,
+        ["paymentType"] = o => o.PaymentType, ["stage"] = o => o.Stage, ["status"] = o => o.Status,
+        ["subtotal"] = o => o.Subtotal, ["vatTotal"] = o => o.VatTotal, ["grandTotal"] = o => o.GrandTotal,
+    };
+
+    /// <summary>مرشّحات القائمة والملخص (مصدر واحد). Status = مرحلة الأمر كما كان.</summary>
+    private IQueryable<CarProcurementOrder> Filtered(PaginationParams p, string? purchaseCycle)
     {
         var q = _db.Set<CarProcurementOrder>().AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(purchaseCycle)) q = q.Where(o => o.PurchaseCycle == purchaseCycle);
         if (Enum.TryParse<ProcurementStage>(p.Status, true, out var stage)) q = q.Where(o => o.Stage == stage);
         if (p.StartDate.HasValue) q = q.Where(o => o.Date >= p.StartDate);
-        if (p.EndDate.HasValue) q = q.Where(o => o.Date <= p.EndDate);
+        if (ListQuery.EndExclusive(p) is { } end) q = q.Where(o => o.Date < end);
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
             var t = p.SearchTerm.Trim();
-            q = q.Where(o => o.OrderNumber.Contains(t) || o.SupplierName.Contains(t));
+            // العمود المعروض "المركبة" = ماركة/موديل البند + الشاسيه المستلم، فيُبحث فيهما كما كان البحث في الواجهة
+            q = q.Where(o => o.OrderNumber.Contains(t) || o.SupplierName.Contains(t)
+                || o.Items.Any(i => i.BrandName.Contains(t) || i.ModelName.Contains(t))
+                || o.ReceivedVins.Any(v => v.Vin.Contains(t)));
         }
+        return q;
+    }
+
+    /// <summary>إجماليات كامل النتيجة المرشّحة (الصيغ في <see cref="CarProcurementOrderSummaryDto"/>).</summary>
+    public async Task<CarProcurementOrderSummaryDto> SummaryAsync(PaginationParams p, string? purchaseCycle = null, CancellationToken ct = default)
+        => await Filtered(p, purchaseCycle).GroupBy(_ => 1).Select(g => new CarProcurementOrderSummaryDto
+        {
+            Count = g.Count(),
+            Subtotal = g.Sum(o => o.Subtotal), VatTotal = g.Sum(o => o.VatTotal), GrandTotal = g.Sum(o => o.GrandTotal),
+            CashCount = g.Count(o => o.PaymentType == "cash"),
+            CashGrandTotal = g.Sum(o => o.PaymentType == "cash" ? o.GrandTotal : 0),
+            CreditCount = g.Count(o => o.PaymentType != "cash"),
+            CreditGrandTotal = g.Sum(o => o.PaymentType != "cash" ? o.GrandTotal : 0),
+        }).FirstOrDefaultAsync(ct) ?? new CarProcurementOrderSummaryDto();
+
+    public async Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams p, string? purchaseCycle = null, CancellationToken ct = default)
+    {
+        var q = Filtered(p, purchaseCycle);
         var total = await q.CountAsync(ct);
-        var items = await q.Include(o => o.Items).Include(o => o.ReceivedVins).OrderByDescending(o => o.Date).ThenByDescending(o => o.OrderNumber)
+        var items = await ListQuery.Sort(q, p, SortColumns,
+                x => x.OrderByDescending(o => o.Date).ThenByDescending(o => o.OrderNumber).ThenByDescending(o => o.Id), o => o.Id)
+            .Include(o => o.Items).Include(o => o.ReceivedVins)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).AsSplitQuery().ToListAsync(ct);
         return new PagedResult<CarProcurementOrderDto>
         {

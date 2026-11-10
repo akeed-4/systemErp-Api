@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace ERP.Tests.Infrastructure;
 
 [CollectionDefinition("api")]
@@ -40,6 +42,19 @@ public abstract class TestBase
         var s = await api.Post("/suppliers", new { nameAr = name, phone = "050", city = "جدة", status = "active", vatNumber = Client.NewVat() });
         Assert.Equal(201, s.Status);
         return (s.Data!["id"].G(), s.Data["accountCode"].S());
+    }
+
+    /// <summary>
+    /// زرع مباشر لعدد كبير من السجلات عبر DbContext تحت منشأة محددة (نفس ختم المنشأة الذي يطبقه الخادم)،
+    /// لاختبارات الحجم (أكثر من 1000 سجل) دون آلاف الطلبات.
+    /// </summary>
+    protected async Task SeedEntitiesAsync(Guid tenantId, IEnumerable<object> entities)
+    {
+        using var scope = Factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<ERP.Core.Contracts.Shared.ITenantContext>().SetTenant(tenantId);
+        var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
+        db.AddRange(entities);
+        await db.SaveChangesAsync();
     }
 
     protected static (decimal Debit, decimal Credit) Totals(Res trialBalance)

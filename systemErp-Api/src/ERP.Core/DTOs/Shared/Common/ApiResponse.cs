@@ -10,7 +10,7 @@ public class ApiResponse<T>
     public int StatusCode { get; set; } = 200;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
-    public static ApiResponse<T> Ok(T data, string? message = null) => new() { Data = data, Message = message };
+    public static ApiResponse<T> Ok(T data, string? message = null) => new() { Data = data, Message = ApiMessageLocalizer.Localize(message) };
     public static ApiResponse<T> Fail(int statusCode, string message, List<string>? errors = null) =>
         new() { Success = false, StatusCode = statusCode, Message = message, Errors = errors };
 }

@@ -122,11 +122,16 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
 
             var ids = r.Items.Select(i => i.ItemId).ToList();
             var products = await Db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);
+            // الرقم الضريبي للمورد مطلوب في الفاتورة الضريبية: يُنقل من بطاقته فلا تُرفض المسودة عند تعديلها وترحيلها
+            var supplierVat = await Db.Set<Supplier>().AsNoTracking().Where(s => s.Id == r.SupplierId).Select(s => s.VatNumber).FirstOrDefaultAsync(token);
             var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
             {
                 SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
                 Kind = InvoiceKind.Purchase, InvoiceType = InvoiceType.TaxInvoice, PartyId = r.SupplierId, PartyName = r.SupplierName ?? string.Empty,
+                PartyVatNumber = string.IsNullOrWhiteSpace(supplierVat) ? null : supplierVat,
                 PaymentMethod = PaymentMethod.Credit, Status = "draft",
+                // مستودع الطلب (مستودع المشروع في المقاولات): الترحيل يُدخل المواد إليه لا إلى المستودع الافتراضي
+                WarehouseId = r.WarehouseId,
                 Notes = $"فاتورة شراء محوّلة من طلب {r.RequisitionNumber}",
                 ReferenceType = "material_requisition", ReferenceId = r.Id, ReferenceNumber = r.RequisitionNumber,
                 Items = r.Items.Select(i => new InvoiceItemDto

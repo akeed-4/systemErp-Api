@@ -236,7 +236,10 @@ public class TradeInvoiceEngine
                 if (wasPosted) throw new ConflictException(Messages.DocumentNumberLocked);
                 invoice.InvoiceNumber = (await ManualNumberAsync(invoice, requestedNumber, r.SystemGenerated, token))!;
             }
-            if (wasPosted) (invoice.ReferenceType, invoice.ReferenceId, invoice.JournalEntryId) = (keepRefType, keepRefId, keepEntry);
+            // ارتباط الفاتورة بمستندها المصدر يبقى (المرحّلة والمسودة المحوَّلة): الشاشة لا تعيد إرساله عند التعديل،
+            // وبه تُحسب كميات طلب الشراء «مشتراة» في المشروع ويُفَك عند حذفها
+            (invoice.ReferenceType, invoice.ReferenceId) = (keepRefType, keepRefId);
+            if (wasPosted) invoice.JournalEntryId = keepEntry;
             invoice.Status = "draft";
             foreach (var item in fresh.Lines.ToList()) invoice.AddLine(item);
             foreach (var split in fresh.PaymentSplits) invoice.PaymentSplits.Add(split);
@@ -285,7 +288,7 @@ public class TradeInvoiceEngine
         if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted && (forDelete || invoice.ZatcaStatus != ZatcaSubmissionStatus.Rejected))
             throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
         // فاتورة نقطة بيع/عقد: مجاميع مستندها المصدر (الوردية، العقد) تتبعها، فتُعدَّل من ذلك المستند
-        if (invoice.ReferenceType is not (null or "quotation" or "sales_order" or "purchase_order" or "material_requisition"))
+        if (invoice.ReferenceType != null && !IsCommercialSource(invoice.ReferenceType))
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
         // تكاليف إضافية معتمدة رفعت تكلفة حركات شرائها: إعادة الترحيل تُسقطها، فيُلغى السند أولاً
         if (invoice.Kind == InvoiceKind.Purchase && await _db.Set<PurchaseLandedCostInvoice>()
@@ -644,9 +647,18 @@ public class TradeInvoiceEngine
             await _db.SaveChangesAsync(token);
         }, ct);
 
+    /// <summary>مستند تجاري مصدر (عرض سعر، أمر بيع/شراء، طلب شراء): ارتباطه يبقى مع تعديل فاتورته، وحذفها يفكّه.</summary>
+    private static bool IsCommercialSource(string? referenceType)
+        => referenceType is "quotation" or "sales_order" or "purchase_order" or "material_requisition";
+
+    /// <summary>
+    /// المسودة المرتبطة بمستند تُعدَّل منه (نقطة بيع، عقد، مرتجع)؛ أما المحوَّلة من مستند تجاري فتُعدَّل وتُرحَّل وتُحذف
+    /// هنا كالمرحّلة في <see cref="UnpostForEditAsync"/>.
+    /// </summary>
     private static void EnsureNotLinkedToAnotherDocument(InvoiceBase invoice)
     {
-        if (invoice.ReferenceType != null || invoice.ReferenceId.HasValue || invoice.OriginalInvoiceId.HasValue)
+        if (invoice.OriginalInvoiceId.HasValue
+            || ((invoice.ReferenceType != null || invoice.ReferenceId.HasValue) && !IsCommercialSource(invoice.ReferenceType)))
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
     }
 

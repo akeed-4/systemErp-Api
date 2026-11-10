@@ -234,9 +234,10 @@ public class ContractCertificateService : IContractCertificateService
             RequireStatus(cert, St.Draft);
             await RemeasureAsync(cert, contract, token);
             if (cert.Kind == ContractCertificateKinds.Interim && cert.CurrentWorkValue <= 0) throw new ValidationFailedException(Messages.CertificateEmpty);
-            // الدوري: المنجز يُحسب بنهاية الفترة، فالمستخلص الجاري لا يُقدَّم قبلها (الختامي يُقدَّم متى انتهت الأعمال)
+            // الدوري: المنجز يُحسب بنهاية الفترة، فالمستخلص الجاري لا يُقدَّم قبلها؛ الفترة موعد تقديم لا قيد على الإنجاز:
+            // الختامي، أو مستخلص يُكمل كل البنود 100%، يُقدَّم متى انتهت الأعمال
             if (contract.CertificateSchedule == ContractCertificateSchedules.Periodic && cert.Kind == ContractCertificateKinds.Interim
-                && cert.PeriodTo is { } periodEnd && SaudiTime.Today < periodEnd.Date)
+                && cert.PeriodTo is { } periodEnd && SaudiTime.Today < periodEnd.Date && !CompletesContract(cert))
                 throw new ConflictException(string.Format(Messages.CertificatePeriodNotEnded, periodEnd.ToString("yyyy-MM-dd")));
             cert.Status = St.Submitted;
             cert.SubmittedAt = DateTime.UtcNow; cert.SubmittedBy = _user.Name ?? "system";
@@ -558,6 +559,13 @@ public class ContractCertificateService : IContractCertificateService
             .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
 
     private static decimal MaxQuantity(CommercialContractItem i) => i.RevisedQuantity * (1 + i.OverrunPercent / 100m);
+
+    /// <summary>المستخلص يُكمل المشروع: تراكمي كل بند بكمية ≥ كمية العقد المعدّلة (كقاعدة الاستلام الأولي في سير العقد).</summary>
+    private static bool CompletesContract(ContractCertificate cert)
+    {
+        var lines = cert.Lines.Where(l => l.ContractQuantity > 0).ToList();
+        return lines.Count > 0 && lines.All(l => l.CumulativeQuantity >= l.ContractQuantity - 0.00005m);
+    }
 
     private static decimal Percent(decimal part, decimal whole) => whole > 0 ? Math.Round(part / whole * 100m, 2) : 0;
 

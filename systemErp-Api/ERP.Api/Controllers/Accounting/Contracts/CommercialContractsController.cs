@@ -28,11 +28,14 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     private readonly IPermissionService _permissions;
     private readonly IProjectMaterialService _materials;
     private readonly IContractVariationService _variations;
+    private readonly IContractCertificateAttachmentService _certificateAttachments;
 
     public CommercialContractsController(ICommercialContractService s, IContractWorkflowService workflow, IContractCertificateService certificates,
-        IContractBillingService billing, IPermissionService permissions, IProjectMaterialService materials, IContractVariationService variations) : base(s)
+        IContractBillingService billing, IPermissionService permissions, IProjectMaterialService materials, IContractVariationService variations,
+        IContractCertificateAttachmentService certificateAttachments) : base(s)
     {
         _contracts = s; _workflow = workflow; _certificates = certificates; _billing = billing; _permissions = permissions; _materials = materials; _variations = variations;
+        _certificateAttachments = certificateAttachments;
     }
 
     // ---------- احتياجات مواد المشروع (العقد هو المشروع): الاستلام للإعداد والتقديم (كالمستخلصات، في مراحل التنفيذ)، والاعتماد للاعتماد والإعادة ----------
@@ -359,6 +362,45 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     {
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
         return Success(await _certificates.CancelAsync(id, certificateId, dto, ct), Messages.CertificateCancelled);
+    }
+
+    // ---------- أرشيف مستندات بنود المستخلص (مستقل عن دورة المستخلص؛ الصلاحيات بحسب حالته تفحصها الخدمة على سجل العقد) ----------
+
+    /// <summary>عدد المستندات لكل بند، وما يملكه المستخدم من إضافة وحذف.</summary>
+    [RequireModule(PlatformModules.Construction)]
+    [HttpGet("{id:guid}/certificates/{certificateId:guid}/attachments/summary"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CertificateAttachmentSummary(Guid id, Guid certificateId, CancellationToken ct)
+        => Success(await _certificateAttachments.SummaryAsync(id, certificateId, ct));
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpGet("{id:guid}/certificates/{certificateId:guid}/attachments"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> CertificateAttachments(Guid id, Guid certificateId, [FromQuery] Guid? itemId, CancellationToken ct)
+        => Success(await _certificateAttachments.ListAsync(id, certificateId, itemId, ct));
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/items/{itemId:guid}/attachments"), RequireScreen(Screen, ScreenAction.View)]
+    [RequestSizeLimit(LeaveAttachmentUpload.MaxRequestBytes)]
+    public async Task<IActionResult> UploadCertificateAttachment(Guid id, Guid certificateId, Guid itemId, [FromForm] string? category,
+        [FromForm] string? note, IFormFile? file, CancellationToken ct)
+    {
+        var (name, content) = await LeaveAttachmentUpload.ReadAsync(file, ct);
+        return Success(await _certificateAttachments.AddAsync(id, certificateId, itemId, category, note, name, content, ct), Messages.CreatedSuccessfully);
+    }
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpGet("{id:guid}/certificates/{certificateId:guid}/attachments/{attachmentId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> DownloadCertificateAttachment(Guid id, Guid certificateId, Guid attachmentId, CancellationToken ct)
+    {
+        var file = await _certificateAttachments.GetFileAsync(id, certificateId, attachmentId, ct);
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpDelete("{id:guid}/certificates/{certificateId:guid}/attachments/{attachmentId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> DeleteCertificateAttachment(Guid id, Guid certificateId, Guid attachmentId, CancellationToken ct)
+    {
+        await _certificateAttachments.DeleteAsync(id, certificateId, attachmentId, ct);
+        return Success(Messages.DeletedSuccessfully);
     }
 
     // ---------- فوترة عقود جدول الكميات (صلاحية الترحيل كفوترة الدفعات) ----------

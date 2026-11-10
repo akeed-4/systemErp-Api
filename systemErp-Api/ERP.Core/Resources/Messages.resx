@@ -1379,6 +1379,10 @@
   <data name="ContractSigningClosed" xml:space="preserve"><value>بيانات التوقيع والضمان تُعدَّل قبل تفعيل العقد فقط.</value></data>
   <data name="ContractAttachmentKindInvalid" xml:space="preserve"><value>نوع المرفق غير صحيح: signed_copy أو guarantee أو other.</value></data>
   <data name="ContractAttachmentNotFound" xml:space="preserve"><value>المرفق غير موجود.</value></data>
+  <data name="CertificateAttachmentCancelled" xml:space="preserve"><value>المستخلص ملغى: أرشيف بنوده للعرض فقط.</value></data>
+  <data name="CertificateAttachmentCategoryInvalid" xml:space="preserve"><value>تصنيف المستند غير صالح.</value></data>
+  <data name="CertificateAttachmentLimitReached" xml:space="preserve"><value>لا يُرفق بالبند الواحد في المستخلص أكثر من {0} مستنداً.</value></data>
+  <data name="CertificateAttachmentDeleteForbidden" xml:space="preserve"><value>حذف مستندات مستخلص بعد تقديمه يتطلب صلاحية الحذف على العقود.</value></data>
   <data name="ContractMoved" xml:space="preserve"><value>تم نقل العقد إلى «{0}».</value></data>
   <data name="ContractReviewRecorded" xml:space="preserve"><value>تم تسجيل قرار المراجعة.</value></data>
   <data name="ContractSigningSaved" xml:space="preserve"><value>تم حفظ بيانات التوقيع والضمان.</value></data>

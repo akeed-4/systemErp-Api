@@ -173,3 +173,38 @@ public class ContractCertificateLine : BaseEntity
 
     public virtual ContractCertificate Certificate { get; set; } = null!;
 }
+
+/// <summary>تصنيف المستند المؤرشف على بند المستخلص.</summary>
+public static class CertificateAttachmentCategories
+{
+    public const string MaterialInvoice = "material_invoice";
+    public const string CompletionReport = "completion_report";
+    public const string InspectionReport = "inspection_report";
+    public const string Photo = "photo";
+    public const string Other = "other";
+
+    public static readonly string[] All = { MaterialInvoice, CompletionReport, InspectionReport, Photo, Other };
+}
+
+/// <summary>
+/// مستند مؤرشف على بند في مستخلص (فاتورة مواد، محضر إنجاز، تقرير فحص...)، محفوظ في قاعدة البيانات كبقية مرفقات النظام.
+/// مرتبط بالمستخلص وبند جدول الكميات (لا بسطر المستخلص، لأن الأسطر يُعاد بناؤها عند الحفظ)، وبالعقد والمشروع (عقد العميل الأب
+/// لعقد الباطن). مستقل عن دورة المستخلص وقيوده: يبقى بعد الاعتماد والفوترة ولا يؤثر في أي حساب.
+/// </summary>
+public class ContractCertificateItemAttachment : BaseEntity
+{
+    public Guid ContractId { get; set; }
+    /// <summary>عقد المشروع: العقد نفسه، أو عقد العميل الأب إن كان العقد عقد باطن.</summary>
+    public Guid ProjectContractId { get; set; }
+    public Guid CertificateId { get; set; }
+    /// <summary>بند جدول الكميات.</summary>
+    public Guid ContractItemId { get; set; }
+    public string Category { get; set; } = CertificateAttachmentCategories.Other;
+    public string? Note { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public byte[] Content { get; set; } = Array.Empty<byte>();
+    public string? UploadedBy { get; set; }
+    public Guid? UploadedByUserId { get; set; }
+}

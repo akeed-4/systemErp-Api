@@ -1581,6 +1581,83 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("ContractCertificateDeduction");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateItemAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("CertificateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("ProjectContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CertificateId");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("ContractItemId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ProjectContractId");
+
+                    b.HasIndex("TenantId", "CertificateId", "ContractItemId");
+
+                    b.ToTable("ContractCertificateItemAttachment");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateLine", b =>
                 {
                     b.Property<Guid>("Id")
@@ -14774,6 +14851,27 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Certificate");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateItemAttachment", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.ContractCertificate", null)
+                        .WithMany()
+                        .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContractItem", null)
+                        .WithMany()
+                        .HasForeignKey("ContractItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateLine", b =>

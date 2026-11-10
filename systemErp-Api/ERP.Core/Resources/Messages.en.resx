@@ -1379,6 +1379,10 @@
   <data name="ContractSigningClosed" xml:space="preserve"><value>Signing and guarantee details can only be changed before the contract is activated.</value></data>
   <data name="ContractAttachmentKindInvalid" xml:space="preserve"><value>Invalid attachment kind: signed_copy, guarantee or other.</value></data>
   <data name="ContractAttachmentNotFound" xml:space="preserve"><value>Attachment not found.</value></data>
+  <data name="CertificateAttachmentCancelled" xml:space="preserve"><value>The certificate is cancelled: its item archive is read-only.</value></data>
+  <data name="CertificateAttachmentCategoryInvalid" xml:space="preserve"><value>Invalid document category.</value></data>
+  <data name="CertificateAttachmentLimitReached" xml:space="preserve"><value>An item in a certificate cannot have more than {0} documents.</value></data>
+  <data name="CertificateAttachmentDeleteForbidden" xml:space="preserve"><value>Deleting documents of a submitted certificate requires the delete permission on contracts.</value></data>
   <data name="ContractMoved" xml:space="preserve"><value>Contract moved to "{0}".</value></data>
   <data name="ContractReviewRecorded" xml:space="preserve"><value>Review decision recorded.</value></data>
   <data name="ContractSigningSaved" xml:space="preserve"><value>Signing and guarantee details saved.</value></data>

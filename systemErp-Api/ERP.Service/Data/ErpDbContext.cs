@@ -165,6 +165,10 @@ public class ErpDbContext : DbContext
         (typeof(SiteMaterialUsage), nameof(SiteMaterialUsage.ProductId), typeof(Product)),
         // سطر المستخلص يشير لبند جدول الكميات: البند لا يُحذف بعد أن قيس عليه (البنود تُعدَّل في المسودة فقط، قبل أي مستخلص)
         (typeof(ContractCertificateLine), nameof(ContractCertificateLine.ContractItemId), typeof(CommercialContractItem)),
+        // مستندات بند المستخلص: على المستخلص والبند والعقد، فلا يُحذف أي منها وعليه مستندات مؤرشفة
+        (typeof(ContractCertificateItemAttachment), nameof(ContractCertificateItemAttachment.CertificateId), typeof(ContractCertificate)),
+        (typeof(ContractCertificateItemAttachment), nameof(ContractCertificateItemAttachment.ContractItemId), typeof(CommercialContractItem)),
+        (typeof(ContractCertificateItemAttachment), nameof(ContractCertificateItemAttachment.ContractId), typeof(CommercialContract)),
         (typeof(ConstructionResource), nameof(ConstructionResource.ProductId), typeof(Product)),
         (typeof(ConstructionResource), nameof(ConstructionResource.HrDepartmentId), typeof(Department)),
         // مكوّن المورد المركّب يشير لمورد آخر: المورد الداخل في مركّب لا يُحذف (والمركّب يحذف مكوناته معه)
@@ -662,6 +666,16 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.DeliveryNoteId, i.Kind }).IsUnique()
             .HasFilter("[DeliveryNoteId] IS NOT NULL AND [Kind] <> N'credit_note'");
         modelBuilder.Entity<ContractAttachment>().HasIndex(a => new { a.TenantId, a.ContractId });
+        modelBuilder.Entity<ContractCertificateItemAttachment>(e =>
+        {
+            e.Property(a => a.Category).HasMaxLength(32).IsRequired();
+            e.Property(a => a.Note).HasMaxLength(300);
+            e.Property(a => a.FileName).HasMaxLength(200).IsRequired();
+            e.Property(a => a.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(a => a.UploadedBy).HasMaxLength(200);
+            e.HasIndex(a => new { a.TenantId, a.CertificateId, a.ContractItemId });
+            e.HasIndex(a => new { a.TenantId, a.ProjectContractId });
+        });
 
         modelBuilder.Entity<CarStageDefinition>(e =>
         {

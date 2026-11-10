@@ -1,3 +1,4 @@
+using ERP.Core.Models.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -114,16 +115,6 @@ public abstract class TestBase
         var docs = await db.Set<ERP.Core.Models.Accounting.InvoiceBase>().IgnoreQueryFilters()
             .Where(i => i.TenantId == api.TenantId && (i.Kind == InvoiceKind.Sales || i.Kind == InvoiceKind.SalesReturn)).ToListAsync();
         foreach (var d in docs) d.ZatcaStatus = ZatcaSubmissionStatus.Reported;
-    /// <summary>
-    /// زرع مباشر لعدد كبير من السجلات عبر DbContext تحت منشأة محددة (نفس ختم المنشأة الذي يطبقه الخادم)،
-    /// لاختبارات الحجم (أكثر من 1000 سجل) دون آلاف الطلبات.
-    /// </summary>
-    protected async Task SeedEntitiesAsync(Guid tenantId, IEnumerable<object> entities)
-    {
-        using var scope = Factory.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<ERP.Core.Contracts.Shared.ITenantContext>().SetTenant(tenantId);
-        var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
-        db.AddRange(entities);
         await db.SaveChangesAsync();
     }
 

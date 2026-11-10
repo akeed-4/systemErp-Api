@@ -94,6 +94,11 @@ public class ReportsController : ErpControllerBase
     public async Task<IActionResult> JournalLedger([FromQuery] string? module, [FromQuery] Guid? costCenterId, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, module, costCenterId, ct));
 
+    /// <summary>توزيع مدفوعات المبيعات (dateFrom/dateTo + خيارات DevExtreme).</summary>
+    [HttpGet("SalesPaymentBreakdown"), RequireScreen("reports")]
+    public async Task<IActionResult> SalesPaymentBreakdown([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadSalesPaymentBreakdownAsync(q, loadOptions, ct));
+
     [HttpGet("InventoryAudit"), RequireScreen("reports")]
     public async Task<IActionResult> Audit([FromQuery] ReportQueryDto q, DataSourceLoadOptions loadOptions, CancellationToken ct)
         => Ok(await _inventory.LoadInventoryAuditAsync(q, loadOptions, ct));

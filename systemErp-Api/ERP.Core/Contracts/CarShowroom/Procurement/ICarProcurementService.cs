@@ -10,8 +10,6 @@ public interface ICarProcurementService
     Task<PagedResult<CarProcurementOrderDto>> ListAsync(PaginationParams query, string? purchaseCycle = null, CancellationToken ct = default);
     /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
     Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, string? purchaseCycle = null, CancellationToken ct = default);
-    /// <summary>إجماليات كامل النتيجة المرشّحة بنفس مرشّحات ListAsync.</summary>
-    Task<CarProcurementOrderSummaryDto> SummaryAsync(PaginationParams query, string? purchaseCycle = null, CancellationToken ct = default);
     Task<CarProcurementOrderDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>مراحل دورة الشراء السبع بأسمائها وأيقوناتها كما تعرضها الواجهة.</summary>
     Task<List<CarStageDefinitionDto>> GetStagesAsync(CancellationToken ct = default);

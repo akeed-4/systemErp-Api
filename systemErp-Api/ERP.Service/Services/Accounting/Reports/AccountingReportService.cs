@@ -306,6 +306,81 @@ public class AccountingReportService : IAccountingReportService
         return (DocumentPricing.Round(output), DocumentPricing.Round(input));
     }
 
+    // ---------- توزيع مدفوعات المبيعات ----------
+
+    /// <summary>
+    /// فواتير المبيعات القياسية (جدول SalesInvoice في TPC؛ فواتير المعارض في جدول Invoice ولا تدخل هنا).
+    /// القواعد موثّقة في <see cref="SalesPaymentBreakdownRowDto"/>.
+    /// </summary>
+    private async Task<IQueryable<SalesPaymentBreakdownRowDto>> SalesPaymentBreakdownQueryAsync(ReportQueryDto q, CancellationToken ct)
+    {
+        var customers = _db.Set<Customer>().AsNoTracking();
+        var inv = _db.Set<SalesInvoice>().AsNoTracking();
+        if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
+        if (q.EndExclusive() is { } end) inv = inv.Where(i => i.IssueDate < end);
+        if (!string.IsNullOrWhiteSpace(q.PaymentMethodCode))
+            inv = await WherePaidWithAsync(inv, q.PaymentMethodCode.Trim(), ct);
+
+        return inv
+            .Select(i => new
+            {
+                i,
+                HasSplits = i.PaymentSplits.Any(),
+                // بلا أسطر مجزأة: الفاتورة غير الآجلة والمعتمدة مدفوعة بكامل قيمتها بطريقتها
+                Direct = i.PaymentMethod != PaymentMethod.Credit && i.Status != "draft" && i.Status != "cancelled" ? i.GrandTotal : 0m,
+                Cust = customers.Where(c => c.Id == i.PartyId).Select(c => new { c.Phone, c.Email, c.City, c.VatNumber }).FirstOrDefault(),
+            })
+            .Select(x => new
+            {
+                x.i, x.Cust,
+                Cash = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.Cash).Sum(s => (decimal?)s.Amount) ?? 0 : (x.i.PaymentMethod == PaymentMethod.Cash ? x.Direct : 0),
+                Card = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.BankCard).Sum(s => (decimal?)s.Amount) ?? 0 : (x.i.PaymentMethod == PaymentMethod.BankCard ? x.Direct : 0),
+                Transfer = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.BankTransfer).Sum(s => (decimal?)s.Amount) ?? 0 : (x.i.PaymentMethod == PaymentMethod.BankTransfer ? x.Direct : 0),
+                Credit = x.HasSplits ? x.i.PaymentSplits.Where(s => s.Method == PaymentMethod.Credit).Sum(s => (decimal?)s.Amount) ?? 0 : 0,
+            })
+            .Select(y => new SalesPaymentBreakdownRowDto
+            {
+                Id = y.i.Id, Number = y.i.InvoiceNumber, Date = y.i.IssueDate, Time = y.i.IssueTime, InvoiceStatus = y.i.Status,
+                Customer = y.i.PartyName,
+                Phone = y.i.PartyPhone != null && y.i.PartyPhone != "" ? y.i.PartyPhone : y.Cust!.Phone,
+                Email = y.i.PartyEmail != null && y.i.PartyEmail != "" ? y.i.PartyEmail : y.Cust!.Email,
+                Address = y.i.PartyAddress != null && y.i.PartyAddress != "" ? y.i.PartyAddress : y.Cust!.City,
+                VatNumber = y.i.PartyVatNumber != null && y.i.PartyVatNumber != "" ? y.i.PartyVatNumber : y.Cust!.VatNumber,
+                ItemQuantity = y.i.Items.Sum(it => (decimal?)it.Quantity) ?? 0,
+                Subtotal = y.i.Subtotal, Discounts = y.i.DiscountTotal, Tax = y.i.VatTotal, Grand = y.i.GrandTotal,
+                PaidCash = y.Cash, PaidBankCard = y.Card, PaidBankTransfer = y.Transfer, PaidCredit = y.Credit,
+                Paid = y.Cash + y.Card + y.Transfer + y.Credit,
+                Balance = y.i.GrandTotal - (y.Cash + y.Card + y.Transfer + y.Credit) > 0 ? y.i.GrandTotal - (y.Cash + y.Card + y.Transfer + y.Credit) : 0,
+                PaymentStatus = y.i.GrandTotal - (y.Cash + y.Card + y.Transfer + y.Credit) <= 0 ? "paid"
+                    : y.Cash + y.Card + y.Transfer + y.Credit > 0 ? "partial" : "unpaid",
+            });
+    }
+
+    /// <summary>
+    /// الفواتير المسدَّدة بطريقة الدفع المعرّفة <paramref name="code"/> (جدول طرق الدفع): سطر سداد مجزأ بمبلغ موجب برمزها،
+    /// أو فاتورة بلا تجزئة طريقتها هذا الرمز. المستندات القديمة بلا رمز تُنسب—كما في الترحيل—لأول طريقة فعّالة من نوعها.
+    /// </summary>
+    private async Task<IQueryable<SalesInvoice>> WherePaidWithAsync(IQueryable<SalesInvoice> inv, string code, CancellationToken ct)
+    {
+        var methods = await _db.Set<PaymentMethodItem>().AsNoTracking().OrderBy(m => m.Code).ToListAsync(ct);
+        var chosen = methods.FirstOrDefault(m => m.Code == code);
+        if (chosen == null) return inv.Where(_ => false);
+
+        var type = PaymentMethodRules.MethodOf(chosen.Type);
+        var legacy = methods.FirstOrDefault(m => m.Status == "active" && PaymentMethodRules.MethodOf(m.Type) == type)?.Code == code;
+
+        return inv.Where(i =>
+            i.PaymentSplits.Any(s => s.Amount > 0 && (s.PaymentMethodCode == code
+                || (legacy && (s.PaymentMethodCode == null || s.PaymentMethodCode == "") && s.Method == type)))
+            || (!i.PaymentSplits.Any() && (i.PaymentMethodCode == code
+                || (legacy && (i.PaymentMethodCode == null || i.PaymentMethodCode == "") && i.PaymentMethod == type))));
+    }
+
+    public async Task<LoadResult> LoadSalesPaymentBreakdownAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default)
+        => await ReportLoader.LoadAsync(await SalesPaymentBreakdownQueryAsync(q, ct), options, nameof(SalesPaymentBreakdownRowDto.Id), ct,
+            EntityLoader.Desc(nameof(SalesPaymentBreakdownRowDto.Date)), EntityLoader.Desc(nameof(SalesPaymentBreakdownRowDto.Time)),
+            EntityLoader.Desc(nameof(SalesPaymentBreakdownRowDto.Number)));
+
     public async Task<VatReturnDto> GetVatReturnAsync(DateTime from, DateTime to, string? module = null, CancellationToken ct = default)
     {
         if (to < from) throw new ValidationFailedException(Messages.PeriodEndBeforeStart);

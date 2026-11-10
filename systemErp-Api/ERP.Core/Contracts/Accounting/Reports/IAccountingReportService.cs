@@ -22,4 +22,6 @@ public interface IAccountingReportService
     Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, string? module = null, CancellationToken ct = default);
     /// <summary>دفتر اليومية سطراً سطراً (طرف مدين/دائن مع بيانات قيده)؛ الخيارات تُنفَّذ في قاعدة البيانات.</summary>
     Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, string? module = null, Guid? costCenterId = null, CancellationToken ct = default);
+    /// <summary>توزيع مدفوعات فواتير البيع حسب طريقة السداد، محسوب في SQL.</summary>
+    Task<LoadResult> LoadSalesPaymentBreakdownAsync(ReportQueryDto q, DataSourceLoadOptions options, CancellationToken ct = default);
 }

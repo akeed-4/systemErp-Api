@@ -12,5 +12,4 @@ public partial class CostCenterDto
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public Guid? ParentId { get; set; }
-    public Guid? ParentCostCenterId { get; set; }
 }

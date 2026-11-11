@@ -416,6 +416,7 @@ public class ConstructionProjectService : IConstructionProjectService
             RateBasis = r.RateBasis, Rate = r.Rate, FuelPerHour = r.FuelPerHour, MaintenancePerHour = r.MaintenancePerHour, OperatorPerHour = r.OperatorPerHour,
             ExtraCostPerHour = r.ExtraCostPerHour, HoursPerDay = r.HoursPerDay, DaysPerMonth = r.DaysPerMonth, OvertimeMultiplier = r.OvertimeMultiplier,
             RentalStart = r.RentalStart, RentalEnd = r.RentalEnd, IsActive = r.IsActive, Notes = r.Notes,
+            IdleBillingPercent = r.IdleBillingPercent, StandbyBillingPercent = r.StandbyBillingPercent,
             HourlyCost = r.HourlyCost, OvertimeHourlyCost = r.OvertimeHourlyCost,
             OtherProjects = r.EmployeeId is Guid emp ? others.GetValueOrDefault(emp) ?? new List<string>() : new List<string>(),
         }).ToList();
@@ -436,6 +437,7 @@ public class ConstructionProjectService : IConstructionProjectService
         if (d.DaysPerMonth is <= 0 or > 31) errors.Add(Messages.ProjectResourceDaysPerMonthInvalid);
         if (d.OvertimeMultiplier is < 1m or > 5m) errors.Add(Messages.ProjectResourceOvertimeInvalid);
         if (d.RentalStart.HasValue && d.RentalEnd.HasValue && d.RentalEnd.Value.Date < d.RentalStart.Value.Date) errors.Add(Messages.ProjectResourceRentalPeriodInvalid);
+        if (d.IdleBillingPercent is < 0m or > 100m || d.StandbyBillingPercent is < 0m or > 100m) errors.Add(Messages.ProjectResourceBillingPercentInvalid);
 
         Employee? employee = null;
         if (d.EmployeeId is Guid empId)
@@ -488,6 +490,10 @@ public class ConstructionProjectService : IConstructionProjectService
         entity.DaysPerMonth = d.DaysPerMonth; entity.OvertimeMultiplier = multiplier;
         entity.RentalStart = d.Kind == ProjectResourceKinds.RentedEquipment ? d.RentalStart?.Date : null;
         entity.RentalEnd = d.Kind == ProjectResourceKinds.RentedEquipment ? d.RentalEnd?.Date : null;
+        // شروط الفوترة لعقد الإيجار وحده؛ المملوكة والعمالة يُحتسب توقفها كاملاً ولا استعداد لها
+        var rented = d.Kind == ProjectResourceKinds.RentedEquipment;
+        entity.IdleBillingPercent = rented ? d.IdleBillingPercent ?? 100m : 100m;
+        entity.StandbyBillingPercent = rented ? d.StandbyBillingPercent ?? 0m : 0m;
         entity.HourlyCost = hourly; entity.OvertimeHourlyCost = overtime; entity.IsActive = d.IsActive; entity.Notes = Trim(d.Notes, 500);
         await _db.SaveChangesAsync(ct);
         return await ResourcesAsync(contractId, ct);

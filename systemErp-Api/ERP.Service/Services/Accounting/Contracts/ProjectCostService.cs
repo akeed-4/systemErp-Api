@@ -16,7 +16,7 @@ namespace ERP.Service.Services.Accounting;
 /// <item>العمالة: الرواتب ونهاية الخدمة وقيد تحميل العمالة؛ المعدات: الإهلاك وقيد تحميل المعدات؛ وما سواها «أخرى».</item>
 /// </list>
 /// غرامات العميل وخصوماته الأخرى على مستخلصاتنا تُعرض خصماً من الإيراد لا تكلفة. القراءة وحدها، بلا حسابات مخزنة.
-/// <para>المعدات المستأجرة: قيود فواتير موردي المعدات المستأجرة في موارد المشروع. غير المباشرة: قيود التوزيع (<see cref="OverheadSource"/>).
+/// <para>المعدات المستأجرة: استحقاق إيجارها من التقارير اليومية وتسويته، وقيود فواتير مؤجريها في موارد المشروع (تتصافى مع الاستحقاق فلا تتكرر). غير المباشرة: قيود التوزيع (<see cref="OverheadSource"/>).
 /// الاحتساب المزدوج: رواتب الموظفين وإهلاك الأصول المحمّلين بساعاتهم من التقارير اليومية، إن رُحِّلت على مركز المشروع أيضاً، تُستبعد بسطر تسوية.</para>
 /// </summary>
 public class ProjectCostService : IProjectCostService
@@ -62,7 +62,7 @@ public class ProjectCostService : IProjectCostService
         r.ProgressPercent = c.ContractValue > 0 ? Math.Round(r.CertifiedValue / c.ContractValue * 100m, 2) : 0;
         r.SiteOperatingCost = await SiteOperatingCostAsync(contractId, ct);
         var unposted = await _db.Set<SiteDailyReport>().AsNoTracking()
-            .CountAsync(x => x.ContractId == contractId && x.Status == SiteDailyReportStatuses.Approved && x.CostJournalEntryId == null && x.Resources.Any(u => u.Cost > 0), ct);
+            .CountAsync(x => x.ContractId == contractId && x.Status == SiteDailyReportStatuses.Approved && x.CostRevision == 0 && x.Resources.Any(u => u.Cost > 0), ct);
         r.UnpostedSiteReports = unposted;
         if (unposted > 0)
             r.Notes.Add($"{unposted} تقرير يومي معتمد لم تُحمَّل عمالته ومعداته على المشروع (اعتُمد قبل تفعيل التحميل): رحّلها من قسم التقارير اليومية.");
@@ -115,6 +115,15 @@ public class ProjectCostService : IProjectCostService
                                Ref = e.SourceReferenceId ?? e.ReferenceId, l.AccountCode, a.NameAr, a.Type, l.Debit, l.Credit,
                            }).ToListAsync(ct);
 
+        // القيد العكسي (مرجعه القيد الأصلي) يُصنَّف بمصدر قيده الأصلي ومرجعه، فيتصافى معه في فئته نفسها (حذف فاتورة إيجار مثلاً)
+        var reversed = lines.Where(l => l.SourceType == "reversal" && l.Ref != null).Select(l => l.Ref!.Value).Distinct().ToList();
+        var originals = reversed.Count == 0 ? new Dictionary<Guid, (string? Source, Guid? Ref)>()
+            : (await _db.Set<JournalEntry>().AsNoTracking().Where(e => reversed.Contains(e.Id))
+                .Select(e => new { e.Id, e.SourceType, Ref = e.SourceReferenceId ?? e.ReferenceId }).ToListAsync(ct))
+                .ToDictionary(e => e.Id, e => (e.SourceType, e.Ref));
+        (string? Source, Guid? Ref) Origin(string? source, Guid? reference)
+            => source == "reversal" && reference is Guid o && originals.TryGetValue(o, out var org) ? org : (source, reference);
+
         // المعدات المستأجرة: فواتير موردي المعدات المستأجرة في موارد المشروع (القيد مرجعه الفاتورة)
         var rentalSuppliers = await _db.Set<ProjectResource>().AsNoTracking()
             .Where(x => x.ContractId == contractId && x.Kind == ProjectResourceKinds.RentedEquipment && x.SupplierId != null)
@@ -122,7 +131,7 @@ public class ProjectCostService : IProjectCostService
         var rentalRefs = new HashSet<Guid>();
         if (rentalSuppliers.Count > 0)
         {
-            var refs = lines.Where(l => l.Ref != null).Select(l => l.Ref!.Value).Distinct().ToList();
+            var refs = lines.Select(l => Origin(l.SourceType, l.Ref).Ref).Where(r => r != null).Select(r => r!.Value).Distinct().ToList();
             rentalRefs.UnionWith(await _db.Set<PurchaseInvoice>().AsNoTracking()
                 .Where(i => refs.Contains(i.Id) && i.PartyId != null && rentalSuppliers.Contains(i.PartyId.Value)).Select(i => i.Id).ToListAsync(ct));
         }
@@ -142,13 +151,15 @@ public class ProjectCostService : IProjectCostService
             if (l.Type != AccountCategory.Expense && !isWip) continue;
             var amount = l.Debit - l.Credit;
             if (!isWip && deductionAccounts.Contains(l.AccountCode) && !isSub) { r.ClientDeductions += amount; continue; }
+            var (source, reference) = Origin(l.SourceType, l.Ref);
             var category = isSub ? "subcontract"
-                : isWip || MaterialSources.Contains(l.SourceType ?? string.Empty) ? "materials"
-                : l.SourceType == SiteCostSource ? (l.AccountCode == equipmentAccount ? "equipment" : l.AccountCode == laborAccount ? "labor" : "other")
-                : l.SourceType == OverheadSource ? "overhead"
-                : l.Ref is Guid invoiceRef && rentalRefs.Contains(invoiceRef) ? "rented_equipment"
-                : LaborSources.Contains(l.SourceType ?? string.Empty) ? "labor"
-                : EquipmentSources.Contains(l.SourceType ?? string.Empty) ? "equipment"
+                : isWip || MaterialSources.Contains(source ?? string.Empty) ? "materials"
+                : RentalAccrualService.Sources.Contains(source ?? string.Empty) ? "rented_equipment"
+                : source == SiteCostSource ? (l.AccountCode == equipmentAccount ? "equipment" : l.AccountCode == laborAccount ? "labor" : "other")
+                : source == OverheadSource ? "overhead"
+                : reference is Guid invoiceRef && rentalRefs.Contains(invoiceRef) ? "rented_equipment"
+                : LaborSources.Contains(source ?? string.Empty) ? "labor"
+                : EquipmentSources.Contains(source ?? string.Empty) ? "equipment"
                 : l.AccountCode == laborAccount ? "labor" : l.AccountCode == equipmentAccount ? "equipment" : "other";
             if (isWip) r.WipBalance += amount;
             costLines.Add((category, l.JournalEntryId, l.EntryNumber, l.Date, l.SourceType, l.ReferenceNumber, l.Description, l.AccountCode, l.NameAr, amount));

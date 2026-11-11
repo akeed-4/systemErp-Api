@@ -162,6 +162,13 @@ public class ErpDbContext : DbContext
         (typeof(ProjectDailyPlan), nameof(ProjectDailyPlan.ContractId), typeof(CommercialContract)),
         (typeof(SiteDailyReport), nameof(SiteDailyReport.ContractId), typeof(CommercialContract)),
         (typeof(SiteResourceUsage), nameof(SiteResourceUsage.ProjectResourceId), typeof(ProjectResource)),
+        // استحقاق إيجار المعدات المستأجرة: لا يُحذف تقرير أو مورد أو مؤجر أو مركز عليه استحقاق، ولا استحقاق له حركات
+        (typeof(SiteRentalAccrual), nameof(SiteRentalAccrual.ReportId), typeof(SiteDailyReport)),
+        (typeof(SiteRentalAccrual), nameof(SiteRentalAccrual.ProjectResourceId), typeof(ProjectResource)),
+        (typeof(SiteRentalAccrual), nameof(SiteRentalAccrual.SupplierId), typeof(Supplier)),
+        (typeof(SiteRentalAccrual), nameof(SiteRentalAccrual.ContractId), typeof(CommercialContract)),
+        (typeof(SiteRentalAccrual), nameof(SiteRentalAccrual.CostCenterId), typeof(CostCenter)),
+        (typeof(SiteRentalAccrualMovement), nameof(SiteRentalAccrualMovement.AccrualId), typeof(SiteRentalAccrual)),
         (typeof(SiteMaterialUsage), nameof(SiteMaterialUsage.ProductId), typeof(Product)),
         // سطر المستخلص يشير لبند جدول الكميات: البند لا يُحذف بعد أن قيس عليه (البنود تُعدَّل في المسودة فقط، قبل أي مستخلص)
         (typeof(ContractCertificateLine), nameof(ContractCertificateLine.ContractItemId), typeof(CommercialContractItem)),
@@ -606,6 +613,23 @@ public class ErpDbContext : DbContext
         {
             e.Property(u => u.IdleReason).HasMaxLength(32);
             e.Property(u => u.Notes).HasMaxLength(300);
+        });
+        modelBuilder.Entity<SiteRentalAccrual>(e =>
+        {
+            e.HasIndex(a => new { a.TenantId, a.ReportId, a.ProjectResourceId }).IsUnique();
+            e.HasIndex(a => new { a.TenantId, a.SupplierId, a.CostCenterId });
+            e.Ignore(a => a.OpenAmount);
+        });
+        modelBuilder.Entity<SiteRentalAccrualMovement>(e =>
+        {
+            e.Property(m => m.Kind).HasMaxLength(16).IsRequired();
+            e.Property(m => m.AccountCode).HasMaxLength(32);
+            e.Property(m => m.Note).HasMaxLength(500);
+            e.Property(m => m.CreatedBy).HasMaxLength(200);
+            e.HasIndex(m => new { m.TenantId, m.SupplierId, m.CostCenterId });
+            // استحقاق التقرير وفرق كل إعادة اعتماد مرة واحدة لكل آلية (ضمان على مستوى قاعدة البيانات ضد تكرار التعديل)
+            e.HasIndex(m => new { m.AccrualId, m.Revision }).IsUnique()
+                .HasFilter($"[Kind] IN (N'{SiteRentalMovementKinds.Accrual}', N'{SiteRentalMovementKinds.Adjustment}')");
         });
         modelBuilder.Entity<SiteMaterialUsage>(e =>
         {

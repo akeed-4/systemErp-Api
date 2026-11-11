@@ -27,6 +27,9 @@ public class ProjectResourceDto
     public decimal? OvertimeMultiplier { get; set; }
     public DateTime? RentalStart { get; set; }
     public DateTime? RentalEnd { get; set; }
+    /// <summary>شروط فوترة الآلية المستأجرة: نسبة احتساب ساعات التوقف (فارغ = 100) والاستعداد (فارغ = 0).</summary>
+    public decimal? IdleBillingPercent { get; set; }
+    public decimal? StandbyBillingPercent { get; set; }
     public bool IsActive { get; set; } = true;
     public string? Notes { get; set; }
     /// <summary>للقراءة: محسوبة في الخادم.</summary>
@@ -83,6 +86,8 @@ public class SiteResourceUsageDto
     public decimal OvertimeHours { get; set; }
     public decimal IdleHours { get; set; }
     public string? IdleReason { get; set; }
+    /// <summary>ساعات استعداد الآلية المستأجرة (في الموقع بلا تشغيل).</summary>
+    public decimal StandbyHours { get; set; }
     public decimal HourlyCost { get; set; }
     public decimal OvertimeHourlyCost { get; set; }
     public decimal Cost { get; set; }
@@ -175,6 +180,9 @@ public class SiteDailyReportDto
     public string? SubmittedBy { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedBy { get; set; }
+    /// <summary>مرات ترحيل التكلفة (أكبر من صفر = رُحّلت من قبل، فإعادة الاعتماد ترحّل الفرق).</summary>
+    public int CostRevision { get; set; }
+    public string? ReopenNote { get; set; }
     /// <summary>فترات ساعات العمل من إعداد المشروع (للقالب).</summary>
     public List<ProjectHourSlotDto> Slots { get; set; } = new();
     public List<SiteHourEntryDto> Hours { get; set; } = new();
@@ -286,4 +294,31 @@ public class SiteResourceRowDto
     public decimal OvertimeHours { get; set; }
     public decimal IdleHours { get; set; }
     public decimal Cost { get; set; }
+}
+
+// ---------- استحقاق إيجار المعدات المستأجرة ----------
+
+/// <summary>استحقاق إيجار آلية عن يوم: المستحق والمسوّى بفواتير المؤجر والمقفل والمفتوح.</summary>
+public class SiteRentalAccrualDto
+{
+    public Guid Id { get; set; }
+    public Guid ReportId { get; set; }
+    public DateTime ReportDate { get; set; }
+    public Guid ProjectResourceId { get; set; }
+    public string? ResourceName { get; set; }
+    public Guid SupplierId { get; set; }
+    public string? SupplierName { get; set; }
+    public decimal Amount { get; set; }
+    public decimal SettledAmount { get; set; }
+    public decimal ClosedAmount { get; set; }
+    public decimal OpenAmount { get; set; }
+}
+
+/// <summary>إقفال المتبقي من استحقاق مؤجر في المشروع حتى تاريخ (حين جاءت فوترته أقل من المستحق).</summary>
+public class CloseRentalAccrualDto
+{
+    public Guid SupplierId { get; set; }
+    /// <summary>آخر يوم يُقفل استحقاقه (فارغ = كل المفتوح).</summary>
+    public DateTime? UpTo { get; set; }
+    public string? Note { get; set; }
 }

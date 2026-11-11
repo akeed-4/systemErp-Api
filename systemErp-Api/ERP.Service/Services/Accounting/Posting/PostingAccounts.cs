@@ -78,6 +78,11 @@ internal static class PostingAccounts
             (s, v) => s.ProjectEquipmentCostAccountCode = v, null, Expense),
         new(nameof(AccountingSettings.ProjectAbsorbedCostAccountCode), s => s.ProjectAbsorbedCostAccountCode,
             (s, v) => s.ProjectAbsorbedCostAccountCode = v, null, Expense),
+        // استحقاق إيجار المعدات المستأجرة: المستحق يُقفل بعد استخدامه (التسوية تُخفّض الحساب نفسه الذي قُيّد عليه الاستحقاق)
+        new(nameof(AccountingSettings.ProjectRentedEquipmentCostAccountCode), s => s.ProjectRentedEquipmentCostAccountCode,
+            (s, v) => s.ProjectRentedEquipmentCostAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.ProjectAccruedRentalAccountCode), s => s.ProjectAccruedRentalAccountCode,
+            (s, v) => s.ProjectAccruedRentalAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)

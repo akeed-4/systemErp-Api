@@ -10,8 +10,8 @@ namespace ERP.Service.Services.Accounting;
 /// <summary>
 /// التقرير اليومي للموقع (العقد هو المشروع): واحد لكل يوم، بفترات الإنجاز (ساعة لكل فترة من ساعات عمل المشروع، يعدّلها المشرف)
 /// لكل بند بمستهدفها من خطة الإنجاز ومنفّذها وتوقفها، والموارد المستخدمة بتكلفة ساعتها المثبّتة، والمواد المستهلكة.
-/// المسودة تُعدَّل، ثم يقدّمها المشرف ويعتمدها المهندس المسؤول (أو يعيدها بسبب)، والمعتمد لا يُعدَّل.
-/// التكلفة هنا تشغيلية للإنتاجية وتوزيع التكلفة، لا قيد لها: الأثر المحاسبي من مستنداته (الرواتب، فواتير الإيجار، الصرف للمشروع).
+/// المسودة تُعدَّل، ثم يقدّمها المشرف ويعتمدها المهندس المسؤول (أو يعيدها بسبب)؛ والمعتمد يُعاد فتحه بسبب فيُرحَّل الفرق وحده عند إعادة اعتماده.
+/// الاعتماد يرحّل التكلفة: العمالة والمعدات المملوكة بقيد تحميل، والمستأجرة استحقاق إيجار يُسوّى بفواتير المؤجر (<see cref="IRentalAccrualService"/>).
 /// </summary>
 public class SiteDailyReportService : ISiteDailyReportService
 {
@@ -22,10 +22,11 @@ public class SiteDailyReportService : ISiteDailyReportService
     private readonly ITransactionRunner _tx;
     private readonly ICurrentUser _user;
     private readonly IAccountingPostingService _posting;
+    private readonly IRentalAccrualService _rentals;
 
-    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user, IAccountingPostingService posting)
+    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user, IAccountingPostingService posting, IRentalAccrualService rentals)
     {
-        _db = db; _tx = tx; _user = user; _posting = posting;
+        _db = db; _tx = tx; _user = user; _posting = posting; _rentals = rentals;
     }
 
     // ---------- القراءة ----------
@@ -131,6 +132,8 @@ public class SiteDailyReportService : ISiteDailyReportService
         await P.LoadBoqContractAsync(_db, contractId, ct);
         var report = await LoadTrackedAsync(contractId, reportId, ct);
         EnsureStatus(report, St.Draft);
+        // مسودة أُعيد فتحها بعد ترحيل تكلفتها: قيودها واستحقاقها قائمة، فلا تُحذف (تُعدَّل ويُعاد اعتمادها فيُرحَّل الفرق)
+        if (report.CostRevision > 0 || report.CostJournalEntryId != null) throw new ConflictException(Messages.SiteReportHasPostedCost);
         _db.Remove(report);
         await _db.SaveChangesAsync(ct);
     }
@@ -158,53 +161,87 @@ public class SiteDailyReportService : ISiteDailyReportService
         return await GetAsync(contractId, reportId, ct);
     }
 
+    /// <summary>
+    /// ترحيل تكلفة التقارير المعتمدة التي لم تُرحَّل بعد (اعتُمدت قبل تفعيل التحميل أو قبل ربط العقد بمركز تكلفة): العمالة والمعدات
+    /// المملوكة واستحقاق المستأجرة. استحقاق المستأجرة يُطابَق تلقائياً بما رُحِّل من فواتير مؤجرها، فلا تُحتسب مرتين.
+    /// </summary>
     public Task<int> PostPendingCostsAsync(Guid contractId, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var contract = await P.LoadBoqContractAsync(_db, contractId, token);
-            var reports = await Full().Where(r => r.ContractId == contractId && r.Status == St.Approved && r.CostJournalEntryId == null)
+            var reports = await Full().Where(r => r.ContractId == contractId && r.Status == St.Approved && r.CostRevision == 0)
                 .OrderBy(r => r.ReportDate).ToListAsync(token);
             var posted = 0;
             foreach (var r in reports)
             {
                 await PostCostAsync(r, contract, token);
-                if (r.CostJournalEntryId != null) posted++;
+                if (r.CostRevision > 0) posted++;
             }
             await _db.SaveChangesAsync(token);
             return posted;
         }, ct);
 
     /// <summary>
-    /// قيد تحميل التقرير المعتمد: العمالة والمهندسون على «تكلفة عمالة المشاريع»، والمعدات المملوكة على «تكلفة معدات المشاريع»،
-    /// كلاهما بمركز تكلفة المشروع، مقابل «التكاليف المحمّلة على المشاريع» بلا مركز (فلا يتغير إجمالي مصروف المنشأة ولا تُحتسب
-    /// الرواتب والإهلاك مرتين). المعدات المستأجرة تكلفتها من فاتورة الإيجار على مركز المشروع، فلا تُحمَّل هنا. عقد بلا مركز أو تقرير بلا
-    /// تكلفة: لا قيد (يبقى تشغيلياً ويُنبَّه عنه في تقرير التكلفة).
+    /// ترحيل تكلفة التقرير المعتمد بالفرق عمّا رُحِّل له من قبل (الاعتماد الأول: كلها). العمالة والمهندسون على «تكلفة عمالة
+    /// المشاريع» والمعدات المملوكة على «تكلفة معدات المشاريع» بمركز المشروع، مقابل «التكاليف المحمّلة على المشاريع» بلا مركز
+    /// (فلا يتغير إجمالي مصروف المنشأة ولا تُحتسب الرواتب والإهلاك مرتين)؛ والمستأجرة استحقاق إيجار (<see cref="IRentalAccrualService"/>).
+    /// بعد إعادة فتح التقرير تبقى القيود الأصلية، ويُرحَّل الفرق فقط بقيد تعديل بتاريخ اليوم، ومرّة الترحيل تمنع تكراره.
+    /// عقد بلا مركز: لا قيد (يبقى تشغيلياً ويُرحَّل لاحقاً من «ترحيل التكاليف المعلّقة»).
     /// </summary>
     private async Task PostCostAsync(SiteDailyReport report, CommercialContract contract, CancellationToken ct)
     {
         if (contract.CostCenterId is not Guid cc) return;
+        var revision = ++report.CostRevision;
         var kinds = await _db.Set<ProjectResource>().AsNoTracking().Where(x => x.ContractId == contract.Id)
             .ToDictionaryAsync(x => x.Id, x => x.Kind, ct);
         string? KindOf(Guid id) => kinds.GetValueOrDefault(id);
         var labor = DocumentPricing.Round(report.Resources.Where(u => KindOf(u.ProjectResourceId) is ProjectResourceKinds.Labor or ProjectResourceKinds.Engineer).Sum(u => u.Cost));
         var equipment = DocumentPricing.Round(report.Resources.Where(u => KindOf(u.ProjectResourceId) == ProjectResourceKinds.OwnedEquipment).Sum(u => u.Cost));
-        if (labor + equipment <= 0) return;
+        var laborDelta = labor - report.PostedLaborCost;
+        var equipmentDelta = equipment - report.PostedEquipmentCost;
 
-        await ContractAccountsSetup.EnsureMissingAsync(_db, ct);
-        var settings = await PostingAccounts.SettingsAsync(_db, ct);
-        var note = $"تحميل عمالة ومعدات التقرير اليومي {report.ReportDate:yyyy-MM-dd} - عقد {contract.ContractNumber}";
-        var lines = new List<PostingLine>();
-        if (labor > 0) lines.Add(new(settings.ContractAccount(nameof(AccountingSettings.ProjectLaborCostAccountCode)), labor, 0, note, cc));
-        if (equipment > 0) lines.Add(new(settings.ContractAccount(nameof(AccountingSettings.ProjectEquipmentCostAccountCode)), equipment, 0, note, cc));
-        lines.Add(new(settings.ContractAccount(nameof(AccountingSettings.ProjectAbsorbedCostAccountCode)), 0, labor + equipment, note));
-        var posted = await _posting.PostAsync(new GenericPostingRequest
+        if (laborDelta != 0 || equipmentDelta != 0)
         {
-            Date = report.ReportDate, Description = note, SourceType = ProjectCostService.SiteCostSource, SourceId = report.Id,
-            SourceNumber = contract.ContractNumber, WarehouseId = contract.WarehouseId, Lines = lines,
+            await ContractAccountsSetup.EnsureMissingAsync(_db, ct);
+            var settings = await PostingAccounts.SettingsAsync(_db, ct);
+            var note = revision <= 1
+                ? $"تحميل عمالة ومعدات التقرير اليومي {report.ReportDate:yyyy-MM-dd} - عقد {contract.ContractNumber}"
+                : $"فرق إعادة اعتماد تحميل عمالة ومعدات التقرير اليومي {report.ReportDate:yyyy-MM-dd} - عقد {contract.ContractNumber}";
+            var lines = new List<PostingLine>();
+            void Add(string key, decimal amount, Guid? center)
+            {
+                if (amount == 0) return;
+                var account = settings.ContractAccount(key);
+                lines.Add(amount > 0 ? new(account, amount, 0, note, center) : new(account, 0, -amount, note, center));
+            }
+            Add(nameof(AccountingSettings.ProjectLaborCostAccountCode), laborDelta, cc);
+            Add(nameof(AccountingSettings.ProjectEquipmentCostAccountCode), equipmentDelta, cc);
+            Add(nameof(AccountingSettings.ProjectAbsorbedCostAccountCode), -(laborDelta + equipmentDelta), null);
+            var posted = await _posting.PostAsync(new GenericPostingRequest
+            {
+                Date = revision <= 1 ? report.ReportDate : SaudiTime.Today, Description = note, SourceType = ProjectCostService.SiteCostSource,
+                SourceId = report.Id, SourceNumber = contract.ContractNumber, WarehouseId = contract.WarehouseId, Lines = lines,
+            }, ct);
+            report.CostJournalEntryId ??= posted.JournalEntryId;
+            report.PostedLaborCost = labor;
+            report.PostedEquipmentCost = equipment;
+        }
+        await _rentals.PostReportAsync(report, contract, revision, ct);
+    }
+
+    /// <summary>
+    /// إعادة فتح التقرير المعتمد للتعديل (صلاحية الاعتماد، بسبب إلزامي): يعود مسودة وقيوده كما هي؛ وعند اعتماده ثانية يُرحَّل
+    /// الفرق وحده (قيد تعديل) وتُعاد موازنة تسوية فواتير الإيجار. سجل التدقيق يحفظ الحالة قبل وبعد والسبب.
+    /// </summary>
+    public Task<SiteDailyReportDto> ReopenAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default)
+    {
+        var note = request.Note?.Trim();
+        if (string.IsNullOrEmpty(note)) throw new ValidationFailedException(Messages.SiteReportReopenNoteRequired);
+        return TransitionAsync(contractId, reportId, St.Approved, r =>
+        {
+            r.Status = St.Draft; r.ReopenNote = note.Length > 500 ? note[..500] : note; r.ReturnNote = null;
+            r.SubmittedAt = null; r.SubmittedBy = null; r.ApprovedAt = null; r.ApprovedBy = null; r.ApprovedByUserId = null;
         }, ct);
-        report.CostJournalEntryId = posted.JournalEntryId;
-        report.PostedLaborCost = labor;
-        report.PostedEquipmentCost = equipment;
     }
 
     public Task<SiteDailyReportDto> ReturnAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default)
@@ -279,20 +316,30 @@ public class SiteDailyReportService : ISiteDailyReportService
             var u = usages[k];
             var row = k + 1;
             if (!resources.TryGetValue(u.ProjectResourceId, out var res) || !res.IsActive) errors.Add(string.Format(Messages.SiteResourceInvalid, row));
-            if (u.Hours < 0 || u.OvertimeHours < 0 || u.IdleHours < 0 || u.Hours + u.OvertimeHours + u.IdleHours is <= 0 or > 24)
+            if (u.Hours < 0 || u.OvertimeHours < 0 || u.IdleHours < 0 || u.StandbyHours < 0
+                || u.Hours + u.OvertimeHours + u.IdleHours + u.StandbyHours is <= 0 or > 24)
                 errors.Add(string.Format(Messages.SiteResourceHoursInvalid, row));
+            var rented = res?.Kind == ProjectResourceKinds.RentedEquipment;
+            if (u.StandbyHours > 0 && res != null && !rented) errors.Add(string.Format(Messages.SiteResourceStandbyOnlyRented, row));
             if (u.ContractItemId is Guid item && !lines.ContainsKey(item)) errors.Add(string.Format(Messages.SiteResourceItemInvalid, row));
             var idleReason = string.IsNullOrWhiteSpace(u.IdleReason) ? null : u.IdleReason.Trim();
             if (u.IdleHours > 0 && !SiteDowntimeReasons.IsValid(idleReason)) errors.Add(string.Format(Messages.SiteResourceIdleReasonRequired, row));
             if (!usageKeys.Add((u.ProjectResourceId, u.ContractItemId))) errors.Add(string.Format(Messages.SiteResourceDuplicate, row));
             var hourly = res?.HourlyCost ?? 0;
             var overtime = res?.OvertimeHourlyCost ?? 0;
+            // شروط فوترة عقد الإيجار للمستأجرة (التوقف والاستعداد بنسبتيهما)؛ غيرها يُحتسب توقفها كاملاً كما كان
+            var idlePercent = rented ? res!.IdleBillingPercent : 100m;
+            var standbyPercent = rented ? res!.StandbyBillingPercent : 0m;
+            var standby = rented ? u.StandbyHours : 0;
             newUsages.Add(new SiteResourceUsage
             {
                 ProjectResourceId = u.ProjectResourceId, ContractItemId = u.ContractItemId, Hours = u.Hours, OvertimeHours = u.OvertimeHours,
-                IdleHours = u.IdleHours, IdleReason = u.IdleHours > 0 ? idleReason : null, HourlyCost = hourly, OvertimeHourlyCost = overtime,
-                // التوقف المدفوع جزء من التكلفة ويُعرض منفصلاً
-                Cost = DocumentPricing.Round((u.Hours + u.IdleHours) * hourly + u.OvertimeHours * overtime), Notes = Trim(u.Notes, 300),
+                IdleHours = u.IdleHours, IdleReason = u.IdleHours > 0 ? idleReason : null, StandbyHours = standby,
+                HourlyCost = hourly, OvertimeHourlyCost = overtime, IdleBillingPercent = idlePercent, StandbyBillingPercent = standbyPercent,
+                // التوقف المدفوع (والاستعداد للمستأجرة) جزء من التكلفة بنسبة الفوترة، ويُعرض منفصلاً
+                Cost = DocumentPricing.Round(u.Hours * hourly + u.OvertimeHours * overtime
+                    + u.IdleHours * hourly * idlePercent / 100m + standby * hourly * standbyPercent / 100m),
+                Notes = Trim(u.Notes, 300),
             });
         }
 
@@ -509,6 +556,7 @@ public class SiteDailyReportService : ISiteDailyReportService
         {
             Id = r.Id, ContractId = r.ContractId, ReportDate = r.ReportDate, Status = r.Status, Notes = r.Notes, ReturnNote = r.ReturnNote,
             PreparedBy = r.PreparedBy, SubmittedAt = r.SubmittedAt, SubmittedBy = r.SubmittedBy, ApprovedAt = r.ApprovedAt, ApprovedBy = r.ApprovedBy,
+            CostRevision = r.CostRevision, ReopenNote = r.ReopenNote,
             Slots = slots.Select(s => new ProjectHourSlotDto { Start = P.Clock(s.Start), End = P.Clock(s.End), Hours = Math.Round((s.End - s.Start) / 60m, 2) }).ToList(),
             Hours = r.Hours.OrderBy(h => h.SlotStart).ThenBy(h => h.SortOrder).Select(h => new SiteHourEntryDto
             {
@@ -521,7 +569,7 @@ public class SiteDailyReportService : ISiteDailyReportService
             {
                 Id = u.Id, ProjectResourceId = u.ProjectResourceId, ResourceName = ctx.Resources.GetValueOrDefault(u.ProjectResourceId)?.Name,
                 Kind = ctx.Resources.GetValueOrDefault(u.ProjectResourceId)?.Kind, ContractItemId = u.ContractItemId, Hours = u.Hours,
-                OvertimeHours = u.OvertimeHours, IdleHours = u.IdleHours, IdleReason = u.IdleReason, HourlyCost = u.HourlyCost,
+                OvertimeHours = u.OvertimeHours, IdleHours = u.IdleHours, IdleReason = u.IdleReason, StandbyHours = u.StandbyHours, HourlyCost = u.HourlyCost,
                 OvertimeHourlyCost = u.OvertimeHourlyCost, Cost = u.Cost, Notes = u.Notes,
             }).OrderBy(u => u.ResourceName).ToList(),
             Materials = r.Materials.Select(m => new SiteMaterialUsageDto

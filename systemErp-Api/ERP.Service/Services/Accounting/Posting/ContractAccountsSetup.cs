@@ -83,6 +83,13 @@ internal static class ContractAccountsSetup
         new(nameof(AccountingSettings.ProjectAbsorbedCostAccountCode), AccountCategory.Expense,
             "تكاليف محمّلة على المشاريع", "Costs Absorbed by Projects", ExpenseAnchors,
             new[] { "تكاليف محملة على المشاريع", "تكاليف محمّلة على المشاريع", "costs absorbed by projects", "absorbed costs" }),
+        // استحقاق إيجار المعدات المستأجرة من التقارير اليومية حتى تصل فاتورة المؤجر
+        new(nameof(AccountingSettings.ProjectRentedEquipmentCostAccountCode), AccountCategory.Expense,
+            "تكلفة معدات مستأجرة للمشاريع", "Project Rented Equipment Cost", ExpenseAnchors,
+            new[] { "تكلفة معدات مستأجرة للمشاريع", "إيجار معدات المشاريع", "project rented equipment cost", "project equipment rental" }),
+        new(nameof(AccountingSettings.ProjectAccruedRentalAccountCode), AccountCategory.Liability,
+            "إيجار معدات مستحق", "Accrued Equipment Rental", LiabilityAnchors,
+            new[] { "إيجار معدات مستحق", "إيجارات معدات مستحقة", "accrued equipment rental", "accrued rental" }),
     };
 
     public static IEnumerable<string> RoleKeys => Specs.Select(s => s.Role);

@@ -102,10 +102,12 @@ public class SiteDailyReportsController : ErpControllerBase
     private readonly ISiteDailyReportService _reports;
     private readonly IProjectMaterialService _materials;
     private readonly IConstructionProjectService _projects;
+    private readonly IRentalAccrualService _rentals;
 
-    public SiteDailyReportsController(ISiteDailyReportService reports, IProjectMaterialService materials, IConstructionProjectService projects)
+    public SiteDailyReportsController(ISiteDailyReportService reports, IProjectMaterialService materials, IConstructionProjectService projects,
+        IRentalAccrualService rentals)
     {
-        _reports = reports; _materials = materials; _projects = projects;
+        _reports = reports; _materials = materials; _projects = projects; _rentals = rentals;
     }
 
     // بيانات التقرير بصلاحيته وحدها (مشرف الموقع لا يحتاج صلاحية العقود أو المشاريع): أسطر جدول الكميات، وموارد المشروع
@@ -159,6 +161,25 @@ public class SiteDailyReportsController : ErpControllerBase
     [HttpPost("post-costs"), RequireScreen(Screen, ScreenAction.Approve)]
     public async Task<IActionResult> PostPendingCosts(Guid id, CancellationToken ct)
         => Success(await _reports.PostPendingCostsAsync(id, ct));
+
+    /// <summary>إعادة فتح التقرير المعتمد للتعديل (صلاحية الاعتماد): القيود باقية، ويُرحَّل الفرق وحده عند إعادة اعتماده.</summary>
+    [HttpPost("{reportId:guid}/reopen"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> Reopen(Guid id, Guid reportId, [FromBody] SiteReportActionDto dto, CancellationToken ct)
+        => Success(await _reports.ReopenAsync(id, reportId, dto, ct), Messages.SiteReportReopened);
+
+    // ---------- استحقاق إيجار المعدات المستأجرة ----------
+
+    [HttpGet("rental-accruals"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> RentalAccruals(Guid id, [FromQuery] bool openOnly, CancellationToken ct)
+        => Success(await _rentals.ListAsync(id, openOnly, ct));
+
+    /// <summary>إقفال المتبقي من استحقاق مؤجر (فوترته أقل من المستحق)، بصلاحية الاعتماد وسبب إلزامي.</summary>
+    [HttpPost("rental-accruals/close"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> CloseRentalAccruals(Guid id, [FromBody] CloseRentalAccrualDto dto, CancellationToken ct)
+    {
+        var closed = await _rentals.CloseAsync(id, dto, ct);
+        return Success(closed, string.Format(Messages.RentalAccrualClosed, closed.ToString("N2")));
+    }
 
     [HttpPost("{reportId:guid}/return"), RequireScreen(Screen, ScreenAction.Approve)]
     public async Task<IActionResult> Return(Guid id, Guid reportId, [FromBody] SiteReportActionDto dto, CancellationToken ct)

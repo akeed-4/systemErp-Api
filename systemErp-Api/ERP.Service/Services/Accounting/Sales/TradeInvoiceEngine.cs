@@ -26,15 +26,17 @@ public class TradeInvoiceEngine
     private readonly IApprovalService _approvals;
     private readonly ERP.Core.Contracts.Shared.IPermissionService _permissions;
     private readonly ERP.Core.Contracts.Shared.ISubscriptionEntitlements _entitlements;
+    /// <summary>تسوية استحقاق إيجار المعدات المستأجرة بفواتير المؤجر ومرتجعاته (بعد ترحيلها أو عكس قيدها عند حذفها).</summary>
+    private readonly IRentalAccrualService _rentals;
     /// <summary>تجاوزات التصنيف الضريبي التي أقرّها آخر بناء؛ تُسجَّل في سجل التدقيق بعد حفظ المستند.</summary>
     private List<ItemTaxTreatment.Override> _taxOverrides = new();
 
     public TradeInvoiceEngine(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
         INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit,
         IEnumerable<IInvoiceExtension> extensions, IApprovalService approvals, ERP.Core.Contracts.Shared.IPermissionService permissions,
-        ERP.Core.Contracts.Shared.ISubscriptionEntitlements entitlements)
+        ERP.Core.Contracts.Shared.ISubscriptionEntitlements entitlements, IRentalAccrualService rentals)
     {
-        _entitlements = entitlements;
+        _entitlements = entitlements; _rentals = rentals;
         _audit = audit; _extensions = extensions.ToList(); _approvals = approvals; _permissions = permissions;
         _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx;
     }
@@ -317,7 +319,12 @@ public class TradeInvoiceEngine
         }
         if (invoice is Invoice car) foreach (var ext in _extensions) await ext.OnUnpostingAsync(car, ct);
         // التعديل: يبقى القيد ويُستبدل في مكانه بنفس رقمه عند إعادة الترحيل (FinalizeAsync). الحذف: يُعكس القيد فيبقى أثره في السجل.
-        if (forDelete && invoice.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, reason, ct);
+        if (forDelete && invoice.JournalEntryId is { } entryId)
+        {
+            await _posting.ReverseAsync(entryId, reason, ct);
+            // فاتورة مؤجر سُوّي بها استحقاق إيجار: يُفك ما زاد عن فواتيره الباقية (التعديل يعيد الموازنة عند إعادة الترحيل)
+            await _rentals.OnPurchaseDocumentChangedAsync(invoice, ct);
+        }
 
         // أثر الفاتورة الأصلي على قيمة المخزون (ما رُحِّل لحساب المخزون): تكلفتها ناقص تكلفة بنود الخدمات
         var serviceCost = invoice.Lines.Where(i => InvoiceLineStock.IsNonStock(i) && i.UnitCost > 0).Sum(i => Math.Round(i.Quantity * i.UnitCost, 2));
@@ -1480,8 +1487,12 @@ public class TradeInvoiceEngine
         invoice.Status = "posted";
         await _db.SaveChangesAsync(ct);
         if (!preview)
+        {
+            // فاتورة مؤجر آلية مستأجرة (أو مرتجعه): تسوية استحقاق إيجارها بقيد مستقل؛ قيد الفاتورة الضريبي يبقى كما هو
+            if (!isSales) await _rentals.OnPurchaseDocumentChangedAsync(invoice, ct);
             await _audit.LogAsync("INVOICE_POSTED", invoice.GetType().Name, invoice.Id.ToString(),
                 $"ترحيل {DescribeKind(invoice.Kind)} {invoice.InvoiceNumber} بإجمالي {invoice.GrandTotal:0.00} {invoice.CurrencyCode} - {invoice.PartyName}", ct);
+        }
     }
 
     private async Task<List<PaymentPosting>> ResolvePaymentsAsync(InvoiceBase invoice, CancellationToken ct)

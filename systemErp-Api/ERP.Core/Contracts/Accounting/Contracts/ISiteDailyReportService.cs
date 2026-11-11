@@ -24,6 +24,8 @@ public interface ISiteDailyReportService
     Task<int> PostPendingCostsAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>إعادة المقدَّم للمسودة بسبب إلزامي.</summary>
     Task<SiteDailyReportDto> ReturnAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default);
+    /// <summary>إعادة فتح المعتمد للتعديل بسبب إلزامي؛ قيوده تبقى ويُرحَّل الفرق وحده عند إعادة اعتماده.</summary>
+    Task<SiteDailyReportDto> ReopenAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default);
 
     /// <summary>تقرير الإنجاز بالساعة: كل فترة بمستهدفها ومنفّذها وتوقفها.</summary>
     Task<List<SiteHourlyRowDto>> HourlyAsync(Guid contractId, SiteReportFilterDto filter, CancellationToken ct = default);

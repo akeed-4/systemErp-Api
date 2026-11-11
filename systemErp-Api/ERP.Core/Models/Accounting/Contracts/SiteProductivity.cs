@@ -63,6 +63,12 @@ public class ProjectResource : BaseEntity
     public decimal OvertimeMultiplier { get; set; } = 1.5m;
     public DateTime? RentalStart { get; set; }
     public DateTime? RentalEnd { get; set; }
+    /// <summary>
+    /// شروط فوترة الآلية المستأجرة في عقد إيجارها: نسبة ما يُحتسب من سعر الساعة عن ساعات التوقف (100 = تُحتسب كاملة، 0 = لا تُحتسب)
+    /// وعن ساعات الاستعداد (الآلية في الموقع جاهزة بلا تشغيل). تطبَّق على تكلفة سطر التقرير اليومي ومنها استحقاق الإيجار.
+    /// </summary>
+    public decimal IdleBillingPercent { get; set; } = 100m;
+    public decimal StandbyBillingPercent { get; set; }
 
     /// <summary>محسوبة عند الحفظ.</summary>
     public decimal HourlyCost { get; set; }
@@ -126,6 +132,13 @@ public class SiteDailyReport : BaseEntity
     public Guid? CostJournalEntryId { get; set; }
     public decimal PostedLaborCost { get; set; }
     public decimal PostedEquipmentCost { get; set; }
+    /// <summary>
+    /// عدد مرات ترحيل تكلفة التقرير (الاعتماد الأول = 1، وكل اعتماد بعد إعادة فتح يزيده). قيد الاعتماد التالي فرق فقط عن المرحّل،
+    /// وأسطر الاستحقاق مفتاحها (التقرير، المورد، المرة) فلا يتكرر قيد للمرة نفسها.
+    /// </summary>
+    public int CostRevision { get; set; }
+    /// <summary>سبب آخر إعادة فتح للتقرير المعتمد.</summary>
+    public string? ReopenNote { get; set; }
 
     public virtual ICollection<SiteHourEntry> Hours { get; set; } = new List<SiteHourEntry>();
     public virtual ICollection<SiteResourceUsage> Resources { get; set; } = new List<SiteResourceUsage>();
@@ -162,9 +175,17 @@ public class SiteResourceUsage : BaseEntity
     /// <summary>ساعات توقف مدفوعة (تدخل التكلفة وتُعرض منفصلة).</summary>
     public decimal IdleHours { get; set; }
     public string? IdleReason { get; set; }
+    /// <summary>ساعات استعداد الآلية المستأجرة (في الموقع بلا تشغيل): تُحتسب بنسبة الاستعداد في شروط إيجارها.</summary>
+    public decimal StandbyHours { get; set; }
     public decimal HourlyCost { get; set; }
     public decimal OvertimeHourlyCost { get; set; }
+    /// <summary>
+    /// التكلفة مثبّتة عند الحفظ: الساعات × السعر + الإضافي × سعره + التوقف (والاستعداد للمستأجرة) بنسب الفوترة.
+    /// نسب الفوترة مثبّتة هنا أيضاً (<see cref="IdleBillingPercent"/>) فلا يغيّر تعديل شروط الإيجار لاحقاً تقريراً محفوظاً.
+    /// </summary>
     public decimal Cost { get; set; }
+    public decimal IdleBillingPercent { get; set; } = 100m;
+    public decimal StandbyBillingPercent { get; set; }
     public string? Notes { get; set; }
 
     public virtual SiteDailyReport Report { get; set; } = null!;

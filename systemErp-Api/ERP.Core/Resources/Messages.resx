@@ -587,6 +587,8 @@
   <data name="AccountRole_ProjectLaborCostAccountCode" xml:space="preserve"><value>تكلفة عمالة المشاريع</value></data>
   <data name="AccountRole_ProjectEquipmentCostAccountCode" xml:space="preserve"><value>تكلفة معدات المشاريع</value></data>
   <data name="AccountRole_ProjectAbsorbedCostAccountCode" xml:space="preserve"><value>تكاليف محمّلة على المشاريع</value></data>
+  <data name="AccountRole_ProjectRentedEquipmentCostAccountCode" xml:space="preserve"><value>تكلفة معدات مستأجرة للمشاريع</value></data>
+  <data name="AccountRole_ProjectAccruedRentalAccountCode" xml:space="preserve"><value>إيجار معدات مستحق</value></data>
   <data name="CertificateSubmitted" xml:space="preserve"><value>قُدِّم المستخلص للاعتماد.</value></data>
   <data name="CertificateApproved" xml:space="preserve"><value>اعتُمد المستخلص.</value></data>
   <data name="CertificateReturned" xml:space="preserve"><value>أُعيد المستخلص للمسودة.</value></data>
@@ -1675,6 +1677,14 @@
   <data name="SiteHourDuplicate" xml:space="preserve"><value>الإنجاز، السطر {0}: البند مكرر في الفترة نفسها.</value></data>
   <data name="SiteResourceInvalid" xml:space="preserve"><value>الموارد، السطر {0}: المورد غير موجود في المشروع أو معطّل.</value></data>
   <data name="SiteResourceHoursInvalid" xml:space="preserve"><value>الموارد، السطر {0}: الساعات غير سالبة ومجموعها بين صفر و24.</value></data>
+  <data name="SiteResourceStandbyOnlyRented" xml:space="preserve"><value>الموارد، السطر {0}: ساعات الاستعداد للآليات المستأجرة فقط.</value></data>
+  <data name="ProjectResourceBillingPercentInvalid" xml:space="preserve"><value>نسبتا فوترة التوقف والاستعداد بين 0 و100.</value></data>
+  <data name="SiteReportReopenNoteRequired" xml:space="preserve"><value>سبب إعادة فتح التقرير المعتمد مطلوب.</value></data>
+  <data name="SiteReportReopened" xml:space="preserve"><value>أُعيد فتح التقرير للتعديل؛ قيوده الأصلية باقية ويُرحَّل الفرق فقط عند إعادة اعتماده.</value></data>
+  <data name="SiteReportHasPostedCost" xml:space="preserve"><value>رُحّلت تكلفة هذا التقرير من قبل فلا يُحذف؛ عدّله وأعد اعتماده فيُرحَّل الفرق.</value></data>
+  <data name="RentalAccrualCloseNoteRequired" xml:space="preserve"><value>سبب إقفال الإيجار المستحق مطلوب.</value></data>
+  <data name="RentalAccrualNothingToClose" xml:space="preserve"><value>لا إيجار مستحق مفتوح لهذا المؤجر في المشروع حتى التاريخ المحدد.</value></data>
+  <data name="RentalAccrualClosed" xml:space="preserve"><value>تم إقفال {0} من الإيجار المستحق.</value></data>
   <data name="SiteResourceItemInvalid" xml:space="preserve"><value>الموارد، السطر {0}: البند غير موجود في جدول الكميات أو بند رئيسي بفروع.</value></data>
   <data name="SiteResourceIdleReasonRequired" xml:space="preserve"><value>الموارد، السطر {0}: اختر سبب ساعات التوقف.</value></data>
   <data name="SiteResourceDuplicate" xml:space="preserve"><value>الموارد، السطر {0}: المورد مكرر على البند نفسه.</value></data>

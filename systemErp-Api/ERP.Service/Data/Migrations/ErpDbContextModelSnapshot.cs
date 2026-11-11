@@ -182,6 +182,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ProjectAbsorbedCostAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ProjectAccruedRentalAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ProjectEquipmentCostAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -189,6 +192,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProjectMaterialsWipAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProjectRentedEquipmentCostAccountCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("PurchaseReturnPeriodDays")
@@ -5470,6 +5476,10 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal>("IdleBillingPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -5520,6 +5530,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime?>("RentalStart")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("StandbyBillingPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid?>("SupplierId")
                         .HasColumnType("uniqueidentifier");
@@ -6090,6 +6104,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("CostJournalEntryId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("CostRevision")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -6111,6 +6128,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid?>("PreparedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReopenNote")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("ReportDate")
                         .HasColumnType("datetime2");
@@ -6266,6 +6286,140 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("SiteMaterialUsage");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SiteRentalAccrual", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ClosedAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ProjectResourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ReportDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("SettledAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("CostCenterId");
+
+                    b.HasIndex("ProjectResourceId");
+
+                    b.HasIndex("ReportId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ReportId", "ProjectResourceId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "SupplierId", "CostCenterId");
+
+                    b.ToTable("SiteRentalAccrual");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SiteRentalAccrualMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccountCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("AccrualId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SourceDocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("AccrualId", "Revision")
+                        .IsUnique()
+                        .HasFilter("[Kind] IN (N'accrual', N'adjustment')");
+
+                    b.HasIndex("TenantId", "SupplierId", "CostCenterId");
+
+                    b.ToTable("SiteRentalAccrualMovement");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.SiteResourceUsage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6287,6 +6441,10 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal>("Hours")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("IdleBillingPercent")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
@@ -6315,6 +6473,14 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid>("ReportId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("StandbyBillingPercent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("StandbyHours")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -15429,6 +15595,48 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Report");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SiteRentalAccrual", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
+                        .WithMany()
+                        .HasForeignKey("CostCenterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.ProjectResource", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectResourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.SiteDailyReport", null)
+                        .WithMany()
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SiteRentalAccrualMovement", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.SiteRentalAccrual", null)
+                        .WithMany()
+                        .HasForeignKey("AccrualId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.SiteResourceUsage", b =>

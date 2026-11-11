@@ -64,6 +64,13 @@ public class AccountingSettings : BaseEntity
     /// الرواتب والإهلاك الفعلية تبقى على حساباتها، والفرق بينها وبين المحمّل انحراف سعر.
     /// </summary>
     public string? ProjectAbsorbedCostAccountCode { get; set; }
+    /// <summary>تكلفة معدات مستأجرة للمشاريع (مصروف بمركز المشروع): استحقاق ساعاتها المعتمدة في التقارير اليومية بشروط إيجارها.</summary>
+    public string? ProjectRentedEquipmentCostAccountCode { get; set; }
+    /// <summary>
+    /// إيجار معدات مستحق (التزام بلا مركز، منفصل عن حسابات الموردين): مقابل الاستحقاق حتى تصل فاتورة المؤجر فتسوّيه.
+    /// ليس ذمة مورد ولا فاتورة ضريبية.
+    /// </summary>
+    public string? ProjectAccruedRentalAccountCode { get; set; }
 
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }

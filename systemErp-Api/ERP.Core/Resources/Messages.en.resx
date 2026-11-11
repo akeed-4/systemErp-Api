@@ -587,6 +587,8 @@
   <data name="AccountRole_ProjectLaborCostAccountCode" xml:space="preserve"><value>Project labor cost</value></data>
   <data name="AccountRole_ProjectEquipmentCostAccountCode" xml:space="preserve"><value>Project equipment cost</value></data>
   <data name="AccountRole_ProjectAbsorbedCostAccountCode" xml:space="preserve"><value>Costs absorbed by projects</value></data>
+  <data name="AccountRole_ProjectRentedEquipmentCostAccountCode" xml:space="preserve"><value>Project rented equipment cost</value></data>
+  <data name="AccountRole_ProjectAccruedRentalAccountCode" xml:space="preserve"><value>Accrued equipment rental</value></data>
   <data name="CertificateSubmitted" xml:space="preserve"><value>Certificate submitted for approval.</value></data>
   <data name="CertificateApproved" xml:space="preserve"><value>Certificate approved.</value></data>
   <data name="CertificateReturned" xml:space="preserve"><value>Certificate returned to draft.</value></data>
@@ -1675,6 +1677,14 @@
   <data name="SiteHourDuplicate" xml:space="preserve"><value>Progress, line {0}: the item is repeated in the same slot.</value></data>
   <data name="SiteResourceInvalid" xml:space="preserve"><value>Resources, line {0}: the resource is not in the project or is inactive.</value></data>
   <data name="SiteResourceHoursInvalid" xml:space="preserve"><value>Resources, line {0}: hours cannot be negative and must total between zero and 24.</value></data>
+  <data name="SiteResourceStandbyOnlyRented" xml:space="preserve"><value>Resources, line {0}: standby hours apply to rented equipment only.</value></data>
+  <data name="ProjectResourceBillingPercentInvalid" xml:space="preserve"><value>Idle and standby billing percentages must be between 0 and 100.</value></data>
+  <data name="SiteReportReopenNoteRequired" xml:space="preserve"><value>A reason is required to reopen an approved report.</value></data>
+  <data name="SiteReportReopened" xml:space="preserve"><value>The report was reopened for editing; its original entries are kept and only the difference is posted when it is approved again.</value></data>
+  <data name="SiteReportHasPostedCost" xml:space="preserve"><value>This report's cost was already posted, so it cannot be deleted; edit it and approve it again to post the difference.</value></data>
+  <data name="RentalAccrualCloseNoteRequired" xml:space="preserve"><value>A reason is required to close accrued rental.</value></data>
+  <data name="RentalAccrualNothingToClose" xml:space="preserve"><value>There is no open accrued rental for this lessor on the project up to the selected date.</value></data>
+  <data name="RentalAccrualClosed" xml:space="preserve"><value>{0} of accrued rental was closed.</value></data>
   <data name="SiteResourceItemInvalid" xml:space="preserve"><value>Resources, line {0}: the item is not in the BOQ or is a main item with sub-items.</value></data>
   <data name="SiteResourceIdleReasonRequired" xml:space="preserve"><value>Resources, line {0}: choose the reason for idle hours.</value></data>
   <data name="SiteResourceDuplicate" xml:space="preserve"><value>Resources, line {0}: the resource is repeated on the same item.</value></data>

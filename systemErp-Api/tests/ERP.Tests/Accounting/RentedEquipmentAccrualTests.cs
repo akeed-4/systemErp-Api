@@ -17,7 +17,7 @@ public class RentedEquipmentAccrualTests : TestBase
 
     private static void Ok(Res r, string step) => Assert.True(r.Status is 200 or 201, $"{step}: {r.Status} {r.Body?.ToJsonString()}");
 
-    private sealed record Setup(Client Api, string Id, Guid Concrete, Guid Machine, Guid Labor, Guid Supplier, string SupplierAccount, Guid Center);
+    private sealed record Setup(Client Api, string Id, Guid Concrete, Guid Machine, Guid Machine2, Guid Labor, Guid Supplier, string SupplierAccount, Guid Center);
 
     private async Task<Setup> SetupAsync()
     {
@@ -42,11 +42,16 @@ public class RentedEquipmentAccrualTests : TestBase
             idleBillingPercent = 50, standbyBillingPercent = 25,
         });
         Ok(machine, "machine");
+        var machine2 = await api.Post($"/commercialcontracts/{id}/project/resources", new
+        {
+            kind = "rented_equipment", name = "رافعة مستأجرة", rateBasis = "hour", rate = 100, supplierId = supplier,
+        });
+        Ok(machine2, "second machine");
         var labor = await api.Post($"/commercialcontracts/{id}/project/resources", new { kind = "labor", name = "عمال", rateBasis = "hour", rate = 25 });
         Ok(labor, "labor");
         var list = labor.Data!.AsArray();
         Guid IdOf(string name) => list.First(r => r!["name"].S() == name)!["id"].G();
-        return new Setup(api, id, concrete, IdOf("حفار مستأجر"), IdOf("عمال"), supplier, supplierAccount, center);
+        return new Setup(api, id, concrete, IdOf("حفار مستأجر"), IdOf("رافعة مستأجرة"), IdOf("عمال"), supplier, supplierAccount, center);
     }
 
     private static object ReportBody(Setup s, DateTime date, decimal hours, decimal idle = 0, decimal standby = 0, decimal laborHours = 0)
@@ -79,7 +84,7 @@ public class RentedEquipmentAccrualTests : TestBase
         var inv = await s.Api.PostInvoice(new
         {
             kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = s.Supplier, status = "posted", costCenterId = s.Center,
-            items = new[] { new { itemName = "إيجار حفار", quantity = 1, unitPrice = net, vatRate = 15 } },
+            items = new[] { new { itemName = "إيجار حفار", quantity = 1, unitPrice = net, vatRate = 15, projectResourceId = s.Machine } },
         });
         Ok(inv, "rental invoice");
         return inv.Data!["id"].S();
@@ -178,6 +183,7 @@ public class RentedEquipmentAccrualTests : TestBase
         var closed = await s.Api.Post($"/commercialcontracts/{s.Id}/site-reports/rental-accruals/close", new { supplierId = s.Supplier, note = "خصم المؤجر" });
         Ok(closed, "close");
         Assert.Equal(100, closed.Data!.D());
+        Assert.Contains("SITE_RENTAL_ACCRUAL_CLOSED", (await s.Api.Get("/auditlogs?entityName=SiteRentalAccrual&pageSize=50")).Data!["items"]!.AsArray().Select(x => x!["action"].S()));
         Assert.Equal(0, await AccruedBalanceAsync(s.Api));
         Assert.Equal(700, await CategoryAsync(s, "rented_equipment"));          // الفوترة الفعلية
         Assert.Equal(400, (await s.Api.Post($"/commercialcontracts/{s.Id}/site-reports/rental-accruals/close", new { supplierId = s.Supplier, note = "x" })).Status);
@@ -205,6 +211,7 @@ public class RentedEquipmentAccrualTests : TestBase
         Assert.Equal(400, (await s.Api.Post($"/commercialcontracts/{s.Id}/site-reports/{rid}/reopen", new { })).Status);
         var reopened = await s.Api.Post($"/commercialcontracts/{s.Id}/site-reports/{rid}/reopen", new { note = "تصحيح الساعات" });
         Ok(reopened, "reopen");
+        Assert.Contains("SITE_DAILY_REPORT_REOPENED", (await s.Api.Get($"/auditlogs?entityName=SiteDailyReport&entityId={rid}&pageSize=20")).Data!["items"]!.AsArray().Select(x => x!["action"].S()));
         Assert.Equal("draft", reopened.Data!["status"].S());
         Assert.Equal(1, reopened.Data["costRevision"]!.GetValue<int>());
         Assert.Equal(409, (await s.Api.Delete($"/commercialcontracts/{s.Id}/site-reports/{rid}")).Status); // قيوده قائمة
@@ -224,6 +231,93 @@ public class RentedEquipmentAccrualTests : TestBase
         Assert.Equal(0, await AccruedBalanceAsync(s.Api));
         Assert.Equal(800, await CategoryAsync(s, "rented_equipment"));          // الفاتورة الفعلية (800) لا 500 ولا 1300
         Assert.Equal(100, await CategoryAsync(s, "labor"));                     // الفرق 50 فقط فوق الأصلي
+        await AssertBooksBalancedAsync(s.Api);
+    }
+
+    [Fact]
+    public async Task Only_classified_rental_lines_settle_and_partial_return_reverses_their_own_amount_and_vat()
+    {
+        var s = await SetupAsync();
+        await ApprovedReportAsync(s, Day, 8); // 800 للمعدة الأولى
+
+        var invoice = await s.Api.PostInvoice(new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = s.Supplier,
+            status = "posted", costCenterId = s.Center,
+            items = new object[]
+            {
+                new { itemName = "إيجار حفار", quantity = 1, unitPrice = 250, vatRate = 15, projectResourceId = s.Machine },
+                new { itemName = "إيجار رافعة", quantity = 1, unitPrice = 400, vatRate = 15, projectResourceId = s.Machine2 },
+                new { itemName = "نقل معدات", quantity = 1, unitPrice = 100, vatRate = 15 },
+            },
+        });
+        Ok(invoice, "mixed invoice");
+        var invoiceId = invoice.Data!["id"].S();
+        var sourceLine = invoice.Data["items"]!.AsArray()[0]!;
+        Assert.Equal(s.Machine, sourceLine["projectResourceId"].G());
+        var accrual = Assert.Single(await AccrualsAsync(s));
+        Assert.Equal(250, accrual!["settledAmount"].D());
+        Assert.Equal(550, accrual["openAmount"].D()); // رافعة المورد والنقل لا يسوّيان استحقاق الحفار
+
+        var unrelated = await s.Api.PostInvoice(new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = s.Supplier,
+            status = "posted", costCenterId = s.Center,
+            items = new[] { new { itemName = "خدمة نقل", quantity = 1, unitPrice = 300, vatRate = 15 } },
+        });
+        Ok(unrelated, "unclassified supplier invoice");
+        Assert.Equal(250, (await AccrualsAsync(s)).Single()!["settledAmount"].D());
+
+        var returned = await s.Api.Post("/purchase-returns/from-invoice", new
+        {
+            originalInvoiceId = invoiceId,
+            returnReason = "إرجاع جزء من إيجار الحفار",
+            lines = new[] { new { itemId = Guid.Empty, originalInvoiceItemId = sourceLine["id"].G(), quantity = 0.4m } },
+        });
+        Ok(returned, "partial rental return");
+        Assert.Equal(s.Machine, returned.Data!["items"]![0]!["projectResourceId"].G());
+        accrual = Assert.Single(await AccrualsAsync(s));
+        Assert.Equal(150, accrual!["settledAmount"].D());
+        Assert.Equal(650, accrual["openAmount"].D());
+        Assert.Equal(1200, await CategoryAsync(s, "rented_equipment")); // الإيجار فقط؛ سطر النقل لا يصنف إيجاراً
+
+        var settings = (await s.Api.Get("/accounting-settings")).Data!;
+        var inputVat = settings["inputVatAccountCode"]?.GetValue<string>() ?? "1131";
+        Assert.Equal(142.5m, await BalanceAsync(s.Api, inputVat)); // 157.50 input VAT less 15.00 credit-note VAT
+        await AssertBooksBalancedAsync(s.Api);
+    }
+
+    [Fact]
+    public async Task Editing_a_rental_invoice_rebalances_only_its_classified_line()
+    {
+        var s = await SetupAsync();
+        await ApprovedReportAsync(s, Day, 8);
+        var invoice = await s.Api.PostInvoice(new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = s.Supplier,
+            status = "posted", costCenterId = s.Center,
+            items = new object[]
+            {
+                new { itemName = "إيجار حفار", quantity = 1, unitPrice = 500, vatRate = 15, projectResourceId = s.Machine },
+                new { itemName = "نقل معدات", quantity = 1, unitPrice = 100, vatRate = 15 },
+            },
+        });
+        Ok(invoice, "initial invoice");
+        var invoiceId = invoice.Data!["id"].S();
+        var edited = await s.Api.Put(await s.Api.InvoicePath(invoiceId, ""), new
+        {
+            kind = "purchase", invoiceType = "tax_invoice", paymentMethod = "credit", partyId = s.Supplier,
+            status = "posted", costCenterId = s.Center,
+            items = new object[]
+            {
+                new { itemName = "إيجار حفار", quantity = 1, unitPrice = 350, vatRate = 15, projectResourceId = s.Machine },
+                new { itemName = "نقل معدات", quantity = 1, unitPrice = 300, vatRate = 15 },
+            },
+        });
+        Ok(edited, "edited invoice");
+        var accrual = Assert.Single(await AccrualsAsync(s));
+        Assert.Equal(350, accrual!["settledAmount"].D());
+        Assert.Equal(450, accrual["openAmount"].D());
         await AssertBooksBalancedAsync(s.Api);
     }
 

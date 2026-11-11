@@ -3,6 +3,7 @@ using System.Reflection;
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Services.Shared;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ERP.Service.Data;
 
@@ -49,6 +50,9 @@ public class ErpDbContext : DbContext
     /// والاستعلام عن الجذر يجمع جداوله كلها. الفواتير: Invoice (المعارض) وجداول التجارة العامة الأربعة، وكذلك بنودها.
     /// </summary>
     private static readonly Type[] TpcRoots = { typeof(InvoiceBase), typeof(InvoiceItemBase) };
+    private static readonly ValueConverter<ZatcaEnvironment, string> ZatcaEnvironmentConverter = new(
+        value => value.ToString().ToLowerInvariant(),
+        value => Enum.Parse<ZatcaEnvironment>(value, ignoreCase: true));
 
     /// <summary>مصادر لا يكون لمستندها إلا قيد فعّال واحد (فهرس فريد مرشَّح على JournalEntry).</summary>
     internal static readonly string[] SingleEntrySources =
@@ -683,6 +687,7 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<CommercialContract>(e =>
         {
             e.Property(c => c.ProjectName).HasMaxLength(200);
+            e.Property(c => c.ProjectNameEn).HasMaxLength(200);
             e.Property(c => c.ProjectLocation).HasMaxLength(200);
             e.Property(c => c.ConsultantName).HasMaxLength(200);
         });
@@ -899,6 +904,8 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<UnitOfMeasure>().Property(u => u.ConversionFactor).HasPrecision(18, 8);
         modelBuilder.Entity<UnitOfMeasure>().Property(u => u.UnitType).HasMaxLength(20).HasDefaultValue(UnitTypes.Count);
         modelBuilder.Entity<InvoiceItemBase>().Property(i => i.VatCategory).HasDefaultValue(VatCategory.Standard);
+        modelBuilder.Entity<InvoiceItemBase>().HasIndex(i => i.ProjectResourceId).HasFilter("[ProjectResourceId] IS NOT NULL");
+        modelBuilder.Entity<InvoiceItemBase>().HasIndex(i => i.OriginalInvoiceItemId).HasFilter("[OriginalInvoiceItemId] IS NOT NULL");
         // توزيع السند يُقرأ بفاتورته (المرجع بلا قيد لأن الفاتورة في أحد جداول InvoiceBase)
         modelBuilder.Entity<VoucherAllocation>().HasIndex(a => a.InvoiceId);
         modelBuilder.Entity<Product>().Property(p => p.VatCategory).HasDefaultValue(VatCategory.Standard);
@@ -969,6 +976,9 @@ public class ErpDbContext : DbContext
 
         modelBuilder.Entity<NumberSequence>().Property(s => s.Version).IsConcurrencyToken();
         modelBuilder.Entity<ZatcaUnit>().Property(c => c.Version).IsConcurrencyToken();
+        modelBuilder.Entity<ZatcaUnit>().Property(c => c.Environment).HasConversion(ZatcaEnvironmentConverter);
+        modelBuilder.Entity<Tenant>().OwnsOne(t => t.ZatcaConfig)
+            .Property(c => c.Environment).HasConversion(ZatcaEnvironmentConverter);
         modelBuilder.Entity<InventoryCountApproval>().Property(a => a.Version).IsConcurrencyToken();
 
         // الأبناء المملوكون للتجميع يُحذفون معه، وأي علاقة أخرى تمنع الحذف (Restrict) لتفادي مسارات حذف متعددة.
@@ -978,6 +988,19 @@ public class ErpDbContext : DbContext
             var ownsAsChild = fk.PrincipalToDependent is { IsCollection: true };
             fk.DeleteBehavior = ownsAsChild ? DeleteBehavior.Cascade : DeleteBehavior.Restrict;
         }
+
+        modelBuilder.Entity<ZatcaOnboardingSession>()
+            .Property(x => x.Environment).HasConversion(ZatcaEnvironmentConverter).HasMaxLength(16);
+        modelBuilder.Entity<ZatcaOnboardingSession>()
+            .HasIndex(x => new { x.TenantId, x.UserId, x.Environment, x.StartedAt });
+        modelBuilder.Entity<ZatcaComplianceTest>(e =>
+        {
+            e.Property(x => x.DocumentKey).HasMaxLength(64);
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.HasIndex(x => new { x.TenantId, x.SessionId, x.DocumentKey }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.SessionId, x.Status });
+            e.HasOne<ZatcaOnboardingSession>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     private void ApplyTenantFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity

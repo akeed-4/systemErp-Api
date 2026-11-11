@@ -69,9 +69,11 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
         var dto = base.ToDto(entity);
         if (entity.ContractId is { } id)
         {
-            var c = Db.Set<CommercialContract>().AsNoTracking().Where(x => x.Id == id).Select(x => new { x.ContractNumber, x.ProjectName, x.Title }).FirstOrDefault();
+            var c = Db.Set<CommercialContract>().AsNoTracking().Where(x => x.Id == id)
+                .Select(x => new { x.ContractNumber, x.ProjectName, x.ProjectNameEn }).FirstOrDefault();
             dto.ContractNumber = c?.ContractNumber;
-            dto.ProjectName = c?.ProjectName ?? c?.Title;
+            dto.ProjectName = c?.ProjectName;
+            dto.ProjectNameEn = c?.ProjectNameEn;
         }
         return dto;
     }

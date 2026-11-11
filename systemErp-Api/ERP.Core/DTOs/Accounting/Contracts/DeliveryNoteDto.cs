@@ -10,6 +10,8 @@ public partial class DeliveryNoteDto
     public string Type { get; set; } = "sales_delivery";
     public Guid? ContractId { get; set; }
     public string? ContractNumber { get; set; }
+    public string? ProjectName { get; set; }
+    public string? ProjectNameEn { get; set; }
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }
     public string PartyName { get; set; } = string.Empty;

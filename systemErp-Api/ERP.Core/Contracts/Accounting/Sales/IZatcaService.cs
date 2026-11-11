@@ -1,5 +1,6 @@
 using ERP.Core.Contracts.Shared;
 using ERP.Core.DTOs.Accounting;
+using ERP.Core.DTOs.Accounting.Sales;
 using ERP.Core.DTOs.Shared;
 
 namespace ERP.Core.Contracts.Accounting;
@@ -20,6 +21,10 @@ public interface IZatcaService
     /// والمالك ومدير النظام يربطان غيرهما.
     /// </summary>
     Task<TenantDto> OnboardAsync(ZatcaOnboardRequestDto request, CancellationToken ct = default);
+    /// <summary>حالة الربط واختبارات الامتثال المحفوظة للمستخدم، بلا مفاتيح أو بيانات اعتماد.</summary>
+    Task<ZatcaOnboardingStatusDto?> GetOnboardingStatusAsync(Guid? userId = null, CancellationToken ct = default);
+    /// <summary>إعادة إرسال آمنة لاختبار امتثال رُفض صراحةً، باستخدام المستند الموقّع نفسه.</summary>
+    Task<ZatcaOnboardingStatusDto> RetryComplianceTestAsync(Guid sessionId, Guid testId, CancellationToken ct = default);
     /// <summary>الوحدات المربوطة: كلها للمالك ومدير النظام، ووحدة المستخدم نفسه لغيرهما.</summary>
     Task<List<ZatcaUnitDto>> ListUnitsAsync(CancellationToken ct = default);
     /// <summary>إيقاف وحدة فلا يرسل صاحبها حتى يُعاد ربطه؛ للمالك ومدير النظام أو لصاحب الوحدة.</summary>

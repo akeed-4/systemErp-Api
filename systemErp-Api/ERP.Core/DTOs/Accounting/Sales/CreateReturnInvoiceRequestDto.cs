@@ -20,7 +20,7 @@ public class CreateReturnInvoiceRequestDto
     /// والكسر على آخر سطر، وكل سطر يُرحَّل على حساب طريقته.
     /// </summary>
     public List<InvoicePaymentSplitDto> RefundSplits { get; set; } = new();
-    /// <summary>الأصناف والكميات المرتجعة. فارغ = مرتجع كلي.</summary>
+    /// <summary>الأصناف والكميات المرتجعة. يفضّل تحديد سطر الأصل عند تكرار الصنف. فارغ = مرتجع كلي.</summary>
     public List<ReturnLineDto> Lines { get; set; } = new();
     /// <summary>فاتورة سيارات: المركبات المرتجعة (فارغ = كل ما لم يُرجَع منها).</summary>
     public List<Guid> VehicleIds { get; set; } = new();

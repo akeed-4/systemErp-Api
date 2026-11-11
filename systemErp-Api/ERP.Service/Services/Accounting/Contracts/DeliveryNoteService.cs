@@ -29,16 +29,43 @@ public class DeliveryNoteService : IDeliveryNoteService
         var total = await q.CountAsync(ct);
         var items = await q.Include(n => n.Items).OrderByDescending(n => n.Date)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
+        var dtos = items.Select(Mapper.Map<DeliveryNoteDto>).ToList();
+        await ApplyProjectNamesAsync(dtos, ct);
         return new PagedResult<DeliveryNoteDto>
         {
-            Items = items.Select(Mapper.Map<DeliveryNoteDto>).ToList(),
+            Items = dtos,
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
 
     public async Task<DeliveryNoteDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<DeliveryNoteDto>(await _db.Set<DeliveryNote>().AsNoTracking().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, ct)
-            ?? throw new NotFoundException(Messages.DeliveryNoteNotFound));
+    {
+        var note = await _db.Set<DeliveryNote>().AsNoTracking().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, ct)
+            ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+        var dto = Mapper.Map<DeliveryNoteDto>(note);
+        await ApplyProjectNamesAsync(new[] { dto }, ct);
+        return dto;
+    }
+
+    private async Task ApplyProjectNamesAsync(IReadOnlyCollection<DeliveryNoteDto> notes, CancellationToken ct)
+    {
+        var contractIds = notes.Where(note => note.ContractId.HasValue).Select(note => note.ContractId!.Value).Distinct().ToList();
+        if (contractIds.Count == 0) return;
+
+        var projects = await _db.Set<CommercialContract>().AsNoTracking()
+            .Where(contract => contractIds.Contains(contract.Id))
+            .Select(contract => new { contract.Id, contract.ProjectName, contract.ProjectNameEn })
+            .ToDictionaryAsync(contract => contract.Id, ct);
+
+        foreach (var note in notes)
+        {
+            if (note.ContractId is Guid contractId && projects.TryGetValue(contractId, out var project))
+            {
+                note.ProjectName = project.ProjectName;
+                note.ProjectNameEn = project.ProjectNameEn;
+            }
+        }
+    }
 
     public Task<DeliveryNoteDto> CreateAsync(CreateDeliveryNoteDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>

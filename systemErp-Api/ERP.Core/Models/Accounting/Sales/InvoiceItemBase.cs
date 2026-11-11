@@ -42,6 +42,10 @@ public abstract class InvoiceItemBase : BaseEntity
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public Guid? CostCenterId { get; set; }
+    /// <summary>المعدة المستأجرة المرتبطة بسطر فاتورة المؤجر؛ فارغ لغير مصروفات الإيجار.</summary>
+    public Guid? ProjectResourceId { get; set; }
+    /// <summary>سطر الفاتورة الأصلية الذي أُرجع هذا السطر عنه؛ يميّز البنود المتكررة في المرتجعات.</summary>
+    public Guid? OriginalInvoiceItemId { get; set; }
     /// <summary>حساب إيراد هذا السطر (مبيعات)؛ فارغ = حساب إيراد الفاتورة ثم الافتراضي.</summary>
     public string? RevenueAccountCode { get; set; }
     /// <summary>

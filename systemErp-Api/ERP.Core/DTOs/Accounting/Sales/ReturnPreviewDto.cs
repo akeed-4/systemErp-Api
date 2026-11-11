@@ -17,6 +17,7 @@ public class ReturnPreviewDto
 
 public class ReturnPreviewLineDto
 {
+    public Guid? OriginalInvoiceItemId { get; set; }
     public Guid ItemId { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public string? Sku { get; set; }

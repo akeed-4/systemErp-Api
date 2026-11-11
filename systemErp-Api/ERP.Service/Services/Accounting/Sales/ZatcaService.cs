@@ -2,9 +2,11 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Xml;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.Contracts.Shared;
+using ERP.Core.DTOs.Accounting.Sales;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
 
@@ -24,6 +26,7 @@ public class ZatcaService : IZatcaService
 
     /// <summary>إرسال واحد في كل مرة للوحدة: العدّاد والتجزئة السابقة يؤخذان ويُحدَّثان بالتسلسل.</summary>
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Gates = new();
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> OnboardingGates = new();
 
     private readonly ErpDbContext _db;
     private readonly IZatcaApiClient _api;
@@ -43,6 +46,15 @@ public class ZatcaService : IZatcaService
 
     public async Task<TenantDto> OnboardAsync(ZatcaOnboardRequestDto request, CancellationToken ct = default)
     {
+        var targetId = request.UserId ?? _user.UserId ?? Guid.Empty;
+        var gate = OnboardingGates.GetOrAdd(targetId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try { return await OnboardCoreAsync(request, ct); }
+        finally { gate.Release(); }
+    }
+
+    private async Task<TenantDto> OnboardCoreAsync(ZatcaOnboardRequestDto request, CancellationToken ct)
+    {
         var tenant = await _db.Set<Tenant>().FirstAsync(ct);
         var config = tenant.ZatcaConfig;
         var otp = request.Otp?.Trim() ?? string.Empty;
@@ -54,9 +66,29 @@ public class ZatcaService : IZatcaService
         var target = await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == targetId, ct) ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
         if (!target.IsActive || target.Role == UserRole.Employee) throw new ValidationFailedException(Messages.ZatcaUserNotFound);
         var unit = await _db.Set<ZatcaUnit>().FirstOrDefaultAsync(u => u.UserId == targetId, ct);
+        var session = await _db.Set<ZatcaOnboardingSession>()
+            .Where(s => s.UserId == targetId && s.Environment == config.Environment && s.Status != "completed")
+            .OrderByDescending(s => s.StartedAt).FirstOrDefaultAsync(ct);
+
+        if (session?.Status == "compliance_csid_requesting")
+        {
+            session.Status = "compliance_csid_unknown";
+            session.ErrorMessage = "The previous Compliance CSID request was interrupted before its outcome was saved. Check its status with ZATCA; it will not be resubmitted automatically.";
+            await _db.SaveChangesAsync(ct);
+            throw new ConflictException(session.ErrorMessage);
+        }
+        if (session?.Status == "production_requesting")
+        {
+            session.Status = "production_unknown";
+            session.ErrorMessage = "The previous Production CSID request was interrupted before its outcome was saved. Check its status with ZATCA; it will not be resubmitted automatically.";
+            await _db.SaveChangesAsync(ct);
+            throw new ConflictException(session.ErrorMessage);
+        }
+        if (session?.Status is "compliance_csid_unknown" or "production_unknown")
+            throw new ConflictException("The previous ZATCA request has an unresolved outcome. Do not retry it automatically; review its status before starting a new onboarding attempt.");
 
         var missing = new List<string>();
-        if (otp.Length == 0) missing.Add(Messages.ZatcaFieldOtp);
+        if (otp.Length == 0 && session?.ComplianceRequestId == null) missing.Add(Messages.ZatcaFieldOtp);
         if (!SaudiVat.IsValid(tenant.VatNumber)) missing.Add(Messages.ZatcaFieldVatNumber);
         if (string.IsNullOrWhiteSpace(config.Street)) missing.Add(Messages.BuyerFieldStreet);
         if (!IsDigits(config.BuildingNumber, 4)) missing.Add(Messages.BuyerFieldBuildingNo);
@@ -71,69 +103,130 @@ public class ZatcaService : IZatcaService
 
         var baseUrl = BaseUrl(config);
         var seller = Seller(tenant);
-        // إعادة ربط المستخدم نفسه تجدّد شهادة وحدته: رقمها التسلسلي وسلسلة فواتيرها يبقيان
-        var deviceSerial = unit?.DeviceSerial ?? Guid.NewGuid().ToString();
-        using var key = ZatcaCsr.NewKey();
-        var csr = ZatcaCsr.Create(key, new ZatcaCsrInput(
-            config.Environment,
-            Or(config.CsrCommonName, $"EGS-{tenant.Code}") + "-" + targetId.ToString("N")[..8],
-            Or(config.OrganizationUnit, tenant.City),
-            Or(config.OrganizationName, tenant.NameAr),
-            Or(config.CountryCode, "SA"),
-            $"1-{Or(config.SolutionName, "ERP")}|2-{Or(config.SolutionVersion, "1.0")}|3-{deviceSerial}",
-            tenant.VatNumber,
-            InvoiceTypes,
-            $"{config.BuildingNumber} {config.Street}, {tenant.City}",
-            Or(config.BusinessCategory, "Trading")));
+        if (session == null)
+        {
+            if (otp.Length == 0) throw new ValidationFailedException(Messages.ZatcaFieldOtp);
+            session = CreateOnboardingSession(target, unit, config, tenant);
+            _db.Add(session);
+            if (unit == null || !unit.IsActive) config.ComplianceStatus = ComplianceStatus.InProgress;
+            await _db.SaveChangesAsync(ct);
+        }
 
-        // 1) شهادة الامتثال برمز التحقق
-        var compliance = await _api.RequestComplianceCsidAsync(baseUrl, csr, otp, ct);
-        if (!compliance.Success) throw new ValidationFailedException(string.Format(Messages.ZatcaComplianceCsidFailed, compliance.Message));
-        var complianceCertificate = CertificateOf(compliance.BinarySecurityToken!);
-
-        // 2) فحص الامتثال: فاتورة وإشعار دائن وإشعار مدين، مبسطة وضريبية (كل ما تغطيه الشهادة)
-        var previous = ZatcaInvoiceXml.FirstPreviousHash;
-        long counter = 0;
-        foreach (var simplified in new[] { true, false })
-            foreach (var type in new[] { ZatcaInvoiceXml.Invoice, ZatcaInvoiceXml.CreditNote, ZatcaInvoiceXml.DebitNote })
+        if (session.ComplianceRequestId == null)
+        {
+            session.Status = "compliance_csid_requesting";
+            session.ErrorMessage = null;
+            await _db.SaveChangesAsync(ct);
+            ZatcaCsidResult compliance;
+            try
             {
-                var signed = ZatcaSigner.Sign(ComplianceSample(seller, type, simplified, ++counter, previous), complianceCertificate, key, DateTime.UtcNow);
-                previous = signed.Hash;
-                var check = await _api.CheckComplianceAsync(baseUrl, compliance.BinarySecurityToken!, compliance.Secret!, new ZatcaSubmission(signed.Hash, signed.Uuid, signed.Xml), ct);
-                if (!check.Accepted)
-                {
-                    var reasons = check.Errors.Count > 0 ? check.Errors : new List<string> { check.Message ?? $"HTTP {check.HttpStatus}" };
-                    var message = string.Format(Messages.ZatcaComplianceCheckFailed, string.Join(" | ", reasons));
-                    throw new ValidationFailedException(message, reasons.Prepend(message));
-                }
+                compliance = await _api.RequestComplianceCsidAsync(baseUrl, session.Csr, otp, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                session.Status = "compliance_csid_unknown";
+                session.ErrorMessage = ex.Message;
+                await _db.SaveChangesAsync(CancellationToken.None);
+                throw;
             }
 
-        // 3) شهادة الإنتاج
-        var production = await _api.RequestProductionCsidAsync(baseUrl, compliance.RequestId!, compliance.BinarySecurityToken!, compliance.Secret!, ct);
-        if (!production.Success) throw new ValidationFailedException(string.Format(Messages.ZatcaProductionCsidFailed, production.Message));
+            if (!compliance.Success)
+            {
+                session.Status = compliance.Reached ? "compliance_csid_rejected" : "compliance_csid_unknown";
+                session.ErrorMessage = compliance.Message;
+                if (compliance.Reached && (unit == null || !unit.IsActive))
+                    config.ComplianceStatus = ComplianceStatus.NotEnrolled;
+                await _db.SaveChangesAsync(ct);
+                throw new ValidationFailedException(string.Format(Messages.ZatcaComplianceCsidFailed, compliance.Message));
+            }
 
-        if (unit == null) _db.Add(unit = new ZatcaUnit { UserId = targetId, DeviceSerial = deviceSerial });
-        unit.UserName = target.Name;
-        unit.Environment = config.Environment;
-        unit.ComplianceRequestId = compliance.RequestId;
-        unit.Csid = production.RequestId;
-        unit.BinarySecurityToken = production.BinarySecurityToken!;
-        unit.CertificatePem = CertificateOf(production.BinarySecurityToken!);
-        unit.SecretKey = Protect(production.Secret!);
-        unit.PrivateKeyPem = Protect(key.ExportPkcs8PrivateKeyPem());
-        unit.IsActive = true;
-        unit.OnboardedAt = DateTime.UtcNow;
+            session.ComplianceRequestId = compliance.RequestId;
+            session.ComplianceBinarySecurityToken = Protect(compliance.BinarySecurityToken!);
+            session.ComplianceSecret = Protect(compliance.Secret!);
+            session.CertificatePem = CertificateOf(compliance.BinarySecurityToken!);
+            session.Status = "compliance_tests";
+            await GenerateComplianceTestsAsync(session, seller, ct);
+        }
 
-        // حالة المنشأة: مفعَّلة ما دام فيها مستخدم مربوط؛ الأسرار على وحدة المستخدم لا على المنشأة
-        config.Csid = production.RequestId;
-        config.Otp = null; // رمز التحقق لمرة واحدة
-        config.Phase = "phase2";
-        config.IsEnabled = true;
-        config.ComplianceStatus = ComplianceStatus.Compliant;
-        config.OnboardedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("ZATCA_ONBOARDED", nameof(ZatcaUnit), unit.Id.ToString(), $"ربط المستخدم {target.Name} مع هيئة الزكاة ({config.Environment}) - وحدة {deviceSerial}", ct);
+        if (!await _db.Set<ZatcaComplianceTest>().AnyAsync(t => t.SessionId == session.Id, ct))
+            await GenerateComplianceTestsAsync(session, seller, ct);
+
+        // A persisted "submitted" state left by a process interruption has no confirmed ZATCA verdict.
+        var interrupted = await _db.Set<ZatcaComplianceTest>()
+            .Where(t => t.SessionId == session.Id && t.Status == "submitted").ToListAsync(ct);
+        foreach (var test in interrupted)
+        {
+            test.Status = "processing_unknown";
+            test.ResponseMessage = "The server restarted before a ZATCA response was saved; automatic resubmission is disabled.";
+            test.CompletedAt = DateTime.UtcNow;
+        }
+        if (interrupted.Count > 0) await _db.SaveChangesAsync(ct);
+
+        // Every test document is stored before submission; generated samples never enter invoice/ledger tables.
+        foreach (var test in await _db.Set<ZatcaComplianceTest>()
+                     .Where(t => t.SessionId == session.Id && t.Status == "generated").OrderBy(t => t.GeneratedAt).ToListAsync(ct))
+            await SubmitComplianceTestAsync(session, test, baseUrl, ct);
+
+        var tests = await _db.Set<ZatcaComplianceTest>().Where(t => t.SessionId == session.Id).ToListAsync(ct);
+        if (tests.Count == 0 || tests.Any(t => t.Status != "accepted"))
+        {
+            session.Status = "tests_attention";
+            session.ErrorMessage = "Compliance tests require attention. Rejected tests may be retried with the same signed document; unresolved submissions are not retried automatically.";
+            await _db.SaveChangesAsync(ct);
+            throw new ValidationFailedException(session.ErrorMessage);
+        }
+
+        await IssueProductionCsidAsync(session, unit, target, config, tenant, baseUrl, ct);
         return Mapper.Map<TenantDto>(tenant);
+    }
+
+    public async Task<ZatcaOnboardingStatusDto?> GetOnboardingStatusAsync(Guid? userId = null, CancellationToken ct = default)
+    {
+        var me = _user.UserId ?? throw new UnauthorizedAppException();
+        var targetId = userId ?? me;
+        if (targetId != me && !IsAdmin) throw new ForbiddenException();
+        var session = await _db.Set<ZatcaOnboardingSession>().AsNoTracking()
+            .Where(s => s.UserId == targetId).OrderByDescending(s => s.StartedAt).FirstOrDefaultAsync(ct);
+        return session == null ? null : await ToStatusAsync(session, ct);
+    }
+
+    public async Task<ZatcaOnboardingStatusDto> RetryComplianceTestAsync(Guid sessionId, Guid testId, CancellationToken ct = default)
+    {
+        var ownerId = await _db.Set<ZatcaOnboardingSession>().Where(s => s.Id == sessionId).Select(s => (Guid?)s.UserId).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
+        var gate = OnboardingGates.GetOrAdd(ownerId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try { return await RetryComplianceTestCoreAsync(sessionId, testId, ct); }
+        finally { gate.Release(); }
+    }
+
+    private async Task<ZatcaOnboardingStatusDto> RetryComplianceTestCoreAsync(Guid sessionId, Guid testId, CancellationToken ct)
+    {
+        var me = _user.UserId ?? throw new UnauthorizedAppException();
+        var session = await _db.Set<ZatcaOnboardingSession>().FirstOrDefaultAsync(s => s.Id == sessionId, ct)
+            ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
+        if (session.UserId != me && !IsAdmin) throw new ForbiddenException();
+        var test = await _db.Set<ZatcaComplianceTest>()
+            .FirstOrDefaultAsync(t => t.Id == testId && t.SessionId == sessionId, ct)
+            ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
+        if (test.Status != "rejected") throw new ConflictException("Only a definitive rejection can be retried. Processing or unknown submissions must not be resubmitted.");
+
+        var tenant = await _db.Set<Tenant>().FirstAsync(ct);
+        var config = tenant.ZatcaConfig;
+        await SubmitComplianceTestAsync(session, test, BaseUrl(config, session.Environment), ct);
+        var tests = await _db.Set<ZatcaComplianceTest>().Where(t => t.SessionId == session.Id).ToListAsync(ct);
+        if (tests.Count > 0 && tests.All(t => t.Status == "accepted"))
+        {
+            var unit = await _db.Set<ZatcaUnit>().FirstOrDefaultAsync(u => u.UserId == session.UserId, ct);
+            var target = await _db.Set<User>().AsNoTracking().FirstAsync(u => u.Id == session.UserId, ct);
+            await IssueProductionCsidAsync(session, unit, target, config, tenant, BaseUrl(config, session.Environment), ct);
+        }
+        else
+        {
+            session.Status = "tests_attention";
+            await _db.SaveChangesAsync(ct);
+        }
+        return await ToStatusAsync(session, ct);
     }
 
     public async Task<List<ZatcaUnitDto>> ListUnitsAsync(CancellationToken ct = default)
@@ -226,8 +319,8 @@ public class ZatcaService : IZatcaService
                 var secret = Reveal(chain.SecretKey);
                 var baseUrl = BaseUrl(config, chain.Environment); // الوحدة ترسل للبيئة التي صدرت شهادتها منها
                 response = document.IsSimplified
-                    ? await _api.ReportAsync(baseUrl, chain.BinarySecurityToken, secret, submission, ct)
-                    : await _api.ClearAsync(baseUrl, chain.BinarySecurityToken, secret, submission, ct);
+                    ? await _api.ReportAsync(baseUrl, Reveal(chain.BinarySecurityToken), secret, submission, ct)
+                    : await _api.ClearAsync(baseUrl, Reveal(chain.BinarySecurityToken), secret, submission, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -474,6 +567,237 @@ public class ZatcaService : IZatcaService
                 PaymentMethod.BankTransfer => "42",
                 _ => "10",
             },
+        };
+    }
+
+    private ZatcaOnboardingSession CreateOnboardingSession(User target, ZatcaUnit? unit, ZatcaConfig config, Tenant tenant)
+    {
+        var deviceSerial = unit?.DeviceSerial ?? Guid.NewGuid().ToString();
+        using var key = ZatcaCsr.NewKey();
+        var csr = ZatcaCsr.Create(key, new ZatcaCsrInput(
+            config.Environment,
+            Or(config.CsrCommonName, $"EGS-{tenant.Code}") + "-" + target.Id.ToString("N")[..8],
+            Or(config.OrganizationUnit, tenant.City),
+            Or(config.OrganizationName, tenant.NameAr),
+            Or(config.CountryCode, "SA"),
+            $"1-{Or(config.SolutionName, "ERP")}|2-{Or(config.SolutionVersion, "1.0")}|3-{deviceSerial}",
+            tenant.VatNumber,
+            InvoiceTypes,
+            $"{config.BuildingNumber} {config.Street}, {tenant.City}",
+            Or(config.BusinessCategory, "Trading")));
+
+        return new ZatcaOnboardingSession
+        {
+            UserId = target.Id,
+            UserName = target.Name,
+            Environment = config.Environment,
+            DeviceSerial = deviceSerial,
+            InvoiceTypes = InvoiceTypes,
+            Csr = csr,
+            PrivateKeyPem = Protect(key.ExportPkcs8PrivateKeyPem()),
+            Status = "preparing",
+            StartedAt = DateTime.UtcNow,
+        };
+    }
+
+    private async Task GenerateComplianceTestsAsync(ZatcaOnboardingSession session, ZatcaParty seller, CancellationToken ct)
+    {
+        using var key = ECDsa.Create();
+        key.ImportFromPem(Reveal(session.PrivateKeyPem!));
+        var cases = RequiredComplianceDocuments(session.InvoiceTypes);
+        if (cases.Count == 0) throw new ValidationFailedException("The CSR does not declare any supported invoice type for compliance testing.");
+
+        var previous = ZatcaInvoiceXml.FirstPreviousHash;
+        long counter = 0;
+        var certificate = session.CertificatePem ?? throw new InvalidOperationException("The Compliance CSID certificate was not saved.");
+        foreach (var item in cases)
+        {
+            var signed = ZatcaSigner.Sign(
+                ComplianceSample(seller, item.DocumentType, item.IsSimplified, ++counter, previous),
+                certificate, key, DateTime.UtcNow);
+            previous = signed.Hash;
+            _db.Add(new ZatcaComplianceTest
+            {
+                SessionId = session.Id,
+                DocumentKey = item.Key,
+                IsSimplified = item.IsSimplified,
+                DocumentType = item.DocumentType,
+                Status = "generated",
+                Uuid = signed.Uuid,
+                InvoiceHash = signed.Hash,
+                SignedXml = signed.Xml,
+                GeneratedAt = DateTime.UtcNow,
+            });
+        }
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// The CSR's T/S flags declare standard and simplified invoice capabilities. Each enabled capability is tested
+    /// against the three ZATCA compliance document families; disabling a capability removes its entire test group.
+    /// </summary>
+    private static List<(string Key, bool IsSimplified, string DocumentType)> RequiredComplianceDocuments(string invoiceTypes)
+    {
+        if (invoiceTypes.Length != 4 || invoiceTypes.Any(c => c is not ('0' or '1')))
+            throw new ValidationFailedException("The CSR invoice-type capability must contain four binary flags.");
+
+        var documents = new List<(string Key, bool IsSimplified, string DocumentType)>();
+        var families = new[] { (Flag: invoiceTypes[0], Simplified: false, Prefix: "standard"), (Flag: invoiceTypes[1], Simplified: true, Prefix: "simplified") };
+        foreach (var family in families.Where(x => x.Flag == '1'))
+        {
+            documents.Add(($"{family.Prefix}_invoice", family.Simplified, ZatcaInvoiceXml.Invoice));
+            documents.Add(($"{family.Prefix}_credit_note", family.Simplified, ZatcaInvoiceXml.CreditNote));
+            documents.Add(($"{family.Prefix}_debit_note", family.Simplified, ZatcaInvoiceXml.DebitNote));
+        }
+        return documents;
+    }
+
+    private async Task SubmitComplianceTestAsync(ZatcaOnboardingSession session, ZatcaComplianceTest test, string baseUrl, CancellationToken ct)
+    {
+        if (test.Status == "accepted") return;
+        if (test.Status is "submitted" or "processing_unknown")
+            throw new ConflictException("This compliance test has an unresolved submission and must not be sent again automatically.");
+        if (test.Status is not ("generated" or "rejected"))
+            throw new ConflictException("Only a new or definitively rejected compliance test can be submitted.");
+
+        test.Status = "submitted";
+        test.SubmittedAt = DateTime.UtcNow;
+        test.AttemptCount++;
+        test.HttpStatus = null;
+        test.ResponseMessage = null;
+        test.ErrorsJson = null;
+        session.Status = "compliance_tests";
+        session.ErrorMessage = null;
+        await _db.SaveChangesAsync(ct);
+
+        ZatcaApiResult result;
+        try
+        {
+            result = await _api.CheckComplianceAsync(
+                baseUrl,
+                Reveal(session.ComplianceBinarySecurityToken!),
+                Reveal(session.ComplianceSecret!),
+                new ZatcaSubmission(test.InvoiceHash, test.Uuid, test.SignedXml),
+                ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            test.Status = "processing_unknown";
+            test.ResponseMessage = ex.Message;
+            test.CompletedAt = DateTime.UtcNow;
+            session.Status = "tests_attention";
+            session.ErrorMessage = ex.Message;
+            await _db.SaveChangesAsync(CancellationToken.None);
+            return;
+        }
+
+        test.HttpStatus = result.HttpStatus == 0 ? null : result.HttpStatus;
+        test.ResponseMessage = result.Message;
+        test.ErrorsJson = JsonSerializer.Serialize(result.Errors);
+        test.Status = !result.Reached ? "processing_unknown" : result.Accepted ? "accepted" : "rejected";
+        test.CompletedAt = DateTime.UtcNow;
+        if (test.Status != "accepted")
+        {
+            var reasons = result.Errors.Count > 0 ? result.Errors : new List<string> { result.Message ?? $"HTTP {result.HttpStatus}" };
+            session.ErrorMessage = string.Join(" | ", reasons);
+        }
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task IssueProductionCsidAsync(ZatcaOnboardingSession session, ZatcaUnit? unit, User target, ZatcaConfig config, Tenant tenant, string baseUrl, CancellationToken ct)
+    {
+        if (session.Status == "production_requesting")
+        {
+            session.Status = "production_unknown";
+            session.ErrorMessage = "The server restarted while requesting the Production CSID. The outcome could not be confirmed.";
+            await _db.SaveChangesAsync(ct);
+            throw new ConflictException(session.ErrorMessage);
+        }
+        if (session.Status == "production_unknown")
+            throw new ConflictException("The Production CSID request has an unresolved outcome and will not be sent again automatically.");
+
+        session.Status = "production_requesting";
+        session.ErrorMessage = null;
+        await _db.SaveChangesAsync(ct);
+        ZatcaCsidResult production;
+        try
+        {
+            production = await _api.RequestProductionCsidAsync(
+                baseUrl, session.ComplianceRequestId!, Reveal(session.ComplianceBinarySecurityToken!), Reveal(session.ComplianceSecret!), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            session.Status = "production_unknown";
+            session.ErrorMessage = ex.Message;
+            await _db.SaveChangesAsync(CancellationToken.None);
+            throw;
+        }
+        if (!production.Success)
+        {
+            session.Status = production.Reached ? "production_rejected" : "production_unknown";
+            session.ErrorMessage = production.Message;
+            await _db.SaveChangesAsync(ct);
+            throw new ValidationFailedException(string.Format(Messages.ZatcaProductionCsidFailed, production.Message));
+        }
+
+        if (unit == null)
+            _db.Add(unit = new ZatcaUnit { UserId = target.Id, DeviceSerial = session.DeviceSerial });
+        unit.UserName = target.Name;
+        unit.Environment = session.Environment;
+        unit.ComplianceRequestId = session.ComplianceRequestId;
+        unit.Csid = production.RequestId;
+        unit.BinarySecurityToken = Protect(production.BinarySecurityToken!);
+        unit.CertificatePem = CertificateOf(production.BinarySecurityToken!);
+        unit.SecretKey = Protect(production.Secret!);
+        unit.PrivateKeyPem = session.PrivateKeyPem!;
+        unit.IsActive = true;
+        unit.OnboardedAt = DateTime.UtcNow;
+
+        session.ProductionRequestId = production.RequestId;
+        session.Status = "completed";
+        session.CompletedAt = DateTime.UtcNow;
+        session.ErrorMessage = null;
+        config.Csid = production.RequestId;
+        config.Otp = null;
+        config.Phase = "phase2";
+        config.IsEnabled = true;
+        config.ComplianceStatus = ComplianceStatus.Compliant;
+        config.OnboardedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync("ZATCA_ONBOARDED", nameof(ZatcaUnit), unit.Id.ToString(),
+            $"ربط المستخدم {target.Name} مع هيئة الزكاة ({session.Environment}) - وحدة {session.DeviceSerial}", ct);
+    }
+
+    private async Task<ZatcaOnboardingStatusDto> ToStatusAsync(ZatcaOnboardingSession session, CancellationToken ct)
+    {
+        var tests = await _db.Set<ZatcaComplianceTest>().AsNoTracking()
+            .Where(t => t.SessionId == session.Id).OrderBy(t => t.GeneratedAt).ToListAsync(ct);
+        return new ZatcaOnboardingStatusDto
+        {
+            Id = session.Id,
+            UserId = session.UserId,
+            UserName = session.UserName,
+            Environment = session.Environment,
+            Status = session.Status,
+            ComplianceRequestId = session.ComplianceRequestId,
+            ProductionRequestId = session.ProductionRequestId,
+            ErrorMessage = session.ErrorMessage,
+            StartedAt = session.StartedAt,
+            CompletedAt = session.CompletedAt,
+            Tests = tests.Select(t => new ZatcaComplianceTestDto
+            {
+                Id = t.Id,
+                DocumentKey = t.DocumentKey,
+                Status = t.Status,
+                Uuid = t.Uuid,
+                AttemptCount = t.AttemptCount,
+                HttpStatus = t.HttpStatus,
+                ResponseMessage = t.ResponseMessage,
+                Errors = string.IsNullOrWhiteSpace(t.ErrorsJson) ? new List<string>() : JsonSerializer.Deserialize<List<string>>(t.ErrorsJson) ?? new List<string>(),
+                GeneratedAt = t.GeneratedAt,
+                SubmittedAt = t.SubmittedAt,
+                CompletedAt = t.CompletedAt,
+            }).ToList(),
         };
     }
 

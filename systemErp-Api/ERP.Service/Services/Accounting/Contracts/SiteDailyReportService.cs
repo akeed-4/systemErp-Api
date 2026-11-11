@@ -1,4 +1,5 @@
 using ERP.Core.Contracts.Accounting;
+using ERP.Core.Contracts.Shared;
 using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
@@ -23,10 +24,11 @@ public class SiteDailyReportService : ISiteDailyReportService
     private readonly ICurrentUser _user;
     private readonly IAccountingPostingService _posting;
     private readonly IRentalAccrualService _rentals;
+    private readonly IAuditService _audit;
 
-    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user, IAccountingPostingService posting, IRentalAccrualService rentals)
+    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user, IAccountingPostingService posting, IRentalAccrualService rentals, IAuditService audit)
     {
-        _db = db; _tx = tx; _user = user; _posting = posting; _rentals = rentals;
+        _db = db; _tx = tx; _user = user; _posting = posting; _rentals = rentals; _audit = audit;
     }
 
     // ---------- القراءة ----------
@@ -157,6 +159,8 @@ public class SiteDailyReportService : ISiteDailyReportService
             report.Status = St.Approved; report.ApprovedAt = DateTime.UtcNow; report.ApprovedBy = _user.Name; report.ApprovedByUserId = _user.UserId;
             await PostCostAsync(report, contract, token);
             await _db.SaveChangesAsync(token);
+            await _audit.LogAsync("SITE_DAILY_REPORT_APPROVED", nameof(SiteDailyReport), reportId.ToString(),
+                $"اعتماد تقرير يومي • عقد {contractId} • تاريخ {report.ReportDate:yyyy-MM-dd} • تكاليف محمّلة {report.PostedLaborCost + report.PostedEquipmentCost:N2}", token);
         }, ct);
         return await GetAsync(contractId, reportId, ct);
     }
@@ -241,7 +245,7 @@ public class SiteDailyReportService : ISiteDailyReportService
         {
             r.Status = St.Draft; r.ReopenNote = note.Length > 500 ? note[..500] : note; r.ReturnNote = null;
             r.SubmittedAt = null; r.SubmittedBy = null; r.ApprovedAt = null; r.ApprovedBy = null; r.ApprovedByUserId = null;
-        }, ct);
+        }, ct, "SITE_DAILY_REPORT_REOPENED", $"إعادة فتح تقرير • عقد {contractId} • ملاحظة: {note}");
     }
 
     public Task<SiteDailyReportDto> ReturnAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default)
@@ -254,7 +258,8 @@ public class SiteDailyReportService : ISiteDailyReportService
         }, ct);
     }
 
-    private async Task<SiteDailyReportDto> TransitionAsync(Guid contractId, Guid reportId, string from, Action<SiteDailyReport> apply, CancellationToken ct)
+    private async Task<SiteDailyReportDto> TransitionAsync(Guid contractId, Guid reportId, string from, Action<SiteDailyReport> apply,
+        CancellationToken ct, string? action = null, string? details = null)
     {
         var contract = await P.LoadBoqContractAsync(_db, contractId, ct);
         P.EnsureEditable(contract);
@@ -262,6 +267,9 @@ public class SiteDailyReportService : ISiteDailyReportService
         EnsureStatus(report, from);
         apply(report);
         await _db.SaveChangesAsync(ct);
+        if (!string.IsNullOrWhiteSpace(action))
+            await _audit.LogAsync(action, nameof(SiteDailyReport), reportId.ToString(),
+                details ?? $"تحديث حالة تقرير {report.ReportDate:yyyy-MM-dd} على عقد {contractId}", ct);
         return await GetAsync(contractId, reportId, ct);
     }
 

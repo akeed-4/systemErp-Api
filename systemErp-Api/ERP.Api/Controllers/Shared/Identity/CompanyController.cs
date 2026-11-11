@@ -20,7 +20,7 @@ public class CompanyController : ErpControllerBase
     public async Task<IActionResult> Update([FromBody] UpdateTenantDto request, CancellationToken ct)
         => Success(await _company.UpdateAsync(request, ct), Messages.CompanyUpdated);
 
-    [HttpPut("ZatcaConfig"), RequireScreen("zatca")]
+    [HttpPut("ZatcaConfig"), RequireScreen("zatca", ScreenAction.Edit)]
     public async Task<IActionResult> UpdateZatca([FromBody] UpdateZatcaConfigDto request, CancellationToken ct)
         => Success(await _company.UpdateZatcaConfigAsync(request, ct), Messages.IntegrationSettingsSaved);
 
@@ -29,6 +29,14 @@ public class CompanyController : ErpControllerBase
     [HttpPost("ZatcaOnboard")]
     public async Task<IActionResult> OnboardZatca([FromBody] ZatcaOnboardRequestDto request, CancellationToken ct)
         => Success(await _zatca.OnboardAsync(request, ct), Messages.ZatcaOnboarded);
+
+    [HttpGet("ZatcaOnboard"), RequireScreen("zatca", ScreenAction.View)]
+    public async Task<IActionResult> ZatcaOnboardingStatus([FromQuery] Guid? userId, CancellationToken ct)
+        => Success(await _zatca.GetOnboardingStatusAsync(userId, ct));
+
+    [HttpPost("ZatcaOnboard/{sessionId:guid}/tests/{testId:guid}/retry"), RequireScreen("zatca", ScreenAction.Edit)]
+    public async Task<IActionResult> RetryZatcaComplianceTest(Guid sessionId, Guid testId, CancellationToken ct)
+        => Success(await _zatca.RetryComplianceTestAsync(sessionId, testId, ct));
 
     /// <summary>المستخدمون المربوطون مع الهيئة (كلهم للمالك ومدير النظام، والمستخدم نفسه لغيرهما).</summary>
     [HttpGet("ZatcaUnits")]

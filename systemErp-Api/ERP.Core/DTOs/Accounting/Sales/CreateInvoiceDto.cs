@@ -37,6 +37,10 @@ public partial class CreateInvoiceDto
     public Guid? WarehouseId { get; set; }
     /// <summary>مركز التكلفة الافتراضي للأسطر: يُنسخ لكل سطر بلا مركز عند الحفظ، فالمركز الفعلي محفوظ على السطر وقيده.</summary>
     public Guid? CostCenterId { get; set; }
+    /// <summary>المعدة المستأجرة المرتبطة بهذا السطر في فاتورة المؤجر فقط.</summary>
+    public Guid? ProjectResourceId { get; set; }
+    /// <summary>السطر الأصلي الذي يشير إليه هذا السطر في مرتجع فاتورة.</summary>
+    public Guid? OriginalInvoiceItemId { get; set; }
     /// <summary>مراكز التكلفة لحسابات قيد الفاتورة كما اختارها المستخدم في قسم القيد (حساب واحد = مركز واحد). فارغ = بلا اختيار.</summary>
     public List<JournalCostCenterDto> JournalCostCenters { get; set; } = new();
     /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>

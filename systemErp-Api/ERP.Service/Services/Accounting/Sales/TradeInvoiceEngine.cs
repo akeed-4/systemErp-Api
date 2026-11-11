@@ -26,6 +26,7 @@ public class TradeInvoiceEngine
     private readonly IApprovalService _approvals;
     private readonly ERP.Core.Contracts.Shared.IPermissionService _permissions;
     private readonly ERP.Core.Contracts.Shared.ISubscriptionEntitlements _entitlements;
+    private readonly IPeriodLock _periods;
     /// <summary>تسوية استحقاق إيجار المعدات المستأجرة بفواتير المؤجر ومرتجعاته (بعد ترحيلها أو عكس قيدها عند حذفها).</summary>
     private readonly IRentalAccrualService _rentals;
     /// <summary>تجاوزات التصنيف الضريبي التي أقرّها آخر بناء؛ تُسجَّل في سجل التدقيق بعد حفظ المستند.</summary>
@@ -34,9 +35,9 @@ public class TradeInvoiceEngine
     public TradeInvoiceEngine(ErpDbContext db, IAccountingPostingService posting, IInventoryService inventory,
         INumberSequenceService numbers, IZatcaService zatca, ITransactionRunner tx, ERP.Core.Contracts.Shared.IAuditService audit,
         IEnumerable<IInvoiceExtension> extensions, IApprovalService approvals, ERP.Core.Contracts.Shared.IPermissionService permissions,
-        ERP.Core.Contracts.Shared.ISubscriptionEntitlements entitlements, IRentalAccrualService rentals)
+        ERP.Core.Contracts.Shared.ISubscriptionEntitlements entitlements, IPeriodLock periods, IRentalAccrualService rentals)
     {
-        _entitlements = entitlements; _rentals = rentals;
+        _entitlements = entitlements; _periods = periods; _rentals = rentals;
         _audit = audit; _extensions = extensions.ToList(); _approvals = approvals; _permissions = permissions;
         _db = db; _posting = posting; _inventory = inventory; _numbers = numbers; _zatca = zatca; _tx = tx;
     }
@@ -79,9 +80,11 @@ public class TradeInvoiceEngine
         var items = await Detailed(q.OrderByDescending(i => i.IssueDate).ThenByDescending(i => i.InvoiceNumber)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize)).ToListAsync(ct);
         var due = await InvoiceBalances.ForAsync(_db, items.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, ct);
+        var rows = items.Select(i => (Invoice: i, Dto: ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList();
+        await ApplyProjectNamesAsync(rows, ct);
         return new PagedResult<InvoiceDto>
         {
-            Items = await MaskAsync(items.Select(i => (i, ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList(), ct),
+            Items = await MaskAsync(rows, ct),
             TotalCount = total, PageNumber = p.NormalizedPage, PageSize = p.NormalizedSize,
         };
     }
@@ -97,7 +100,9 @@ public class TradeInvoiceEngine
         return EntityLoader.LoadAsync(Detailed(q), options, async (page, token) =>
         {
             var due = await InvoiceBalances.ForAsync(_db, page.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, token);
-            return await MaskAsync(page.Select(i => (i, ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList(), token);
+            var rows = page.Select(i => (Invoice: i, Dto: ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList();
+            await ApplyProjectNamesAsync(rows, token);
+            return await MaskAsync(rows, token);
         }, ct, EntityLoader.Desc(nameof(InvoiceBase.IssueDate)), EntityLoader.Desc(nameof(InvoiceBase.InvoiceNumber)));
     }
 
@@ -106,6 +111,7 @@ public class TradeInvoiceEngine
         var invoice = await Detailed(_db.Set<T>().AsNoTracking()).FirstOrDefaultAsync(i => i.Id == id, ct)
             ?? throw new NotFoundException(Messages.InvoiceNotFound);
         var dto = ToDto(invoice, invoice.Status == "posted" ? await InvoiceBalances.DueAsync(_db, id, ct) : 0);
+        await ApplyProjectNamesAsync(new List<(T Invoice, InvoiceDto Dto)> { (invoice, dto) }, ct);
         if (invoice is Invoice car) foreach (var ext in _extensions) await ext.FillAsync(car, dto, ct);
         return (await MaskAsync(new List<(T, InvoiceDto)> { (invoice, dto) }, ct))[0];
     }
@@ -115,12 +121,64 @@ public class TradeInvoiceEngine
         var dto = Mapper.Map<InvoiceDto>(invoice);
         dto.JournalCostCenters = JournalCostCenterMap.Unpack(invoice.JournalCostCentersJson);
         dto.AmountDue = amountDue;
-        // مكونات المجمّع/المركّب من لقطة السطر (المركّب تُطبع مكوناته بكمياتها بلا سعر)
-        var withComponents = invoice.Lines.Where(l => l.ComponentsJson != null).ToDictionary(l => l.Id);
-        if (withComponents.Count > 0)
-            foreach (var item in dto.Items)
-                if (withComponents.TryGetValue(item.Id, out var line)) item.Components = InvoiceLineStock.Components(line);
+        var sourceLines = invoice.Lines.ToDictionary(line => line.Id);
+        foreach (var item in dto.Items)
+            if (sourceLines.TryGetValue(item.Id, out var line))
+            {
+                item.ProjectResourceId = line.ProjectResourceId;
+                item.OriginalInvoiceItemId = line.OriginalInvoiceItemId;
+                if (line.ComponentsJson != null) item.Components = InvoiceLineStock.Components(line);
+            }
         return dto;
+    }
+
+    public async Task<List<RentalInvoiceResourceDto>> RentalResourcesAsync(Guid supplierId, CancellationToken ct = default)
+        => await (from resource in _db.Set<ProjectResource>().AsNoTracking()
+                  join contract in _db.Set<CommercialContract>().AsNoTracking() on resource.ContractId equals contract.Id
+                  where resource.SupplierId == supplierId && resource.Kind == ProjectResourceKinds.RentedEquipment
+                      && contract.CostCenterId.HasValue
+                  orderby contract.ProjectName, resource.Name
+                  select new RentalInvoiceResourceDto
+                  {
+                      Id = resource.Id,
+                      ResourceName = resource.Name,
+                      ProjectName = string.IsNullOrWhiteSpace(contract.ProjectName) ? contract.ContractNumber : contract.ProjectName,
+                      ProjectNameEn = string.IsNullOrWhiteSpace(contract.ProjectNameEn) ? contract.ContractNumber : contract.ProjectNameEn,
+                      ContractNumber = contract.ContractNumber,
+                      CostCenterId = contract.CostCenterId!.Value,
+                  }).ToListAsync(ct);
+
+    private async Task ApplyProjectNamesAsync<T>(IReadOnlyCollection<(T Invoice, InvoiceDto Dto)> rows, CancellationToken ct)
+        where T : InvoiceBase
+    {
+        var requisitionIds = rows
+            .Where(row => row.Invoice.Kind == InvoiceKind.Purchase
+                && row.Invoice.ReferenceType == "material_requisition"
+                && row.Invoice.ReferenceId.HasValue)
+            .Select(row => row.Invoice.ReferenceId!.Value)
+            .Distinct()
+            .ToList();
+        if (requisitionIds.Count == 0) return;
+
+        var projects = await (
+            from requisition in _db.Set<MaterialRequisition>().AsNoTracking()
+            join contract in _db.Set<CommercialContract>().AsNoTracking()
+                on requisition.ContractId equals (Guid?)contract.Id
+            where requisitionIds.Contains(requisition.Id)
+            select new { RequisitionId = requisition.Id, contract.ProjectName, contract.ProjectNameEn }
+        ).ToDictionaryAsync(project => project.RequisitionId, ct);
+
+        foreach (var row in rows)
+        {
+            if (row.Invoice.Kind == InvoiceKind.Purchase
+                && row.Invoice.ReferenceType == "material_requisition"
+                && row.Invoice.ReferenceId is Guid requisitionId
+                && projects.TryGetValue(requisitionId, out var project))
+            {
+                row.Dto.ProjectName = project.ProjectName;
+                row.Dto.ProjectNameEn = project.ProjectNameEn;
+            }
+        }
     }
 
     /// <summary>حجب ما تحجبه الامتدادات (تكلفة السيارات) عن نتائج فواتير المعارض.</summary>
@@ -134,10 +192,14 @@ public class TradeInvoiceEngine
         return rows.Select(x => x.Dto).ToList();
     }
 
+    private async Task EnsureOpenPeriodAsync(DateTime issueDate, CancellationToken ct)
+        => await _periods.EnsureOpenAsync(issueDate == default ? SaudiTime.Today : issueDate, ct);
+
     // ---------------- الإنشاء ----------------
     public async Task<InvoiceDto> CreateAsync<T>(CreateInvoiceDto r, CancellationToken ct) where T : InvoiceBase, new()
         => await SendToZatcaIfRequestedAsync<T>(await _tx.RunAsync(async token =>
         {
+            await EnsureOpenPeriodAsync(r.IssueDate, token);
             r.ExistingInvoiceId = null;
             var invoice = await BuildAsync<T>(r, token);
             var draft = string.Equals(r.Status, "draft", StringComparison.OrdinalIgnoreCase);
@@ -199,6 +261,7 @@ public class TradeInvoiceEngine
         => await SendToZatcaIfRequestedAsync<T>(await _tx.RunAsync(async token =>
         {
             var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            await EnsureOpenPeriodAsync(r.IssueDate == default ? invoice.IssueDate : r.IssueDate, token);
             if (r.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
             // المرحّلة (قبل إرسالها للهيئة): يُعكس قيدها وحركاتها المخزنية ثم يُعاد ترحيلها بنفس رقمها بعد التعديل
             var wasPosted = invoice.Status == "posted";
@@ -447,13 +510,13 @@ public class TradeInvoiceEngine
                 foreach (var ext in _extensions)
                     if (await ext.CreateReturnAsync(r, car, CreateAsync<TReturn>, token) is { } extensionReturn) return extensionReturn;
 
-            var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original.Id, token);
-            var lines = r.Lines.Count > 0
-                ? r.Lines
-                : original.Lines.Select(i => new ReturnLineDto { ItemId = i.ItemId, Quantity = i.Quantity - previouslyReturned.GetValueOrDefault(i.ItemId) }).Where(l => l.Quantity > 0).ToList();
+            var originalLines = original.Lines.ToList();
+            var rentalContractPurchase = IsRentalContractPurchase(original);
+            var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, token);
+            var lines = NormalizeReturnLines(originalLines, r.Lines, previouslyReturned, rentalContractPurchase, returnAllWhenEmpty: true);
             if (lines.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
 
-            var dto = BuildTradeReturn(original, r, lines, previouslyReturned);
+            var dto = BuildTradeReturn(original, r, lines, previouslyReturned, rentalContractPurchase);
             if (r.RefundSplits.Count > 0) await ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
             else if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
             return await CreateAsync<TReturn>(dto, token);
@@ -480,17 +543,24 @@ public class TradeInvoiceEngine
                     return preview;
                 }
 
-        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original.Id, ct);
-        var chosen = r.Lines.Where(l => l.Quantity > 0).ToList();
-        var priced = chosen.Count > 0 ? PriceReturn(BuildTradeReturn(original, r, chosen, previouslyReturned)) : (Totals: null, Lines: Array.Empty<PricedLine>());
-        // صف لكل صنف كما يطابقه المرتجع (أول سطر له في الأصل)، والمتبقي بعد المرتجعات المرحّلة
-        foreach (var src in original.Lines.GroupBy(i => i.ItemId).Select(g => g.First()))
+        var originalLines = original.Lines.ToList();
+        var rentalContractPurchase = IsRentalContractPurchase(original);
+        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, ct);
+        var chosen = NormalizeReturnLines(originalLines, r.Lines.Where(l => l.Quantity > 0).ToList(), previouslyReturned, rentalContractPurchase);
+        var priced = chosen.Count > 0 ? PriceReturn(BuildTradeReturn(original, r, chosen, previouslyReturned, rentalContractPurchase)) : (Totals: null, Lines: Array.Empty<PricedLine>());
+        var previewLines = rentalContractPurchase
+            ? originalLines
+            : originalLines.GroupBy(i => i.ItemId).Select(g => g.First()).ToList();
+        foreach (var src in previewLines)
         {
-            var returned = previouslyReturned.GetValueOrDefault(src.ItemId);
-            var index = chosen.FindIndex(l => l.ItemId == src.ItemId);
+            var returned = previouslyReturned.GetValueOrDefault(rentalContractPurchase ? src.Id : src.ItemId);
+            var index = chosen.FindIndex(l => rentalContractPurchase
+                ? l.OriginalInvoiceItemId == src.Id
+                : l.ItemId == src.ItemId);
             var line = index >= 0 ? priced.Lines[index] : null;
             preview.Lines.Add(new ReturnPreviewLineDto
             {
+                OriginalInvoiceItemId = rentalContractPurchase ? src.Id : null,
                 ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit,
                 OriginalQuantity = src.Quantity, ReturnedQuantity = returned, RemainingQuantity = Math.Max(0, src.Quantity - returned),
                 UnitPrice = src.UnitPrice, Discount = src.Discount, VatRate = src.VatRate,
@@ -501,12 +571,106 @@ public class TradeInvoiceEngine
         return preview;
     }
 
-    /// <summary>الكميات المرتجعة من كل صنف في مرتجعات الأصل المرحّلة.</summary>
-    private async Task<Dictionary<Guid, decimal>> PreviouslyReturnedAsync<TReturn>(Guid originalId, CancellationToken ct) where TReturn : InvoiceBase
-        => (await _db.Set<InvoiceItemBase>().AsNoTracking()
-                .Where(i => _db.Set<TReturn>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == originalId && inv.Status == "posted"))
-                .ToListAsync(ct))
-            .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+    /// <summary>الكميات المرتجعة لكل سطر أصل؛ تُوزّع أسطر المرتجعات القديمة غير المرتبطة بسطر على سطور الصنف بالترتيب.</summary>
+    private static bool IsRentalContractPurchase(InvoiceBase original)
+        => original.Kind == InvoiceKind.Purchase && original.Lines.Any(line => line.ProjectResourceId.HasValue);
+
+    private async Task<Dictionary<Guid, decimal>> PreviouslyReturnedAsync<TReturn>(
+        InvoiceBase original, bool rentalContractPurchase, CancellationToken ct) where TReturn : InvoiceBase
+    {
+        var rows = await _db.Set<InvoiceItemBase>().AsNoTracking()
+            .Where(i => _db.Set<TReturn>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"))
+            .ToListAsync(ct);
+        if (!rentalContractPurchase)
+            return rows.GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+
+        var returned = rows.Where(i => i.OriginalInvoiceItemId.HasValue)
+            .GroupBy(i => i.OriginalInvoiceItemId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+        var legacy = rows.Where(i => !i.OriginalInvoiceItemId.HasValue)
+            .GroupBy(i => i.ItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+        foreach (var group in original.Lines.GroupBy(i => i.ItemId))
+        {
+            var remainingLegacy = legacy.GetValueOrDefault(group.Key);
+            foreach (var line in group.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id))
+            {
+                var legacyQuantity = Math.Min(Math.Max(0, line.Quantity - returned.GetValueOrDefault(line.Id)), remainingLegacy);
+                if (legacyQuantity > 0)
+                {
+                    returned[line.Id] = returned.GetValueOrDefault(line.Id) + legacyQuantity;
+                    remainingLegacy -= legacyQuantity;
+                }
+            }
+        }
+        return returned;
+    }
+
+    private static List<ReturnLineDto> NormalizeReturnLines(
+        IReadOnlyList<InvoiceItemBase> originalLines,
+        IReadOnlyList<ReturnLineDto> requested,
+        IReadOnlyDictionary<Guid, decimal> previouslyReturned,
+        bool rentalContractPurchase,
+        bool returnAllWhenEmpty = false)
+    {
+        if (!rentalContractPurchase)
+        {
+            if (requested.Count == 0 && !returnAllWhenEmpty) return new();
+            if (requested.Count > 0) return requested.ToList();
+            return originalLines.Select(line => new ReturnLineDto
+            {
+                ItemId = line.ItemId,
+                Quantity = line.Quantity - previouslyReturned.GetValueOrDefault(line.ItemId),
+            }).Where(line => line.Quantity > 0).ToList();
+        }
+
+        if (requested.Count == 0 && !returnAllWhenEmpty) return new();
+        if (requested.Count == 0)
+            return originalLines.Select(line => new ReturnLineDto
+            {
+                ItemId = line.ItemId, OriginalInvoiceItemId = line.Id,
+                Quantity = Math.Max(0, line.Quantity - previouslyReturned.GetValueOrDefault(line.Id)),
+            }).Where(line => line.Quantity > 0).ToList();
+
+        var normalized = new List<ReturnLineDto>();
+        foreach (var line in requested)
+        {
+            if (line.OriginalInvoiceItemId is Guid sourceId)
+            {
+                var source = originalLines.FirstOrDefault(i => i.Id == sourceId && i.ItemId == line.ItemId)
+                    ?? throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
+                var remaining = source.Quantity - previouslyReturned.GetValueOrDefault(source.Id)
+                    - normalized.Where(i => i.OriginalInvoiceItemId == source.Id).Sum(i => i.Quantity);
+                if (line.Quantity <= 0 || line.Quantity > remaining)
+                    throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, source.ItemName, Math.Max(0, remaining)));
+                normalized.Add(new ReturnLineDto { ItemId = source.ItemId, OriginalInvoiceItemId = source.Id, Quantity = line.Quantity });
+                continue;
+            }
+
+            var quantity = line.Quantity;
+            foreach (var source in originalLines.Where(i => i.ItemId == line.ItemId).OrderBy(i => i.CreatedAt).ThenBy(i => i.Id))
+            {
+                var remaining = Math.Max(0, source.Quantity - previouslyReturned.GetValueOrDefault(source.Id)
+                    - normalized.Where(i => i.OriginalInvoiceItemId == source.Id).Sum(i => i.Quantity));
+                var take = Math.Min(Math.Max(0, quantity), remaining);
+                if (take > 0)
+                {
+                    normalized.Add(new ReturnLineDto { ItemId = source.ItemId, OriginalInvoiceItemId = source.Id, Quantity = take });
+                    quantity -= take;
+                }
+                if (quantity <= 0) break;
+            }
+            if (quantity > 0)
+            {
+                var source = originalLines.FirstOrDefault(i => i.ItemId == line.ItemId);
+                if (source == null) throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
+                var available = originalLines.Where(i => i.ItemId == line.ItemId)
+                    .Sum(i => Math.Max(0, i.Quantity - previouslyReturned.GetValueOrDefault(i.Id)));
+                throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, source.ItemName, available));
+            }
+        }
+        return normalized;
+    }
 
     /// <summary>تسعير المرتجع كما يسعّره الإنشاء: معالجة الضريبة من الأصل ثم محرك التسعير، بأسطره بترتيب بنوده.</summary>
     private static (ReturnTotalsDto Totals, IReadOnlyList<PricedLine> Lines) PriceReturn(CreateInvoiceDto dto)
@@ -525,7 +689,9 @@ public class TradeInvoiceEngine
     }
 
     /// <summary>طلب مرتجع تجارة عامة من الأصل: بيانات الطرف والحسابات والمعالجة منه، وكل سطر بسعر أصله وخصمه النسبي.</summary>
-    private static CreateInvoiceDto BuildTradeReturn(InvoiceBase original, CreateReturnInvoiceRequestDto r, List<ReturnLineDto> lines, Dictionary<Guid, decimal> previouslyReturned)
+    private static CreateInvoiceDto BuildTradeReturn(
+        InvoiceBase original, CreateReturnInvoiceRequestDto r, List<ReturnLineDto> lines,
+        Dictionary<Guid, decimal> previouslyReturned, bool rentalContractPurchase)
     {
         var originalLines = original.Lines.ToList();
         var dto = new CreateInvoiceDto
@@ -551,8 +717,11 @@ public class TradeInvoiceEngine
         if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
         foreach (var l in lines)
         {
-            var src = originalLines.FirstOrDefault(i => i.ItemId == l.ItemId) ?? throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
-            var remaining = src.Quantity - previouslyReturned.GetValueOrDefault(l.ItemId);
+            var src = rentalContractPurchase && l.OriginalInvoiceItemId is Guid sourceId
+                ? originalLines.FirstOrDefault(i => i.Id == sourceId && i.ItemId == l.ItemId)
+                : originalLines.FirstOrDefault(i => i.ItemId == l.ItemId);
+            if (src == null) throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
+            var remaining = src.Quantity - previouslyReturned.GetValueOrDefault(rentalContractPurchase ? src.Id : src.ItemId);
             if (l.Quantity <= 0 || l.Quantity > remaining)
                 throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.ItemName, remaining));
             dto.Items.Add(new InvoiceItemDto
@@ -565,6 +734,8 @@ public class TradeInvoiceEngine
                 RevenueAccountCode = src.RevenueAccountCode,
                 Discount = src.Quantity == 0 ? 0 : Math.Round(src.Discount * l.Quantity / src.Quantity, 2),
                 CostCenterId = src.CostCenterId,
+                ProjectResourceId = rentalContractPurchase ? src.ProjectResourceId : null,
+                OriginalInvoiceItemId = rentalContractPurchase ? src.Id : null,
             });
         }
         // خصم الفاتورة يُوزَّع نسبياً على الكميات المرتجعة.
@@ -633,6 +804,7 @@ public class TradeInvoiceEngine
         => _tx.RunAsync(async token =>
         {
             var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            await EnsureOpenPeriodAsync(invoice.IssueDate, token);
             // ما وصل للهيئة لا يُحذف أبداً، مقبولاً أو مرفوضاً: صار حلقة في سلسلة التجزئة والعدّاد، ويُصحَّح بمرتجع فقط
             if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted || invoice.ZatcaHash != null)
                 throw new ConflictException(string.Format(Messages.InvoiceSentToZatcaCannotBeDeleted, invoice.InvoiceNumber));
@@ -903,6 +1075,10 @@ public class TradeInvoiceEngine
         await ApplyProductVatDefaultsAsync(r, ct);
         await ApplyProductExciseDefaultsAsync(r, ct);
         await EnsureVatTreatmentAllowedAsync(r, ct);
+        var rentalCostCenters = await ValidateRentalResourceSelectionsAsync<T>(r, ct);
+        foreach (var item in r.Items)
+            if (item.ProjectResourceId is Guid resourceId && rentalCostCenters.TryGetValue(resourceId, out var costCenterId))
+                item.CostCenterId = costCenterId;
         await EnsureCostCenterAllowedAsync(r, ct);
         var errors = new List<string>();
         ApplyDocumentVatTreatment(r, errors);
@@ -1022,7 +1198,10 @@ public class TradeInvoiceEngine
             line.ExciseTaxAmount = pl.ExciseTaxAmount;
             line.VatRate = src.VatRate; line.VatAmount = pl.VatAmount; line.TotalBeforeVat = pl.Net; line.TotalAfterVat = pl.Total;
             // مركز الترويسة افتراضي فقط: يُحفظ المركز الفعلي على السطر فلا يغيّر تعديلُ الافتراضي لاحقاً أثرَ المستند
-            line.CostCenterId = src.CostCenterId ?? r.CostCenterId;
+            line.CostCenterId = src.ProjectResourceId is Guid rentalId && rentalCostCenters.TryGetValue(rentalId, out var rentalCenter)
+                ? rentalCenter : src.CostCenterId ?? r.CostCenterId;
+            line.ProjectResourceId = src.ProjectResourceId;
+            line.OriginalInvoiceItemId = src.OriginalInvoiceItemId;
             line.RevenueAccountCode = isSales && !string.IsNullOrWhiteSpace(src.RevenueAccountCode) ? src.RevenueAccountCode.Trim() : null;
             // التشغيلة للصنف المتتبَّع فقط (يُخصِّصها الترحيل ويكتب ما خُصِّص فعلاً)
             if (p?.TrackBatches == true)
@@ -1137,6 +1316,69 @@ public class TradeInvoiceEngine
             invoice.Module = orig.Module;
         }
         return invoice;
+    }
+
+    private async Task<Dictionary<Guid, Guid>> ValidateRentalResourceSelectionsAsync<T>(CreateInvoiceDto request, CancellationToken ct)
+        where T : InvoiceBase, new()
+    {
+        var selectedIds = request.Items.Where(item => item.ProjectResourceId.HasValue)
+            .Select(item => item.ProjectResourceId!.Value).Distinct().ToList();
+        if (selectedIds.Count == 0)
+        {
+            if (request.Kind == InvoiceKind.PurchaseReturn && request.IsReturn
+                && request.OriginalInvoiceId is Guid originalInvoiceId
+                && await HasRentalPurchaseLinesAsync(originalInvoiceId, ct))
+                await ValidateReturnLineOriginsAsync<T>(request, ct);
+            return new();
+        }
+
+        if (typeof(T) == typeof(PurchaseInvoice) && request.Kind == InvoiceKind.Purchase)
+        {
+            if (request.PartyId is not Guid supplierId) throw new ValidationFailedException("يجب اختيار مورد لربط سطر إيجار بمعدة مستأجرة.");
+            var resources = await (from resource in _db.Set<ProjectResource>().AsNoTracking()
+                                   join contract in _db.Set<CommercialContract>().AsNoTracking() on resource.ContractId equals contract.Id
+                                   where selectedIds.Contains(resource.Id)
+                                   select new { resource.Id, resource.Kind, resource.SupplierId, contract.CostCenterId })
+                .ToDictionaryAsync(resource => resource.Id, ct);
+            if (resources.Count != selectedIds.Count
+                || resources.Values.Any(resource => resource.Kind != ProjectResourceKinds.RentedEquipment
+                    || resource.SupplierId != supplierId || resource.CostCenterId == null))
+                throw new ValidationFailedException("مرجع الإيجار غير صالح: اختر معدة مستأجرة مرتبطة بالمورد ومشروع له مركز تكلفة.");
+            return resources.ToDictionary(resource => resource.Key, resource => resource.Value.CostCenterId!.Value);
+        }
+
+        if (typeof(T) == typeof(PurchaseReturn) && request.Kind == InvoiceKind.PurchaseReturn && request.IsReturn
+            && request.OriginalInvoiceId is Guid originalId
+            && await HasRentalPurchaseLinesAsync(originalId, ct))
+        {
+            await ValidateReturnLineOriginsAsync<T>(request, ct);
+            return new();
+        }
+        throw new ValidationFailedException("لا يمكن ربط المعدة المستأجرة إلا بسطر فاتورة شراء للمورد.");
+    }
+
+    private Task<bool> HasRentalPurchaseLinesAsync(Guid invoiceId, CancellationToken ct)
+        => _db.Set<PurchaseInvoice>().AnyAsync(invoice => invoice.Id == invoiceId
+            && invoice.Items.Any(item => item.ProjectResourceId.HasValue), ct);
+
+    private async Task ValidateReturnLineOriginsAsync<T>(CreateInvoiceDto request, CancellationToken ct)
+        where T : InvoiceBase, new()
+    {
+        var returnItems = request.Items.Where(item => item.OriginalInvoiceItemId.HasValue).ToList();
+        if (typeof(T) == typeof(PurchaseReturn)
+            && request.Kind == InvoiceKind.PurchaseReturn && request.Items.Any(item => !item.OriginalInvoiceItemId.HasValue))
+            throw new ValidationFailedException("يجب ربط كل سطر مرتجع بسطره في الفاتورة الأصلية.");
+        if (request.Items.Any(item => item.ProjectResourceId.HasValue && !item.OriginalInvoiceItemId.HasValue))
+            throw new ValidationFailedException("يجب ربط سطر إيجار مرتجع بسطره في الفاتورة الأصلية.");
+        if (returnItems.Count == 0) return;
+        var originalLineIds = returnItems.Select(item => item.OriginalInvoiceItemId!.Value).Distinct().ToList();
+        var originals = await _db.Set<InvoiceItemBase>().AsNoTracking()
+            .Where(item => originalLineIds.Contains(item.Id) && item.InvoiceId == request.OriginalInvoiceId)
+            .ToDictionaryAsync(item => item.Id, ct);
+        if (originals.Count != originalLineIds.Count || returnItems.Any(item =>
+                !originals.TryGetValue(item.OriginalInvoiceItemId!.Value, out var original)
+                || original.ItemId != item.ItemId || original.ProjectResourceId != item.ProjectResourceId))
+            throw new ValidationFailedException("بيانات سطر المرتجع لا تطابق الفاتورة الأصلية.");
     }
 
     /// <summary>

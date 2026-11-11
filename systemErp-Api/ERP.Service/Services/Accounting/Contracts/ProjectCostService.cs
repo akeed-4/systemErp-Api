@@ -1,6 +1,7 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting.Sales;
 using ERP.Service.Services.Shared;
 using CertSt = ERP.Core.Models.Accounting.ContractCertificateStatuses;
 
@@ -124,16 +125,27 @@ public class ProjectCostService : IProjectCostService
         (string? Source, Guid? Ref) Origin(string? source, Guid? reference)
             => source == "reversal" && reference is Guid o && originals.TryGetValue(o, out var org) ? org : (source, reference);
 
-        // المعدات المستأجرة: فواتير موردي المعدات المستأجرة في موارد المشروع (القيد مرجعه الفاتورة)
-        var rentalSuppliers = await _db.Set<ProjectResource>().AsNoTracking()
-            .Where(x => x.ContractId == contractId && x.Kind == ProjectResourceKinds.RentedEquipment && x.SupplierId != null)
-            .Select(x => x.SupplierId!.Value).Distinct().ToListAsync(ct);
-        var rentalRefs = new HashSet<Guid>();
-        if (rentalSuppliers.Count > 0)
+        // المعدات المستأجرة: تُصنَّف فقط الفواتير التي تحمل سطراً مرتبطاً بمعدة من هذا المشروع.
+        var rentalResourceIds = await _db.Set<ProjectResource>().AsNoTracking()
+            .Where(x => x.ContractId == contractId && x.Kind == ProjectResourceKinds.RentedEquipment)
+            .Select(x => x.Id).ToListAsync(ct);
+        var rentalRatios = new Dictionary<Guid, decimal>();
+        if (rentalResourceIds.Count > 0)
         {
             var refs = lines.Select(l => Origin(l.SourceType, l.Ref).Ref).Where(r => r != null).Select(r => r!.Value).Distinct().ToList();
-            rentalRefs.UnionWith(await _db.Set<PurchaseInvoice>().AsNoTracking()
-                .Where(i => refs.Contains(i.Id) && i.PartyId != null && rentalSuppliers.Contains(i.PartyId.Value)).Select(i => i.Id).ToListAsync(ct));
+            var rentalInvoices = await _db.Set<PurchaseInvoice>().AsNoTracking().Include(i => i.Items)
+                .Where(i => refs.Contains(i.Id) && i.Items.Any(item => item.ProjectResourceId.HasValue
+                    && rentalResourceIds.Contains(item.ProjectResourceId.Value)))
+                .ToListAsync(ct);
+            var rentalReturns = await _db.Set<PurchaseReturn>().AsNoTracking().Include(i => i.Items)
+                .Where(i => refs.Contains(i.Id) && i.Items.Any(item => item.ProjectResourceId.HasValue
+                    && rentalResourceIds.Contains(item.ProjectResourceId.Value)))
+                .ToListAsync(ct);
+            foreach (var document in rentalInvoices.Cast<InvoiceBase>().Concat(rentalReturns))
+            {
+                var ratio = RentalInvoiceClassification.ResourceExpenseRatioAtCenter(document, rentalResourceIds, cc);
+                if (ratio > 0) rentalRatios[document.Id] = ratio;
+            }
         }
 
         var costLines = new List<(string Category, Guid? Entry, string? Number, DateTime Date, string? Source, string? RefNo, string Description, string? Account, string? AccountName, decimal Amount)>();
@@ -157,11 +169,20 @@ public class ProjectCostService : IProjectCostService
                 : RentalAccrualService.Sources.Contains(source ?? string.Empty) ? "rented_equipment"
                 : source == SiteCostSource ? (l.AccountCode == equipmentAccount ? "equipment" : l.AccountCode == laborAccount ? "labor" : "other")
                 : source == OverheadSource ? "overhead"
-                : reference is Guid invoiceRef && rentalRefs.Contains(invoiceRef) ? "rented_equipment"
                 : LaborSources.Contains(source ?? string.Empty) ? "labor"
                 : EquipmentSources.Contains(source ?? string.Empty) ? "equipment"
                 : l.AccountCode == laborAccount ? "labor" : l.AccountCode == equipmentAccount ? "equipment" : "other";
             if (isWip) r.WipBalance += amount;
+            if (reference is Guid invoiceRef && rentalRatios.TryGetValue(invoiceRef, out var rentalRatio)
+                && (source is "purchase" or "purchase_return"))
+            {
+                var rentalAmount = DocumentPricing.Round(amount * rentalRatio);
+                if (rentalAmount != 0)
+                    costLines.Add(("rented_equipment", l.JournalEntryId, l.EntryNumber, l.Date, l.SourceType, l.ReferenceNumber, l.Description, l.AccountCode, l.NameAr, rentalAmount));
+                if (amount - rentalAmount != 0)
+                    costLines.Add(("other", l.JournalEntryId, l.EntryNumber, l.Date, l.SourceType, l.ReferenceNumber, l.Description, l.AccountCode, l.NameAr, amount - rentalAmount));
+                continue;
+            }
             costLines.Add((category, l.JournalEntryId, l.EntryNumber, l.Date, l.SourceType, l.ReferenceNumber, l.Description, l.AccountCode, l.NameAr, amount));
         }
         // الاحتساب المزدوج: تكلفة محمّلة بالساعات من التقارير اليومية ومرحّلة أيضاً على مركز المشروع من الرواتب أو الإهلاك

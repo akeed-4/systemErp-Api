@@ -1,7 +1,7 @@
 namespace ERP.Core.Contracts.Accounting;
 
 /// <summary>شهادة أصدرتها الهيئة (امتثال أو إنتاج): رمز الأمان (الشهادة مرمَّزة) والسر، وبهما تُصادَق الطلبات التالية.</summary>
-public sealed record ZatcaCsidResult(bool Success, string? RequestId, string? BinarySecurityToken, string? Secret, string? Message);
+public sealed record ZatcaCsidResult(bool Success, string? RequestId, string? BinarySecurityToken, string? Secret, string? Message, bool Reached = true);
 
 /// <summary>فاتورة موقّعة جاهزة للإرسال.</summary>
 public sealed record ZatcaSubmission(string InvoiceHash, Guid Uuid, string Xml);

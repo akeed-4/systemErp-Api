@@ -1,5 +1,6 @@
 using DevExtreme.AspNet.Data.ResponseModel;
 using ERP.Core.Contracts.Accounting;
+using ERP.Core.DTOs.Accounting;
 
 namespace ERP.Service.Services.Accounting;
 
@@ -62,6 +63,8 @@ public class SalesInvoiceService : TradeDocumentService<SalesInvoice>, ISalesInv
 public class PurchaseInvoiceService : TradeDocumentService<PurchaseInvoice>, IPurchaseInvoiceService
 {
     public PurchaseInvoiceService(TradeInvoiceEngine engine) : base(engine) { }
+    public Task<List<RentalInvoiceResourceDto>> RentalResourcesAsync(Guid supplierId, CancellationToken ct = default)
+        => Engine.RentalResourcesAsync(supplierId, ct);
 }
 
 public class SalesReturnService : TradeReturnService<SalesReturn, SalesInvoice>, ISalesReturnService

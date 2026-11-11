@@ -70,6 +70,8 @@ public partial class InvoiceDto
     public string? ReferenceType { get; set; }
     public Guid? ReferenceId { get; set; }
     public string? ReferenceNumber { get; set; }
+    public string? ProjectName { get; set; }
+    public string? ProjectNameEn { get; set; }
     public bool IsReturn { get; set; }
     public Guid? OriginalInvoiceId { get; set; }
     public string? OriginalInvoiceNumber { get; set; }

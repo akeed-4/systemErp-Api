@@ -78,6 +78,7 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public string? Notes { get; set; }
     /// <summary>بيانات المشروع (عقود المقاولات).</summary>
     public string? ProjectName { get; set; }
+    public string? ProjectNameEn { get; set; }
     public string? ProjectLocation { get; set; }
     public string? ConsultantName { get; set; }
     public string? TitleEn { get; set; }

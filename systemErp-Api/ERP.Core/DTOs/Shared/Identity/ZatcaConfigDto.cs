@@ -9,9 +9,6 @@ public partial class ZatcaConfigDto
     public string SolutionVersion { get; set; } = "1.0.0";
     public string? RegisteredDevice { get; set; }
     public bool AutoSendInvoices { get; set; }
-    public string? ApiKey { get; set; }
-    public string? CertificatePem { get; set; }
-    public string? Otp { get; set; }
     public bool IsEnabled { get; set; }
     public string Phase { get; set; } = "phase1";
     public string? TaxRegistrationNumber { get; set; }

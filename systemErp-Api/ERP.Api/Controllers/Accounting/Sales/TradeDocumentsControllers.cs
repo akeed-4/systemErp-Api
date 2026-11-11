@@ -143,7 +143,21 @@ public class SalesInvoicesController : TradeDocumentsControllerBase
 [RequireModule(PlatformModules.Accounting)]
 public class PurchaseInvoicesController : TradeDocumentsControllerBase
 {
-    public PurchaseInvoicesController(IPurchaseInvoiceService service, IPermissionService permissions) : base(service, permissions, "purchases") { }
+    private readonly IPurchaseInvoiceService _purchases;
+    private readonly IPermissionService _permissions;
+
+    public PurchaseInvoicesController(IPurchaseInvoiceService service, IPermissionService permissions) : base(service, permissions, "purchases")
+    {
+        _purchases = service;
+        _permissions = permissions;
+    }
+
+    [HttpGet("rental-resources")]
+    public async Task<IActionResult> RentalResources([FromQuery] Guid supplierId, CancellationToken ct)
+    {
+        if (!await _permissions.HasPermissionAsync("purchases", ScreenAction.View, ct)) throw new ForbiddenException();
+        return Success(await _purchases.RentalResourcesAsync(supplierId, ct));
+    }
 }
 
 [Route("api/v1/sales-returns"), ScopedRecord("sales-return")]

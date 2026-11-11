@@ -30,5 +30,6 @@ public partial class MaterialRequisitionDto
     /// <summary>للقراءة: رقم العقد واسم المشروع.</summary>
     public string? ContractNumber { get; set; }
     public string? ProjectName { get; set; }
+    public string? ProjectNameEn { get; set; }
     public List<MaterialRequisitionItemDto> Items { get; set; } = new();
 }

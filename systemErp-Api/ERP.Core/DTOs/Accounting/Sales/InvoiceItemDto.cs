@@ -39,6 +39,8 @@ public partial class InvoiceItemDto
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public Guid? CostCenterId { get; set; }
+    public Guid? ProjectResourceId { get; set; }
+    public Guid? OriginalInvoiceItemId { get; set; }
     public string? RevenueAccountCode { get; set; }
     /// <summary>للقراءة: طبيعة الصنف المحفوظة على السطر (stock | service | kit | composite | manufactured).</summary>
     public string? ItemType { get; set; }

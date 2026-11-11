@@ -6,12 +6,14 @@ namespace ERP.Service.Services.Shared;
 
 public class CompanyService : ICompanyService
 {
+    private const string ProtectedPrefix = "enc:";
     private readonly ErpDbContext _db;
     private readonly ITenantContext _tenant;
+    private readonly ISecretProtector _secrets;
 
-    public CompanyService(ErpDbContext db, ITenantContext tenant)
+    public CompanyService(ErpDbContext db, ITenantContext tenant, ISecretProtector secrets)
     {
-        _db = db; _tenant = tenant;
+        _db = db; _tenant = tenant; _secrets = secrets;
     }
 
     private async Task<Tenant> LoadAsync(CancellationToken ct)
@@ -46,18 +48,26 @@ public class CompanyService : ICompanyService
     {
         var t = await LoadAsync(ct);
         var c = t.ZatcaConfig;
+        var environmentChanged = c.Environment != r.Environment;
+        if (environmentChanged && await _db.Set<ZatcaUnit>().AnyAsync(u => u.IsActive, ct))
+            throw new ConflictException("Disable active ZATCA units before changing the integration environment.");
+
         c.IsEnabled = r.IsEnabled; c.Environment = r.Environment;
         c.Phase = r.Phase is "phase1" or "phase2" ? r.Phase : c.Phase;
 
-        // الأسرار: null = أبقِ القيمة الحالية، نص فارغ = امسحها (لأن القراءة لا تُعيدها أبداً).
-        c.Csid = Keep(r.Csid, c.Csid); c.BinarySecurityToken = Keep(r.BinarySecurityToken, c.BinarySecurityToken);
-        c.SecretKey = Keep(r.SecretKey, c.SecretKey); c.ApiKey = Keep(r.ApiKey, c.ApiKey);
-        c.ApiSecret = Keep(r.ApiSecret, c.ApiSecret); c.CertificatePem = Keep(r.CertificatePem, c.CertificatePem);
-        c.PrivateKeyPem = Keep(r.PrivateKeyPem, c.PrivateKeyPem); c.Otp = Keep(r.Otp, c.Otp);
+        // null = إبقاء القيمة، والنص الفارغ = مسحها؛ رمز OTP لا يُحفظ مطلقاً.
+        c.Csid = environmentChanged ? null : Keep(r.Csid, c.Csid);
+        c.BinarySecurityToken = environmentChanged ? null : KeepSecret(r.BinarySecurityToken, c.BinarySecurityToken);
+        c.SecretKey = environmentChanged ? null : KeepSecret(r.SecretKey, c.SecretKey);
+        c.ApiKey = environmentChanged ? null : KeepSecret(r.ApiKey, c.ApiKey);
+        c.ApiSecret = environmentChanged ? null : KeepSecret(r.ApiSecret, c.ApiSecret);
+        c.CertificatePem = environmentChanged ? null : KeepSecret(r.CertificatePem, c.CertificatePem);
+        c.PrivateKeyPem = environmentChanged ? null : KeepSecret(r.PrivateKeyPem, c.PrivateKeyPem);
+        c.Otp = null;
 
         c.SolutionName = r.SolutionName ?? c.SolutionName; c.SolutionVersion = r.SolutionVersion ?? c.SolutionVersion;
         c.RegisteredDevice = r.RegisteredDevice; c.AutoSendInvoices = r.AutoSendInvoices;
-        c.CustomEndpointUrl = r.CustomEndpointUrl; c.TaxRegistrationNumber = r.TaxRegistrationNumber;
+        c.CustomEndpointUrl = environmentChanged ? null : r.CustomEndpointUrl; c.TaxRegistrationNumber = r.TaxRegistrationNumber;
         c.CsrCommonName = r.CsrCommonName; c.OrganizationUnit = r.OrganizationUnit; c.OrganizationName = r.OrganizationName;
         c.CountryCode = r.CountryCode ?? c.CountryCode; c.DeviceSn = r.DeviceSn; c.BusinessCategory = r.BusinessCategory;
         c.AutoSubmitOnInvoiceSave = r.AutoSubmitOnInvoiceSave;
@@ -68,6 +78,13 @@ public class CompanyService : ICompanyService
     }
 
     private static string? Keep(string? incoming, string? current) => incoming == null ? current : (incoming.Length == 0 ? null : incoming);
+    private string? KeepSecret(string? incoming, string? current)
+    {
+        if (incoming is { Length: 0 }) return null;
+        if (!string.IsNullOrWhiteSpace(incoming)) return ProtectedPrefix + _secrets.Protect(incoming.Trim());
+        if (string.IsNullOrWhiteSpace(current) || current.StartsWith(ProtectedPrefix, StringComparison.Ordinal)) return current;
+        return ProtectedPrefix + _secrets.Protect(current);
+    }
 
     /// <summary>
     /// يتحقق من اكتمال بيانات الربط: رقم ضريبي صحيح ومستخدم واحد مربوط على الأقل (يحفظه الربط برمز التحقق

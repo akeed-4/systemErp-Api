@@ -272,6 +272,24 @@ public class CrudCompletenessTests : TestBase
     }
 
     [Fact]
+    public async Task Approval_request_sends_email_and_in_app_message_to_required_approver()
+    {
+        var api = await NewTenantAsync();
+        var product = await SeedProductAsync(api);
+        await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentTypes = new[] { "sales" }, actionType = "create", minAmountTrigger = 1, isActive = true,
+            steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } });
+
+        var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
+            items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
+        var id = draft.Data!["id"].S();
+        var check = await api.Post("/approvals/check", new { documentType = "sales", actionType = "create", documentId = id, documentNumber = draft.Data["invoiceNumber"].S(), documentAmount = 115 });
+
+        Assert.Equal(200, check.Status);
+        Assert.Contains(FakeEmailSender.Instance.SentTo(api.Email), m => m.Subject.Contains("طلب اعتماد جديد") || m.Body.Contains("طلب اعتماد جديد"));
+        Assert.Contains((await api.Get("/notifications")).Data!.AsArray(), n => n!["type"].S() == "approval_request");
+    }
+
+    [Fact]
     public async Task Stock_movement_and_loyalty_can_be_read_by_id()
     {
         var api = await NewTenantAsync();

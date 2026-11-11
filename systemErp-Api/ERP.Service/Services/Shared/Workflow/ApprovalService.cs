@@ -1,3 +1,4 @@
+using ERP.Core.Contracts.Shared;
 using ERP.Service.Data;
 
 namespace ERP.Service.Services.Shared;
@@ -7,10 +8,11 @@ public class ApprovalService : IApprovalService
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
     private readonly ITransactionRunner _tx;
+    private readonly IEmailSender _email;
 
-    public ApprovalService(ErpDbContext db, ICurrentUser user, ITransactionRunner tx)
+    public ApprovalService(ErpDbContext db, ICurrentUser user, ITransactionRunner tx, IEmailSender email)
     {
-        _db = db; _user = user; _tx = tx;
+        _db = db; _user = user; _tx = tx; _email = email;
     }
 
     public Task<ApprovalCheckResultDto> CheckAndCreateAsync(ApprovalCheckRequestDto r, CancellationToken ct = default)
@@ -213,13 +215,39 @@ public class ApprovalService : IApprovalService
         var recipients = r.RequiredApproverUserId.HasValue
             ? await _db.Set<User>().Where(u => u.Id == r.RequiredApproverUserId && u.IsActive).ToListAsync(ct)
             : (await _db.Set<User>().Where(u => u.IsActive).ToListAsync(ct)).Where(u => RoleIds.From(u.Role) == r.RequiredApproverRole).ToList();
+
         foreach (var u in recipients)
+        {
             _db.Add(new AppNotification
             {
                 RecipientUserId = u.Id, RecipientRole = r.RequiredApproverRole, Type = "approval_request",
                 Title = "طلب اعتماد جديد", Body = $"{r.PolicyNameAr}: {r.DocumentNumber} بمبلغ {r.DocumentAmount:0.00} (المستوى {r.CurrentLevel}/{r.TotalLevels})",
                 RelatedDocType = r.DocumentType, RelatedDocId = r.DocumentId, RelatedDocNumber = r.DocumentNumber, ApprovalRequestId = r.Id,
             });
+
+            if (!string.IsNullOrWhiteSpace(u.Email))
+            {
+                var subject = $"طلب اعتماد جديد: {r.DocumentNumber}";
+                var html = $"""
+                    <div style="font-family:Segoe UI,Arial,sans-serif;direction:rtl;color:#0f172a;line-height:1.7;">
+                      <div style="max-width:720px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:16px;background:#f8fafc;">
+                        <h2 style="margin:0 0 12px;color:#1d4ed8;">طلب اعتماد جديد</h2>
+                        <p style="margin:0 0 12px;">تم إنشاء طلب اعتماد جديد لك ويحتاج إلى مراجعة وموافقة.</p>
+                        <div style="padding:16px;border-radius:12px;background:white;border:1px solid #e2e8f0;">
+                          <p><strong>السياسة:</strong> {r.PolicyNameAr}</p>
+                          <p><strong>المستند:</strong> {r.DocumentNumber}</p>
+                          <p><strong>المبلغ:</strong> {r.DocumentAmount:0.00}</p>
+                          <p><strong>المرحلة:</strong> {r.CurrentLevel}/{r.TotalLevels}</p>
+                        </div>
+                        <p style="margin-top:16px;">يمكنك مراجعة الطلب من لوحة اعتماد النظام فوراً.</p>
+                      </div>
+                    </div>
+                    """;
+                try { await _email.SendAsync(u.Email, subject, html, ct); }
+                catch { /* لا يعرقل المعاملة إذا تعطل البريد */ }
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 
@@ -231,6 +259,29 @@ public class ApprovalService : IApprovalService
             Body = $"{r.PolicyNameAr}: {r.DocumentNumber}" + (r.RejectionReason != null ? $" - {r.RejectionReason}" : ""),
             RelatedDocType = r.DocumentType, RelatedDocId = r.DocumentId, RelatedDocNumber = r.DocumentNumber, ApprovalRequestId = r.Id,
         });
+
+        var requester = await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == r.RequesterUserId, ct);
+        if (requester != null && !string.IsNullOrWhiteSpace(requester.Email))
+        {
+            var statusText = type == "approval_approved" ? "تمت الموافقة" : "تم الرفض";
+            var html = $"""
+                <div style="font-family:Segoe UI,Arial,sans-serif;direction:rtl;color:#0f172a;line-height:1.7;">
+                  <div style="max-width:720px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:16px;background:#f8fafc;">
+                    <h2 style="margin:0 0 12px;color:#0f766e;">{statusText}</h2>
+                    <p style="margin:0 0 12px;">تمت معالجة طلب الاعتماد الخاص بك.</p>
+                    <div style="padding:16px;border-radius:12px;background:white;border:1px solid #e2e8f0;">
+                      <p><strong>السياسة:</strong> {r.PolicyNameAr}</p>
+                      <p><strong>المستند:</strong> {r.DocumentNumber}</p>
+                      <p><strong>الحالة:</strong> {statusText}</p>
+                      <p><strong>معلومة:</strong> {r.RejectionReason ?? "-"}</p>
+                    </div>
+                  </div>
+                </div>
+                """;
+            try { await _email.SendAsync(requester.Email, $"{statusText}: {r.DocumentNumber}", html, ct); }
+            catch { /* لا يعرقل المعاملة إذا تعطل البريد */ }
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 }

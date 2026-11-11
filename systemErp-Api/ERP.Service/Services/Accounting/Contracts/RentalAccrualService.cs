@@ -1,5 +1,7 @@
 using ERP.Core.Contracts.Accounting;
+using ERP.Core.Contracts.Shared;
 using ERP.Core.DTOs.Accounting.Contracts;
+using ERP.Service.Services.Accounting.Sales;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
 using K = ERP.Core.Models.Accounting.SiteRentalMovementKinds;
@@ -31,10 +33,11 @@ public class RentalAccrualService : IRentalAccrualService
     private readonly IAccountingPostingService _posting;
     private readonly ICurrentUser _user;
     private readonly ITransactionRunner _tx;
+    private readonly IAuditService _audit;
 
-    public RentalAccrualService(ErpDbContext db, IAccountingPostingService posting, ICurrentUser user, ITransactionRunner tx)
+    public RentalAccrualService(ErpDbContext db, IAccountingPostingService posting, ICurrentUser user, ITransactionRunner tx, IAuditService audit)
     {
-        _db = db; _posting = posting; _user = user; _tx = tx;
+        _db = db; _posting = posting; _user = user; _tx = tx; _audit = audit;
     }
 
     private sealed record Accounts(string Cost, string Accrued);
@@ -119,8 +122,18 @@ public class RentalAccrualService : IRentalAccrualService
         }
         await _db.SaveChangesAsync(ct);
 
-        foreach (var supplier in changes.Select(c => c.Accrual.SupplierId).Distinct())
-            await RebalanceAsync(supplier, cc, report.Id, date, contract.WarehouseId, ct);
+        foreach (var resourceId in changes.Select(c => c.Accrual.ProjectResourceId).Distinct())
+            await RebalanceAsync(resourceId, report.Id, date, contract.WarehouseId, ct);
+
+        foreach (var (accrual, delta, isNew) in changes)
+        {
+            await _audit.LogAsync(
+                isNew ? "SITE_RENTAL_ACCRUAL_CREATED" : "SITE_RENTAL_ACCRUAL_ADJUSTED",
+                nameof(SiteRentalAccrual),
+                accrual.Id.ToString(),
+                $"تقرير {report.ReportDate:yyyy-MM-dd} • عقد {contract.ContractNumber} • مورد {accrual.ProjectResourceId} • فرق {delta:N2} • جديد:{(isNew ? "نعم" : "لا")}",
+                ct);
+        }
     }
 
     // ---------- فواتير المؤجر ----------
@@ -128,41 +141,67 @@ public class RentalAccrualService : IRentalAccrualService
     public async Task OnPurchaseDocumentChangedAsync(InvoiceBase document, CancellationToken ct = default)
     {
         if (document.Kind is not (InvoiceKind.Purchase or InvoiceKind.PurchaseReturn) || document.PartyId is not Guid supplier) return;
-        // المراكز التي للمؤجر فيها استحقاق فقط (فاتورة مورد لا يؤجّر لأي مشروع لا تمر بشيء)
-        var centers = await _db.Set<SiteRentalAccrual>().AsNoTracking().Where(a => a.SupplierId == supplier)
-            .Select(a => a.CostCenterId).Distinct().ToListAsync(ct);
-        foreach (var cc in centers)
-            await RebalanceAsync(supplier, cc, document.Id, document.IssueDate.Date, document.WarehouseId, ct);
+        var resources = await _db.Set<SiteRentalAccrual>().AsNoTracking().Where(a => a.SupplierId == supplier)
+            .Select(a => a.ProjectResourceId).Distinct().ToListAsync(ct);
+        resources.AddRange(document.Lines.Where(line => line.ProjectResourceId.HasValue)
+            .Select(line => line.ProjectResourceId!.Value).Where(id => !resources.Contains(id)));
+        foreach (var resourceId in resources)
+            await RebalanceAsync(resourceId, document.Id, document.IssueDate.Date, document.WarehouseId, ct);
     }
 
-    /// <summary>صافي مصروف فواتير المؤجر المرحّلة (ناقص مرتجعاته) على المركز من قيودها، وحساب مصروفها الأكبر.</summary>
-    private async Task<(decimal Net, string? Account)> InvoicedAsync(Guid supplier, Guid cc, CancellationToken ct)
+    /// <summary>صافي مصروف أسطر الفواتير المصنّفة لهذه المعدة (دون VAT) وحساب المصروف المستخدم في قيودها.</summary>
+    private async Task<(decimal Net, string? Account)> InvoicedAsync(Guid resourceId, Guid supplier, Guid cc, CancellationToken ct)
     {
-        var docs = await _db.Set<PurchaseInvoice>().AsNoTracking().Where(i => i.PartyId == supplier).Select(i => i.Id).ToListAsync(ct);
-        docs.AddRange(await _db.Set<PurchaseReturn>().AsNoTracking().Where(i => i.PartyId == supplier).Select(i => i.Id).ToListAsync(ct));
+        var purchases = await _db.Set<PurchaseInvoice>().AsNoTracking()
+            .Include(invoice => invoice.Items)
+            .Where(invoice => invoice.PartyId == supplier && invoice.Status == "posted"
+                && invoice.JournalEntryId.HasValue
+                && _db.Set<JournalEntry>().Any(entry => entry.Id == invoice.JournalEntryId.Value && entry.Status == JournalEntryStatus.Posted)
+                && invoice.Items.Any(item => item.ProjectResourceId == resourceId))
+            .ToListAsync(ct);
+        var returns = await _db.Set<PurchaseReturn>().AsNoTracking()
+            .Include(invoice => invoice.Items)
+            .Where(invoice => invoice.PartyId == supplier && invoice.Status == "posted"
+                && invoice.JournalEntryId.HasValue
+                && _db.Set<JournalEntry>().Any(entry => entry.Id == invoice.JournalEntryId.Value && entry.Status == JournalEntryStatus.Posted)
+                && invoice.Items.Any(item => item.ProjectResourceId == resourceId))
+            .ToListAsync(ct);
+        var docs = purchases.Cast<InvoiceBase>().Concat(returns).ToList();
         if (docs.Count == 0) return (0, null);
+        var docIds = docs.Select(document => document.Id).ToList();
+
+        decimal net = 0;
+        foreach (var document in docs)
+        {
+            var amount = RentalInvoiceClassification.ExpenseForResource(document, resourceId, cc);
+            net += document.Kind == InvoiceKind.PurchaseReturn ? -amount : amount;
+        }
         var rows = await (from l in _db.Set<JournalEntryLine>().AsNoTracking()
                           join e in _db.Set<JournalEntry>().AsNoTracking() on l.JournalEntryId equals e.Id
                           join a in _db.Set<Account>().AsNoTracking() on l.AccountCode equals a.Code
                           where e.Status == JournalEntryStatus.Posted && PurchaseSources.Contains(e.SourceType!)
-                                && e.SourceReferenceId != null && docs.Contains(e.SourceReferenceId.Value)
+                                && e.SourceReferenceId != null && docIds.Contains(e.SourceReferenceId.Value)
                                 && l.CostCenterId == cc && a.Type == AccountCategory.Expense
                           select new { l.AccountCode, l.Debit, l.Credit }).ToListAsync(ct);
-        var account = rows.GroupBy(r => r.AccountCode).OrderByDescending(g => g.Sum(r => r.Debit - r.Credit)).Select(g => g.Key).FirstOrDefault();
-        return (DocumentPricing.Round(rows.Sum(r => r.Debit - r.Credit)), account);
+        var account = rows.GroupBy(r => r.AccountCode)
+            .OrderByDescending(group => Math.Abs(group.Sum(row => row.Debit - row.Credit)))
+            .Select(group => group.Key).FirstOrDefault();
+        return (DocumentPricing.Round(net), account);
     }
 
     /// <summary>
     /// موازنة المؤجر على المركز: يصحّح كل سطر زاد مسوّاه ومقفله عن مستحقه (بعد إعادة اعتماد بأقل)، ثم يجعل المسوّى =
     /// أقل (الفواتير، المستحق غير المقفل): الزيادة تُطابَق بالأقدم أولاً، والنقص يُفك بالأحدث أولاً. قيد واحد بالفرق فقط.
     /// </summary>
-    private async Task RebalanceAsync(Guid supplier, Guid cc, Guid sourceDocumentId, DateTime date, Guid? warehouseId, CancellationToken ct)
+    private async Task RebalanceAsync(Guid resourceId, Guid sourceDocumentId, DateTime date, Guid? warehouseId, CancellationToken ct)
     {
-        var accruals = await _db.Set<SiteRentalAccrual>().Where(a => a.SupplierId == supplier && a.CostCenterId == cc)
+        var accruals = await _db.Set<SiteRentalAccrual>().Where(a => a.ProjectResourceId == resourceId)
             .OrderBy(a => a.ReportDate).ThenBy(a => a.CreatedAt).ToListAsync(ct);
         if (accruals.Count == 0) return;
+        var supplier = accruals[0].SupplierId;
+        var cc = accruals[0].CostCenterId;
         var accounts = await AccountsAsync(ct);
-        var (invoiced, invoiceAccount) = await InvoicedAsync(supplier, cc, ct);
+        var (invoiced, invoiceAccount) = await InvoicedAsync(resourceId, supplier, cc, ct);
         // حساب مطابقة كل سطر سابقاً: فكّها يُعكس على الحساب نفسه ولو حُذفت الفاتورة أو تغيّر حسابها
         var ids = accruals.Select(a => a.Id).ToList();
         var settledAccounts = (await _db.Set<SiteRentalAccrualMovement>().AsNoTracking()
@@ -237,6 +276,12 @@ public class RentalAccrualService : IRentalAccrualService
                 JournalEntryId = posted.JournalEntryId, AccountCode = account, SourceDocumentId = sourceDocumentId, CreatedBy = _user.Name,
             });
         await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync(
+            "SITE_RENTAL_ACCRUAL_SETTLED",
+            nameof(SiteRentalAccrual),
+            sourceDocumentId.ToString(),
+            $"تسوية استحقاقات إيجار المعدات على مركز التكلفة {cc} • {moves.Count} حركة • {moves.Sum(x => x.Amount > 0 ? x.Amount : -x.Amount):N2}",
+            ct);
     }
 
     // ---------- العرض والإقفال ----------
@@ -302,6 +347,12 @@ public class RentalAccrualService : IRentalAccrualService
             });
         }
         await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync(
+            "SITE_RENTAL_ACCRUAL_CLOSED",
+            nameof(SiteRentalAccrual),
+            contractId.ToString(),
+            $"إقفال مستحقات إيجار المعدات • عقد {contract.ContractNumber} • مورد {request.SupplierId} • المبلغ {total:N2} • ملاحظة: {note}",
+            ct);
         return total;
     }
 }

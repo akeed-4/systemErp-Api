@@ -63,7 +63,7 @@ public class ZatcaApiClient : IZatcaApiClient
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            return new ZatcaCsidResult(false, null, null, null, ex.Message);
+            return new ZatcaCsidResult(false, null, null, null, ex.Message, Reached: false);
         }
     }
 

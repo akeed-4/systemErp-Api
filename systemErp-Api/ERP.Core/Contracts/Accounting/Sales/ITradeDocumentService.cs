@@ -28,7 +28,10 @@ public interface ITradeDocumentService
 public interface ISalesInvoiceService : ITradeDocumentService { }
 
 /// <summary>فواتير المشتريات (جدول PurchaseInvoice).</summary>
-public interface IPurchaseInvoiceService : ITradeDocumentService { }
+public interface IPurchaseInvoiceService : ITradeDocumentService
+{
+    Task<List<RentalInvoiceResourceDto>> RentalResourcesAsync(Guid supplierId, CancellationToken ct = default);
+}
 
 /// <summary>مرتجع لفاتورة مرحّلة من جدول أصله.</summary>
 public interface ITradeReturnService : ITradeDocumentService

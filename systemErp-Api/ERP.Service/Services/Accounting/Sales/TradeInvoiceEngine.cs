@@ -158,6 +158,30 @@ public class TradeInvoiceEngine
             .Select(row => row.Invoice.ReferenceId!.Value)
             .Distinct()
             .ToList();
+
+        // فواتير العقود (المستخلصات والدفعات والمحتجزات وفواتير الباطن): المشروع من العقد المرتبط بالفاتورة،
+        // وعقد الباطن بلا اسم مشروع يأخذ اسم مشروع عقده الرئيسي
+        var invoiceIds = rows.Select(row => row.Invoice.Id).ToList();
+        var contractProjects = (await (
+            from link in _db.Set<ContractInvoice>().AsNoTracking()
+            join contract in _db.Set<CommercialContract>().AsNoTracking() on link.ContractId equals contract.Id
+            join parent in _db.Set<CommercialContract>().AsNoTracking() on contract.ParentContractId equals (Guid?)parent.Id into parents
+            from parent in parents.DefaultIfEmpty()
+            where link.InvoiceId != null && invoiceIds.Contains(link.InvoiceId.Value)
+            select new
+            {
+                InvoiceId = link.InvoiceId!.Value,
+                ProjectName = string.IsNullOrWhiteSpace(contract.ProjectName) && parent != null ? parent.ProjectName : contract.ProjectName,
+                ProjectNameEn = string.IsNullOrWhiteSpace(contract.ProjectNameEn) && parent != null ? parent.ProjectNameEn : contract.ProjectNameEn,
+            }).ToListAsync(ct))
+            .GroupBy(x => x.InvoiceId).ToDictionary(g => g.Key, g => g.First());
+        foreach (var row in rows)
+            if (contractProjects.TryGetValue(row.Invoice.Id, out var cp) && !string.IsNullOrWhiteSpace(cp.ProjectName ?? cp.ProjectNameEn))
+            {
+                row.Dto.ProjectName = cp.ProjectName;
+                row.Dto.ProjectNameEn = cp.ProjectNameEn;
+            }
+
         if (requisitionIds.Count == 0) return;
 
         var projects = await (

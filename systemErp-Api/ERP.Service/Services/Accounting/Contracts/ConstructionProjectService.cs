@@ -280,7 +280,7 @@ public class ConstructionProjectService : IConstructionProjectService
                 profile = new ConstructionProjectProfile { ContractId = contractId };
                 _db.Add(profile);
             }
-            profile.EstimatedBudget = request.EstimatedBudget;
+            if (request.EstimatedBudget is decimal estimatedBudget) profile.EstimatedBudget = estimatedBudget;
             profile.WorkdayStartMinutes = start; profile.WorkdayEndMinutes = end;
             profile.BreakStartMinutes = breakStart; profile.BreakEndMinutes = breakEnd;
             profile.Notes = Trim(request.Notes, 1000);

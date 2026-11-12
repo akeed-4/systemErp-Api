@@ -110,6 +110,13 @@ public class ConstructionProjectSetupTests : TestBase
         Assert.Equal(400, (await api.Put($"/commercialcontracts/{id}/project/profile", new { workdayStart = "07:00", workdayEnd = "17:00", estimatedBudget = -1 })).Status);
         // الرفض لا يغيّر المحفوظ
         Assert.Equal("06:30", (await Project(api, id)).Data!["workdayStart"].S());
+        // حفظ ساعات العمل بلا ميزانية يبقي الميزانية المحفوظة (لا تُصفَّر)، والقيمة الصريحة تُحفظ ولو صفراً
+        var hoursOnly = await api.Put($"/commercialcontracts/{id}/project/profile", new { workdayStart = "07:00", workdayEnd = "15:00" });
+        Ok(hoursOnly, "hours only");
+        Assert.Equal(120_000m, hoursOnly.Data!["estimatedBudget"].D());
+        Assert.Equal("07:00", hoursOnly.Data["workdayStart"].S());
+        Ok(await api.Put($"/commercialcontracts/{id}/project/profile", new { estimatedBudget = 0, workdayStart = "07:00", workdayEnd = "15:00" }), "explicit zero");
+        Assert.Equal(0m, (await Project(api, id)).Data!["estimatedBudget"].D());
     }
 
     // ---------- المراحل ونسبة الإنجاز المخططة ----------

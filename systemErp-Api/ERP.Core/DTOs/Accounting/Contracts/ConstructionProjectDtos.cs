@@ -78,7 +78,8 @@ public class ProjectMemberDto
 
 public class SaveProjectProfileDto
 {
-    public decimal EstimatedBudget { get; set; }
+    /// <summary>بلا قيمة يبقى الحالي (مثل المعبّأ من الدراسة عند توليد الخطة)؛ تعديل ساعات العمل وحدها لا يصفّره.</summary>
+    public decimal? EstimatedBudget { get; set; }
     public string WorkdayStart { get; set; } = "07:00";
     public string WorkdayEnd { get; set; } = "17:00";
     public string? BreakStart { get; set; }

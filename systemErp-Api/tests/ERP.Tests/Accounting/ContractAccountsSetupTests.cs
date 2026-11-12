@@ -82,7 +82,7 @@ public class ContractAccountsSetupTests : TestBase
     [Fact]
     public async Task New_company_gets_contract_accounts_under_matching_groups_linked_to_settings()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         await AssertDefaultLayoutAsync(api);
 
         // تشغيل التهيئة على منشأة جديدة: كل شيء «باقٍ» ولا حساب مكرر
@@ -96,7 +96,7 @@ public class ContractAccountsSetupTests : TestBase
     [Fact]
     public async Task Existing_company_gets_only_missing_accounts_and_repeated_runs_do_not_duplicate()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         await MakeLegacyAsync(api);
         var accountsBefore = await CountAsync(api, q => q);
 
@@ -190,7 +190,7 @@ public class ContractAccountsSetupTests : TestBase
     [Fact]
     public async Task Posted_history_is_untouched_and_billing_initializes_missing_accounts_for_customer_and_supplier_contracts()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         await MakeLegacyAsync(api);
         var (customer, _) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
         var (supplier, _) = await SeedSupplierAsync(api);

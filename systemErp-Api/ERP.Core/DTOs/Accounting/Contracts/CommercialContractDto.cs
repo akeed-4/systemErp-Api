@@ -61,6 +61,9 @@ public partial class CommercialContractDto
     public Guid? CostCenterId { get; set; }
     /// <summary>عقد العميل (المشروع) لعقد مقاول الباطن.</summary>
     public Guid? ParentContractId { get; set; }
+    /// <summary>دراسة الجدوى: study | plan_approved | contracted (فارغة = عقد مباشر)، ورقمها.</summary>
+    public string? FeasibilityStatus { get; set; }
+    public string? FeasibilityNumber { get; set; }
     /// <summary>المناقصة: الحالة (فارغة = بلا مناقصة) وبياناتها ونتيجتها.</summary>
     public string? TenderStatus { get; set; }
     public string? TenderNumber { get; set; }

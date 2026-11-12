@@ -34,6 +34,11 @@ internal sealed class ProjectMaterialAnalysis
         public string? SkipReason { get; set; }
         public List<Material> Materials { get; } = new();
         public int OtherResourceCount { get; set; }
+        /// <summary>
+        /// كل موارد السطر بعد فك المركّب (المواد والعمالة والمعدات ومقاولو الباطن وغيرها) بكمياتها ومنشئها: مصدر تحليل التكلفة
+        /// والاحتياجات غير المادية. المواد هنا هي نفسها في <see cref="Materials"/>.
+        /// </summary>
+        public List<Material> Resources { get; } = new();
     }
 
     private readonly CommercialContract _contract;
@@ -111,6 +116,7 @@ internal sealed class ProjectMaterialAnalysis
 
     private static void Close(LineResult r)
     {
+        r.Resources.RemoveAll(m => m.Quantity <= 0);
         r.Materials.RemoveAll(m => m.Quantity <= 0);
         if (r.Materials.Count == 0) r.SkipReason = Dg.NoMaterials;
     }
@@ -137,6 +143,15 @@ internal sealed class ProjectMaterialAnalysis
                     q => origin(q) with { Composite = composite ?? r.NameAr, Quantity = q });
             return;
         }
+        var use = result.Resources.FirstOrDefault(m => m.Resource.Id == r.Id);
+        if (use == null)
+        {
+            use = new Material { Resource = r };
+            result.Resources.Add(use);
+        }
+        use.Quantity += qty;
+        use.Origins.Add(origin(qty));
+
         if (r.ResourceType != BoqResourceTypes.Material) { result.OtherResourceCount++; return; }
         var material = result.Materials.FirstOrDefault(m => m.Resource.Id == r.Id);
         if (material == null)

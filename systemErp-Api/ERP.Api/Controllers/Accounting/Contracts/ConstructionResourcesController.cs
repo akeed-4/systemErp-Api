@@ -40,4 +40,26 @@ public class ConstructionResourcesController : CrudController<ConstructionResour
     [HttpGet("hr-labor-options"), RequireScreen(PermissionCatalog.ConstructionLibraryScreenId, ScreenAction.View), RequireModule(PlatformModules.Hr)]
     public async Task<IActionResult> HrLaborOptions(CancellationToken ct)
         => Success(await _resources.HrLaborOptionsAsync(ct));
+
+    // ---------- مكتبة تكاليف المقاولات ----------
+
+    private const string CostLibrary = PermissionCatalog.ConstructionCostLibraryScreenId;
+
+    /// <summary>ملخص المكتبة: الموارد لكل نوع وما ينقصها، والأسعار المجدولة، والفئات المستعملة.</summary>
+    [HttpGet("cost-summary"), RequireScreen(CostLibrary, ScreenAction.View)]
+    public async Task<IActionResult> CostSummary(CancellationToken ct) => Success(await _resources.CostSummaryAsync(ct));
+
+    /// <summary>سجل تكلفة المورد (للقراءة فقط؛ لا تعديل ولا حذف لأسطره).</summary>
+    [HttpGet("{id:guid}/costs"), RequireScreen(CostLibrary, ScreenAction.View)]
+    public async Task<IActionResult> CostHistory(Guid id, CancellationToken ct) => Success(await _resources.CostHistoryAsync(id, ct));
+
+    /// <summary>سعر جديد بتاريخ سريان (ماضٍ أو مستقبلي) لمورد يدوي أو بتفصيل.</summary>
+    [HttpPost("{id:guid}/costs"), RequireScreen(CostLibrary, ScreenAction.Edit)]
+    public async Task<IActionResult> AddCost(Guid id, [FromBody] AddResourceCostDto request, CancellationToken ct)
+        => Success(await _resources.AddCostAsync(id, request, ct));
+
+    /// <summary>التكلفة السارية في تاريخ لمجموعة موارد (<c>?date=2026-11-01&amp;ids=..&amp;ids=..</c>).</summary>
+    [HttpGet("costs-at"), RequireScreen(CostLibrary, ScreenAction.View)]
+    public async Task<IActionResult> CostsAt([FromQuery] DateTime? date, [FromQuery] List<Guid> ids, CancellationToken ct)
+        => Success(await _resources.CostsAtAsync(ids, date ?? DateTime.UtcNow.Date, ct));
 }

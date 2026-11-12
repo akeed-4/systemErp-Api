@@ -54,7 +54,7 @@ public class ContractDeleteTests : TestBase
     [Fact]
     public async Task Draft_construction_contract_is_deleted_with_its_project_setup()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var created = await api.Post("/commercialcontracts", new
         {
             title = "مشروع", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyName = "عميل",

@@ -59,6 +59,9 @@ public abstract class TestBase
         return tenant;
     }
 
+    /// <summary>منشأة بوحداتها الافتراضية وإضافة المقاولات المرخّصة (مسارات المقاولات تشترطها).</summary>
+    protected Task<Client> NewConstructionTenantAsync() => NewTenantWithModulesAsync("accounting", "car_showroom", "pos", "construction");
+
     /// <summary>صنف بسعر 100 وضريبة 15% ومخزون افتتاحي بتكلفة معلومة.</summary>
     protected static async Task<Guid> SeedProductAsync(Client api, string sku = "P1", decimal stock = 10, decimal cost = 40, decimal price = 100)
     {

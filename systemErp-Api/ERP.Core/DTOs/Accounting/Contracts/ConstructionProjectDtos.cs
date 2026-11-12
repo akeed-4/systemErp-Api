@@ -53,6 +53,17 @@ public class ProjectPhaseDto
     public List<Guid> ContractItemIds { get; set; } = new();
     /// <summary>للقراءة: النسبة المخططة من وزن المرحلة حتى اليوم (0–100).</summary>
     public decimal PlannedCompletionPercent { get; set; }
+    public string? Description { get; set; }
+    /// <summary>المشرف المسؤول (مستخدم).</summary>
+    public Guid? SupervisorUserId { get; set; }
+    /// <summary>المراحل السابقة (انتهاء ← بداية) من مراحل المشروع المحفوظة.</summary>
+    public List<Guid>? PredecessorIds { get; set; }
+    /// <summary>للقراءة: derived | manual | modified.</summary>
+    public string? Source { get; set; }
+    /// <summary>للقراءة: التواريخ مقترحة من التوليد ولم تُعدَّل.</summary>
+    public bool DatesSuggested { get; set; }
+    /// <summary>للقراءة: التكلفة المخططة من الدراسة.</summary>
+    public decimal PlannedCost { get; set; }
 }
 
 public class ProjectMemberDto

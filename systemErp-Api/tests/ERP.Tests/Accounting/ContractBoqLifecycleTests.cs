@@ -93,7 +93,7 @@ public class ContractBoqLifecycleTests : TestBase
     [InlineData("full")]
     public async Task Customer_certificates_are_collected_partially_then_fully_on_either_path(string workflow)
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (customer, customerAccount) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
         var (id, item) = await ActiveBoqAsync(api, workflow, "customer", customer);
 
@@ -123,7 +123,7 @@ public class ContractBoqLifecycleTests : TestBase
     [InlineData("full", 409)]
     public async Task Simplified_contract_bills_a_certificate_directly_while_full_path_keeps_approval(string workflow, int expected)
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (customer, _) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
         var (id, item) = await ActiveBoqAsync(api, workflow, "customer", customer);
         var draft = await api.Post($"/commercialcontracts/{id}/certificates", new
@@ -150,7 +150,7 @@ public class ContractBoqLifecycleTests : TestBase
     [Fact]
     public async Task Initial_acceptance_opens_once_every_line_is_fully_certified_even_without_a_final_certificate()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (customer, _) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
         var (id, item) = await ActiveBoqAsync(api, "simple", "customer", customer);
 
@@ -166,7 +166,7 @@ public class ContractBoqLifecycleTests : TestBase
     [Fact]
     public async Task Advance_invoice_is_collected_and_foreign_invoices_are_rejected()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (customer, _) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
         var (id, item) = await ActiveBoqAsync(api, "simple", "customer", customer);
         var advance = await api.Post($"/commercialcontracts/{id}/advance-invoice");
@@ -187,7 +187,7 @@ public class ContractBoqLifecycleTests : TestBase
     [Fact]
     public async Task Subcontractor_certificate_is_paid_with_a_payment_voucher()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (supplier, supplierAccount) = await SeedSupplierAsync(api);
         Ok(await api.Post("/journalentries", new { date = DateTime.UtcNow, description = "رأس المال",
             lines = new[] { new { accountCode = "1111", debit = 50_000m, credit = 0m }, new { accountCode = "31", debit = 0m, credit = 50_000m } } }), "capital");
@@ -204,7 +204,7 @@ public class ContractBoqLifecycleTests : TestBase
     [Fact]
     public async Task Simplified_boq_contract_100k_with_10_percent_advance_runs_from_creation_to_close()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (party, customerAccount) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
 
         // حسابات العقود مُهيَّأة مع المنشأة ومربوطة بالإعدادات (بلا إعداد يدوي)

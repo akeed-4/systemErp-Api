@@ -95,6 +95,12 @@ public class CommercialContract : BaseEntity, IScopedRecord
     /// </summary>
     public Guid? ParentContractId { get; set; }
 
+    // ---- دراسة الجدوى (السجل نفسه يتطور: دراسة ← خطة معتمدة ← عقد؛ انظر FeasibilityStatuses) ----
+    /// <summary>مرحلة الدراسة؛ فارغة = عقد مباشر أو قديم يعمل كما كان.</summary>
+    public string? FeasibilityStatus { get; set; }
+    /// <summary>رقم الدراسة (FS-...) من إنشائها، ويبقى بعد صيرورتها عقداً.</summary>
+    public string? FeasibilityNumber { get; set; }
+
     // ---- المناقصة (قبل الترسية؛ انظر ContractTenderStatuses) ----
     /// <summary>حالة المناقصة؛ فارغة = عقد بلا مناقصة.</summary>
     public string? TenderStatus { get; set; }

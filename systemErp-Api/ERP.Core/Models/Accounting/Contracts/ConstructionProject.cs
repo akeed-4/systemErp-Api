@@ -49,8 +49,29 @@ public class ProjectPhase : BaseEntity
     public decimal WeightPercent { get; set; }
     public int SortOrder { get; set; }
     public string? Notes { get; set; }
+    public string? Description { get; set; }
+    /// <summary>المشرف المسؤول عن المرحلة (مستخدم؛ بلا قيد كأعضاء المشروع).</summary>
+    public Guid? SupervisorUserId { get; set; }
+    /// <summary>المراحل السابقة (انتهاء ← بداية) بمعرّفاتها مفصولة بفاصلة.</summary>
+    public string? PredecessorIds { get; set; }
+    /// <summary>التكلفة المخططة من تحليل الدراسة (لبنود المرحلة) عند التوليد.</summary>
+    public decimal PlannedCost { get; set; }
+    /// <summary><see cref="PlanItemSources"/>: مولَّدة من الدراسة، أو يدوية، أو مولَّدة عُدِّلت.</summary>
+    public string Source { get; set; } = PlanItemSources.Manual;
+    /// <summary>التواريخ مقترحة من توزيع ساعات العمل (يراجعها المدير قبل الاعتماد).</summary>
+    public bool DatesSuggested { get; set; }
 
     public virtual ICollection<ProjectPhaseItem> Items { get; set; } = new List<ProjectPhaseItem>();
+}
+
+/// <summary>مصدر عنصر في خطة التنفيذ: مولَّد من دراسة الجدوى، أو مضاف يدوياً، أو مولَّد عدّله المدير (لا يستبدله التوليد).</summary>
+public static class PlanItemSources
+{
+    public const string Derived = "derived";
+    public const string Manual = "manual";
+    public const string Modified = "modified";
+
+    public static bool IsValid(string? s) => s is Derived or Manual or Modified;
 }
 
 /// <summary>بند من جدول الكميات في مرحلة (البند في مرحلة واحدة). مرجع سطر العقد بلا قيد: أسطر العقد تُستبدل في مسودته.</summary>

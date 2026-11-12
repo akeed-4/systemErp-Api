@@ -77,13 +77,17 @@ public static class PermissionCatalog
     public static readonly PermissionScreenDefinition[] Screens =
     {
         new(CommercialContractsScreenId, "contracts", "العقود التجارية ومراحلها", "Commercial Contracts & Stages",
-            Crud(A.Submit, A.LegalReview, A.FinancialReview, A.Approve, A.Inspect, A.Receive, A.Post), new[] { "contracts" }, InheritsFrom: "sales"),
+            Crud(A.Submit, A.LegalReview, A.FinancialReview, A.Approve, A.Inspect, A.Receive, A.Post), new[] { "contracts", "construction/feasibility" }, InheritsFrom: "sales"),
         // أنواع العقود (المسار والفوترة وحد التبسيط): ترث صلاحية العقود حتى تُحفظ لها صلاحية مستقلة
         new(ContractTypesScreenId, "contracts", "أنواع العقود", "Contract Types",
             new[] { A.View, A.Edit }, new[] { "contract-types" }, InheritsFrom: CommercialContractsScreenId),
         // مكتبة المقاولات (الموارد والبنود القياسية وتصنيفها): ترث صلاحية العقود حتى تُحفظ لها صلاحية مستقلة
         new(ConstructionLibraryScreenId, "contracts", "مكتبة المقاولات (الموارد والبنود)", "Construction Library (Resources & Items)",
             Crud(), new[] { "construction", "construction/library" }, InheritsFrom: CommercialContractsScreenId),
+        // مكتبة تكاليف المقاولات (التكلفة المعيارية للموارد وسجلها): التعديل يحرس إدخال التكلفة اليدوية وتفصيلها والأسعار المجدولة؛
+        // ترث صلاحية مكتبة المقاولات حتى تُحفظ لها صلاحية مستقلة
+        new(ConstructionCostLibraryScreenId, "contracts", "مكتبة تكاليف المقاولات", "Construction Cost Library",
+            new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/cost-library" }, InheritsFrom: ConstructionLibraryScreenId),
         // مشاريع المقاولات (العقد هو المشروع): إعداد المشروع (الملف، ساعات العمل، المراحل، الأعضاء) ولوحاته؛ ترث صلاحية العقود
         new(ConstructionProjectsScreenId, "contracts", "مشاريع المقاولات (الإعداد والمتابعة)", "Construction Projects (Setup & Monitoring)",
             new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/projects" }, InheritsFrom: CommercialContractsScreenId),
@@ -167,6 +171,7 @@ public static class PermissionCatalog
     public const string CommercialContractsScreenId = "commercial-contracts";
     public const string ContractTypesScreenId = "contract-types";
     public const string ConstructionLibraryScreenId = "construction-library";
+    public const string ConstructionCostLibraryScreenId = "construction-cost-library";
     public const string ConstructionProjectsScreenId = "construction-projects";
     public const string SiteDailyReportsScreenId = "site-daily-reports";
     public const string ProjectMaterialIssuesScreenId = "project-material-issues";

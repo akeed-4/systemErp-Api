@@ -18,7 +18,7 @@ public class ContractCertificateScheduleTests : TestBase
     /// <summary>عقد سنة (بندان 100 × 100) بجدولة <paramref name="schedule"/> مفعّل على المسار المبسط.</summary>
     private async Task<(Client Api, string Id, Guid A, Guid B)> ActiveAsync(string schedule, int? count = null, int? months = null)
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (customer, _) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
         var created = await api.Post("/commercialcontracts", new
         {

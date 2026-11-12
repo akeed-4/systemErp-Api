@@ -3,8 +3,8 @@ namespace ERP.Core.Models.Accounting;
 /// <summary>
 /// مورد في مكتبة المقاولات (مادة/عمالة/معدة/مقاول باطن/أخرى) بوحدته وتكلفته المعيارية: يُسعَّر في مكان واحد وتستخدمه
 /// البنود القياسية في تحليلها. مصدر التكلفة (<see cref="ResourceCostSources"/>): يدوي، أو من الصنف المخزني للمادة،
-/// أو من شؤون الموظفين للعمالة (متوسط التكلفة المحمّلة لموظفي المهنة). العقود تنسخ التحليل بتكلفته يوم النسخ،
-/// فتغيّر تكلفة المورد لا يغيّر عقداً قائماً.
+/// أو من شؤون الموظفين للعمالة (متوسط التكلفة المحمّلة لموظفي المهنة)، أو من تفصيل التكلفة للعمالة والمعدات، أو مركّب.
+/// التكلفة لها سجل بتواريخ سريان (<see cref="ConstructionResourceCost"/>) لا يُعدَّل، فتغيّرها لا يغيّر ما سُعِّر قبله.
 /// </summary>
 public class ConstructionResource : BaseEntity
 {
@@ -19,6 +19,17 @@ public class ConstructionResource : BaseEntity
     public decimal StandardCost { get; set; }
     public string CostSource { get; set; } = ResourceCostSources.Manual;
     public DateTime? CostUpdatedAt { get; set; }
+    /// <summary>
+    /// تاريخ سريان التكلفة الحالية: <see cref="StandardCost"/> نسخة مخزّنة من سطر سجل التكلفة الساري اليوم
+    /// (<see cref="ConstructionResourceCost"/>)، والسجل هو المرجع.
+    /// </summary>
+    public DateTime? CostEffectiveFrom { get; set; }
+    /// <summary>الفئة داخل النوع (خرسانة، كهرباء، مهندس، حفار...): نص حر بلا قيم ثابتة.</summary>
+    public string? Category { get; set; }
+    /// <summary>المورد المفضّل للمادة، أو مؤجر المعدة المستأجرة (اختياري).</summary>
+    public Guid? SupplierId { get; set; }
+    /// <summary>ملكية المعدة (<see cref="EquipmentOwnerships"/>)؛ فارغة لغير المعدات أو غير محددة.</summary>
+    public string? EquipmentOwnership { get; set; }
 
     // ---- المادة: الصنف المخزني ----
     /// <summary>الصنف المخزني لمورد المادة (اختياري؛ لازم مع مصدر product).</summary>
@@ -68,6 +79,20 @@ public static class ResourceCostSources
     public const string HrJob = "hr_job";
     /// <summary>مورد مركّب: مجموع تكلفة مكوناته × كمياتها × (1 + الهدر)؛ لأي نوع.</summary>
     public const string Composite = "composite";
+    /// <summary>
+    /// من تفصيل التكلفة (للعمالة والمعدات): السعر بأساسه (ساعة/يوم/شهر) محوّلاً للساعة + تكاليف الساعة (تشغيل، وقود، صيانة،
+    /// إهلاك، مشغّل، أخرى)، × ساعات الوحدة. التفصيل محفوظ على سطر السجل.
+    /// </summary>
+    public const string Breakdown = "breakdown";
 
-    public static bool IsValid(string? source) => source is Manual or Product or HrJob or Composite;
+    public static bool IsValid(string? source) => source is Manual or Product or HrJob or Composite or Breakdown;
+}
+
+/// <summary>ملكية معدة المكتبة: مملوكة للشركة أو مستأجرة.</summary>
+public static class EquipmentOwnerships
+{
+    public const string Owned = "owned";
+    public const string Rented = "rented";
+
+    public static bool IsValid(string? value) => value is Owned or Rented;
 }

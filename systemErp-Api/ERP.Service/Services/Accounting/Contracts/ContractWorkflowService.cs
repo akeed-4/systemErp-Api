@@ -351,6 +351,9 @@ public class ContractWorkflowService : IContractWorkflowService
         // المناقصة تبقى في المسودة حتى تُرسى: لا مراجعة ولا تفعيل لعطاء لم يُرسَ (أياً كان شرط الانتقال)
         if (c.Stage == S.Draft && t.ToStatus is not (S.Draft or S.Cancelled) && ContractTenderStatuses.BlocksContract(c.TenderStatus))
             missing.Add("المناقصة لم تُرسَ بعد (سجّل الترسية من شاشة المناقصات)");
+        // دراسة الجدوى لا تدخل دورة العقد قبل «إنشاء العقد» (بعد اعتماد خطتها)
+        if (c.Stage == S.Draft && t.ToStatus is not (S.Draft or S.Cancelled) && FeasibilityStatuses.IsPreContract(c.FeasibilityStatus))
+            missing.Add(Messages.FeasibilityNotContractYet);
         switch (t.Condition)
         {
             case "complete_data":

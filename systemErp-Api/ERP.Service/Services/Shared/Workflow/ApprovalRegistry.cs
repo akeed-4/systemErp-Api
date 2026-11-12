@@ -165,6 +165,11 @@ public static class ApprovalRegistry
             .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(p => p.EstimatedCost)
             .Act(Approve, (s, id, ct) => s.ApproveAsync(id, ct)).Handler;
 
+        // خطة تنفيذ المشروع: المعرّف هو العقد (خطة واحدة لكل عقد/دراسة)، والمبلغ تكلفتها المخططة
+        yield return For<IExecutionPlanService, ExecutionPlanDto>("contract-execution-plan", "project_execution_plan")
+            .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(p => p.Budget.PlannedCost > 0 ? p.Budget.PlannedCost : p.Budget.StudyCost)
+            .Act(Approve, (s, id, ct) => s.ApproveAsync(id, ct)).Handler;
+
         // أمر التغيير: المعرّف هو الأمر، والمبلغ أثره على قيمة العقد (القيمة المطلقة لحدود الاعتماد)
         yield return For<IContractVariationService, ContractVariationDto>("contract-variations", "contract_variation")
             .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(v => Math.Abs(v.ValueChange))

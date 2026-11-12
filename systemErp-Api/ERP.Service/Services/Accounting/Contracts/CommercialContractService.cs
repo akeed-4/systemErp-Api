@@ -110,8 +110,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
     protected override IQueryable<CommercialContract> ApplySearch(IQueryable<CommercialContract> q, string t)
         => q.Where(c => c.ContractNumber.Contains(t) || c.Title.Contains(t) || c.PartyName.Contains(t));
 
+    /// <summary>دراسة الجدوى قبل «إنشاء العقد» ليست عقداً: لا تظهر في قوائم العقود (سجلها في <c>feasibility-studies</c>).</summary>
     protected override IQueryable<CommercialContract> ApplyFilters(IQueryable<CommercialContract> q, PaginationParams p)
-        => string.IsNullOrWhiteSpace(p.Status) ? q : q.Where(c => c.Stage == p.Status);
+    {
+        q = q.Where(c => c.FeasibilityStatus == null || (c.FeasibilityStatus != FeasibilityStatuses.Study && c.FeasibilityStatus != FeasibilityStatuses.PlanApproved));
+        return string.IsNullOrWhiteSpace(p.Status) ? q : q.Where(c => c.Stage == p.Status);
+    }
 
     protected override async Task ValidateAsync(CreateCommercialContractDto d, CommercialContract? existing, CancellationToken ct)
     {
@@ -164,6 +168,12 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             errors.Add("المناقصة لعقد عميل (لا لعقد مقاول باطن).");
         if (d.TenderIssueDate.HasValue && d.TenderDeadline.HasValue && d.TenderDeadline < d.TenderIssueDate)
             errors.Add("آخر موعد للتقديم قبل تاريخ طرح المناقصة.");
+        // الدراسة بخطة معتمدة مجمّدة: تُفتح بمراجعة الخطة قبل تعديلها
+        if (existing?.FeasibilityStatus == FeasibilityStatuses.PlanApproved) errors.Add(Messages.FeasibilityPlanApprovedLocked);
+        // دراسة الجدوى: مشروع مقاولات لعميل (لا باطن ولا مناقصة)
+        if (existing == null && d.IsFeasibilityStudy == true
+            && (!await IsBoqContractAsync(Db, d.ContractType, ct) || IsSupplier(d.PartyType) || d.ParentContractId != null || d.TenderStatus != null))
+            errors.Add(Messages.FeasibilityStudyBoqCustomerOnly);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         // مصدر السطر في مكتبة المقاولات (للتتبع): البند موجود حين يُرسل لأول مرة؛ السطر القديم يبقى بمصدره ولو حُذف من المكتبة
@@ -219,12 +229,28 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
 
     protected override async Task OnCreatingAsync(CommercialContract e, CreateCommercialContractDto d, CancellationToken ct)
     {
-        e.ContractNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        var study = d.IsFeasibilityStudy == true;
+        if (study)
         {
-            Key = "commercial_contract", DefaultPrefix = "CON-", WarehouseId = e.WarehouseId, Date = e.StartDate,
-            ManualNumber = d.ContractNumber, UserEntered = true,
-            Exists = (n, c) => Db.Set<CommercialContract>().AnyAsync(x => x.ContractNumber == n, c),
-        }, ct);
+            // رقم الدراسة وحده (FS-سنة-تسلسل)؛ رقم العقد يُعطى عند «إنشاء العقد»، وحتى ذلك يحمل الحقل رقم الدراسة (فريد)
+            e.FeasibilityStatus = FeasibilityStatuses.Study;
+            e.FeasibilityNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = "feasibility_study", DefaultPrefix = $"FS-{(e.StartDate ?? DateTime.UtcNow).Year}-", WarehouseId = e.WarehouseId, Date = e.StartDate,
+                Exists = (n, c) => Db.Set<CommercialContract>().AnyAsync(x => x.FeasibilityNumber == n || x.ContractNumber == n, c),
+            }, ct);
+            e.ContractNumber = e.FeasibilityNumber;
+        }
+        else
+        {
+            e.FeasibilityStatus = null; e.FeasibilityNumber = null;
+            e.ContractNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+            {
+                Key = "commercial_contract", DefaultPrefix = "CON-", WarehouseId = e.WarehouseId, Date = e.StartDate,
+                ManualNumber = d.ContractNumber, UserEntered = true,
+                Exists = (n, c) => Db.Set<CommercialContract>().AnyAsync(x => x.ContractNumber == n, c),
+            }, ct);
+        }
         var type = await ResolveTypeAsync(e, ct);
         e.ReviewRound = 1;
         e.TotalInvoiced = 0; e.TotalCollected = 0;
@@ -238,7 +264,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         e.TenderDecidedAt = null; e.TenderResultNote = null;
         // عقد المقاولات للعميل هو المشروع: ملفه ومركز تكلفته يُنشآن معه. عقد مقاول الباطن (مورد) ليس مشروعاً: يتبع مشروعه.
         // والمناقصة لا مشروع لها حتى تُرسى (يُنشأ عند الترسية).
-        if (type.Billing == ContractBilling.BoqCertificate && !IsSupplier(e.PartyType) && e.TenderStatus == null)
+        // والدراسة لها ملف المشروع (ساعات العمل والميزانية للخطة) بلا مركز تكلفة حتى «إنشاء العقد».
+        if (study) Db.Add(new ConstructionProjectProfile { ContractId = e.Id });
+        else if (type.Billing == ContractBilling.BoqCertificate && !IsSupplier(e.PartyType) && e.TenderStatus == null)
             await ConstructionProjectService.CreateForContractAsync(Db, e, ct);
 
         // الحالة يحددها النظام لا المستخدم: كل عقد جديد «مسودة». المسار يختاره المستخدم لكل عقد (Workflow) ويُثبَّت هنا
@@ -337,6 +365,11 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             if (entry.State == EntityState.Modified) entry.CurrentValues.SetValues(entry.OriginalValues);
         }
         ApplyBoq(e, type);
+        if (type.Billing == ContractBilling.BoqCertificate)
+        {
+            await ApplyCostAnalysisAsync(e, ct);
+            RecomputeEstimate(e);
+        }
         Recalculate(e);
         await ApplyParentAsync(e, ct);
     }
@@ -365,6 +398,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         Db.RemoveRange(await Db.Set<ContractAttachment>().Where(a => a.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ProjectMaterialRequirement>().Where(r => r.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ProjectMaterialPlan>().Where(p => p.ContractId == e.Id).ToListAsync(ct));
+        Db.RemoveRange(await Db.Set<ContractItemResourceCost>().Where(r => r.ContractId == e.Id).ToListAsync(ct));
         // إعداد المشروع (بنود المراحل تُحذف مع مراحلها)، ومركز التكلفة الذي أُنشئ للمشروع تلقائياً إن لم يُستخدم في قيد أو عقد آخر
         Db.RemoveRange(await Db.Set<ProjectMember>().Where(m => m.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ProjectPhase>().Where(p => p.ContractId == e.Id).ToListAsync(ct));
@@ -428,9 +462,46 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         c.ContractValue = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * i.UnitPrice));
         // قيمة العطاء قبل الخصم من الأسطر نفسها؛ الفرق عن قيمة العقد هو مبلغ خصم التفاوض
         c.TenderValue = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * i.TenderUnitPrice));
-        // دراسة الجدوى: التكلفة التقديرية من الأسطر المسعّرة نفسها (المجموعة تُحسب من فروعها ولا تُكرر)
+        RecomputeEstimate(c);
+    }
+
+    /// <summary>
+    /// دراسة الجدوى: تكلفة وحدة المجموعة من فروعها، والتكلفة التقديرية للعقد من الأسطر المسعّرة نفسها (المجموعة لا تُكرر).
+    /// يستعملها حفظ العقد وتحليل التكلفة (<see cref="ContractCostAnalysisService"/>).
+    /// </summary>
+    internal static void RecomputeEstimate(CommercialContract c)
+    {
+        foreach (var group in c.Items.Where(i => i.IsGroup))
+        {
+            var cost = c.Items.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.EstimatedUnitCost));
+            group.EstimatedUnitCost = group.Quantity > 0 ? Math.Round(cost / group.Quantity, 4) : 0;
+        }
         c.EstimatedCost = DocumentPricing.Round(c.Items.Where(i => !i.IsGroup).Sum(i => i.Quantity * Math.Max(0, i.EstimatedUnitCost)));
     }
+
+    /// <summary>
+    /// السطر المسعّر من المكتبة تكلفته من تحليله المجمّد لا من الطلب؛ وتحليل سطر حُذف أو تغيّر ربطه بالمكتبة يسقط فيعود يدوياً.
+    /// </summary>
+    private async Task ApplyCostAnalysisAsync(CommercialContract c, CancellationToken ct)
+    {
+        var rows = await Db.Set<ContractItemResourceCost>().Where(r => r.ContractId == c.Id).ToListAsync(ct);
+        if (rows.Count == 0) return;
+        var lines = c.Items.ToDictionary(i => i.Id);
+        foreach (var group in rows.GroupBy(r => r.ContractItemId))
+        {
+            var first = group.First();
+            if (!lines.TryGetValue(group.Key, out var line) || line.IsGroup || line.WorkSubItemId != first.WorkSubItemId
+                || LineWorkItem(line, lines) != first.WorkItemId)
+            {
+                Db.RemoveRange(group);
+                continue;
+            }
+            line.EstimatedUnitCost = ContractCostAnalysisService.LineUnitCost(group.ToList(), line.Quantity);
+        }
+    }
+
+    private static Guid? LineWorkItem(CommercialContractItem line, Dictionary<Guid, CommercialContractItem> lines)
+        => line.IsSubItem && line.ParentItemId is Guid pid ? lines.GetValueOrDefault(pid)?.WorkItemId : line.WorkItemId;
 
     /// <summary>
     /// البنود الفرعية في جدول الكميات: كل سطر فرعي يتبع أقرب سطر رئيسي قبله بالترتيب، والرئيسي الذي له فروع «مجموعة»
@@ -460,8 +531,6 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             group.UnitPrice = group.Quantity > 0 ? Math.Round(sum / group.Quantity, 4) : 0;
             var tender = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.TenderUnitPrice));
             group.TenderUnitPrice = group.Quantity > 0 ? Math.Round(tender / group.Quantity, 4) : 0;
-            var cost = ordered.Where(x => x.ParentItemId == group.Id).Sum(x => DocumentPricing.Round(x.Quantity * x.EstimatedUnitCost));
-            group.EstimatedUnitCost = group.Quantity > 0 ? Math.Round(cost / group.Quantity, 4) : 0;
         }
     }
 

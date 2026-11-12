@@ -103,7 +103,7 @@ public class ProjectMaterialRequirementTests : TestBase
     [Fact]
     public async Task Derive_includes_unlinked_materials_and_diagnoses_every_line()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var s = await SetupAsync(api);
         var derived = await api.Post($"/commercialcontracts/{s.ContractId}/material-requirements/derive", new { });
         Ok(derived, "derive");
@@ -154,7 +154,7 @@ public class ProjectMaterialRequirementTests : TestBase
     [Fact]
     public async Task Manual_add_offers_item_analysis_with_suggested_quantity_and_library_for_unlinked_lines()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var s = await SetupAsync(api);
 
         var item = await api.Get($"/commercialcontracts/{s.ContractId}/material-requirements/candidates?lineId={s.Concrete}");
@@ -201,7 +201,7 @@ public class ProjectMaterialRequirementTests : TestBase
     [Fact]
     public async Task Direct_stock_items_and_non_material_resources_are_rejected()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var s = await SetupAsync(api);
         var url = $"/commercialcontracts/{s.ContractId}/material-requirements";
 
@@ -231,7 +231,7 @@ public class ProjectMaterialRequirementTests : TestBase
     [Fact]
     public async Task Linking_a_library_material_to_stock_later_shows_on_saved_requirements()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var s = await SetupAsync(api);
         var derived = (await api.Post($"/commercialcontracts/{s.ContractId}/material-requirements/derive", new { })).Data!["lines"]!.AsArray();
         var saved = await api.Put($"/commercialcontracts/{s.ContractId}/material-requirements", new

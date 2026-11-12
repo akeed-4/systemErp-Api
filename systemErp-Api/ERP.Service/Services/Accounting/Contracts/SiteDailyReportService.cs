@@ -99,6 +99,7 @@ public class SiteDailyReportService : ISiteDailyReportService
         {
             var contract = await P.LoadBoqContractAsync(_db, contractId, token);
             P.EnsureEditable(contract);
+            await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, token);
             if (request.ReportDate == default) throw new ValidationFailedException(Messages.SiteReportDateRequired);
             var day = request.ReportDate.Date;
             if (await _db.Set<SiteDailyReport>().AnyAsync(r => r.ContractId == contractId && r.ReportDate == day, token))
@@ -121,6 +122,7 @@ public class SiteDailyReportService : ISiteDailyReportService
         {
             var contract = await P.LoadBoqContractAsync(_db, contractId, token);
             P.EnsureEditable(contract);
+            await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, token);
             var report = await LoadTrackedAsync(contractId, reportId, token);
             EnsureStatus(report, St.Draft);
             await ApplyAsync(report, contract, request, token);

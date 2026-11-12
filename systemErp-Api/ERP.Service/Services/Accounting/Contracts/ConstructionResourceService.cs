@@ -12,8 +12,11 @@ namespace ERP.Service.Services.Accounting;
 /// <item>product (للمادة): من الصنف المخزني محوّلة لوحدة المورد، بشرط تحوّل الوحدة.</item>
 /// <item>hr_job (للعمالة): من شؤون الموظفين، متوسط تكلفة ساعة المهنة × ساعات الوحدة، ووحدة المورد من نوع «وقت».
 /// قراءة هذا المصدر تتطلب صلاحية شؤون الموظفين، فالتكلفة مشتقة من الرواتب.</item>
+/// <item>breakdown (للعمالة والمعدات): من تفصيل التكلفة (السعر بأساسه + تكاليف الساعة) × ساعات الوحدة.</item>
 /// </list>
 /// التكلفة غير اليدوية تُحسب هنا عند الحفظ وبأمر «تحديث التكاليف»، ولا تُقبل من الطلب.
+/// كل تغيّر في التكلفة يُضاف سطراً في سجلها (<see cref="ConstructionResourceCost"/>) بتاريخ سريانه ومن أدخله؛ والقيمة اليدوية
+/// والتفصيل تتطلبان صلاحية تعديل «مكتبة تكاليف المقاولات».
 /// </summary>
 public class ConstructionResourceService
     : CrudService<ConstructionResource, ConstructionResourceDto, CreateConstructionResourceDto, UpdateConstructionResourceDto>, IConstructionResourceService
@@ -22,11 +25,16 @@ public class ConstructionResourceService
     private const string HrScreen = "hr";
     private readonly IPermissionService _permissions;
     private readonly INumberSequenceService _numbers;
+    private readonly ICurrentUser _user;
 
-    public ConstructionResourceService(ErpDbContext db, IPermissionService permissions, INumberSequenceService numbers) : base(db)
+    public ConstructionResourceService(ErpDbContext db, IPermissionService permissions, INumberSequenceService numbers, ICurrentUser user) : base(db)
     {
-        _permissions = permissions; _numbers = numbers;
+        _permissions = permissions; _numbers = numbers; _user = user;
     }
+
+    /// <summary>تغيّر التكلفة المحسوب في التحقق، ويُسجَّل في السجل مع الحفظ نفسه.</summary>
+    private sealed record PendingCost(DateTime EffectiveFrom, string? Reason, ResourceCostBreakdownDto? Breakdown, ResourceCostRules.BreakdownResult? Computed);
+    private PendingCost? _pendingCost;
 
     /// <summary>بادئة الرمز التلقائي لكل نوع (MAT-0001...).</summary>
     private static string CodePrefix(string type) => type switch
@@ -75,6 +83,13 @@ public class ConstructionResourceService
             if (string.IsNullOrWhiteSpace(d.HrJobTitle)) errors.Add(Messages.ResourceHrJobRequired);
             if (d.HoursPerUnit <= 0) errors.Add(Messages.ResourceHoursPerUnitPositive);
         }
+        if (d.EquipmentOwnership != null && !EquipmentOwnerships.IsValid(d.EquipmentOwnership)) errors.Add(Messages.ResourceOwnershipInvalid);
+        if (d.CostSource == ResourceCostSources.Breakdown)
+        {
+            if (d.ResourceType is not (BoqResourceTypes.Labor or BoqResourceTypes.Equipment)) errors.Add(Messages.ResourceBreakdownTypeOnly);
+            if (d.Breakdown == null) errors.Add(Messages.ResourceBreakdownRequired);
+            if (d.ResourceType == BoqResourceTypes.Equipment && d.EquipmentOwnership == null) errors.Add(Messages.ResourceOwnershipRequired);
+        }
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         d.Code = await ResolveCodeAsync(d, existing, ct);
@@ -109,23 +124,95 @@ public class ConstructionResourceService
             d.StandardCost = Math.Round(rate.HourlyCost * d.HoursPerUnit, CostDecimals);
             _hrEmployeeCount = rate.EmployeeCount;
         }
+
+        if (d.SupplierId is Guid supplierId && !await Db.Set<Supplier>().AnyAsync(s => s.Id == supplierId, ct))
+            throw new ValidationFailedException(Messages.ResourceSupplierNotFound);
+        await PrepareCostAsync(d, existing, ct);
+    }
+
+    /// <summary>
+    /// تغيّر التكلفة في نموذج المورد: يحسب التفصيل، ويقرر هل تغيّرت التكلفة (القيمة أو المصدر أو الوحدة أو ساعاتها أو التفصيل)،
+    /// ويتحقق من تاريخ السريان (لا يتجاوز اليوم ولا يسبق آخر سطر ساري) ومن صلاحية التكاليف للقيمة اليدوية والتفصيل.
+    /// </summary>
+    private async Task PrepareCostAsync(CreateConstructionResourceDto d, ConstructionResource? existing, CancellationToken ct)
+    {
+        _pendingCost = null;
+        ResourceCostBreakdownDto? breakdown = null;
+        ResourceCostRules.BreakdownResult? computed = null;
+        if (d.CostSource == ResourceCostSources.Breakdown)
+        {
+            var errors = new List<string>();
+            var result = ResourceCostRules.Compute(d.Breakdown!, d.HoursPerUnit, errors);
+            if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+            d.StandardCost = result.UnitCost;
+            breakdown = d.Breakdown;
+            computed = result;
+        }
+
+        var changing = existing == null || existing.StandardCost != d.StandardCost || existing.CostSource != d.CostSource
+            || existing.Unit != d.Unit || existing.HoursPerUnit != d.HoursPerUnit
+            || (breakdown != null && await BreakdownChangedAsync(existing.Id, breakdown, ct));
+        if (!changing) return;
+
+        var today = ResourceCostRules.Today;
+        var effective = (d.EffectiveFrom ?? today).Date;
+        if (effective > today) throw new ValidationFailedException(Messages.ResourceCostEffectiveFuture);
+        if (existing != null)
+        {
+            var latest = await Db.Set<ConstructionResourceCost>().AsNoTracking()
+                .Where(c => c.ResourceId == existing.Id && c.EffectiveFrom <= today).MaxAsync(c => (DateTime?)c.EffectiveFrom, ct);
+            if (latest is DateTime l && effective < l)
+                throw new ValidationFailedException(string.Format(Messages.ResourceCostEffectiveBeforeLatest, l.ToString("yyyy-MM-dd")));
+        }
+        // القيمة اليدوية والتفصيل إدخال تكلفة؛ المصادر المحسوبة (الصنف، شؤون الموظفين، المركّب) لا تتطلب صلاحية التكاليف
+        var entersCost = d.CostSource == ResourceCostSources.Breakdown
+            || (d.CostSource == ResourceCostSources.Manual && (existing != null || d.StandardCost != 0));
+        if (entersCost) await RequireCostEditAsync(ct);
+        _pendingCost = new PendingCost(effective, d.CostReason, breakdown, computed);
+    }
+
+    /// <summary>هل يختلف التفصيل المرسل عن تفصيل السطر الساري اليوم؟</summary>
+    private async Task<bool> BreakdownChangedAsync(Guid resourceId, ResourceCostBreakdownDto b, CancellationToken ct)
+    {
+        var current = (await ResourceCostRules.CostAtAsync(Db, new[] { resourceId }, ResourceCostRules.Today, ct)).GetValueOrDefault(resourceId);
+        return current == null || current.RateBasis != b.RateBasis || current.Rate != b.Rate || current.HoursPerDay != b.HoursPerDay
+            || current.DaysPerMonth != b.DaysPerMonth || current.FuelPerHour != b.FuelPerHour || current.MaintenancePerHour != b.MaintenancePerHour
+            || current.DepreciationPerHour != b.DepreciationPerHour || current.OperatorPerHour != b.OperatorPerHour
+            || current.OtherPerHour != b.OtherPerHour || current.OvertimeMultiplier != b.OvertimeMultiplier;
+    }
+
+    private async Task RequireCostEditAsync(CancellationToken ct)
+    {
+        if (!await _permissions.HasPermissionAsync(PermissionCatalog.ConstructionCostLibraryScreenId, ScreenAction.Edit, ct))
+            throw new ForbiddenException(Messages.ResourceCostForbidden);
+    }
+
+    private CostAuthor Author => CostAuthor.From(_user);
+
+    /// <summary>يسجّل تغيّر التكلفة المحسوب في التحقق سطراً في السجل مع الحفظ نفسه.</summary>
+    private async Task RecordPendingCostAsync(ConstructionResource e, string reason, CancellationToken ct)
+    {
+        if (_pendingCost is not { } p) return;
+        _pendingCost = null;
+        e.CostEffectiveFrom = p.EffectiveFrom;
+        ResourceCostRules.Record(Db, e, p.EffectiveFrom, p.Reason ?? reason, Author, await ResourceCostRules.CurrencyAsync(Db, ct), p.Breakdown, p.Computed);
     }
 
     /// <summary>عدد موظفي المهنة المحسوب في التحقق (يُكتب على الكيان بعد النسخ من الطلب).</summary>
     private int _hrEmployeeCount;
 
-    protected override Task OnCreatingAsync(ConstructionResource e, CreateConstructionResourceDto d, CancellationToken ct)
+    protected override async Task OnCreatingAsync(ConstructionResource e, CreateConstructionResourceDto d, CancellationToken ct)
     {
         e.HrEmployeeCount = e.CostSource == ResourceCostSources.HrJob ? _hrEmployeeCount : 0;
         e.CostUpdatedAt = DateTime.UtcNow;
-        return Task.CompletedTask;
+        await RecordPendingCostAsync(e, ResourceCostReasons.Created, ct);
     }
 
-    protected override Task OnUpdatingAsync(ConstructionResource e, UpdateConstructionResourceDto d, CancellationToken ct)
+    protected override async Task OnUpdatingAsync(ConstructionResource e, UpdateConstructionResourceDto d, CancellationToken ct)
     {
         e.HrEmployeeCount = e.CostSource == ResourceCostSources.HrJob ? _hrEmployeeCount : 0;
         if (Db.Entry(e).Property(r => r.StandardCost).IsModified) e.CostUpdatedAt = DateTime.UtcNow;
-        return Task.CompletedTask;
+        await RecordPendingCostAsync(e, ResourceCostReasons.Updated, ct);
     }
 
     /// <summary>المورد وكل مركّب يعتمد عليه تُعاد تكلفتهم بعد الحفظ (في المعاملة نفسها).</summary>
@@ -156,6 +243,8 @@ public class ConstructionResourceService
         if (await Db.Set<ProjectMaterialRequirement>().AnyAsync(r => r.ResourceId == e.Id, ct)
             || await Db.Set<SiteMaterialUsage>().AnyAsync(m => m.ResourceId == e.Id, ct))
             throw new ConflictException(Messages.ResourceUsedInProjects);
+        // مورد غير مستخدم: سجل تكلفته يُحذف معه (الحارس لا يقبل حذف السجل إلا مع مورده)
+        Db.RemoveRange(await Db.Set<ConstructionResourceCost>().Where(c => c.ResourceId == e.Id).ToListAsync(ct));
     }
 
     /// <summary>
@@ -192,14 +281,25 @@ public class ConstructionResourceService
         }
     }
 
-    private Task<int> RecomputeCompositesAsync(CancellationToken ct) => ResourceCostRules.RecomputeCompositesAsync(Db, ct);
+    private Task<int> RecomputeCompositesAsync(CancellationToken ct) => ResourceCostRules.RecomputeCompositesAsync(Db, ct, Author);
 
+    /// <summary>
+    /// يحدّث التكاليف من مصادرها: الأسعار المجدولة التي حلّ موعدها أولاً، ثم الصنف وشؤون الموظفين (سطر سجل لكل ما تغيّر)،
+    /// ثم المركّبات.
+    /// </summary>
     public async Task<ResourceCostRefreshDto> RefreshCostsAsync(CancellationToken ct = default)
     {
+        var result = new ResourceCostRefreshDto { Updated = await ResourceCostRules.RollForwardAsync(Db, ct) };
         var resources = await Db.Set<ConstructionResource>()
             .Where(r => r.CostSource == ResourceCostSources.Product || r.CostSource == ResourceCostSources.HrJob).ToListAsync(ct);
-        var result = new ResourceCostRefreshDto();
-        if (resources.Count == 0) return result;
+        if (resources.Count == 0)
+        {
+            result.Updated += await RecomputeCompositesAsync(ct);
+            await SaveAsync(ct);
+            return result;
+        }
+        var currency = await ResourceCostRules.CurrencyAsync(Db, ct);
+        var today = ResourceCostRules.Today;
 
         var units = await BoqUnits.LoadAsync(Db, ct);
         var products = await BoqProducts.LoadAsync(Db, resources.Select(r => r.ProductId), ct);
@@ -230,6 +330,8 @@ public class ConstructionResourceService
             if (value == r.StandardCost) continue;
             r.StandardCost = value;
             r.CostUpdatedAt = now;
+            r.CostEffectiveFrom = today;
+            ResourceCostRules.Record(Db, r, today, ResourceCostReasons.Refresh, Author, currency);
             result.Updated++;
         }
         // المركّبات تتبع مكوناتها بعد تحديثها
@@ -323,6 +425,8 @@ public class ConstructionResourceService
             var products = await BoqProducts.LoadAsync(Db, links.Select(l => (Guid?)l.ProductId), token);
             var units = await BoqUnits.LoadAsync(Db, token);
             var now = DateTime.UtcNow;
+            var today = ResourceCostRules.Today;
+            var currency = await ResourceCostRules.CurrencyAsync(Db, token);
             foreach (var link in links)
             {
                 if (!resources.TryGetValue(link.ResourceId, out var r)) { result.Skipped.Add("مادة غير موجودة."); continue; }
@@ -339,6 +443,9 @@ public class ConstructionResourceService
                 r.CostSource = ResourceCostSources.Product;
                 if (product.Cost > 0) r.StandardCost = ProductCost(product, factor);
                 r.CostUpdatedAt = now;
+                r.CostEffectiveFrom = today;
+                // المصدر تغيّر إلى الصنف: سطر في السجل ولو بقيت القيمة نفسها
+                ResourceCostRules.Record(Db, r, today, ResourceCostReasons.ProductLink, Author, currency);
                 result.Linked++;
             }
             await SaveAsync(token);
@@ -362,6 +469,125 @@ public class ConstructionResourceService
         return new HrLaborOptionsDto { JobTitles = titles, Departments = departments };
     }
 
+    // ---------- مكتبة تكاليف المقاولات ----------
+
+    public async Task<ConstructionCostLibrarySummaryDto> CostSummaryAsync(CancellationToken ct = default)
+    {
+        var rows = await Db.Set<ConstructionResource>().AsNoTracking()
+            .Select(r => new { r.ResourceType, r.IsActive, r.StandardCost, r.ProductId, r.CostSource, r.EquipmentOwnership, r.Category })
+            .ToListAsync(ct);
+        var today = ResourceCostRules.Today;
+        var active = rows.Where(r => r.IsActive).ToList();
+        return new ConstructionCostLibrarySummaryDto
+        {
+            Types = BoqResourceTypes.All.Select(t => new ConstructionCostTypeSummaryDto
+            {
+                ResourceType = t, Active = active.Count(r => r.ResourceType == t), Inactive = rows.Count(r => !r.IsActive && r.ResourceType == t),
+            }).ToList(),
+            WithoutCost = active.Count(r => r.StandardCost <= 0),
+            UnlinkedMaterials = active.Count(r => r.ResourceType == BoqResourceTypes.Material && r.ProductId == null && r.CostSource != ResourceCostSources.Composite),
+            EquipmentWithoutOwnership = active.Count(r => r.ResourceType == BoqResourceTypes.Equipment && r.EquipmentOwnership == null),
+            Scheduled = await Db.Set<ConstructionResourceCost>().AsNoTracking().CountAsync(c => c.EffectiveFrom > today, ct),
+            Currency = await ResourceCostRules.CurrencyAsync(Db, ct),
+            Categories = rows.Where(r => r.Category != null).GroupBy(r => r.ResourceType)
+                .ToDictionary(g => g.Key, g => g.Select(r => r.Category!).Distinct().OrderBy(c => c).ToList()),
+        };
+    }
+
+    public async Task<ConstructionResourceCostHistoryDto> CostHistoryAsync(Guid resourceId, CancellationToken ct = default)
+    {
+        var r = await Db.Set<ConstructionResource>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == resourceId, ct)
+            ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
+        var today = ResourceCostRules.Today;
+        var rows = await Db.Set<ConstructionResourceCost>().AsNoTracking().Where(c => c.ResourceId == resourceId)
+            .OrderByDescending(c => c.EffectiveFrom).ThenByDescending(c => c.CreatedAt).ToListAsync(ct);
+        var current = rows.FirstOrDefault(c => c.EffectiveFrom <= today);
+        var entries = rows.Select(c => ToCostDto(c, c == current ? "current" : c.EffectiveFrom > today ? "scheduled" : "past")).ToList();
+        return new ConstructionResourceCostHistoryDto
+        {
+            ResourceId = r.Id, Code = r.Code, NameAr = r.NameAr, Unit = r.Unit, CostSource = r.CostSource,
+            Current = entries.FirstOrDefault(e => e.Status == "current"), Entries = entries,
+        };
+    }
+
+    /// <summary>
+    /// سعر جديد في سجل المورد (ماضٍ أو مستقبلي) دون تعديل سطر قائم: يدوي بقيمته، أو تفصيل يُحسب. إن صار هو الساري اليوم
+    /// تتبعه التكلفة المخزّنة والمركّبات؛ والمجدول يسري عند «تحديث التكاليف» بعد موعده، والتكلفة في تاريخ تقرؤه مباشرة.
+    /// </summary>
+    public Task<ConstructionResourceCostHistoryDto> AddCostAsync(Guid resourceId, AddResourceCostDto request, CancellationToken ct = default)
+        => new TransactionRunner(Db).RunAsync(async token =>
+        {
+            await RequireCostEditAsync(token);
+            var r = await Db.Set<ConstructionResource>().FirstOrDefaultAsync(x => x.Id == resourceId, token)
+                ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
+            if (r.CostSource is not (ResourceCostSources.Manual or ResourceCostSources.Breakdown))
+                throw new ValidationFailedException(Messages.ResourceCostFromSource);
+            if (request.EffectiveFrom == default) throw new ValidationFailedException(Messages.ResourceCostEffectiveRequired);
+
+            decimal unitCost;
+            ResourceCostBreakdownDto? breakdown = null;
+            ResourceCostRules.BreakdownResult? computed = null;
+            if (r.CostSource == ResourceCostSources.Breakdown)
+            {
+                breakdown = request.Breakdown ?? throw new ValidationFailedException(Messages.ResourceBreakdownRequired);
+                var errors = new List<string>();
+                var result = ResourceCostRules.Compute(breakdown, r.HoursPerUnit, errors);
+                if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+                unitCost = result.UnitCost;
+                computed = result;
+            }
+            else
+            {
+                if (request.UnitCost is not decimal value) throw new ValidationFailedException(Messages.ResourceCostValueRequired);
+                if (value < 0) throw new ValidationFailedException(Messages.ResourceCostNegative);
+                unitCost = Math.Round(value, CostDecimals);
+            }
+
+            ResourceCostRules.Record(Db, r, request.EffectiveFrom, request.Reason, Author, await ResourceCostRules.CurrencyAsync(Db, token),
+                breakdown, computed, unitCost);
+            await SaveAsync(token);
+            if (await ResourceCostRules.SyncCacheAsync(Db, new[] { r }, token) > 0) await RecomputeCompositesAsync(token);
+            await SaveAsync(token);
+            return await CostHistoryAsync(resourceId, token);
+        }, ct);
+
+    /// <summary>
+    /// التكلفة السارية في تاريخ لموارد المنشأة (غيرها لا يُرى). تاريخ يسبق أول سطر في سجل المورد = لا تكلفة (صفر بلا سطر)،
+    /// والمورد بلا سجل أصلاً (لا يحدث بعد الهجرة) يأخذ تكلفته المخزّنة.
+    /// </summary>
+    public async Task<List<ResourceCostAtDto>> CostsAtAsync(IReadOnlyCollection<Guid> resourceIds, DateTime date, CancellationToken ct = default)
+    {
+        var ids = resourceIds.Distinct().ToList();
+        if (ids.Count == 0) return new();
+        var resources = await Db.Set<ConstructionResource>().AsNoTracking().Where(r => ids.Contains(r.Id))
+            .Select(r => new { r.Id, r.StandardCost, r.CostSource, r.Unit }).ToListAsync(ct);
+        var found = resources.Select(r => r.Id).ToList();
+        var rows = await ResourceCostRules.CostAtAsync(Db, found, date, ct);
+        var withHistory = (await Db.Set<ConstructionResourceCost>().AsNoTracking().Where(c => found.Contains(c.ResourceId))
+            .Select(c => c.ResourceId).Distinct().ToListAsync(ct)).ToHashSet();
+        var currency = await ResourceCostRules.CurrencyAsync(Db, ct);
+        return resources.Select(r => rows.TryGetValue(r.Id, out var c)
+                ? new ResourceCostAtDto { ResourceId = r.Id, CostId = c.Id, EffectiveFrom = c.EffectiveFrom, UnitCost = c.UnitCost, Currency = c.Currency, Source = c.Source, Unit = c.Unit }
+                : new ResourceCostAtDto
+                {
+                    ResourceId = r.Id, UnitCost = withHistory.Contains(r.Id) ? 0 : r.StandardCost, Currency = currency, Source = r.CostSource, Unit = r.Unit,
+                })
+            .ToList();
+    }
+
+    private static ConstructionResourceCostDto ToCostDto(ConstructionResourceCost c, string status) => new()
+    {
+        Id = c.Id, EffectiveFrom = c.EffectiveFrom, UnitCost = c.UnitCost, Currency = c.Currency, Source = c.Source, Unit = c.Unit,
+        HoursPerUnit = c.HoursPerUnit, HourlyCost = c.HourlyCost, OvertimeHourlyCost = c.OvertimeHourlyCost, Reason = c.Reason,
+        CreatedBy = c.CreatedBy, CreatedAt = c.CreatedAt, Status = status,
+        Breakdown = c.RateBasis == null ? null : new ResourceCostBreakdownDto
+        {
+            RateBasis = c.RateBasis, Rate = c.Rate, HoursPerDay = c.HoursPerDay, DaysPerMonth = c.DaysPerMonth, FuelPerHour = c.FuelPerHour,
+            MaintenancePerHour = c.MaintenancePerHour, DepreciationPerHour = c.DepreciationPerHour, OperatorPerHour = c.OperatorPerHour,
+            OtherPerHour = c.OtherPerHour, OvertimeMultiplier = c.OvertimeMultiplier,
+        },
+    };
+
     // ---------- مساعدات ----------
 
     private static void Normalize(CreateConstructionResourceDto d)
@@ -376,9 +602,16 @@ public class ConstructionResourceService
         if (d.ResourceType != BoqResourceTypes.Material) d.ProductId = null;
         if (d.CostSource != ResourceCostSources.HrJob)
         {
-            d.HrJobTitle = null; d.HrDepartmentId = null; d.HoursPerUnit = 1m;
+            d.HrJobTitle = null; d.HrDepartmentId = null;
+            if (d.CostSource != ResourceCostSources.Breakdown) d.HoursPerUnit = 1m;
         }
         else d.HrJobTitle = d.HrJobTitle?.Trim();
+        if (d.CostSource != ResourceCostSources.Breakdown) d.Breakdown = null;
+        d.Category = string.IsNullOrWhiteSpace(d.Category) ? null : d.Category.Trim() is var c && c.Length > 100 ? c[..100] : d.Category.Trim();
+        d.EquipmentOwnership = d.ResourceType != BoqResourceTypes.Equipment || string.IsNullOrWhiteSpace(d.EquipmentOwnership)
+            ? null : d.EquipmentOwnership.Trim().ToLowerInvariant();
+        if (d.ResourceType is not (BoqResourceTypes.Material or BoqResourceTypes.Equipment)) d.SupplierId = null;
+        d.CostReason = string.IsNullOrWhiteSpace(d.CostReason) ? null : d.CostReason.Trim();
         d.Components ??= new();
         if (d.CostSource != ResourceCostSources.Composite) d.Components.Clear();
         else

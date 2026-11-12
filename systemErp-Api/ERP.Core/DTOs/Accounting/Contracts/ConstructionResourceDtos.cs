@@ -24,6 +24,12 @@ public class ConstructionResourceDto
     public int HrEmployeeCount { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>للقراءة: تاريخ سريان التكلفة الحالية من سجلها.</summary>
+    public DateTime? CostEffectiveFrom { get; set; }
+    public string? Category { get; set; }
+    public Guid? SupplierId { get; set; }
+    /// <summary>owned | rented للمعدات (فارغ = غير محددة).</summary>
+    public string? EquipmentOwnership { get; set; }
     /// <summary>مكونات المورد المركّب (فارغة لغيره).</summary>
     public List<ConstructionResourceComponentDto> Components { get; set; } = new();
 }
@@ -44,11 +50,126 @@ public class CreateConstructionResourceDto
     public decimal HoursPerUnit { get; set; } = 1m;
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? Category { get; set; }
+    /// <summary>للمادة والمعدة فقط.</summary>
+    public Guid? SupplierId { get; set; }
+    /// <summary>owned | rented؛ للمعدة فقط، ولازمة مع تفصيل التكلفة.</summary>
+    public string? EquipmentOwnership { get; set; }
+    /// <summary>تفصيل التكلفة؛ لازم مع مصدر breakdown (عمالة أو معدة) ويُتجاهل مع غيره.</summary>
+    public ResourceCostBreakdownDto? Breakdown { get; set; }
+    /// <summary>
+    /// سريان التكلفة المدخلة (فارغ = اليوم). في هذا النموذج لا يتجاوز اليوم ولا يسبق آخر سطر في سجل المورد؛ السعر المجدول أو
+    /// تصحيح الماضي من <c>POST {id}/costs</c>.
+    /// </summary>
+    public DateTime? EffectiveFrom { get; set; }
+    /// <summary>سبب تغيير التكلفة (اختياري، يُحفظ في السجل).</summary>
+    public string? CostReason { get; set; }
     /// <summary>مكونات المورد المركّب (فارغة لغيره).</summary>
     public List<ConstructionResourceComponentDto> Components { get; set; } = new();
 }
 
 public class UpdateConstructionResourceDto : CreateConstructionResourceDto { }
+
+/// <summary>
+/// تفصيل تكلفة العمالة أو المعدة: السعر بأساسه (hour | day | month) يُحوَّل للساعة بساعات اليوم وأيام الشهر، ثم تُضاف تكاليف الساعة.
+/// تكلفة الوحدة = تكلفة الساعة × ساعات الوحدة (<see cref="CreateConstructionResourceDto.HoursPerUnit"/>).
+/// </summary>
+public class ResourceCostBreakdownDto
+{
+    public string RateBasis { get; set; } = "hour";
+    /// <summary>الأجر، أو الإيجار، أو تكلفة التشغيل الأساسية للمعدة المملوكة، بأساسه.</summary>
+    public decimal Rate { get; set; }
+    public decimal HoursPerDay { get; set; } = 8m;
+    public decimal DaysPerMonth { get; set; } = 26m;
+    public decimal FuelPerHour { get; set; }
+    public decimal MaintenancePerHour { get; set; }
+    public decimal DepreciationPerHour { get; set; }
+    public decimal OperatorPerHour { get; set; }
+    public decimal OtherPerHour { get; set; }
+    /// <summary>معامل الساعة الإضافية (1.5 = ساعة ونصف)؛ 1 = بلا إضافي.</summary>
+    public decimal OvertimeMultiplier { get; set; } = 1.5m;
+}
+
+/// <summary>سطر في سجل تكلفة المورد (للقراءة).</summary>
+public class ConstructionResourceCostDto
+{
+    public Guid Id { get; set; }
+    public DateTime EffectiveFrom { get; set; }
+    public decimal UnitCost { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal HoursPerUnit { get; set; }
+    /// <summary>التفصيل لمصدر breakdown، وفارغ لغيره.</summary>
+    public ResourceCostBreakdownDto? Breakdown { get; set; }
+    public decimal HourlyCost { get; set; }
+    public decimal OvertimeHourlyCost { get; set; }
+    public string? Reason { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; }
+    /// <summary>past = سطر سابق، current = الساري اليوم، scheduled = يسري لاحقاً.</summary>
+    public string Status { get; set; } = "past";
+}
+
+/// <summary>سجل تكلفة المورد: الأسطر من الأحدث، والساري اليوم.</summary>
+public class ConstructionResourceCostHistoryDto
+{
+    public Guid ResourceId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public string CostSource { get; set; } = string.Empty;
+    public ConstructionResourceCostDto? Current { get; set; }
+    public List<ConstructionResourceCostDto> Entries { get; set; } = new();
+}
+
+/// <summary>
+/// سعر جديد في سجل المورد بتاريخ سريان (ماضٍ أو مستقبلي)، للمصدر اليدوي (<see cref="UnitCost"/>) أو التفصيل
+/// (<see cref="Breakdown"/>). المصادر المحسوبة (الصنف، شؤون الموظفين، المركّب) تُحدَّث من مصدرها.
+/// </summary>
+public class AddResourceCostDto
+{
+    public DateTime EffectiveFrom { get; set; }
+    public decimal? UnitCost { get; set; }
+    public ResourceCostBreakdownDto? Breakdown { get; set; }
+    public string? Reason { get; set; }
+}
+
+/// <summary>التكلفة السارية لمورد في تاريخ: القيمة وسطر السجل الذي جاءت منه (مرجع النسخة المجمّدة).</summary>
+public class ResourceCostAtDto
+{
+    public Guid ResourceId { get; set; }
+    public Guid? CostId { get; set; }
+    public DateTime? EffectiveFrom { get; set; }
+    public decimal UnitCost { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+}
+
+/// <summary>ملخص مكتبة التكاليف: الموارد الفعّالة لكل نوع، وما ينقصه.</summary>
+public class ConstructionCostLibrarySummaryDto
+{
+    public List<ConstructionCostTypeSummaryDto> Types { get; set; } = new();
+    /// <summary>موارد فعّالة بلا تكلفة.</summary>
+    public int WithoutCost { get; set; }
+    /// <summary>مواد فعّالة غير مربوطة بصنف مخزني.</summary>
+    public int UnlinkedMaterials { get; set; }
+    /// <summary>معدات فعّالة بلا ملكية محددة.</summary>
+    public int EquipmentWithoutOwnership { get; set; }
+    /// <summary>أسعار مجدولة تسري بعد اليوم.</summary>
+    public int Scheduled { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    /// <summary>الفئات المستعملة لكل نوع (اقتراحات الإدخال).</summary>
+    public Dictionary<string, List<string>> Categories { get; set; } = new();
+}
+
+public class ConstructionCostTypeSummaryDto
+{
+    public string ResourceType { get; set; } = string.Empty;
+    public int Active { get; set; }
+    public int Inactive { get; set; }
+}
 
 /// <summary>مكوّن مورد مركّب: مورد من المكتبة بكميته (بوحدته) لكل وحدة من المركّب.</summary>
 public class ConstructionResourceComponentDto

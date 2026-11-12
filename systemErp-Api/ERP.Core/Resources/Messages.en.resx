@@ -1587,6 +1587,39 @@
   <data name="ResourceHrDepartmentNotFound" xml:space="preserve"><value>The department selected for the trade was not found.</value></data>
   <data name="ResourceHrNoEmployees" xml:space="preserve"><value>No active employees with job title "{0}" to calculate the trade cost.</value></data>
   <data name="ResourceHrForbidden" xml:space="preserve"><value>Labour cost from human resources is derived from salaries and requires permission to view human resources.</value></data>
+  <data name="ResourceCostHistoryImmutable" xml:space="preserve"><value>Resource cost history cannot be changed or deleted; add a new price with its effective date.</value></data>
+  <data name="ResourceBreakdownCostRequired" xml:space="preserve"><value>The cost breakdown must produce an hourly cost greater than zero.</value></data>
+  <data name="ResourceBreakdownTypeOnly" xml:space="preserve"><value>A cost breakdown applies to labour and equipment only.</value></data>
+  <data name="ResourceBreakdownRequired" xml:space="preserve"><value>Enter the cost breakdown (basis, rate and hourly costs).</value></data>
+  <data name="ResourceOwnershipRequired" xml:space="preserve"><value>Select the equipment ownership (owned or rented) to calculate its cost from the breakdown.</value></data>
+  <data name="ResourceOwnershipInvalid" xml:space="preserve"><value>Invalid equipment ownership.</value></data>
+  <data name="ResourceSupplierTypeOnly" xml:space="preserve"><value>A linked supplier applies to materials and equipment only.</value></data>
+  <data name="ResourceSupplierNotFound" xml:space="preserve"><value>The linked supplier was not found.</value></data>
+  <data name="ResourceCostEffectiveFuture" xml:space="preserve"><value>The cost effective date in the resource form cannot be after today; add a scheduled price from the cost history.</value></data>
+  <data name="ResourceCostEffectiveBeforeLatest" xml:space="preserve"><value>The effective date is before the latest price in the history ({0}); add past corrections from the cost history.</value></data>
+  <data name="ResourceCostFromSource" xml:space="preserve"><value>This resource's cost is calculated from its source (item, human resources or components); refresh it from the source.</value></data>
+  <data name="ResourceCostValueRequired" xml:space="preserve"><value>Enter the unit cost.</value></data>
+  <data name="ResourceCostEffectiveRequired" xml:space="preserve"><value>Enter the price effective date.</value></data>
+  <data name="ResourceCostForbidden" xml:space="preserve"><value>Changing resource costs requires edit permission on the Construction Cost Library.</value></data>
+  <data name="ContractCostRowNotFound" xml:space="preserve"><value>Cost analysis row not found.</value></data>
+  <data name="ContractCostOverrideReasonRequired" xml:space="preserve"><value>Enter the reason for changing the cost.</value></data>
+  <data name="ContractCostAnalysisLocked" xml:space="preserve"><value>The cost analysis is priced and changed in draft only; afterwards changes go through a change order or a plan revision.</value></data>
+  <data name="FeasibilityStudyBoqCustomerOnly" xml:space="preserve"><value>A feasibility study is for a customer construction project with a BOQ (not a subcontract or a tender).</value></data>
+  <data name="FeasibilityNotContractYet" xml:space="preserve"><value>This feasibility study is not a contract yet: approve the execution plan, then “Create contract”.</value></data>
+  <data name="FeasibilityPlanApprovedLocked" xml:space="preserve"><value>This study’s execution plan is approved: open a plan revision before editing the study.</value></data>
+  <data name="ExecutionPlanUnsectioned" xml:space="preserve"><value>Unclassified items</value></data>
+  <data name="ExecutionPlanResourceNameRequired" xml:space="preserve"><value>Enter the resource name of the requirement.</value></data>
+  <data name="ExecutionPlanPhaseInvalid" xml:space="preserve"><value>The selected phase or item is not from this project.</value></data>
+  <data name="ExecutionPlanNoPhases" xml:space="preserve"><value>The plan has no phases: generate it from the study or add a phase before submitting.</value></data>
+  <data name="ExecutionPlanNotFound" xml:space="preserve"><value>This project has no execution plan yet; prepare it from the study.</value></data>
+  <data name="ExecutionPlanWrongStatus" xml:space="preserve"><value>The execution plan status does not allow this action.</value></data>
+  <data name="ExecutionPlanReturnReasonRequired" xml:space="preserve"><value>Enter the reason for returning the plan.</value></data>
+  <data name="ExecutionPlanLocked" xml:space="preserve"><value>The execution plan is submitted or approved: its items change only after returning it or opening a revision.</value></data>
+  <data name="FeasibilityCreateContractNeedsApprovedPlan" xml:space="preserve"><value>“Create contract” requires a draft study whose execution plan is approved.</value></data>
+  <data name="ExecutionNeedsContract" xml:space="preserve"><value>Execution cannot start before the contract: approve the execution plan, then “Create contract”.</value></data>
+  <data name="ExecutionNeedsActiveContract" xml:space="preserve"><value>Execution cannot start before the contract is in force (approved and activated).</value></data>
+  <data name="ExecutionNeedsApprovedPlan" xml:space="preserve"><value>Execution cannot start before the execution plan is approved (or its open revision).</value></data>
+  <data name="ProjectMaterialsManagedByPlan" xml:space="preserve"><value>This project’s material requirements are generated from the study in the execution plan and approved with it; change them through the study or a plan revision.</value></data>
   <data name="ResourceCompositeEmpty" xml:space="preserve"><value>A composite resource needs at least one component.</value></data>
   <data name="ResourceComponentInvalid" xml:space="preserve"><value>Each component quantity must be greater than zero, and waste between 0 and 100.</value></data>
   <data name="ResourceComponentDuplicate" xml:space="preserve"><value>A component is repeated in the composite resource; combine its quantity in one line.</value></data>

@@ -43,7 +43,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Boq_contract_gets_project_profile_cost_center_and_hourly_slots_on_creation()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (id, _, contract) = await BoqContractAsync(api);
 
         var project = await Project(api, id);
@@ -65,7 +65,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Chosen_cost_center_is_kept_and_non_boq_contracts_have_no_project()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var center = await api.Post("/costcenters", new { code = "CC-SITE", nameAr = "موقع", nameEn = "Site" });
         Ok(center, "cost center");
         var (id, _, _) = await BoqContractAsync(api, center.Data!["id"].S());
@@ -88,7 +88,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Profile_hours_generate_hourly_slots_excluding_break_and_are_validated()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (id, _, _) = await BoqContractAsync(api);
 
         var saved = await api.Put($"/commercialcontracts/{id}/project/profile", new
@@ -117,7 +117,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Phases_compute_planned_progress_and_reject_invalid_weights_and_items()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (id, items, _) = await BoqContractAsync(api);
         var concrete = ItemId(items, "صب خرسانة");
         var group = ItemId(items, "أعمال الحديد");
@@ -185,7 +185,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Role_templates_are_created_once_with_their_permissions()
     {
-        var owner = await NewTenantAsync();
+        var owner = await NewConstructionTenantAsync();
         var first = await owner.Post("/construction-projects/role-templates");
         Ok(first, "templates");
         Assert.Equal(8, first.Data!["created"]!.AsArray().Count);
@@ -210,7 +210,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Supervisor_sees_only_projects_assigned_through_membership_and_management_sees_all()
     {
-        var owner = await NewTenantAsync();
+        var owner = await NewConstructionTenantAsync();
         Ok(await owner.Post("/construction-projects/role-templates"), "templates");
         var (supervisor, supervisorId) = await UserWithRoleAsync(owner, "المهندس المشرف");
         var (executive, _) = await UserWithRoleAsync(owner, "الإدارة العليا");
@@ -260,7 +260,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Project_setup_changes_are_audited_with_old_and_new_values()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var (id, _, _) = await BoqContractAsync(api);
         Ok(await api.Put($"/commercialcontracts/{id}/project/profile", new { estimatedBudget = 1000, workdayStart = "07:00", workdayEnd = "17:00" }), "first");
         Ok(await api.Put($"/commercialcontracts/{id}/project/profile", new { estimatedBudget = 2500, workdayStart = "07:00", workdayEnd = "16:00" }), "second");
@@ -278,7 +278,7 @@ public class ConstructionProjectSetupTests : TestBase
     [Fact]
     public async Task Project_list_and_summary_report_progress_statuses_and_alerts_within_access_scope()
     {
-        var owner = await NewTenantAsync();
+        var owner = await NewConstructionTenantAsync();
         Ok(await owner.Post("/construction-projects/role-templates"), "templates");
         var (supervisor, supervisorId) = await UserWithRoleAsync(owner, "المهندس المشرف");
         var (mine, items, _) = await BoqContractAsync(owner);

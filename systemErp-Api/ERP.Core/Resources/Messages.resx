@@ -1587,6 +1587,39 @@
   <data name="ResourceHrDepartmentNotFound" xml:space="preserve"><value>القسم المحدد للمهنة غير موجود.</value></data>
   <data name="ResourceHrNoEmployees" xml:space="preserve"><value>لا موظفين فعّالين بالمسمى الوظيفي «{0}» لحساب تكلفة المهنة.</value></data>
   <data name="ResourceHrForbidden" xml:space="preserve"><value>تكلفة العمالة من شؤون الموظفين مشتقة من الرواتب، وتتطلب صلاحية عرض شؤون الموظفين.</value></data>
+  <data name="ResourceCostHistoryImmutable" xml:space="preserve"><value>سجل تكلفة المورد لا يُعدَّل ولا يُحذف؛ أضف سعراً جديداً بتاريخ سريانه.</value></data>
+  <data name="ResourceBreakdownCostRequired" xml:space="preserve"><value>تفصيل التكلفة يجب أن ينتج تكلفة ساعة أكبر من صفر.</value></data>
+  <data name="ResourceBreakdownTypeOnly" xml:space="preserve"><value>تفصيل التكلفة للعمالة والمعدات فقط.</value></data>
+  <data name="ResourceBreakdownRequired" xml:space="preserve"><value>أدخل تفصيل التكلفة (الأساس والسعر وتكاليف الساعة).</value></data>
+  <data name="ResourceOwnershipRequired" xml:space="preserve"><value>حدد ملكية المعدة (مملوكة أو مستأجرة) لحساب تكلفتها من التفصيل.</value></data>
+  <data name="ResourceOwnershipInvalid" xml:space="preserve"><value>ملكية المعدة غير صالحة.</value></data>
+  <data name="ResourceSupplierTypeOnly" xml:space="preserve"><value>المورد المرتبط للمادة أو المعدة فقط.</value></data>
+  <data name="ResourceSupplierNotFound" xml:space="preserve"><value>المورد المرتبط غير موجود.</value></data>
+  <data name="ResourceCostEffectiveFuture" xml:space="preserve"><value>تاريخ سريان التكلفة في نموذج المورد لا يتجاوز اليوم؛ السعر المجدول يُضاف من سجل التكلفة.</value></data>
+  <data name="ResourceCostEffectiveBeforeLatest" xml:space="preserve"><value>تاريخ السريان يسبق آخر سعر في السجل ({0})؛ تصحيح الماضي يُضاف من سجل التكلفة.</value></data>
+  <data name="ResourceCostFromSource" xml:space="preserve"><value>تكلفة هذا المورد محسوبة من مصدره (الصنف، شؤون الموظفين، أو المكونات)؛ حدّثها من مصدرها.</value></data>
+  <data name="ResourceCostValueRequired" xml:space="preserve"><value>أدخل تكلفة الوحدة.</value></data>
+  <data name="ResourceCostEffectiveRequired" xml:space="preserve"><value>أدخل تاريخ سريان السعر.</value></data>
+  <data name="ResourceCostForbidden" xml:space="preserve"><value>تعديل تكاليف الموارد يتطلب صلاحية تعديل «مكتبة تكاليف المقاولات».</value></data>
+  <data name="ContractCostRowNotFound" xml:space="preserve"><value>سطر تحليل التكلفة غير موجود.</value></data>
+  <data name="ContractCostOverrideReasonRequired" xml:space="preserve"><value>اذكر سبب تعديل التكلفة.</value></data>
+  <data name="ContractCostAnalysisLocked" xml:space="preserve"><value>تحليل التكلفة يُسعَّر ويُعدَّل في المسودة وحدها؛ بعدها التغيير بأمر تغيير أو مراجعة الخطة.</value></data>
+  <data name="FeasibilityStudyBoqCustomerOnly" xml:space="preserve"><value>دراسة الجدوى لمشروع مقاولات بجدول كميات لعميل (لا لعقد باطن ولا لمناقصة).</value></data>
+  <data name="FeasibilityNotContractYet" xml:space="preserve"><value>دراسة جدوى لم تصر عقداً بعد: اعتمد خطة التنفيذ ثم «إنشاء العقد».</value></data>
+  <data name="FeasibilityPlanApprovedLocked" xml:space="preserve"><value>اعتُمدت خطة تنفيذ هذه الدراسة: افتح مراجعة للخطة قبل تعديل الدراسة.</value></data>
+  <data name="ExecutionPlanUnsectioned" xml:space="preserve"><value>بنود غير مصنّفة</value></data>
+  <data name="ExecutionPlanResourceNameRequired" xml:space="preserve"><value>أدخل اسم المورد في الاحتياج.</value></data>
+  <data name="ExecutionPlanPhaseInvalid" xml:space="preserve"><value>المرحلة أو البند المختار ليس من هذا المشروع.</value></data>
+  <data name="ExecutionPlanNoPhases" xml:space="preserve"><value>الخطة بلا مراحل: ولّدها من الدراسة أو أضف مرحلة قبل التقديم.</value></data>
+  <data name="ExecutionPlanNotFound" xml:space="preserve"><value>لا خطة تنفيذ لهذا المشروع بعد؛ جهّزها من الدراسة.</value></data>
+  <data name="ExecutionPlanWrongStatus" xml:space="preserve"><value>حالة خطة التنفيذ لا تسمح بهذا الإجراء.</value></data>
+  <data name="ExecutionPlanReturnReasonRequired" xml:space="preserve"><value>اذكر سبب إعادة الخطة.</value></data>
+  <data name="ExecutionPlanLocked" xml:space="preserve"><value>خطة التنفيذ مقدَّمة أو معتمدة: لا تُعدَّل عناصرها إلا بإعادتها أو بمراجعة جديدة.</value></data>
+  <data name="FeasibilityCreateContractNeedsApprovedPlan" xml:space="preserve"><value>«إنشاء العقد» لدراسة اعتُمدت خطة تنفيذها وما زالت مسودة.</value></data>
+  <data name="ExecutionNeedsContract" xml:space="preserve"><value>لا يبدأ التنفيذ قبل العقد: اعتمد خطة التنفيذ ثم «إنشاء العقد».</value></data>
+  <data name="ExecutionNeedsActiveContract" xml:space="preserve"><value>لا يبدأ التنفيذ قبل سريان العقد (اعتماده وتفعيله).</value></data>
+  <data name="ExecutionNeedsApprovedPlan" xml:space="preserve"><value>لا يبدأ التنفيذ قبل اعتماد خطة التنفيذ (أو مراجعتها المفتوحة).</value></data>
+  <data name="ProjectMaterialsManagedByPlan" xml:space="preserve"><value>احتياجات مواد هذا المشروع تُولَّد من الدراسة في خطة التنفيذ وتُعتمد معها؛ عدّلها بالدراسة أو بمراجعة الخطة.</value></data>
   <data name="ResourceCompositeEmpty" xml:space="preserve"><value>المورد المركّب يحتاج مكوّناً واحداً على الأقل.</value></data>
   <data name="ResourceComponentInvalid" xml:space="preserve"><value>كمية كل مكوّن يجب أن تكون أكبر من صفر، والهدر بين 0 و100.</value></data>
   <data name="ResourceComponentDuplicate" xml:space="preserve"><value>المكوّن مكرر في المورد المركّب؛ اجمع كميته في سطر واحد.</value></data>

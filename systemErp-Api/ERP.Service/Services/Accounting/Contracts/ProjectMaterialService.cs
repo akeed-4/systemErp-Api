@@ -139,6 +139,7 @@ public class ProjectMaterialService : IProjectMaterialService
         {
             var contract = await LoadContractAsync(contractId, token);
             EnsureOpen(contract);
+            await EnsureNotManagedByPlanAsync(contractId, token);
             var plan = await _db.Set<ProjectMaterialPlan>().Include(p => p.Lines).FirstOrDefaultAsync(p => p.ContractId == contractId, token);
             if (plan == null)
             {
@@ -203,6 +204,7 @@ public class ProjectMaterialService : IProjectMaterialService
         {
             var contract = await LoadContractAsync(contractId, token);
             EnsureOpen(contract);
+            await EnsureNotManagedByPlanAsync(contractId, token);
             var plan = await _db.Set<ProjectMaterialPlan>().Include(p => p.Lines).FirstOrDefaultAsync(p => p.ContractId == contractId, token)
                 ?? throw new NotFoundException(Messages.ProjectMaterialPlanNotFound);
             RequireStatus(plan, from);
@@ -250,6 +252,16 @@ public class ProjectMaterialService : IProjectMaterialService
     private static void RequireStatus(ProjectMaterialPlan plan, string status)
     {
         if (plan.Status != status) throw new ConflictException(string.Format(Messages.ProjectMaterialPlanStatusInvalid, plan.Status));
+    }
+
+    /// <summary>
+    /// مشروع له خطة تنفيذ: احتياجاته تُولَّد من الدراسة في الخطة وتُعتمد معها، فلا تُحفظ ولا تُقدَّم ولا تُعتمد من هنا.
+    /// المشروع القديم بلا خطة على مساره كما كان.
+    /// </summary>
+    private async Task EnsureNotManagedByPlanAsync(Guid contractId, CancellationToken ct)
+    {
+        if (await _db.Set<ProjectExecutionPlan>().AnyAsync(p => p.ContractId == contractId, ct))
+            throw new ConflictException(Messages.ProjectMaterialsManagedByPlan);
     }
 
     private static void EnsureOpen(CommercialContract c)

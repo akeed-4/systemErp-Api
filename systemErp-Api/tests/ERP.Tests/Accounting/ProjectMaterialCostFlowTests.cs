@@ -149,7 +149,7 @@ public class ProjectMaterialCostFlowTests : TestBase
     [Fact]
     public async Task Delivery_moves_fifo_cost_to_wip_and_the_certificate_invoice_recognizes_it_once()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await SetupAsync(api);
         await BuyViaRequisitionAsync(api, p, 8, 60);
         await BuyViaRequisitionAsync(api, p, 10, 70);
@@ -212,7 +212,7 @@ public class ProjectMaterialCostFlowTests : TestBase
     [Fact]
     public async Task Partial_billing_never_bills_a_delivery_twice_and_cancelling_the_invoice_restores_it()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await SetupAsync(api);
         await BuyViaRequisitionAsync(api, p, 8, 60);
         await BuyViaRequisitionAsync(api, p, 10, 70);
@@ -276,7 +276,7 @@ public class ProjectMaterialCostFlowTests : TestBase
     [Fact]
     public async Task Deliveries_and_selections_are_validated_against_the_boq_and_the_approved_plan()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await SetupAsync(api, required: 20);
         await BuyViaRequisitionAsync(api, p, 20, 50);
         var url = $"/commercialcontracts/{p.Id}/material-issues";
@@ -289,7 +289,7 @@ public class ProjectMaterialCostFlowTests : TestBase
         Rejected(await api.Post(url, Body(null, 5)), "no boq", 400);
         Rejected(await api.Post(url, Body(p.Group, 5)), "group item", 400);
         Rejected(await api.Post(url, Body(Guid.NewGuid(), 5)), "foreign item", 400);
-        var other = await SetupAsync(await NewTenantAsync()); // بند من منشأة/عقد آخر
+        var other = await SetupAsync(await NewConstructionTenantAsync()); // بند من منشأة/عقد آخر
         Rejected(await api.Post(url, Body(other.Item, 5)), "other contract item", 400);
         Rejected(await api.Post(url, Body(p.Item, 21)), "over the approved requirement", 400);
 
@@ -330,7 +330,7 @@ public class ProjectMaterialCostFlowTests : TestBase
     [Fact]
     public async Task Delivery_notes_list_across_projects_is_paged_filtered_and_isolated()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await SetupAsync(api);
         await BuyViaRequisitionAsync(api, p, 20, 50);
         var posted = await DeliverAsync(api, p, 4);
@@ -360,7 +360,7 @@ public class ProjectMaterialCostFlowTests : TestBase
         Assert.Equal(200m, row["totalCost"].D());
 
         // منشأة أخرى لا ترى أذونات هذه
-        var other = await NewTenantAsync();
+        var other = await NewConstructionTenantAsync();
         Assert.Equal(0, (await other.Get("/project-material-issues/load?requireTotalCount=true")).Body!["totalCount"]!.GetValue<int>());
     }
 
@@ -369,7 +369,7 @@ public class ProjectMaterialCostFlowTests : TestBase
     [Fact]
     public async Task Concurrent_submissions_never_select_the_same_delivery_twice()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await SetupAsync(api);
         await BuyViaRequisitionAsync(api, p, 20, 50);
         var issue = await DeliverAsync(api, p, 10);

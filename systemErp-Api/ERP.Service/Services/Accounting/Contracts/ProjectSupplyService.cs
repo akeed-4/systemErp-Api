@@ -165,6 +165,7 @@ public class ProjectSupplyService : IProjectSupplyService
 
     public async Task EnsureRequisitionWithinPlanAsync(Guid contractId, Guid? requisitionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> lines, CancellationToken ct = default)
     {
+        await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, ct);
         var required = await RequiredAsync(contractId, ct);
         var others = await RequestedAsync(contractId, requisitionId, ct);
         var names = await NamesAsync(lines.Select(l => l.ItemId), ct);
@@ -216,6 +217,7 @@ public class ProjectSupplyService : IProjectSupplyService
         => _tx.RunAsync(async token =>
         {
             var contract = await ContractAsync(contractId, token);
+            await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, token);
             var issue = new ProjectMaterialIssue { Id = Guid.NewGuid(), ContractId = contractId, CostCenterId = contract.CostCenterId };
             await ApplyAsync(contract, issue, r, token);
             issue.IssueNumber = await _numbers.AssignAsync(new DocumentNumberRequest
@@ -234,6 +236,7 @@ public class ProjectSupplyService : IProjectSupplyService
         => _tx.RunAsync(async token =>
         {
             var contract = await ContractAsync(contractId, token);
+            await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, token);
             var issue = await LoadAsync(contractId, id, track: true, token);
             if (issue.Status != ProjectMaterialIssueStatuses.Draft) throw new ConflictException("مستند الصرف المرحّل لا يُعدَّل: ألغه وأنشئ غيره.");
             _db.RemoveRange(issue.Lines.ToList());
@@ -258,6 +261,7 @@ public class ProjectSupplyService : IProjectSupplyService
         => _tx.RunAsync(async token =>
         {
             var contract = await ContractAsync(contractId, token);
+            await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, token);
             var issue = await LoadAsync(contractId, id, track: true, token);
             if (issue.Status != ProjectMaterialIssueStatuses.Draft) throw new ConflictException("مستند الصرف مرحّل أو ملغى.");
             await PostCoreAsync(contract, issue, token);

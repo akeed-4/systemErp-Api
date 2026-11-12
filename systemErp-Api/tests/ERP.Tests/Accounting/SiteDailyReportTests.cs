@@ -59,7 +59,7 @@ public class SiteDailyReportTests : TestBase
     [Fact]
     public async Task Hourly_cost_is_computed_for_each_resource_type()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await ProjectAsync(api);
         var (supplier, _) = await SeedSupplierAsync(api, "مؤجر رافعات");
 
@@ -88,7 +88,7 @@ public class SiteDailyReportTests : TestBase
     [Fact]
     public async Task Daily_report_template_follows_plan_and_server_computes_productivity_and_costs()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await ProjectAsync(api);
         var cement = await SeedProductAsync(api, "CEM", stock: 100, cost: 40);
         // المادة من مكتبة المقاولات مربوطة بالصنف: وحدتها وتكلفتها منه (40)
@@ -157,7 +157,7 @@ public class SiteDailyReportTests : TestBase
     [Fact]
     public async Task Supervisor_can_shorten_slots_and_invalid_rows_are_reported_line_by_line()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await ProjectAsync(api);
         var list = await AddResourceAsync(api, p.Id, new { kind = "labor", name = "عمال", rateBasis = "hour", rate = 25 });
 
@@ -209,7 +209,7 @@ public class SiteDailyReportTests : TestBase
     [Fact]
     public async Task Supervisor_records_and_submits_engineer_approves_or_returns_and_approved_is_locked()
     {
-        var owner = await NewTenantAsync();
+        var owner = await NewConstructionTenantAsync();
         Ok(await owner.Post("/construction-projects/role-templates"), "templates");
         var (supervisor, supervisorId) = await UserWithRoleAsync(owner, "مشرف الموقع");
         var (engineer, engineerId) = await UserWithRoleAsync(owner, "المهندس المشرف");
@@ -267,7 +267,7 @@ public class SiteDailyReportTests : TestBase
     [Fact]
     public async Task Hourly_productivity_and_resource_reports_use_approved_reports_by_default_and_filter()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await ProjectAsync(api);
         var list = await AddResourceAsync(api, p.Id, new { kind = "owned_equipment", name = "حفار 1", rate = 160 });
         list = await AddResourceAsync(api, p.Id, new { kind = "labor", name = "عمال", rateBasis = "hour", rate = 25 });
@@ -323,7 +323,7 @@ public class SiteDailyReportTests : TestBase
     [Fact]
     public async Task Daily_plan_validates_items_targets_and_duplicates()
     {
-        var api = await NewTenantAsync();
+        var api = await NewConstructionTenantAsync();
         var p = await ProjectAsync(api);
         var bad = await api.Put($"/commercialcontracts/{p.Id}/project/daily-plans", new
         {

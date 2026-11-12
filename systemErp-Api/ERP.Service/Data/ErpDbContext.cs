@@ -182,6 +182,9 @@ public class ErpDbContext : DbContext
         (typeof(ContractCertificateItemAttachment), nameof(ContractCertificateItemAttachment.ContractId), typeof(CommercialContract)),
         (typeof(ConstructionResource), nameof(ConstructionResource.ProductId), typeof(Product)),
         (typeof(ConstructionResource), nameof(ConstructionResource.HrDepartmentId), typeof(Department)),
+        (typeof(ConstructionResource), nameof(ConstructionResource.SupplierId), typeof(Supplier)),
+        // سجل التكلفة: يُحذف صراحة مع مورده غير المستخدم وحده (حارس الحفظ)
+        (typeof(ConstructionResourceCost), nameof(ConstructionResourceCost.ResourceId), typeof(ConstructionResource)),
         // مكوّن المورد المركّب يشير لمورد آخر: المورد الداخل في مركّب لا يُحذف (والمركّب يحذف مكوناته معه)
         (typeof(ConstructionResourceComponent), nameof(ConstructionResourceComponent.ComponentResourceId), typeof(ConstructionResource)),
         (typeof(WorkItemComponent), nameof(WorkItemComponent.ResourceId), typeof(ConstructionResource)),
@@ -561,6 +564,9 @@ public class ErpDbContext : DbContext
         {
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
             e.Property(p => p.Notes).HasMaxLength(500);
+            e.Property(p => p.Description).HasMaxLength(1000);
+            e.Property(p => p.PredecessorIds).HasMaxLength(2000);
+            e.Property(p => p.Source).HasMaxLength(16).IsRequired().HasDefaultValue(PlanItemSources.Manual);
             e.Property(p => p.WeightPercent).HasPrecision(9, 4);
             e.HasIndex(p => new { p.TenantId, p.ContractId });
             e.HasOne<CommercialContract>().WithMany().HasForeignKey(p => p.ContractId);
@@ -651,6 +657,64 @@ public class ErpDbContext : DbContext
             e.Property(r => r.CostSource).HasMaxLength(16).IsRequired().HasDefaultValue(ResourceCostSources.Manual);
             e.Property(r => r.HrJobTitle).HasMaxLength(200);
             e.Property(r => r.HoursPerUnit).HasDefaultValue(1m);
+            e.Property(r => r.Category).HasMaxLength(100);
+            e.Property(r => r.EquipmentOwnership).HasMaxLength(16);
+        });
+        // خطة التنفيذ (واحدة لكل عقد) واحتياجات العمالة والمعدات والنسخ المرجعية المجمّدة: مراجع العقد والمراحل والأسطر بلا قيد
+        modelBuilder.Entity<ProjectExecutionPlan>(e =>
+        {
+            e.Property(p => p.Status).HasMaxLength(16).IsRequired();
+            e.Property(p => p.GeneratedBy).HasMaxLength(200);
+            e.Property(p => p.SubmittedBy).HasMaxLength(200);
+            e.Property(p => p.ApprovedBy).HasMaxLength(200);
+            e.Property(p => p.Notes).HasMaxLength(1000);
+            e.Property(p => p.ReturnNote).HasMaxLength(500);
+            e.HasIndex(p => new { p.TenantId, p.ContractId }).IsUnique();
+        });
+        modelBuilder.Entity<ProjectResourceRequirement>(e =>
+        {
+            e.Property(r => r.ResourceType).HasMaxLength(16).IsRequired();
+            e.Property(r => r.Name).HasMaxLength(200).IsRequired();
+            e.Property(r => r.Category).HasMaxLength(100);
+            e.Property(r => r.Unit).HasMaxLength(20).IsRequired();
+            e.Property(r => r.Ownership).HasMaxLength(16);
+            e.Property(r => r.Source).HasMaxLength(16).IsRequired();
+            e.Property(r => r.Notes).HasMaxLength(500);
+            e.Property(r => r.Quantity).HasPrecision(18, 6);
+            e.HasIndex(r => new { r.TenantId, r.ContractId });
+        });
+        modelBuilder.Entity<ProjectSnapshot>(e =>
+        {
+            e.Property(s => s.Kind).HasMaxLength(32).IsRequired();
+            e.Property(s => s.Json).IsRequired();
+            e.Property(s => s.TakenBy).HasMaxLength(200);
+            e.HasIndex(s => new { s.TenantId, s.ContractId, s.Kind, s.Revision });
+        });
+        // تحليل تكلفة سطر جدول الكميات المجمّد (دراسة الجدوى): مراجع السطر والمورد وسطر السجل بلا قيد
+        modelBuilder.Entity<ContractItemResourceCost>(e =>
+        {
+            e.Property(r => r.ResourceType).HasMaxLength(16).IsRequired();
+            e.Property(r => r.ResourceCode).HasMaxLength(32).IsRequired();
+            e.Property(r => r.ResourceName).HasMaxLength(200).IsRequired();
+            e.Property(r => r.Unit).HasMaxLength(20).IsRequired();
+            e.Property(r => r.CostSource).HasMaxLength(16).IsRequired();
+            e.Property(r => r.CostStatus).HasMaxLength(16).IsRequired();
+            e.Property(r => r.OverrideReason).HasMaxLength(300);
+            e.Property(r => r.PricedBy).HasMaxLength(200);
+            e.Property(r => r.Quantity).HasPrecision(18, 6);
+            e.Property(r => r.QuantityPerUnit).HasPrecision(18, 6);
+            e.HasIndex(r => new { r.TenantId, r.ContractId, r.ContractItemId });
+        });
+        // سجل تكلفة المورد: يُضاف إليه فقط، والتكلفة السارية = أحدث سطر تاريخه ≤ اليوم
+        modelBuilder.Entity<ConstructionResourceCost>(e =>
+        {
+            e.Property(c => c.Currency).HasMaxLength(8).IsRequired();
+            e.Property(c => c.Source).HasMaxLength(16).IsRequired();
+            e.Property(c => c.Unit).HasMaxLength(20).IsRequired();
+            e.Property(c => c.RateBasis).HasMaxLength(16);
+            e.Property(c => c.Reason).HasMaxLength(300);
+            e.Property(c => c.CreatedBy).HasMaxLength(200);
+            e.HasIndex(c => new { c.TenantId, c.ResourceId, c.EffectiveFrom });
         });
         modelBuilder.Entity<WorkItem>(e =>
         {
@@ -686,6 +750,9 @@ public class ErpDbContext : DbContext
         });
         modelBuilder.Entity<CommercialContract>(e =>
         {
+            e.Property(c => c.FeasibilityStatus).HasMaxLength(16);
+            e.Property(c => c.FeasibilityNumber).HasMaxLength(32);
+            e.HasIndex(c => new { c.TenantId, c.FeasibilityStatus });
             e.Property(c => c.ProjectName).HasMaxLength(200);
             e.Property(c => c.ProjectNameEn).HasMaxLength(200);
             e.Property(c => c.ProjectLocation).HasMaxLength(200);
@@ -1131,17 +1198,23 @@ public class ErpDbContext : DbContext
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         GuardContractStatus();
+        GuardResourceCostHistory();
         StampWarehouses();
         StampEntities();
-        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        var saved = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        _resourceCostFromHistory.Clear();
+        return saved;
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         GuardContractStatus();
+        GuardResourceCostHistory();
         StampWarehouses();
         StampEntities();
-        return base.SaveChanges(acceptAllChangesOnSuccess);
+        var saved = base.SaveChanges(acceptAllChangesOnSuccess);
+        _resourceCostFromHistory.Clear();
+        return saved;
     }
 
     /// <summary>
@@ -1194,6 +1267,46 @@ public class ErpDbContext : DbContext
             }
             else continue;
             c.Status = Services.Accounting.CommercialContractService.StatusFor(c.Stage);
+        }
+    }
+
+    /// <summary>موارد أُعيدت تكلفتها المخزّنة إلى سطر قائم في سجلها في هذا الحفظ (لا تحتاج سطراً جديداً).</summary>
+    private readonly HashSet<Guid> _resourceCostFromHistory = new();
+
+    /// <summary>تكلفة المورد المخزّنة أُخذت من سطر قائم في سجله: حارس الحفظ لا يضيف له سطراً.</summary>
+    internal void MarkResourceCostFromHistory(Guid resourceId) => _resourceCostFromHistory.Add(resourceId);
+
+    /// <summary>
+    /// حارس سجل تكلفة موارد المقاولات تحت كل مسارات الحفظ: السطر لا يُعدَّل، ولا يُحذف إلا مع حذف مورده. والمورد الجديد أو الذي
+    /// تغيّرت تكلفته المخزّنة دون سطر سجل في الحفظ نفسه يُضاف له سطر بتكلفته سارياً اليوم (سبب «النظام»)، فلا يفلت تغيير من السجل.
+    /// </summary>
+    private void GuardResourceCostHistory()
+    {
+        if (PreserveStamps) return; // نسخ بيانات المنشأة كما هي (السجل يُنسخ معها)
+        var costs = ChangeTracker.Entries<ConstructionResourceCost>().ToList();
+        if (costs.Any(c => c.State == EntityState.Modified)) throw new ConflictException(Messages.ResourceCostHistoryImmutable);
+        var deletedResources = ChangeTracker.Entries<ConstructionResource>().Where(r => r.State == EntityState.Deleted).Select(r => r.Entity.Id).ToHashSet();
+        if (costs.Any(c => c.State == EntityState.Deleted && !deletedResources.Contains(c.Entity.ResourceId)))
+            throw new ConflictException(Messages.ResourceCostHistoryImmutable);
+
+        var recorded = costs.Where(c => c.State == EntityState.Added).Select(c => c.Entity.ResourceId).ToHashSet();
+        var missing = ChangeTracker.Entries<ConstructionResource>()
+            .Where(e => !recorded.Contains(e.Entity.Id) && !_resourceCostFromHistory.Contains(e.Entity.Id)
+                && (e.State == EntityState.Added
+                    || (e.State == EntityState.Modified && e.OriginalValues.GetValue<decimal>(nameof(ConstructionResource.StandardCost)) != e.Entity.StandardCost)))
+            .Select(e => e.Entity).ToList();
+        if (missing.Count == 0) return;
+
+        var currency = Set<Tenant>().AsNoTracking().Select(t => t.Currency).FirstOrDefault();
+        var today = DateTime.UtcNow.Date;
+        foreach (var r in missing)
+        {
+            r.CostEffectiveFrom = today;
+            Add(new ConstructionResourceCost
+            {
+                ResourceId = r.Id, EffectiveFrom = today, UnitCost = r.StandardCost, Currency = string.IsNullOrEmpty(currency) ? "SAR" : currency,
+                Source = r.CostSource, Unit = r.Unit, HoursPerUnit = r.HoursPerUnit, Reason = ResourceCostReasons.System,
+            });
         }
     }
 

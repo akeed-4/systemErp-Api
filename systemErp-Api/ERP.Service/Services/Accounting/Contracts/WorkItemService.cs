@@ -395,7 +395,8 @@ public class WorkItemService : IWorkItemService
 
     /// <summary>
     /// تكلفة المورد اليدوي المعدّلة من سطر الاحتياج تُحفظ على المورد نفسه (فتتبعها كل البنود). مصدر الصنف وشؤون الموظفين
-    /// والمركّب يحسبه الخادم فلا يُعدَّل من هنا. التكرار في الطلب: آخر قيمة.
+    /// والمركّب يحسبه الخادم فلا يُعدَّل من هنا. التكرار في الطلب: آخر قيمة. التغيير سطر في سجل التكلفة سارياً اليوم، ويتطلب
+    /// صلاحية تعديل «مكتبة تكاليف المقاولات».
     /// </summary>
     private async Task ApplyResourceCostsAsync(SaveWorkItemDto d, CancellationToken ct)
     {
@@ -404,12 +405,20 @@ public class WorkItemService : IWorkItemService
         if (edits.Count == 0) return;
         var ids = edits.Keys.ToList();
         var now = DateTime.UtcNow;
-        foreach (var r in await _db.Set<ConstructionResource>().Where(r => ids.Contains(r.Id) && r.CostSource == ResourceCostSources.Manual).ToListAsync(ct))
+        var changed = (await _db.Set<ConstructionResource>().Where(r => ids.Contains(r.Id) && r.CostSource == ResourceCostSources.Manual).ToListAsync(ct))
+            .Where(r => Math.Round(edits[r.Id], Decimals) != r.StandardCost).ToList();
+        if (changed.Count == 0) return;
+        if (!await _services.GetRequiredService<IPermissionService>().HasPermissionAsync(PermissionCatalog.ConstructionCostLibraryScreenId, ScreenAction.Edit, ct))
+            throw new ForbiddenException(Messages.ResourceCostForbidden);
+        var author = CostAuthor.From(_services.GetRequiredService<ICurrentUser>());
+        var currency = await ResourceCostRules.CurrencyAsync(_db, ct);
+        var today = ResourceCostRules.Today;
+        foreach (var r in changed)
         {
-            var cost = Math.Round(edits[r.Id], Decimals);
-            if (cost == r.StandardCost) continue;
-            r.StandardCost = cost;
+            r.StandardCost = Math.Round(edits[r.Id], Decimals);
             r.CostUpdatedAt = now;
+            r.CostEffectiveFrom = today;
+            ResourceCostRules.Record(_db, r, today, ResourceCostReasons.WorkItem, author, currency);
         }
     }
 

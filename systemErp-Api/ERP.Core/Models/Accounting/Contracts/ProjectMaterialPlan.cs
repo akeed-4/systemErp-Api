@@ -99,6 +99,12 @@ public class ProjectMaterialRequirement : BaseEntity
     public string Source { get; set; } = ProjectMaterialSources.Manual;
     public string? Notes { get; set; }
     public int SortOrder { get; set; }
+    /// <summary>مرحلة التنفيذ التي يتبعها الاحتياج (من خطة التنفيذ؛ بلا قيد).</summary>
+    public Guid? PhaseId { get; set; }
+    /// <summary>تكلفة الوحدة المخططة من تحليل الدراسة المجمّد (0 للأسطر القديمة).</summary>
+    public decimal PlannedUnitCost { get; set; }
+    /// <summary>الكمية لكل وحدة من بند جدول الكميات (للتتبع).</summary>
+    public decimal QuantityPerUnit { get; set; }
     /// <summary>رمز تزامن: اعتماد طلبات شراء متزامنة على الاحتياج نفسه لا يتجاوز حده دون اكتشاف.</summary>
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 

@@ -51,7 +51,7 @@ public class ConstructionProjectService : IConstructionProjectService
             _db.Remove(center);
     }
 
-    private static async Task EnsureCostCenterAsync(ErpDbContext db, CommercialContract contract, CancellationToken ct)
+    internal static async Task EnsureCostCenterAsync(ErpDbContext db, CommercialContract contract, CancellationToken ct)
     {
         if (contract.CostCenterId.HasValue) return;
         var baseCode = CostCenterPrefix + contract.ContractNumber;
@@ -91,6 +91,9 @@ public class ConstructionProjectService : IConstructionProjectService
         var phaseDtos = phases.Select(p => new ProjectPhaseDto
         {
             Id = p.Id, Name = p.Name, PlannedStart = p.PlannedStart, PlannedEnd = p.PlannedEnd, WeightPercent = p.WeightPercent, Notes = p.Notes,
+            Description = p.Description, SupervisorUserId = p.SupervisorUserId, Source = p.Source, DatesSuggested = p.DatesSuggested, PlannedCost = p.PlannedCost,
+            PredecessorIds = string.IsNullOrEmpty(p.PredecessorIds) ? new() : p.PredecessorIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList(),
             // سطر حُذف من مسودة العقد بعد ربطه لا يُعرض (المرجع بلا قيد)
             ContractItemIds = p.Items.Select(i => i.ContractItemId).Where(lineIds.Contains).ToList(),
             PlannedCompletionPercent = Math.Round(PhaseFraction(p.PlannedStart, p.PlannedEnd, today) * 100m, 2),
@@ -140,6 +143,8 @@ public class ConstructionProjectService : IConstructionProjectService
             // عقد مقاول الباطن (مورد) ليس مشروعاً (يظهر في قسم مقاولي الباطن لمشروعه)، والمناقصة لا تصير مشروعاً حتى تُرسى
             .Where(c => boqTypes.Contains(c.ContractType) && (onlyId == null
                 ? c.PartyType != "supplier" && (c.TenderStatus == null || c.TenderStatus == ContractTenderStatuses.Awarded)
+                    // دراسة الجدوى ليست مشروعاً حتى «إنشاء العقد» (سجلها في شاشة الدراسات)
+                    && (c.FeasibilityStatus == null || c.FeasibilityStatus == FeasibilityStatuses.Contracted)
                 : c.Id == onlyId))
             .OrderByDescending(c => c.CreatedAt)
             .Select(c => new
@@ -293,6 +298,7 @@ public class ConstructionProjectService : IConstructionProjectService
         {
             var contract = await LoadContractAsync(contractId, token);
             EnsureEditable(contract);
+            await ExecutionPlanService.EnsurePlanEditableAsync(_db, contractId, token);
             var incoming = request.Phases ?? new List<ProjectPhaseDto>();
             var errors = new List<string>();
             var lines = contract.Items.ToDictionary(i => i.Id);
@@ -324,13 +330,26 @@ public class ConstructionProjectService : IConstructionProjectService
                 var phase = p.Id is Guid id ? existing.FirstOrDefault(e => e.Id == id) : null;
                 if (phase == null)
                 {
-                    phase = new ProjectPhase { ContractId = contractId };
+                    phase = new ProjectPhase { ContractId = contractId, Source = PlanItemSources.Manual };
                     _db.Add(phase);
                 }
-                phase.Name = p.Name.Trim()[..Math.Min(p.Name.Trim().Length, 200)];
+                var name = p.Name.Trim()[..Math.Min(p.Name.Trim().Length, 200)];
+                var wanted = (p.ContractItemIds ?? new List<Guid>()).ToHashSet();
+                var datesChanged = phase.PlannedStart != p.PlannedStart.Date || phase.PlannedEnd != p.PlannedEnd.Date;
+                // المرحلة المولَّدة من الدراسة إذا عُدِّلت تصير «معدّلة» فلا يستبدلها التوليد، والتواريخ المعدّلة لم تعد «مقترحة»
+                if (phase.Source == PlanItemSources.Derived && (phase.Name != name || datesChanged || phase.WeightPercent != p.WeightPercent
+                    || !wanted.SetEquals(phase.Items.Select(i => i.ContractItemId))))
+                    phase.Source = PlanItemSources.Modified;
+                if (datesChanged) phase.DatesSuggested = false;
+                phase.Name = name;
                 phase.PlannedStart = p.PlannedStart.Date; phase.PlannedEnd = p.PlannedEnd.Date;
                 phase.WeightPercent = p.WeightPercent; phase.SortOrder = ++order; phase.Notes = Trim(p.Notes, 500);
-                var wanted = (p.ContractItemIds ?? new List<Guid>()).ToHashSet();
+                // الوصف والسابقات: غيابها من الطلب (عميل قديم) يبقيها؛ والسابقات مراحل محفوظة من المشروع غير المرحلة ذاتها
+                if (p.Description != null) phase.Description = Trim(p.Description, 1000);
+                phase.SupervisorUserId = p.SupervisorUserId;
+                if (p.PredecessorIds != null)
+                    phase.PredecessorIds = p.PredecessorIds.Where(x => x != phase.Id && existing.Any(e => e.Id == x)).Distinct() is var preds && preds.Any()
+                        ? string.Join(',', preds) : null;
                 foreach (var gone in phase.Items.Where(i => !wanted.Contains(i.ContractItemId)).ToList()) _db.Remove(gone);
                 foreach (var add in wanted.Where(w => phase.Items.All(i => i.ContractItemId != w)))
                     phase.Items.Add(new ProjectPhaseItem { ContractItemId = add });
@@ -514,20 +533,10 @@ public class ConstructionProjectService : IConstructionProjectService
 
     /// <summary>
     /// تكلفة الساعة = السعر ÷ ساعات أساسه (ساعة = 1، يوم = ساعات اليوم، شهر = ساعات اليوم × أيام الشهر) + تكاليف الساعة الإضافية
-    /// (الوقود والصيانة والمشغّل والتشغيل الإضافي)؛ والساعة الإضافية = تكلفة الساعة × المعامل.
+    /// (الوقود والصيانة والمشغّل والتشغيل الإضافي)؛ والساعة الإضافية = تكلفة الساعة × المعامل. المعادلة نفسها لمكتبة التكاليف.
     /// </summary>
     public static (decimal Hourly, decimal Overtime) HourlyCost(string basis, decimal rate, decimal hoursPerDay, decimal daysPerMonth, decimal perHour, decimal multiplier)
-    {
-        var basisHours = basis switch
-        {
-            ProjectRateBases.Day => hoursPerDay,
-            ProjectRateBases.Month => hoursPerDay * daysPerMonth,
-            _ => 1m,
-        };
-        if (basisHours <= 0) return (0, 0);
-        var hourly = Math.Round(rate / basisHours + perHour, 4);
-        return (hourly, Math.Round(hourly * multiplier, 4));
-    }
+        => ResourceCostRules.HourlyCost(basis, rate, hoursPerDay, daysPerMonth, perHour, multiplier);
 
     // ---------- خطة الإنجاز اليومية ----------
 

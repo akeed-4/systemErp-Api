@@ -60,6 +60,11 @@ public partial class CreateCommercialContractDto
     public Guid? CostCenterId { get; set; }
     /// <summary>عقد مقاول الباطن: عقد العميل (المشروع) الذي ينفذ جزءاً منه (عقد مورد فقط). مركز التكلفة يؤخذ منه.</summary>
     public Guid? ParentContractId { get; set; }
+    /// <summary>
+    /// سجل جديد كدراسة جدوى (عقد مقاولات لعميل): يأخذ رقم دراسة لا رقم عقد، ولا يظهر في العقود حتى «إنشاء العقد» بعد اعتماد خطته.
+    /// يُقرأ عند الإنشاء وحده.
+    /// </summary>
+    public bool? IsFeasibilityStudy { get; set; }
     /// <summary>عقد جديد كمناقصة: "new" (عقد مقاولات لعميل). بعد الإنشاء تتغير الحالة من مسار المناقصة وحده ولا تُقبل من الحفظ.</summary>
     public string? TenderStatus { get; set; }
     public string? TenderNumber { get; set; }

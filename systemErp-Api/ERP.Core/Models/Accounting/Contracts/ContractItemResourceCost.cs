@@ -55,6 +55,15 @@ public class ContractItemResourceCost : BaseEntity
     public int SortOrder { get; set; }
 }
 
+/// <summary>
+/// مصدر سطر تحليل ليس مورداً في المكتبة: التكلفة اليدوية لبند فرعي بلا احتياجات. سطره من نوع «أخرى»، ومعرّف المورد فيه
+/// معرّف البند الفرعي في المكتبة (مفتاح ثابت للتحديث والمقارنة، لا مورد)، وتكلفته من البند الفرعي وقت التسعير.
+/// </summary>
+public static class ContractCostRowSources
+{
+    public const string SubItemManual = "sub_item_manual";
+}
+
 /// <summary>حالة تكلفة المورد في الدراسة.</summary>
 public static class ContractItemCostStatuses
 {

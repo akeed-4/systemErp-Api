@@ -38,6 +38,11 @@ public static class ProjectMaterialDiagnostics
     public const string ParentNotLinked = "parent_not_linked";
     /// <summary>تحليل البند في المكتبة بلا مواد (عمالة ومعدات فقط، أو فارغ).</summary>
     public const string NoMaterials = "no_materials";
+    /// <summary>
+    /// بند رئيسي له فروع في العقد ولبنده في المكتبة احتياجات مباشرة بلا سطر «أعمال مباشرة» يحملها: لا تُسعَّر ولا تُخطَّط
+    /// (المجموعة لا تُنفَّذ). يُعالج بإضافة سطر الأعمال المباشرة تحته.
+    /// </summary>
+    public const string GroupDirectUnassigned = "group_direct_unassigned";
 
     // تنبيهات المادة (تُشتق رغمها)
     /// <summary>المادة غير مربوطة بصنف مخزني: لا تُصرف ولا تُشترى حتى تُربط.</summary>

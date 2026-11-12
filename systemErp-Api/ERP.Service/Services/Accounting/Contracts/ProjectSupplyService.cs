@@ -53,6 +53,7 @@ public class ProjectSupplyService : IProjectSupplyService
 
         var requested = await RequestedAsync(contractId, exceptRequisitionId, ct);
         var purchased = await PurchasedAsync(contractId, ct);
+        var pipeline = await PipelineAsync(contractId, exceptRequisitionId, ct);
         var movements = await MovementsAsync(contractId, null, ct);
         var delivered = movements.GroupBy(x => x.ProductId)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Kind == K.Return ? -x.Quantity : x.Kind == K.Issue ? x.Quantity : 0));
@@ -60,7 +61,8 @@ public class ProjectSupplyService : IProjectSupplyService
         var wasted = movements.Where(x => x.Kind == K.Waste).GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
         var consumed = await ConsumedAsync(contractId, ct);
 
-        var ids = required.Keys.Concat(requested.Keys).Concat(purchased.Keys).Concat(delivered.Keys).Distinct().ToList();
+        var ids = required.Keys.Concat(requested.Keys).Concat(purchased.Keys).Concat(delivered.Keys)
+            .Concat(pipeline.Pending.Keys).Concat(pipeline.Ordered.Keys).Distinct().ToList();
         var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id))
             .Select(p => new { p.Id, p.Sku, p.NameAr, p.Unit, p.AverageCost, p.StandardCost, p.LastPurchaseCost }).ToDictionaryAsync(p => p.Id, ct);
         var wh = warehouseId ?? contract.WarehouseId;
@@ -86,8 +88,14 @@ public class ProjectSupplyService : IProjectSupplyService
                 RemainingToRequest = Math.Max(0, Math.Round(req - r, Decimals)),
                 RemainingToDeliver = Math.Max(0, Math.Round(req - d, Decimals)), WarehouseStock = stock.GetValueOrDefault(id),
                 UnitCost = unitCost, OutsidePlan = !required.ContainsKey(id),
+                PendingRequestQuantity = Math.Round(pipeline.Pending.GetValueOrDefault(id), Decimals),
+                ApprovedRequestQuantity = Math.Round(pipeline.Approved.GetValueOrDefault(id), Decimals),
+                OrderedQuantity = Math.Round(pipeline.Ordered.GetValueOrDefault(id), Decimals),
+                ReceivedQuantity = purchased.GetValueOrDefault(id),
             };
         }).OrderBy(l => l.OutsidePlan).ThenBy(l => l.Sku).ToList();
+        foreach (var l in lines) MaterialCoverage.Apply(l, approved);
+        var unverifiable = approved ? await UnverifiableAsync(plan, ct) : new List<ProjectMaterialUnverifiableDto>();
 
         var requiredValue = lines.Sum(l => l.RequiredQuantity * l.UnitCost);
         var deliveredValue = lines.Where(l => !l.OutsidePlan).Sum(l => Math.Min(l.DeliveredQuantity, l.RequiredQuantity) * l.UnitCost);
@@ -96,7 +104,7 @@ public class ProjectSupplyService : IProjectSupplyService
             ContractId = contract.Id, ContractNumber = contract.ContractNumber, ProjectName = contract.ProjectName,
             ProjectLocation = contract.ProjectLocation, WarehouseId = wh, PlanStatus = planStatus,
             UnlinkedMaterials = approved ? plan.Lines.Count(l => !l.ProductId.HasValue) : 0,
-            Lines = lines,
+            Lines = lines, Unverifiable = unverifiable,
             Totals = new ProjectMaterialTrackingTotalsDto
             {
                 Items = lines.Count(l => !l.OutsidePlan), RequiredValue = DocumentPricing.Round(requiredValue), DeliveredValue = DocumentPricing.Round(deliveredValue),
@@ -124,6 +132,51 @@ public class ProjectSupplyService : IProjectSupplyService
                 .SelectMany(i => i.Items).Where(l => l.ItemId != Guid.Empty).Select(l => new { l.ItemId, l.Quantity }).ToListAsync(ct))
             .GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
     }
+
+    /// <summary>
+    /// الكميات في الطريق لكل صنف، كلٌّ في مرحلة واحدة من دورة الشراء القائمة (طلب ← فاتورة شراء مسودة ← ترحيلها = استلام):
+    /// المعلّق = طلبات المشروع غير المرفوضة وغير المحوّلة (والمعتمد منها)، والمطلوب غير المستلم = أسطر فواتير الشراء غير المرحّلة
+    /// المحوّلة من طلبات المشروع. الطلب المحوَّل لا يُعدّ معلّقاً، والفاتورة المرحّلة استلام داخل الرصيد، فلا تتكرر كمية.
+    /// أوامر الشراء العامة لا ترتبط بالمشروع فلا تُنسب له.
+    /// </summary>
+    private async Task<(Dictionary<Guid, decimal> Pending, Dictionary<Guid, decimal> Approved, Dictionary<Guid, decimal> Ordered)> PipelineAsync(
+        Guid contractId, Guid? exceptRequisitionId, CancellationToken ct)
+    {
+        var reqs = await _db.Set<MaterialRequisition>().AsNoTracking()
+            .Where(r => r.ContractId == contractId && r.Status != "rejected" && (exceptRequisitionId == null || r.Id != exceptRequisitionId))
+            .Select(r => new { r.Id, r.Status, Items = r.Items.Select(i => new { i.ItemId, Q = i.ApprovedQuantity ?? i.RequestedQuantity }).ToList() })
+            .ToListAsync(ct);
+        static bool Converted(string s) => s is "converted_to_invoice" or "converted_to_po";
+        var pending = new Dictionary<Guid, decimal>();
+        var approved = new Dictionary<Guid, decimal>();
+        foreach (var r in reqs.Where(r => !Converted(r.Status)))
+            foreach (var i in r.Items)
+            {
+                pending[i.ItemId] = pending.GetValueOrDefault(i.ItemId) + i.Q;
+                if (r.Status == "approved") approved[i.ItemId] = approved.GetValueOrDefault(i.ItemId) + i.Q;
+            }
+        var converted = reqs.Where(r => Converted(r.Status)).Select(r => (Guid?)r.Id).ToList();
+        var ordered = converted.Count == 0 ? new Dictionary<Guid, decimal>() : (await _db.Set<PurchaseInvoice>().AsNoTracking()
+                .Where(i => i.ReferenceType == "material_requisition" && converted.Contains(i.ReferenceId) && i.Status != "posted" && i.Status != "cancelled")
+                .SelectMany(i => i.Items).Where(l => l.ItemId != Guid.Empty).Select(l => new { l.ItemId, l.Quantity }).ToListAsync(ct))
+            .GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        return (pending, approved, ordered);
+    }
+
+    /// <summary>مواد معتمدة بلا صنف مخزني أو بلا تحويل لوحدة صنفها: لا تُحسب تغطيتها، وتظهر بسببها لا كنقص ولا كاكتمال.</summary>
+    private static Task<List<ProjectMaterialUnverifiableDto>> UnverifiableAsync(ProjectMaterialPlanDto plan, CancellationToken ct)
+        => Task.FromResult(plan.Lines.Where(l => !l.ProductId.HasValue || !l.ProductQuantity.HasValue)
+            .GroupBy(l => (l.ResourceId, l.Unit, l.ProductId))
+            .Select(g => new ProjectMaterialUnverifiableDto
+            {
+                ResourceId = g.Key.ResourceId, Name = g.First().ResourceName ?? g.First().ProductName ?? string.Empty, Unit = g.Key.Unit,
+                Quantity = Math.Round(g.Sum(l => l.ApprovedQuantity), Decimals), ProductId = g.Key.ProductId, ProductUnit = g.First().ProductUnit,
+                Alert = new ProjectSupplyAlertDto
+                {
+                    Code = g.Key.ProductId.HasValue ? MaterialCoverage.UnitMismatch : MaterialCoverage.NotStocked, Severity = MaterialCoverage.Warning,
+                    Quantity = Math.Round(g.Sum(l => l.ApprovedQuantity), Decimals),
+                },
+            }).OrderBy(u => u.Name).ToList());
 
     /// <summary>المسلَّم الصافي لكل صنف = التسليم − الإرجاع للمستودع (الهدر يبقى مسلَّماً: استُهلك في الموقع).</summary>
     private async Task<Dictionary<Guid, decimal>> DeliveredAsync(Guid contractId, Guid? exceptIssueId, CancellationToken ct)

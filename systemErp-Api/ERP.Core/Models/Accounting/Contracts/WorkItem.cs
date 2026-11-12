@@ -15,7 +15,10 @@ public class WorkItem : BaseEntity
     /// <summary>رمز وحدة القياس.</summary>
     public string Unit { get; set; } = string.Empty;
     public string? UnitDescription { get; set; }
-    /// <summary>الكمية القياسية التي يُحلَّل عليها البند (1 افتراضياً)؛ تكلفة الوحدة = تكلفة التحليل ÷ هذه الكمية.</summary>
+    /// <summary>
+    /// الكمية القياسية التي يُحلَّل عليها البند (1 افتراضياً)؛ تكلفة الوحدة = تكلفة الاحتياجات لكل وحدة ÷ هذه الكمية، والثابت
+    /// (<see cref="BoqQuantityModes.Fixed"/>) خارجها: مرة لكل سطر في جدول الكميات كما في الدراسة.
+    /// </summary>
     public decimal StandardQuantity { get; set; } = 1m;
     /// <summary><see cref="ContractBoqLineKinds"/>.</summary>
     public string LineKind { get; set; } = ContractBoqLineKinds.Measured;

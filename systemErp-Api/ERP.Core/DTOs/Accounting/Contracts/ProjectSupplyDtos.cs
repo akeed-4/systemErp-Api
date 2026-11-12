@@ -16,6 +16,8 @@ public class ProjectMaterialTrackingDto
     /// <summary>مواد في الخطة غير مربوطة بصنف مخزني (لا تُطلب ولا تُصرف حتى تُربط).</summary>
     public int UnlinkedMaterials { get; set; }
     public List<ProjectMaterialTrackingLineDto> Lines { get; set; } = new();
+    /// <summary>مواد معتمدة لا تُحسب تغطيتها (بلا صنف أو بلا تحويل وحدة)، بتنبيهها.</summary>
+    public List<ProjectMaterialUnverifiableDto> Unverifiable { get; set; } = new();
     public ProjectMaterialTrackingTotalsDto Totals { get; set; } = new();
 }
 
@@ -47,6 +49,59 @@ public class ProjectMaterialTrackingLineDto
     public decimal UnitCost { get; set; }
     /// <summary>صنف خارج الاحتياجات المعتمدة (طُلب أو صُرف دون أن يكون مطلوباً).</summary>
     public bool OutsidePlan { get; set; }
+
+    // ---- التغطية (كل كمية في مرحلة واحدة من الدورة فلا تُحسب مرتين) ----
+    /// <summary>في طلبات شراء لم تُحوَّل لفاتورة بعد (مسودة أو بانتظار الاعتماد أو معتمدة).</summary>
+    public decimal PendingRequestQuantity { get; set; }
+    /// <summary>منها المعتمد (جاهز للتحويل لفاتورة شراء).</summary>
+    public decimal ApprovedRequestQuantity { get; set; }
+    /// <summary>
+    /// مطلوب من المورد ولم يُستلم: فواتير شراء مسودة محوّلة من طلبات المشروع (لا خطوة أمر شراء للمشروع؛ الطلب يُحوَّل لفاتورة).
+    /// الطلب المحوَّل لا يُعدّ في <see cref="PendingRequestQuantity"/>.
+    /// </summary>
+    public decimal OrderedQuantity { get; set; }
+    /// <summary>استُلم بفواتير شراء مرحّلة من طلبات المشروع (= <see cref="PurchasedQuantity"/>): داخل رصيد المستودع أو سُلِّم، فلا يُطرح مرة أخرى.</summary>
+    public decimal ReceivedQuantity { get; set; }
+    /// <summary>صافي ما يُشترى = max(0, المتبقي للتسليم − رصيد المستودع − المعلّق في الطلبات − المطلوب غير المستلم).</summary>
+    public decimal NetToPurchase { get; set; }
+    /// <summary>الكمية المقترحة لطلب شراء جديد = min(صافي الشراء، المتبقي للطلب) — حد السرفر للطلب.</summary>
+    public decimal SuggestedRequestQuantity { get; set; }
+    /// <summary>شراء زائد: المعلّق والمطلوب أكثر مما ينقص بعد الرصيد.</summary>
+    public decimal ExcessPurchaseQuantity { get; set; }
+    /// <summary><see cref="MaterialCoverageStatuses"/>: الرصيد الحالي مقابل المتبقي للتسليم.</summary>
+    public string CoverageStatus { get; set; } = MaterialCoverageStatuses.Unverifiable;
+    public List<ProjectSupplyAlertDto> Alerts { get; set; } = new();
+}
+
+/// <summary>حالة تغطية المادة من رصيد المستودع.</summary>
+public static class MaterialCoverageStatuses
+{
+    public const string Full = "full";
+    public const string Partial = "partial";
+    public const string None = "none";
+    /// <summary>لا يُحكم: الاحتياجات غير معتمدة، أو المادة بلا صنف مخزني أو بلا تحويل وحدة.</summary>
+    public const string Unverifiable = "unverifiable";
+}
+
+/// <summary>تنبيه تغطية: الرمز يحدد السبب والإجراء المقترح (تترجمه الواجهة)، والكمية بوحدة الصنف أو المادة.</summary>
+public class ProjectSupplyAlertDto
+{
+    public string Code { get; set; } = string.Empty;
+    /// <summary>info | warning | critical</summary>
+    public string Severity { get; set; } = "info";
+    public decimal Quantity { get; set; }
+}
+
+/// <summary>مادة معتمدة لا تُحسب تغطيتها: بلا صنف مخزني، أو وحدتها لا تتحول لوحدة الصنف.</summary>
+public class ProjectMaterialUnverifiableDto
+{
+    public Guid? ResourceId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public Guid? ProductId { get; set; }
+    public string? ProductUnit { get; set; }
+    public ProjectSupplyAlertDto Alert { get; set; } = new();
 }
 
 public class ProjectMaterialTrackingTotalsDto

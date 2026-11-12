@@ -26,6 +26,8 @@ public class ExecutionPlanDto
     /// <summary>المواد مجمّعة بالمادة (بلا تكرار) مع عدد البنود التي تحتاجها.</summary>
     public List<ExecutionPlanMaterialTotalDto> MaterialTotals { get; set; } = new();
     public List<ProjectResourceRequirementDto> Resources { get; set; } = new();
+    /// <summary>العمالة والمعدات وغيرها مجمّعة لكل مورد عبر البنود (الساعات والكمية والتكلفة)، كإجماليات المواد.</summary>
+    public List<ExecutionPlanResourceTotalDto> ResourceTotals { get; set; } = new();
     public List<ExecutionPlanWarningDto> Warnings { get; set; } = new();
     /// <summary>نسخ الأساس المعتمدة السابقة (للمقارنة).</summary>
     public List<ProjectSnapshotInfoDto> Baselines { get; set; } = new();
@@ -93,6 +95,20 @@ public class ExecutionPlanMaterialTotalDto
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal PlannedCost { get; set; }
+    public int LineCount { get; set; }
+}
+
+/// <summary>مورد غير مادي مجمّع عبر البنود: مجموع ساعاته وكميته وتكلفته المخططة، وعدد بنوده.</summary>
+public class ExecutionPlanResourceTotalDto
+{
+    public Guid? ResourceId { get; set; }
+    public string ResourceType { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal PlannedHours { get; set; }
+    public decimal PlannedCost { get; set; }
+    /// <summary>عدد بنود جدول الكميات التي يحتاجها المورد.</summary>
     public int LineCount { get; set; }
 }
 

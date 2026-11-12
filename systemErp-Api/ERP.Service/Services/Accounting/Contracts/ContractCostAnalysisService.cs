@@ -52,7 +52,13 @@ public class ContractCostAnalysisService : IContractCostAnalysisService
                 IsSubItem = line.IsSubItem, IsGroup = line.IsGroup, EstimatedUnitCost = line.EstimatedUnitCost,
                 EstimatedTotal = DocumentPricing.Round(line.RevisedQuantity * line.EstimatedUnitCost),
             };
-            if (line.IsGroup) lineDto.Status = "group";
+            if (line.IsGroup)
+            {
+                lineDto.Status = "group";
+                // احتياجات مباشرة للرئيسي بلا سطر أعمال مباشرة: لا تدخل التكلفة (تنبيه لا يُترك صامتاً)
+                if (analysis.Analyze(line).SkipReason == ProjectMaterialDiagnostics.GroupDirectUnassigned)
+                    lineDto.SkipReason = ProjectMaterialDiagnostics.GroupDirectUnassigned;
+            }
             else if (byLine.TryGetValue(line.Id, out var lineRows))
             {
                 lineDto.Status = "priced";
@@ -212,6 +218,21 @@ public class ContractCostAnalysisService : IContractCostAnalysisService
                     }), Json),
                 };
             }).ToList();
+            // التكلفة اليدوية لبند فرعي بلا احتياجات: سطر «أخرى» مجمّد بتكلفته وقت التسعير (ليس مورداً: بلا سجل تكلفة ولا ساعات)
+            rows.AddRange(r.ManualCosts.Select(m =>
+            {
+                var qty = Math.Round(m.Quantity, 6);
+                return new ContractItemResourceCost
+                {
+                    ContractItemId = r.Line.Id, WorkItemId = LineWorkItem(r.Line, contract), WorkSubItemId = r.Line.WorkSubItemId,
+                    ResourceId = m.SubItemId, ResourceType = BoqResourceTypes.Other, ResourceCode = string.Empty, ResourceName = m.Description,
+                    Unit = m.Unit, HoursPerUnit = 0, BaseQuantity = r.Line.RevisedQuantity, Quantity = qty,
+                    QuantityPerUnit = r.Line.RevisedQuantity > 0 ? Math.Round(qty / r.Line.RevisedQuantity, 6) : 0,
+                    StandardUnitCost = m.UnitCost, UnitCost = m.UnitCost, TotalCost = DocumentPricing.Round(qty * m.UnitCost),
+                    CostSource = ContractCostRowSources.SubItemManual, CostStatus = ContractItemCostStatuses.Standard, PricingDate = date,
+                    InputsJson = JsonSerializer.Serialize(new[] { new ContractCostInputDto { LibrarySubItem = m.Description, QuantityMode = BoqQuantityModes.PerUnit, Quantity = qty } }, Json),
+                };
+            }));
             list.Add(new Priced(r.Line, null, rows));
         }
         return list;
@@ -269,9 +290,9 @@ public class ContractCostAnalysisService : IContractCostAnalysisService
         return baseQty > 0 ? Math.Round(rows.Sum(r => r.TotalCost) / baseQty, Decimals) : 0;
     }
 
-    /// <summary>سطر قابل للتحليل: مرتبط بالمكتبة وله موارد (ولو بلا مواد).</summary>
+    /// <summary>سطر قابل للتحليل: مرتبط بالمكتبة وله موارد (ولو بلا مواد) أو تكلفة يدوية لبند فرعي.</summary>
     private static string? SkipReason(ProjectMaterialAnalysis.LineResult r)
-        => r.SkipReason == ProjectMaterialDiagnostics.NoMaterials && r.Resources.Count > 0 ? null : r.SkipReason;
+        => r.SkipReason == ProjectMaterialDiagnostics.NoMaterials && (r.Resources.Count > 0 || r.ManualCosts.Count > 0) ? null : r.SkipReason;
 
     private static Guid? LineWorkItem(CommercialContractItem line, CommercialContract contract)
         => line.IsSubItem && line.ParentItemId is Guid pid ? contract.Items.FirstOrDefault(i => i.Id == pid)?.WorkItemId : line.WorkItemId;

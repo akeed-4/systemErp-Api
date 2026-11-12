@@ -96,6 +96,15 @@ public class ExecutionPlanService : IExecutionPlanService
             PlannedCost = DocumentPricing.Round(g.Sum(m => m.PlannedCost)), LineCount = g.Select(m => m.SubItemId ?? m.BoqItemId).Distinct().Count(),
         }).OrderBy(t => t.Name).ToList();
         dto.Resources = resources.Select(ToDto).ToList();
+        // المورد المتكرر عبر البنود مجمّعاً (اليدوي بلا مورد يُجمع باسمه ووحدته)
+        dto.ResourceTotals = resources.GroupBy(r => (r.ResourceId, r.ResourceType, Name: r.ResourceId == null ? r.Name : null, r.Unit))
+            .Select(g => new ExecutionPlanResourceTotalDto
+            {
+                ResourceId = g.Key.ResourceId, ResourceType = g.Key.ResourceType, Name = g.First().Name, Unit = g.Key.Unit,
+                Quantity = Math.Round(g.Sum(r => r.Quantity), Decimals), PlannedHours = Math.Round(g.Sum(r => r.PlannedHours), 2),
+                PlannedCost = DocumentPricing.Round(g.Sum(r => r.PlannedCost)), LineCount = g.Where(r => r.ContractItemId != null).Select(r => r.ContractItemId).Distinct().Count(),
+            })
+            .OrderBy(t => Array.IndexOf(BoqResourceTypes.All.ToArray(), t.ResourceType)).ThenByDescending(t => t.PlannedHours).ThenBy(t => t.Name).ToList();
 
         var budget = dto.Budget;
         budget.ContractValue = contract.ContractValue; budget.StudyCost = contract.EstimatedCost; budget.EstimatedBudget = profile?.EstimatedBudget ?? 0;
@@ -109,6 +118,10 @@ public class ExecutionPlanService : IExecutionPlanService
         budget.PlannedMargin = DocumentPricing.Round(budget.ContractValue - (budget.PlannedCost > 0 ? budget.PlannedCost : budget.StudyCost));
 
         dto.Warnings = Warnings(contract, plan, profile, phases, materials, materialPlan, resources, costRows, members, library, dto.Budget);
+        // بند رئيسي بفروع واحتياجات مباشرة بلا سطر أعمال مباشرة: تكلفتها وساعاتها خارج الدراسة والخطة
+        var analysis = await ProjectMaterialAnalysis.LoadAsync(_db, contract, ct);
+        var unassigned = contract.Items.Count(i => i.IsGroup && analysis.Analyze(i).SkipReason == ProjectMaterialDiagnostics.GroupDirectUnassigned);
+        if (unassigned > 0) dto.Warnings.Insert(0, new ExecutionPlanWarningDto { Code = "group_direct_unassigned", Count = unassigned, Section = "estimate" });
         return dto;
     }
 
@@ -125,6 +138,9 @@ public class ExecutionPlanService : IExecutionPlanService
 
         Add("no_plan", plan == null ? 1 : 0, "plan");
         Add("lines_not_priced", leaves.Count(l => !priced.Contains(l.Id)), "estimate");
+        // مورد بتكلفة صفرية في التحليل المجمّد: الدراسة والخطة أقل من الحقيقة (عدد الموارد، والتفصيل أسماؤها)
+        var zeroCost = costRows.Where(r => r.UnitCost <= 0 && r.Quantity > 0).GroupBy(r => r.ResourceId).Select(g => g.First().ResourceName).ToList();
+        Add("resources_without_cost", zeroCost.Count, "estimate", string.Join("، ", zeroCost.Take(5)));
         Add("no_phases", phases.Count == 0 && plan != null ? 1 : 0, "plan");
         Add("lines_unphased", phases.Count > 0 ? leaves.Count(l => !phased.Contains(l.Id)) : 0, "setup");
         Add("no_contract_dates", contract.StartDate == null || contract.EndDate == null ? 1 : 0, "estimate");
@@ -303,6 +319,8 @@ public class ExecutionPlanService : IExecutionPlanService
             var hours = Hours(r);
             var req = new ProjectResourceRequirement
             {
+                // التكلفة اليدوية لبند فرعي (ContractCostRowSources.SubItemManual): احتياج «أخرى» ومعرّفه مفتاح البند الفرعي الثابت
+                // كما في سطر التحليل، فيبقى تعديل المدير عند إعادة التوليد بلا تكرار
                 ContractId = contract.Id, PhaseId = phaseId, ContractItemId = r.ContractItemId, ResourceId = r.ResourceId, ResourceType = r.ResourceType,
                 Name = r.ResourceName, Category = res?.Category, Unit = r.Unit, Quantity = r.Quantity, HoursPerUnit = r.HoursPerUnit, PlannedHours = hours,
                 UnitCost = r.UnitCost, PlannedCost = r.TotalCost, Source = Src.Derived, SourceCostRowId = r.Id, SortOrder = ++order,

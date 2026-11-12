@@ -33,6 +33,11 @@ public class ConstructionProjectsController : ErpControllerBase
     public async Task<IActionResult> CostReport(Guid id, [FromServices] IProjectCostService costs, CancellationToken ct)
         => Success(await costs.ReportAsync(id, ct));
 
+    /// <summary>تغطية العمالة والمعدات المخططة بالموارد الفعلية المسندة، بالساعات لكل مرحلة (للقراءة).</summary>
+    [HttpGet("resource-coverage"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ResourceCoverage(Guid id, [FromServices] IProjectResourceCoverageService coverage, CancellationToken ct)
+        => Success(await coverage.GetAsync(id, ct));
+
     /// <summary>مقاولو الباطن للمشروع: عقود الموردين المرتبطة به بموقف مستخلصاتها، وتغطية بنوده.</summary>
     [HttpGet("subcontracts"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Subcontracts(Guid id, [FromServices] IProjectSubcontractService subcontracts, CancellationToken ct)

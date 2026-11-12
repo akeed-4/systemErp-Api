@@ -454,11 +454,16 @@ public class WorkItemService : IWorkItemService
             };
         }
 
+        // الثابت (احتياج ثابت، أو بند فرعي بكمية ثابتة) مرة لكل سطر في جدول الكميات كما في تحليل الدراسة، فلا يُقسم على الكمية القياسية
+        var fixedCost = 0m;
         var subs = w.SubItems.OrderBy(s => s.SortOrder).Select(s =>
         {
-            var sQty = s.QuantityMode == BoqQuantityModes.PerUnit ? Math.Round(qty * s.QuantityFactor, Decimals) : s.Quantity;
-            var comps = byOwner[s.Id].OrderBy(c => c.SortOrder).Select(c => Component(c, sQty)).ToList();
+            var subFixed = s.QuantityMode == BoqQuantityModes.Fixed;
+            var sQty = subFixed ? s.Quantity : Math.Round(qty * s.QuantityFactor, Decimals);
+            var owned = byOwner[s.Id].OrderBy(c => c.SortOrder).ToList();
+            var comps = owned.Select(c => Component(c, sQty)).ToList();
             var total = comps.Count > 0 ? comps.Sum(c => c.TotalCost) : DocumentPricing.Round(sQty * s.UnitCost);
+            fixedCost += subFixed ? total : comps.Where((_, k) => owned[k].QuantityMode == BoqQuantityModes.Fixed).Sum(c => c.TotalCost);
             return new WorkItemSubItemDto
             {
                 Id = s.Id, LineCode = s.LineCode, Description = s.Description, Unit = s.Unit, QuantityMode = s.QuantityMode,
@@ -466,10 +471,13 @@ public class WorkItemService : IWorkItemService
                 UnitCost = comps.Count > 0 ? (sQty > 0 ? Math.Round(total / sQty, Decimals) : 0) : s.UnitCost,
             };
         }).ToList();
-        var direct = byOwner[null].OrderBy(c => c.SortOrder).Select(c => Component(c, qty)).ToList();
+        var directOwned = byOwner[null].OrderBy(c => c.SortOrder).ToList();
+        var direct = directOwned.Select(c => Component(c, qty)).ToList();
+        fixedCost += direct.Where((_, k) => directOwned[k].QuantityMode == BoqQuantityModes.Fixed).Sum(c => c.TotalCost);
+        fixedCost = DocumentPricing.Round(fixedCost);
 
         var totalCost = DocumentPricing.Round(subs.Sum(s => s.TotalCost) + direct.Sum(c => c.TotalCost));
-        var unitCost = Math.Round(totalCost / qty, Decimals);
+        var unitCost = Math.Round((totalCost - fixedCost) / qty, Decimals);
         var sell = w.PricingMode == WorkItemPricingModes.CostPlus ? DocumentPricing.Round(unitCost * (1 + w.MarkupPercent / 100m)) : w.SellPrice;
         var margin = unitCost > 0 ? sell - unitCost : 0;
 
@@ -480,7 +488,7 @@ public class WorkItemService : IWorkItemService
             SubItemCount = w.SubItems.Count, ComponentCount = w.Components.Count,
             UnitCost = unitCost, SellPrice = sell, Margin = margin, MarginPercent = unitCost > 0 && sell > 0 ? Math.Round(margin / sell * 100m, 2) : 0,
             StandardQuantity = w.StandardQuantity, PricingMode = w.PricingMode, ManualSellPrice = w.SellPrice, MarkupPercent = w.MarkupPercent,
-            Notes = w.Notes, TotalCost = totalCost, ProductId = w.ProductId,
+            Notes = w.Notes, TotalCost = totalCost, FixedCost = fixedCost, ProductId = w.ProductId,
         };
         if (full) { dto.SubItems = subs; dto.Components = direct; }
         return dto;

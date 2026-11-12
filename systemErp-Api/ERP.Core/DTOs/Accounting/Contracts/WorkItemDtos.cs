@@ -14,8 +14,13 @@ public class WorkItemSummaryDto
     public bool IsActive { get; set; }
     public int SubItemCount { get; set; }
     public int ComponentCount { get; set; }
-    /// <summary>تكلفة الوحدة المخططة (0 = لا تحليل).</summary>
+    /// <summary>تكلفة الوحدة المخططة من الاحتياجات لكل وحدة (0 = لا تحليل)، بلا الثابت.</summary>
     public decimal UnitCost { get; set; }
+    /// <summary>
+    /// التكلفة الثابتة (احتياج ثابت أو بند فرعي بكمية ثابتة): مرة واحدة لكل سطر في جدول الكميات أياً كانت كميته، كما تحسبها الدراسة.
+    /// تكلفة السطر التقديرية = الكمية × تكلفة الوحدة + هذه.
+    /// </summary>
+    public decimal FixedCost { get; set; }
     /// <summary>سعر البيع للوحدة (يدوي، أو التكلفة + النسبة).</summary>
     public decimal SellPrice { get; set; }
     public decimal Margin { get; set; }

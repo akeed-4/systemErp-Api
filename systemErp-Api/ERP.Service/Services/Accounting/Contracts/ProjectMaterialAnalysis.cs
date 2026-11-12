@@ -39,7 +39,15 @@ internal sealed class ProjectMaterialAnalysis
         /// والاحتياجات غير المادية. المواد هنا هي نفسها في <see cref="Materials"/>.
         /// </summary>
         public List<Material> Resources { get; } = new();
+        /// <summary>
+        /// بنود فرعية في المكتبة بلا احتياجات وبتكلفة وحدة يدوية: تدخل تكلفة السطر كما تدخل تكلفة البند في المكتبة،
+        /// وليست موارد (لا مواد ولا ساعات).
+        /// </summary>
+        public List<ManualCost> ManualCosts { get; } = new();
     }
+
+    /// <summary>تكلفة يدوية لبند فرعي في المكتبة بكميته على السطر.</summary>
+    public sealed record ManualCost(Guid SubItemId, string Description, string Unit, decimal Quantity, decimal UnitCost);
 
     private readonly CommercialContract _contract;
     private readonly Dictionary<Guid, CommercialContractItem> _items;
@@ -81,8 +89,14 @@ internal sealed class ProjectMaterialAnalysis
     public IEnumerable<LineResult> AnalyzeAll() => _contract.Items.OrderBy(i => i.SortOrder).Select(Analyze);
 
     /// <summary>
-    /// تحليل سطر: البند الفرعي يأخذ مواد بنده الفرعي في المكتبة بكميته، والبند الرئيسي مواده المباشرة، والبند بلا فروع في العقد
-    /// يضيف مواد كل فروعه في المكتبة بكمياتها (فروع البند المجموعة في العقد تحمل موادها بنفسها).
+    /// تحليل سطر:
+    /// <list type="bullet">
+    /// <item>البند بلا فروع في العقد: احتياجاته المباشرة واحتياجات كل فروعه في المكتبة بكمياتها.</item>
+    /// <item>البند الفرعي: احتياجات بنده الفرعي في المكتبة بكميته. وسطر «الأعمال المباشرة» (فرعي بلا بند فرعي في المكتبة ومرتبط
+    /// ببند المكتبة نفسه للرئيسي) يحمل الاحتياجات المباشرة للبند الرئيسي بكميته.</item>
+    /// <item>البند المجموعة لا يُنفَّذ ولا يُسعَّر: احتياجاته المباشرة تُحمل على سطر أعماله المباشرة، وبدونه تبقى للتشخيص
+    /// (<see cref="Dg.GroupDirectUnassigned"/>) فلا تُحتسب مرتين ولا تضيع بصمت.</item>
+    /// </list>
     /// </summary>
     public LineResult Analyze(CommercialContractItem line)
     {
@@ -91,11 +105,17 @@ internal sealed class ProjectMaterialAnalysis
             var parent = line.ParentItemId is Guid pid ? _items.GetValueOrDefault(pid) : null;
             var sub = new LineResult { Line = line, BoqItemId = parent?.Id, SubItemId = line.Id };
             if (parent?.WorkItemId is not Guid parentWork) { sub.SkipReason = Dg.ParentNotLinked; return sub; }
-            if (line.WorkSubItemId is not Guid librarySub) { sub.SkipReason = Dg.SubItemNoSource; return sub; }
             if (!_works.TryGetValue(parentWork, out var parentItem)) { sub.SkipReason = Dg.WorkItemMissing; return sub; }
-            var subName = parentItem.SubItems.FirstOrDefault(s => s.Id == librarySub)?.Description;
-            if (subName == null) { sub.SkipReason = Dg.SubItemNoSource; return sub; }
-            AddComponents(sub, parentItem.Components.Where(c => c.SubItemId == librarySub), line.RevisedQuantity, subName);
+            if (IsDirectWork(line, parent))
+            {
+                AddComponents(sub, parentItem.Components.Where(c => c.SubItemId == null), line.RevisedQuantity, null);
+                Close(sub);
+                return sub;
+            }
+            if (line.WorkSubItemId is not Guid librarySub) { sub.SkipReason = Dg.SubItemNoSource; return sub; }
+            var source = parentItem.SubItems.FirstOrDefault(s => s.Id == librarySub);
+            if (source == null) { sub.SkipReason = Dg.SubItemNoSource; return sub; }
+            AddSubItem(sub, parentItem, source, line.RevisedQuantity);
             Close(sub);
             return sub;
         }
@@ -103,15 +123,36 @@ internal sealed class ProjectMaterialAnalysis
         var result = new LineResult { Line = line, BoqItemId = line.Id };
         if (line.WorkItemId is not Guid workId) { result.SkipReason = Dg.NotLinked; return result; }
         if (!_works.TryGetValue(workId, out var work)) { result.SkipReason = Dg.WorkItemMissing; return result; }
+        if (line.IsGroup)
+        {
+            if (HasDirectWorkLine(line)) { result.SkipReason = Dg.NoMaterials; return result; } // سطر أعماله المباشرة يحملها
+            AddComponents(result, work.Components.Where(c => c.SubItemId == null), line.RevisedQuantity, null);
+            Close(result);
+            if (result.Resources.Count > 0) result.SkipReason = Dg.GroupDirectUnassigned;
+            return result;
+        }
         AddComponents(result, work.Components.Where(c => c.SubItemId == null), line.RevisedQuantity, null);
-        if (!line.IsGroup)
-            foreach (var s in work.SubItems.OrderBy(s => s.SortOrder))
-            {
-                var subQty = s.QuantityMode == BoqQuantityModes.PerUnit ? line.RevisedQuantity * s.QuantityFactor : s.Quantity;
-                AddComponents(result, work.Components.Where(c => c.SubItemId == s.Id), subQty, s.Description);
-            }
+        foreach (var s in work.SubItems.OrderBy(s => s.SortOrder))
+            AddSubItem(result, work, s, s.QuantityMode == BoqQuantityModes.PerUnit ? line.RevisedQuantity * s.QuantityFactor : s.Quantity);
         Close(result);
         return result;
+    }
+
+    /// <summary>
+    /// سطر فرعي يحمل الأعمال المباشرة لبنده الرئيسي: بلا بند فرعي في المكتبة، ومرتبط ببند المكتبة نفسه للرئيسي.
+    /// </summary>
+    public static bool IsDirectWork(CommercialContractItem line, CommercialContractItem? parent)
+        => line.IsSubItem && line.WorkSubItemId == null && line.WorkItemId is Guid w && parent?.WorkItemId == w;
+
+    private bool HasDirectWorkLine(CommercialContractItem group)
+        => _items.Values.Any(i => i.ParentItemId == group.Id && IsDirectWork(i, group));
+
+    /// <summary>احتياجات البند الفرعي في المكتبة بكميته، أو تكلفته اليدوية إن لم تكن له احتياجات.</summary>
+    private void AddSubItem(LineResult result, WorkItem work, WorkItemSubItem s, decimal subQty)
+    {
+        var components = work.Components.Where(c => c.SubItemId == s.Id).ToList();
+        if (components.Count > 0) AddComponents(result, components, subQty, s.Description);
+        else if (s.UnitCost > 0 && subQty > 0) result.ManualCosts.Add(new ManualCost(s.Id, s.Description, s.Unit, subQty, s.UnitCost));
     }
 
     private static void Close(LineResult r)

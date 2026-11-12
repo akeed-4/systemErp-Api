@@ -1699,6 +1699,10 @@
   <data name="SiteReportDateRequired" xml:space="preserve"><value>تاريخ التقرير مطلوب.</value></data>
   <data name="SiteReportExists" xml:space="preserve"><value>يوجد تقرير يومي لهذا المشروع بتاريخ {0}.</value></data>
   <data name="SiteReportNotFound" xml:space="preserve"><value>التقرير اليومي غير موجود في هذا المشروع.</value></data>
+  <data name="SiteReportAttachmentUnknownItem" xml:space="preserve"><value>البند ليس من جدول كميات هذا المشروع أو أنه بند مجموعة.</value></data>
+  <data name="SiteReportAttachmentLimitReached" xml:space="preserve"><value>لا يُرفق بالبند الواحد في التقرير اليومي أكثر من {0} مستنداً.</value></data>
+  <data name="SiteReportAttachmentDeleteForbidden" xml:space="preserve"><value>حذف مستندات تقرير يومي بعد تقديمه يتطلب صلاحية الحذف على التقارير اليومية.</value></data>
+  <data name="SiteReportAttachmentAddForbidden" xml:space="preserve"><value>أرشفة مستندات التقرير اليومي تتطلب صلاحية الإضافة أو التعديل على التقارير اليومية.</value></data>
   <data name="SiteReportStatusInvalid" xml:space="preserve"><value>لا يمكن تنفيذ الإجراء على تقرير حالته «{0}».</value></data>
   <data name="SiteReportEmpty" xml:space="preserve"><value>سجّل إنجاز فترة واحدة على الأقل قبل التقديم.</value></data>
   <data name="SiteReportReturnNoteRequired" xml:space="preserve"><value>سبب الإعادة مطلوب.</value></data>

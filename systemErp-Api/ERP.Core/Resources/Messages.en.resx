@@ -1699,6 +1699,10 @@
   <data name="SiteReportDateRequired" xml:space="preserve"><value>The report date is required.</value></data>
   <data name="SiteReportExists" xml:space="preserve"><value>A daily report already exists for this project on {0}.</value></data>
   <data name="SiteReportNotFound" xml:space="preserve"><value>The daily report is not in this project.</value></data>
+  <data name="SiteReportAttachmentUnknownItem" xml:space="preserve"><value>The item is not in this project's bill of quantities, or it is a group item.</value></data>
+  <data name="SiteReportAttachmentLimitReached" xml:space="preserve"><value>An item in a daily report cannot have more than {0} documents.</value></data>
+  <data name="SiteReportAttachmentDeleteForbidden" xml:space="preserve"><value>Deleting documents of a submitted daily report requires the delete permission on daily reports.</value></data>
+  <data name="SiteReportAttachmentAddForbidden" xml:space="preserve"><value>Archiving daily report documents requires the create or edit permission on daily reports.</value></data>
   <data name="SiteReportStatusInvalid" xml:space="preserve"><value>The action cannot be done on a report with status "{0}".</value></data>
   <data name="SiteReportEmpty" xml:space="preserve"><value>Record progress for at least one slot before submitting.</value></data>
   <data name="SiteReportReturnNoteRequired" xml:space="preserve"><value>A return reason is required.</value></data>

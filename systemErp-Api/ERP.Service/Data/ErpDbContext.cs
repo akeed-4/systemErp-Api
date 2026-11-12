@@ -180,6 +180,10 @@ public class ErpDbContext : DbContext
         (typeof(ContractCertificateItemAttachment), nameof(ContractCertificateItemAttachment.CertificateId), typeof(ContractCertificate)),
         (typeof(ContractCertificateItemAttachment), nameof(ContractCertificateItemAttachment.ContractItemId), typeof(CommercialContractItem)),
         (typeof(ContractCertificateItemAttachment), nameof(ContractCertificateItemAttachment.ContractId), typeof(CommercialContract)),
+        // مستندات بند التقرير اليومي: تُحذف صراحة مع مسودة التقرير أو العقد، ولا يُحذف بند عليه مستندات
+        (typeof(SiteReportItemAttachment), nameof(SiteReportItemAttachment.ReportId), typeof(SiteDailyReport)),
+        (typeof(SiteReportItemAttachment), nameof(SiteReportItemAttachment.ContractItemId), typeof(CommercialContractItem)),
+        (typeof(SiteReportItemAttachment), nameof(SiteReportItemAttachment.ContractId), typeof(CommercialContract)),
         (typeof(ConstructionResource), nameof(ConstructionResource.ProductId), typeof(Product)),
         (typeof(ConstructionResource), nameof(ConstructionResource.HrDepartmentId), typeof(Department)),
         (typeof(ConstructionResource), nameof(ConstructionResource.SupplierId), typeof(Supplier)),
@@ -440,7 +444,13 @@ public class ErpDbContext : DbContext
             e.Property(t => t.Billing).HasMaxLength(16).IsRequired();
             e.HasIndex(t => new { t.TenantId, t.Code }).IsUnique();
         });
-        modelBuilder.Entity<ContractApproval>().HasIndex(a => new { a.TenantId, a.ContractId, a.Round });
+        modelBuilder.Entity<ContractApproval>(e =>
+        {
+            e.HasIndex(a => new { a.TenantId, a.ContractId, a.Round });
+            e.Property(a => a.Source).HasMaxLength(32);
+            e.Property(a => a.SourceReference).HasMaxLength(64);
+            e.Property(a => a.InvalidationReason).HasMaxLength(32);
+        });
         modelBuilder.Entity<ContractStatusLog>().HasIndex(l => new { l.TenantId, l.ContractId });
         modelBuilder.Entity<ContractInvoice>().HasIndex(i => new { i.TenantId, i.ContractId });
         // المستخلص يُفوتر مرة واحدة، والدفعة المقدمة فاتورة واحدة لكل عقد
@@ -771,6 +781,16 @@ public class ErpDbContext : DbContext
             e.Property(a => a.UploadedBy).HasMaxLength(200);
             e.HasIndex(a => new { a.TenantId, a.CertificateId, a.ContractItemId });
             e.HasIndex(a => new { a.TenantId, a.ProjectContractId });
+        });
+        modelBuilder.Entity<SiteReportItemAttachment>(e =>
+        {
+            e.Property(a => a.Category).HasMaxLength(32).IsRequired();
+            e.Property(a => a.Note).HasMaxLength(300);
+            e.Property(a => a.FileName).HasMaxLength(200).IsRequired();
+            e.Property(a => a.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(a => a.UploadedBy).HasMaxLength(200);
+            e.HasIndex(a => new { a.TenantId, a.ReportId, a.ContractItemId });
+            e.HasIndex(a => new { a.TenantId, a.ContractId });
         });
 
         modelBuilder.Entity<CarStageDefinition>(e =>

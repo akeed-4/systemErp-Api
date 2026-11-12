@@ -102,6 +102,29 @@ public class ContractApproval : BaseEntity
     public string UserName { get; set; } = string.Empty;
     public string? Note { get; set; }
     public DateTime DecidedAt { get; set; }
+
+    // ---- مصدر القرار (فارغ = مراجعة يدوية من شاشة العقد) ----
+    /// <summary><see cref="ContractApprovalSources"/>: من أين جاء القرار إن لم يكن مراجعة يدوية.</summary>
+    public string? Source { get; set; }
+    /// <summary>مرجع المصدر المقروء (رقم دراسة الجدوى FS-...).</summary>
+    public string? SourceReference { get; set; }
+    /// <summary>سجل المصدر (نسخة الدراسة المجمّدة <see cref="ProjectSnapshot"/> عند اعتماد الخطة).</summary>
+    public Guid? SourceId { get; set; }
+    /// <summary>قيمة العقد التي غطّاها القرار الآلي؛ أي اختلاف عنها يُسقطه.</summary>
+    public decimal? ApprovedValue { get; set; }
+    /// <summary>متى أُسقط القرار الآلي (الرجوع للمسودة أو تغيّر القيمة)؛ يبقى السجل بمعتمِده وتاريخه للتدقيق.</summary>
+    public DateTime? InvalidatedAt { get; set; }
+    /// <summary><see cref="ContractApprovalSources.DraftReset"/> | <see cref="ContractApprovalSources.ValueChanged"/></summary>
+    public string? InvalidationReason { get; set; }
+}
+
+/// <summary>مصادر قرار المراجعة غير اليدوية وأسباب إسقاطها.</summary>
+public static class ContractApprovalSources
+{
+    /// <summary>الموافقة المالية الآلية من دراسة جدوى معتمدة عند «إنشاء العقد» (الجولة الأولى فقط).</summary>
+    public const string FeasibilityStudy = "feasibility_study";
+    public const string DraftReset = "draft_reset";
+    public const string ValueChanged = "value_changed";
 }
 
 /// <summary>سطر في سجل انتقالات العقد: من أي حالة لأي حالة، من قام ومتى، وملاحظته.</summary>

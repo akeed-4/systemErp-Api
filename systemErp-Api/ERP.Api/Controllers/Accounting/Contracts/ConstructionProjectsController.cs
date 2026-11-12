@@ -1,6 +1,7 @@
 using ERP.Api.Infrastructure;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting.Contracts;
+using ERP.Service.Services.Accounting;
 using ERP.Service.Services.Shared;
 using Microsoft.AspNetCore.Mvc;
 
@@ -108,11 +109,49 @@ public class SiteDailyReportsController : ErpControllerBase
     private readonly IProjectMaterialService _materials;
     private readonly IConstructionProjectService _projects;
     private readonly IRentalAccrualService _rentals;
+    private readonly ISiteReportAttachmentService _attachments;
+
+    /// <summary>حد طلب رفع مستند التقرير اليومي: حجم الملف مع هامش لترويسات multipart.</summary>
+    private const long MaxAttachmentRequestBytes = SiteReportAttachmentService.MaxBytes + 64 * 1024;
 
     public SiteDailyReportsController(ISiteDailyReportService reports, IProjectMaterialService materials, IConstructionProjectService projects,
-        IRentalAccrualService rentals)
+        IRentalAccrualService rentals, ISiteReportAttachmentService attachments)
     {
-        _reports = reports; _materials = materials; _projects = projects; _rentals = rentals;
+        _reports = reports; _materials = materials; _projects = projects; _rentals = rentals; _attachments = attachments;
+    }
+
+    // ---------- أرشيف مستندات بنود التقرير (مستقل عن دورته؛ صلاحيات الإضافة والحذف بحسب حالته تفحصها الخدمة) ----------
+
+    /// <summary>عدد المستندات لكل بند، وما يملكه المستخدم من إضافة وحذف، وحد الحجم.</summary>
+    [HttpGet("{reportId:guid}/attachments/summary"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> AttachmentSummary(Guid id, Guid reportId, CancellationToken ct)
+        => Success(await _attachments.SummaryAsync(id, reportId, ct));
+
+    [HttpGet("{reportId:guid}/attachments"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Attachments(Guid id, Guid reportId, [FromQuery] Guid? itemId, CancellationToken ct)
+        => Success(await _attachments.ListAsync(id, reportId, itemId, ct));
+
+    [HttpPost("{reportId:guid}/items/{itemId:guid}/attachments"), RequireScreen(Screen, ScreenAction.View)]
+    [RequestSizeLimit(MaxAttachmentRequestBytes)]
+    public async Task<IActionResult> UploadAttachment(Guid id, Guid reportId, Guid itemId, [FromForm] string? category,
+        [FromForm] string? note, IFormFile? file, CancellationToken ct)
+    {
+        var (name, content) = await LeaveAttachmentUpload.ReadAsync(file, SiteReportAttachmentService.MaxBytes, ct);
+        return Success(await _attachments.AddAsync(id, reportId, itemId, category, note, name, content, ct), Messages.CreatedSuccessfully);
+    }
+
+    [HttpGet("{reportId:guid}/attachments/{attachmentId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> DownloadAttachment(Guid id, Guid reportId, Guid attachmentId, CancellationToken ct)
+    {
+        var file = await _attachments.GetFileAsync(id, reportId, attachmentId, ct);
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpDelete("{reportId:guid}/attachments/{attachmentId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> DeleteAttachment(Guid id, Guid reportId, Guid attachmentId, CancellationToken ct)
+    {
+        await _attachments.DeleteAsync(id, reportId, attachmentId, ct);
+        return Success(Messages.DeletedSuccessfully);
     }
 
     // بيانات التقرير بصلاحيته وحدها (مشرف الموقع لا يحتاج صلاحية العقود أو المشاريع): أسطر جدول الكميات، وموارد المشروع

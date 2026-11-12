@@ -1427,6 +1427,10 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("ApprovedValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<Guid>("ContractId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1440,6 +1444,13 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("InvalidatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InvalidationReason")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1449,6 +1460,17 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<int>("Round")
                         .HasColumnType("int");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -6962,6 +6984,80 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId", "SupplierId", "CostCenterId");
 
                     b.ToTable("SiteRentalAccrualMovement");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SiteReportItemAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("ContractItemId");
+
+                    b.HasIndex("ReportId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId");
+
+                    b.HasIndex("TenantId", "ReportId", "ContractItemId");
+
+                    b.ToTable("SiteReportItemAttachment");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.SiteResourceUsage", b =>
@@ -16353,6 +16449,27 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Accounting.SiteRentalAccrual", null)
                         .WithMany()
                         .HasForeignKey("AccrualId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.SiteReportItemAttachment", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContractItem", null)
+                        .WithMany()
+                        .HasForeignKey("ContractItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.SiteDailyReport", null)
+                        .WithMany()
+                        .HasForeignKey("ReportId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

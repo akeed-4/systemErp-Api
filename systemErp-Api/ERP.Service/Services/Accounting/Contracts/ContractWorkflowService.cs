@@ -23,6 +23,12 @@ public static class ContractTypeCodes
     /// <summary>مسار مبسط: من النوع، أو لأن قيمة العقد دون حد التبسيط.</summary>
     public static bool IsSimplified(ContractTypeDefinition type, decimal contractValue)
         => type.Workflow == ContractWorkflows.Simple || (type.SimpleLimit.HasValue && contractValue < type.SimpleLimit.Value);
+
+    /// <summary>
+    /// الضمان البنكي إلزامي (لا يُلغيه المستخدم ولا الطلب): نوع يتطلب الضمان على المسار الكامل. بقية المسارات اختيار لكل عقد كما كانت.
+    /// </summary>
+    public static bool GuaranteeMandatory(ContractTypeDefinition? type, bool isSimplified)
+        => type?.RequiresGuarantee == true && !isSimplified;
 }
 
 /// <summary>
@@ -68,8 +74,12 @@ public class ContractWorkflowService : IContractWorkflowService
             OverdueDays = stage?.SlaDays is { } sla && days > sla ? days - sla : null,
             // المسار من العقد نفسه (المختار عند إنشائه)، لا من الإعداد الافتراضي لنوعه
             ContractType = c.ContractType, Workflow = c.IsSimplified ? ContractWorkflows.Simple : ContractWorkflows.Full, Billing = type?.Billing ?? string.Empty,
-            IsSimplified = c.IsSimplified, RequiresGuarantee = c.RequiresGuarantee, ReviewRound = c.ReviewRound,
-            Approvals = approvals.Select(a => new ContractApprovalDto { Kind = a.Kind, Decision = a.Decision, UserName = a.UserName, Note = a.Note, DecidedAt = a.DecidedAt }).ToList(),
+            IsSimplified = c.IsSimplified, RequiresGuarantee = GuaranteeRequired(c, type), ReviewRound = c.ReviewRound,
+            Approvals = approvals.Select(a => new ContractApprovalDto
+            {
+                Kind = a.Kind, Decision = a.Decision, UserName = a.UserName, Note = a.Note, DecidedAt = a.DecidedAt,
+                Source = a.Source, SourceReference = a.SourceReference,
+            }).ToList(),
         };
 
         if (c.Stage == S.Review)
@@ -133,8 +143,12 @@ public class ContractWorkflowService : IContractWorkflowService
         if (blockers.Count > 0)
             throw new ConflictException(string.Format(Messages.ContractConditionsMissing, transition.NameAr, string.Join("، ", blockers)));
 
-        // الرجوع للمسودة يبدأ جولة مراجعة جديدة (موافقات الجولة السابقة لا تُحتسب)
-        if (to == S.Draft) c.ReviewRound++;
+        // الرجوع للمسودة يبدأ جولة مراجعة جديدة (موافقات الجولة السابقة لا تُحتسب)، وتُسقط الموافقة المالية الآلية من الدراسة صراحةً
+        if (to == S.Draft)
+        {
+            await FeasibilityFinancialApproval.InvalidateOnDraftResetAsync(_db, c, _user, ct);
+            c.ReviewRound++;
+        }
         if (to == S.Active && c.Stage is S.Approval or S.Draft) c.SignedDate ??= SaudiTime.Today;
 
         _db.Add(new ContractStatusLog
@@ -334,10 +348,17 @@ public class ContractWorkflowService : IContractWorkflowService
     // ---------- الشروط ----------
 
     /// <summary>ما ينقص قبل الانتقال (فارغ = جاهز). كل بند جملة واضحة تقول ماذا ينقص بالضبط.</summary>
-    /// <summary>ضمان العقد (إن اختاره المستخدم لهذا العقد): رقم ومبلغ وتاريخ انتهاء لم يمضِ.</summary>
-    private static void GuaranteeBlockers(CommercialContract c, List<string> missing)
+    /// <summary>
+    /// الضمان مطلوب لهذا العقد: باختياره، أو إلزاماً من نوعه على المسار الكامل (يُفحص هنا أيضاً فلا يتخطاه عقد حُفظ بلا ضمان
+    /// قبل القاعدة أو بتغيير إعداد النوع).
+    /// </summary>
+    private static bool GuaranteeRequired(CommercialContract c, ContractTypeDefinition? type)
+        => c.RequiresGuarantee || ContractTypeCodes.GuaranteeMandatory(type, c.IsSimplified);
+
+    /// <summary>ضمان العقد (إن كان مطلوباً): رقم ومبلغ وتاريخ انتهاء لم يمضِ.</summary>
+    private static void GuaranteeBlockers(CommercialContract c, ContractTypeDefinition? type, List<string> missing)
     {
-        if (!c.RequiresGuarantee) return;
+        if (!GuaranteeRequired(c, type)) return;
         if (string.IsNullOrWhiteSpace(c.GuaranteeNumber) || c.GuaranteeAmount is not > 0 || c.GuaranteeExpiry == null)
             missing.Add(Messages.ContractMissingGuarantee);
         else if (c.GuaranteeExpiry.Value.Date < SaudiTime.Today)
@@ -373,7 +394,7 @@ public class ContractWorkflowService : IContractWorkflowService
                 }
                 else if (c.Items.Count == 0) missing.Add(Messages.ContractMissingItems);
                 // المبسط يُفعَّل من المسودة مباشرة: ضمان العقد (إن اختير) يُفحص هنا بدل خطوة الاعتماد
-                if (t.ToStatus == S.Active) GuaranteeBlockers(c, missing);
+                if (t.ToStatus == S.Active) GuaranteeBlockers(c, type, missing);
                 break;
 
             case "both_reviews":
@@ -384,9 +405,9 @@ public class ContractWorkflowService : IContractWorkflowService
             case "signed_guarantee_limit":
                 // حد الاعتماد يُفحص مع الصلاحية (403)؛ هنا النسخة الموقعة والضمان.
                 // النسخة الموقعة تُشترط مع الضمان البنكي فقط: العقد بلا ضمان لا تُعرض له المرفقات في الواجهة
-                if (c.RequiresGuarantee && !await _db.Set<ContractAttachment>().AnyAsync(a => a.ContractId == c.Id && a.Kind == "signed_copy", ct))
+                if (GuaranteeRequired(c, type) && !await _db.Set<ContractAttachment>().AnyAsync(a => a.ContractId == c.Id && a.Kind == "signed_copy", ct))
                     missing.Add(Messages.ContractMissingSignedCopy);
-                GuaranteeBlockers(c, missing);
+                GuaranteeBlockers(c, type, missing);
                 break;
 
             case "all_received":
@@ -509,8 +530,10 @@ public class ContractWorkflowService : IContractWorkflowService
             .OrderBy(t => t.SortOrder).ToListAsync(ct);
     }
 
-    private Task<List<ContractApproval>> RoundApprovalsAsync(CommercialContract c, CancellationToken ct)
-        => _db.Set<ContractApproval>().AsNoTracking().Where(a => a.ContractId == c.Id && a.Round == c.ReviewRound).OrderBy(a => a.DecidedAt).ToListAsync(ct);
+    /// <summary>قرارات الجولة الحالية؛ الموافقة الآلية من الدراسة لا تُحتسب إن أُسقطت أو اختلفت قيمة العقد عمّا غطّته.</summary>
+    private async Task<List<ContractApproval>> RoundApprovalsAsync(CommercialContract c, CancellationToken ct)
+        => (await _db.Set<ContractApproval>().AsNoTracking().Where(a => a.ContractId == c.Id && a.Round == c.ReviewRound).OrderBy(a => a.DecidedAt).ToListAsync(ct))
+            .Where(a => FeasibilityFinancialApproval.IsEffective(a, c.ContractValue)).ToList();
 
     private static bool Approved(IEnumerable<ContractApproval> approvals, string kind)
         => approvals.Any(a => a.Kind == kind && a.Decision == "approved");

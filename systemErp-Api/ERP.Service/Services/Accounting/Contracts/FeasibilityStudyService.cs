@@ -14,10 +14,11 @@ public class FeasibilityStudyService : IFeasibilityStudyService
     private readonly ErpDbContext _db;
     private readonly ITransactionRunner _tx;
     private readonly INumberSequenceService _numbers;
+    private readonly ICurrentUser _user;
 
-    public FeasibilityStudyService(ErpDbContext db, ITransactionRunner tx, INumberSequenceService numbers)
+    public FeasibilityStudyService(ErpDbContext db, ITransactionRunner tx, INumberSequenceService numbers, ICurrentUser user)
     {
-        _db = db; _tx = tx; _numbers = numbers;
+        _db = db; _tx = tx; _numbers = numbers; _user = user;
     }
 
     public async Task<FeasibilityStudyRowDto> CreateContractAsync(Guid contractId, CreateContractFromStudyDto request, CancellationToken ct = default)
@@ -40,6 +41,11 @@ public class FeasibilityStudyService : IFeasibilityStudyService
             }, token);
             c.FeasibilityStatus = FeasibilityStatuses.Contracted;
             await ConstructionProjectService.EnsureCostCenterAsync(_db, c, token);
+            // الضمان البنكي إلزامي لنوع يتطلبه على المسار الكامل (دراسة قديمة حُفظت بلا ضمان تُصحَّح هنا)
+            var type = await _db.Set<ContractTypeDefinition>().AsNoTracking().FirstOrDefaultAsync(t => t.Code == c.ContractType, token);
+            if (ContractTypeCodes.GuaranteeMandatory(type, c.IsSimplified)) c.RequiresGuarantee = true;
+            // الموافقة المالية للجولة الأولى من اعتماد الدراسة نفسها (معتمِدها وتاريخها ومرجعها)
+            await FeasibilityFinancialApproval.GrantAsync(_db, c, plan, _user, token);
             await _db.SaveChangesAsync(token);
         }, ct);
         return (await ListAsync(null, ct)).First(r => r.Id == contractId);

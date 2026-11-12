@@ -138,6 +138,8 @@ public class SiteDailyReportService : ISiteDailyReportService
         EnsureStatus(report, St.Draft);
         // مسودة أُعيد فتحها بعد ترحيل تكلفتها: قيودها واستحقاقها قائمة، فلا تُحذف (تُعدَّل ويُعاد اعتمادها فيُرحَّل الفرق)
         if (report.CostRevision > 0 || report.CostJournalEntryId != null) throw new ConflictException(Messages.SiteReportHasPostedCost);
+        // أرشيف بنود المسودة يُحذف معها
+        await SiteReportAttachmentService.RemoveForReportsAsync(_db, _db.Set<SiteDailyReport>().Where(r => r.Id == report.Id).Select(r => r.Id), ct);
         _db.Remove(report);
         await _db.SaveChangesAsync(ct);
     }

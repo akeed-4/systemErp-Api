@@ -63,10 +63,13 @@ internal static class LeaveAttachmentUpload
     /// <summary>حد الطلب: حجم المرفق مع هامش لترويسات multipart.</summary>
     public const long MaxRequestBytes = ERP.Service.Services.Accounting.LeaveAttachmentService.MaxBytes + 64 * 1024;
 
-    public static async Task<(string Name, byte[] Content)> ReadAsync(IFormFile? file, CancellationToken ct)
+    public static Task<(string Name, byte[] Content)> ReadAsync(IFormFile? file, CancellationToken ct)
+        => ReadAsync(file, ERP.Service.Services.Accounting.LeaveAttachmentService.MaxBytes, ct);
+
+    /// <summary>قراءة المرفق بحد حجم خاص بمساره (مثل أرشيف التقرير اليومي)؛ يُرفض الكبير قبل قراءته.</summary>
+    public static async Task<(string Name, byte[] Content)> ReadAsync(IFormFile? file, long max, CancellationToken ct)
     {
         if (file == null || file.Length == 0) throw new ValidationFailedException(Messages.LeaveAttachmentEmpty);
-        var max = ERP.Service.Services.Accounting.LeaveAttachmentService.MaxBytes;
         if (file.Length > max) throw new ValidationFailedException(string.Format(Messages.LeaveAttachmentTooLarge, max / (1024 * 1024)));
         using var buffer = new MemoryStream((int)file.Length);
         await file.CopyToAsync(buffer, ct);

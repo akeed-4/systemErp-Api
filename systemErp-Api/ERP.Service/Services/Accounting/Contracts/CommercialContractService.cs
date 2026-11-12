@@ -273,8 +273,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         // ليحدد انتقالاته؛ بلا اختيار (عميل قديم/طلب اعتماد معلّق) يُشتق من النوع وحد التبسيط كما كان.
         // تفعيل المبسط انتقال عادي عبر move (صلاحية الاعتماد وحد يغطي القيمة).
         e.IsSimplified = SelectedSimplified(d.Workflow) ?? ContractTypeCodes.IsSimplified(type, e.ContractValue);
-        // الضمان البنكي اختيار لكل عقد؛ بلا اختيار (عميل قديم) كما كان: من النوع وعلى المسار الكامل فقط
-        ApplyGuarantee(e, d.RequiresGuarantee ?? (type.RequiresGuarantee && !e.IsSimplified));
+        // الضمان البنكي إلزامي لنوع يتطلبه على المسار الكامل (لا يُلغيه الطلب)؛ وفي غيره اختيار لكل عقد (بلا اختيار: لا ضمان)
+        ApplyGuarantee(e, ContractTypeCodes.GuaranteeMandatory(type, e.IsSimplified) || d.RequiresGuarantee == true);
         e.Stage = ContractStageDefinition.Draft;
         e.Status = StatusFor(e.Stage);
         e.StageChangedAt = DateTime.UtcNow;
@@ -339,8 +339,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
                 throw new ValidationFailedException(Messages.ContractWorkflowLocked);
             e.IsSimplified = selected;
         }
-        // الضمان يُفعَّل أو يُلغى في المسودة (التعديل في المسودة فقط)؛ null = يبقى كما هو
-        ApplyGuarantee(e, d.RequiresGuarantee ?? o.GetValue<bool>(nameof(CommercialContract.RequiresGuarantee)));
+        // الضمان يُفعَّل أو يُلغى في المسودة (التعديل في المسودة فقط)؛ null = يبقى كما هو. والإلزامي (نوع يتطلبه + مسار كامل) لا يُلغى
+        ApplyGuarantee(e, ContractTypeCodes.GuaranteeMandatory(type, e.IsSimplified)
+            || (d.RequiresGuarantee ?? o.GetValue<bool>(nameof(CommercialContract.RequiresGuarantee))));
         e.TotalInvoiced = o.GetValue<decimal>(nameof(CommercialContract.TotalInvoiced));
         e.TotalCollected = o.GetValue<decimal>(nameof(CommercialContract.TotalCollected));
         // جدولة المستخلصات لم تُرسل (عميل قديم): تبقى كما هي
@@ -372,6 +373,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         }
         Recalculate(e);
         await ApplyParentAsync(e, ct);
+        // قيمة عقد الدراسة تغيّرت عمّا اعتُمد: تُسقط الموافقة المالية الآلية فتلزم المراجعة المالية العادية
+        await FeasibilityFinancialApproval.InvalidateOnValueChangeAsync(Db, e, _user, ct);
     }
 
     protected override async Task OnDeletingAsync(CommercialContract e, CancellationToken ct)
@@ -405,6 +408,7 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         Db.RemoveRange(await Db.Set<ConstructionProjectProfile>().Where(p => p.ContractId == e.Id).ToListAsync(ct));
         // التقارير اليومية (أسطرها معها) ثم الموارد التي تشير إليها، وخطة الإنجاز
         // الاستخدامات تُحمَّل لتُحذف قبل مواردها (قيدها «منع الحذف»)
+        await SiteReportAttachmentService.RemoveForReportsAsync(Db, Db.Set<SiteDailyReport>().Where(r => r.ContractId == e.Id).Select(r => r.Id), ct);
         Db.RemoveRange(await Db.Set<SiteDailyReport>().Include(r => r.Resources).Where(r => r.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ProjectResource>().Where(r => r.ContractId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<ProjectDailyPlan>().Where(p => p.ContractId == e.Id).ToListAsync(ct));

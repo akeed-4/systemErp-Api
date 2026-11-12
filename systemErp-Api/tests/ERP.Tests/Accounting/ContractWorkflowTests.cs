@@ -366,9 +366,10 @@ public class ContractWorkflowTests : TestBase
 
     // ---------- الضمان البنكي اختيار لكل عقد ----------
 
-    private static object GuaranteeBody(Guid party, Guid product, string workflow, bool? requiresGuarantee, string? guaranteeNumber = null) => new
+    private static object GuaranteeBody(Guid party, Guid product, string workflow, bool? requiresGuarantee, string? guaranteeNumber = null,
+        string contractType = "supply_materials") => new
     {
-        title = "عقد", contractType = "supply_materials", workflow, requiresGuarantee, partyName = "عميل", partyId = party, contractValue = 200, vatRate = 15,
+        title = "عقد", contractType, workflow, requiresGuarantee, partyName = "عميل", partyId = party, contractValue = 200, vatRate = 15,
         startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(3),
         guaranteeNumber, guaranteeAmount = guaranteeNumber == null ? (decimal?)null : 50m,
         guaranteeExpiry = guaranteeNumber == null ? (DateTime?)null : DateTime.UtcNow.Date.AddYears(1),
@@ -376,15 +377,65 @@ public class ContractWorkflowTests : TestBase
         milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
     };
 
+    /// <summary>
+    /// نوع يتطلب الضمان + مسار كامل = ضمان إلزامي: لا يلغيه الإنشاء ولا التعديل، ولا يتخطاه عقد حُفظ بلا ضمان (قديم أو بكتابة مباشرة)،
+    /// فالتفعيل يُرفض حتى الضمان والنسخة الموقعة.
+    /// </summary>
     [Fact]
-    public async Task Full_contract_without_a_guarantee_activates_with_reviews_only_no_attachment_needed()
+    public async Task Mandatory_guarantee_cannot_be_bypassed_by_create_edit_or_stored_flag()
     {
         var owner = await NewTenantAsync();
         var (party, _) = await SeedCustomerAsync(owner);
         var product = await SeedProductAsync(owner);
 
-        // supply_materials يلزم نوعه الضمان افتراضياً؛ العقد اختار «بلا ضمان»
         var created = await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "full", false));
+        Assert.Equal(201, created.Status);
+        Assert.True(created.Data!["requiresGuarantee"]!.GetValue<bool>()); // الطلب أرسل false
+        var id = created.Data["id"].S();
+
+        var edited = await owner.Put($"/commercialcontracts/{id}", GuaranteeBody(party, product, "full", false, "LG-5"));
+        Assert.Equal(200, edited.Status);
+        Assert.True(edited.Data!["requiresGuarantee"]!.GetValue<bool>());
+        Assert.Equal("LG-5", edited.Data["guaranteeNumber"].S()); // بياناته لم تُمسح
+
+        // عقد محفوظ بلا ضمان (قبل القاعدة أو بكتابة مباشرة) وبلا بياناته: القاعدة تُفحص عند الانتقال أيضاً
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
+            var c = await db.Set<CommercialContract>().IgnoreQueryFilters().FirstAsync(x => x.Id == Guid.Parse(id));
+            c.RequiresGuarantee = false; c.GuaranteeNumber = null; c.GuaranteeAmount = null; c.GuaranteeExpiry = null;
+            await db.SaveChangesAsync();
+        }
+        Assert.True((await owner.Get($"/commercialcontracts/{id}/workflow")).Data!["requiresGuarantee"]!.GetValue<bool>());
+
+        Assert.Equal(200, (await Move(owner, id, "review")).Status);
+        await owner.Post($"/commercialcontracts/{id}/review", new { kind = "legal", decision = "approve" });
+        await owner.Post($"/commercialcontracts/{id}/review", new { kind = "financial", decision = "approve" });
+        var blocked = await Move(owner, id, "active");
+        Assert.Equal(409, blocked.Status);
+        Assert.Contains("الضمان البنكي", blocked.Body!["message"].S());
+        var approvalStage = (await owner.Get($"/commercialcontracts/{id}/workflow")).Data!;
+        var activate = approvalStage["transitions"]!.AsArray().Single(t => t!["toStatus"].S() == "active")!;
+        Assert.Equal(2, activate["blockers"]!.AsArray().Count); // النسخة الموقعة والضمان
+
+        Assert.Equal(200, await UploadFileAsync(owner, $"/commercialcontracts/{id}/attachments?kind=signed_copy", "signed.pdf", SmallPdf));
+        Assert.Equal(200, (await owner.Put($"/commercialcontracts/{id}/signing", new
+        {
+            guaranteeNumber = "LG-6", guaranteeBank = "بنك", guaranteeAmount = 50, guaranteeExpiry = DateTime.UtcNow.Date.AddYears(1),
+        })).Status);
+        var activated = await Move(owner, id, "active");
+        Assert.True(activated.Status == 200, activated.Body?.ToJsonString());
+    }
+
+    [Fact]
+    public async Task Full_contract_of_a_type_without_guarantee_activates_with_reviews_only_no_attachment_needed()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+
+        // monthly_maintenance لا يلزم نوعه الضمان: على المسار الكامل يبقى اختياراً للعقد
+        var created = await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "full", false, contractType: "monthly_maintenance"));
         Assert.False(created.Data!["requiresGuarantee"]!.GetValue<bool>());
         var id = created.Data["id"].S();
         Assert.False((await owner.Get($"/commercialcontracts/{id}/workflow")).Data!["requiresGuarantee"]!.GetValue<bool>());

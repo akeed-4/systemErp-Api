@@ -209,3 +209,24 @@ public class SiteMaterialUsage : BaseEntity
 
     public virtual SiteDailyReport Report { get; set; } = null!;
 }
+
+/// <summary>
+/// مستند مؤرشف على بند في التقرير اليومي (صورة موقع، محضر فحص، فاتورة مواد...)، بآلية أرشيف بنود المستخلص نفسها وتصنيفاتها
+/// (<see cref="CertificateAttachmentCategories"/>). مرتبط بالتقرير وبند جدول الكميات (لا بسطر الفترة، لأن الأسطر يُعاد بناؤها عند الحفظ)
+/// والعقد. مستقل عن دورة التقرير وتكلفته: يبقى بعد الاعتماد ولا يؤثر في أي حساب.
+/// </summary>
+public class SiteReportItemAttachment : BaseEntity
+{
+    public Guid ContractId { get; set; }
+    public Guid ReportId { get; set; }
+    /// <summary>بند جدول الكميات.</summary>
+    public Guid ContractItemId { get; set; }
+    public string Category { get; set; } = CertificateAttachmentCategories.Other;
+    public string? Note { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public byte[] Content { get; set; } = Array.Empty<byte>();
+    public string? UploadedBy { get; set; }
+    public Guid? UploadedByUserId { get; set; }
+}

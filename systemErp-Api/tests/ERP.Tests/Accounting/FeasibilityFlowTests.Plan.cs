@@ -11,7 +11,7 @@ public partial class FeasibilityFlowTests
 {
     private sealed record Study(Client Api, string Id, Guid Party, Guid Dig, Guid Pour, Guid Manual, Guid Sand, Guid Labor, Guid Excavator, object[] Items);
 
-    private async Task<Study> PricedStudyAsync()
+    private async Task<Study> PricedStudyAsync(string workflow = "simple")
     {
         var api = await NewConstructionTenantAsync();
         await api.Post("/unitsofmeasure", new { code = "PCS", nameAr = "قطعة", isBaseUnit = true, conversionFactor = 1 });
@@ -61,7 +61,7 @@ public partial class FeasibilityFlowTests
         };
         var body = new
         {
-            title = "دراسة", projectName = "مشروع الخطة", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false,
+            title = "دراسة", projectName = "مشروع الخطة", contractType = "construction_boq", workflow, requiresGuarantee = false,
             partyName = "عميل", partyId = party, startDate = Today, endDate = Today.AddDays(29), vatRate = 15, items,
             milestones = Array.Empty<object>(), clauses = Array.Empty<object>(), isFeasibilityStudy = true,
         };

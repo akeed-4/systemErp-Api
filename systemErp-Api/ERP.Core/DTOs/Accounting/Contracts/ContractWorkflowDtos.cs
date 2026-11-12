@@ -76,6 +76,10 @@ public class ContractApprovalDto
     public string UserName { get; set; } = string.Empty;
     public string? Note { get; set; }
     public DateTime DecidedAt { get; set; }
+    /// <summary>فارغ = مراجعة يدوية؛ feasibility_study = موافقة مالية آلية من دراسة الجدوى.</summary>
+    public string? Source { get; set; }
+    /// <summary>رقم دراسة الجدوى للموافقة الآلية.</summary>
+    public string? SourceReference { get; set; }
 }
 
 public class ContractStatusLogDto

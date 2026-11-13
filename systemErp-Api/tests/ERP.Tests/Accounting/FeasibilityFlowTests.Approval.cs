@@ -7,8 +7,8 @@ namespace ERP.Tests;
 
 /// <summary>
 /// الموافقة المالية الآلية عند «إنشاء العقد» من دراسة معتمدة: سجل موافقة مالية في الجولة الأولى باسم معتمِد الخطة وتاريخه ومرجع الدراسة
-/// (بلا صلاحية المراجعة المالية له)، تُسقط بالرجوع للمسودة أو بتغيّر قيمة العقد فتلزم المراجعة المالية العادية. والضمان البنكي إلزامي
-/// لعقد المقاولات على المسار الكامل.
+/// (بلا صلاحية المراجعة المالية له)، تُسقط بالرجوع للمسودة أو بتغيّر قيمة العقد فتلزم المراجعة المالية العادية. والضمان البنكي اختيار
+/// للعقد (الدراسة التي أُرسلت بلا ضمان تُفعَّل بلا ضمان).
 /// </summary>
 public partial class FeasibilityFlowTests
 {
@@ -107,7 +107,7 @@ public partial class FeasibilityFlowTests
         Assert.Equal("feasibility_study", row["source"].S());
         Assert.Equal(fsNumber, row["sourceReference"].S());
         Assert.Equal(approver.Name, row["userName"].S());
-        Assert.True(wf["requiresGuarantee"]!.GetValue<bool>()); // مقاولات + مسار كامل
+        Assert.False(wf["requiresGuarantee"]!.GetValue<bool>()); // الدراسة أُرسلت بلا ضمان: لا يُفرض عند إنشاء العقد
 
         // معتمِد الدراسة لا يملك المراجعة المالية على العقد (الموافقة لم تمر بها)
         Ok(await Move(api, s.Id, "review"), "submit for review");
@@ -119,15 +119,7 @@ public partial class FeasibilityFlowTests
         Assert.Equal("approval", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
         Assert.Single(await ApprovalsAsync(s.Id), a => a.Kind == "financial"); // لا موافقة مالية يدوية
 
-        // الضمان البنكي إلزامي قبل التفعيل (أُرسلت الدراسة بلا ضمان)
-        var blocked = await Move(api, s.Id, "active");
-        Assert.Equal(409, blocked.Status);
-        Assert.Contains("الضمان البنكي", blocked.Body!["message"].S());
-        Assert.Equal(200, await UploadFileAsync(api, $"/commercialcontracts/{s.Id}/attachments?kind=signed_copy", "signed.pdf", SmallPdf));
-        Ok(await api.Put($"/commercialcontracts/{s.Id}/signing", new
-        {
-            guaranteeNumber = "LG-1", guaranteeBank = "بنك", guaranteeAmount = 1000, guaranteeExpiry = Today.AddYears(1),
-        }), "signing");
+        // بلا ضمان: التفعيل بلا ضمان ولا نسخة موقعة
         Ok(await Move(api, s.Id, "active"), "activate");
     }
 

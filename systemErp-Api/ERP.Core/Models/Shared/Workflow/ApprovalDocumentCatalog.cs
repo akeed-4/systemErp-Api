@@ -66,7 +66,7 @@ public static class ApprovalDocumentCatalog
         new("purchase", "purchases", "فاتورة مشتريات", "Purchase invoice", new[] { Create }),
         new("purchase_return", "purchases", "مرتجع مشتريات", "Purchase return", new[] { Create }),
         new("purchase_order", "purchases", "أمر شراء", "Purchase order", new[] { Create, Edit, Delete }),
-        new("material_requisition", "purchases", "طلب شراء داخلي", "Purchase requisition", new[] { Create, Edit, Delete }),
+        new("material_requisition", "purchases", "طلب شراء داخلي", "Purchase requisition", new[] { Create, Edit, Approve, Delete }),
         new("purchase_landed_cost", "purchases", "تكاليف الشراء الإضافية", "Purchase landed cost", new[] { Create, Edit, Approve, Cancel, Delete }),
 
         // الحسابات والخزينة

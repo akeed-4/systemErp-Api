@@ -122,6 +122,8 @@ public class ProjectMaterialIssueDocDto
     /// <summary>للعرض والطباعة: رقم العقد واسم المشروع وموقعه والعميل واسم المستودع.</summary>
     public string? ContractNumber { get; set; }
     public string? ProjectName { get; set; }
+    /// <summary>اسم المشروع بالإنجليزية (للطباعة بالإنجليزية؛ فارغ = العربي).</summary>
+    public string? ProjectNameEn { get; set; }
     public string? ProjectLocation { get; set; }
     public string? PartyName { get; set; }
     public string? WarehouseName { get; set; }
@@ -153,9 +155,13 @@ public class ProjectMaterialIssueLineDto
     public Guid? BoqItemId { get; set; }
     public string? BoqLineCode { get; set; }
     public string? BoqDescription { get; set; }
+    /// <summary>وصف البند بالإنجليزية (للطباعة بالإنجليزية؛ فارغ = العربي).</summary>
+    public string? BoqDescriptionEn { get; set; }
     public Guid ProductId { get; set; }
     public string Sku { get; set; } = string.Empty;
     public string ItemName { get; set; } = string.Empty;
+    /// <summary>اسم الصنف بالإنجليزية من دليل الأصناف (فارغ = العربي المحفوظ على السطر).</summary>
+    public string? ItemNameEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal UnitCost { get; set; }

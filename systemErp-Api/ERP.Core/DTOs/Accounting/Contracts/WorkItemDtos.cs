@@ -8,6 +8,7 @@ public class WorkItemSummaryDto
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public string? SectionName { get; set; }
+    public string? SectionNameEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public string? UnitDescription { get; set; }
     public string LineKind { get; set; } = "measured";
@@ -56,6 +57,8 @@ public class SaveWorkItemDto
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public string? SectionName { get; set; }
+    /// <summary>القسم بالإنجليزية (اختياري).</summary>
+    public string? SectionNameEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public string? UnitDescription { get; set; }
     public decimal StandardQuantity { get; set; } = 1m;

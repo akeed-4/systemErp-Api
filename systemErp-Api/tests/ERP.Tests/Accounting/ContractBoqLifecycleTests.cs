@@ -48,7 +48,7 @@ public class ContractBoqLifecycleTests : TestBase
         var created = await api.Post("/commercialcontracts", new
         {
             title = "عقد", contractType = "construction_boq", workflow, requiresGuarantee = false,
-            // المقاولات على المسار الكامل تلزمها الضمان البنكي إلزاماً
+            // ضمان بنكي اختياري: بيانات الضمان تُمسح مع requiresGuarantee = false
             guaranteeNumber = workflow == "full" ? "LG-1" : null, guaranteeAmount = workflow == "full" ? 500m : (decimal?)null,
             guaranteeExpiry = workflow == "full" ? DateTime.UtcNow.Date.AddYears(1) : (DateTime?)null,
             partyType, partyId = party, partyName = "طرف", startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(3),

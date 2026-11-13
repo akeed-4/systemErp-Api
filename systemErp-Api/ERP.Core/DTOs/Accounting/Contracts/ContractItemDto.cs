@@ -5,6 +5,8 @@ public partial class ContractItemDto
     public Guid Id { get; set; }
     public Guid? ItemId { get; set; }
     public string Description { get; set; } = string.Empty;
+    /// <summary>وصف البند بالإنجليزية (اختياري) للطباعة باللغة الإنجليزية.</summary>
+    public string? DescriptionEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     /// <summary>
@@ -18,6 +20,8 @@ public partial class ContractItemDto
     public decimal TotalWithVat { get; set; }
     public string? LineCode { get; set; }
     public string? SectionName { get; set; }
+    /// <summary>القسم بالإنجليزية (اختياري) للطباعة بالإنجليزية.</summary>
+    public string? SectionNameEn { get; set; }
     public string LineKind { get; set; } = "measured";
     /// <summary>للقراءة: الكمية بعد أوامر التغيير المعتمدة (= الكمية الأصلية حتى يُعتمد أمر تغيير)؛ عليها يُقاس المستخلص.</summary>
     public decimal RevisedQuantity { get; set; }

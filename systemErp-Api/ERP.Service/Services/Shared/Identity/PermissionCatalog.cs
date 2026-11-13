@@ -97,6 +97,10 @@ public static class PermissionCatalog
             Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: ConstructionProjectsScreenId),
         new(SiteDailyReportsScreenId, "contracts", "التقرير اليومي للموقع (الإنجاز بالساعة)", "Site Daily Reports (Hourly Progress)",
             Crud(A.Submit, A.Approve), new[] { "construction/site-reports" }, InheritsFrom: CommercialContractsScreenId),
+        // اعتماد المستخلص (أو إعادته للتعديل) منفصلاً عن اعتماد العقد نفسه: مهندس/مدير يعتمد المستخلصات دون أن يعتمد العقود؛
+        // يرث «اعتماد» العقود التجارية حتى تُحفظ له صلاحية مستقلة (فلا يتغير شيء لمن يعتمد اليوم)
+        new(ContractCertificateApprovalScreenId, "contracts", "المستخلصات: اعتماد المستخلص أو إعادته", "Progress Certificates: Approve or Return",
+            new[] { A.Approve }, Array.Empty<string>(), InheritsFrom: CommercialContractsScreenId),
 
         new("sales", "sales", "فواتير المبيعات ونقاط البيع (POS)", "Sales Invoices & POS",
             Crud(A.Approve, A.Post, A.Cancel, A.Discount),
@@ -111,6 +115,10 @@ public static class PermissionCatalog
             Crud(A.Approve, A.Post), new[] { "purchases", "stock-transfers", "costing" }),
         new(PurchaseLandedCostsScreenId, "purchases", "التكاليف الإضافية للمشتريات (شحن، جمارك، تخليص)", "Purchase Landed Costs (Freight, Customs, Clearance)",
             Crud(A.Approve, A.Cancel), new[] { "purchases/landed-costs" }, InheritsFrom: "purchases"),
+        // اعتماد طلب الشراء منفصلاً عن اعتماد فواتير المشتريات: مدير يعتمد الطلبات (بحد اعتماده) دون صلاحية على الفواتير؛
+        // يرث «اعتماد» المشتريات حتى تُحفظ له صلاحية مستقلة
+        new(PurchaseRequisitionApprovalScreenId, "purchases", "طلبات الشراء: اعتماد الطلب", "Purchase Requisitions: Approve",
+            new[] { A.Approve }, Array.Empty<string>(), InheritsFrom: "purchases"),
 
         new("accounts", "accounting", "دليل الحسابات والقيود اليومية", "Chart of Accounts",
             Crud(A.Approve, A.Post, A.Cancel, A.Close), new[] { "accounts-tree", "cost-centers", "bank-reconciliation", "fiscal-periods", "fixed-assets" }),
@@ -178,6 +186,8 @@ public static class PermissionCatalog
     public const string WhatsAppScreenId = "whatsapp";
     public const string WhatsAppSendScreenId = "whatsapp-send";
     public const string PurchaseLandedCostsScreenId = "purchase-landed-costs";
+    public const string PurchaseRequisitionApprovalScreenId = "purchase-requisition-approval";
+    public const string ContractCertificateApprovalScreenId = "contract-certificate-approval";
     public const string ProductionOrdersScreenId = "production-orders";
 
     private static readonly Dictionary<string, PermissionScreenDefinition> ById = Screens.ToDictionary(s => s.Id);

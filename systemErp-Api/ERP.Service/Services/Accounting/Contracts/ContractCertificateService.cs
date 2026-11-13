@@ -234,11 +234,14 @@ public class ContractCertificateService : IContractCertificateService
             RequireStatus(cert, St.Draft);
             await RemeasureAsync(cert, contract, token);
             if (cert.Kind == ContractCertificateKinds.Interim && cert.CurrentWorkValue <= 0) throw new ValidationFailedException(Messages.CertificateEmpty);
-            // الدوري: المنجز يُحسب بنهاية الفترة، فالمستخلص الجاري لا يُقدَّم قبلها؛ الفترة موعد تقديم لا قيد على الإنجاز:
-            // الختامي، أو مستخلص يُكمل كل البنود 100%، يُقدَّم متى انتهت الأعمال
+            // الدوري: نهاية الفترة موعد استحقاق لا قفل. التقديم قبلها يُغلق فترة هذا المستخلص بتاريخ اليوم، فتبدأ الفترة التالية
+            // بعده وتنتهي بنهاية شهرها (دفعة 50% منتصف الشهر ثم الباقي جائز). الختامي أو مستخلص يُكمل كل البنود 100% يبقى بفترته.
             if (contract.CertificateSchedule == ContractCertificateSchedules.Periodic && cert.Kind == ContractCertificateKinds.Interim
                 && cert.PeriodTo is { } periodEnd && SaudiTime.Today < periodEnd.Date && !CompletesContract(cert))
-                throw new ConflictException(string.Format(Messages.CertificatePeriodNotEnded, periodEnd.ToString("yyyy-MM-dd")));
+            {
+                var from = cert.PeriodFrom?.Date ?? SaudiTime.Today;
+                cert.PeriodTo = SaudiTime.Today < from ? from : SaudiTime.Today;
+            }
             cert.Status = St.Submitted;
             cert.SubmittedAt = DateTime.UtcNow; cert.SubmittedBy = _user.Name ?? "system";
             await SaveAsync(token);
@@ -615,9 +618,15 @@ public class ContractCertificateService : IContractCertificateService
         => (await _db.Set<ContractCertificate>().AsNoTracking()
                 .Where(c => c.ContractId == contractId && c.Status != St.Cancelled && (excludeId == null || c.Id != excludeId))
                 .OrderBy(c => c.SequenceNo)
-                .Select(c => new { c.Id, c.CertificateNumber, c.Status, c.Kind, c.PeriodFrom, c.PeriodTo, c.CurrentWorkValue, c.NetPayable })
+                .Select(c => new
+                {
+                    c.Id, c.CertificateNumber, c.Status, c.Kind, c.PeriodFrom, c.PeriodTo, c.CurrentWorkValue, c.NetPayable,
+                    // أكمل كل بنود العقد 100% (كما CompletesContract): ينهي الجدولة كالختامي
+                    Completes = c.Lines.Any(l => l.ContractQuantity > 0)
+                        && c.Lines.Where(l => l.ContractQuantity > 0).All(l => l.CumulativeQuantity >= l.ContractQuantity - 0.00005m),
+                })
                 .ToListAsync(ct))
-            .Select(c => new ScheduledCertificate(c.Id, c.CertificateNumber, c.Status, c.Kind, c.PeriodFrom, c.PeriodTo, c.CurrentWorkValue, c.NetPayable))
+            .Select(c => new ScheduledCertificate(c.Id, c.CertificateNumber, c.Status, c.Kind, c.PeriodFrom, c.PeriodTo, c.CurrentWorkValue, c.NetPayable, c.Completes))
             .ToList();
 
     private static void RequireActive(CommercialContract c)

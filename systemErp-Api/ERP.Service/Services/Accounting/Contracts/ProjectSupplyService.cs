@@ -678,21 +678,26 @@ public class ProjectSupplyService : IProjectSupplyService
     /// <summary>بيانات القراءة المشتركة لأذونات العقد: وصف بنود جدول الكميات، والمختار من كل سطر في مستخلصات غير ملغاة (استعلامان للعقد كله).</summary>
     private sealed record IssueExtras(Dictionary<Guid, BoqLabel> Boq, Dictionary<Guid, (decimal Quantity, decimal Cost)> Certified,
         Dictionary<Guid, (decimal Quantity, decimal Cost)> Withdrawn,
-        ProjectHeader? Project, Dictionary<Guid, string> Warehouses);
-    private sealed record BoqLabel(string? Code, string Description);
-    private sealed record ProjectHeader(string ContractNumber, string? ProjectName, string? ProjectLocation, string? PartyName);
+        ProjectHeader? Project, Dictionary<Guid, string> Warehouses, Dictionary<Guid, string> ProductNamesEn);
+    private sealed record BoqLabel(string? Code, string Description, string? DescriptionEn);
+    private sealed record ProjectHeader(string ContractNumber, string? ProjectName, string? ProjectNameEn, string? ProjectLocation, string? PartyName);
 
     private async Task<IssueExtras> ExtrasAsync(Guid contractId, CancellationToken ct)
     {
         var boq = await _db.Set<CommercialContractItem>().AsNoTracking().Where(i => i.ContractId == contractId)
-            .Select(i => new { i.Id, i.LineCode, i.Description }).ToDictionaryAsync(i => i.Id, i => new BoqLabel(i.LineCode, i.Description), ct);
+            .Select(i => new { i.Id, i.LineCode, i.Description, i.DescriptionEn })
+            .ToDictionaryAsync(i => i.Id, i => new BoqLabel(i.LineCode, i.Description, i.DescriptionEn), ct);
         var project = await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId)
-            .Select(c => new ProjectHeader(c.ContractNumber, c.ProjectName ?? c.Title, c.ProjectLocation, c.PartyName)).FirstOrDefaultAsync(ct);
+            .Select(c => new ProjectHeader(c.ContractNumber, c.ProjectName ?? c.Title, c.ProjectNameEn ?? c.TitleEn, c.ProjectLocation, c.PartyName)).FirstOrDefaultAsync(ct);
         var warehouses = await _db.Set<Warehouse>().AsNoTracking()
             .Where(w => _db.Set<ProjectMaterialIssue>().Any(i => i.ContractId == contractId && i.WarehouseId == w.Id))
             .ToDictionaryAsync(w => w.Id, w => w.NameAr, ct);
+        // الأسماء الإنجليزية لأصناف أذونات العقد (طباعة الإذن بالإنجليزية؛ السطر يحفظ الاسم العربي وقت إنشائه)
+        var productNamesEn = await _db.Set<Product>().AsNoTracking()
+            .Where(p => p.NameEn != "" && _db.Set<ProjectMaterialIssueLine>().Any(l => l.ProductId == p.Id && l.Issue.ContractId == contractId))
+            .ToDictionaryAsync(p => p.Id, p => p.NameEn, ct);
         return new IssueExtras(boq, await CertifiedMaterials.ByIssueLineAsync(_db, contractId, null, ct),
-            await CertifiedMaterials.WithdrawnByLineAsync(_db, contractId, null, ct), project, warehouses);
+            await CertifiedMaterials.WithdrawnByLineAsync(_db, contractId, null, ct), project, warehouses, productNamesEn);
     }
 
     // ---------- مواد البنود ----------
@@ -745,7 +750,7 @@ public class ProjectSupplyService : IProjectSupplyService
     private static ProjectMaterialIssueDocDto ToDto(ProjectMaterialIssue i, Dictionary<Guid, (decimal Required, decimal Before)>? columns, IssueExtras extras) => new()
     {
         Id = i.Id, ContractId = i.ContractId, ContractNumber = extras.Project?.ContractNumber, ProjectName = extras.Project?.ProjectName,
-        ProjectLocation = extras.Project?.ProjectLocation, PartyName = extras.Project?.PartyName,
+        ProjectNameEn = extras.Project?.ProjectNameEn, ProjectLocation = extras.Project?.ProjectLocation, PartyName = extras.Project?.PartyName,
         WarehouseName = i.WarehouseId is { } wid ? extras.Warehouses.GetValueOrDefault(wid) : null,
         IssueNumber = i.IssueNumber, Date = i.Date, WarehouseId = i.WarehouseId, ReceiverType = i.ReceiverType,
         ReceiverName = i.ReceiverName, ReceiverEmployeeId = i.ReceiverEmployeeId, ReceiverSupplierId = i.ReceiverSupplierId, RequisitionId = i.RequisitionId,
@@ -757,8 +762,9 @@ public class ProjectSupplyService : IProjectSupplyService
             var boq = l.BoqItemId is { } b ? extras.Boq.GetValueOrDefault(b) : null;
             return new ProjectMaterialIssueLineDto
             {
-                Id = l.Id, BoqItemId = l.BoqItemId, BoqLineCode = boq?.Code, BoqDescription = boq?.Description,
-                ProductId = l.ProductId, Sku = l.Sku, ItemName = l.ItemName, Unit = l.Unit, Quantity = l.Quantity,
+                Id = l.Id, BoqItemId = l.BoqItemId, BoqLineCode = boq?.Code, BoqDescription = boq?.Description, BoqDescriptionEn = boq?.DescriptionEn,
+                ProductId = l.ProductId, Sku = l.Sku, ItemName = l.ItemName, ItemNameEn = extras.ProductNamesEn.GetValueOrDefault(l.ProductId),
+                Unit = l.Unit, Quantity = l.Quantity,
                 UnitCost = l.UnitCost, TotalCost = l.TotalCost, Notes = l.Notes, CertifiedQuantity = extras.Certified.GetValueOrDefault(l.Id).Quantity,
                 SourceLineId = l.SourceLineId, WithdrawnQuantity = extras.Withdrawn.GetValueOrDefault(l.Id).Quantity,
                 RequiredQuantity = Math.Round(req, Decimals), DeliveredBefore = before, RemainingBefore = Math.Max(0, Math.Round(req - before, Decimals)),

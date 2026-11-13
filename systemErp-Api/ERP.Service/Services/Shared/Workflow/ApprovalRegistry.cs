@@ -138,6 +138,8 @@ public static class ApprovalRegistry
             .Get((s, id, ct) => s.GetAsync(id, ct)).Amount(r => r.TotalEstimatedCost)
             .Create<CreateMaterialRequisitionDto>(Create, (s, d, ct) => s.CreateAsync(d, ct))
             .Update<UpdateMaterialRequisitionDto>(Edit, (s, id, d, ct) => s.UpdateAsync(id, d, ct))
+            // اعتماد الطلب: يُحجز بمسار السياسة (مستويات المعتمدين وحد المبلغ بالتكلفة التقديرية) ويُنفَّذ عند الاعتماد النهائي
+            .Act(Approve, (s, id, ct) => s.ApproveAsync(id, ct))
             .Delete(Delete, (s, id, ct) => s.DeleteAsync(id, ct)).Handler;
 
         yield return For<IPurchaseLandedCostService, PurchaseLandedCostDto>("purchase-landed-costs", "purchase_landed_cost")

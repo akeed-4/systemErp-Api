@@ -9,8 +9,11 @@ public interface IFeasibilityStudyService
     Task<List<FeasibilityStudyRowDto>> ListAsync(string? status, CancellationToken ct = default);
 
     /// <summary>
-    /// «إنشاء العقد»: الدراسة بخطة معتمدة تصير عقداً بالسجل نفسه (رقم عقد، ومركز تكلفة المشروع)، وتدخل دورة العقد من المسودة.
-    /// رقم الدراسة ونسختاها المجمّدتان تبقى. يعيد صف الدراسة المحدَّث.
+    /// «إنشاء العقد»: الدراسة بخطة معتمدة تصير عقداً بالسجل نفسه (رقم عقد، ومركز تكلفة المشروع) ويُفعَّل مباشرة (ساري) بلا دورة
+    /// المراجعة والاعتماد، بشرط بيانات العقد المكتملة والضمان وصلاحية الاعتماد؛ وإلا يُرفض كله بما ينقص. رقم الدراسة ونسختاها تبقى.
     /// </summary>
     Task<FeasibilityStudyRowDto> CreateContractAsync(Guid contractId, CreateContractFromStudyDto request, CancellationToken ct = default);
+
+    /// <summary>تفعيل عقد أُنشئ من دراسة وبقي مسودة (قبل قاعدة التفعيل المباشر، أو بعد استكمال شروطه).</summary>
+    Task<FeasibilityStudyRowDto> ActivateContractAsync(Guid contractId, CancellationToken ct = default);
 }

@@ -273,8 +273,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         // ليحدد انتقالاته؛ بلا اختيار (عميل قديم/طلب اعتماد معلّق) يُشتق من النوع وحد التبسيط كما كان.
         // تفعيل المبسط انتقال عادي عبر move (صلاحية الاعتماد وحد يغطي القيمة).
         e.IsSimplified = SelectedSimplified(d.Workflow) ?? ContractTypeCodes.IsSimplified(type, e.ContractValue);
-        // الضمان البنكي إلزامي لنوع يتطلبه على المسار الكامل (لا يُلغيه الطلب)؛ وفي غيره اختيار لكل عقد (بلا اختيار: لا ضمان)
-        ApplyGuarantee(e, ContractTypeCodes.GuaranteeMandatory(type, e.IsSimplified) || d.RequiresGuarantee == true);
+        // الضمان البنكي اختيار لكل عقد؛ بلا اختيار يأخذ افتراض النوع (يلزمه ضمان + مسار كامل)، والاختيار الصريح يغلبه دائماً
+        ApplyGuarantee(e, d.RequiresGuarantee ?? ContractTypeCodes.GuaranteeDefault(type, e.IsSimplified));
         e.Stage = ContractStageDefinition.Draft;
         e.Status = StatusFor(e.Stage);
         e.StageChangedAt = DateTime.UtcNow;
@@ -339,9 +339,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
                 throw new ValidationFailedException(Messages.ContractWorkflowLocked);
             e.IsSimplified = selected;
         }
-        // الضمان يُفعَّل أو يُلغى في المسودة (التعديل في المسودة فقط)؛ null = يبقى كما هو. والإلزامي (نوع يتطلبه + مسار كامل) لا يُلغى
-        ApplyGuarantee(e, ContractTypeCodes.GuaranteeMandatory(type, e.IsSimplified)
-            || (d.RequiresGuarantee ?? o.GetValue<bool>(nameof(CommercialContract.RequiresGuarantee))));
+        // الضمان يُفعَّل أو يُلغى في المسودة (التعديل في المسودة فقط)؛ null = يبقى كما هو
+        ApplyGuarantee(e, d.RequiresGuarantee ?? o.GetValue<bool>(nameof(CommercialContract.RequiresGuarantee)));
         e.TotalInvoiced = o.GetValue<decimal>(nameof(CommercialContract.TotalInvoiced));
         e.TotalCollected = o.GetValue<decimal>(nameof(CommercialContract.TotalCollected));
         // جدولة المستخلصات لم تُرسل (عميل قديم): تبقى كما هي
@@ -444,6 +443,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             i.LineCode = string.IsNullOrWhiteSpace(i.LineCode) ? null : i.LineCode.Trim();
             i.SectionName = string.IsNullOrWhiteSpace(i.SectionName) ? null : i.SectionName.Trim();
             i.UnitDescription = string.IsNullOrWhiteSpace(i.UnitDescription) ? null : i.UnitDescription.Trim();
+            i.DescriptionEn = string.IsNullOrWhiteSpace(i.DescriptionEn) ? null : i.DescriptionEn.Trim();
+            i.SectionNameEn = string.IsNullOrWhiteSpace(i.SectionNameEn) ? null : i.SectionNameEn.Trim();
             i.RevisedQuantity = i.Quantity; // التعديل في المسودة وحدها، قبل أي أمر تغيير
             i.VariationId = null; // يضبطه اعتماد أمر التغيير وحده
             // بلا سعر عطاء (عميل قديم أو عقد قبل الحقل): السعر المرسل هو سعر العطاء

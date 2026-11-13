@@ -835,6 +835,10 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DescriptionEn")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<decimal>("EstimatedUnitCost")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -878,6 +882,10 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("SectionName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SectionNameEn")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -7381,6 +7389,10 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SectionName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SectionNameEn")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 

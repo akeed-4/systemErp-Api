@@ -6,6 +6,8 @@ public class CommercialContractItem : BaseEntity
     public Guid ContractId { get; set; }
     public Guid? ItemId { get; set; }
     public string Description { get; set; } = string.Empty;
+    /// <summary>وصف البند بالإنجليزية (اختياري): يُطبع في مستندات العقد والدراسة حين تكون الواجهة بالإنجليزية، وإلا الوصف العربي.</summary>
+    public string? DescriptionEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     /// <summary>
@@ -23,6 +25,8 @@ public class CommercialContractItem : BaseEntity
     public string? LineCode { get; set; }
     /// <summary>الباب/القسم الذي يتبعه البند (أعمال ترابية، خرسانة...).</summary>
     public string? SectionName { get; set; }
+    /// <summary>القسم بالإنجليزية (اختياري): من بند المكتبة أو الاستيراد، ويُطبع حين تكون الواجهة بالإنجليزية.</summary>
+    public string? SectionNameEn { get; set; }
     /// <summary><see cref="ContractBoqLineKinds"/>: measured | lump_sum | provisional.</summary>
     public string LineKind { get; set; } = ContractBoqLineKinds.Measured;
     /// <summary>الكمية المعتمدة بعد الملاحق؛ تساوي <see cref="Quantity"/> حتى تُعتمد ملاحق (يضبطها الخادم).</summary>

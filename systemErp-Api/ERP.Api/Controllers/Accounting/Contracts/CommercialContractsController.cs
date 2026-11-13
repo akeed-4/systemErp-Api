@@ -344,7 +344,8 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/approve"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ApproveCertificate(Guid id, Guid certificateId, CancellationToken ct)
     {
-        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        // صلاحية مستقلة لاعتماد المستخلص (ترث اعتماد العقود حتى تُحفظ)، بنطاق سجل العقد ومرحلته وحد الاعتماد
+        await _permissions.AuthorizeRecordAsync(PermissionCatalog.ContractCertificateApprovalScreenId, ScreenAction.Approve, Record, id, ct: ct);
         return Success(await _certificates.ApproveAsync(id, certificateId, ct), Messages.CertificateApproved);
     }
 
@@ -352,7 +353,8 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/return"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> ReturnCertificate(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
     {
-        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        // الإعادة للتعديل قرار المعتمِد نفسه
+        await _permissions.AuthorizeRecordAsync(PermissionCatalog.ContractCertificateApprovalScreenId, ScreenAction.Approve, Record, id, ct: ct);
         return Success(await _certificates.ReturnAsync(id, certificateId, dto, ct), Messages.CertificateReturned);
     }
 

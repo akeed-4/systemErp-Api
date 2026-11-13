@@ -55,6 +55,10 @@ public class ExecutionPlanService : IExecutionPlanService
         var materialIds = materials.Where(m => m.ResourceId != null).Select(m => m.ResourceId!.Value).Distinct().ToList();
         var library = await _db.Set<ConstructionResource>().AsNoTracking().Where(r => materialIds.Contains(r.Id))
             .ToDictionaryAsync(r => r.Id, ct);
+        // الأسماء الإنجليزية للعمالة والمعدات (طباعة الدراسة بالإنجليزية)؛ تنبيهات المواد تبقى على قاموس المواد وحده
+        var resourceIds = resources.Where(r => r.ResourceId != null).Select(r => r.ResourceId!.Value).Distinct().ToList();
+        var resourceNamesEn = await _db.Set<ConstructionResource>().AsNoTracking().Where(r => resourceIds.Contains(r.Id))
+            .ToDictionaryAsync(r => r.Id, r => r.NameEn, ct);
         var supervisorIds = phases.Where(p => p.SupervisorUserId != null).Select(p => p.SupervisorUserId!.Value).Distinct().ToList();
         var users = supervisorIds.Count == 0 ? new Dictionary<Guid, string>()
             : await _db.Set<User>().AsNoTracking().Where(u => supervisorIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Name, ct);
@@ -86,13 +90,14 @@ public class ExecutionPlanService : IExecutionPlanService
         dto.Materials = materials.Select(m => new ExecutionPlanMaterialDto
         {
             Id = m.Id, PhaseId = m.PhaseId, BoqItemId = m.BoqItemId, SubItemId = m.SubItemId, ResourceId = m.ResourceId,
-            Name = m.ResourceId is Guid rid && library.TryGetValue(rid, out var lr) ? lr.NameAr : string.Empty, Unit = m.Unit,
+            Name = m.ResourceId is Guid rid && library.TryGetValue(rid, out var lr) ? lr.NameAr : string.Empty,
+            NameEn = m.ResourceId is Guid rid2 && library.TryGetValue(rid2, out var lr2) && !string.IsNullOrWhiteSpace(lr2.NameEn) ? lr2.NameEn : null, Unit = m.Unit,
             Quantity = m.BaselineQuantity, QuantityPerUnit = m.QuantityPerUnit, PlannedUnitCost = m.PlannedUnitCost,
             PlannedCost = DocumentPricing.Round(m.BaselineQuantity * m.PlannedUnitCost), Source = m.Source,
         }).ToList();
         dto.MaterialTotals = dto.Materials.GroupBy(m => (m.ResourceId, m.Unit)).Select(g => new ExecutionPlanMaterialTotalDto
         {
-            ResourceId = g.Key.ResourceId, Name = g.First().Name, Unit = g.Key.Unit, Quantity = Math.Round(g.Sum(m => m.Quantity), Decimals),
+            ResourceId = g.Key.ResourceId, Name = g.First().Name, NameEn = g.First().NameEn, Unit = g.Key.Unit, Quantity = Math.Round(g.Sum(m => m.Quantity), Decimals),
             PlannedCost = DocumentPricing.Round(g.Sum(m => m.PlannedCost)), LineCount = g.Select(m => m.SubItemId ?? m.BoqItemId).Distinct().Count(),
         }).OrderBy(t => t.Name).ToList();
         dto.Resources = resources.Select(ToDto).ToList();
@@ -101,6 +106,7 @@ public class ExecutionPlanService : IExecutionPlanService
             .Select(g => new ExecutionPlanResourceTotalDto
             {
                 ResourceId = g.Key.ResourceId, ResourceType = g.Key.ResourceType, Name = g.First().Name, Unit = g.Key.Unit,
+                NameEn = g.Key.ResourceId is Guid rid && resourceNamesEn.TryGetValue(rid, out var en) && !string.IsNullOrWhiteSpace(en) ? en : null,
                 Quantity = Math.Round(g.Sum(r => r.Quantity), Decimals), PlannedHours = Math.Round(g.Sum(r => r.PlannedHours), 2),
                 PlannedCost = DocumentPricing.Round(g.Sum(r => r.PlannedCost)), LineCount = g.Where(r => r.ContractItemId != null).Select(r => r.ContractItemId).Distinct().Count(),
             })
@@ -163,6 +169,13 @@ public class ExecutionPlanService : IExecutionPlanService
 
     public async Task<ExecutionPlanDto> GenerateAsync(Guid contractId, GenerateExecutionPlanDto request, CancellationToken ct = default)
     {
+        // الخطة تُبنى من تحليل التكلفة المجمّد: البنود التي لم تُسعَّر بعد تُسعَّر من المكتبة أولاً (بنود المكتبة المرتبطة فقط؛
+        // غير المرتبط يُتخطى ويظهر تنبيهه)، فلا يحتاج المستخدم «تطبيق» التسعير يدوياً قبل التجهيز. المسعَّر لا يُمس.
+        var head = await _db.Set<CommercialContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == contractId, ct);
+        var unpriced = head != null && ContractCostAnalysisService.IsEditable(head) ? await UnpricedLinesAsync(contractId, ct) : new List<Guid>();
+        if (unpriced.Count > 0)
+            await _analysis.ApplyAsync(contractId, new ApplyContractCostRefreshDto { ContractItemIds = unpriced, KeepOverrides = true }, ct);
+
         await _tx.RunAsync(async token =>
         {
             var contract = await ConstructionProjectService.LoadBoqContractAsync(_db, contractId, token, track: true);
@@ -190,6 +203,15 @@ public class ExecutionPlanService : IExecutionPlanService
             await _db.SaveChangesAsync(token);
         }, ct);
         return await GetAsync(contractId, ct);
+    }
+
+    /// <summary>أسطر جدول الكميات (غير المجموعات) بلا صفوف تحليل تكلفة.</summary>
+    private async Task<List<Guid>> UnpricedLinesAsync(Guid contractId, CancellationToken ct)
+    {
+        var priced = _db.Set<ContractItemResourceCost>().Where(r => r.ContractId == contractId).Select(r => r.ContractItemId);
+        return await _db.Set<CommercialContractItem>().AsNoTracking()
+            .Where(i => i.ContractId == contractId && !i.IsGroup && !priced.Contains(i.Id))
+            .Select(i => i.Id).ToListAsync(ct);
     }
 
     /// <summary>المراحل حسب أبواب جدول الكميات؛ يعيد مرحلة كل سطر (المولَّدة والمبقاة).</summary>

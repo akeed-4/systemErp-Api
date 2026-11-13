@@ -15,10 +15,21 @@ public class FeasibilityStudyService : IFeasibilityStudyService
     private readonly ITransactionRunner _tx;
     private readonly INumberSequenceService _numbers;
     private readonly ICurrentUser _user;
+    private readonly IContractWorkflowService _workflow;
 
-    public FeasibilityStudyService(ErpDbContext db, ITransactionRunner tx, INumberSequenceService numbers, ICurrentUser user)
+    public FeasibilityStudyService(ErpDbContext db, ITransactionRunner tx, INumberSequenceService numbers, ICurrentUser user, IContractWorkflowService workflow)
     {
-        _db = db; _tx = tx; _numbers = numbers; _user = user;
+        _db = db; _tx = tx; _numbers = numbers; _user = user; _workflow = workflow;
+    }
+
+    public async Task<FeasibilityStudyRowDto> ActivateContractAsync(Guid contractId, CancellationToken ct = default)
+    {
+        await _tx.RunAsync(async token =>
+        {
+            await _workflow.ActivateFromStudyAsync(contractId, token);
+            await _db.SaveChangesAsync(token);
+        }, ct);
+        return (await ListAsync(null, ct)).First(r => r.Id == contractId);
     }
 
     public async Task<FeasibilityStudyRowDto> CreateContractAsync(Guid contractId, CreateContractFromStudyDto request, CancellationToken ct = default)
@@ -41,11 +52,11 @@ public class FeasibilityStudyService : IFeasibilityStudyService
             }, token);
             c.FeasibilityStatus = FeasibilityStatuses.Contracted;
             await ConstructionProjectService.EnsureCostCenterAsync(_db, c, token);
-            // الضمان البنكي إلزامي لنوع يتطلبه على المسار الكامل (دراسة قديمة حُفظت بلا ضمان تُصحَّح هنا)
-            var type = await _db.Set<ContractTypeDefinition>().AsNoTracking().FirstOrDefaultAsync(t => t.Code == c.ContractType, token);
-            if (ContractTypeCodes.GuaranteeMandatory(type, c.IsSimplified)) c.RequiresGuarantee = true;
             // الموافقة المالية للجولة الأولى من اعتماد الدراسة نفسها (معتمِدها وتاريخها ومرجعها)
             await FeasibilityFinancialApproval.GrantAsync(_db, c, plan, _user, token);
+            await _db.SaveChangesAsync(token);
+            // اعتماد الدراسة والخطة هو قرار التعاقد: العقد يُفعَّل مباشرة بلا مراجعة واعتماد ثانيين؛ ما ينقص يرفض الإنشاء كله
+            await _workflow.ActivateFromStudyAsync(contractId, token);
             await _db.SaveChangesAsync(token);
         }, ct);
         return (await ListAsync(null, ct)).First(r => r.Id == contractId);

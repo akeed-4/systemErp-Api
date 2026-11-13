@@ -320,6 +320,7 @@ public class WorkItemService : IWorkItemService
         item.NameAr = d.NameAr.Trim();
         item.NameEn = d.NameEn?.Trim() ?? string.Empty;
         item.SectionName = Trim(d.SectionName, 200);
+        item.SectionNameEn = Trim(d.SectionNameEn, 200);
         item.Unit = d.Unit;
         item.UnitDescription = Trim(d.UnitDescription, 200);
         item.StandardQuantity = d.StandardQuantity;
@@ -483,7 +484,7 @@ public class WorkItemService : IWorkItemService
 
         var dto = new WorkItemDto
         {
-            Id = w.Id, Code = w.Code, NameAr = w.NameAr, NameEn = w.NameEn, SectionName = w.SectionName, Unit = w.Unit,
+            Id = w.Id, Code = w.Code, NameAr = w.NameAr, NameEn = w.NameEn, SectionName = w.SectionName, SectionNameEn = w.SectionNameEn, Unit = w.Unit,
             UnitDescription = w.UnitDescription, LineKind = w.LineKind, IsActive = w.IsActive, UpdatedAt = w.UpdatedAt ?? w.CreatedAt,
             SubItemCount = w.SubItems.Count, ComponentCount = w.Components.Count,
             UnitCost = unitCost, SellPrice = sell, Margin = margin, MarginPercent = unitCost > 0 && sell > 0 ? Math.Round(margin / sell * 100m, 2) : 0,

@@ -80,6 +80,8 @@ public class ExecutionPlanMaterialDto
     public Guid? SubItemId { get; set; }
     public Guid? ResourceId { get; set; }
     public string Name { get; set; } = string.Empty;
+    /// <summary>الاسم بالإنجليزية من مورد المكتبة (فارغ = العربي) للطباعة بالإنجليزية.</summary>
+    public string? NameEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal QuantityPerUnit { get; set; }
@@ -92,6 +94,8 @@ public class ExecutionPlanMaterialTotalDto
 {
     public Guid? ResourceId { get; set; }
     public string Name { get; set; } = string.Empty;
+    /// <summary>الاسم بالإنجليزية من مورد المكتبة (فارغ = العربي).</summary>
+    public string? NameEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal PlannedCost { get; set; }
@@ -104,6 +108,8 @@ public class ExecutionPlanResourceTotalDto
     public Guid? ResourceId { get; set; }
     public string ResourceType { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    /// <summary>الاسم بالإنجليزية من مورد المكتبة (فارغ = العربي، واليدوي بلا مورد بلا اسم إنجليزي).</summary>
+    public string? NameEn { get; set; }
     public string Unit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal PlannedHours { get; set; }

@@ -7,7 +7,11 @@ namespace ERP.Service.Services.Accounting;
 
 /// <summary>مستخلص غير ملغى كما تحتاجه الجدولة (بترتيب رقمه داخل العقد).</summary>
 internal sealed record ScheduledCertificate(Guid Id, string Number, string Status, string Kind,
-    DateTime? PeriodFrom, DateTime? PeriodTo, decimal CurrentWorkValue, decimal NetPayable);
+    DateTime? PeriodFrom, DateTime? PeriodTo, decimal CurrentWorkValue, decimal NetPayable, bool CompletesContract = false)
+{
+    /// <summary>ينهي الجدولة: ختامي، أو مستخلص أكمل كل البنود 100% (فلا تُفرض بقية الفترات حتى نهاية العقد).</summary>
+    public bool Closes => Kind == Kinds.Final || CompletesContract;
+}
 
 /// <summary>
 /// جدولة مستخلصات عقد المقاولات حسب اتفاق العقد:
@@ -16,7 +20,8 @@ internal sealed record ScheduledCertificate(Guid Id, string Number, string Statu
 /// <item>دوري كل N شهر: الفترة الأولى من بداية العقد حتى نهاية الشهر (N−1 بعده)، وكل فترة تبدأ بعد نهاية سابقتها
 /// وآخرها يُقص عند نهاية العقد. المستخلص المحفوظ يحتفظ بفترته فلا يتغير الجدول بأثر رجعي.</item>
 /// </list>
-/// المستخلصات غير الملغاة تشغل الخانات بترتيبها، والختامي يُغلق ما بعده.
+/// المستخلصات غير الملغاة تشغل الخانات بترتيبها، والختامي (أو مستخلص أكمل كل البنود 100%) يُغلق ما بعده. الفترة موعد استحقاق
+/// لا قفل: المستخلص المقدَّم قبل نهايتها تُقص فترته بتاريخ تقديمه.
 /// </summary>
 internal static class ContractCertificateScheduler
 {
@@ -26,8 +31,8 @@ internal static class ContractCertificateScheduler
         {
             Mode = c.CertificateSchedule, Count = c.CertificateCount, PeriodMonths = c.CertificatePeriodMonths, Used = certs.Count,
         };
-        var finalAt = IndexOf(certs, x => x.Kind == Kinds.Final);
-        var finalApproved = certs.Any(x => x.Kind == Kinds.Final && x.Status is St.Approved or St.Invoiced);
+        var finalAt = IndexOf(certs, x => x.Closes);
+        var finalApproved = certs.Any(x => x.Closes && x.Status is St.Approved or St.Invoiced);
         var count = c.CertificateCount ?? 0;
         dto.Complete = finalApproved || (c.CertificateSchedule == Schedules.Installments && count > 0 && certs.Count >= count);
 

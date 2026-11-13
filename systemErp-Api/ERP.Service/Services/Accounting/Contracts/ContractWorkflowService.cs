@@ -25,9 +25,9 @@ public static class ContractTypeCodes
         => type.Workflow == ContractWorkflows.Simple || (type.SimpleLimit.HasValue && contractValue < type.SimpleLimit.Value);
 
     /// <summary>
-    /// الضمان البنكي إلزامي (لا يُلغيه المستخدم ولا الطلب): نوع يتطلب الضمان على المسار الكامل. بقية المسارات اختيار لكل عقد كما كانت.
+    /// الضمان البنكي الافتراضي لعقد جديد بلا اختيار صريح: نوع يتطلبه على المسار الكامل. افتراض لا إلزام؛ المستخدم يلغيه لكل عقد.
     /// </summary>
-    public static bool GuaranteeMandatory(ContractTypeDefinition? type, bool isSimplified)
+    public static bool GuaranteeDefault(ContractTypeDefinition? type, bool isSimplified)
         => type?.RequiresGuarantee == true && !isSimplified;
 }
 
@@ -158,6 +158,38 @@ public class ContractWorkflowService : IContractWorkflowService
         });
         c.Stage = to;
         c.Status = CommercialContractService.StatusFor(to);
+        c.StageChangedAt = DateTime.UtcNow;
+    }
+
+    public async Task ActivateFromStudyAsync(Guid contractId, CancellationToken ct = default)
+    {
+        var c = await LoadAsync(contractId, ct, track: true);
+        if (c.FeasibilityStatus != FeasibilityStatuses.Contracted || c.Stage != S.Draft)
+            throw new ConflictException(Messages.FeasibilityCreateContractNeedsApprovedPlan);
+        // صلاحية اعتماد العقود (بنطاقها وحد اعتمادها) بدل خطوة الاعتماد المتخطاة
+        await _permissions.AuthorizeAnyAsync(Record, c.Id, new[] { ScreenAction.Approve }, ct);
+
+        var type = await TypeAsync(c.ContractType, ct);
+        // الانتقال المعرّف «مسودة ← ساري» (اعتماد وتفعيل) أياً كان مسار العقد: اعتماد الدراسة والخطة يحل محل المراجعتين، والسجل
+        // يحمل الانتقال فيقبله حارس الحالة في قاعدة البيانات
+        var transition = await _db.Set<ContractTransition>().AsNoTracking()
+            .Where(t => t.IsActive && t.FromStatus == S.Draft && t.ToStatus == S.Active).OrderBy(t => t.SortOrder).FirstOrDefaultAsync(ct)
+            ?? throw new ConflictException(Messages.ContractStatusOutsideWorkflow);
+        // شروط المسودة ← ساري نفسها (البيانات المكتملة والضمان)، والنسخة الموقعة مع الضمان كما في خطوة الاعتماد
+        var blockers = await BlockersAsync(c, new ContractTransition { ToStatus = S.Active, Condition = "complete_data" }, type, new(), ct);
+        if (GuaranteeRequired(c, type) && !await _db.Set<ContractAttachment>().AnyAsync(a => a.ContractId == c.Id && a.Kind == "signed_copy", ct))
+            blockers.Add(Messages.ContractMissingSignedCopy);
+        if (blockers.Count > 0)
+            throw new ConflictException(string.Format(Messages.ContractConditionsMissing, "تفعيل العقد", string.Join("، ", blockers.Distinct())));
+
+        c.SignedDate ??= SaudiTime.Today;
+        _db.Add(new ContractStatusLog
+        {
+            ContractId = c.Id, FromStatus = c.Stage, ToStatus = S.Active, TransitionId = transition.Id, At = DateTime.UtcNow,
+            UserId = _user.UserId, UserName = _user.Name ?? "system", Note = $"تفعيل مباشر من دراسة الجدوى المعتمدة {c.FeasibilityNumber}",
+        });
+        c.Stage = S.Active;
+        c.Status = CommercialContractService.StatusFor(S.Active);
         c.StageChangedAt = DateTime.UtcNow;
     }
 
@@ -349,11 +381,9 @@ public class ContractWorkflowService : IContractWorkflowService
 
     /// <summary>ما ينقص قبل الانتقال (فارغ = جاهز). كل بند جملة واضحة تقول ماذا ينقص بالضبط.</summary>
     /// <summary>
-    /// الضمان مطلوب لهذا العقد: باختياره، أو إلزاماً من نوعه على المسار الكامل (يُفحص هنا أيضاً فلا يتخطاه عقد حُفظ بلا ضمان
-    /// قبل القاعدة أو بتغيير إعداد النوع).
+    /// الضمان مطلوب لهذا العقد باختياره فقط (مفتاح «ضمان بنكي» في نموذج العقد)؛ إعداد النوع قيمة افتراضية في الواجهة لا إلزام.
     /// </summary>
-    private static bool GuaranteeRequired(CommercialContract c, ContractTypeDefinition? type)
-        => c.RequiresGuarantee || ContractTypeCodes.GuaranteeMandatory(type, c.IsSimplified);
+    private static bool GuaranteeRequired(CommercialContract c, ContractTypeDefinition? _) => c.RequiresGuarantee;
 
     /// <summary>ضمان العقد (إن كان مطلوباً): رقم ومبلغ وتاريخ انتهاء لم يمضِ.</summary>
     private static void GuaranteeBlockers(CommercialContract c, ContractTypeDefinition? type, List<string> missing)

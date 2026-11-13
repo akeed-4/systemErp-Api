@@ -540,6 +540,8 @@ public class ErpDbContext : DbContext
             e.Property(i => i.SectionName).HasMaxLength(200);
             e.Property(i => i.LineKind).HasMaxLength(16).IsRequired().HasDefaultValue(ContractBoqLineKinds.Measured);
             e.Property(i => i.UnitDescription).HasMaxLength(200);
+            e.Property(i => i.DescriptionEn).HasMaxLength(2000);
+            e.Property(i => i.SectionNameEn).HasMaxLength(200);
             // مصدر السطر في المكتبة بلا قيد (نسخة مستقلة)، ومفهرس لتقارير «أين استُخدم البند»
             e.HasIndex(i => new { i.TenantId, i.WorkItemId });
         });
@@ -732,6 +734,7 @@ public class ErpDbContext : DbContext
             e.Property(w => w.NameAr).HasMaxLength(500).IsRequired();
             e.Property(w => w.NameEn).HasMaxLength(500);
             e.Property(w => w.SectionName).HasMaxLength(200);
+            e.Property(w => w.SectionNameEn).HasMaxLength(200);
             e.Property(w => w.Unit).HasMaxLength(20).IsRequired();
             e.Property(w => w.UnitDescription).HasMaxLength(200);
             e.Property(w => w.LineKind).HasMaxLength(16).IsRequired();

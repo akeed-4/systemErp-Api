@@ -24,4 +24,9 @@ public class FeasibilityStudiesController : ErpControllerBase
     [HttpPost("{id:guid}/create-contract"), RequireScreen(PermissionCatalog.CommercialContractsScreenId, ScreenAction.Create)]
     public async Task<IActionResult> CreateContract(Guid id, [FromBody] CreateContractFromStudyDto request, CancellationToken ct)
         => Success(await _studies.CreateContractAsync(id, request, ct));
+
+    /// <summary>تفعيل عقد مُنشأ من دراسة وبقي مسودة (صلاحية الاعتماد تُفحص في الخدمة بنطاقها وحدها).</summary>
+    [HttpPost("{id:guid}/activate-contract"), RequireScreen(PermissionCatalog.CommercialContractsScreenId, ScreenAction.Approve)]
+    public async Task<IActionResult> ActivateContract(Guid id, CancellationToken ct)
+        => Success(await _studies.ActivateContractAsync(id, ct));
 }

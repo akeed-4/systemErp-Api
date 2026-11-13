@@ -378,11 +378,11 @@ public class ContractWorkflowTests : TestBase
     };
 
     /// <summary>
-    /// نوع يتطلب الضمان + مسار كامل = ضمان إلزامي: لا يلغيه الإنشاء ولا التعديل، ولا يتخطاه عقد حُفظ بلا ضمان (قديم أو بكتابة مباشرة)،
-    /// فالتفعيل يُرفض حتى الضمان والنسخة الموقعة.
+    /// نوع يتطلب الضمان + مسار كامل = ضمان افتراضي لا إلزامي: الاختيار الصريح «بلا ضمان» يغلبه عند الإنشاء والتعديل، والتفعيل
+    /// بعدها بلا ضمان ولا نسخة موقعة.
     /// </summary>
     [Fact]
-    public async Task Mandatory_guarantee_cannot_be_bypassed_by_create_edit_or_stored_flag()
+    public async Task Type_guarantee_is_a_default_that_an_explicit_choice_switches_off()
     {
         var owner = await NewTenantAsync();
         var (party, _) = await SeedCustomerAsync(owner);
@@ -390,39 +390,20 @@ public class ContractWorkflowTests : TestBase
 
         var created = await owner.Post("/commercialcontracts", GuaranteeBody(party, product, "full", false));
         Assert.Equal(201, created.Status);
-        Assert.True(created.Data!["requiresGuarantee"]!.GetValue<bool>()); // الطلب أرسل false
+        Assert.False(created.Data!["requiresGuarantee"]!.GetValue<bool>());
         var id = created.Data["id"].S();
 
-        var edited = await owner.Put($"/commercialcontracts/{id}", GuaranteeBody(party, product, "full", false, "LG-5"));
-        Assert.Equal(200, edited.Status);
-        Assert.True(edited.Data!["requiresGuarantee"]!.GetValue<bool>());
-        Assert.Equal("LG-5", edited.Data["guaranteeNumber"].S()); // بياناته لم تُمسح
-
-        // عقد محفوظ بلا ضمان (قبل القاعدة أو بكتابة مباشرة) وبلا بياناته: القاعدة تُفحص عند الانتقال أيضاً
-        using (var scope = Factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
-            var c = await db.Set<CommercialContract>().IgnoreQueryFilters().FirstAsync(x => x.Id == Guid.Parse(id));
-            c.RequiresGuarantee = false; c.GuaranteeNumber = null; c.GuaranteeAmount = null; c.GuaranteeExpiry = null;
-            await db.SaveChangesAsync();
-        }
-        Assert.True((await owner.Get($"/commercialcontracts/{id}/workflow")).Data!["requiresGuarantee"]!.GetValue<bool>());
+        // تفعيل ثم إلغاء من التعديل: الإلغاء يمسح بياناته
+        var on = await owner.Put($"/commercialcontracts/{id}", GuaranteeBody(party, product, "full", true, "LG-5"));
+        Assert.True(on.Data!["requiresGuarantee"]!.GetValue<bool>());
+        var off = await owner.Put($"/commercialcontracts/{id}", GuaranteeBody(party, product, "full", false, "LG-5"));
+        Assert.False(off.Data!["requiresGuarantee"]!.GetValue<bool>());
+        Assert.Null(off.Data["guaranteeNumber"]?.GetValue<string?>());
+        Assert.False((await owner.Get($"/commercialcontracts/{id}/workflow")).Data!["requiresGuarantee"]!.GetValue<bool>());
 
         Assert.Equal(200, (await Move(owner, id, "review")).Status);
         await owner.Post($"/commercialcontracts/{id}/review", new { kind = "legal", decision = "approve" });
         await owner.Post($"/commercialcontracts/{id}/review", new { kind = "financial", decision = "approve" });
-        var blocked = await Move(owner, id, "active");
-        Assert.Equal(409, blocked.Status);
-        Assert.Contains("الضمان البنكي", blocked.Body!["message"].S());
-        var approvalStage = (await owner.Get($"/commercialcontracts/{id}/workflow")).Data!;
-        var activate = approvalStage["transitions"]!.AsArray().Single(t => t!["toStatus"].S() == "active")!;
-        Assert.Equal(2, activate["blockers"]!.AsArray().Count); // النسخة الموقعة والضمان
-
-        Assert.Equal(200, await UploadFileAsync(owner, $"/commercialcontracts/{id}/attachments?kind=signed_copy", "signed.pdf", SmallPdf));
-        Assert.Equal(200, (await owner.Put($"/commercialcontracts/{id}/signing", new
-        {
-            guaranteeNumber = "LG-6", guaranteeBank = "بنك", guaranteeAmount = 50, guaranteeExpiry = DateTime.UtcNow.Date.AddYears(1),
-        })).Status);
         var activated = await Move(owner, id, "active");
         Assert.True(activated.Status == 200, activated.Body?.ToJsonString());
     }

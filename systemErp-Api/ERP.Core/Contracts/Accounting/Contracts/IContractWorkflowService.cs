@@ -12,6 +12,11 @@ public interface IContractWorkflowService
     Task<ContractWorkflowDto> MoveAsync(Guid contractId, MoveContractRequestDto request, CancellationToken ct = default);
     /// <summary>قرار المراجع القانوني/المالي؛ اكتمال الموافقتين ينقل العقد للاعتماد، والإعادة ترجعه للمسودة.</summary>
     Task<ContractWorkflowDto> ReviewAsync(Guid contractId, ContractReviewRequestDto request, CancellationToken ct = default);
+    /// <summary>
+    /// تفعيل عقد مُنشأ من دراسة جدوى معتمدة (مسودة ← ساري) بلا دورة المراجعة والاعتماد: اعتماد الدراسة والخطة هو قرار التعاقد.
+    /// يشترط صلاحية الاعتماد وبيانات العقد المكتملة والضمان (والنسخة الموقعة معه). لا يحفظ؛ يحفظه المستدعي في معاملته.
+    /// </summary>
+    Task ActivateFromStudyAsync(Guid contractId, CancellationToken ct = default);
     Task<ContractWorkflowDto> SaveSigningAsync(Guid contractId, ContractSigningDto request, CancellationToken ct = default);
 
     Task<ContractAttachmentDto> AddAttachmentAsync(Guid contractId, string kind, string fileName, byte[] content, CancellationToken ct = default);

@@ -12,6 +12,8 @@ public class WorkItem : BaseEntity
     public string NameEn { get; set; } = string.Empty;
     /// <summary>الباب/القسم (كهرباء، خرسانة...): نص يجمع البنود في القائمة والتقارير.</summary>
     public string? SectionName { get; set; }
+    /// <summary>القسم بالإنجليزية (اختياري): يُنسخ لسطر العقد ويُطبع حين تكون الواجهة بالإنجليزية.</summary>
+    public string? SectionNameEn { get; set; }
     /// <summary>رمز وحدة القياس.</summary>
     public string Unit { get; set; } = string.Empty;
     public string? UnitDescription { get; set; }

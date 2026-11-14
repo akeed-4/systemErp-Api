@@ -36,6 +36,36 @@ public class ConstructionProjectProfile : BaseEntity
     public int? BreakStartMinutes { get; set; }
     public int? BreakEndMinutes { get; set; }
     public string? Notes { get; set; }
+
+    // ---------- الحضور الميداني بالموقع ----------
+    /// <summary>موقع المشروع (مركز نطاق الحضور).</summary>
+    public decimal? SiteLatitude { get; set; }
+    public decimal? SiteLongitude { get; set; }
+    /// <summary>نصف قطر النطاق المسموح للحضور بالمتر.</summary>
+    public int GeofenceRadiusMeters { get; set; } = ProjectGeofence.DefaultRadiusMeters;
+    /// <summary>أضعف دقة GPS مقبولة بالمتر؛ القراءة الأضعف تُرفض.</summary>
+    public int MaxGpsAccuracyMeters { get; set; } = ProjectGeofence.DefaultMaxAccuracyMeters;
+    public bool GpsAttendanceEnabled { get; set; }
+    /// <summary><see cref="OutOfRangePolicies"/>: التسجيل من خارج النطاق يُرفض، أو يُقبل استثناءً بسبب بانتظار مراجعة المشرف.</summary>
+    public string OutOfRangePolicy { get; set; } = OutOfRangePolicies.Reject;
+}
+
+public static class OutOfRangePolicies
+{
+    public const string Reject = "reject";
+    public const string Exception = "exception";
+    public static bool IsValid(string? policy) => policy is Reject or Exception;
+}
+
+/// <summary>حدود إعداد نطاق الحضور الميداني للمشروع.</summary>
+public static class ProjectGeofence
+{
+    public const int DefaultRadiusMeters = 200;
+    public const int MinRadiusMeters = 20;
+    public const int MaxRadiusMeters = 5000;
+    public const int DefaultMaxAccuracyMeters = 50;
+    public const int MinAccuracyMeters = 5;
+    public const int MaxAccuracyMeters = 500;
 }
 
 /// <summary>مرحلة تنفيذ بتاريخيها المخططين ووزنها من المشروع؛ منها تُحسب نسبة الإنجاز المخططة في أي يوم.</summary>

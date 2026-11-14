@@ -17,6 +17,8 @@ public class DeliveryReturnNote : BaseEntity
     public decimal Subtotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
+    /// <summary>إرجاع سند استلام مشروع للمورد: مستند سحبه من عهدة المشروع (receipt_return) وقيده.</summary>
+    public Guid? CustodyIssueId { get; set; }
 
     public virtual ICollection<DeliveryReturnItem> Items { get; set; } = new List<DeliveryReturnItem>();
 }

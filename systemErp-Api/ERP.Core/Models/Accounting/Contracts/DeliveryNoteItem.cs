@@ -16,6 +16,8 @@ public class DeliveryNoteItem : BaseEntity
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
+    /// <summary>بند القياس في جدول كميات المشروع لسند استلام مشروع (من سطر الطلب).</summary>
+    public Guid? BoqItemId { get; set; }
 
     public virtual DeliveryNote DeliveryNote { get; set; } = null!;
 }

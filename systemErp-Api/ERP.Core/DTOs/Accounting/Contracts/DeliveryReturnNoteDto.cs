@@ -21,4 +21,5 @@ public partial class DeliveryReturnNoteDto
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
     public List<DeliveryReturnItemDto> Items { get; set; } = new();
+    public Guid? CustodyIssueId { get; set; }
 }

@@ -71,6 +71,11 @@ public class AccountingSettings : BaseEntity
     /// ليس ذمة مورد ولا فاتورة ضريبية.
     /// </summary>
     public string? ProjectAccruedRentalAccountCode { get; set; }
+    /// <summary>
+    /// بضاعة مستلمة لم تُفوتر (التزام): سند استلام مشتريات المشروع يقيّد مدين المواد تحت التنفيذ / دائن هذا الحساب بسعره، وفاتورة
+    /// المورد من السند تسوّيه (مدين هذا الحساب / دائن المورد). مواد المشروع لا تدخل المستودع العام ولا متوسط تكلفة الصنف.
+    /// </summary>
+    public string? ProjectGoodsReceivedNotInvoicedAccountCode { get; set; }
 
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }

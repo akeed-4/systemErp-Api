@@ -36,6 +36,7 @@ public class SaveAccountingSettingsDto
     public string? ProjectAbsorbedCostAccountCode { get; set; }
     public string? ProjectRentedEquipmentCostAccountCode { get; set; }
     public string? ProjectAccruedRentalAccountCode { get; set; }
+    public string? ProjectGoodsReceivedNotInvoicedAccountCode { get; set; }
     /// <summary>فترة إرجاع المبيعات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
     public int? SalesReturnPeriodDays { get; set; }
     /// <summary>فترة إرجاع المشتريات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>

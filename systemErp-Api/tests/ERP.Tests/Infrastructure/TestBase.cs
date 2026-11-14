@@ -29,6 +29,16 @@ public abstract class TestBase
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", api.Token);
         return (int)(await NewHttp().SendAsync(request)).StatusCode;
     }
+    /// <summary>
+    /// أرشيف بنود المستخلص إلزامي لكل بند له كمية حالية: يرفق مستنداً صغيراً لكل بند منها (قبل التقديم أو تعديل مستخلص قائم).
+    /// </summary>
+    protected async Task AttachCertificateEvidenceAsync(Client api, object contractId, object certificateId)
+    {
+        var cert = (await api.Get($"/commercialcontracts/{contractId}/certificates/{certificateId}")).Data!;
+        foreach (var line in cert["lines"]!.AsArray().Where(l => l!["currentQuantity"].D() != 0))
+            Assert.Equal(200, await UploadFileAsync(api, $"/commercialcontracts/{contractId}/certificates/{certificateId}/items/{line!["contractItemId"].S()}/attachments", "evidence.pdf", SmallPdf));
+    }
+
     protected async Task<Client> NewTenantAsync(string name = "شركة اختبار") => await new Client(NewHttp()).RegisterAsync(name);
 
     /// <summary>حساب مخزون الموقع الرئيسي في منشأة جديدة: يُنشأ تلقائياً تحت المخزون 114.</summary>

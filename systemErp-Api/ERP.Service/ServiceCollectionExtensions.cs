@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ERP.Service;
 
@@ -73,6 +74,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        // الساعة القابلة للاستبدال في الاختبارات (يستعملها الحضور الميداني)
+        services.TryAddSingleton(TimeProvider.System);
 
         var contractsRoot = "ERP.Core.Contracts";
         var implementations = typeof(ServiceCollectionExtensions).Assembly.GetTypes()

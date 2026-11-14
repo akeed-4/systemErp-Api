@@ -564,7 +564,8 @@ public class ExecutionPlanService : IExecutionPlanService
         // الفعلي
         var phaseOfLine = current.Phases.SelectMany(p => p.ContractItemIds.Select(i => (i, p.Id))).GroupBy(x => x.i).ToDictionary(g => g.Key, g => g.First().Id);
         var issues = await _db.Set<ProjectMaterialIssue>().AsNoTracking().Where(i => i.ContractId == contractId && i.Status == ProjectMaterialIssueStatuses.Posted
-                && (i.Kind == ProjectMaterialIssueKinds.Issue || i.Kind == ProjectMaterialIssueKinds.Return))
+                && (i.Kind == ProjectMaterialIssueKinds.Issue || i.Kind == ProjectMaterialIssueKinds.Return
+                    || i.Kind == ProjectMaterialIssueKinds.PurchaseReceipt || i.Kind == ProjectMaterialIssueKinds.ReceiptReturn))
             .SelectMany(i => i.Lines.Select(l => new { i.Kind, l.BoqItemId, l.TotalCost })).ToListAsync(ct);
         var usage = await _db.Set<SiteResourceUsage>().AsNoTracking()
             .Where(u => u.Report.ContractId == contractId && u.Report.Status == SiteDailyReportStatuses.Approved)
@@ -573,7 +574,7 @@ public class ExecutionPlanService : IExecutionPlanService
         var actual = new List<(string Category, Guid? Phase, decimal Cost, decimal Hours)>();
         foreach (var l in issues)
             actual.Add((BoqResourceTypes.Material, l.BoqItemId is Guid b && phaseOfLine.TryGetValue(b, out var ph) ? ph : null,
-                l.Kind == ProjectMaterialIssueKinds.Return ? -l.TotalCost : l.TotalCost, 0));
+                l.Kind is ProjectMaterialIssueKinds.Return or ProjectMaterialIssueKinds.ReceiptReturn ? -l.TotalCost : l.TotalCost, 0));
         foreach (var u in usage)
             actual.Add((ProjectResourceKinds.IsEquipment(u.Kind) ? BoqResourceTypes.Equipment : BoqResourceTypes.Labor,
                 u.ContractItemId is Guid c && phaseOfLine.TryGetValue(c, out var ph) ? ph : null, u.Cost, u.Hours));

@@ -28,6 +28,8 @@ public class CompanyService : ICompanyService
     {
         var t = await LoadAsync(ct);
         if (string.IsNullOrWhiteSpace(r.NameAr)) throw new ValidationFailedException(Messages.CompanyArabicNameRequired);
+        // فارغ = تبقى المنطقة الحالية (الواجهات القديمة لا ترسلها)
+        if (r.TimeZoneId != null && !TenantTimeZone.IsValid(r.TimeZoneId)) throw new ValidationFailedException(Messages.CompanyTimeZoneInvalid);
         if (r.VatNumber != t.VatNumber)
         {
             if (!SaudiVat.IsValid(r.VatNumber))
@@ -39,6 +41,7 @@ public class CompanyService : ICompanyService
         t.NameAr = r.NameAr.Trim(); t.NameEn = r.NameEn; t.VatNumber = r.VatNumber; t.CrNumber = r.CrNumber;
         t.Address = r.Address; t.City = r.City; t.Country = r.Country; t.Phone = r.Phone; t.Email = r.Email;
         t.LogoUrl = r.LogoUrl; t.FinancialYearStart = r.FinancialYearStart; t.FinancialYearEnd = r.FinancialYearEnd;
+        if (r.TimeZoneId != null) t.TimeZoneId = r.TimeZoneId.Trim();
         // العملة الأساسية والرمز لا يتغيّران بعد التهيئة لأن القيود مسجَّلة بها.
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<TenantDto>(t);

@@ -15,4 +15,6 @@ public partial class DeliveryNoteItemDto
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
+    /// <summary>بند جدول كميات المشروع لسند استلام مشروع؛ فارغ = من سطر الطلب.</summary>
+    public Guid? BoqItemId { get; set; }
 }

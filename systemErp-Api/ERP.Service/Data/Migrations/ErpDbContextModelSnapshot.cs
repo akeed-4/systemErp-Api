@@ -188,6 +188,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("ProjectEquipmentCostAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ProjectGoodsReceivedNotInvoicedAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ProjectLaborCostAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -414,6 +417,96 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("AgreementPayment");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.AttendanceGpsPunch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AccuracyMeters")
+                        .HasPrecision(9, 1)
+                        .HasColumnType("decimal(9,1)");
+
+                    b.Property<Guid>("AttendanceRecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeviceCapturedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DistanceMeters")
+                        .HasPrecision(12, 1)
+                        .HasColumnType("decimal(12,1)");
+
+                    b.Property<string>("ExceptionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("GeofenceRadiusMeters")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<decimal>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<bool>("OutsideGeofence")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReviewStatus")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("AttendanceRecordId", "Kind")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ContractId", "ReviewStatus");
+
+                    b.ToTable("AttendanceGpsPunch");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.AttendanceRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -423,8 +516,17 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("CheckIn")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("CheckInAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("CheckOut")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("CheckOutAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ContractId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -434,6 +536,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("GpsStatus")
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
 
                     b.Property<int>("LateMinutes")
                         .HasColumnType("int");
@@ -445,6 +551,13 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("manual");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -455,11 +568,21 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("WorkedMinutes")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
 
                     b.HasIndex("EmployeeId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId", "Date");
+
+                    b.HasIndex("TenantId", "EmployeeId", "Date")
+                        .IsUnique();
 
                     b.ToTable("AttendanceRecord");
                 });
@@ -1133,9 +1256,37 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int>("GeofenceRadiusMeters")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(200);
+
+                    b.Property<bool>("GpsAttendanceEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MaxGpsAccuracyMeters")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(50);
+
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("OutOfRangePolicy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("reject");
+
+                    b.Property<decimal?>("SiteLatitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<decimal?>("SiteLongitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -3061,6 +3212,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CustodyIssueId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
@@ -3100,6 +3254,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("PartyType")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("RequisitionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -3138,6 +3295,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId", "DeliveryNumber")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "RequisitionId");
+
                     b.ToTable("DeliveryNote");
                 });
 
@@ -3145,6 +3304,9 @@ namespace ERP.Service.Data.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("BoqItemId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("ContractQty")
@@ -3284,6 +3446,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CustodyIssueId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
@@ -5017,6 +5182,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("BoqItemId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -5392,6 +5560,9 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<Guid?>("DeliveryNoteId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("IssueNumber")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -5456,6 +5627,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("ContractId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "DeliveryNoteId");
 
                     b.HasIndex("TenantId", "IssueNumber")
                         .IsUnique();
@@ -14911,6 +15084,13 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasDefaultValue("Asia/Riyadh");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -15715,8 +15895,30 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Agreement");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.AttendanceGpsPunch", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.AttendanceRecord", "Record")
+                        .WithMany("Punches")
+                        .HasForeignKey("AttendanceRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Record");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.AttendanceRecord", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Accounting.Employee", null)
                         .WithMany()
                         .HasForeignKey("EmployeeId")
@@ -17367,6 +17569,11 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.AttendanceRecord", b =>
+                {
+                    b.Navigation("Punches");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialContract", b =>

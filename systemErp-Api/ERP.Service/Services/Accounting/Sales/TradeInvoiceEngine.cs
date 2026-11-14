@@ -878,6 +878,8 @@ public class TradeInvoiceEngine
         if (m.ConvertedInvoiceId != null || m.Status is "converted_to_invoice" or "converted_to_po")
             throw new ConflictException(string.Format(Messages.RequisitionAlreadyConverted, m.RequisitionNumber));
         if (m.Status != "approved") throw new ConflictException(Messages.ApproveRequisitionBeforeConversion);
+        // طلب المشروع يُستلم بسند استلام (عهدة للمشروع) ثم يُفوتر منه، لا بفاتورة شراء للمستودع العام
+        if (m.ContractId != null) throw new ConflictException(Messages.ProjectRequisitionReceivedByGrn);
         m.ConvertedInvoiceId = invoice.Id;
         m.Status = "converted_to_invoice";
     }

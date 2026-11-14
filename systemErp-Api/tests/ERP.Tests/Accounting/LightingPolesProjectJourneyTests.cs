@@ -295,6 +295,7 @@ public class LightingPolesProjectJourneyTests : TestBase
             });
             Ok(cert, step);
             var certId = cert.Data!["id"].S();
+            await AttachCertificateEvidenceAsync(api, id, certId);
             Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/submit"), step + " submit");
             Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/approve"), step + " approve");
             Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/bill"), step + " bill");

@@ -70,7 +70,7 @@ public class ContractBoqLifecycleTests : TestBase
     }
 
     /// <summary>مستخلص جارٍ معتمد ومفوتر بكمية <paramref name="qty"/>؛ يعيد معرّف فاتورته.</summary>
-    private static async Task<(string CertificateId, string InvoiceId, decimal Net)> BilledCertificateAsync(Client api, string id, Guid item, decimal qty)
+    private async Task<(string CertificateId, string InvoiceId, decimal Net)> BilledCertificateAsync(Client api, string id, Guid item, decimal qty)
     {
         var cert = await api.Post($"/commercialcontracts/{id}/certificates", new
         {
@@ -79,11 +79,65 @@ public class ContractBoqLifecycleTests : TestBase
         });
         Ok(cert, "certificate");
         var certId = cert.Data!["id"].S();
+        await AttachCertificateEvidenceAsync(api, id, certId);
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/submit"), "submit");
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/approve"), "approve");
         var bill = await api.Post($"/commercialcontracts/{id}/certificates/{certId}/bill");
         Ok(bill, "bill");
         return (certId, bill.Data!["id"].S(), cert.Data["netPayable"].D());
+    }
+
+    // ---------- أرشيف البنود الإلزامي ----------
+
+    [Fact]
+    public async Task Certificate_items_with_progress_require_an_archived_document_before_save_submit_and_approve()
+    {
+        var api = await NewConstructionTenantAsync();
+        var (party, _) = await SeedCustomerAsync(api);
+        var created = await api.Post("/commercialcontracts", new
+        {
+            title = "عقد", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyType = "customer", partyId = party, partyName = "طرف",
+            startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(3), vatRate = 15,
+            items = new[]
+            {
+                new { description = "حفر", unit = "م3", quantity = 100, unitPrice = 100, vatRate = 15, lineKind = "measured" },
+                new { description = "ردم", unit = "م3", quantity = 100, unitPrice = 50, vatRate = 15, lineKind = "measured" },
+            },
+            milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
+        });
+        Ok(created, "create");
+        var id = created.Data!["id"].S();
+        var (dig, fill) = (created.Data["items"]![0]!["id"].G(), created.Data["items"]![1]!["id"].G());
+        Ok(await Move(api, id, "active"), "activate");
+
+        // الإنشاء الأول بلا معرّف بعد: الشاشة ترفع المستندات بعده، والخادم يمنع التقديم
+        var cert = await api.Post($"/commercialcontracts/{id}/certificates", Certificate("interim", dig, 10, fill, 0));
+        Ok(cert, "create draft");
+        var certId = cert.Data!["id"].S();
+        var submit = await api.Post($"/commercialcontracts/{id}/certificates/{certId}/submit");
+        Assert.Equal(400, submit.Status);
+        Assert.Contains("حفر", submit.Body!["message"].S());
+        Assert.DoesNotContain("ردم", submit.Body!["message"].S()); // بلا كمية حالية: لا يلزمه أرشيف
+
+        // تعديل المسودة القائمة بكمية على بند بلا أرشيف: يُرفض بالبنود الناقصة كلها
+        var update = await api.Put($"/commercialcontracts/{id}/certificates/{certId}", Certificate("interim", dig, 10, fill, 5));
+        Assert.Equal(400, update.Status);
+        Assert.Equal(2, update.Body!["errors"]!.AsArray().Count);
+
+        // بعد الإرفاق: الحفظ والتقديم والاعتماد
+        Assert.Equal(200, await UploadFileAsync(api, $"/commercialcontracts/{id}/certificates/{certId}/items/{dig}/attachments", "dig.pdf", SmallPdf));
+        Assert.Equal(200, await UploadFileAsync(api, $"/commercialcontracts/{id}/certificates/{certId}/items/{fill}/attachments", "fill.pdf", SmallPdf));
+        Ok(await api.Put($"/commercialcontracts/{id}/certificates/{certId}", Certificate("interim", dig, 10, fill, 5)), "update with archive");
+        Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/submit"), "submit");
+
+        // حذف مستند بعد التقديم (بصلاحية الحذف) يمنع الاعتماد حتى يُرفق غيره
+        var docs = (await api.Get($"/commercialcontracts/{id}/certificates/{certId}/attachments?itemId={fill}")).Data!.AsArray();
+        Ok(await api.Delete($"/commercialcontracts/{id}/certificates/{certId}/attachments/{docs[0]!["id"].S()}"), "delete archive");
+        var approve = await api.Post($"/commercialcontracts/{id}/certificates/{certId}/approve");
+        Assert.Equal(400, approve.Status);
+        Assert.Contains("ردم", approve.Body!["message"].S());
+        Assert.Equal(200, await UploadFileAsync(api, $"/commercialcontracts/{id}/certificates/{certId}/items/{fill}/attachments", "fill2.pdf", SmallPdf));
+        Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/approve"), "approve");
     }
 
     private static object Payment(string invoiceId, decimal amount) => new { invoiceId, amount, treasuryAccountCode = "1111", referenceNumber = "TRX-1" };
@@ -137,6 +191,7 @@ public class ContractBoqLifecycleTests : TestBase
         Ok(draft, "draft");
         var certId = draft.Data!["id"].S();
 
+        await AttachCertificateEvidenceAsync(api, id, certId);
         var issued = await api.Post($"/commercialcontracts/{id}/certificates/{certId}/issue");
         Assert.Equal(expected, issued.Status);
         var cert = (await api.Get($"/commercialcontracts/{id}/certificates/{certId}")).Data!;
@@ -257,6 +312,7 @@ public class ContractBoqLifecycleTests : TestBase
         Assert.Equal(5_400m, c1.Data["vatAmount"].D());
         Assert.Equal(2_000m, c1.Data["retentionAmount"].D());   // 5% من الأعمال
         Assert.Equal(39_400m, c1.Data["netPayable"].D());
+        await AttachCertificateEvidenceAsync(api, id, c1Id);
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{c1Id}/submit"), "certificate 1 submit");
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{c1Id}/approve"), "certificate 1 approve");
         var bill1 = await api.Post($"/commercialcontracts/{id}/certificates/{c1Id}/bill");
@@ -275,6 +331,7 @@ public class ContractBoqLifecycleTests : TestBase
         Assert.Equal(8_100m, c2.Data["vatAmount"].D());
         Assert.Equal(3_000m, c2.Data["retentionAmount"].D());
         Assert.Equal(59_100m, c2.Data["netPayable"].D());
+        await AttachCertificateEvidenceAsync(api, id, c2Id);
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{c2Id}/submit"), "certificate 2 submit");
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{c2Id}/approve"), "certificate 2 approve");
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{c2Id}/bill"), "certificate 2 bill");

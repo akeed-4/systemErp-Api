@@ -191,7 +191,12 @@ public class ConstructionProjectService : IConstructionProjectService
             .GroupBy(r => r.ContractId!.Value).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var issuedCost = await _db.Set<ProjectMaterialIssue>().AsNoTracking().Where(i => ids.Contains(i.ContractId) && i.Status == ProjectMaterialIssueStatuses.Posted)
             // الصافي: التسليم − الإرجاع للمستودع (الهدر تكلفة مستهلكة تبقى)
-            .GroupBy(i => i.ContractId).Select(g => new { g.Key, Cost = g.Sum(i => i.Kind == ProjectMaterialIssueKinds.Return ? -i.TotalCost : i.TotalCost) }).ToDictionaryAsync(x => x.Key, x => x.Cost, ct);
+            .GroupBy(i => i.ContractId).Select(g => new
+            {
+                g.Key,
+                // إرجاع المورد من عهدة الاستلام يُنقصها كالإرجاع للمستودع
+                Cost = g.Sum(i => i.Kind == ProjectMaterialIssueKinds.Return || i.Kind == ProjectMaterialIssueKinds.ReceiptReturn ? -i.TotalCost : i.TotalCost),
+            }).ToDictionaryAsync(x => x.Key, x => x.Cost, ct);
 
         var today = SaudiTime.Today;
         return contracts.Select(c =>
@@ -593,6 +598,7 @@ public class ConstructionProjectService : IConstructionProjectService
     private const string Projects = PermissionCatalog.ConstructionProjectsScreenId;
     private const string Library = PermissionCatalog.ConstructionLibraryScreenId;
     private const string SiteReports = PermissionCatalog.SiteDailyReportsScreenId;
+    private const string Attendance = PermissionCatalog.ProjectAttendanceScreenId;
     private static readonly string[] Docs = { "print", "export", "pdf" };
     private static string[] With(params string[] actions) => actions.Concat(Docs).ToArray();
 
@@ -605,17 +611,17 @@ public class ConstructionProjectService : IConstructionProjectService
         new("مدير المشروع", "Project Manager", "مقاولات: إدارة مشاريعه المسندة إليه وإعدادها وتقديم المستخلصات.", DataScope.Assigned, new()
         {
             [Contracts] = With("view", "receive"), [Projects] = With("view", "edit"), [Library] = With("view"),
-            [SiteReports] = With("view", "create", "edit", "submit"),
+            [SiteReports] = With("view", "create", "edit", "submit"), [Attendance] = new[] { "view", "approve" },
         }),
         new("المهندس المشرف", "Supervising Engineer", "مقاولات: متابعة تنفيذ مشاريعه المسندة إليه واعتماد تقاريرها اليومية.", DataScope.Assigned, new()
         {
             [Contracts] = With("view", "receive"), [Projects] = With("view"), [Library] = With("view"),
-            [SiteReports] = With("view", "create", "edit", "delete", "submit", "approve"),
+            [SiteReports] = With("view", "create", "edit", "delete", "submit", "approve"), [Attendance] = new[] { "view", "approve" },
         }),
         // التقرير اليومي وحده: مشاريعه وبنودها وموارده من مسارات التقرير نفسه، فلا تظهر له العقود ولا المشاريع ولا المكتبة
         new("مشرف الموقع", "Site Supervisor", "مقاولات: تسجيل الإنجاز اليومي بالساعة في مشاريعه المسندة إليه وتقديمه.", DataScope.Assigned, new()
         {
-            [SiteReports] = With("view", "create", "edit", "delete", "submit"),
+            [SiteReports] = With("view", "create", "edit", "delete", "submit"), [Attendance] = new[] { "view" },
         }),
         new("مراقب التكاليف", "Cost Controller", "مقاولات: الميزانيات وتكاليف البنود ومكتبة التكلفة.", DataScope.All, new()
         {

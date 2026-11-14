@@ -97,6 +97,10 @@ public static class PermissionCatalog
             Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: ConstructionProjectsScreenId),
         new(SiteDailyReportsScreenId, "contracts", "التقرير اليومي للموقع (الإنجاز بالساعة)", "Site Daily Reports (Hourly Progress)",
             Crud(A.Submit, A.Approve), new[] { "construction/site-reports" }, InheritsFrom: CommercialContractsScreenId),
+        // حضور فريق المشروع بالموقع: العرض لمتابعة الفريق، والاعتماد لمراجعة استثناءات خارج النطاق. بيانات موقع شخصية: لا ترث
+        // صلاحية أخرى، فلا يطّلع عليها إلا من مُنحها صراحة (قوالب مدير المشروع والمهندس المشرف ومشرف الموقع تمنحها)
+        new(ProjectAttendanceScreenId, "contracts", "حضور فريق المشروع بالموقع واستثناءاته", "Project Team GPS Attendance & Exceptions",
+            new[] { A.View, A.Approve }, Array.Empty<string>()),
         // اعتماد المستخلص (أو إعادته للتعديل) منفصلاً عن اعتماد العقد نفسه: مهندس/مدير يعتمد المستخلصات دون أن يعتمد العقود؛
         // يرث «اعتماد» العقود التجارية حتى تُحفظ له صلاحية مستقلة (فلا يتغير شيء لمن يعتمد اليوم)
         new(ContractCertificateApprovalScreenId, "contracts", "المستخلصات: اعتماد المستخلص أو إعادته", "Progress Certificates: Approve or Return",
@@ -182,6 +186,7 @@ public static class PermissionCatalog
     public const string ConstructionCostLibraryScreenId = "construction-cost-library";
     public const string ConstructionProjectsScreenId = "construction-projects";
     public const string SiteDailyReportsScreenId = "site-daily-reports";
+    public const string ProjectAttendanceScreenId = "project-attendance";
     public const string ProjectMaterialIssuesScreenId = "project-material-issues";
     public const string WhatsAppScreenId = "whatsapp";
     public const string WhatsAppSendScreenId = "whatsapp-send";

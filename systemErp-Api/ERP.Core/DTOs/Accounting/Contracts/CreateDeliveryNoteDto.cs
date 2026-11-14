@@ -25,4 +25,6 @@ public partial class CreateDeliveryNoteDto
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
     public List<DeliveryNoteItemDto> Items { get; set; } = new();
+    /// <summary>طلب شراء المشروع المعتمد (سند استلام مشروع: purchase_delivery على عقد مقاولات).</summary>
+    public Guid? RequisitionId { get; set; }
 }

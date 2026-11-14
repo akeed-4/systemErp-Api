@@ -1733,4 +1733,60 @@
   <data name="SiteReportSubmitted" xml:space="preserve"><value>Daily report submitted for approval.</value></data>
   <data name="SiteReportApproved" xml:space="preserve"><value>Daily report approved.</value></data>
   <data name="SiteReportReturned" xml:space="preserve"><value>Daily report returned to draft.</value></data>
+
+  <!-- Field GPS attendance -->
+  <data name="FieldAttendanceNotAssigned" xml:space="preserve"><value>You are not assigned to a project that allows field attendance. Contact the project manager.</value></data>
+  <data name="FieldAttendanceChooseProject" xml:space="preserve"><value>You are assigned to more than one project; choose the project you are working on.</value></data>
+  <data name="FieldAttendanceProjectNotAssigned" xml:space="preserve"><value>You are not assigned to this project.</value></data>
+  <data name="FieldAttendanceGpsDisabled" xml:space="preserve"><value>GPS attendance is not enabled for this project.</value></data>
+  <data name="FieldAttendanceProjectInactive" xml:space="preserve"><value>The project is not in execution; field attendance cannot be recorded on it.</value></data>
+  <data name="FieldAttendanceLocationInvalid" xml:space="preserve"><value>The location coordinates or accuracy are invalid.</value></data>
+  <data name="FieldAttendanceAccuracyPoor" xml:space="preserve"><value>Location accuracy {0} m is weaker than allowed ({1} m). Move to an open area and try again.</value></data>
+  <data name="FieldAttendanceOutsideGeofence" xml:space="preserve"><value>You are {0} m from the project site, outside the allowed radius ({1} m).</value></data>
+  <data name="FieldAttendanceAlreadyCheckedIn" xml:space="preserve"><value>You have already checked in today.</value></data>
+  <data name="FieldAttendanceDayRecordedByHr" xml:space="preserve"><value>Today's attendance is already recorded by HR; it cannot be recorded from the field.</value></data>
+  <data name="FieldAttendanceNoOpenCheckIn" xml:space="preserve"><value>There is no open field check-in today on this project to check out from.</value></data>
+  <data name="FieldAttendanceAlreadyCheckedOut" xml:space="preserve"><value>You have already checked out today.</value></data>
+  <data name="FieldAttendanceCheckedIn" xml:space="preserve"><value>Checked in.</value></data>
+  <data name="FieldAttendanceCheckedOut" xml:space="preserve"><value>Checked out.</value></data>
+  <data name="ProjectGeofenceLocationInvalid" xml:space="preserve"><value>The project site coordinates are invalid.</value></data>
+  <data name="ProjectGeofenceLocationRequired" xml:space="preserve"><value>Set the project site location before enabling GPS attendance.</value></data>
+  <data name="ProjectGeofenceRadiusInvalid" xml:space="preserve"><value>The attendance radius must be between {0} and {1} meters.</value></data>
+  <data name="ProjectGeofenceAccuracyInvalid" xml:space="preserve"><value>The maximum accepted accuracy must be between {0} and {1} meters.</value></data>
+  <data name="ProjectGeofenceSaved" xml:space="preserve"><value>Field attendance geofence saved.</value></data>
+  <data name="CompanyTimeZoneInvalid" xml:space="preserve"><value>Unknown time zone.</value></data>
+  <data name="FieldAttendanceExceptionReasonRequired" xml:space="preserve"><value>You are {0} m from the project site, outside the radius ({1} m). Enter the reason for recording off-site for the project supervisor to review.</value></data>
+  <data name="FieldAttendanceRecordedAsException" xml:space="preserve"><value>Recorded outside the geofence, pending the project supervisor's review.</value></data>
+  <data name="ProjectGeofencePolicyInvalid" xml:space="preserve"><value>Invalid out-of-range policy.</value></data>
+  <data name="AttendanceGpsRecordCannotBeCleared" xml:space="preserve"><value>This day was recorded in the field by GPS; it cannot be deleted. Only its status, lateness, and overtime can be changed.</value></data>
+  <data name="AttendanceExceptionNotFound" xml:space="preserve"><value>The attendance exception was not found on this project.</value></data>
+  <data name="AttendanceExceptionNotPending" xml:space="preserve"><value>The attendance exception is not pending review.</value></data>
+  <data name="AttendanceExceptionRejectNoteRequired" xml:space="preserve"><value>Enter the reason for rejecting the exception.</value></data>
+  <data name="AttendanceExceptionSelfReview" xml:space="preserve"><value>Employees cannot review their own attendance exceptions.</value></data>
+  <data name="AttendanceExceptionApproved" xml:space="preserve"><value>Attendance exception approved.</value></data>
+  <data name="AttendanceExceptionRejected" xml:space="preserve"><value>Attendance exception rejected.</value></data>
+  <!-- Mandatory certificate item archive -->
+  <data name="CertificateItemAttachmentRequired" xml:space="preserve"><value>Please attach documents: {0} item(s) with recorded progress have no archived document ({1}). Attach at least one document (image or PDF) to each item before saving.</value></data>
+  <data name="CertificateItemAttachmentMissing" xml:space="preserve"><value>Please attach a document for item: {0}</value></data>
+  <!-- Isolated project purchasing: goods receipt and custody -->
+  <data name="AccountRole_ProjectGoodsReceivedNotInvoicedAccountCode" xml:space="preserve"><value>Goods received not invoiced</value></data>
+  <data name="ProjectReceiptOnlyPurchase" xml:space="preserve"><value>A project purchase request is received only with a purchase goods receipt.</value></data>
+  <data name="ProjectReceiptNeedsProjectRequisition" xml:space="preserve"><value>A project goods receipt needs a purchase request linked to a project.</value></data>
+  <data name="ProjectReceiptRequisitionOtherProject" xml:space="preserve"><value>The purchase request does not belong to this project.</value></data>
+  <data name="ProjectReceiptRequisitionNotApproved" xml:space="preserve"><value>Purchase request {0} is not approved (or already converted): only an approved request can be received.</value></data>
+  <data name="ProjectReceiptSupplierRequired" xml:space="preserve"><value>Choose the supplier (or set it on the purchase request) before receiving.</value></data>
+  <data name="ProjectReceiptItemNotInRequisition" xml:space="preserve"><value>“{0}” is not an item of purchase request {1}.</value></data>
+  <data name="ProjectReceiptBoqItemRequired" xml:space="preserve"><value>“{0}”: choose the BOQ item the material is received for.</value></data>
+  <data name="ProjectReceiptBoqItemOtherProject" xml:space="preserve"><value>“{0}”: the chosen item is not in this project’s BOQ.</value></data>
+  <data name="ProjectReceiptBoqItemIsGroup" xml:space="preserve"><value>“{0}”: a parent item with sub-items does not receive materials; choose one of its sub-items.</value></data>
+  <data name="ProjectReceiptPriceRequired" xml:space="preserve"><value>“{0}”: enter the purchase price (the request has no estimate).</value></data>
+  <data name="ProjectReceiptExceedsRequisition" xml:space="preserve"><value>“{0}”: received {1} exceeds the remaining {2} on the request (requested {3} − already received {4}). Quantities cannot be received twice.</value></data>
+  <data name="ProjectReceiptNotEditable" xml:space="preserve"><value>The project goods receipt has posted custody: delete it and create another, or return from it to the supplier.</value></data>
+  <data name="ProjectReceiptDeletedReason" xml:space="preserve"><value>Goods receipt {0} deleted</value></data>
+  <data name="ProjectReceiptCustodyManagedByNote" xml:space="preserve"><value>Goods-receipt custody follows its receipt: it is reversed by deleting the receipt or its return.</value></data>
+  <data name="ProjectReceiptNotReturnableToWarehouse" xml:space="preserve"><value>“{0}” from goods receipt {1} is project custody: it cannot go to the general warehouse; return it to the supplier with a receipt return.</value></data>
+  <data name="ProjectReceiptReturnExceedsCustody" xml:space="preserve"><value>“{0}”: the returned quantity exceeds what is available in the custody of receipt {1} (selected in a certificate or wasted).</value></data>
+  <data name="ProjectRequisitionBoqItemInvalid" xml:space="preserve"><value>The BOQ item on a request line is not a measured line of this project.</value></data>
+  <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>The request has goods receipts: delete them first.</value></data>
+  <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>A project purchase request is not converted to a warehouse invoice: receive it with a project goods receipt, then create the invoice from the receipt.</value></data>
 </root>

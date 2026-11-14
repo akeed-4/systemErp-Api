@@ -47,19 +47,30 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     }
 
     /// <summary>
-    /// طلب شراء لمشروع: العقد موجود، والكميات ضمن احتياجات المشروع المعتمدة ناقص ما طُلب في طلباته الأخرى.
-    /// التوريد دائماً للمستودع: فاتورة الشراء تزيد مخزونه، والمواد لا تُعدّ مسلَّمة للمشروع إلا بإذن تسليم مرحّل.
+    /// طلب شراء لمشروع: العقد موجود، والكميات ضمن احتياجات المشروع المعتمدة ناقص ما طُلب في طلباته الأخرى، وبند جدول الكميات لكل سطر
+    /// (إن حُدد) سطر قياس من العقد نفسه. يُستلم بسندات استلام المشروع (عهدة بسعر الشراء لا مستودع عام) ثم يُفوتر منها.
     /// خيار «موقع المشروع» كان وصفياً بلا أثر مخزني أو محاسبي فأُلغي؛ الطلبات القديمة تحتفظ بقيمتها للعرض فقط.
     /// </summary>
     private async Task ValidateProjectAsync(CreateMaterialRequisitionDto d, MaterialRequisition? existing, CancellationToken ct)
     {
         d.DeliveryLocation = RequisitionDeliveryLocations.Warehouse;
         d.DeliveryAddress = null;
-        if (d.ContractId is not { } contractId) return;
+        if (d.ContractId is not { } contractId)
+        {
+            foreach (var i in d.Items) i.BoqItemId = null;
+            return;
+        }
         var contract = await Db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId)
             .Select(c => new { c.WarehouseId }).FirstOrDefaultAsync(ct)
             ?? throw new ValidationFailedException(Messages.ContractNotFound);
         d.WarehouseId ??= contract.WarehouseId;
+        var boqIds = d.Items.Where(i => i.BoqItemId.HasValue).Select(i => i.BoqItemId!.Value).Distinct().ToList();
+        if (boqIds.Count > 0)
+        {
+            var valid = await Db.Set<CommercialContractItem>().AsNoTracking()
+                .Where(i => i.ContractId == contractId && !i.IsGroup && boqIds.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct);
+            if (boqIds.Except(valid).Any()) throw new ValidationFailedException(Messages.ProjectRequisitionBoqItemInvalid);
+        }
         await _supply.EnsureRequisitionWithinPlanAsync(contractId, existing?.Id,
             d.Items.Select(i => (i.ItemId, i.ApprovedQuantity ?? i.RequestedQuantity)).ToList(), ct);
     }
@@ -100,8 +111,11 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
         return Task.CompletedTask;
     }
 
-    protected override Task OnDeletingAsync(MaterialRequisition e, CancellationToken ct)
-        => e.Status is "converted_to_po" or "converted_to_invoice" ? throw new ConflictException(Messages.CannotDeleteConvertedRequisition) : Task.CompletedTask;
+    protected override async Task OnDeletingAsync(MaterialRequisition e, CancellationToken ct)
+    {
+        if (e.Status is "converted_to_po" or "converted_to_invoice") throw new ConflictException(Messages.CannotDeleteConvertedRequisition);
+        if (await Db.Set<DeliveryNote>().AnyAsync(n => n.RequisitionId == e.Id, ct)) throw new ConflictException(Messages.ProjectRequisitionHasReceipts);
+    }
 
     public async Task<MaterialRequisitionDto> ApproveAsync(Guid id, CancellationToken ct = default)
     {
@@ -120,6 +134,8 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             var r = await Db.Set<MaterialRequisition>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
             if (r.Status != "approved") throw new ConflictException(Messages.ApproveRequisitionBeforeConversion);
+            // عزل مشتريات المشروع: طلبه لا يدخل المستودع العام بفاتورة مباشرة؛ يُستلم بسند استلام ثم يُفوتر منه
+            if (r.ContractId != null) throw new ConflictException(Messages.ProjectRequisitionReceivedByGrn);
             if (r.SupplierId == null) throw new ValidationFailedException(Messages.SetSupplierBeforeConversion);
 
             var ids = r.Items.Select(i => i.ItemId).ToList();

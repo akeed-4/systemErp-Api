@@ -12,6 +12,8 @@ public class MaterialRequisitionItem : BaseEntity
     public decimal? ApprovedQuantity { get; set; }
     public decimal? EstimatedCost { get; set; }
     public string? Notes { get; set; }
+    /// <summary>بند القياس في جدول كميات المشروع (طلب مشروع): منه بند الاستلام وعهدة الموقع. بلا قيد كبقية مراجع أسطر العقد.</summary>
+    public Guid? BoqItemId { get; set; }
 
     public virtual MaterialRequisition Requisition { get; set; } = null!;
 }

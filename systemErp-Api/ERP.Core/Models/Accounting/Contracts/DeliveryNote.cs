@@ -32,5 +32,11 @@ public class DeliveryNote : BaseEntity, IScopedRecord
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
 
+    // ---------- سند استلام مشتريات مشروع (purchase_delivery على عقد مقاولات) ----------
+    /// <summary>طلب شراء المشروع المعتمد الذي يُستلم عليه؛ فارغ = سند عادي (المستودع والفوترة كما كانا).</summary>
+    public Guid? RequisitionId { get; set; }
+    /// <summary>عهدة المشروع المنشأة من السند (<c>ProjectMaterialIssue</c> بنوع purchase_receipt) وقيدها: لا تدخل المستودع العام.</summary>
+    public Guid? CustodyIssueId { get; set; }
+
     public virtual ICollection<DeliveryNoteItem> Items { get; set; } = new List<DeliveryNoteItem>();
 }

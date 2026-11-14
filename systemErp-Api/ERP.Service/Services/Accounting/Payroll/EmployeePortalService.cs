@@ -257,10 +257,13 @@ public class EmployeePortalService : IEmployeePortalService
     // ---------- داخلي ----------
 
     /// <summary>ملف الموظف المرتبط بالمستخدم الحالي؛ من لا ملف له أو ليس على رأس العمل لا يدخل البوابة.</summary>
-    private async Task<Employee> MeAsync(CancellationToken ct)
+    private Task<Employee> MeAsync(CancellationToken ct) => CurrentEmployeeAsync(_db, _user, ct);
+
+    /// <summary>ملف الموظف لصاحب الجلسة (مشترك مع خدمات الموظف الذاتية الأخرى كالحضور الميداني).</summary>
+    internal static async Task<Employee> CurrentEmployeeAsync(ErpDbContext db, ICurrentUser user, CancellationToken ct)
     {
-        var userId = _user.UserId ?? throw new UnauthorizedAppException();
-        var me = await _db.Set<Employee>().AsNoTracking().FirstOrDefaultAsync(e => e.UserId == userId, ct)
+        var userId = user.UserId ?? throw new UnauthorizedAppException();
+        var me = await db.Set<Employee>().AsNoTracking().FirstOrDefaultAsync(e => e.UserId == userId, ct)
             ?? throw new ForbiddenException(Messages.PortalNoEmployeeProfile);
         if (me.Status != EmployeeStatuses.Active) throw new ForbiddenException(Messages.PortalEmployeeNotActive);
         return me;

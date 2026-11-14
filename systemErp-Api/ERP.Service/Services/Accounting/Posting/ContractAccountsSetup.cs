@@ -90,6 +90,10 @@ internal static class ContractAccountsSetup
         new(nameof(AccountingSettings.ProjectAccruedRentalAccountCode), AccountCategory.Liability,
             "إيجار معدات مستحق", "Accrued Equipment Rental", LiabilityAnchors,
             new[] { "إيجار معدات مستحق", "إيجارات معدات مستحقة", "accrued equipment rental", "accrued rental" }),
+        // مشتريات المشاريع المستلمة قبل وصول فاتورة المورد
+        new(nameof(AccountingSettings.ProjectGoodsReceivedNotInvoicedAccountCode), AccountCategory.Liability,
+            "بضاعة مستلمة لم تُفوتر", "Goods Received Not Invoiced", LiabilityAnchors,
+            new[] { "بضاعة مستلمة لم تفوتر", "بضاعة مستلمة لم تُفوتر", "مشتريات مستلمة غير مفوترة", "goods received not invoiced", "grni" }),
     };
 
     public static IEnumerable<string> RoleKeys => Specs.Select(s => s.Role);

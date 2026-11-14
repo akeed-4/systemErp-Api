@@ -83,6 +83,9 @@ internal static class PostingAccounts
             (s, v) => s.ProjectRentedEquipmentCostAccountCode = v, null, Expense),
         new(nameof(AccountingSettings.ProjectAccruedRentalAccountCode), s => s.ProjectAccruedRentalAccountCode,
             (s, v) => s.ProjectAccruedRentalAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
+        // مشتريات المشاريع: سند الاستلام يقيّده دائناً وفاتورة المورد منه تسوّيه
+        new(nameof(AccountingSettings.ProjectGoodsReceivedNotInvoicedAccountCode), s => s.ProjectGoodsReceivedNotInvoicedAccountCode,
+            (s, v) => s.ProjectGoodsReceivedNotInvoicedAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)

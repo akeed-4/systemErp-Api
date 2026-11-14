@@ -30,4 +30,15 @@ public interface IProjectSupplyService
     /// حدود طلب شراء مرتبط بالمشروع: الاحتياجات معتمدة، وكل صنف ضمنها، ولا تتجاوز كميته المطلوب ناقص ما طُلب في طلبات المشروع الأخرى.
     /// </summary>
     Task EnsureRequisitionWithinPlanAsync(Guid contractId, Guid? requisitionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> lines, CancellationToken ct = default);
+
+    // ---------- عهدة سند استلام المشروع (يستدعيها سند الاستلام داخل معاملته) ----------
+    /// <summary>
+    /// عهدة المشروع من سند استلام مشترياته (بلا مستودع عام ولا متوسط تكلفة الصنف): أسطرها بسعر السند على بنود جدول الكميات، وقيدها
+    /// مدين المواد تحت التنفيذ بمركز المشروع / دائن بضاعة مستلمة لم تُفوتر. يعيد معرّف العهدة.
+    /// </summary>
+    Task<Guid> PostPurchaseReceiptAsync(DeliveryNote note, CancellationToken ct = default);
+    /// <summary>إرجاع للمورد من عهدة السند (غير المختار في مستخلص ولا المسحوب): قيد مدين بضاعة مستلمة لم تُفوتر / دائن المواد تحت التنفيذ.</summary>
+    Task<Guid> PostReceiptReturnAsync(DeliveryNote note, DeliveryReturnNote returnNote, CancellationToken ct = default);
+    /// <summary>عكس عهدة السند أو إرجاعها عند حذفه (ما لم تُستخدم في مستخلص أو سحب).</summary>
+    Task CancelReceiptCustodyAsync(Guid contractId, Guid custodyIssueId, string reason, CancellationToken ct = default);
 }

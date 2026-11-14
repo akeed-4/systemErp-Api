@@ -1733,4 +1733,60 @@
   <data name="SiteReportSubmitted" xml:space="preserve"><value>قُدّم التقرير اليومي للاعتماد.</value></data>
   <data name="SiteReportApproved" xml:space="preserve"><value>اعتُمد التقرير اليومي.</value></data>
   <data name="SiteReportReturned" xml:space="preserve"><value>أُعيد التقرير اليومي للمسودة.</value></data>
+
+  <!-- الحضور الميداني بالموقع -->
+  <data name="FieldAttendanceNotAssigned" xml:space="preserve"><value>لست مُسنداً إلى مشروع يسمح بالحضور الميداني. راجع مدير المشروع.</value></data>
+  <data name="FieldAttendanceChooseProject" xml:space="preserve"><value>أنت مُسند إلى أكثر من مشروع؛ اختر المشروع الذي تعمل فيه.</value></data>
+  <data name="FieldAttendanceProjectNotAssigned" xml:space="preserve"><value>لست مُسنداً إلى هذا المشروع.</value></data>
+  <data name="FieldAttendanceGpsDisabled" xml:space="preserve"><value>الحضور بالموقع غير مفعّل لهذا المشروع.</value></data>
+  <data name="FieldAttendanceProjectInactive" xml:space="preserve"><value>المشروع ليس في مرحلة التنفيذ؛ لا يُسجَّل عليه حضور ميداني.</value></data>
+  <data name="FieldAttendanceLocationInvalid" xml:space="preserve"><value>إحداثيات الموقع أو دقته غير صالحة.</value></data>
+  <data name="FieldAttendanceAccuracyPoor" xml:space="preserve"><value>دقة الموقع {0} م أضعف من المسموح ({1} م). انتقل إلى مكان مكشوف وأعد المحاولة.</value></data>
+  <data name="FieldAttendanceOutsideGeofence" xml:space="preserve"><value>أنت على بعد {0} م من موقع المشروع، خارج النطاق المسموح ({1} م).</value></data>
+  <data name="FieldAttendanceAlreadyCheckedIn" xml:space="preserve"><value>سُجّل حضورك اليوم مسبقاً.</value></data>
+  <data name="FieldAttendanceDayRecordedByHr" xml:space="preserve"><value>حضورك اليوم مسجّل من شؤون الموظفين؛ لا يُسجَّل ميدانياً.</value></data>
+  <data name="FieldAttendanceNoOpenCheckIn" xml:space="preserve"><value>لا يوجد حضور ميداني مفتوح اليوم على هذا المشروع لتسجيل الانصراف.</value></data>
+  <data name="FieldAttendanceAlreadyCheckedOut" xml:space="preserve"><value>سُجّل انصرافك اليوم مسبقاً.</value></data>
+  <data name="FieldAttendanceCheckedIn" xml:space="preserve"><value>سُجّل حضورك.</value></data>
+  <data name="FieldAttendanceCheckedOut" xml:space="preserve"><value>سُجّل انصرافك.</value></data>
+  <data name="ProjectGeofenceLocationInvalid" xml:space="preserve"><value>إحداثيات موقع المشروع غير صالحة.</value></data>
+  <data name="ProjectGeofenceLocationRequired" xml:space="preserve"><value>حدّد موقع المشروع قبل تفعيل الحضور بالموقع.</value></data>
+  <data name="ProjectGeofenceRadiusInvalid" xml:space="preserve"><value>نطاق الحضور بين {0} و{1} متر.</value></data>
+  <data name="ProjectGeofenceAccuracyInvalid" xml:space="preserve"><value>أضعف دقة مقبولة بين {0} و{1} متر.</value></data>
+  <data name="ProjectGeofenceSaved" xml:space="preserve"><value>حُفظ نطاق الحضور الميداني.</value></data>
+  <data name="CompanyTimeZoneInvalid" xml:space="preserve"><value>المنطقة الزمنية غير معروفة.</value></data>
+  <data name="FieldAttendanceExceptionReasonRequired" xml:space="preserve"><value>أنت على بعد {0} م من موقع المشروع، خارج النطاق ({1} م). اكتب سبب التسجيل من خارج الموقع ليراجعه مشرف المشروع.</value></data>
+  <data name="FieldAttendanceRecordedAsException" xml:space="preserve"><value>سُجّل من خارج النطاق بانتظار مراجعة مشرف المشروع.</value></data>
+  <data name="ProjectGeofencePolicyInvalid" xml:space="preserve"><value>سياسة التسجيل من خارج النطاق غير صالحة.</value></data>
+  <data name="AttendanceGpsRecordCannotBeCleared" xml:space="preserve"><value>حضور هذا اليوم مسجّل ميدانياً بالموقع؛ لا يُحذف، وتُعدَّل حالته وتأخيره وإضافيه فقط.</value></data>
+  <data name="AttendanceExceptionNotFound" xml:space="preserve"><value>استثناء الحضور غير موجود في هذا المشروع.</value></data>
+  <data name="AttendanceExceptionNotPending" xml:space="preserve"><value>استثناء الحضور ليس بانتظار المراجعة.</value></data>
+  <data name="AttendanceExceptionRejectNoteRequired" xml:space="preserve"><value>اكتب سبب رفض الاستثناء.</value></data>
+  <data name="AttendanceExceptionSelfReview" xml:space="preserve"><value>لا يراجع الموظف استثناء حضوره.</value></data>
+  <data name="AttendanceExceptionApproved" xml:space="preserve"><value>اعتُمد استثناء الحضور.</value></data>
+  <data name="AttendanceExceptionRejected" xml:space="preserve"><value>رُفض استثناء الحضور.</value></data>
+  <!-- أرشيف بنود المستخلص الإلزامي -->
+  <data name="CertificateItemAttachmentRequired" xml:space="preserve"><value>يرجى الإرفاق: {0} بند سُجّل له إنجاز بلا مستند مؤرشف ({1}). أرفق مستنداً واحداً على الأقل (صورة أو PDF) لكل بند قبل الحفظ.</value></data>
+  <data name="CertificateItemAttachmentMissing" xml:space="preserve"><value>يرجى إرفاق مستند للبند: {0}</value></data>
+  <!-- مشتريات المشروع المعزولة: سند الاستلام وعهدته -->
+  <data name="AccountRole_ProjectGoodsReceivedNotInvoicedAccountCode" xml:space="preserve"><value>بضاعة مستلمة لم تُفوتر</value></data>
+  <data name="ProjectReceiptOnlyPurchase" xml:space="preserve"><value>طلب شراء المشروع يُستلم بسند استلام مشتريات فقط.</value></data>
+  <data name="ProjectReceiptNeedsProjectRequisition" xml:space="preserve"><value>سند استلام المشروع يلزمه طلب شراء مرتبط بمشروع.</value></data>
+  <data name="ProjectReceiptRequisitionOtherProject" xml:space="preserve"><value>طلب الشراء ليس من طلبات هذا المشروع.</value></data>
+  <data name="ProjectReceiptRequisitionNotApproved" xml:space="preserve"><value>طلب الشراء {0} غير معتمد (أو محوّل): يُستلم على طلب معتمد فقط.</value></data>
+  <data name="ProjectReceiptSupplierRequired" xml:space="preserve"><value>اختر المورد (أو حدّده في طلب الشراء) قبل الاستلام.</value></data>
+  <data name="ProjectReceiptItemNotInRequisition" xml:space="preserve"><value>«{0}» ليس من أصناف طلب الشراء {1}.</value></data>
+  <data name="ProjectReceiptBoqItemRequired" xml:space="preserve"><value>«{0}»: اختر بند جدول الكميات الذي تُستلم له المادة.</value></data>
+  <data name="ProjectReceiptBoqItemOtherProject" xml:space="preserve"><value>«{0}»: البند المختار ليس من جدول كميات هذا المشروع.</value></data>
+  <data name="ProjectReceiptBoqItemIsGroup" xml:space="preserve"><value>«{0}»: البند الرئيسي ذو الفروع لا تُستلم له مواد؛ اختر أحد فروعه.</value></data>
+  <data name="ProjectReceiptPriceRequired" xml:space="preserve"><value>«{0}»: أدخل سعر الشراء (لا تقدير له في الطلب).</value></data>
+  <data name="ProjectReceiptExceedsRequisition" xml:space="preserve"><value>«{0}»: المستلم {1} يتجاوز المتبقي في الطلب {2} (المطلوب {3} − المستلم سابقاً {4}). لا تُستلم الكمية مرتين.</value></data>
+  <data name="ProjectReceiptNotEditable" xml:space="preserve"><value>سند استلام المشروع رُحّلت عهدته: احذفه وأنشئ غيره، أو أرجع منه للمورد.</value></data>
+  <data name="ProjectReceiptDeletedReason" xml:space="preserve"><value>حذف سند الاستلام {0}</value></data>
+  <data name="ProjectReceiptCustodyManagedByNote" xml:space="preserve"><value>عهدة سند الاستلام تتبع السند: تُلغى بحذفه أو بحذف مرتجعه.</value></data>
+  <data name="ProjectReceiptNotReturnableToWarehouse" xml:space="preserve"><value>«{0}» من سند الاستلام {1} عهدة للمشروع: لا تُرجع للمستودع العام؛ أرجعها للمورد بمرتجع السند.</value></data>
+  <data name="ProjectReceiptReturnExceedsCustody" xml:space="preserve"><value>«{0}»: الكمية المرتجعة تتجاوز المتاح في عهدة السند {1} (مختار في مستخلص أو مهدر).</value></data>
+  <data name="ProjectRequisitionBoqItemInvalid" xml:space="preserve"><value>بند جدول الكميات في سطر الطلب ليس سطر قياس من هذا المشروع.</value></data>
+  <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>للطلب سندات استلام: احذفها أولاً.</value></data>
+  <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>طلب شراء المشروع لا يُحوَّل لفاتورة للمستودع العام: استلمه بسند استلام للمشروع ثم أنشئ الفاتورة من السند.</value></data>
 </root>

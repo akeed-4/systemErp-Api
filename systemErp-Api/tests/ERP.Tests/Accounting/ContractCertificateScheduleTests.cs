@@ -53,8 +53,9 @@ public class ContractCertificateScheduleTests : TestBase
         return r.Data!["id"].S();
     }
 
-    private static async Task ApproveAsync(Client api, string id, string certId)
+    private async Task ApproveAsync(Client api, string id, string certId)
     {
+        await AttachCertificateEvidenceAsync(api, id, certId);
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/submit"), "submit");
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/approve"), "approve");
     }
@@ -74,6 +75,7 @@ public class ContractCertificateScheduleTests : TestBase
         var certId = await DraftAsync(api, id, "interim", a, 100, b, 100);
 
         // المشروع اكتمل في الشهر الأول من 12: الإصدار لا ينتظر نهاية الفترة ولا بقية الأشهر
+        await AttachCertificateEvidenceAsync(api, id, certId);
         Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/issue"), "issue at 100%");
         Assert.Equal(100m, (await ProgressAsync(api, id)).Completion);
         Ok(await Move(api, id, "initial_acceptance"), "acceptance at 100%");

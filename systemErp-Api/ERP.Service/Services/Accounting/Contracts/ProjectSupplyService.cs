@@ -56,8 +56,8 @@ public class ProjectSupplyService : IProjectSupplyService
         var pipeline = await PipelineAsync(contractId, exceptRequisitionId, ct);
         var movements = await MovementsAsync(contractId, null, ct);
         var delivered = movements.GroupBy(x => x.ProductId)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Kind == K.Return ? -x.Quantity : x.Kind == K.Issue ? x.Quantity : 0));
-        var returned = movements.Where(x => x.Kind == K.Return).GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+            .ToDictionary(g => g.Key, g => g.Sum(x => Net(x.Kind, x.Quantity)));
+        var returned = movements.Where(x => x.Kind is K.Return or K.ReceiptReturn).GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
         var wasted = movements.Where(x => x.Kind == K.Waste).GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
         var consumed = await ConsumedAsync(contractId, ct);
 
@@ -123,15 +123,32 @@ public class ProjectSupplyService : IProjectSupplyService
                 .Select(i => new { i.ItemId, Q = i.ApprovedQuantity ?? i.RequestedQuantity }).ToListAsync(ct))
             .GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Q));
 
+    /// <summary>
+    /// المشترى لكل صنف: فواتير الشراء المرحّلة المحوّلة من طلبات المشروع (الدورة السابقة عبر المستودع)، والمستلم الصافي بسندات استلام
+    /// المشروع (الدورة المعزولة: الاستلام من المورد هو الشراء، وفاتورته تسوية مالية لا تضيف كمية).
+    /// </summary>
     private async Task<Dictionary<Guid, decimal>> PurchasedAsync(Guid contractId, CancellationToken ct)
     {
         var requisitions = await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.ContractId == contractId).Select(r => (Guid?)r.Id).ToListAsync(ct);
         if (requisitions.Count == 0) return new();
-        return (await _db.Set<PurchaseInvoice>().AsNoTracking()
+        var purchased = (await _db.Set<PurchaseInvoice>().AsNoTracking()
                 .Where(i => i.Status == "posted" && i.ReferenceType == "material_requisition" && requisitions.Contains(i.ReferenceId))
                 .SelectMany(i => i.Items).Where(l => l.ItemId != Guid.Empty).Select(l => new { l.ItemId, l.Quantity }).ToListAsync(ct))
             .GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        foreach (var r in await ReceivedAsync(_db, contractId, ct))
+            purchased[r.ItemId] = purchased.GetValueOrDefault(r.ItemId) + r.Quantity;
+        return purchased;
     }
+
+    public sealed record ProjectReceiptLine(Guid RequisitionId, Guid ItemId, decimal Quantity);
+
+    /// <summary>صافي المستلم بسندات استلام المشروع لكل طلب وصنف (المستلم − المرتجع للمورد)، عدا سند بعينه عند تعديله.</summary>
+    internal static async Task<List<ProjectReceiptLine>> ReceivedAsync(ErpDbContext db, Guid contractId, CancellationToken ct, Guid? exceptNoteId = null)
+        => (await db.Set<DeliveryNoteItem>().AsNoTracking()
+                .Where(i => i.DeliveryNote.ContractId == contractId && i.DeliveryNote.RequisitionId != null
+                    && i.DeliveryNote.Type == ProjectReceipts.NoteType && (exceptNoteId == null || i.DeliveryNoteId != exceptNoteId))
+                .Select(i => new { R = i.DeliveryNote.RequisitionId!.Value, i.ItemId, Q = i.DeliveredQty - i.ReturnedQty }).ToListAsync(ct))
+            .Select(x => new ProjectReceiptLine(x.R, x.ItemId, x.Q)).ToList();
 
     /// <summary>
     /// الكميات في الطريق لكل صنف، كلٌّ في مرحلة واحدة من دورة الشراء القائمة (طلب ← فاتورة شراء مسودة ← ترحيلها = استلام):
@@ -147,13 +164,16 @@ public class ProjectSupplyService : IProjectSupplyService
             .Select(r => new { r.Id, r.Status, Items = r.Items.Select(i => new { i.ItemId, Q = i.ApprovedQuantity ?? i.RequestedQuantity }).ToList() })
             .ToListAsync(ct);
         static bool Converted(string s) => s is "converted_to_invoice" or "converted_to_po";
+        // المستلم بسندات استلام المشروع يخرج من المعلّق (صار عهدة): المعلّق ما بقي من كل طلب
+        var received = (await ReceivedAsync(_db, contractId, ct)).GroupBy(x => (x.RequisitionId, x.ItemId)).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
         var pending = new Dictionary<Guid, decimal>();
         var approved = new Dictionary<Guid, decimal>();
         foreach (var r in reqs.Where(r => !Converted(r.Status)))
-            foreach (var i in r.Items)
+            foreach (var g in r.Items.GroupBy(i => i.ItemId))
             {
-                pending[i.ItemId] = pending.GetValueOrDefault(i.ItemId) + i.Q;
-                if (r.Status == "approved") approved[i.ItemId] = approved.GetValueOrDefault(i.ItemId) + i.Q;
+                var open = Math.Max(0, g.Sum(i => i.Q) - received.GetValueOrDefault((r.Id, g.Key)));
+                pending[g.Key] = pending.GetValueOrDefault(g.Key) + open;
+                if (r.Status == "approved") approved[g.Key] = approved.GetValueOrDefault(g.Key) + open;
             }
         var converted = reqs.Where(r => Converted(r.Status)).Select(r => (Guid?)r.Id).ToList();
         var ordered = converted.Count == 0 ? new Dictionary<Guid, decimal>() : (await _db.Set<PurchaseInvoice>().AsNoTracking()
@@ -178,10 +198,14 @@ public class ProjectSupplyService : IProjectSupplyService
                 },
             }).OrderBy(u => u.Name).ToList());
 
-    /// <summary>المسلَّم الصافي لكل صنف = التسليم − الإرجاع للمستودع (الهدر يبقى مسلَّماً: استُهلك في الموقع).</summary>
+    /// <summary>المسلَّم الصافي لكل صنف = التسليم (من المستودع أو استلام المورد) − الإرجاع (للمستودع أو للمورد)؛ الهدر يبقى مسلَّماً.</summary>
     private async Task<Dictionary<Guid, decimal>> DeliveredAsync(Guid contractId, Guid? exceptIssueId, CancellationToken ct)
         => (await MovementsAsync(contractId, exceptIssueId, ct))
-            .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => x.Kind == K.Return ? -x.Quantity : x.Kind == K.Issue ? x.Quantity : 0));
+            .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => Net(x.Kind, x.Quantity)));
+
+    /// <summary>أثر سطر على العهدة الصافية: التسليم والاستلام يزيدانها، والإرجاع للمستودع أو المورد ينقصها، والهدر لا يغيّرها.</summary>
+    private static decimal Net(string kind, decimal value)
+        => K.IsDelivery(kind) ? value : kind is K.Return or K.ReceiptReturn ? -value : 0;
 
     private sealed record Movement(Guid ProductId, string Kind, decimal Quantity, decimal Cost, Guid? BoqItemId);
 
@@ -326,62 +350,163 @@ public class ProjectSupplyService : IProjectSupplyService
         {
             if (string.IsNullOrWhiteSpace(reason)) throw new ValidationFailedException("سبب الإلغاء مطلوب.");
             var issue = await LoadAsync(contractId, id, track: true, token);
-            if (issue.Status != ProjectMaterialIssueStatuses.Posted) throw new ConflictException("يُلغى مستند الصرف المرحّل فقط.");
-            // كميات مختارة في مستخلص غير ملغى: تكلفتها مرتبطة بإيراده، فلا يُعكس التسليم قبل إخراجها منه (أو إلغائه/إلغاء فاتورته)
-            var certified = await _db.Set<ContractCertificateMaterial>().AsNoTracking()
-                .Where(m => m.IssueId == issue.Id && m.Certificate.Status != ContractCertificateStatuses.Cancelled)
-                .Select(m => m.Certificate.CertificateNumber).Distinct().ToListAsync(token);
-            if (certified.Count > 0)
-                throw new ConflictException($"كميات من الإذن {issue.IssueNumber} مختارة في المستخلص {string.Join("، ", certified)}: أخرجها منه أو ألغِه (أو ألغِ فاتورته) قبل إلغاء الإذن.");
-            // تسليم سُحب منه بإرجاع أو هدر مرحّل: يُلغى ذلك المستند أولاً
-            var lineIds = issue.Lines.Select(l => l.Id).ToList();
-            var withdrawals = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
-                .Where(l => l.SourceLineId != null && lineIds.Contains(l.SourceLineId.Value) && l.Issue.Status == ProjectMaterialIssueStatuses.Posted)
-                .Select(l => l.Issue.IssueNumber).Distinct().ToListAsync(token);
-            if (withdrawals.Count > 0)
-                throw new ConflictException($"من الإذن {issue.IssueNumber} كميات مُرجعة أو مهدرة بالمستند {string.Join("، ", withdrawals)}: ألغِه أولاً.");
-            // رمز التزامن على الأسطر: اختيارها في مستخلص بالتوازي مع هذا الإلغاء يفشل أحدهما بدل أن يمرّا معاً
-            foreach (var line in issue.Lines) _db.Entry(line).State = EntityState.Modified;
-            var note = $"إلغاء صرف مواد {issue.IssueNumber}: {reason.Trim()}";
-            if (issue.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, note, token);
-            decimal residual = 0;
-            // الإرجاع يُعكس بحركة صادر من المستودع (والفرق عن تكلفة الإرجاع إعادة تقييم)، والهدر بلا حركة مخزون
-            if (issue.Kind == K.Return)
-                foreach (var line in issue.Lines.Where(l => l.Quantity > 0))
-                {
-                    var outMove = await _inventory.RecordMovementAsync(new RecordStockMovementDto
-                    {
-                        ItemId = line.ProductId, WarehouseId = issue.WarehouseId, Quantity = line.Quantity, Type = StockMovementType.AdjustmentOut,
-                        ReferenceNumber = issue.IssueNumber, Date = issue.Date, Notes = note,
-                        SourceType = SourceType + "_reversal", SourceId = issue.Id, SourceLineId = line.Id,
-                    }, token);
-                    residual += line.TotalCost + outMove.ValueChange;
-                }
-            foreach (var line in issue.Lines.Where(l => l.Quantity > 0 && issue.Kind == K.Issue))
-            {
-                var back = await _inventory.RecordMovementAsync(new RecordStockMovementDto
-                {
-                    ItemId = line.ProductId, WarehouseId = issue.WarehouseId, Quantity = line.Quantity, Type = StockMovementType.AdjustmentIn,
-                    UnitCost = line.UnitCost, ReferenceNumber = issue.IssueNumber, Date = issue.Date, Notes = note,
-                    SourceType = SourceType + "_reversal", SourceId = issue.Id, SourceLineId = line.Id,
-                    BatchAllocations = await ItemBatches.OfDocumentAsync(_db, SourceType, issue.Id, line.ProductId, line.Id, token),
-                }, token);
-                residual += back.ValueChange - line.TotalCost;
-            }
-            await ItemBatches.MarkReversedAsync(_db, SourceType, issue.Id, token);
-            await _db.SaveChangesAsync(token);
-            if (issue.JournalEntryId != null)
-            {
-                var accounts = await PostingAccounts.SettingsAsync(_db, token);
-                await InventoryValuation.PostRevaluationAsync(_db, _posting, residual, await accounts.InventoryAsync(_db, issue.WarehouseId, token), note, issue.Id, token);
-            }
-            issue.Status = ProjectMaterialIssueStatuses.Cancelled;
-            issue.CancelReason = reason.Trim();
-            issue.JournalEntryId = null;
-            await _db.SaveChangesAsync(token);
-            await _audit.LogAsync("PROJECT_MATERIAL_ISSUE_CANCELLED", nameof(ProjectMaterialIssue), issue.Id.ToString(), note, token);
+            // عهدة سند الاستلام وإرجاعها تتبعان السند: تُلغى بحذفه أو بحذف مرتجعه
+            if (K.IsSystem(issue.Kind)) throw new ConflictException(Messages.ProjectReceiptCustodyManagedByNote);
+            await CancelCoreAsync(issue, reason.Trim(), token);
             return ToDto(issue, null, await ExtrasAsync(contractId, token));
         }, ct);
+
+    /// <summary>
+    /// عكس مستند مواد مرحّل: يمنعه اختيار كمياته في مستخلص غير ملغى أو سحب مرحّل منه، ثم يعكس قيده وحركات مخزونه (للتسليم والإرجاع)
+    /// ويعلّمه ملغى. يستدعيه الإلغاء من الشاشة، وسند الاستلام ومرتجعه لعهدتهما (داخل معاملة المستدعي).
+    /// </summary>
+    private async Task CancelCoreAsync(ProjectMaterialIssue issue, string reason, CancellationToken token)
+    {
+        if (issue.Status != ProjectMaterialIssueStatuses.Posted) throw new ConflictException("يُلغى مستند الصرف المرحّل فقط.");
+        // كميات مختارة في مستخلص غير ملغى: تكلفتها مرتبطة بإيراده، فلا يُعكس التسليم قبل إخراجها منه (أو إلغائه/إلغاء فاتورته)
+        var certified = await _db.Set<ContractCertificateMaterial>().AsNoTracking()
+            .Where(m => m.IssueId == issue.Id && m.Certificate.Status != ContractCertificateStatuses.Cancelled)
+            .Select(m => m.Certificate.CertificateNumber).Distinct().ToListAsync(token);
+        if (certified.Count > 0)
+            throw new ConflictException($"كميات من الإذن {issue.IssueNumber} مختارة في المستخلص {string.Join("، ", certified)}: أخرجها منه أو ألغِه (أو ألغِ فاتورته) قبل إلغاء الإذن.");
+        // تسليم سُحب منه بإرجاع أو هدر مرحّل: يُلغى ذلك المستند أولاً
+        var lineIds = issue.Lines.Select(l => l.Id).ToList();
+        var withdrawals = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
+            .Where(l => l.SourceLineId != null && lineIds.Contains(l.SourceLineId.Value) && l.Issue.Status == ProjectMaterialIssueStatuses.Posted)
+            .Select(l => l.Issue.IssueNumber).Distinct().ToListAsync(token);
+        if (withdrawals.Count > 0)
+            throw new ConflictException($"من الإذن {issue.IssueNumber} كميات مُرجعة أو مهدرة بالمستند {string.Join("، ", withdrawals)}: ألغِه أولاً.");
+        // رمز التزامن على الأسطر: اختيارها في مستخلص بالتوازي مع هذا الإلغاء يفشل أحدهما بدل أن يمرّا معاً
+        foreach (var line in issue.Lines) _db.Entry(line).State = EntityState.Modified;
+        var note = $"إلغاء مستند مواد {issue.IssueNumber}: {reason}";
+        if (issue.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, note, token);
+        decimal residual = 0;
+        // الإرجاع يُعكس بحركة صادر من المستودع (والفرق عن تكلفة الإرجاع إعادة تقييم)، والهدر بلا حركة مخزون
+        if (issue.Kind == K.Return)
+            foreach (var line in issue.Lines.Where(l => l.Quantity > 0))
+            {
+                var outMove = await _inventory.RecordMovementAsync(new RecordStockMovementDto
+                {
+                    ItemId = line.ProductId, WarehouseId = issue.WarehouseId, Quantity = line.Quantity, Type = StockMovementType.AdjustmentOut,
+                    ReferenceNumber = issue.IssueNumber, Date = issue.Date, Notes = note,
+                    SourceType = SourceType + "_reversal", SourceId = issue.Id, SourceLineId = line.Id,
+                }, token);
+                residual += line.TotalCost + outMove.ValueChange;
+            }
+        foreach (var line in issue.Lines.Where(l => l.Quantity > 0 && issue.Kind == K.Issue))
+        {
+            var back = await _inventory.RecordMovementAsync(new RecordStockMovementDto
+            {
+                ItemId = line.ProductId, WarehouseId = issue.WarehouseId, Quantity = line.Quantity, Type = StockMovementType.AdjustmentIn,
+                UnitCost = line.UnitCost, ReferenceNumber = issue.IssueNumber, Date = issue.Date, Notes = note,
+                SourceType = SourceType + "_reversal", SourceId = issue.Id, SourceLineId = line.Id,
+                BatchAllocations = await ItemBatches.OfDocumentAsync(_db, SourceType, issue.Id, line.ProductId, line.Id, token),
+            }, token);
+            residual += back.ValueChange - line.TotalCost;
+        }
+        await ItemBatches.MarkReversedAsync(_db, SourceType, issue.Id, token);
+        await _db.SaveChangesAsync(token);
+        if (issue.JournalEntryId != null)
+        {
+            var accounts = await PostingAccounts.SettingsAsync(_db, token);
+            await InventoryValuation.PostRevaluationAsync(_db, _posting, residual, await accounts.InventoryAsync(_db, issue.WarehouseId, token), note, issue.Id, token);
+        }
+        issue.Status = ProjectMaterialIssueStatuses.Cancelled;
+        issue.CancelReason = reason;
+        issue.JournalEntryId = null;
+        await _db.SaveChangesAsync(token);
+        await _audit.LogAsync("PROJECT_MATERIAL_ISSUE_CANCELLED", nameof(ProjectMaterialIssue), issue.Id.ToString(), note, token);
+    }
+
+    // ---------------- عهدة سند استلام المشروع ----------------
+
+    public async Task<Guid> PostPurchaseReceiptAsync(DeliveryNote note, CancellationToken ct = default)
+    {
+        var contract = await ContractAsync(note.ContractId!.Value, ct);
+        var doc = new ProjectMaterialIssue
+        {
+            Id = Guid.NewGuid(), ContractId = contract.Id, IssueNumber = note.DeliveryNumber, Date = note.Date.Date, Kind = K.PurchaseReceipt,
+            ReceiverType = ProjectIssueReceiverTypes.Storekeeper, ReceiverName = note.PartyName, ReceiverSupplierId = note.PartyId,
+            RequisitionId = note.RequisitionId, DeliveryNoteId = note.Id, CostCenterId = contract.CostCenterId, Notes = note.Notes,
+        };
+        var sort = 0;
+        foreach (var item in note.Items.Where(i => i.DeliveredQty > 0))
+            doc.Lines.Add(new ProjectMaterialIssueLine
+            {
+                BoqItemId = item.BoqItemId, ProductId = item.ItemId, Sku = item.Sku ?? string.Empty, ItemName = item.ItemName, Unit = item.Unit ?? string.Empty,
+                Quantity = item.DeliveredQty, UnitCost = item.UnitPrice, TotalCost = DocumentPricing.Round(item.DeliveredQty * item.UnitPrice), SortOrder = sort++,
+            });
+        doc.TotalCost = doc.Lines.Sum(l => l.TotalCost);
+        _db.Add(doc);
+
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
+        if (!accounts.IsPeriodic(doc.Date) && doc.TotalCost > 0)
+        {
+            // المواد تُحمَّل على المشروع مباشرة بسعر شرائها، ومقابلها التزام حتى تصل فاتورة المورد (لا مخزون عام ولا متوسط تكلفة)
+            await ContractAccountsSetup.EnsureMissingAsync(_db, ct);
+            accounts = await PostingAccounts.SettingsAsync(_db, ct);
+            var wip = accounts.ContractAccount(nameof(AccountingSettings.ProjectMaterialsWipAccountCode));
+            var grni = accounts.ContractAccount(nameof(AccountingSettings.ProjectGoodsReceivedNotInvoicedAccountCode));
+            var text = $"استلام مواد للمشروع {contract.ContractNumber} من المورد {note.PartyName} - {note.DeliveryNumber}";
+            doc.JournalEntryId = (await _posting.PostAsync(new GenericPostingRequest
+            {
+                Date = doc.Date, Description = text, SourceType = SourceType, SourceId = doc.Id, SourceNumber = doc.IssueNumber,
+                Lines = new List<PostingLine> { new(wip, doc.TotalCost, 0, text, doc.CostCenterId), new(grni, 0, doc.TotalCost, text, doc.CostCenterId) },
+            }, ct)).JournalEntryId;
+            doc.DebitAccountCode = wip;
+        }
+        doc.Status = ProjectMaterialIssueStatuses.Posted;
+        doc.PostedAt = SaudiTime.Now;
+        doc.PostedBy = _user.Name;
+        await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync("PROJECT_PURCHASE_RECEIPT_POSTED", nameof(ProjectMaterialIssue), doc.Id.ToString(),
+            $"عهدة سند الاستلام {note.DeliveryNumber} للمشروع {contract.ContractNumber} بتكلفة {doc.TotalCost:0.00}", ct);
+        return doc.Id;
+    }
+
+    public async Task<Guid> PostReceiptReturnAsync(DeliveryNote note, DeliveryReturnNote returnNote, CancellationToken ct = default)
+    {
+        var contract = await ContractAsync(note.ContractId!.Value, ct);
+        var receipt = await LoadAsync(contract.Id, note.CustodyIssueId!.Value, track: false, ct);
+        var withdrawn = await CertifiedMaterials.WithdrawnByLineAsync(_db, contract.Id, null, ct);
+        var certified = await CertifiedMaterials.ByIssueLineAsync(_db, contract.Id, null, ct);
+        var doc = new ProjectMaterialIssue
+        {
+            Id = Guid.NewGuid(), ContractId = contract.Id, IssueNumber = returnNote.ReturnNumber, Date = returnNote.Date.Date, Kind = K.ReceiptReturn,
+            ReceiverType = ProjectIssueReceiverTypes.Storekeeper, ReceiverName = note.PartyName, ReceiverSupplierId = note.PartyId,
+            DeliveryNoteId = note.Id, CostCenterId = receipt.CostCenterId, Notes = returnNote.ReturnReason,
+        };
+        var sort = 0;
+        // كل صنف مرتجع يُسحب من أسطر العهدة بترتيبها بقدر المتاح فيها (غير المسحوب ولا المختار في مستخلص)
+        foreach (var item in returnNote.Items.Where(i => i.Quantity > 0))
+        {
+            var left = item.Quantity;
+            foreach (var src in receipt.Lines.Where(l => l.ProductId == item.ItemId).OrderBy(l => l.SortOrder))
+            {
+                var available = src.Quantity - withdrawn.GetValueOrDefault(src.Id).Quantity - certified.GetValueOrDefault(src.Id).Quantity;
+                var take = Math.Min(left, Math.Max(0, available));
+                if (take <= 0) continue;
+                doc.Lines.Add(new ProjectMaterialIssueLine
+                {
+                    SourceLineId = src.Id, BoqItemId = src.BoqItemId, ProductId = src.ProductId, Sku = src.Sku, ItemName = src.ItemName, Unit = src.Unit,
+                    Quantity = take, UnitCost = src.UnitCost, TotalCost = DocumentPricing.Round(take * src.UnitCost), SortOrder = sort++,
+                });
+                left -= take;
+                if (left <= 0) break;
+            }
+            if (left > 0.00005m)
+                throw new ConflictException(string.Format(Messages.ProjectReceiptReturnExceedsCustody, item.ItemName, note.DeliveryNumber));
+        }
+        _db.Add(doc);
+        await PostWithdrawalAsync(contract, doc, ct);
+        return doc.Id;
+    }
+
+    public async Task CancelReceiptCustodyAsync(Guid contractId, Guid custodyIssueId, string reason, CancellationToken ct = default)
+    {
+        var issue = await LoadAsync(contractId, custodyIssueId, track: true, ct);
+        if (issue.Status == ProjectMaterialIssueStatuses.Posted) await CancelCoreAsync(issue, reason, ct);
+    }
 
     // ---------------- البناء والترحيل ----------------
     private async Task ApplyAsync(CommercialContract contract, ProjectMaterialIssue issue, SaveProjectMaterialIssueDto r, CancellationToken ct)
@@ -468,8 +593,13 @@ public class ProjectSupplyService : IProjectSupplyService
         var sort = 0;
         foreach (var l in lines)
         {
-            if (!sources.TryGetValue(l.SourceLineId!.Value, out var src) || src.Issue.ContractId != contract.Id || src.Issue.Kind != K.Issue)
+            if (!sources.TryGetValue(l.SourceLineId!.Value, out var src) || src.Issue.ContractId != contract.Id || !K.IsDelivery(src.Issue.Kind))
                 throw new ValidationFailedException("السطر المختار ليس من أذونات تسليم هذا المشروع.");
+            // عزل المشروع: ما استُلم من المورد للمشروع لا يدخل المستودع العام؛ يُرجع للمورد بمرتجع سند الاستلام (أو يُهدر)
+            if (issue.Kind == K.Return && src.Issue.Kind == K.PurchaseReceipt)
+                throw new ValidationFailedException(string.Format(Messages.ProjectReceiptNotReturnableToWarehouse, src.ItemName, src.Issue.IssueNumber));
+            if (issue.Kind == K.ReceiptReturn && src.Issue.Kind != K.PurchaseReceipt)
+                throw new ValidationFailedException("السطر المختار ليس من عهدة سند الاستلام.");
             var line = new ProjectMaterialIssueLine
             {
                 Id = Guid.NewGuid(), IssueId = issue.Id, SourceLineId = src.Id, BoqItemId = src.BoqItemId, ProductId = src.ProductId, Sku = src.Sku,
@@ -514,7 +644,9 @@ public class ProjectSupplyService : IProjectSupplyService
     {
         await EnsureWithdrawableAsync(contract.Id, doc, ct);
         var isReturn = doc.Kind == K.Return;
-        var note = $"{(isReturn ? "إرجاع مواد من موقع" : "هدر مواد في موقع")} مشروع {contract.ContractNumber} - {doc.IssueNumber} - {doc.ReceiverName}";
+        var toSupplier = doc.Kind == K.ReceiptReturn;
+        var action = isReturn ? "إرجاع مواد من موقع" : toSupplier ? "إرجاع مواد للمورد من عهدة" : "هدر مواد في موقع";
+        var note = $"{action} مشروع {contract.ContractNumber} - {doc.IssueNumber} - {doc.ReceiverName}";
         if (isReturn)
             foreach (var line in doc.Lines.OrderBy(l => l.SortOrder))
                 await _inventory.RecordMovementAsync(new RecordStockMovementDto
@@ -541,7 +673,10 @@ public class ProjectSupplyService : IProjectSupplyService
             {
                 await ContractAccountsSetup.EnsureMissingAsync(_db, ct);
                 accounts = await PostingAccounts.SettingsAsync(_db, ct);
-                debit = accounts.ContractAccount(nameof(AccountingSettings.ContractCostOfRevenueAccountCode));
+                // الهدر تكلفة إيرادات، والإرجاع للمورد يعكس استحقاق الاستلام (البضاعة المستلمة غير المفوترة)
+                debit = accounts.ContractAccount(toSupplier
+                    ? nameof(AccountingSettings.ProjectGoodsReceivedNotInvoicedAccountCode)
+                    : nameof(AccountingSettings.ContractCostOfRevenueAccountCode));
             }
             var lines = new List<PostingLine> { new(debit, doc.TotalCost, 0, note, doc.CostCenterId) };
             lines.AddRange(doc.Lines.GroupBy(l => wipOf[l.SourceLineId!.Value])
@@ -556,7 +691,7 @@ public class ProjectSupplyService : IProjectSupplyService
         doc.PostedAt = SaudiTime.Now;
         doc.PostedBy = _user.Name;
         await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync(isReturn ? "PROJECT_MATERIAL_RETURN_POSTED" : "PROJECT_MATERIAL_WASTE_POSTED", nameof(ProjectMaterialIssue), doc.Id.ToString(),
+        await _audit.LogAsync(isReturn ? "PROJECT_MATERIAL_RETURN_POSTED" : toSupplier ? "PROJECT_RECEIPT_RETURN_POSTED" : "PROJECT_MATERIAL_WASTE_POSTED", nameof(ProjectMaterialIssue), doc.Id.ToString(),
             $"{note} بتكلفة {doc.TotalCost:0.00}", ct);
     }
 
@@ -716,8 +851,8 @@ public class ProjectSupplyService : IProjectSupplyService
         // المسلَّم الصافي (التسليم − الإرجاع) وتكلفته، والهدر بتكلفته (اعتُرف به عند ترحيله فلا يبقى تحت التنفيذ)
         var moves = (await MovementsAsync(contractId, null, ct)).Where(m => m.BoqItemId != null).ToList();
         var delivered = moves.GroupBy(m => (m.BoqItemId!.Value, m.ProductId)).ToDictionary(g => g.Key, g => (
-            Q: g.Sum(m => m.Kind == K.Return ? -m.Quantity : m.Kind == K.Issue ? m.Quantity : 0),
-            C: g.Sum(m => m.Kind == K.Return ? -m.Cost : m.Kind == K.Issue ? m.Cost : 0),
+            Q: g.Sum(m => Net(m.Kind, m.Quantity)),
+            C: g.Sum(m => Net(m.Kind, m.Cost)),
             W: g.Where(m => m.Kind == K.Waste).Sum(m => m.Cost)));
         var certified = (await CertifiedMaterials.Active(_db, contractId)
                 .GroupBy(m => new { m.ContractItemId, m.ProductId, Invoiced = m.Certificate.Status == ContractCertificateStatuses.Invoiced })

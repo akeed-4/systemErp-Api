@@ -221,9 +221,33 @@ public class ContractCertificateService : IContractCertificateService
             await ApplyMaterialsAsync(cert, contract, request.Materials, token);
             SetDeductions(cert, request.Deductions);
             ApplyDeductions(cert, contract, await PriorDeductionsAsync(contractId, token), request.PenaltyAmount, validate: true);
+            await EnsureProgressDocumentedAsync(cert, token);
             await SaveAsync(token);
             return ToDto(cert);
         }, ct);
+
+    /// <summary>
+    /// كل بند سُجّل له إنجاز في هذا المستخلص (كمية حالية) يلزمه مستند مؤرشف واحد على الأقل. يُفحص عند حفظ المستخلص القائم وتقديمه
+    /// واعتماده؛ المستخلص الجديد بلا معرّف بعد، فتمنع الشاشة حفظه وترفع مستنداته بعده، ثم يمنع الخادم تقديمه بلا أرشيف.
+    /// </summary>
+    private async Task EnsureProgressDocumentedAsync(ContractCertificate cert, CancellationToken ct)
+    {
+        var measured = cert.Lines.Where(l => l.CurrentQuantity != 0).OrderBy(l => l.SortOrder).ToList();
+        if (measured.Count == 0) return;
+        var ids = measured.Select(l => l.ContractItemId).ToList();
+        var documented = (await _db.Set<ContractCertificateItemAttachment>().AsNoTracking()
+            .Where(a => a.CertificateId == cert.Id && ids.Contains(a.ContractItemId))
+            .Select(a => a.ContractItemId).Distinct().ToListAsync(ct)).ToHashSet();
+        var missing = measured.Where(l => !documented.Contains(l.ContractItemId))
+            .Select(l => string.IsNullOrWhiteSpace(l.LineCode) ? l.Description : $"{l.LineCode} - {l.Description}").ToList();
+        if (missing.Count == 0) return;
+        var shown = string.Join("، ", missing.Take(MaxNamedItems)) + (missing.Count > MaxNamedItems ? "…" : "");
+        throw new ValidationFailedException(string.Format(Messages.CertificateItemAttachmentRequired, missing.Count, shown),
+            missing.Select(n => string.Format(Messages.CertificateItemAttachmentMissing, n)).ToList());
+    }
+
+    /// <summary>عدد البنود المسمّاة في رسالة نقص الأرشيف (والباقي في قائمة الأخطاء).</summary>
+    private const int MaxNamedItems = 5;
 
     // ---------- الدورة ----------
 
@@ -242,6 +266,8 @@ public class ContractCertificateService : IContractCertificateService
                 var from = cert.PeriodFrom?.Date ?? SaudiTime.Today;
                 cert.PeriodTo = SaudiTime.Today < from ? from : SaudiTime.Today;
             }
+            // بعد قواعد الحالة والفترة: نقص الأرشيف آخر ما يُبلَّغ به
+            await EnsureProgressDocumentedAsync(cert, token);
             cert.Status = St.Submitted;
             cert.SubmittedAt = DateTime.UtcNow; cert.SubmittedBy = _user.Name ?? "system";
             await SaveAsync(token);
@@ -255,6 +281,7 @@ public class ContractCertificateService : IContractCertificateService
             RequireStatus(cert, St.Submitted);
             // السابق (كميات واسترداد وغرامات) يُعاد من القاعدة لحظة الاعتماد: لو اعتُمد غيره في الأثناء يُرفض التجاوز هنا
             await RemeasureAsync(cert, contract, token);
+            await EnsureProgressDocumentedAsync(cert, token);
             cert.Status = St.Approved;
             cert.ApprovedAt = DateTime.UtcNow; cert.ApprovedBy = _user.Name ?? "system"; cert.ApprovedByUserId = _user.UserId;
             await SaveAsync(token);
@@ -384,7 +411,7 @@ public class ContractCertificateService : IContractCertificateService
                 continue;
             }
             var issue = line.Issue;
-            if (issue.Status != ProjectMaterialIssueStatuses.Posted || issue.Kind != ProjectMaterialIssueKinds.Issue)
+            if (issue.Status != ProjectMaterialIssueStatuses.Posted || !ProjectMaterialIssueKinds.IsDelivery(issue.Kind))
             {
                 errors.Add($"الإذن {issue.IssueNumber} غير مرحّل أو ملغى: لا تُختار منه مواد.");
                 continue;
@@ -433,7 +460,7 @@ public class ContractCertificateService : IContractCertificateService
         var items = contract.Items.ToDictionary(i => i.Id);
         var rows = await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
             .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted
-                && l.Issue.Kind == ProjectMaterialIssueKinds.Issue && l.BoqItemId != null)
+                && (l.Issue.Kind == ProjectMaterialIssueKinds.Issue || l.Issue.Kind == ProjectMaterialIssueKinds.PurchaseReceipt) && l.BoqItemId != null)
             .Select(l => new
             {
                 l.Id, l.IssueId, l.Issue.IssueNumber, l.Issue.Date, l.Issue.DebitAccountCode, l.Issue.JournalEntryId, BoqItemId = l.BoqItemId!.Value,

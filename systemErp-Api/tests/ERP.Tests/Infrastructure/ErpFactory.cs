@@ -57,6 +57,8 @@ public class ErpFactory : WebApplicationFactory<Program>
             // هيئة الزكاة: بديل محلي يتحقق من التجزئة والتوقيع، فلا اتصال بالإنترنت في الاختبارات
             services.AddSingleton<ERP.Core.Contracts.Accounting.IZatcaApiClient>(FakeZatcaApiClient.Instance);
             services.AddSingleton<ERP.Core.Contracts.Shared.IWhatsAppProvider>(FakeWhatsAppProvider.Instance);
+            // ساعة قابلة للتثبيت (الحضور الميداني: اليوم المحلي والتأخير)
+            services.AddSingleton<TimeProvider>(TestClock.Instance);
         });
     }
 

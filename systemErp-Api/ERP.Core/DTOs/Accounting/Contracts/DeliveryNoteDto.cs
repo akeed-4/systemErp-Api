@@ -31,4 +31,7 @@ public partial class DeliveryNoteDto
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
     public List<DeliveryNoteItemDto> Items { get; set; } = new();
+    public Guid? RequisitionId { get; set; }
+    /// <summary>عهدة المشروع المنشأة من السند (سند استلام مشروع).</summary>
+    public Guid? CustodyIssueId { get; set; }
 }

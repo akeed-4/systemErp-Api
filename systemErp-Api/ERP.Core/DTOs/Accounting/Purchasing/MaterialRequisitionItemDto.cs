@@ -11,4 +11,6 @@ public partial class MaterialRequisitionItemDto
     public decimal? ApprovedQuantity { get; set; }
     public decimal? EstimatedCost { get; set; }
     public string? Notes { get; set; }
+    /// <summary>بند جدول كميات المشروع (لطلب مشروع).</summary>
+    public Guid? BoqItemId { get; set; }
 }

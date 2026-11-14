@@ -571,7 +571,40 @@ public class ErpDbContext : DbContext
             e.Property(p => p.Notes).HasMaxLength(1000);
             e.HasIndex(p => new { p.TenantId, p.ContractId }).IsUnique();
             e.HasOne<CommercialContract>().WithMany().HasForeignKey(p => p.ContractId);
+            e.Property(p => p.SiteLatitude).HasPrecision(9, 6);
+            e.Property(p => p.SiteLongitude).HasPrecision(9, 6);
+            e.Property(p => p.GeofenceRadiusMeters).HasDefaultValue(ProjectGeofence.DefaultRadiusMeters);
+            e.Property(p => p.MaxGpsAccuracyMeters).HasDefaultValue(ProjectGeofence.DefaultMaxAccuracyMeters);
+            e.Property(p => p.OutOfRangePolicy).HasMaxLength(16).IsRequired().HasDefaultValue(OutOfRangePolicies.Reject);
         });
+        // الحضور اليومي: سجل واحد للموظف في اليوم (الفهرس الفريد يردّ التسجيل المتزامن)، ودليل الموقع حضور واحد وانصراف واحد للسجل.
+        // المشروع على السجل ودليله «منع الحذف» كبقية تابعي العقد؛ الحضور الميداني لا يُسجَّل إلا على مشروع في التنفيذ.
+        modelBuilder.Entity<AttendanceRecord>(e =>
+        {
+            e.Property(r => r.Source).HasMaxLength(16).IsRequired().HasDefaultValue(AttendanceSources.Manual);
+            e.Property(r => r.GpsStatus).HasMaxLength(24);
+            e.HasIndex(r => new { r.TenantId, r.EmployeeId, r.Date }).IsUnique();
+            e.HasIndex(r => new { r.TenantId, r.ContractId, r.Date });
+            e.HasOne<CommercialContract>().WithMany().HasForeignKey(r => r.ContractId);
+            e.HasMany(r => r.Punches).WithOne(p => p.Record).HasForeignKey(p => p.AttendanceRecordId);
+        });
+        modelBuilder.Entity<AttendanceGpsPunch>(e =>
+        {
+            e.Property(p => p.Kind).HasMaxLength(16).IsRequired();
+            e.Property(p => p.Latitude).HasPrecision(9, 6);
+            e.Property(p => p.Longitude).HasPrecision(9, 6);
+            e.Property(p => p.AccuracyMeters).HasPrecision(9, 1);
+            e.Property(p => p.DistanceMeters).HasPrecision(12, 1);
+            e.HasIndex(p => new { p.AttendanceRecordId, p.Kind }).IsUnique();
+            e.HasOne<CommercialContract>().WithMany().HasForeignKey(p => p.ContractId);
+            e.Property(p => p.ExceptionReason).HasMaxLength(500);
+            e.Property(p => p.ReviewStatus).HasMaxLength(16);
+            e.Property(p => p.ReviewNote).HasMaxLength(500);
+            e.Property(p => p.ReviewedBy).HasMaxLength(200);
+            // قائمة الاستثناءات المعلّقة للمشروع
+            e.HasIndex(p => new { p.TenantId, p.ContractId, p.ReviewStatus });
+        });
+        modelBuilder.Entity<Tenant>().Property(t => t.TimeZoneId).HasMaxLength(64).IsRequired().HasDefaultValue(TenantTimeZone.Default);
         modelBuilder.Entity<ProjectPhase>(e =>
         {
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
@@ -1031,7 +1064,11 @@ public class ErpDbContext : DbContext
             e.Property(i => i.ReceiverName).HasMaxLength(200);
             e.Property(i => i.DebitAccountCode).HasMaxLength(50);
             e.HasIndex(i => new { i.TenantId, i.ContractId, i.Status });
+            // عهدة سند الاستلام ومرتجعه بمرجع السند (بلا قيد: السند يُحذف وتبقى العهدة الملغاة للتدقيق)
+            e.HasIndex(i => new { i.TenantId, i.DeliveryNoteId });
         });
+        // سندات استلام المشروع لكل طلب شراء (منع الاستلام المكرر ومتابعة المعلّق)
+        modelBuilder.Entity<DeliveryNote>().HasIndex(n => new { n.TenantId, n.RequisitionId });
         modelBuilder.Entity<ProjectMaterialIssueLine>(e =>
         {
             e.Property(l => l.Sku).HasMaxLength(100);

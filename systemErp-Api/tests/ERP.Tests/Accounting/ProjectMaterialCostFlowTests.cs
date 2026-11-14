@@ -85,13 +85,16 @@ public class ProjectMaterialCostFlowTests : TestBase
         return new Project(id, item, Line("مجموعة"), Line("فرعي"), product, supplier, customerAccount);
     }
 
-    /// <summary>طلب شراء للمشروع ← اعتماد ← تحويل لفاتورة شراء ← ترحيلها.</summary>
+    /// <summary>
+    /// شراء للمستودع العام (طلب عام ← اعتماد ← تحويل لفاتورة شراء ← ترحيلها)، ثم يُسلَّم للمشروع بإذن صرف صريح. طلب المشروع نفسه
+    /// لا يدخل المستودع العام: يُستلم بسند استلام للمشروع (ProjectPurchaseIsolationTests).
+    /// </summary>
     private static async Task BuyViaRequisitionAsync(Client api, Project p, decimal qty, decimal cost)
     {
         var req = await api.Post("/materialrequisitions", new
         {
-            requestDate = DateTime.UtcNow, requiredDate = DateTime.UtcNow.AddDays(5), department = "المشاريع", requestedBy = "م. خالد", priority = "high",
-            supplierId = p.Supplier, supplierName = "مورد", status = "draft", contractId = p.Id, deliveryLocation = "project_site", deliveryAddress = "الموقع",
+            requestDate = DateTime.UtcNow, requiredDate = DateTime.UtcNow.AddDays(5), department = "المشتريات", requestedBy = "م. خالد", priority = "high",
+            supplierId = p.Supplier, supplierName = "مورد", status = "draft", deliveryLocation = "project_site", deliveryAddress = "الموقع",
             items = new[] { new { itemId = p.Product, itemName = "أسمنت", sku = "CEM", unit = "PCS", requestedQuantity = qty, estimatedCost = cost } },
         });
         Ok(req, "requisition");
@@ -124,11 +127,12 @@ public class ProjectMaterialCostFlowTests : TestBase
     };
 
     /// <summary>مستخلص مبسّط يُفوتر مباشرة؛ يعيد المستخلص بعد الفوترة.</summary>
-    private static async Task<JsonNode> IssueCertificateAsync(Client api, Project p, object body, string step)
+    private async Task<JsonNode> IssueCertificateAsync(Client api, Project p, object body, string step)
     {
         var cert = await api.Post($"/commercialcontracts/{p.Id}/certificates", body);
         Ok(cert, step);
         var certId = cert.Data!["id"].S();
+        await AttachCertificateEvidenceAsync(api, p.Id, certId);
         Ok(await api.Post($"/commercialcontracts/{p.Id}/certificates/{certId}/issue"), step + " issue");
         return (await api.Get($"/commercialcontracts/{p.Id}/certificates/{certId}")).Data!;
     }
@@ -313,6 +317,7 @@ public class ProjectMaterialCostFlowTests : TestBase
         var draft = await api.Post($"/commercialcontracts/{p.Id}/certificates", Certificate(p.Item, 1, (line, 4)));
         Ok(draft, "draft");
         var id = draft.Data!["id"].S();
+        await AttachCertificateEvidenceAsync(api, p.Id, id);
         var kept = await api.Put($"/commercialcontracts/{p.Id}/certificates/{id}", new
         {
             kind = "interim", certificateDate = DateTime.UtcNow.Date, lines = new[] { new { contractItemId = p.Item, currentQuantity = 2m } }, deductions = Array.Empty<object>(),

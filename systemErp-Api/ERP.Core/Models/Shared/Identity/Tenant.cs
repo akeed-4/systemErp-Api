@@ -24,6 +24,8 @@ public class Tenant : BaseEntity
     public string DocumentVisibility { get; set; } = "site";
     /// <summary>ترقيم المستندات: tenant = تسلسل واحد للمنشأة | warehouse = لكل مستودع (برمزه) | user = لكل مستخدم (برمزه). بيانات العملاء والموردين والبنوك تبقى للمنشأة.</summary>
     public string DocumentNumberingScope { get; set; } = "tenant";
+    /// <summary>المنطقة الزمنية للمنشأة (IANA)؛ منها «اليوم» ووقت الحضور الميداني.</summary>
+    public string TimeZoneId { get; set; } = "Asia/Riyadh";
     
     public ZatcaConfig ZatcaConfig { get; set; } = new();
 }

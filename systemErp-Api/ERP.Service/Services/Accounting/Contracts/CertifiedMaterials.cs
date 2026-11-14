@@ -21,7 +21,8 @@ internal static class CertifiedMaterials
         Guid? exceptIssueId, CancellationToken ct)
         => (await db.Set<ProjectMaterialIssueLine>().AsNoTracking()
                 .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted
-                    && l.Issue.Kind != ProjectMaterialIssueKinds.Issue && l.SourceLineId != null && (exceptIssueId == null || l.IssueId != exceptIssueId))
+                    && l.Issue.Kind != ProjectMaterialIssueKinds.Issue && l.Issue.Kind != ProjectMaterialIssueKinds.PurchaseReceipt
+                    && l.SourceLineId != null && (exceptIssueId == null || l.IssueId != exceptIssueId))
                 .GroupBy(l => l.SourceLineId!.Value)
                 .Select(g => new { g.Key, Q = g.Sum(l => l.Quantity), C = g.Sum(l => l.TotalCost) })
                 .ToListAsync(ct))

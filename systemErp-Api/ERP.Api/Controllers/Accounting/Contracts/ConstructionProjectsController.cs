@@ -48,6 +48,15 @@ public class ConstructionProjectsController : ErpControllerBase
     public async Task<IActionResult> SaveProfile(Guid id, [FromBody] SaveProjectProfileDto dto, CancellationToken ct)
         => Success(await _projects.SaveProfileAsync(id, dto, ct), Messages.ProjectSetupSaved);
 
+    /// <summary>نطاق الحضور الميداني: موقع المشروع ونصف القطر وأضعف دقة مقبولة والتفعيل.</summary>
+    [HttpGet("geofence"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Geofence(Guid id, [FromServices] IProjectGeofenceService geofence, CancellationToken ct)
+        => Success(await geofence.GetAsync(id, ct));
+
+    [HttpPut("geofence"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> SaveGeofence(Guid id, [FromBody] ProjectGeofenceDto dto, [FromServices] IProjectGeofenceService geofence, CancellationToken ct)
+        => Success(await geofence.SaveAsync(id, dto, ct), Messages.ProjectGeofenceSaved);
+
     [HttpPut("phases"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> SavePhases(Guid id, [FromBody] SaveProjectPhasesDto dto, CancellationToken ct)
         => Success(await _projects.SavePhasesAsync(id, dto, ct), Messages.ProjectSetupSaved);

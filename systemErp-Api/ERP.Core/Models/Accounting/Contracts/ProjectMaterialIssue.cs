@@ -23,6 +23,8 @@ public class ProjectMaterialIssue : BaseEntity
     public Guid? ReceiverSupplierId { get; set; }
     /// <summary>طلب الشراء الذي وُرِّد للموقع ويُصرف منه (اختياري، للتتبع).</summary>
     public Guid? RequisitionId { get; set; }
+    /// <summary>سند الاستلام (أو مرتجعه) الذي أنشأ هذه العهدة لنوعي الاستلام وإرجاعه.</summary>
+    public Guid? DeliveryNoteId { get; set; }
     public string Status { get; set; } = ProjectMaterialIssueStatuses.Draft;
     /// <summary>نوع المستند: تسليم للموقع، أو إرجاع من الموقع للمستودع، أو هدر/تالف في الموقع (ProjectMaterialIssueKinds).</summary>
     public string Kind { get; set; } = ProjectMaterialIssueKinds.Issue;
@@ -106,5 +108,16 @@ public static class ProjectMaterialIssueKinds
     public const string Issue = "issue";
     public const string Return = "return";
     public const string Waste = "waste";
+    /// <summary>عهدة من سند استلام مشتريات المشروع (من المورد مباشرة، لا من المستودع): ينشئها السند ويلغيها.</summary>
+    public const string PurchaseReceipt = "purchase_receipt";
+    /// <summary>إرجاع من عهدة الاستلام للمورد: ينشئه مرتجع السند.</summary>
+    public const string ReceiptReturn = "receipt_return";
+
+    /// <summary>ما يُنشئه المستخدم من مستندات المواد؛ الاستلام وإرجاعه ينشئهما سند الاستلام ومرتجعه.</summary>
     public static bool IsValid(string? kind) => kind is Issue or Return or Waste;
+    /// <summary>تسليم للمشروع (يزيد العهدة): من المستودع أو من المورد.</summary>
+    public static bool IsDelivery(string? kind) => kind is Issue or PurchaseReceipt;
+    /// <summary>سحب من سطر تسليم (يُنقص العهدة).</summary>
+    public static bool IsWithdrawal(string? kind) => kind is Return or Waste or ReceiptReturn;
+    public static bool IsSystem(string? kind) => kind is PurchaseReceipt or ReceiptReturn;
 }

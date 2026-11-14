@@ -22,5 +22,6 @@ public partial class TenantDto
     public string FinancialYearEnd { get; set; } = "12-31";
     public bool IsActive { get; set; } = true;
     public DateTime? BooksLockedThrough { get; set; }
+    public string TimeZoneId { get; set; } = "Asia/Riyadh";
     public ZatcaConfigDto ZatcaConfig { get; set; } = new();
 }

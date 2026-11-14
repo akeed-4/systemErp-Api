@@ -7,4 +7,6 @@ public class CreateDeliveryInvoiceRequestDto
     public Guid MilestoneId { get; set; }
     /// <summary>تاريخ الفاتورة (فارغ = اليوم).</summary>
     public DateTime? Date { get; set; }
+    /// <summary>المورد المختار لفاتورة استلام المشتريات عند إنشاء الفاتورة من بيان استلام غير مرتبط بمورد.</summary>
+    public Guid? SupplierId { get; set; }
 }

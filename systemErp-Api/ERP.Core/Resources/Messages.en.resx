@@ -1789,4 +1789,8 @@
   <data name="ProjectRequisitionBoqItemInvalid" xml:space="preserve"><value>The BOQ item on a request line is not a measured line of this project.</value></data>
   <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>The request has goods receipts: delete them first.</value></data>
   <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>A project purchase request is not converted to a warehouse invoice: receive it with a project goods receipt, then create the invoice from the receipt.</value></data>
+  <data name="ProjectReceiptRequiresRequisition" xml:space="preserve"><value>Choose the approved project purchase request: project material receipts are always linked to their request so quantities are not received twice and appear in project tracking.</value></data>
+  <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>Neither the purchase request nor the construction project has a warehouse: set the project warehouse before receiving.</value></data>
+  <data name="DeliveryInvoiceSupplierOnSales" xml:space="preserve"><value>A supplier cannot be set on a sales delivery-note invoice.</value></data>
+  <data name="DeliveryInvoiceSupplierMismatch" xml:space="preserve"><value>The chosen supplier is not the goods receipt supplier: the invoice is issued to whoever delivered the goods.</value></data>
 </root>

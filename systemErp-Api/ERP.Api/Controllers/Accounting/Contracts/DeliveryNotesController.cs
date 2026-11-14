@@ -68,6 +68,6 @@ public class DeliveryNotesController : ErpControllerBase
         => Success(await _notes.CreateMilestoneInvoiceAsync(id, dto.MilestoneId, dto.Date, ct), Messages.Invoiced);
 
     [HttpPost("{id:guid}/Invoice")]
-    public async Task<IActionResult> Invoice(Guid id, [FromQuery] DateTime? date, CancellationToken ct)
-        => Success(await _notes.CreateInvoiceAsync(id, date, ct), Messages.InvoiceIssued);
+    public async Task<IActionResult> Invoice(Guid id, [FromBody] CreateDeliveryInvoiceRequestDto? dto, CancellationToken ct)
+        => Success(await _notes.CreateInvoiceAsync(id, dto?.Date, dto?.SupplierId, ct), Messages.InvoiceIssued);
 }

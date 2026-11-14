@@ -1,4 +1,5 @@
 using ERP.Core.Contracts.Accounting;
+using ERP.Core.Models.Shared;
 using ERP.Service.Data;
 using ERP.Service.Services.Shared;
 
@@ -82,12 +83,14 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
             if (r.RequisitionId.HasValue && r.Type != ProjectReceipts.NoteType) throw new ValidationFailedException(Messages.ProjectReceiptOnlyPurchase);
+            // استلام مشروع المقاولات مرتبط بطلب شرائه دائماً: بلا الطلب لا يُفحص الاستلام المكرر ولا يُحتسب في متابعة المشروع
+            if (r.ConstructionWarehouseReceipt && r.RequisitionId == null) throw new ValidationFailedException(Messages.ProjectReceiptRequiresRequisition);
             var note = Mapper.Map<DeliveryNote>(r);
             note.CustodyIssueId = null;
             var projectReceipt = ProjectReceipts.IsProjectReceipt(note);
             if (projectReceipt)
                 // سند استلام مشتريات مشروع: عهدة للمشروع بسعر شرائها، لا مستودع عام (العقد والمورد من الطلب)
-                await ProjectReceipts.PrepareAsync(_db, note, token);
+                await ProjectReceipts.PrepareAsync(_db, note, token, r.ConstructionWarehouseReceipt);
             else
             {
                 CommercialContract? contract = null;
@@ -117,7 +120,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             Price(note);
             _db.Add(note);
             await _db.SaveChangesAsync(token);
-            if (projectReceipt)
+            if (projectReceipt && note.WarehouseId is null)
             {
                 note.CustodyIssueId = await _supply.PostPurchaseReceiptAsync(note, token);
                 await _db.SaveChangesAsync(token);
@@ -147,8 +150,9 @@ public class DeliveryNoteService : IDeliveryNoteService
             Mapper.Apply(r, note);
             (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber, note.RequisitionId, note.CustodyIssueId) = keep;
             if (note.ContractId is Guid linkedContractId
-                && await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == linkedContractId).Select(c => c.ContractType).FirstOrDefaultAsync(token) is { } linkedType
-                && await CommercialContractService.IsBoqContractAsync(_db, linkedType, token))
+                && await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == linkedContractId).Select(c => new { c.ContractType, c.WarehouseId }).FirstOrDefaultAsync(token) is { } linked
+                && await CommercialContractService.IsBoqContractAsync(_db, linked.ContractType, token)
+                && !(note.Type == ProjectReceipts.NoteType && note.WarehouseId == linked.WarehouseId))
                 throw new ConflictException(Messages.BoqContractBilledByCertificates);
             foreach (var removed in Mapper.SyncCollections(r, note, added => _db.Add(added))) _db.Remove(removed);
             foreach (var i in note.Items) i.ReturnedQty = 0;
@@ -285,7 +289,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             ret.GrandTotal = ret.Subtotal + ret.VatTotal;
             _db.Add(ret);
             await _db.SaveChangesAsync(token);
-            if (ProjectReceipts.IsProjectReceipt(note))
+            if (ProjectReceipts.IsProjectReceipt(note) && note.WarehouseId is null)
             {
                 // إرجاع للمورد من عهدة المشروع (لا للمستودع العام): يسحب من أسطر العهدة ويعكس استحقاقها
                 ret.CustodyIssueId = await _supply.PostReceiptReturnAsync(note, ret, token);
@@ -294,7 +298,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             return Mapper.Map<DeliveryReturnNoteDto>(await _db.Set<DeliveryReturnNote>().AsNoTracking().Include(n => n.Items).FirstAsync(n => n.Id == ret.Id, token));
         }, ct);
 
-    public Task<InvoiceDto> CreateInvoiceAsync(Guid deliveryNoteId, DateTime? date = null, CancellationToken ct = default)
+    public Task<InvoiceDto> CreateInvoiceAsync(Guid deliveryNoteId, DateTime? date = null, Guid? supplierId = null, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
@@ -307,13 +311,26 @@ public class DeliveryNoteService : IDeliveryNoteService
             var ids = lines.Select(x => x.Item.ItemId).Distinct().ToList();
             var products = await _db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync(token);
             var sales = note.Type == "sales_delivery";
+            if (sales && supplierId.HasValue) throw new ValidationFailedException(Messages.DeliveryInvoiceSupplierOnSales);
+            // المورد الذي سلّم هو من يُفوتر: يُختار للسند بلا مورد فقط، ولا يُستبدل مورد السند
+            if (supplierId.HasValue && note.PartyId.HasValue && supplierId != note.PartyId)
+                throw new ValidationFailedException(Messages.DeliveryInvoiceSupplierMismatch);
+            var selectedSupplier = supplierId.HasValue && note.PartyId == null
+                ? await _db.Set<Supplier>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == supplierId.Value, token)
+                    ?? throw new NotFoundException(Messages.SupplierNotFound)
+                : null;
+            var partyId = selectedSupplier?.Id ?? note.PartyId;
             // بيان تسليم عقد: فاتورته على مركز تكلفة العقد
             var contractCenter = note.ContractId is Guid contractId
                 ? await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId).Select(c => c.CostCenterId).FirstOrDefaultAsync(token)
                 : null;
             // سند استلام مشروع: المواد عهدة للمشروع منذ استلامها، ففاتورة المورد تسوّي استحقاق الاستلام فقط — أسطرها بلا حركة مخزون
             // (بنود وصفية بأسماء الأصناف) على حساب «بضاعة مستلمة لم تُفوتر»، فلا يتغير المستودع العام ولا متوسط تكلفة الصنف
-            var projectReceipt = ProjectReceipts.IsProjectReceipt(note);
+            var projectReceipt = ProjectReceipts.IsProjectReceipt(note) && note.WarehouseId is null;
+            var constructionWarehouseReceipt = !sales && !projectReceipt && note.ContractId is Guid constructionContractId
+                && await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == constructionContractId)
+                    .Select(c => c.ContractType).FirstOrDefaultAsync(token) is { } constructionType
+                && await CommercialContractService.IsBoqContractAsync(_db, constructionType, token);
             string? receivedNotInvoiced = null;
             if (projectReceipt)
             {
@@ -327,9 +344,12 @@ public class DeliveryNoteService : IDeliveryNoteService
                 IssueDate = date?.Date ?? default,
                 CostCenterId = contractCenter, CostCenterFromSource = true,
                 InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,
-                PartyId = note.PartyId, PartyName = note.PartyName, PartyVatNumber = note.PartyTaxNumber, PartyPhone = note.PartyPhone,
+                PartyId = partyId,
+                PartyName = selectedSupplier?.NameAr ?? note.PartyName,
+                PartyVatNumber = selectedSupplier?.VatNumber ?? note.PartyTaxNumber,
+                PartyPhone = selectedSupplier?.Phone ?? note.PartyPhone,
                 WarehouseId = projectReceipt ? null : note.WarehouseId, InventoryAccountCode = receivedNotInvoiced,
-                PaymentMethod = note.PartyId.HasValue ? PaymentMethod.Credit : PaymentMethod.Cash, Status = "posted",
+                PaymentMethod = partyId.HasValue ? PaymentMethod.Credit : PaymentMethod.Cash, Status = "posted",
                 Notes = $"فاتورة من بيان التسليم {note.DeliveryNumber}" + (note.ContractNumber != null ? $" - عقد {note.ContractNumber}" : ""),
                 ReferenceType = "delivery_note", ReferenceId = note.Id, ReferenceNumber = note.DeliveryNumber,
                 Items = lines.Select(x => new InvoiceItemDto
@@ -341,7 +361,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             }, token);
             note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced;
             // بيان عقد: الفاتورة تُسجَّل في فواتير العقد وتُضاف لمفوتره كما في فوترة الدفعات (فاتورة مورد المشروع ليست فوترة للعميل)
-            if (!projectReceipt && note.ContractId is Guid billedContractId
+            if (!projectReceipt && !constructionWarehouseReceipt && note.ContractId is Guid billedContractId
                 && await _db.Set<CommercialContract>().FirstOrDefaultAsync(c => c.Id == billedContractId, token) is { } contract)
             {
                 _db.Add(CommercialContractService.ContractInvoiceFor(contract.Id, "progress", invoice, note.Id));

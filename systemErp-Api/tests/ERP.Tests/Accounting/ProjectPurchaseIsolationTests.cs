@@ -24,7 +24,7 @@ public class ProjectPurchaseIsolationTests : TestBase
     /// صنف أسمنت في المستودع العام 50 قطعة بتكلفة 10 (متوسطه 10)، مربوط بمادة مكتبة، وعقد مقاولات ساري ببند «صب» ومجموعة بفرعي،
     /// واحتياج معتمد للأسمنت على «صب» 100 قطعة.
     /// </summary>
-    private async Task<(Client Api, Project P)> SetupAsync()
+    private async Task<(Client Api, Project P)> SetupAsync(bool withProjectWarehouse = false)
     {
         var api = await NewConstructionTenantAsync();
         var product = await SeedProductAsync(api, "CEM", stock: 50, cost: 10);
@@ -32,9 +32,12 @@ public class ProjectPurchaseIsolationTests : TestBase
         var cement = await api.Post("/construction-resources", new { nameAr = "أسمنت", resourceType = "material", unit = "PCS", costSource = "product", productId = product });
         Ok(cement, "resource");
         var (customer, _) = await SeedCustomerAsync(api);
+        var warehouse = withProjectWarehouse
+            ? (await api.Get("/warehouses")).Data!["items"]!.AsArray().First(x => x!["isDefault"]!.GetValue<bool>())!["id"].S()
+            : null;
         var created = await api.Post("/commercialcontracts", new
         {
-            title = "برج", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyType = "customer", partyId = customer, partyName = "عميل",
+            title = "برج", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyType = "customer", partyId = customer, partyName = "عميل", warehouseId = warehouse,
             startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(6), vatRate = 15,
             items = new object[]
             {
@@ -56,6 +59,49 @@ public class ProjectPurchaseIsolationTests : TestBase
         Ok(await api.Post($"/commercialcontracts/{id}/material-requirements/submit"), "plan submit");
         Ok(await api.Post($"/commercialcontracts/{id}/material-requirements/approve"), "plan approve");
         return (api, new Project(id, Line("صب"), Line("مجموعة"), product, supplier, supplierAccount));
+    }
+
+    [Fact]
+    public async Task Construction_warehouse_receipt_links_an_active_project_and_uses_its_warehouse()
+    {
+        var (api, p) = await SetupAsync(withProjectWarehouse: true);
+        var project = (await api.Get($"/commercialcontracts/{p.Id}")).Data!;
+        var warehouseId = project["warehouseId"].S();
+        object Receipt(string? requisitionId, decimal qty) => new
+        {
+            type = "purchase_delivery", constructionWarehouseReceipt = true, contractId = p.Id, warehouseId, requisitionId,
+            partyType = "supplier", partyId = p.Supplier, partyName = "مورد", date = DateTime.UtcNow.Date,
+            items = new[] { new { itemId = p.Product, itemName = "أسمنت", deliveredQty = qty, unitPrice = 12m, vatRate = 15 } },
+        };
+
+        // بلا طلب الشراء لا استلام للمشروع: كان يُحفظ بلا ربط فلا يُفحص التكرار ولا يُحتسب في المتابعة
+        Status(400, await api.Post("/deliverynotes", Receipt(null, 2)), "construction receipt without a request");
+
+        var req = await RequisitionAsync(api, p, qty: 5, price: 12);
+        var receipt = await api.Post("/deliverynotes", Receipt(req, 2));
+        Ok(receipt, "construction warehouse receipt");
+        Assert.Equal(p.Id, receipt.Data!["contractId"].S());
+        Assert.Equal(req, receipt.Data["requisitionId"].S());
+        Assert.Equal(warehouseId, receipt.Data["warehouseId"].S());
+        Assert.Null(receipt.Data["custodyIssueId"]?.GetValue<string>());
+        // المستلم يخرج من «المعلّق» ويُحتسب مشترى، ولا يُستلم أكثر من باقي الطلب
+        var line = await TrackingAsync(api, p);
+        Assert.Equal(2m, line["purchasedQuantity"].D()); Assert.Equal(3m, line["pendingRequestQuantity"].D());
+        Status(400, await api.Post("/deliverynotes", Receipt(req, 4)), "receive more than the request remainder");
+
+        // الفاتورة لمورد السند وحده
+        var other = (await SeedSupplierAsync(api, "مورد آخر")).Id;
+        Status(400, await api.Post($"/deliverynotes/{receipt.Data["id"].S()}/Invoice", new { supplierId = other }), "invoice another supplier");
+
+        var contractBilledBefore = (await api.Get($"/commercialcontracts/{p.Id}")).Data!["totalInvoiced"].D();
+        var invoice = await api.Post($"/deliverynotes/{receipt.Data["id"].S()}/Invoice", new { supplierId = p.Supplier });
+        Ok(invoice, "purchase invoice from construction receipt");
+        Assert.Equal("credit", invoice.Data!["paymentMethod"].S());
+        Assert.Equal("purchase", invoice.Data!["kind"].S());
+        var billedNote = (await api.Get($"/deliverynotes/{receipt.Data["id"].S()}")).Data!;
+        Assert.Equal("invoiced", billedNote["status"].S());
+        var contractBilledAfter = (await api.Get($"/commercialcontracts/{p.Id}")).Data!["totalInvoiced"].D();
+        Assert.Equal(contractBilledBefore, contractBilledAfter);
     }
 
     private static async Task<string> RequisitionAsync(Client api, Project p, decimal qty, decimal price, bool approve = true, string? contractId = null)

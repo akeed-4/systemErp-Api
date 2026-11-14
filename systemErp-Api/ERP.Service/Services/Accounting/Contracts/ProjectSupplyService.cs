@@ -137,6 +137,16 @@ public class ProjectSupplyService : IProjectSupplyService
             .GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
         foreach (var r in await ReceivedAsync(_db, contractId, ct))
             purchased[r.ItemId] = purchased.GetValueOrDefault(r.ItemId) + r.Quantity;
+        // Legacy receipts created from the delivery-note form could be invoiced without carrying RequisitionId.
+        // They are still project-specific by ContractId and must satisfy the project's purchase tracking.
+        var unlinkedPostedReceipts = await _db.Set<DeliveryNoteItem>().AsNoTracking()
+            .Where(i => i.DeliveryNote.ContractId == contractId && i.DeliveryNote.RequisitionId == null
+                && i.DeliveryNote.Type == ProjectReceipts.NoteType && i.DeliveryNote.InvoiceId != null
+                && _db.Set<PurchaseInvoice>().Any(invoice => invoice.Id == i.DeliveryNote.InvoiceId && invoice.Status == "posted"))
+            .Select(i => new { i.ItemId, Quantity = i.DeliveredQty - i.ReturnedQty })
+            .ToListAsync(ct);
+        foreach (var receipt in unlinkedPostedReceipts)
+            purchased[receipt.ItemId] = purchased.GetValueOrDefault(receipt.ItemId) + receipt.Quantity;
         return purchased;
     }
 

@@ -1789,4 +1789,8 @@
   <data name="ProjectRequisitionBoqItemInvalid" xml:space="preserve"><value>بند جدول الكميات في سطر الطلب ليس سطر قياس من هذا المشروع.</value></data>
   <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>للطلب سندات استلام: احذفها أولاً.</value></data>
   <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>طلب شراء المشروع لا يُحوَّل لفاتورة للمستودع العام: استلمه بسند استلام للمشروع ثم أنشئ الفاتورة من السند.</value></data>
+  <data name="ProjectReceiptRequiresRequisition" xml:space="preserve"><value>اختر طلب شراء المشروع المعتمد: استلام مواد المشروع يُربط بطلبه دائماً حتى لا تُستلم الكمية مرتين وتظهر في متابعة المشروع.</value></data>
+  <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>لا مستودع لطلب الشراء ولا لمشروع المقاولات: حدّد مستودع المشروع قبل الاستلام.</value></data>
+  <data name="DeliveryInvoiceSupplierOnSales" xml:space="preserve"><value>لا يُحدَّد مورد لفاتورة بيان تسليم مبيعات.</value></data>
+  <data name="DeliveryInvoiceSupplierMismatch" xml:space="preserve"><value>المورد المختار غير مورد سند الاستلام: الفاتورة تصدر لمن سلّم البضاعة.</value></data>
 </root>

@@ -27,4 +27,6 @@ public partial class CreateDeliveryNoteDto
     public List<DeliveryNoteItemDto> Items { get; set; } = new();
     /// <summary>طلب شراء المشروع المعتمد (سند استلام مشروع: purchase_delivery على عقد مقاولات).</summary>
     public Guid? RequisitionId { get; set; }
+    /// <summary>استلام مشتريات مرتبط بمشروع مقاولات إلى مستودع المشروع، دون تحويله إلى عهدة طلب شراء.</summary>
+    public bool ConstructionWarehouseReceipt { get; set; }
 }

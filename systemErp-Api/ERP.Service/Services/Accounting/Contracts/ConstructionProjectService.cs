@@ -431,6 +431,14 @@ public class ConstructionProjectService : IConstructionProjectService
                              where r.EmployeeId != null && employeeIds.Contains(r.EmployeeId.Value) && r.ContractId != contractId && r.IsActive
                              select new { EmployeeId = r.EmployeeId!.Value, c.ContractNumber, Name = c.ProjectName ?? c.Title }).ToListAsync(ct))
             .GroupBy(x => x.EmployeeId).ToDictionary(g => g.Key, g => g.Select(x => $"{x.ContractNumber} - {x.Name}").Distinct().ToList());
+        // الموارد المنشأة من سجل المعدات بإسنادها (الموقع والمشغّل)
+        var resourceIds = list.Select(r => r.Id).ToList();
+        var links = (await (from a in _db.Set<EquipmentAssignment>().AsNoTracking()
+                            join emp in _db.Set<Employee>().AsNoTracking() on a.OperatorEmployeeId equals emp.Id into ops
+                            from op in ops.DefaultIfEmpty()
+                            where a.ProjectResourceId != null && resourceIds.Contains(a.ProjectResourceId.Value)
+                            select new { ResourceId = a.ProjectResourceId!.Value, a.Id, a.EquipmentId, a.Status, a.SiteName, Operator = op != null ? op.NameAr : null })
+                .ToListAsync(ct)).GroupBy(x => x.ResourceId).ToDictionary(g => g.Key, g => g.First());
 
         return list.Select(r => new ProjectResourceDto
         {
@@ -443,6 +451,9 @@ public class ConstructionProjectService : IConstructionProjectService
             IdleBillingPercent = r.IdleBillingPercent, StandbyBillingPercent = r.StandbyBillingPercent,
             HourlyCost = r.HourlyCost, OvertimeHourlyCost = r.OvertimeHourlyCost,
             OtherProjects = r.EmployeeId is Guid emp ? others.GetValueOrDefault(emp) ?? new List<string>() : new List<string>(),
+            EquipmentId = links.GetValueOrDefault(r.Id)?.EquipmentId, EquipmentAssignmentId = links.GetValueOrDefault(r.Id)?.Id,
+            EquipmentAssignmentActive = links.GetValueOrDefault(r.Id)?.Status == EquipmentAssignmentStatuses.Active,
+            SiteName = links.GetValueOrDefault(r.Id)?.SiteName, OperatorName = links.GetValueOrDefault(r.Id)?.Operator,
         }).ToList();
     }
 
@@ -450,6 +461,7 @@ public class ConstructionProjectService : IConstructionProjectService
     {
         var contract = await LoadContractAsync(contractId, ct);
         EnsureEditable(contract);
+        if (resourceId is Guid linkedId) await EnsureNotFromEquipmentRegistryAsync(linkedId, ct);
         var errors = new List<string>();
         if (!ProjectResourceKinds.IsValid(d.Kind)) throw new ValidationFailedException(Messages.ProjectResourceKindInvalid);
         // المملوكة تكلفتها بالساعة؛ والمهندس شهرياً افتراضاً
@@ -474,6 +486,10 @@ public class ConstructionProjectService : IConstructionProjectService
             errors.Add(Messages.ProjectResourceSupplierRequired);
         if (d.FixedAssetId is Guid assetId && !await _db.Set<FixedAsset>().AnyAsync(a => a.Id == assetId, ct))
             errors.Add(Messages.ProjectResourceAssetNotFound);
+        // أصل مسجّل كمعدة: يُسند من سجل المعدات (حالتها وتاريخ إسنادها هناك)، لا يُضاف مورداً يدوياً بجانبها
+        if (d.Kind == ProjectResourceKinds.OwnedEquipment && d.FixedAssetId is Guid registered && !_fromEquipmentRegistry
+            && await _db.Set<Equipment>().AsNoTracking().Where(x => x.FixedAssetId == registered).Select(x => x.Code).FirstOrDefaultAsync(ct) is { } equipmentCode)
+            errors.Add($"الأصل مسجّل في سجل المعدات بالرمز {equipmentCode}؛ أسنده للمشروع من سجل المعدات.");
         if (d.LibraryResourceId is Guid libId && !await _db.Set<ConstructionResource>().AnyAsync(r => r.Id == libId, ct))
             errors.Add(Messages.ProjectResourceLibraryNotFound);
 
@@ -529,11 +545,36 @@ public class ConstructionProjectService : IConstructionProjectService
         EnsureEditable(contract);
         var entity = await _db.Set<ProjectResource>().FirstOrDefaultAsync(r => r.Id == resourceId && r.ContractId == contractId, ct)
             ?? throw new NotFoundException(Messages.ProjectResourceNotFound);
+        await EnsureNotFromEquipmentRegistryAsync(resourceId, ct);
         if (await _db.Set<SiteResourceUsage>().AnyAsync(u => u.ProjectResourceId == resourceId, ct))
             throw new ConflictException(Messages.ProjectResourceInUse);
         _db.Remove(entity);
         await _db.SaveChangesAsync(ct);
         return await ResourcesAsync(contractId, ct);
+    }
+
+    /// <summary>
+    /// مورد أنشأه إسناد من سجل المعدات يُدار من الإسناد (تحويل أو إرجاع يوقفه، وتكلفته من المعدة أو عقد إيجارها)؛ تعديله أو حذفه أو
+    /// تفعيله هنا يفصله عن حالة المعدة وتاريخها.
+    /// </summary>
+    private async Task EnsureNotFromEquipmentRegistryAsync(Guid resourceId, CancellationToken ct)
+    {
+        var code = await (from a in _db.Set<EquipmentAssignment>().AsNoTracking()
+                          join e in _db.Set<Equipment>().AsNoTracking() on a.EquipmentId equals e.Id
+                          where a.ProjectResourceId == resourceId
+                          select e.Code).FirstOrDefaultAsync(ct);
+        if (code != null)
+            throw new ConflictException($"المورد من سجل المعدات ({code}): يُحوَّل أو يُرجَع من إسناده، ولا يُعدَّل أو يُحذف هنا.");
+    }
+
+    /// <summary>الإسناد من سجل المعدات ينشئ المورد بهذه الخدمة نفسها؛ يُرفع أثناءه فلا يُرفض أصل المعدة المسجّلة.</summary>
+    private bool _fromEquipmentRegistry;
+
+    internal async Task<List<ProjectResourceDto>> SaveRegistryResourceAsync(Guid contractId, ProjectResourceDto d, CancellationToken ct)
+    {
+        _fromEquipmentRegistry = true;
+        try { return await SaveResourceAsync(contractId, null, d, ct); }
+        finally { _fromEquipmentRegistry = false; }
     }
 
     /// <summary>

@@ -37,6 +37,12 @@ public class ProjectResourceDto
     public decimal OvertimeHourlyCost { get; set; }
     /// <summary>للقراءة: مشاريع أخرى عليها الموظف نفسه (للمهندس والعامل).</summary>
     public List<string> OtherProjects { get; set; } = new();
+    /// <summary>للقراءة: المعدة وإسنادها من سجل المعدات (المورد يُدار من الإسناد: تحويل أو إرجاع، لا تعديل ولا حذف).</summary>
+    public Guid? EquipmentId { get; set; }
+    public Guid? EquipmentAssignmentId { get; set; }
+    public bool EquipmentAssignmentActive { get; set; }
+    public string? SiteName { get; set; }
+    public string? OperatorName { get; set; }
 }
 
 public class ProjectDailyPlanDto

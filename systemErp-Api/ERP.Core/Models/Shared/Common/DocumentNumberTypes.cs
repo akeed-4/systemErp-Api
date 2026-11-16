@@ -34,6 +34,8 @@ public static class DocumentNumberTypes
         new("stock_transfer", "التحويلات المخزنية", "Stock transfers", "inventory", "TRF-", true),
         new("production_order", "مستندات التصنيع", "Production orders", "inventory", "MFG-", true),
         new("project_material_issue", "صرف مواد للمشاريع", "Project material issues", "contracts", "PMI-", true),
+        new("equipment_maintenance", "أوامر صيانة المعدات", "Equipment work orders", "contracts", "EMO-", false),
+        new("equipment_rental", "عقود إيجار المعدات", "Equipment rental contracts", "contracts", "ERC-", false),
         new("car_procurement_order", "أوامر شراء السيارات", "Car purchase orders", "showroom", "CPO-", true),
         new("car_sales_contract", "عقود بيع السيارات", "Car sales contracts", "showroom", "CSC-", true),
     };

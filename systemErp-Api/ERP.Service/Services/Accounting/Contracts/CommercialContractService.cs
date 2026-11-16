@@ -387,6 +387,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (await Db.Set<ProjectMaterialIssue>().AnyAsync(i => i.ContractId == e.Id, ct)
             || await Db.Set<MaterialRequisition>().AnyAsync(r => r.ContractId == e.Id, ct))
             throw new ConflictException("للمشروع طلبات شراء أو مستندات صرف مواد: لا يُحذف العقد.");
+        // سجل الإسناد يبقى تاريخ المعدة ومصدر تكلفتها: يُرجع الإسناد ولا يُحذف المشروع
+        if (await Db.Set<EquipmentAssignment>().AnyAsync(a => a.ContractId == e.Id, ct))
+            throw new ConflictException("أُسندت معدات لهذا المشروع من سجل المعدات: لا يُحذف العقد.");
         // الحذف للمسودة وحدها؛ بعدها للعقد أثر (مراجعات معتمدة، مستخلصات، فواتير) فيُلغى ولا يُحذف
         if (e.Stage != ContractStageDefinition.Draft) throw new ConflictException(Messages.ContractDeleteDraftOnly);
         if (await Db.Set<ContractCertificate>().AnyAsync(c => c.ContractId == e.Id, ct) || await Db.Set<ContractInvoice>().AnyAsync(i => i.ContractId == e.Id, ct))

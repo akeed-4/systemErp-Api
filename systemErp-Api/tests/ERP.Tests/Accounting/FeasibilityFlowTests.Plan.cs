@@ -138,7 +138,7 @@ public partial class FeasibilityFlowTests
         Assert.Equal(1375m, budget["materialsCost"].D());
         var codes = WarningCodes(plan);
         Assert.Contains("lines_not_priced", codes);
-        Assert.Contains("no_dependencies", codes);
+        Assert.DoesNotContain("no_dependencies", codes); // المراحل المولَّدة تأتي متسلسلة بترتيب الأبواب
         Assert.Contains("no_manager", codes);
         Assert.Contains("materials_not_stocked", codes);
         Assert.Contains("budget_differs", codes);

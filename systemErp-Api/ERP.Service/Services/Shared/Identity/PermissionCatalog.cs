@@ -103,6 +103,13 @@ public static class PermissionCatalog
             new[] { A.View, A.Approve }, Array.Empty<string>()),
         // اعتماد المستخلص (أو إعادته للتعديل) منفصلاً عن اعتماد العقد نفسه: مهندس/مدير يعتمد المستخلصات دون أن يعتمد العقود؛
         // يرث «اعتماد» العقود التجارية حتى تُحفظ له صلاحية مستقلة (فلا يتغير شيء لمن يعتمد اليوم)
+        // المعدات والآليات: السجل والإسناد والتشغيل وعقود الإيجار واللوحة والتقارير؛ ترث صلاحية مشاريع المقاولات حتى تُحفظ لها صلاحية.
+        // «إغلاق» = إغلاق عقد الإيجار، و«ترحيل» = تسجيل وقود أو مصروف بقيد
+        new(EquipmentScreenId, "contracts", "المعدات والآليات (السجل والإسناد والتشغيل والإيجار)", "Equipment & Machinery (Registry, Assignment, Operation, Rental)",
+            Crud(A.Approve, A.Close, A.Post), new[] { "construction/equipment" }, InheritsFrom: ConstructionProjectsScreenId),
+        // صيانة المعدات (أوامر العمل وقطع الغيار): الإكمال يصرف القطع ويقيّد التكلفة (ترحيل)، والإلغاء يعكسها؛ ترث صلاحية المعدات
+        new(EquipmentMaintenanceScreenId, "contracts", "صيانة المعدات (أوامر العمل وقطع الغيار)", "Equipment Maintenance (Work Orders & Spare Parts)",
+            Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: EquipmentScreenId),
         new(ContractCertificateApprovalScreenId, "contracts", "المستخلصات: اعتماد المستخلص أو إعادته", "Progress Certificates: Approve or Return",
             new[] { A.Approve }, Array.Empty<string>(), InheritsFrom: CommercialContractsScreenId),
 
@@ -188,6 +195,8 @@ public static class PermissionCatalog
     public const string SiteDailyReportsScreenId = "site-daily-reports";
     public const string ProjectAttendanceScreenId = "project-attendance";
     public const string ProjectMaterialIssuesScreenId = "project-material-issues";
+    public const string EquipmentScreenId = "equipment";
+    public const string EquipmentMaintenanceScreenId = "equipment-maintenance";
     public const string WhatsAppScreenId = "whatsapp";
     public const string WhatsAppSendScreenId = "whatsapp-send";
     public const string PurchaseLandedCostsScreenId = "purchase-landed-costs";

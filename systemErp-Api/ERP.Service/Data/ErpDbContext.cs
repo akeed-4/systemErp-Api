@@ -206,6 +206,20 @@ public class ErpDbContext : DbContext
         (typeof(MaterialRequisition), nameof(MaterialRequisition.ContractId), typeof(CommercialContract)),
         // مواد المستخلص تشير لسطر إذن التسليم: لا يُحذف سطر اختير في مستخلص (المرحّل لا يُحذف أصلاً، والإلغاء يُمنع ما دام مختاراً)
         (typeof(ContractCertificateMaterial), nameof(ContractCertificateMaterial.IssueLineId), typeof(ProjectMaterialIssueLine)),
+        // المعدات: الأصل الثابت والمؤجر والمركز لا تُحذف وعليها معدة؛ والمعدة لا تُحذف وعليها إسناد أو سجل أو صيانة أو إيجار
+        (typeof(Equipment), nameof(Equipment.FixedAssetId), typeof(FixedAsset)),
+        (typeof(Equipment), nameof(Equipment.SupplierId), typeof(Supplier)),
+        (typeof(Equipment), nameof(Equipment.CostCenterId), typeof(CostCenter)),
+        (typeof(EquipmentAssignment), nameof(EquipmentAssignment.EquipmentId), typeof(Equipment)),
+        (typeof(EquipmentAssignment), nameof(EquipmentAssignment.ContractId), typeof(CommercialContract)),
+        (typeof(EquipmentAssignment), nameof(EquipmentAssignment.ProjectResourceId), typeof(ProjectResource)),
+        (typeof(EquipmentAssignment), nameof(EquipmentAssignment.OperatorEmployeeId), typeof(Employee)),
+        (typeof(EquipmentLog), nameof(EquipmentLog.EquipmentId), typeof(Equipment)),
+        (typeof(EquipmentMaintenanceOrder), nameof(EquipmentMaintenanceOrder.EquipmentId), typeof(Equipment)),
+        (typeof(EquipmentMaintenanceOrder), nameof(EquipmentMaintenanceOrder.WarehouseId), typeof(Warehouse)),
+        (typeof(EquipmentMaintenancePart), nameof(EquipmentMaintenancePart.ProductId), typeof(Product)),
+        (typeof(EquipmentRentalContract), nameof(EquipmentRentalContract.EquipmentId), typeof(Equipment)),
+        (typeof(EquipmentRentalContract), nameof(EquipmentRentalContract.SupplierId), typeof(Supplier)),
         // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
 
@@ -234,6 +248,9 @@ public class ErpDbContext : DbContext
         (typeof(WorkItem), nameof(WorkItem.Code)),
         (typeof(ProductionOrder), nameof(ProductionOrder.OrderNumber)),
         (typeof(ProjectMaterialIssue), nameof(ProjectMaterialIssue.IssueNumber)),
+        (typeof(Equipment), nameof(Equipment.Code)),
+        (typeof(EquipmentMaintenanceOrder), nameof(EquipmentMaintenanceOrder.OrderNumber)),
+        (typeof(EquipmentRentalContract), nameof(EquipmentRentalContract.ContractNumber)),
         (typeof(Agreement), nameof(Agreement.AgreementNumber)),
         (typeof(DeliveryNote), nameof(DeliveryNote.DeliveryNumber)),
         (typeof(DeliveryReturnNote), nameof(DeliveryReturnNote.ReturnNumber)),
@@ -690,6 +707,75 @@ public class ErpDbContext : DbContext
         {
             e.Property(m => m.Unit).HasMaxLength(20).IsRequired();
             e.Property(m => m.Notes).HasMaxLength(300);
+        });
+        // المعدات والآليات: السجل والإسناد وسجل التشغيل وأوامر الصيانة بقطعها (تُحذف معها) وعقود الإيجار
+        modelBuilder.Entity<Equipment>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(200);
+            e.Property(x => x.Category).HasMaxLength(100);
+            e.Property(x => x.Brand).HasMaxLength(100);
+            e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.SerialNumber).HasMaxLength(100);
+            e.Property(x => x.PlateNumber).HasMaxLength(50);
+            e.Property(x => x.Capacity).HasMaxLength(100);
+            e.Property(x => x.Specifications).HasMaxLength(1000);
+            e.Property(x => x.Ownership).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.RateBasis).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            // أصل ثابت واحد لمعدة واحدة
+            e.HasIndex(x => new { x.TenantId, x.FixedAssetId }).IsUnique().HasFilter("[FixedAssetId] IS NOT NULL");
+        });
+        modelBuilder.Entity<EquipmentAssignment>(e =>
+        {
+            e.Property(x => x.SiteName).HasMaxLength(200);
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.ReturnNotes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.ContractId });
+            // إسناد نشط واحد للمعدة (ضمان على مستوى قاعدة البيانات)
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId }).IsUnique().HasFilter("[Status] = N'active'");
+        });
+        modelBuilder.Entity<EquipmentLog>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Reason).HasMaxLength(200);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.ExpenseAccountCode).HasMaxLength(32);
+            e.Property(x => x.CreditAccountCode).HasMaxLength(32);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.Date });
+        });
+        modelBuilder.Entity<EquipmentMaintenanceOrder>(e =>
+        {
+            e.Property(x => x.OrderNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Type).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+            e.Property(x => x.WorkDone).HasMaxLength(2000);
+            e.Property(x => x.ExpenseAccountCode).HasMaxLength(32);
+            e.Property(x => x.CreditAccountCode).HasMaxLength(32);
+            e.Property(x => x.StatusBefore).HasMaxLength(20);
+            e.Property(x => x.CompletedBy).HasMaxLength(200);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.Status });
+            e.HasMany(x => x.Parts).WithOne(p => p.Order).HasForeignKey(p => p.OrderId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<EquipmentMaintenancePart>(e =>
+        {
+            e.Property(x => x.ItemName).HasMaxLength(300).IsRequired();
+            e.Property(x => x.Sku).HasMaxLength(100);
+            e.Property(x => x.Unit).HasMaxLength(50);
+        });
+        modelBuilder.Entity<EquipmentRentalContract>(e =>
+        {
+            e.Property(x => x.ContractNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.RateBasis).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Terms).HasMaxLength(2000);
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.Status });
         });
         modelBuilder.Entity<ConstructionResource>(e =>
         {

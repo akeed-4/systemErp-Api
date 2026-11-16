@@ -258,6 +258,8 @@ public class ExecutionPlanService : IExecutionPlanService
         var suggest = totalHours > 0 && contract.StartDate != null && contract.EndDate != null;
         var cursor = 0m;
         var order = kept.Count == 0 ? 0 : kept.Max(p => p.SortOrder);
+        // التسلسل: كل مرحلة مولَّدة تبدأ بعد التي قبلها بترتيب الأبواب (اقتراح يعدّله المدير)؛ المبقاة تحتفظ بتسلسلها كما حُفظ
+        Guid? previous = null;
         for (var k = 0; k < groups.Count; k++)
         {
             DateTime from = start, to = end;
@@ -274,9 +276,12 @@ public class ExecutionPlanService : IExecutionPlanService
                 ContractId = contract.Id, Name = groups[k].Name[..Math.Min(groups[k].Name.Length, 200)], PlannedStart = from, PlannedEnd = to,
                 WeightPercent = weights[k], SortOrder = ++order, PlannedCost = costs[k], Source = Src.Derived, DatesSuggested = suggest,
             };
+            if (phase.Id == Guid.Empty) phase.Id = Guid.NewGuid();
+            if (previous is Guid before) phase.PredecessorIds = before.ToString();
+            previous = phase.Id;
             foreach (var l in groups[k].Lines) phase.Items.Add(new ProjectPhaseItem { ContractItemId = l.Id });
             _db.Add(phase);
-            foreach (var l in groups[k].Lines) phaseOfLine[l.Id] = phase.Id == Guid.Empty ? (phase.Id = Guid.NewGuid()) : phase.Id;
+            foreach (var l in groups[k].Lines) phaseOfLine[l.Id] = phase.Id;
         }
         return phaseOfLine;
     }

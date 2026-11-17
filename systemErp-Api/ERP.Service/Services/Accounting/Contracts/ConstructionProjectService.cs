@@ -105,7 +105,10 @@ public class ConstructionProjectService : IConstructionProjectService
             ProjectLocation = contract.ProjectLocation, PartyName = contract.PartyName, ConsultantName = contract.ConsultantName, Stage = contract.Stage,
             StartDate = contract.StartDate, EndDate = contract.EndDate, ContractValue = contract.ContractValue,
             CostCenterId = contract.CostCenterId, CostCenterCode = center?.Code, CostCenterName = center?.NameAr,
-            EstimatedBudget = profile.EstimatedBudget, WorkdayStart = Clock(profile.WorkdayStartMinutes), WorkdayEnd = Clock(profile.WorkdayEndMinutes),
+            EstimatedBudget = profile.EstimatedBudget,
+            // بعد أول اعتماد للخطة: الميزانية = الخطة المعتمدة (للقراءة هنا)
+            BudgetFromPlan = await _db.Set<ProjectExecutionPlan>().AsNoTracking().AnyAsync(p => p.ContractId == contract.Id && p.BaselineSnapshotId != null, ct),
+            WorkdayStart = Clock(profile.WorkdayStartMinutes), WorkdayEnd = Clock(profile.WorkdayEndMinutes),
             BreakStart = profile.BreakStartMinutes is int bs ? Clock(bs) : null, BreakEnd = profile.BreakEndMinutes is int be ? Clock(be) : null,
             Notes = profile.Notes,
             HourSlots = HourSlots(profile.WorkdayStartMinutes, profile.WorkdayEndMinutes, profile.BreakStartMinutes, profile.BreakEndMinutes)
@@ -285,7 +288,9 @@ public class ConstructionProjectService : IConstructionProjectService
                 profile = new ConstructionProjectProfile { ContractId = contractId };
                 _db.Add(profile);
             }
-            if (request.EstimatedBudget is decimal estimatedBudget) profile.EstimatedBudget = estimatedBudget;
+            // بعد اعتماد خطة التنفيذ: الميزانية = الخطة المعتمدة (تُحدَّث عند كل اعتماد) فلا تُدخل يدوياً هنا
+            var planBudget = await _db.Set<ProjectExecutionPlan>().AsNoTracking().AnyAsync(p => p.ContractId == contractId && p.BaselineSnapshotId != null, token);
+            if (request.EstimatedBudget is decimal estimatedBudget && !planBudget) profile.EstimatedBudget = estimatedBudget;
             profile.WorkdayStartMinutes = start; profile.WorkdayEndMinutes = end;
             profile.BreakStartMinutes = breakStart; profile.BreakEndMinutes = breakEnd;
             profile.Notes = Trim(request.Notes, 1000);

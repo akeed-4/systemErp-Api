@@ -73,6 +73,8 @@ public class EquipmentService : IEquipmentService
             || await _db.Set<EquipmentMaintenanceOrder>().AnyAsync(o => o.EquipmentId == id, ct)
             || await _db.Set<EquipmentRentalContract>().AnyAsync(r => r.EquipmentId == id, ct))
             throw new ConflictException($"المعدة {e.Code} عليها إسناد أو سجل تشغيل أو صيانة أو عقد إيجار؛ أخرجها من الخدمة بدل حذفها.");
+        // تسعيرات الإيراد إعداد للمعدة وحدها: تُحذف معها
+        _db.RemoveRange(await _db.Set<EquipmentRevenueRate>().Where(r => r.EquipmentId == id).ToListAsync(ct));
         _db.Remove(e);
         await _db.SaveChangesAsync(ct);
     }
@@ -419,7 +421,8 @@ public class EquipmentService : IEquipmentService
             var log = new EquipmentLog
             {
                 EquipmentId = e.Id, Kind = r.Kind, Date = date, ContractId = assignment?.ContractId,
-                Hours = r.Kind is K.Operation or K.Downtime ? r.Hours : 0, Quantity = r.Kind == K.Fuel ? r.Quantity : 0,
+                // الكمية: لترات الوقود، أو وحدات عمل التشغيل (رحلات/مهام) لإيرادها بأساس الرحلة أو المهمة
+                Hours = r.Kind is K.Operation or K.Downtime ? r.Hours : 0, Quantity = r.Kind is K.Fuel or K.Operation ? r.Quantity : 0,
                 Amount = hasAmount ? DocumentPricing.Round(r.Amount) : 0, MeterReading = r.MeterReading, Reason = Trim(r.Reason, 200), Notes = Trim(r.Notes, 500),
                 CreatedBy = _user.Name,
             };

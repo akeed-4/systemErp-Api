@@ -25,4 +25,6 @@ public interface IExecutionPlanService
 
     /// <summary>الدراسة الأصلية ↔ الأساس المعتمد ↔ الخطة الحالية ↔ الفعلي من المستندات المعتمدة، لكل فئة ومرحلة.</summary>
     Task<ExecutionPlanComparisonDto> ComparisonAsync(Guid contractId, CancellationToken ct = default);
+    /// <summary>سجل تغييرات الخطة (الأحدث أولاً): الدراسة والسابق والجديد والمستخدم والوقت والسبب.</summary>
+    Task<List<ProjectPlanChangeDto>> HistoryAsync(Guid contractId, CancellationToken ct = default);
 }

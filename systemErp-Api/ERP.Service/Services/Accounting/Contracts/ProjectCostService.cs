@@ -49,13 +49,19 @@ public class ProjectCostService : IProjectCostService
             ?? throw new NotFoundException(Messages.ContractNotFound);
         var budget = await _db.Set<ConstructionProjectProfile>().AsNoTracking().Where(p => p.ContractId == contractId)
             .Select(p => p.EstimatedBudget).FirstOrDefaultAsync(ct);
+        // دورة الميزانية: الدراسة تقدير أصلي، والخطة المعتمدة هي ميزانية التنفيذ التي يُقاس عليها الفعلي والتوقع والربح
+        var approved = await ApprovedPlanBudgetAsync(_db, contractId, ct);
         var r = new ProjectCostReportDto
         {
             ContractId = c.Id, CostCenterId = c.CostCenterId, ContractValue = c.ContractValue, EstimatedCost = c.EstimatedCost,
-            ProjectBudget = budget, BudgetAtCompletion = c.EstimatedCost > 0 ? c.EstimatedCost : budget,
+            ProjectBudget = budget, ApprovedPlanBudget = approved?.Total, ApprovedPlanRevision = approved?.Revision,
+            PlanRevisionPending = approved?.RevisionPending ?? false,
         };
+        (r.BudgetAtCompletion, r.BudgetSource) = approved is { Total: > 0 } ap ? (ap.Total, "approved_plan")
+            : budget > 0 ? (budget, "project_budget") : (c.EstimatedCost, "study");
         r.PlannedMargin = r.ContractValue - r.BudgetAtCompletion;
-        if (c.EstimatedCost <= 0 && budget <= 0) r.Notes.Add("لا تكلفة تقديرية في جدول الكميات ولا ميزانية للمشروع: التوقع والانحراف بلا أساس.");
+        if (r.BudgetAtCompletion <= 0) r.Notes.Add("لا خطة معتمدة ولا ميزانية للمشروع ولا تكلفة تقديرية: التوقع والانحراف بلا أساس.");
+        if (r.PlanRevisionPending) r.Notes.Add($"الخطة في مراجعة لم تُعتمد بعد: الحساب على الخطة المعتمدة (المراجعة {approved!.Revision}) حتى اعتماد التعديل.");
 
         // الإنجاز المعتمد للعميل
         r.CertifiedValue = await _db.Set<ContractCertificate>().AsNoTracking()
@@ -72,21 +78,34 @@ public class ProjectCostService : IProjectCostService
         var subs = await _db.Set<CommercialContract>().AsNoTracking()
             .Where(x => x.ParentContractId == contractId && x.Stage != ContractStageDefinition.Cancelled)
             .Select(x => new { x.Id, x.ContractValue }).ToListAsync(ct);
-        decimal? plannedMaterials = null;
-        try
-        {
-            var plan = await _materials.GetAsync(contractId, ct);
-            if (plan.Status == ProjectMaterialPlanStatuses.Approved) plannedMaterials = plan.EstimatedCost;
-        }
-        catch (NotFoundException) { }
-        if (plannedMaterials == null) r.Notes.Add("احتياجات المواد غير معتمدة: لا مخطط للمواد.");
         var plannedSub = subs.Sum(s => s.ContractValue);
+        Dictionary<string, decimal?> planned;
+        if (approved != null)
+        {
+            // المخطط لكل فئة من الخطة المعتمدة؛ الباطن من الخطة، وإلا من قيمة عقوده
+            planned = approved.ByCategory.ToDictionary(kv => kv.Key, kv => kv.Value > 0 ? (decimal?)kv.Value : null);
+            if (planned.GetValueOrDefault("subcontract") == null && plannedSub > 0) planned["subcontract"] = plannedSub;
+        }
+        else
+        {
+            // بلا خطة معتمدة (العقود المباشرة والقديمة): المواد من الاحتياجات المعتمدة، والباطن من عقوده، والباقي تنفيذ مجتمع
+            decimal? plannedMaterials = null;
+            try
+            {
+                var plan = await _materials.GetAsync(contractId, ct);
+                if (plan.Status == ProjectMaterialPlanStatuses.Approved) plannedMaterials = plan.EstimatedCost;
+            }
+            catch (NotFoundException) { }
+            if (plannedMaterials == null) r.Notes.Add("احتياجات المواد غير معتمدة: لا مخطط للمواد.");
+            planned = new() { ["materials"] = plannedMaterials, ["subcontract"] = plannedSub > 0 ? plannedSub : null };
+            if (r.BudgetAtCompletion > 0) planned["execution"] = Math.Max(0, r.BudgetAtCompletion - (plannedMaterials ?? 0) - plannedSub);
+        }
 
         if (c.CostCenterId is not Guid cc)
         {
             r.MissingCostCenter = true;
             r.Notes.Add("العقد بلا مركز تكلفة: لا قيود تُنسب للمشروع.");
-            Finish(r, plannedMaterials, plannedSub, new());
+            Finish(r, planned, new());
             return r;
         }
         r.CostCenterCode = await _db.Set<CostCenter>().AsNoTracking().Where(x => x.Id == cc).Select(x => x.Code).FirstOrDefaultAsync(ct);
@@ -223,29 +242,69 @@ public class ProjectCostService : IProjectCostService
                 JournalEntryId = g.Key.Entry, EntryNumber = g.Key.Number, Date = g.Key.Date, SourceType = g.Key.Source,
                 ReferenceNumber = g.Key.RefNo, Description = g.Key.Description, Amount = g.Sum(x => x.Amount),
             }).Where(d => d.Amount != 0).OrderByDescending(d => Math.Abs(d.Amount)).Take(TopDocuments).ToList());
-        Finish(r, plannedMaterials, plannedSub, byCategory.ToDictionary(kv => kv.Key, kv => (kv.Value.Sum(x => x.Amount), docs[kv.Key])));
+        Finish(r, planned, byCategory.ToDictionary(kv => kv.Key, kv => (kv.Value.Sum(x => x.Amount), docs[kv.Key])));
         return r;
     }
 
+    /// <summary>ميزانية الخطة المعتمدة (آخر أساس مجمّد) موزعة على فئات التقرير.</summary>
+    internal sealed record ApprovedPlan(int Revision, decimal Total, Dictionary<string, decimal> ByCategory, bool RevisionPending);
+
+    /// <summary>
+    /// آخر أساس خطة معتمد: الإجمالي (المواد + الموارد) والفئات — المواد، والعمالة، والمعدات المملوكة (وغير المحددة)، والمستأجرة،
+    /// والباطن، والأخرى — من الموارد المجمّدة بملكيتها. الخطة في مراجعة لم تُعتمد يبقى حسابها على الأساس المعتمد.
+    /// </summary>
+    internal static async Task<ApprovedPlan?> ApprovedPlanBudgetAsync(ErpDbContext db, Guid contractId, CancellationToken ct)
+    {
+        var plan = await db.Set<ProjectExecutionPlan>().AsNoTracking().Where(p => p.ContractId == contractId)
+            .Select(p => new { p.Status, p.BaselineSnapshotId }).FirstOrDefaultAsync(ct);
+        if (plan?.BaselineSnapshotId is not Guid snapshotId) return null;
+        var snap = await db.Set<ProjectSnapshot>().AsNoTracking().Where(s => s.Id == snapshotId)
+            .Select(s => new { s.Revision, s.TotalCost, s.Json }).FirstOrDefaultAsync(ct);
+        if (snap == null) return null;
+
+        var by = new Dictionary<string, decimal> { ["materials"] = 0, ["labor"] = 0, ["equipment"] = 0, ["rented_equipment"] = 0, ["subcontract"] = 0, ["other"] = 0 };
+        using (var doc = System.Text.Json.JsonDocument.Parse(snap.Json))
+        {
+            var root = doc.RootElement;
+            static decimal Dec(System.Text.Json.JsonElement e, string name)
+                => e.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.Number ? v.GetDecimal() : 0m;
+            static string? Str(System.Text.Json.JsonElement e, string name)
+                => e.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+            if (root.TryGetProperty("budget", out var b)) by["materials"] = Dec(b, "materialsCost");
+            if (root.TryGetProperty("resources", out var res) && res.ValueKind == System.Text.Json.JsonValueKind.Array)
+                foreach (var x in res.EnumerateArray())
+                {
+                    var key = Str(x, "resourceType") switch
+                    {
+                        BoqResourceTypes.Labor => "labor",
+                        BoqResourceTypes.Equipment => Str(x, "ownership") == EquipmentOwnerships.Rented ? "rented_equipment" : "equipment",
+                        BoqResourceTypes.Subcontract => "subcontract",
+                        _ => "other",
+                    };
+                    by[key] += Dec(x, "plannedCost");
+                }
+        }
+        return new ApprovedPlan(snap.Revision, snap.TotalCost, by, plan.Status != ExecutionPlanStatuses.Approved);
+    }
+
     /// <summary>الفئات مقابل المخطط، والقيمة المكتسبة والتوقع عند الاكتمال، ونسبة الإنجاز تكلفة إلى تكلفة.</summary>
-    private static void Finish(ProjectCostReportDto r, decimal? plannedMaterials, decimal plannedSub,
+    /// <param name="planned">المخطط لكل فئة: من الخطة المعتمدة لكل فئة، أو (بلا خطة) المواد والباطن و«execution» مجتمعاً للباقي.</param>
+    private static void Finish(ProjectCostReportDto r, Dictionary<string, decimal?> planned,
         Dictionary<string, (decimal Actual, List<ProjectCostDocumentDto> Docs)> actual)
     {
         (decimal, List<ProjectCostDocumentDto>) Of(string key) => actual.TryGetValue(key, out var v) ? v : (0m, new());
         var bac = r.BudgetAtCompletion;
-        // التنفيذ المباشر (العمالة والمعدات والأخرى) مخطط مجتمع: الميزانية − المواد − الباطن
-        decimal? plannedExecution = bac > 0 ? Math.Max(0, bac - (plannedMaterials ?? 0) - plannedSub) : null;
         foreach (var key in new[] { "materials", "labor", "equipment", "rented_equipment", "subcontract", "other", "overhead" })
         {
             var (act, docs) = Of(key);
-            decimal? planned = key switch { "materials" => plannedMaterials, "subcontract" => plannedSub > 0 ? plannedSub : null, _ => null };
+            var p = planned.GetValueOrDefault(key);
             r.Categories.Add(new ProjectCostCategoryDto
             {
                 Key = key, Group = IndirectCategories.Contains(key) ? "indirect" : "direct",
-                Planned = planned, Actual = act, Variance = planned is decimal p ? act - p : null, TopDocuments = docs,
+                Planned = p, Actual = act, Variance = p is decimal pv ? act - pv : null, TopDocuments = docs,
             });
         }
-        if (plannedExecution is decimal pe)
+        if (planned.GetValueOrDefault("execution") is decimal pe)
         {
             var exec = r.Categories.Where(x => x.Key is "labor" or "equipment" or "rented_equipment" or "other").Sum(x => x.Actual);
             r.Categories.Add(new ProjectCostCategoryDto { Key = "execution", Planned = pe, Actual = exec, Variance = exec - pe });
@@ -253,9 +312,13 @@ public class ProjectCostService : IProjectCostService
 
         r.EarnedValue = DocumentPricing.Round(bac * r.ProgressPercent / 100m);
         r.CostPerformanceIndex = r.ActualCost > 0 && r.EarnedValue > 0 ? Math.Round(r.EarnedValue / r.ActualCost, 3) : null;
-        r.EstimateAtCompletion = r.CostPerformanceIndex is decimal cpi && cpi > 0
+        // بلا تكلفة فعلية بعد لا أساس للأداء: التوقع = الميزانية (لا يُفترض أن المشروع اكتمل بلا تكلفة)
+        r.EstimateAtCompletion = r.ActualCost <= 0 ? bac
+            : r.CostPerformanceIndex is decimal cpi && cpi > 0
             ? DocumentPricing.Round(bac / cpi)
             : DocumentPricing.Round(r.ActualCost + Math.Max(0, bac - r.EarnedValue));
+        if (r.ActualCost <= 0 && r.ProgressPercent > 0)
+            r.Notes.Add("أعمال معتمدة بلا تكلفة مسجلة على مركز المشروع: التوقع = الميزانية حتى تُسجَّل التكاليف (راجع ترحيل التقارير اليومية والصرف والفواتير).");
         // لا يُتوقع أقل مما صُرف فعلاً
         r.EstimateAtCompletion = Math.Max(r.EstimateAtCompletion, r.ActualCost);
         r.EstimateToComplete = r.EstimateAtCompletion - r.ActualCost;

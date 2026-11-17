@@ -96,6 +96,8 @@ public class SiteResourceUsageDto
     public string? IdleReason { get; set; }
     /// <summary>ساعات استعداد الآلية المستأجرة (في الموقع بلا تشغيل).</summary>
     public decimal StandbyHours { get; set; }
+    /// <summary>وحدات عمل الآلية (رحلات أو مهام) لإيرادها بأساس الرحلة أو المهمة.</summary>
+    public decimal WorkUnits { get; set; }
     public decimal HourlyCost { get; set; }
     public decimal OvertimeHourlyCost { get; set; }
     public decimal Cost { get; set; }

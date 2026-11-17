@@ -63,8 +63,49 @@ public class ProjectResourceRequirement : BaseEntity
     public string Source { get; set; } = PlanItemSources.Derived;
     /// <summary>سطر تحليل الدراسة المجمّد الذي نشأ منه (للتتبع).</summary>
     public Guid? SourceCostRowId { get; set; }
+    // قيم الدراسة وقت التوليد (مرجع ثابت للمقارنة): لا يغيّرها تعديل الخطة، وتبقى ولو أعيد تسعير الدراسة. فارغة للسطر اليدوي.
+    public decimal? StudyQuantity { get; set; }
+    public decimal? StudyHoursPerUnit { get; set; }
+    public decimal? StudyUnitCost { get; set; }
+    public decimal? StudyCost { get; set; }
     public string? Notes { get; set; }
     public int SortOrder { get; set; }
+}
+
+/// <summary>إجراء على عنصر الخطة في سجل التغييرات.</summary>
+public static class PlanChangeActions
+{
+    public const string Added = "added";
+    public const string Modified = "modified";
+    public const string Removed = "removed";
+}
+
+/// <summary>
+/// سجل تغييرات خطة التنفيذ: لكل حقل تغيّر في عنصر (مورد) القيمة في الدراسة والسابقة والجديدة، وأثرها على التكلفة، ومن غيّرها ومتى،
+/// والسبب إن ذُكر. الإضافة والحذف سطر واحد بالتكلفة. القيم نصوص ثابتة الصيغة (أرقام إنجليزية) للعرض والتصدير.
+/// </summary>
+public class ProjectPlanChange : BaseEntity
+{
+    public Guid ContractId { get; set; }
+    /// <summary>رقم مراجعة الخطة وقت التغيير.</summary>
+    public int Revision { get; set; }
+    /// <summary>resource | material.</summary>
+    public string ItemKind { get; set; } = "resource";
+    public Guid? ItemId { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    /// <summary><see cref="PlanChangeActions"/>.</summary>
+    public string Action { get; set; } = PlanChangeActions.Modified;
+    /// <summary>الحقل المتغيّر (quantity، unitCost، hoursPerUnit، name، unit، phaseId، suggestedCount، ownership، resourceType)؛ فارغ للإضافة والحذف.</summary>
+    public string? Field { get; set; }
+    public string? StudyValue { get; set; }
+    public string? OldValue { get; set; }
+    public string? NewValue { get; set; }
+    /// <summary>فرق التكلفة المخططة للعنصر بسبب هذا الحفظ (يُسجَّل على أول حقل متغيّر للعنصر).</summary>
+    public decimal CostDelta { get; set; }
+    public string? Reason { get; set; }
+    public string? ChangedBy { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTime ChangedAt { get; set; }
 }
 
 /// <summary>أنواع النسخ المرجعية المجمّدة.</summary>

@@ -138,6 +138,30 @@ public class ProjectResourceRequirementDto
     public decimal SuggestedCount { get; set; }
     public string Source { get; set; } = "manual";
     public string? Notes { get; set; }
+    // قيم الدراسة وقت التوليد (للقراءة؛ يتجاهلها الحفظ): فارغة للسطر اليدوي
+    public decimal? StudyQuantity { get; set; }
+    public decimal? StudyHoursPerUnit { get; set; }
+    public decimal? StudyUnitCost { get; set; }
+    public decimal? StudyCost { get; set; }
+}
+
+/// <summary>سطر في سجل تغييرات الخطة.</summary>
+public class ProjectPlanChangeDto
+{
+    public Guid Id { get; set; }
+    public int Revision { get; set; }
+    public string ItemKind { get; set; } = string.Empty;
+    public Guid? ItemId { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public string? Field { get; set; }
+    public string? StudyValue { get; set; }
+    public string? OldValue { get; set; }
+    public string? NewValue { get; set; }
+    public decimal CostDelta { get; set; }
+    public string? Reason { get; set; }
+    public string? ChangedBy { get; set; }
+    public DateTime ChangedAt { get; set; }
 }
 
 /// <summary>تنبيه نقص: رمز تترجمه الواجهة، وعدد العناصر المعنية، وتفصيل اختياري.</summary>
@@ -203,6 +227,8 @@ public class GenerateExecutionPlanDto
 public class SaveResourceRequirementsDto
 {
     public List<ProjectResourceRequirementDto> Items { get; set; } = new();
+    /// <summary>سبب التعديل (اختياري): يُسجَّل مع تغييرات هذا الحفظ في سجل الخطة.</summary>
+    public string? Reason { get; set; }
 }
 
 /// <summary>إعادة الخطة المقدَّمة للمسودة بسبب.</summary>

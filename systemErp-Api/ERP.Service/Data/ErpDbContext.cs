@@ -223,6 +223,10 @@ public class ErpDbContext : DbContext
         (typeof(EquipmentDepreciationAllocation), nameof(EquipmentDepreciationAllocation.FixedAssetId), typeof(FixedAsset)),
         (typeof(EquipmentDepreciationAllocation), nameof(EquipmentDepreciationAllocation.ContractId), typeof(CommercialContract)),
         (typeof(EquipmentRentalContract), nameof(EquipmentRentalContract.SupplierId), typeof(Supplier)),
+        // تسعيرة إيراد المعدة: لا تُحذف معدة أو عقد أو بند عليه تسعيرة
+        (typeof(EquipmentRevenueRate), nameof(EquipmentRevenueRate.EquipmentId), typeof(Equipment)),
+        (typeof(EquipmentRevenueRate), nameof(EquipmentRevenueRate.ContractId), typeof(CommercialContract)),
+        (typeof(EquipmentRevenueRate), nameof(EquipmentRevenueRate.ContractItemId), typeof(CommercialContractItem)),
         // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
 
@@ -783,6 +787,14 @@ public class ErpDbContext : DbContext
             e.HasIndex(x => new { x.TenantId, x.FixedAssetId, x.Period, x.ContractId }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.Period });
         });
+        // تسعيرات إيراد المعدات: الافتراضية والخاصة بعقد، بفترة سريان
+        modelBuilder.Entity<EquipmentRevenueRate>(e =>
+        {
+            e.Property(x => x.Basis).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.ContractId, x.EffectiveFrom });
+            e.HasIndex(x => new { x.TenantId, x.ContractItemId });
+        });
         modelBuilder.Entity<EquipmentRentalContract>(e =>
         {
             e.Property(x => x.ContractNumber).HasMaxLength(50).IsRequired();
@@ -826,7 +838,22 @@ public class ErpDbContext : DbContext
             e.Property(r => r.Source).HasMaxLength(16).IsRequired();
             e.Property(r => r.Notes).HasMaxLength(500);
             e.Property(r => r.Quantity).HasPrecision(18, 6);
+            e.Property(r => r.StudyQuantity).HasPrecision(18, 6);
             e.HasIndex(r => new { r.TenantId, r.ContractId });
+        });
+        // سجل تغييرات خطة التنفيذ (للعرض بترتيب الزمن لكل مشروع)
+        modelBuilder.Entity<ProjectPlanChange>(e =>
+        {
+            e.Property(c => c.ItemKind).HasMaxLength(16).IsRequired();
+            e.Property(c => c.ItemName).HasMaxLength(200).IsRequired();
+            e.Property(c => c.Action).HasMaxLength(16).IsRequired();
+            e.Property(c => c.Field).HasMaxLength(32);
+            e.Property(c => c.StudyValue).HasMaxLength(200);
+            e.Property(c => c.OldValue).HasMaxLength(200);
+            e.Property(c => c.NewValue).HasMaxLength(200);
+            e.Property(c => c.Reason).HasMaxLength(500);
+            e.Property(c => c.ChangedBy).HasMaxLength(200);
+            e.HasIndex(c => new { c.TenantId, c.ContractId, c.ChangedAt });
         });
         modelBuilder.Entity<ProjectSnapshot>(e =>
         {

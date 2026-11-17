@@ -291,3 +291,53 @@ public class EquipmentRentalContract : BaseEntity
     public string? Terms { get; set; }
     public DateTime? ClosedAt { get; set; }
 }
+
+/// <summary>
+/// أساس احتساب الإيراد التشغيلي للمعدة (يختلف بتخصصها وعقدها):
+/// <list type="bullet">
+/// <item><see cref="Hour"/>: ساعات التشغيل والإضافي من التقرير اليومي، والتوقف والاستعداد بنسبتيهما، بحد أدنى يومي اختياري.</item>
+/// <item><see cref="Day"/>: يوم كامل لكل تقرير عملت فيه، ويوم التوقف أو الاستعداد وحده بنسبته.</item>
+/// <item><see cref="Shift"/>: كالساعة مقسومة على ساعات الوردية (السعر للوردية).</item>
+/// <item><see cref="Trip"/> و<see cref="Task"/>: وحدات العمل (رحلات أو مهام) المسجلة على سطر المعدة في التقرير؛ لا يُحتسب توقف.</item>
+/// </list>
+/// </summary>
+public static class EquipmentRevenueBases
+{
+    public const string Hour = "hour";
+    public const string Day = "day";
+    public const string Shift = "shift";
+    public const string Trip = "trip";
+    public const string Task = "task";
+    public static readonly string[] All = { Hour, Day, Shift, Trip, Task };
+    public static bool IsValid(string? basis) => basis is Hour or Day or Shift or Trip or Task;
+    /// <summary>الأسس التي تُحتسب بوحدات العمل لا بالوقت.</summary>
+    public static bool IsUnitBased(string basis) => basis is Trip or Task;
+}
+
+/// <summary>
+/// تسعيرة إيراد المعدة: الافتراضية للمعدة (<see cref="ContractId"/> فارغ) أو خاصة بعقد مشروع تتقدم عليها، بأساس احتساب وسعر وفترة سريان.
+/// منها يُحسب الإيراد التشغيلي من التقارير اليومية المعتمدة (حساب تشغيلي بلا قيد). وربطها ببند في جدول كميات العقد
+/// (<see cref="ContractItemId"/>) يجعل مبالغ ذلك البند في المستخلصات المعتمدة والمفوترة إيراداً محاسبياً للمعدة؛ البند لمعدة واحدة.
+/// </summary>
+public class EquipmentRevenueRate : BaseEntity
+{
+    public Guid EquipmentId { get; set; }
+    /// <summary>عقد المشروع (فارغ = التسعيرة الافتراضية للمعدة في كل المشاريع).</summary>
+    public Guid? ContractId { get; set; }
+    /// <summary>بند جدول الكميات الذي يُفوتر عمل المعدة للمالك (يتطلب عقداً).</summary>
+    public Guid? ContractItemId { get; set; }
+    public string Basis { get; set; } = EquipmentRevenueBases.Hour;
+    /// <summary>سعر وحدة الأساس (الساعة أو اليوم أو الوردية أو الرحلة أو المهمة).</summary>
+    public decimal Rate { get; set; }
+    /// <summary>ساعات الوردية لأساس الوردية.</summary>
+    public decimal ShiftHours { get; set; } = 8;
+    /// <summary>حد أدنى يومي لساعات الفوترة (أساس الساعة والوردية)؛ صفر = بلا حد.</summary>
+    public decimal MinimumDailyHours { get; set; }
+    /// <summary>نسبة فوترة ساعات التوقف المدفوع.</summary>
+    public decimal IdleBillingPercent { get; set; }
+    /// <summary>نسبة فوترة ساعات الاستعداد.</summary>
+    public decimal StandbyBillingPercent { get; set; }
+    public DateTime EffectiveFrom { get; set; }
+    public DateTime? EffectiveTo { get; set; }
+    public string? Notes { get; set; }
+}

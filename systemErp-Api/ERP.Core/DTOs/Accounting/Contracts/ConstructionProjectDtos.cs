@@ -19,6 +19,8 @@ public class ConstructionProjectDto
     public string? CostCenterName { get; set; }
 
     public decimal EstimatedBudget { get; set; }
+    /// <summary>الميزانية تتبع خطة التنفيذ المعتمدة (تُحدَّث عند كل اعتماد، ولا تُدخل يدوياً).</summary>
+    public bool BudgetFromPlan { get; set; }
     /// <summary>بداية ونهاية يوم العمل والاستراحة بصيغة HH:mm.</summary>
     public string WorkdayStart { get; set; } = string.Empty;
     public string WorkdayEnd { get; set; } = string.Empty;

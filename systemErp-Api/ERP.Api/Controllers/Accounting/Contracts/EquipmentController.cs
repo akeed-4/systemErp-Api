@@ -54,6 +54,38 @@ public class EquipmentController : ErpControllerBase
     public async Task<IActionResult> CostReport([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
         => Success(await _equipment.CostReportAsync(from, to, ct));
 
+    // ---------- الإيرادات والربحية (حساب بلا قيود) ----------
+
+    /// <summary>ربحية المعدات لفترة: الإيراد التشغيلي المحسوب والمحاسبي المعتمد في المستخلصات مقابل التكلفة الفعلية، لكل معدة ومشروع.</summary>
+    [HttpGet("profitability"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Profitability([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] Guid? contractId,
+        [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
+        => Success(await profit.ReportAsync(from, to, contractId, ct));
+
+    [HttpGet("revenue-rates"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> RevenueRates([FromQuery] Guid? equipmentId, [FromQuery] Guid? contractId, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
+        => Success(await profit.RatesAsync(equipmentId, contractId, ct));
+
+    /// <summary>بنود جدول كميات العقد القابلة للربط بتسعيرة معدة.</summary>
+    [HttpGet("revenue-rates/items"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> RevenueItems([FromQuery] Guid contractId, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
+        => Success(await profit.ItemOptionsAsync(contractId, ct));
+
+    [HttpPost("revenue-rates"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> CreateRevenueRate([FromBody] SaveEquipmentRevenueRateDto request, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
+        => Success(await profit.CreateRateAsync(request, ct), Messages.CreatedSuccessfully);
+
+    [HttpPut("revenue-rates/{rateId:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> UpdateRevenueRate(Guid rateId, [FromBody] SaveEquipmentRevenueRateDto request, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
+        => Success(await profit.UpdateRateAsync(rateId, request, ct), Messages.UpdatedSuccessfully);
+
+    [HttpDelete("revenue-rates/{rateId:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> DeleteRevenueRate(Guid rateId, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
+    {
+        await profit.DeleteRateAsync(rateId, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
+
     /// <summary>
     /// إعادة توزيع الإهلاك الفعلي لمعدات «طريقة الإهلاك» على المشاريع لفترة (yyyy-MM) بالفرق عمّا رُحِّل (بعد تصحيحات متأخرة)؛ يتم آلياً
     /// عند ترحيل الإهلاك وعكسه واعتماد التقارير. يرحّل قيوداً فيحتاج صلاحية الترحيل.

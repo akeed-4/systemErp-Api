@@ -34,6 +34,10 @@ public class ExecutionPlanController : ErpControllerBase
     [HttpGet("comparison"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Comparison(Guid id, CancellationToken ct) => Success(await _plans.ComparisonAsync(id, ct));
 
+    /// <summary>سجل تغييرات الخطة: قيمة الدراسة والسابقة والجديدة لكل حقل، ومن غيّرها ومتى ولماذا.</summary>
+    [HttpGet("history"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> History(Guid id, CancellationToken ct) => Success(await _plans.HistoryAsync(id, ct));
+
     /// <summary>توليد الخطة من الدراسة المجمّدة (المشتق يُستبدل، واليدوي والمعدّل يبقيان).</summary>
     [HttpPost("generate"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> Generate(Guid id, [FromBody] GenerateExecutionPlanDto request, CancellationToken ct)

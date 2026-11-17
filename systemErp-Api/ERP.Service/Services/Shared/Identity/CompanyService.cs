@@ -42,6 +42,18 @@ public class CompanyService : ICompanyService
         t.Address = r.Address; t.City = r.City; t.Country = r.Country; t.Phone = r.Phone; t.Email = r.Email;
         t.LogoUrl = r.LogoUrl; t.FinancialYearStart = r.FinancialYearStart; t.FinancialYearEnd = r.FinancialYearEnd;
         if (r.TimeZoneId != null) t.TimeZoneId = r.TimeZoneId.Trim();
+
+        // العنوان الوطني: مصدره بيانات المنشأة، ويُخزَّن في إعدادات الهيئة حيث تقرؤه الفاتورة الإلكترونية والربط
+        static string? Clean(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        static bool Digits(string? v, int n) => v == null || (v.Length == n && v.All(char.IsDigit));
+        var z = t.ZatcaConfig;
+        var building = r.BuildingNumber == null ? z.BuildingNumber : Clean(r.BuildingNumber);
+        var postal = r.PostalCode == null ? z.PostalCode : Clean(r.PostalCode);
+        if (r.BuildingNumber != null && !Digits(building, 4)) throw new ValidationFailedException("رقم المبنى في العنوان الوطني 4 أرقام.");
+        if (r.PostalCode != null && !Digits(postal, 5)) throw new ValidationFailedException("الرمز البريدي في العنوان الوطني 5 أرقام.");
+        if (r.Street != null) z.Street = Clean(r.Street);
+        if (r.District != null) z.District = Clean(r.District);
+        z.BuildingNumber = building; z.PostalCode = postal;
         // العملة الأساسية والرمز لا يتغيّران بعد التهيئة لأن القيود مسجَّلة بها.
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<TenantDto>(t);
@@ -74,7 +86,9 @@ public class CompanyService : ICompanyService
         c.CsrCommonName = r.CsrCommonName; c.OrganizationUnit = r.OrganizationUnit; c.OrganizationName = r.OrganizationName;
         c.CountryCode = r.CountryCode ?? c.CountryCode; c.DeviceSn = r.DeviceSn; c.BusinessCategory = r.BusinessCategory;
         c.AutoSubmitOnInvoiceSave = r.AutoSubmitOnInvoiceSave;
-        c.Street = r.Street; c.BuildingNumber = r.BuildingNumber; c.District = r.District; c.PostalCode = r.PostalCode;
+        // العنوان الوطني يُحرَّر من بيانات المنشأة؛ null هنا = يبقى كما هو (شاشة الهيئة لم تعد ترسله)
+        c.Street = r.Street ?? c.Street; c.BuildingNumber = r.BuildingNumber ?? c.BuildingNumber;
+        c.District = r.District ?? c.District; c.PostalCode = r.PostalCode ?? c.PostalCode;
 
         await _db.SaveChangesAsync(ct);
         return Mapper.Map<TenantDto>(t);

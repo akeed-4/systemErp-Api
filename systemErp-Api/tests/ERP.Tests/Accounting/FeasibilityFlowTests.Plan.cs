@@ -155,7 +155,7 @@ public partial class FeasibilityFlowTests
         // تعديل عامل الحفر (ساعات أكثر) وإضافة مشرف سلامة يدوي
         var items = plan["resources"]!.AsArray().Select(r => (JsonNode)r!.DeepClone()).ToList();
         var digLabor = items.Single(r => r["resourceType"].S() == "labor" && r["contractItemId"].S() == s.Dig.ToString())!;
-        digLabor["quantity"] = 120; // يُتجاهل: الكمية من الدراسة
+        digLabor["quantity"] = 120; // الخطة مستقلة: الكمية تُعدَّل فيها (والدراسة لا تتغير)
         digLabor["suggestedCount"] = 3;
         items.Add(new JsonObject { ["resourceType"] = "labor", ["name"] = "مشرف سلامة", ["unit"] = "HR", ["quantity"] = 40, ["hoursPerUnit"] = 1, ["unitCost"] = 50, ["phaseId"] = plan["phases"]![0]!["id"]!.DeepClone() });
         var saved = await api.Put($"/commercialcontracts/{s.Id}/execution-plan/resources", new { items });
@@ -180,9 +180,112 @@ public partial class FeasibilityFlowTests
         var res = p2["resources"]!.AsArray();
         Assert.Single(res, r => r!["contractItemId"].S() == s.Dig.ToString() && r["resourceType"].S() == "labor");
         var keptLabor = res.Single(r => r!["contractItemId"].S() == s.Dig.ToString() && r["resourceType"].S() == "labor")!;
-        Assert.Equal(100m, keptLabor["quantity"].D());
+        Assert.Equal(120m, keptLabor["quantity"].D()); // تعديل الخطة باقٍ بعد إعادة التوليد
+        Assert.Equal(100m, keptLabor["studyQuantity"].D()); // ومرجع الدراسة كما هو
         Assert.Equal(3m, keptLabor["suggestedCount"].D());
         Assert.Contains(res, r => r!["name"].S() == "مشرف سلامة" && r["source"].S() == "manual");
+    }
+
+    [Fact]
+    public async Task Approved_plan_becomes_the_project_budget_for_cost_profit_and_categories_until_the_next_approval()
+    {
+        var s = await PricedStudyAsync();
+        var api = s.Api;
+        var plan = (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { })).Data!;
+        var studyCost = plan["budget"]!["studyCost"].D();
+
+        // تعديل الخطة: العمالة أغلى (+10 للوحدة)
+        var items = plan["resources"]!.AsArray().Select(r => (JsonNode)r!.DeepClone()).ToList();
+        foreach (var l in items.Where(r => r["resourceType"].S() == "labor")) l["unitCost"] = l["unitCost"].D() + 10;
+        var edited = (await api.Put($"/commercialcontracts/{s.Id}/execution-plan/resources", new { items })).Data!;
+        var planCost = edited["budget"]!["plannedCost"].D();
+        var laborPlan = edited["budget"]!["laborCost"].D();
+        Assert.NotEqual(studyCost, planCost);
+
+        // قبل الاعتماد: التقرير على الدراسة (لا خطة معتمدة)
+        var before = (await api.Get($"/commercialcontracts/{s.Id}/project/cost-report")).Data!;
+        Assert.NotEqual("approved_plan", before["budgetSource"].S());
+
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { }), "submit");
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/approve", new { }), "approve");
+
+        // بعد الاعتماد: الميزانية = الخطة المعتمدة، والمخطط لكل فئة منها، والهامش والتوقع عليها؛ والدراسة كما هي
+        var report = (await api.Get($"/commercialcontracts/{s.Id}/project/cost-report")).Data!;
+        Assert.Equal("approved_plan", report["budgetSource"].S());
+        Assert.Equal(planCost, report["budgetAtCompletion"].D());
+        Assert.Equal(1, report["approvedPlanRevision"]!.GetValue<int>());
+        Assert.Equal(studyCost, report["estimatedCost"].D());
+        Assert.Equal(report["contractValue"].D() - planCost, report["plannedMargin"].D());
+        Assert.Equal(laborPlan, report["categories"]!.AsArray().Single(c => c!["key"].S() == "labor")!["planned"].D());
+        Assert.Equal(planCost, report["estimateAtCompletion"].D()); // بلا فعلي: التوقع = الميزانية
+        Assert.Equal(planCost, (await api.Get($"/commercialcontracts/{s.Id}/project")).Data!["estimatedBudget"].D());
+
+        // مراجعة بتعديل لم يُعتمد: التقرير يبقى على المعتمد وينبّه
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/revise", new { }), "revise");
+        var draft = (await api.Get($"/commercialcontracts/{s.Id}/execution-plan")).Data!;
+        var items2 = draft["resources"]!.AsArray().Select(r => (JsonNode)r!.DeepClone()).ToList();
+        items2.Add(new JsonObject { ["resourceType"] = "labor", ["name"] = "عامل إضافي", ["unit"] = "HR", ["quantity"] = 100, ["hoursPerUnit"] = 1, ["unitCost"] = 20 });
+        Ok(await api.Put($"/commercialcontracts/{s.Id}/execution-plan/resources", new { items = items2 }), "edit revision");
+        var pending = (await api.Get($"/commercialcontracts/{s.Id}/project/cost-report")).Data!;
+        Assert.Equal(planCost, pending["budgetAtCompletion"].D());
+        Assert.True(pending["planRevisionPending"]!.GetValue<bool>());
+
+        // اعتماد المراجعة: الميزانية الجديدة
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { }), "submit 2");
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/approve", new { }), "approve 2");
+        var after = (await api.Get($"/commercialcontracts/{s.Id}/project/cost-report")).Data!;
+        Assert.Equal(planCost + 2000m, after["budgetAtCompletion"].D());
+        Assert.Equal(2, after["approvedPlanRevision"]!.GetValue<int>());
+        Assert.False(after["planRevisionPending"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task Plan_edits_change_plan_budget_keep_study_unchanged_persist_and_are_audited()
+    {
+        var s = await PricedStudyAsync();
+        var api = s.Api;
+        var plan = (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { })).Data!;
+        var studyCost = plan["budget"]!["studyCost"].D();
+        var planCost = plan["budget"]!["plannedCost"].D();
+        var rowsBefore = await api.Get($"/commercialcontracts/{s.Id}/cost-analysis");
+
+        // تعديل كمية وسعر مورد مولَّد، وحذف آخر، وإضافة يدوي
+        var items = plan["resources"]!.AsArray().Select(r => (JsonNode)r!.DeepClone()).ToList();
+        var labor = items.First(r => r["resourceType"].S() == "labor")!;
+        var oldLaborCost = labor["plannedCost"].D();
+        labor["quantity"] = labor["quantity"].D() * 2;
+        labor["unitCost"] = labor["unitCost"].D() + 10;
+        var newLaborCost = Math.Round(labor["quantity"].D() * labor["unitCost"].D(), 2);
+        var removed = items.First(r => r["resourceType"].S() == "equipment")!;
+        items.Remove(removed);
+        items.Add(new JsonObject { ["resourceType"] = "subcontract", ["name"] = "عزل", ["unit"] = "LS", ["quantity"] = 1, ["hoursPerUnit"] = 0, ["unitCost"] = 5000 });
+        var saved = await api.Put($"/commercialcontracts/{s.Id}/execution-plan/resources", new { items, reason = "إعادة تقدير العمالة" });
+        Ok(saved, "save resources");
+
+        var expected = planCost - oldLaborCost + newLaborCost - removed["plannedCost"].D() + 5000m;
+        Assert.Equal(expected, saved.Data!["budget"]!["plannedCost"].D());
+        Assert.Equal(studyCost, saved.Data["budget"]!["studyCost"].D()); // الدراسة لا تتغير
+
+        // بعد إعادة الفتح: التعديلات محفوظة، ومرجع الدراسة على السطر
+        var reopened = (await api.Get($"/commercialcontracts/{s.Id}/execution-plan")).Data!;
+        Assert.Equal(expected, reopened["budget"]!["plannedCost"].D());
+        var edited = reopened["resources"]!.AsArray().Single(r => r!["id"].S() == labor["id"].S())!;
+        Assert.Equal("modified", edited["source"].S());
+        Assert.Equal(newLaborCost, edited["plannedCost"].D());
+        Assert.Equal(oldLaborCost, edited["studyCost"].D());
+        Assert.DoesNotContain(reopened["resources"]!.AsArray(), r => r!["id"].S() == removed["id"].S());
+
+        // تحليل الدراسة نفسه لم يتغير
+        var rowsAfter = await api.Get($"/commercialcontracts/{s.Id}/cost-analysis");
+        Assert.Equal(rowsBefore.Data!.ToJsonString(), rowsAfter.Data!.ToJsonString());
+
+        // السجل: تعديل الكمية والسعر (بقيمة الدراسة) والحذف والإضافة، بالسبب
+        var history = (await api.Get($"/commercialcontracts/{s.Id}/execution-plan/history")).Data!.AsArray();
+        Assert.Contains(history, h => h!["action"].S() == "modified" && h["field"].S() == "quantity" && h["studyValue"] != null);
+        Assert.Contains(history, h => h!["action"].S() == "modified" && h["field"].S() == "unitCost");
+        Assert.Contains(history, h => h!["action"].S() == "removed");
+        Assert.Contains(history, h => h!["action"].S() == "added" && h["itemName"].S() == "عزل");
+        Assert.All(history, h => Assert.Equal("إعادة تقدير العمالة", h!["reason"].S()));
     }
 
     [Fact]

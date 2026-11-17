@@ -448,3 +448,143 @@ public class EquipmentOptionDto
     public string Name { get; set; } = string.Empty;
     public string? Detail { get; set; }
 }
+
+// ---------- إيرادات المعدات وربحيتها ----------
+
+/// <summary>تسعيرة إيراد معدة: افتراضية (بلا عقد) أو خاصة بعقد، وبندها المربوط في جدول الكميات (للإيراد المحاسبي من المستخلصات).</summary>
+public class EquipmentRevenueRateDto
+{
+    public Guid Id { get; set; }
+    public Guid EquipmentId { get; set; }
+    public string EquipmentCode { get; set; } = string.Empty;
+    public string EquipmentName { get; set; } = string.Empty;
+    public string? Category { get; set; }
+    public Guid? ContractId { get; set; }
+    public string? ContractNumber { get; set; }
+    public string? ProjectName { get; set; }
+    public Guid? ContractItemId { get; set; }
+    public string? ContractItemLabel { get; set; }
+    public string? ContractItemUnit { get; set; }
+    public decimal? ContractItemUnitPrice { get; set; }
+    public string Basis { get; set; } = string.Empty;
+    public decimal Rate { get; set; }
+    public decimal ShiftHours { get; set; }
+    public decimal MinimumDailyHours { get; set; }
+    public decimal IdleBillingPercent { get; set; }
+    public decimal StandbyBillingPercent { get; set; }
+    public DateTime EffectiveFrom { get; set; }
+    public DateTime? EffectiveTo { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class SaveEquipmentRevenueRateDto
+{
+    public Guid EquipmentId { get; set; }
+    public Guid? ContractId { get; set; }
+    public Guid? ContractItemId { get; set; }
+    public string Basis { get; set; } = string.Empty;
+    public decimal Rate { get; set; }
+    public decimal? ShiftHours { get; set; }
+    public decimal? MinimumDailyHours { get; set; }
+    public decimal? IdleBillingPercent { get; set; }
+    public decimal? StandbyBillingPercent { get; set; }
+    public DateTime? EffectiveFrom { get; set; }
+    public DateTime? EffectiveTo { get; set; }
+    public string? Notes { get; set; }
+}
+
+/// <summary>بند جدول كميات قابل للربط بتسعيرة معدة (ومعدته المرتبطة حالياً إن وُجدت).</summary>
+public class EquipmentRevenueItemOptionDto
+{
+    public Guid Id { get; set; }
+    public string? LineCode { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal UnitPrice { get; set; }
+    public Guid? LinkedEquipmentId { get; set; }
+    public string? LinkedEquipmentCode { get; set; }
+}
+
+/// <summary>
+/// ربحية معدة أو معدة في مشروع لفترة. الإيراد التشغيلي محسوب من الاستخدام الفعلي × التسعيرة (بلا قيد)، والمحاسبي من المستخلصات
+/// المعتمدة والمفوترة لبنودها المربوطة. التكلفة الفعلية: وقود ومصاريف وصيانة وإيجار وإهلاك (مما هو مسجّل) + المشغّل بسعره المعياري.
+/// </summary>
+public class EquipmentProfitRowDto
+{
+    public Guid EquipmentId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Category { get; set; }
+    public string Ownership { get; set; } = string.Empty;
+    /// <summary>فارغ في صف المعدة الإجمالي.</summary>
+    public Guid? ContractId { get; set; }
+    public string? ContractNumber { get; set; }
+    public string? ProjectName { get; set; }
+    /// <summary>أسس التسعيرات المطبّقة في الفترة (hour/day/...).</summary>
+    public List<string> Bases { get; set; } = new();
+    public decimal WorkHours { get; set; }
+    public decimal IdleHours { get; set; }
+    public decimal WorkDays { get; set; }
+    public decimal WorkUnits { get; set; }
+    /// <summary>ساعات عمل بلا تسعيرة سارية (إيرادها غير محسوب).</summary>
+    public decimal UnpricedHours { get; set; }
+    public decimal OperationalRevenue { get; set; }
+    public decimal CertifiedQuantity { get; set; }
+    public decimal AccountingRevenue { get; set; }
+    public decimal FuelCost { get; set; }
+    public decimal MaintenanceCost { get; set; }
+    public decimal Expenses { get; set; }
+    public decimal OperatorCost { get; set; }
+    public decimal Depreciation { get; set; }
+    public decimal RentalCost { get; set; }
+    public decimal TotalCost { get; set; }
+    /// <summary>صف المعدة: تكلفة لم تُنسب لمشروع (فترات بلا إسناد، إهلاك السعر الداخلي، ورشة).</summary>
+    public decimal UnallocatedCost { get; set; }
+    public decimal OperationalProfit { get; set; }
+    public decimal AccountingProfit { get; set; }
+    public decimal? OperationalMargin { get; set; }
+    public decimal? AccountingMargin { get; set; }
+    /// <summary>التشغيلي − المحاسبي (موجب = عمل لم يُعتمد في المستخلصات بعد).</summary>
+    public decimal UncertifiedRevenue { get; set; }
+}
+
+/// <summary>إجمالي مشروع من صفوف معداته.</summary>
+public class EquipmentProjectProfitDto
+{
+    public Guid ContractId { get; set; }
+    public string? ContractNumber { get; set; }
+    public string? ProjectName { get; set; }
+    public int EquipmentCount { get; set; }
+    public decimal WorkHours { get; set; }
+    public decimal OperationalRevenue { get; set; }
+    public decimal AccountingRevenue { get; set; }
+    public decimal TotalCost { get; set; }
+    public decimal OperationalProfit { get; set; }
+    public decimal AccountingProfit { get; set; }
+    public decimal? OperationalMargin { get; set; }
+    public decimal? AccountingMargin { get; set; }
+}
+
+public class EquipmentProfitTotalsDto
+{
+    public decimal OperationalRevenue { get; set; }
+    public decimal AccountingRevenue { get; set; }
+    public decimal TotalCost { get; set; }
+    public decimal OperationalProfit { get; set; }
+    public decimal AccountingProfit { get; set; }
+    public decimal UncertifiedRevenue { get; set; }
+    public decimal UnpricedHours { get; set; }
+    public int LossMaking { get; set; }
+}
+
+public class EquipmentProfitabilityReportDto
+{
+    public DateTime From { get; set; }
+    public DateTime To { get; set; }
+    public Guid? ContractId { get; set; }
+    public List<EquipmentProfitRowDto> Equipment { get; set; } = new();
+    public List<EquipmentProfitRowDto> EquipmentProjects { get; set; } = new();
+    public List<EquipmentProjectProfitDto> Projects { get; set; } = new();
+    public EquipmentProfitTotalsDto Totals { get; set; } = new();
+}

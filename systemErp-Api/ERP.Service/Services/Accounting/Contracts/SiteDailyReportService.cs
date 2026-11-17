@@ -338,6 +338,9 @@ public class SiteDailyReportService : ISiteDailyReportService
                 errors.Add(string.Format(Messages.SiteResourceHoursInvalid, row));
             var rented = res?.Kind == ProjectResourceKinds.RentedEquipment;
             if (u.StandbyHours > 0 && res != null && !rented) errors.Add(string.Format(Messages.SiteResourceStandbyOnlyRented, row));
+            // وحدات العمل (رحلات/مهام) للآليات وحدها: أساس إيرادها التشغيلي، ولا تدخل التكلفة
+            var isEquipment = res?.Kind is ProjectResourceKinds.OwnedEquipment or ProjectResourceKinds.RentedEquipment;
+            if (u.WorkUnits < 0 || (u.WorkUnits > 0 && res != null && !isEquipment)) errors.Add($"السطر {row}: وحدات العمل (رحلات/مهام) للآليات فقط ولا تكون سالبة.");
             if (u.ContractItemId is Guid item && !lines.ContainsKey(item)) errors.Add(string.Format(Messages.SiteResourceItemInvalid, row));
             var idleReason = string.IsNullOrWhiteSpace(u.IdleReason) ? null : u.IdleReason.Trim();
             if (u.IdleHours > 0 && !SiteDowntimeReasons.IsValid(idleReason)) errors.Add(string.Format(Messages.SiteResourceIdleReasonRequired, row));
@@ -352,7 +355,7 @@ public class SiteDailyReportService : ISiteDailyReportService
             {
                 ProjectResourceId = u.ProjectResourceId, ContractItemId = u.ContractItemId, Hours = u.Hours, OvertimeHours = u.OvertimeHours,
                 IdleHours = u.IdleHours, IdleReason = u.IdleHours > 0 ? idleReason : null, StandbyHours = standby,
-                HourlyCost = hourly, OvertimeHourlyCost = overtime, IdleBillingPercent = idlePercent, StandbyBillingPercent = standbyPercent,
+                WorkUnits = isEquipment ? u.WorkUnits : 0, HourlyCost = hourly, OvertimeHourlyCost = overtime, IdleBillingPercent = idlePercent, StandbyBillingPercent = standbyPercent,
                 // التوقف المدفوع (والاستعداد للمستأجرة) جزء من التكلفة بنسبة الفوترة، ويُعرض منفصلاً
                 Cost = DocumentPricing.Round(u.Hours * hourly + u.OvertimeHours * overtime
                     + u.IdleHours * hourly * idlePercent / 100m + standby * hourly * standbyPercent / 100m),
@@ -586,7 +589,7 @@ public class SiteDailyReportService : ISiteDailyReportService
             {
                 Id = u.Id, ProjectResourceId = u.ProjectResourceId, ResourceName = ctx.Resources.GetValueOrDefault(u.ProjectResourceId)?.Name,
                 Kind = ctx.Resources.GetValueOrDefault(u.ProjectResourceId)?.Kind, ContractItemId = u.ContractItemId, Hours = u.Hours,
-                OvertimeHours = u.OvertimeHours, IdleHours = u.IdleHours, IdleReason = u.IdleReason, StandbyHours = u.StandbyHours, HourlyCost = u.HourlyCost,
+                OvertimeHours = u.OvertimeHours, IdleHours = u.IdleHours, IdleReason = u.IdleReason, StandbyHours = u.StandbyHours, WorkUnits = u.WorkUnits, HourlyCost = u.HourlyCost,
                 OvertimeHourlyCost = u.OvertimeHourlyCost, Cost = u.Cost, Notes = u.Notes,
             }).OrderBy(u => u.ResourceName).ToList(),
             Materials = r.Materials.Select(m => new SiteMaterialUsageDto

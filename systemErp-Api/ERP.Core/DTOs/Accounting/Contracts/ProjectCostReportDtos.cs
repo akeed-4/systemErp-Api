@@ -18,8 +18,17 @@ public class ProjectCostReportDto
     public decimal EstimatedCost { get; set; }
     /// <summary>الميزانية المدخلة في ملف المشروع.</summary>
     public decimal ProjectBudget { get; set; }
-    /// <summary>الميزانية عند الاكتمال المعتمدة للحساب (التكلفة التقديرية، وإلا الميزانية).</summary>
+    /// <summary>
+    /// الميزانية عند الاكتمال المعتمدة للحساب: ميزانية خطة التنفيذ المعتمدة (آخر أساس معتمد)، وإلا ميزانية المشروع، وإلا تكلفة الدراسة.
+    /// </summary>
     public decimal BudgetAtCompletion { get; set; }
+    /// <summary>مصدر الميزانية: approved_plan | project_budget | study.</summary>
+    public string BudgetSource { get; set; } = "study";
+    /// <summary>ميزانية الخطة المعتمدة (آخر أساس) ورقم مراجعتها؛ فارغة قبل أول اعتماد.</summary>
+    public decimal? ApprovedPlanBudget { get; set; }
+    public int? ApprovedPlanRevision { get; set; }
+    /// <summary>الخطة الحالية في مراجعة لم تُعتمد بعد (الحساب على الأساس المعتمد حتى اعتمادها).</summary>
+    public bool PlanRevisionPending { get; set; }
     public decimal PlannedMargin { get; set; }
 
     // ---- الإنجاز ----

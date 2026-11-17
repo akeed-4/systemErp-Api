@@ -57,3 +57,17 @@ public interface IEquipmentMaintenanceService
     Task<EquipmentMaintenanceOrderDto> CompleteAsync(Guid id, CompleteEquipmentMaintenanceDto request, CancellationToken ct = default);
     Task<EquipmentMaintenanceOrderDto> CancelAsync(Guid id, string? reason, CancellationToken ct = default);
 }
+
+/// <summary>
+/// إيرادات المعدات وربحيتها: تسعيرات الإيراد (افتراضية للمعدة أو خاصة بعقد، بأساس ساعة/يوم/وردية/رحلة/مهمة)، وتقرير يقارن الإيراد
+/// التشغيلي المحسوب من الاستخدام والإيراد المحاسبي المعتمد في المستخلصات بالتكلفة الفعلية لكل معدة ولكل مشروع. حساب بلا قيود.
+/// </summary>
+public interface IEquipmentProfitabilityService
+{
+    Task<List<EquipmentRevenueRateDto>> RatesAsync(Guid? equipmentId, Guid? contractId, CancellationToken ct = default);
+    Task<EquipmentRevenueRateDto> CreateRateAsync(SaveEquipmentRevenueRateDto request, CancellationToken ct = default);
+    Task<EquipmentRevenueRateDto> UpdateRateAsync(Guid id, SaveEquipmentRevenueRateDto request, CancellationToken ct = default);
+    Task DeleteRateAsync(Guid id, CancellationToken ct = default);
+    Task<List<EquipmentRevenueItemOptionDto>> ItemOptionsAsync(Guid contractId, CancellationToken ct = default);
+    Task<EquipmentProfitabilityReportDto> ReportAsync(DateTime? from, DateTime? to, Guid? contractId, CancellationToken ct = default);
+}

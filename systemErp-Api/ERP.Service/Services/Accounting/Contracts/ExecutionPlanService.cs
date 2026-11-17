@@ -354,6 +354,8 @@ public class ExecutionPlanService : IExecutionPlanService
                 ContractId = contract.Id, PhaseId = phaseId, ContractItemId = r.ContractItemId, ResourceId = r.ResourceId, ResourceType = r.ResourceType,
                 Name = r.ResourceName, Category = res?.Category, Unit = r.Unit, Quantity = r.Quantity, HoursPerUnit = r.HoursPerUnit, PlannedHours = hours,
                 UnitCost = r.UnitCost, PlannedCost = r.TotalCost, Source = Src.Derived, SourceCostRowId = r.Id, SortOrder = ++order,
+                // نسخة الدراسة داخل السطر: مرجع المقارنة الثابت مهما عُدِّلت الخطة أو أعيد تسعير الدراسة
+                StudyQuantity = r.Quantity, StudyHoursPerUnit = r.HoursPerUnit, StudyUnitCost = r.UnitCost, StudyCost = r.TotalCost,
                 Ownership = r.ResourceType == BoqResourceTypes.Equipment ? res?.EquipmentOwnership ?? "undecided" : null,
             };
             // العدد المقترح = الساعات ÷ (أيام المرحلة × ساعات اليوم)، حين تُعرف أيام المرحلة
@@ -392,33 +394,59 @@ public class ExecutionPlanService : IExecutionPlanService
 
             var existing = await _db.Set<ProjectResourceRequirement>().Where(r => r.ContractId == contractId).ToListAsync(token);
             var keep = incoming.Where(d => d.Id.HasValue).Select(d => d.Id!.Value).ToHashSet();
-            _db.RemoveRange(existing.Where(e => !keep.Contains(e.Id)));
+            var history = new PlanHistory(contractId, plan?.Revision ?? 0, Trim(request.Reason, 500), _user.Name, _user.UserId);
+            foreach (var removed in existing.Where(e => !keep.Contains(e.Id)))
+            {
+                history.Removed(removed.Id, removed.Name, removed.PlannedCost);
+                _db.Remove(removed);
+            }
             var order = 0;
             foreach (var d in incoming)
             {
                 var e = d.Id is Guid id ? existing.FirstOrDefault(x => x.Id == id) : null;
                 var isNew = e == null;
                 e ??= new ProjectResourceRequirement { ContractId = contractId, Source = Src.Manual };
-                // السطر المشتق من الدراسة: كميته وساعاته وتكلفته واسمه منها (تُعدَّل في الدراسة)؛ المدير يقرر المرحلة والعدد والملكية
-                if (!isNew && e.Source != Src.Manual)
-                {
-                    d.Quantity = e.Quantity; d.UnitCost = e.UnitCost; d.HoursPerUnit = e.HoursPerUnit; d.Name = e.Name; d.Unit = e.Unit;
-                    d.ResourceType = e.ResourceType; d.Category = e.Category;
-                }
+                // الخطة ميزانية مستقلة: كل حقول السطر تُعدَّل هنا (والمولَّد يصير «معدّلاً»)، والدراسة لا تُمس؛ قيمها محفوظة على السطر
+                // (StudyQuantity...) مرجعاً للمقارنة. التكلفة = الكمية × سعر الوحدة، والساعات = الكمية × ساعات الوحدة؛ العدد للتخطيط فقط.
+                var name = d.Name.Trim()[..Math.Min(d.Name.Trim().Length, 200)];
+                var unit = Trim(d.Unit, 20) ?? string.Empty;
                 var qty = Math.Round(d.Quantity, Decimals);
                 var unitCost = Math.Round(d.UnitCost, Decimals);
-                var changed = !isNew && (e.Quantity != qty || e.UnitCost != unitCost || e.PhaseId != d.PhaseId || e.HoursPerUnit != d.HoursPerUnit
-                    || e.SuggestedCount != d.SuggestedCount || e.Ownership != d.Ownership || e.Name != d.Name.Trim());
-                if (changed && e.Source == Src.Derived) e.Source = Src.Modified;
+                var hoursPerUnit = Math.Round(d.HoursPerUnit, Decimals);
+                var ownership = d.ResourceType == BoqResourceTypes.Equipment ? d.Ownership ?? "undecided" : null;
+                var count = Math.Round(d.SuggestedCount, 2);
+                var plannedCost = DocumentPricing.Round(qty * unitCost);
+                if (!isNew)
+                {
+                    var fields = new List<(string Field, string? Study, string? Old, string? New)>();
+                    void Track(string field, string? study, string? old, string? now) { if (old != now) fields.Add((field, study, old, now)); }
+                    Track("resourceType", null, e.ResourceType, d.ResourceType);
+                    Track("name", null, e.Name, name);
+                    Track("unit", null, e.Unit, unit);
+                    Track("quantity", Num(e.StudyQuantity), Num(e.Quantity), Num(qty));
+                    Track("hoursPerUnit", Num(e.StudyHoursPerUnit), Num(e.HoursPerUnit), Num(hoursPerUnit));
+                    Track("unitCost", Num(e.StudyUnitCost), Num(e.UnitCost), Num(unitCost));
+                    Track("phaseId", null, e.PhaseId?.ToString(), d.PhaseId?.ToString());
+                    Track("suggestedCount", null, Num(e.SuggestedCount), Num(count));
+                    Track("ownership", null, e.Ownership, ownership);
+                    if (fields.Count > 0 && e.Source == Src.Derived) e.Source = Src.Modified;
+                    history.Modified(e.Id, name, fields, plannedCost - e.PlannedCost);
+                }
                 e.PhaseId = d.PhaseId; e.ContractItemId = isNew ? d.ContractItemId : e.ContractItemId; e.ResourceId = isNew ? d.ResourceId : e.ResourceId;
-                e.ResourceType = d.ResourceType; e.Name = d.Name.Trim()[..Math.Min(d.Name.Trim().Length, 200)]; e.Category = Trim(d.Category, 100);
-                e.Unit = Trim(d.Unit, 20) ?? string.Empty; e.Quantity = qty; e.HoursPerUnit = d.HoursPerUnit; e.UnitCost = unitCost;
-                e.PlannedHours = e.ResourceType is BoqResourceTypes.Labor or BoqResourceTypes.Equipment ? Math.Round(qty * d.HoursPerUnit, 2) : 0;
-                e.PlannedCost = DocumentPricing.Round(qty * unitCost);
-                e.Ownership = e.ResourceType == BoqResourceTypes.Equipment ? d.Ownership ?? "undecided" : null;
-                e.SuggestedCount = Math.Round(d.SuggestedCount, 2); e.Notes = Trim(d.Notes, 500); e.SortOrder = ++order;
-                if (isNew) _db.Add(e);
+                e.ResourceType = d.ResourceType; e.Name = name; e.Category = Trim(d.Category, 100);
+                e.Unit = unit; e.Quantity = qty; e.HoursPerUnit = hoursPerUnit; e.UnitCost = unitCost;
+                e.PlannedHours = e.ResourceType is BoqResourceTypes.Labor or BoqResourceTypes.Equipment ? Math.Round(qty * hoursPerUnit, 2) : 0;
+                e.PlannedCost = plannedCost;
+                e.Ownership = ownership;
+                e.SuggestedCount = count; e.Notes = Trim(d.Notes, 500); e.SortOrder = ++order;
+                if (isNew)
+                {
+                    if (e.Id == Guid.Empty) e.Id = Guid.NewGuid();
+                    _db.Add(e);
+                    history.Added(e.Id, name, plannedCost);
+                }
             }
+            _db.AddRange(history.Rows);
             await _db.SaveChangesAsync(token);
         }, ct);
         return await GetAsync(contractId, ct);
@@ -487,6 +515,9 @@ public class ExecutionPlanService : IExecutionPlanService
             };
             _db.Add(baseline);
             plan.BaselineSnapshotId = baseline.Id == Guid.Empty ? (baseline.Id = Guid.NewGuid()) : baseline.Id;
+            // ميزانية المشروع = الخطة المعتمدة (عليها تُقاس التكلفة الفعلية في تقرير التكلفة ولوحة الأداء)؛ الدراسة تبقى كما هي
+            var profile = await _db.Set<ConstructionProjectProfile>().FirstOrDefaultAsync(p => p.ContractId == contractId, token);
+            if (profile != null && view.Budget.PlannedCost > 0) profile.EstimatedBudget = view.Budget.PlannedCost;
             await _db.SaveChangesAsync(token);
         }, ct);
         return await GetAsync(contractId, ct);
@@ -666,6 +697,64 @@ public class ExecutionPlanService : IExecutionPlanService
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
+    /// <summary>رقم بصيغة ثابتة (إنجليزية) لسجل التغييرات.</summary>
+    private static string? Num(decimal? v) => v?.ToString("0.####", CultureInfo.InvariantCulture);
+
+    // ---------- سجل التغييرات ----------
+
+    public async Task<List<ProjectPlanChangeDto>> HistoryAsync(Guid contractId, CancellationToken ct = default)
+    {
+        await ConstructionProjectService.LoadBoqContractAsync(_db, contractId, ct);
+        return await _db.Set<ProjectPlanChange>().AsNoTracking().Where(c => c.ContractId == contractId)
+            .OrderByDescending(c => c.ChangedAt).Take(1000)
+            .Select(c => new ProjectPlanChangeDto
+            {
+                Id = c.Id, Revision = c.Revision, ItemKind = c.ItemKind, ItemId = c.ItemId, ItemName = c.ItemName, Action = c.Action, Field = c.Field,
+                StudyValue = c.StudyValue, OldValue = c.OldValue, NewValue = c.NewValue, CostDelta = c.CostDelta, Reason = c.Reason, ChangedBy = c.ChangedBy,
+                ChangedAt = c.ChangedAt,
+            }).ToListAsync(ct);
+    }
+
+    /// <summary>صفوف سجل تغييرات حفظ واحد (الوقت والسبب والمستخدم مشتركة).</summary>
+    private sealed class PlanHistory
+    {
+        private readonly Guid _contractId;
+        private readonly int _revision;
+        private readonly string? _reason;
+        private readonly string? _by;
+        private readonly Guid? _byId;
+        private readonly DateTime _at = DateTime.UtcNow;
+        public List<ProjectPlanChange> Rows { get; } = new();
+
+        public PlanHistory(Guid contractId, int revision, string? reason, string? by, Guid? byId)
+        {
+            _contractId = contractId; _revision = revision; _reason = reason; _by = by; _byId = byId;
+        }
+
+        private ProjectPlanChange Row(Guid id, string name, string action) => new()
+        {
+            ContractId = _contractId, Revision = _revision, ItemKind = "resource", ItemId = id, ItemName = name[..Math.Min(name.Length, 200)], Action = action,
+            Reason = _reason, ChangedBy = _by, ChangedByUserId = _byId, ChangedAt = _at,
+        };
+
+        public void Added(Guid id, string name, decimal cost) { var r = Row(id, name, PlanChangeActions.Added); r.NewValue = Num(cost); r.CostDelta = cost; Rows.Add(r); }
+
+        public void Removed(Guid id, string name, decimal cost) { var r = Row(id, name, PlanChangeActions.Removed); r.OldValue = Num(cost); r.CostDelta = -cost; Rows.Add(r); }
+
+        public void Modified(Guid id, string name, List<(string Field, string? Study, string? Old, string? New)> fields, decimal costDelta)
+        {
+            for (var i = 0; i < fields.Count; i++)
+            {
+                var r = Row(id, name, PlanChangeActions.Modified);
+                r.Field = fields[i].Field; r.StudyValue = Cut(fields[i].Study); r.OldValue = Cut(fields[i].Old); r.NewValue = Cut(fields[i].New);
+                r.CostDelta = i == 0 ? costDelta : 0; // أثر التكلفة مرة واحدة للعنصر
+                Rows.Add(r);
+            }
+        }
+
+        private static string? Cut(string? v) => v == null ? null : v[..Math.Min(v.Length, 200)];
+    }
+
     private static string? Trim(string? s, int max) => string.IsNullOrWhiteSpace(s) ? null : s.Trim() is var t && t.Length > max ? t[..max] : s.Trim();
 
     private static ProjectResourceRequirementDto ToDto(ProjectResourceRequirement r) => new()
@@ -673,5 +762,6 @@ public class ExecutionPlanService : IExecutionPlanService
         Id = r.Id, PhaseId = r.PhaseId, ContractItemId = r.ContractItemId, ResourceId = r.ResourceId, ResourceType = r.ResourceType, Name = r.Name,
         Category = r.Category, Unit = r.Unit, Quantity = r.Quantity, HoursPerUnit = r.HoursPerUnit, PlannedHours = r.PlannedHours, UnitCost = r.UnitCost,
         PlannedCost = r.PlannedCost, Ownership = r.Ownership, SuggestedCount = r.SuggestedCount, Source = r.Source, Notes = r.Notes,
+        StudyQuantity = r.StudyQuantity, StudyHoursPerUnit = r.StudyHoursPerUnit, StudyUnitCost = r.StudyUnitCost, StudyCost = r.StudyCost,
     };
 }

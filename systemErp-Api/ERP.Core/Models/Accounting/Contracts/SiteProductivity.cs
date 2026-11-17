@@ -182,6 +182,8 @@ public class SiteResourceUsage : BaseEntity
     public string? IdleReason { get; set; }
     /// <summary>ساعات استعداد الآلية المستأجرة (في الموقع بلا تشغيل): تُحتسب بنسبة الاستعداد في شروط إيجارها.</summary>
     public decimal StandbyHours { get; set; }
+    /// <summary>وحدات عمل الآلية في اليوم (رحلات أو مهام) لاحتساب إيرادها بأساس الرحلة أو المهمة؛ لا تدخل التكلفة.</summary>
+    public decimal WorkUnits { get; set; }
     public decimal HourlyCost { get; set; }
     public decimal OvertimeHourlyCost { get; set; }
     /// <summary>

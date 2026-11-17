@@ -57,8 +57,15 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
         d.DeliveryAddress = null;
         if (d.ContractId is not { } contractId)
         {
+            d.PhaseId = null;
             foreach (var i in d.Items) i.BoqItemId = null;
             return;
+        }
+        if (existing != null)
+        {
+            // المرحلة تثبت بعد الإنشاء: تقدم المراحل لا يغيّر سجلات المراحل السابقة، والعميل الذي لا يرسلها يحتفظ بها
+            if (d.PhaseId != null && d.PhaseId != existing.PhaseId) throw new ValidationFailedException(Messages.ProjectRequisitionPhaseLocked);
+            d.PhaseId = existing.PhaseId;
         }
         var contract = await Db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId)
             .Select(c => new { c.WarehouseId }).FirstOrDefaultAsync(ct)
@@ -71,7 +78,10 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
                 .Where(i => i.ContractId == contractId && !i.IsGroup && boqIds.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct);
             if (boqIds.Except(valid).Any()) throw new ValidationFailedException(Messages.ProjectRequisitionBoqItemInvalid);
         }
-        await _supply.EnsureRequisitionWithinPlanAsync(contractId, existing?.Id,
+        // الرفض يحرر الكميات فلا حد عليه ولا تفويض
+        if (d.Status == "rejected") return;
+        // الطلب القديم الذي سبق المراحل يبقى على حد المشروع كله
+        await _supply.EnsureRequisitionWithinPlanAsync(contractId, existing?.Id, d.PhaseId, allowWithoutPhase: existing is { PhaseId: null },
             d.Items.Select(i => (i.ItemId, i.ApprovedQuantity ?? i.RequestedQuantity)).ToList(), ct);
     }
 
@@ -86,6 +96,8 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             dto.ProjectName = c?.ProjectName;
             dto.ProjectNameEn = c?.ProjectNameEn;
         }
+        if (entity.PhaseId is { } phaseId)
+            dto.PhaseName = Db.Set<ProjectPhase>().AsNoTracking().Where(p => p.Id == phaseId).Select(p => p.Name).FirstOrDefault();
         return dto;
     }
 
@@ -117,16 +129,24 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
         if (await Db.Set<DeliveryNote>().AnyAsync(n => n.RequisitionId == e.Id, ct)) throw new ConflictException(Messages.ProjectRequisitionHasReceipts);
     }
 
-    public async Task<MaterialRequisitionDto> ApproveAsync(Guid id, CancellationToken ct = default)
-    {
-        var r = await Db.Set<MaterialRequisition>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
-        if (r.Status is not ("draft" or "pending_approval")) throw new ConflictException(Messages.CannotApproveRequisitionInCurrentState);
-        foreach (var i in r.Items) i.ApprovedQuantity ??= i.RequestedQuantity;
-        r.Status = "approved"; r.ApprovedBy = _user.Name; r.ApprovalDate = SaudiTime.Today;
-        await Db.SaveChangesAsync(ct);
-        return ToDto(r);
-    }
+    /// <summary>
+    /// الاعتماد. طلب مرحلة يُعاد فحصه عند الاعتماد (حد المرحلة بعد أي تعديل للخطة أو طلب متزامن، وتفويض المرحلة المستقبلية للمعتمِد)
+    /// داخل معاملة تُعاد عند تعارض رمز التزامن.
+    /// </summary>
+    public Task<MaterialRequisitionDto> ApproveAsync(Guid id, CancellationToken ct = default)
+        => new TransactionRunner(Db).RunAsync(async token =>
+        {
+            var r = await Db.Set<MaterialRequisition>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token)
+                ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
+            if (r.Status is not ("draft" or "pending_approval")) throw new ConflictException(Messages.CannotApproveRequisitionInCurrentState);
+            foreach (var i in r.Items) i.ApprovedQuantity ??= i.RequestedQuantity;
+            if (r.ContractId is Guid contractId && r.PhaseId is Guid phaseId)
+                await _supply.EnsureRequisitionWithinPlanAsync(contractId, r.Id, phaseId, allowWithoutPhase: false,
+                    r.Items.Select(i => (i.ItemId, i.ApprovedQuantity ?? i.RequestedQuantity)).ToList(), token);
+            r.Status = "approved"; r.ApprovedBy = _user.Name; r.ApprovalDate = SaudiTime.Today;
+            await Db.SaveChangesAsync(token);
+            return ToDto(r);
+        }, ct);
 
     public async Task<InvoiceDto> ConvertToPurchaseInvoiceAsync(Guid id, CancellationToken ct = default)
         => await new TransactionRunner(Db).RunAsync(async token =>

@@ -1787,10 +1787,19 @@
   <data name="ProjectReceiptNotReturnableToWarehouse" xml:space="preserve"><value>“{0}” from goods receipt {1} is project custody: it cannot go to the general warehouse; return it to the supplier with a receipt return.</value></data>
   <data name="ProjectReceiptReturnExceedsCustody" xml:space="preserve"><value>“{0}”: the returned quantity exceeds what is available in the custody of receipt {1} (selected in a certificate or wasted).</value></data>
   <data name="ProjectRequisitionBoqItemInvalid" xml:space="preserve"><value>The BOQ item on a request line is not a measured line of this project.</value></data>
+  <data name="ProjectRequisitionPhaseRequired" xml:space="preserve"><value>Select an execution phase: this project's materials are assigned to phases, and a purchase request is measured against the selected phase's materials.</value></data>
+  <data name="ProjectRequisitionPhaseInvalid" xml:space="preserve"><value>The selected phase does not belong to this project.</value></data>
+  <data name="ProjectRequisitionPhaseNotManaged" xml:space="preserve"><value>This project's approved materials are not assigned to phases: submit the request for the project without a phase.</value></data>
+  <data name="ProjectRequisitionPhaseLocked" xml:space="preserve"><value>A request's phase is fixed once it is created: create a new request for the other phase.</value></data>
+  <data name="ProjectRequisitionItemNotInPhase" xml:space="preserve"><value>"{0}" is not an approved material of phase "{1}".</value></data>
+  <data name="ProjectRequisitionPhaseExceeds" xml:space="preserve"><value>"{0}" in phase "{1}": quantity {2} exceeds the remaining {3} (phase requirement {4} − requested for it {5} − covered by project stock and earlier requests {6}).</value></data>
+  <data name="ProjectRequisitionFuturePhase" xml:space="preserve"><value>Phase "{0}" has not started yet (starts {1}): purchasing for a future phase requires the "Construction Projects: Purchase for a Future Phase" permission.</value></data>
+  <data name="ProjectPhaseHasRequisitions" xml:space="preserve"><value>Phase "{0}" cannot be deleted: it has purchase requests.</value></data>
   <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>The request has goods receipts: delete them first.</value></data>
   <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>A project purchase request is not converted to a warehouse invoice: receive it with a project goods receipt, then create the invoice from the receipt.</value></data>
   <data name="ProjectReceiptRequiresRequisition" xml:space="preserve"><value>Choose the approved project purchase request: project material receipts are always linked to their request so quantities are not received twice and appear in project tracking.</value></data>
   <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>Neither the purchase request nor the construction project has a warehouse: set the project warehouse before receiving.</value></data>
   <data name="DeliveryInvoiceSupplierOnSales" xml:space="preserve"><value>A supplier cannot be set on a sales delivery-note invoice.</value></data>
   <data name="DeliveryInvoiceSupplierMismatch" xml:space="preserve"><value>The chosen supplier is not the goods receipt supplier: the invoice is issued to whoever delivered the goods.</value></data>
+  <data name="ProjectPerformanceRangeInvalid" xml:space="preserve"><value>Invalid analysis period: the start must precede the end, at most 366 days, and a phase requires its project.</value></data>
 </root>

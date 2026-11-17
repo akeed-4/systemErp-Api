@@ -1787,10 +1787,19 @@
   <data name="ProjectReceiptNotReturnableToWarehouse" xml:space="preserve"><value>«{0}» من سند الاستلام {1} عهدة للمشروع: لا تُرجع للمستودع العام؛ أرجعها للمورد بمرتجع السند.</value></data>
   <data name="ProjectReceiptReturnExceedsCustody" xml:space="preserve"><value>«{0}»: الكمية المرتجعة تتجاوز المتاح في عهدة السند {1} (مختار في مستخلص أو مهدر).</value></data>
   <data name="ProjectRequisitionBoqItemInvalid" xml:space="preserve"><value>بند جدول الكميات في سطر الطلب ليس سطر قياس من هذا المشروع.</value></data>
+  <data name="ProjectRequisitionPhaseRequired" xml:space="preserve"><value>اختر مرحلة التنفيذ: مواد هذا المشروع مسندة لمراحل، وطلب الشراء يُقاس على مواد المرحلة المختارة.</value></data>
+  <data name="ProjectRequisitionPhaseInvalid" xml:space="preserve"><value>المرحلة المختارة ليست من مراحل هذا المشروع.</value></data>
+  <data name="ProjectRequisitionPhaseNotManaged" xml:space="preserve"><value>مواد هذا المشروع المعتمدة غير مسندة لمراحل: أرسل الطلب على المشروع دون مرحلة.</value></data>
+  <data name="ProjectRequisitionPhaseLocked" xml:space="preserve"><value>مرحلة الطلب تثبت بعد إنشائه: أنشئ طلباً جديداً للمرحلة الأخرى.</value></data>
+  <data name="ProjectRequisitionItemNotInPhase" xml:space="preserve"><value>«{0}» ليس من المواد المعتمدة للمرحلة «{1}».</value></data>
+  <data name="ProjectRequisitionPhaseExceeds" xml:space="preserve"><value>«{0}» في المرحلة «{1}»: الكمية {2} تتجاوز المتبقي {3} (مطلوب المرحلة {4} − طُلب لها {5} − مغطى بمخزون المشروع وطلباته السابقة {6}).</value></data>
+  <data name="ProjectRequisitionFuturePhase" xml:space="preserve"><value>المرحلة «{0}» لم تبدأ بعد (تبدأ {1}): الشراء لمرحلة مستقبلية يحتاج صلاحية «مشاريع المقاولات: الشراء لمرحلة مستقبلية».</value></data>
+  <data name="ProjectPhaseHasRequisitions" xml:space="preserve"><value>لا تُحذف المرحلة «{0}»: لها طلبات شراء مسجّلة.</value></data>
   <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>للطلب سندات استلام: احذفها أولاً.</value></data>
   <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>طلب شراء المشروع لا يُحوَّل لفاتورة للمستودع العام: استلمه بسند استلام للمشروع ثم أنشئ الفاتورة من السند.</value></data>
   <data name="ProjectReceiptRequiresRequisition" xml:space="preserve"><value>اختر طلب شراء المشروع المعتمد: استلام مواد المشروع يُربط بطلبه دائماً حتى لا تُستلم الكمية مرتين وتظهر في متابعة المشروع.</value></data>
   <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>لا مستودع لطلب الشراء ولا لمشروع المقاولات: حدّد مستودع المشروع قبل الاستلام.</value></data>
   <data name="DeliveryInvoiceSupplierOnSales" xml:space="preserve"><value>لا يُحدَّد مورد لفاتورة بيان تسليم مبيعات.</value></data>
   <data name="DeliveryInvoiceSupplierMismatch" xml:space="preserve"><value>المورد المختار غير مورد سند الاستلام: الفاتورة تصدر لمن سلّم البضاعة.</value></data>
+  <data name="ProjectPerformanceRangeInvalid" xml:space="preserve"><value>فترة التحليل غير صحيحة: البداية قبل النهاية، وبحد أقصى 366 يوماً، والمرحلة تتطلب اختيار مشروعها.</value></data>
 </root>

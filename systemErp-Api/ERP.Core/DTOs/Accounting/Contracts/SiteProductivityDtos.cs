@@ -30,6 +30,8 @@ public class ProjectResourceDto
     /// <summary>شروط فوترة الآلية المستأجرة: نسبة احتساب ساعات التوقف (فارغ = 100) والاستعداد (فارغ = 0).</summary>
     public decimal? IdleBillingPercent { get; set; }
     public decimal? StandbyBillingPercent { get; set; }
+    /// <summary>طريقة التحميل من سجل المعدات (للقراءة؛ يضبطها الإسناد).</summary>
+    public string? EquipmentCostMethod { get; set; }
     public bool IsActive { get; set; } = true;
     public string? Notes { get; set; }
     /// <summary>للقراءة: محسوبة في الخادم.</summary>

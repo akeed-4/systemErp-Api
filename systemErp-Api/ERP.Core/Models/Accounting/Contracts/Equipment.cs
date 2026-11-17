@@ -17,6 +17,31 @@ public static class EquipmentStatuses
 }
 
 /// <summary>
+/// طريقة تحميل تكلفة المعدة على المشاريع (منفصلة عن الملكية):
+/// <list type="bullet">
+/// <item><see cref="Depreciation"/> (مملوكة): الإهلاك الفعلي المرحّل لأصلها الثابت يُوزَّع على المشاريع بساعات وجودها في التقارير
+/// المعتمدة من طاقة الشهر (<see cref="EquipmentDepreciationAllocation"/>)؛ التقرير اليومي لا يحمّل سعر ملكية (تكاليف التشغيل بالساعة فقط).</item>
+/// <item><see cref="InternalRate"/> (مملوكة): سعر إيجار داخلي بالساعة أو اليوم أو الشهر يحمّله التقرير اليومي (الآلية القائمة)؛ الإهلاك
+/// يبقى على مركز الأصل ولا يُوزَّع، فلا يُحمَّل مرتين.</item>
+/// <item><see cref="ActualRental"/> (مستأجرة): من عقد الإيجار الساري واستحقاقه المسوّى بفواتير المؤجر (لا فواتير وهمية).</item>
+/// </list>
+/// </summary>
+public static class EquipmentCostMethods
+{
+    public const string Depreciation = "depreciation";
+    public const string InternalRate = "internal_rate";
+    public const string ActualRental = "actual_rental";
+
+    /// <summary>الطرق المسموحة للملكية؛ المستأجرة بإيجارها الفعلي وحده.</summary>
+    public static bool IsValidFor(string ownership, string? method) => ownership == EquipmentOwnerships.Rented
+        ? method == ActualRental
+        : method is Depreciation or InternalRate;
+
+    /// <summary>الطريقة الافتراضية للملكية (السلوك القائم: المملوكة بسعر داخلي).</summary>
+    public static string DefaultFor(string ownership) => ownership == EquipmentOwnerships.Rented ? ActualRental : InternalRate;
+}
+
+/// <summary>
 /// سجل المعدات والآليات (على مستوى المنشأة): الهوية والتصنيف والمواصفات والملكية والحالة. المملوكة تُربط بأصلها الثابت (قيمته
 /// وإهلاكه من الأصول الثابتة، بلا تكرار)، والمستأجرة بمؤجرها وعقد إيجارها. تكلفة الساعة تُنسخ لمورد المشروع عند الإسناد
 /// (<see cref="ProjectResource"/>) فتُحمَّل على المشروع من التقرير اليومي كما هو قائم.
@@ -38,6 +63,8 @@ public class Equipment : BaseEntity
     public string? Specifications { get; set; }
 
     public string Ownership { get; set; } = EquipmentOwnerships.Owned;
+    /// <summary><see cref="EquipmentCostMethods"/>: طريقة تحميل التكلفة على المشاريع (تُنسخ لمورد المشروع عند الإسناد).</summary>
+    public string CostMethod { get; set; } = EquipmentCostMethods.InternalRate;
     /// <summary>الأصل الثابت للمعدة المملوكة (أصل واحد لمعدة واحدة).</summary>
     public Guid? FixedAssetId { get; set; }
     /// <summary>المؤجر للمعدة المستأجرة.</summary>
@@ -48,7 +75,8 @@ public class Equipment : BaseEntity
     public Guid? CostCenterId { get; set; }
     public string Status { get; set; } = EquipmentStatuses.Available;
 
-    // تكلفة التشغيل الافتراضية (تُنسخ لمورد المشروع عند إسناد المملوكة؛ المستأجرة من عقد إيجارها)
+    // تكلفة التشغيل الافتراضية (تُنسخ لمورد المشروع عند إسناد المملوكة؛ المستأجرة من عقد إيجارها). السعر بأساسه (ساعة/يوم/شهر) هو
+    // الإيجار الداخلي ولا يُحمَّل إلا بطريقة السعر الداخلي؛ ساعات اليوم × أيام الشهر طاقة الشهر لتوزيع الإهلاك
     public string RateBasis { get; set; } = ProjectRateBases.Hour;
     public decimal Rate { get; set; }
     public decimal FuelPerHour { get; set; }
@@ -65,6 +93,31 @@ public class Equipment : BaseEntity
     public decimal? LastServiceMeter { get; set; }
     public DateTime? LastServiceDate { get; set; }
     public string? Notes { get; set; }
+}
+
+/// <summary>
+/// حصة مشروع من الإهلاك الفعلي لمعدة بطريقة الإهلاك عن فترة شهرية: إهلاك الأصل المرحّل × ساعات وجودها في تقارير المشروع المعتمدة
+/// (تشغيل وإضافي وتوقف) ÷ max(طاقة الشهر، مجموع ساعاتها في المشاريع). ما لا يغطيه الاستخدام يبقى على مركز الأصل (تكلفة عطل).
+/// القيد مدين «تكلفة معدات المشاريع» بمركز المشروع / دائن «التكاليف المحمّلة على المشاريع» بلا مركز (كتحميل التقرير اليومي)، فلا
+/// يتغير إجمالي المصروف. يُعاد الحساب بالفرق عند ترحيل الإهلاك أو عكسه أو اعتماد تقرير في الفترة. سطر لكل أصل وفترة ومشروع.
+/// </summary>
+public class EquipmentDepreciationAllocation : BaseEntity
+{
+    public Guid EquipmentId { get; set; }
+    public Guid FixedAssetId { get; set; }
+    /// <summary>yyyy-MM كفترة الإهلاك.</summary>
+    public string Period { get; set; } = string.Empty;
+    public Guid ContractId { get; set; }
+    public Guid CostCenterId { get; set; }
+    public decimal Hours { get; set; }
+    /// <summary>أساس القسمة: max(طاقة الشهر، مجموع ساعات المعدة في كل المشاريع).</summary>
+    public decimal BasisHours { get; set; }
+    /// <summary>إهلاك الأصل المرحّل للفترة وقت الحساب.</summary>
+    public decimal DepreciationAmount { get; set; }
+    /// <summary>المحمّل على المشروع (المرحّل حالياً).</summary>
+    public decimal Amount { get; set; }
+    /// <summary>آخر قيد رحّل فرقاً لهذا السطر.</summary>
+    public Guid? JournalEntryId { get; set; }
 }
 
 public static class EquipmentAssignmentStatuses

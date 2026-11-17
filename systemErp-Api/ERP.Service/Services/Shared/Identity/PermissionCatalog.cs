@@ -90,11 +90,14 @@ public static class PermissionCatalog
             new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/cost-library" }, InheritsFrom: ConstructionLibraryScreenId),
         // مشاريع المقاولات (العقد هو المشروع): إعداد المشروع (الملف، ساعات العمل، المراحل، الأعضاء) ولوحاته؛ ترث صلاحية العقود
         new(ConstructionProjectsScreenId, "contracts", "مشاريع المقاولات (الإعداد والمتابعة)", "Construction Projects (Setup & Monitoring)",
-            new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/projects" }, InheritsFrom: CommercialContractsScreenId),
+            new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/projects", "construction/performance" }, InheritsFrom: CommercialContractsScreenId),
         // التقرير اليومي للموقع: المشرف يسجّل ويقدّم، والمهندس المسؤول يعتمد أو يعيد (الاعتماد)؛ يرث صلاحية العقود حتى تُحفظ له صلاحية
         // صرف مواد المستودع للمشاريع: أمين المستودع يُنشئ ويرحّل، والإلغاء يعكس الأثر؛ يرث صلاحية مشاريع المقاولات حتى تُحفظ له صلاحية
         new(ProjectMaterialIssuesScreenId, "contracts", "صرف مواد المستودع للمشاريع", "Project Material Issues",
             Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: ConstructionProjectsScreenId),
+        // طلب شراء (أو تعديله أو اعتماده) لمرحلة تنفيذ لم تبدأ بعد: تفويض حسّاس لا يُمنح افتراضياً إلا للأدوار الإدارية
+        new(ProjectFuturePhasePurchaseScreenId, "contracts", "مشاريع المقاولات: الشراء لمرحلة مستقبلية", "Construction Projects: Purchase for a Future Phase",
+            new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
         new(SiteDailyReportsScreenId, "contracts", "التقرير اليومي للموقع (الإنجاز بالساعة)", "Site Daily Reports (Hourly Progress)",
             Crud(A.Submit, A.Approve), new[] { "construction/site-reports" }, InheritsFrom: CommercialContractsScreenId),
         // حضور فريق المشروع بالموقع: العرض لمتابعة الفريق، والاعتماد لمراجعة استثناءات خارج النطاق. بيانات موقع شخصية: لا ترث
@@ -195,6 +198,7 @@ public static class PermissionCatalog
     public const string SiteDailyReportsScreenId = "site-daily-reports";
     public const string ProjectAttendanceScreenId = "project-attendance";
     public const string ProjectMaterialIssuesScreenId = "project-material-issues";
+    public const string ProjectFuturePhasePurchaseScreenId = "project-future-phase-purchase";
     public const string EquipmentScreenId = "equipment";
     public const string EquipmentMaintenanceScreenId = "equipment-maintenance";
     public const string WhatsAppScreenId = "whatsapp";

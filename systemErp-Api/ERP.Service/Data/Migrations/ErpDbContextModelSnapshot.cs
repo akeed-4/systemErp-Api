@@ -3966,6 +3966,13 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CostMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("internal_rate");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -4173,6 +4180,75 @@ namespace ERP.Service.Data.Migrations
                         .HasFilter("[Status] = N'active'");
 
                     b.ToTable("EquipmentAssignment");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.EquipmentDepreciationAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("BasisHours")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DepreciationAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FixedAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Hours")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("EquipmentId");
+
+                    b.HasIndex("FixedAssetId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "EquipmentId", "Period");
+
+                    b.HasIndex("TenantId", "FixedAssetId", "Period", "ContractId")
+                        .IsUnique();
+
+                    b.ToTable("EquipmentDepreciationAllocation");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.EquipmentLog", b =>
@@ -5715,6 +5791,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("PhaseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -5766,6 +5845,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "ContractId");
+
+                    b.HasIndex("TenantId", "PhaseId");
 
                     b.HasIndex("TenantId", "RequisitionNumber")
                         .IsUnique();
@@ -6649,6 +6730,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid?>("EmployeeId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EquipmentCostMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<decimal>("ExtraCostPerHour")
                         .HasPrecision(18, 4)
@@ -16893,6 +16978,27 @@ namespace ERP.Service.Data.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectResourceId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.EquipmentDepreciationAllocation", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.FixedAsset", null)
+                        .WithMany()
+                        .HasForeignKey("FixedAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.EquipmentLog", b =>

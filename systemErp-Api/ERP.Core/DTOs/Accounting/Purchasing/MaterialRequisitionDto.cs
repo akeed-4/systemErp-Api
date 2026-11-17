@@ -18,6 +18,8 @@ public partial class MaterialRequisitionDto
     public string? WarehouseName { get; set; }
     /// <summary>المشروع (عقد مقاولات): الكميات تُقارن باحتياجاته المعتمدة وما طُلب سابقاً.</summary>
     public Guid? ContractId { get; set; }
+    /// <summary>مرحلة التنفيذ (فارغة في الطلبات القديمة وفي مشروع بلا مراحل).</summary>
+    public Guid? PhaseId { get; set; }
     /// <summary>warehouse | project_site</summary>
     public string? DeliveryLocation { get; set; }
     public string? DeliveryAddress { get; set; }
@@ -31,5 +33,7 @@ public partial class MaterialRequisitionDto
     public string? ContractNumber { get; set; }
     public string? ProjectName { get; set; }
     public string? ProjectNameEn { get; set; }
+    /// <summary>للقراءة: اسم مرحلة التنفيذ.</summary>
+    public string? PhaseName { get; set; }
     public List<MaterialRequisitionItemDto> Items { get; set; } = new();
 }

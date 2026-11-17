@@ -84,9 +84,19 @@ public class EquipmentService : IEquipmentService
         if (name.Length == 0) errors.Add("اسم المعدة مطلوب.");
         if (!EquipmentOwnerships.IsValid(r.Ownership)) errors.Add("ملكية المعدة غير صحيحة (مملوكة أو مستأجرة).");
         var owned = r.Ownership == EquipmentOwnerships.Owned;
-        // المملوكة تكلفة تشغيلها بالساعة (كما في مورد المشروع)؛ المستأجرة سعرها من عقد إيجارها
-        var basis = owned ? ProjectRateBases.Hour : string.IsNullOrWhiteSpace(r.RateBasis) ? ProjectRateBases.Month : r.RateBasis.Trim();
+        // طريقة التحميل منفصلة عن الملكية: المملوكة بالإهلاك أو بسعر داخلي، والمستأجرة بإيجارها الفعلي وحده
+        var method = string.IsNullOrWhiteSpace(r.CostMethod)
+            ? (isNew || e.Ownership != r.Ownership ? EquipmentCostMethods.DefaultFor(r.Ownership) : e.CostMethod)
+            : r.CostMethod.Trim();
+        if (EquipmentOwnerships.IsValid(r.Ownership) && !EquipmentCostMethods.IsValidFor(r.Ownership, method))
+            errors.Add(owned ? "طريقة تكلفة المعدة المملوكة: الإهلاك الفعلي أو سعر الإيجار الداخلي." : "المعدة المستأجرة تكلفتها من عقد إيجارها الفعلي.");
+        var internalRate = method == EquipmentCostMethods.InternalRate;
+        // الإيجار الداخلي بأساسه (ساعة/يوم/شهر)؛ طريقة الإهلاك بلا سعر ملكية؛ المستأجرة سعرها من عقد إيجارها
+        var basis = string.IsNullOrWhiteSpace(r.RateBasis) ? (owned ? ProjectRateBases.Hour : ProjectRateBases.Month) : r.RateBasis.Trim();
+        if (owned && !internalRate) basis = ProjectRateBases.Hour;
         if (!ProjectRateBases.IsValid(basis)) errors.Add("أساس السعر غير صحيح (ساعة، يوم، شهر).");
+        if (method == EquipmentCostMethods.Depreciation && r.FixedAssetId == null)
+            errors.Add("طريقة الإهلاك تحتاج ربط المعدة بأصلها الثابت: منه يُوزَّع الإهلاك الفعلي على المشاريع.");
         if (r.Rate < 0 || r.FuelPerHour < 0 || r.MaintenancePerHour < 0 || r.OperatorPerHour < 0) errors.Add("تكاليف المعدة لا تكون سالبة.");
         var hoursPerDay = r.HoursPerDay ?? 8m;
         var daysPerMonth = r.DaysPerMonth ?? 26m;
@@ -98,6 +108,10 @@ public class EquipmentService : IEquipmentService
 
         if (!isNew && e.Ownership != r.Ownership && await _db.Set<EquipmentAssignment>().AnyAsync(a => a.EquipmentId == e.Id, ct))
             errors.Add("لا تُغيَّر ملكية معدة سبق إسنادها لمشروع.");
+        // الطريقة تُنسخ لمورد المشروع عند الإسناد؛ تغييرها أثناء إسناد نشط يخلط طريقتين في الفترة نفسها (تحميل مزدوج)
+        var methodChanged = !isNew && e.CostMethod != method;
+        if (methodChanged && await _db.Set<EquipmentAssignment>().AnyAsync(a => a.EquipmentId == e.Id && a.Status == ASt.Active, ct))
+            errors.Add("لا تُغيَّر طريقة تكلفة معدة مسندة لمشروع: أرجعها أولاً، فيسري التغيير من إسنادها التالي.");
 
         if (owned && r.FixedAssetId is Guid assetId)
         {
@@ -106,6 +120,10 @@ public class EquipmentService : IEquipmentService
             else if (asset.DisposedAt != null) errors.Add($"الأصل {asset.AssetCode} مستبعد؛ لا يُربط بمعدة.");
             else if (await _db.Set<Equipment>().AnyAsync(x => x.FixedAssetId == assetId && x.Id != e.Id, ct))
                 errors.Add($"الأصل {asset.AssetCode} مربوط بمعدة أخرى (أصل واحد لمعدة واحدة).");
+            // إهلاك الأصل يُرحَّل على مركزه: إن كان مركز مشروع لحمل المشروعَ الإهلاكَ مع سعره الداخلي أو حصته (تحميل مزدوج)
+            else if ((isNew || methodChanged || e.FixedAssetId != assetId) && asset.CostCenterId is Guid assetCenter
+                && await _db.Set<CommercialContract>().AnyAsync(c => c.CostCenterId == assetCenter, ct))
+                errors.Add($"مركز تكلفة الأصل {asset.AssetCode} مركز مشروع: إهلاكه يُحمَّل عليه مباشرة فيتكرر مع تكلفة المعدة. اجعل مركز الأصل مركز المعدات.");
         }
         if (!owned && r.SupplierId is Guid supplierId && !await _db.Set<Supplier>().AnyAsync(s => s.Id == supplierId, ct)) errors.Add("المؤجر غير موجود.");
         if (r.LibraryResourceId is Guid libId && !await _db.Set<ConstructionResource>().AnyAsync(x => x.Id == libId, ct)) errors.Add("مورد المكتبة غير موجود.");
@@ -127,9 +145,10 @@ public class EquipmentService : IEquipmentService
         e.Brand = Trim(r.Brand, 100); e.Model = Trim(r.Model, 100); e.ManufactureYear = r.ManufactureYear;
         e.SerialNumber = Trim(r.SerialNumber, 100); e.PlateNumber = Trim(r.PlateNumber, 50); e.Capacity = Trim(r.Capacity, 100);
         e.Specifications = Trim(r.Specifications, 1000);
-        e.Ownership = r.Ownership; e.FixedAssetId = owned ? r.FixedAssetId : null; e.SupplierId = owned ? null : r.SupplierId;
+        e.Ownership = r.Ownership; e.CostMethod = method; e.FixedAssetId = owned ? r.FixedAssetId : null; e.SupplierId = owned ? null : r.SupplierId;
         e.LibraryResourceId = r.LibraryResourceId; e.CostCenterId = r.CostCenterId;
-        e.RateBasis = basis; e.Rate = r.Rate; e.FuelPerHour = r.FuelPerHour; e.MaintenancePerHour = r.MaintenancePerHour;
+        // طريقة الإهلاك: لا سعر ملكية بالساعة (يبقى المدخل صفراً فلا يُحمَّل خطأً لو غُيِّرت الطريقة لاحقاً دون سعر)
+        e.RateBasis = basis; e.Rate = owned && !internalRate ? 0 : r.Rate; e.FuelPerHour = r.FuelPerHour; e.MaintenancePerHour = r.MaintenancePerHour;
         e.OperatorPerHour = r.OperatorPerHour; e.HoursPerDay = hoursPerDay; e.DaysPerMonth = daysPerMonth;
         if (r.MeterHours is decimal meter) e.MeterHours = meter;
         e.ServiceIntervalHours = r.ServiceIntervalHours > 0 ? r.ServiceIntervalHours : null;
@@ -258,9 +277,15 @@ public class EquipmentService : IEquipmentService
             Name = e.NameAr, Code = e.Code, Category = e.Category, LibraryResourceId = libraryResourceId ?? e.LibraryResourceId, HoursPerDay = e.HoursPerDay, DaysPerMonth = e.DaysPerMonth,
             Notes = $"من سجل المعدات {e.Code}",
         };
+        // لقطة طريقة التحميل على المورد: ساعات هذا الإسناد تُحمَّل بها وحدها (لا سعر داخلي وحصة إهلاك معاً)
+        resource.EquipmentCostMethod = EquipmentCostMethods.IsValidFor(e.Ownership, e.CostMethod) ? e.CostMethod : EquipmentCostMethods.DefaultFor(e.Ownership);
         if (owned)
         {
-            resource.FixedAssetId = e.FixedAssetId; resource.RateBasis = ProjectRateBases.Hour; resource.Rate = e.Rate;
+            // السعر الداخلي بأساسه (ساعة/يوم/شهر)؛ طريقة الإهلاك بلا سعر ملكية (حصتها من الإهلاك الفعلي شهرياً) وتبقى تكاليف التشغيل بالساعة
+            var internalRate = resource.EquipmentCostMethod == EquipmentCostMethods.InternalRate;
+            resource.FixedAssetId = e.FixedAssetId;
+            resource.RateBasis = internalRate ? e.RateBasis : ProjectRateBases.Hour;
+            resource.Rate = internalRate ? e.Rate : 0;
             resource.FuelPerHour = e.FuelPerHour; resource.MaintenancePerHour = e.MaintenancePerHour; resource.OperatorPerHour = e.OperatorPerHour;
         }
         else
@@ -718,6 +743,11 @@ public class EquipmentService : IEquipmentService
                 .Where(d => assetIds.Contains(d.FixedAssetId) && string.Compare(d.Period, fromPeriod) >= 0 && string.Compare(d.Period, toPeriod) <= 0)
                 .GroupBy(d => d.FixedAssetId).Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Amount);
+        // طريقة الإهلاك: حصص المشاريع من الإهلاك الفعلي في أشهر الفترة (المرحّلة، لا إعادة حساب)
+        var allocations = await _db.Set<EquipmentDepreciationAllocation>().AsNoTracking()
+            .Where(a => string.Compare(a.Period, fromPeriod) >= 0 && string.Compare(a.Period, toPeriod) <= 0)
+            .GroupBy(a => new { a.EquipmentId, a.ContractId }).Select(g => new { g.Key.EquipmentId, g.Key.ContractId, Amount = g.Sum(x => x.Amount) })
+            .ToListAsync(ct);
 
         var result = new EquipmentCostReportDto { From = start, To = end };
         foreach (var e in equipment)
@@ -727,7 +757,7 @@ public class EquipmentService : IEquipmentService
             var myOrders = orders.Where(o => o.EquipmentId == e.Id).ToList();
             var row = new EquipmentCostRowDto
             {
-                EquipmentId = e.Id, Code = e.Code, Name = e.NameAr, Category = e.Category, Ownership = e.Ownership,
+                EquipmentId = e.Id, Code = e.Code, Name = e.NameAr, Category = e.Category, Ownership = e.Ownership, CostMethod = e.CostMethod,
                 WorkHours = mine.Sum(u => u.Hours) + myLogs.Where(l => l.Kind == K.Operation).Sum(l => l.Hours),
                 IdleHours = mine.Sum(u => u.Idle),
                 DowntimeHours = myLogs.Where(l => l.Kind == K.Downtime).Sum(l => l.Hours) + myOrders.Sum(o => o.DowntimeHours),
@@ -735,9 +765,11 @@ public class EquipmentService : IEquipmentService
                 Expenses = myLogs.Where(l => l.Kind == K.Expense).Sum(l => l.Amount), MaintenanceCost = myOrders.Sum(o => o.TotalCost),
                 Depreciation = e.FixedAssetId is Guid asset ? depreciation.GetValueOrDefault(asset) : 0,
                 RentalCost = rental.Where(r => equipmentOfResource[r.ResourceId] == e.Id).Sum(r => r.Amount),
-                ChargedToProjects = mine.Sum(u => u.Cost),
+                DepreciationAllocated = allocations.Where(a => a.EquipmentId == e.Id).Sum(a => a.Amount),
             };
-            row.ActualCost = row.FuelCost + row.Expenses + row.MaintenanceCost + row.Depreciation + row.RentalCost;
+            // المحمّل = بالساعة من التقارير + حصص الإهلاك؛ والفعلي يعدّ الإهلاك مرة واحدة (التوزيع نقل لا تكلفة جديدة)
+            row.ChargedToProjects = mine.Sum(u => u.Cost) + row.DepreciationAllocated;
+            row.ActualCost =row.FuelCost + row.Expenses + row.MaintenanceCost + row.Depreciation + row.RentalCost;
             row.Recovery = row.ChargedToProjects - row.ActualCost;
             row.CostPerHour = row.WorkHours > 0 ? Math.Round(row.ActualCost / row.WorkHours, 2) : 0;
             if (row.WorkHours != 0 || row.IdleHours != 0 || row.DowntimeHours != 0 || row.ActualCost != 0 || row.ChargedToProjects != 0) result.Equipment.Add(row);
@@ -748,7 +780,8 @@ public class EquipmentService : IEquipmentService
             .Concat(orders.Where(o => o.ChargeToProject && o.Posted && o.ContractId != null).Select(o => new { o.EquipmentId, ContractId = o.ContractId!.Value, Amount = o.TotalCost }))
             .ToList();
         var pairs = usage.Select(u => (EquipmentId: equipmentOfResource[u.ResourceId], u.ContractId))
-            .Concat(direct.Select(d => (d.EquipmentId, d.ContractId))).Distinct().ToList();
+            .Concat(direct.Select(d => (d.EquipmentId, d.ContractId)))
+            .Concat(allocations.Select(a => (a.EquipmentId, a.ContractId))).Distinct().ToList();
         var contracts = await ContractNamesAsync(pairs.Select(p => p.ContractId), ct);
         var byEquipment = equipment.ToDictionary(e => e.Id);
         foreach (var (equipmentId, contractId) in pairs)
@@ -759,10 +792,11 @@ public class EquipmentService : IEquipmentService
             var row = new EquipmentProjectCostRowDto
             {
                 ContractId = contractId, ContractNumber = c?.Number, ProjectName = c?.Name, EquipmentId = equipmentId, EquipmentCode = e.Code, EquipmentName = e.NameAr,
-                Ownership = e.Ownership, WorkHours = u.Sum(x => x.Hours), IdleHours = u.Sum(x => x.Idle), ChargedCost = u.Sum(x => x.Cost),
+                Ownership = e.Ownership, CostMethod = e.CostMethod, WorkHours = u.Sum(x => x.Hours), IdleHours = u.Sum(x => x.Idle), ChargedCost = u.Sum(x => x.Cost),
+                DepreciationAllocated = allocations.Where(a => a.EquipmentId == equipmentId && a.ContractId == contractId).Sum(a => a.Amount),
                 DirectCost = direct.Where(d => d.EquipmentId == equipmentId && d.ContractId == contractId).Sum(d => d.Amount),
             };
-            row.TotalCost = row.ChargedCost + row.DirectCost;
+            row.TotalCost = row.ChargedCost + row.DepreciationAllocated + row.DirectCost;
             result.Projects.Add(row);
         }
         result.Projects = result.Projects.OrderBy(p => p.ProjectName).ThenBy(p => p.EquipmentCode).ToList();
@@ -850,7 +884,7 @@ public class EquipmentService : IEquipmentService
             {
                 Id = e.Id, Code = e.Code, NameAr = e.NameAr, NameEn = e.NameEn, Category = e.Category, Brand = e.Brand, Model = e.Model,
                 ManufactureYear = e.ManufactureYear, SerialNumber = e.SerialNumber, PlateNumber = e.PlateNumber, Capacity = e.Capacity,
-                Specifications = e.Specifications, Ownership = e.Ownership, FixedAssetId = e.FixedAssetId, SupplierId = e.SupplierId,
+                Specifications = e.Specifications, Ownership = e.Ownership, CostMethod = e.CostMethod, FixedAssetId = e.FixedAssetId, SupplierId = e.SupplierId,
                 LibraryResourceId = e.LibraryResourceId, CostCenterId = e.CostCenterId, Status = e.Status, RateBasis = e.RateBasis, Rate = e.Rate,
                 FuelPerHour = e.FuelPerHour, MaintenancePerHour = e.MaintenancePerHour, OperatorPerHour = e.OperatorPerHour, HoursPerDay = e.HoursPerDay,
                 DaysPerMonth = e.DaysPerMonth, MeterHours = e.MeterHours, ServiceIntervalHours = e.ServiceIntervalHours, ServiceIntervalDays = e.ServiceIntervalDays,

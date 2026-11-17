@@ -272,7 +272,9 @@ public class ProjectResourceCoverageService : IProjectResourceCoverageService
         if (shared > 0) d.Alerts.Add(Alert("shared_other_project", Warning, Math.Round(shared, Decimals)));
         var unavailable = d.Assigned.Sum(a => a.UnavailableHours);
         if (unavailable > 0) d.Alerts.Add(Alert(equipment ? "equipment_unavailable" : "absence", equipment ? Warning : Info, Math.Round(unavailable, Decimals)));
-        if (r.MissingCost || d.Assigned.Any(a => x.Assigned.FirstOrDefault(p => p.Id == a.ProjectResourceId)?.HourlyCost <= 0))
+        // معدة بطريقة الإهلاك تكلفتها من الإهلاك الفعلي الموزّع شهرياً، فصفر تكلفة ساعتها ليس نقصاً
+        if (r.MissingCost || d.Assigned.Any(a => x.Assigned.FirstOrDefault(p => p.Id == a.ProjectResourceId) is { } p
+                && p.HourlyCost <= 0 && p.EquipmentCostMethod != EquipmentCostMethods.Depreciation))
             d.Alerts.Add(Alert("missing_cost", Warning, d.RequiredHours));
         // لا مورد مسند بهذا المورد، وفي المشروع موارد بالتخصص نفسه غير مربوطة به
         if (d.AssignedCount == 0 && d.Category != null

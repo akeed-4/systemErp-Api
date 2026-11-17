@@ -16,6 +16,8 @@ public class EquipmentDto
     public string? Capacity { get; set; }
     public string? Specifications { get; set; }
     public string Ownership { get; set; } = EquipmentOwnerships.Owned;
+    /// <summary><see cref="EquipmentCostMethods"/>: الإهلاك أو السعر الداخلي (مملوكة)، أو الإيجار الفعلي (مستأجرة).</summary>
+    public string CostMethod { get; set; } = EquipmentCostMethods.InternalRate;
     public Guid? FixedAssetId { get; set; }
     public Guid? SupplierId { get; set; }
     public Guid? LibraryResourceId { get; set; }
@@ -68,6 +70,8 @@ public class SaveEquipmentDto
     public string? Capacity { get; set; }
     public string? Specifications { get; set; }
     public string Ownership { get; set; } = EquipmentOwnerships.Owned;
+    /// <summary>فارغ = الافتراضي للملكية (المملوكة بسعر داخلي، والمستأجرة بإيجارها الفعلي).</summary>
+    public string? CostMethod { get; set; }
     public Guid? FixedAssetId { get; set; }
     public Guid? SupplierId { get; set; }
     public Guid? LibraryResourceId { get; set; }
@@ -378,6 +382,7 @@ public class EquipmentCostRowDto
     public string Name { get; set; } = string.Empty;
     public string? Category { get; set; }
     public string Ownership { get; set; } = string.Empty;
+    public string CostMethod { get; set; } = string.Empty;
     public decimal WorkHours { get; set; }
     public decimal IdleHours { get; set; }
     public decimal DowntimeHours { get; set; }
@@ -388,7 +393,10 @@ public class EquipmentCostRowDto
     public decimal Depreciation { get; set; }
     public decimal RentalCost { get; set; }
     public decimal ActualCost { get; set; }
+    /// <summary>المحمّل على المشاريع: بالساعة من التقارير المعتمدة + حصص الإهلاك الموزّعة (<see cref="DepreciationAllocated"/>).</summary>
     public decimal ChargedToProjects { get; set; }
+    /// <summary>طريقة الإهلاك: ما وُزِّع من الإهلاك الفعلي على المشاريع (الباقي على مركز الأصل).</summary>
+    public decimal DepreciationAllocated { get; set; }
     /// <summary>المحمّل − الفعلي (موجب = استرداد زائد).</summary>
     public decimal Recovery { get; set; }
     public decimal CostPerHour { get; set; }
@@ -407,6 +415,9 @@ public class EquipmentProjectCostRowDto
     public decimal IdleHours { get; set; }
     /// <summary>المحمّل بالساعة من التقارير المعتمدة (المملوكة قيد التحميل، والمستأجرة استحقاق الإيجار).</summary>
     public decimal ChargedCost { get; set; }
+    public string CostMethod { get; set; } = string.Empty;
+    /// <summary>حصة المشروع من الإهلاك الفعلي (طريقة الإهلاك)؛ ضمن <see cref="TotalCost"/>.</summary>
+    public decimal DepreciationAllocated { get; set; }
     /// <summary>وقود ومصاريف وصيانة حُمِّلت مباشرة على مركز المشروع.</summary>
     public decimal DirectCost { get; set; }
     public decimal TotalCost { get; set; }

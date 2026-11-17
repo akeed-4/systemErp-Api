@@ -25,10 +25,12 @@ public class SiteDailyReportService : ISiteDailyReportService
     private readonly IAccountingPostingService _posting;
     private readonly IRentalAccrualService _rentals;
     private readonly IAuditService _audit;
+    private readonly IEquipmentCostAllocationService _equipmentCost;
 
-    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user, IAccountingPostingService posting, IRentalAccrualService rentals, IAuditService audit)
+    public SiteDailyReportService(ErpDbContext db, ITransactionRunner tx, ICurrentUser user, IAccountingPostingService posting, IRentalAccrualService rentals, IAuditService audit,
+        IEquipmentCostAllocationService equipmentCost)
     {
-        _db = db; _tx = tx; _user = user; _posting = posting; _rentals = rentals; _audit = audit;
+        _db = db; _tx = tx; _user = user; _posting = posting; _rentals = rentals; _audit = audit; _equipmentCost = equipmentCost;
     }
 
     // ---------- القراءة ----------
@@ -163,6 +165,8 @@ public class SiteDailyReportService : ISiteDailyReportService
             report.Status = St.Approved; report.ApprovedAt = DateTime.UtcNow; report.ApprovedBy = _user.Name; report.ApprovedByUserId = _user.UserId;
             await PostCostAsync(report, contract, token);
             await _db.SaveChangesAsync(token);
+            // معدات طريقة الإهلاك: حصة المشروع من إهلاك الفترة بالساعات المعتمدة (بعد حفظ الاعتماد ليدخل التقرير في الساعات)
+            await _equipmentCost.ReallocateForReportAsync(report.Id, token);
             await _audit.LogAsync("SITE_DAILY_REPORT_APPROVED", nameof(SiteDailyReport), reportId.ToString(),
                 $"اعتماد تقرير يومي • عقد {contractId} • تاريخ {report.ReportDate:yyyy-MM-dd} • تكاليف محمّلة {report.PostedLaborCost + report.PostedEquipmentCost:N2}", token);
         }, ct);
@@ -186,6 +190,7 @@ public class SiteDailyReportService : ISiteDailyReportService
                 if (r.CostRevision > 0) posted++;
             }
             await _db.SaveChangesAsync(token);
+            foreach (var r in reports) await _equipmentCost.ReallocateForReportAsync(r.Id, token);
             return posted;
         }, ct);
 

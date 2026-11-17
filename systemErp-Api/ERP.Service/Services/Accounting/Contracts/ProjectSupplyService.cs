@@ -1,3 +1,4 @@
+using System.Globalization;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
@@ -27,15 +28,18 @@ public class ProjectSupplyService : IProjectSupplyService
     private readonly ITransactionRunner _tx;
     private readonly ICurrentUser _user;
     private readonly IAuditService _audit;
+    private readonly IPermissionService _permissions;
 
     public ProjectSupplyService(ErpDbContext db, IProjectMaterialService materials, IInventoryService inventory, IAccountingPostingService posting,
-        INumberSequenceService numbers, ITransactionRunner tx, ICurrentUser user, IAuditService audit)
+        INumberSequenceService numbers, ITransactionRunner tx, ICurrentUser user, IAuditService audit, IPermissionService permissions)
     {
         _db = db; _materials = materials; _inventory = inventory; _posting = posting; _numbers = numbers; _tx = tx; _user = user; _audit = audit;
+        _permissions = permissions;
     }
 
     // ---------------- المتابعة ----------------
-    public async Task<ProjectMaterialTrackingDto> TrackingAsync(Guid contractId, Guid? warehouseId = null, Guid? exceptRequisitionId = null, CancellationToken ct = default)
+    public async Task<ProjectMaterialTrackingDto> TrackingAsync(Guid contractId, Guid? warehouseId = null, Guid? exceptRequisitionId = null,
+        Guid? phaseId = null, CancellationToken ct = default)
     {
         var contract = await _db.Set<CommercialContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == contractId, ct)
             ?? throw new NotFoundException(Messages.ContractNotFound);
@@ -99,7 +103,8 @@ public class ProjectSupplyService : IProjectSupplyService
 
         var requiredValue = lines.Sum(l => l.RequiredQuantity * l.UnitCost);
         var deliveredValue = lines.Where(l => !l.OutsidePlan).Sum(l => Math.Min(l.DeliveredQuantity, l.RequiredQuantity) * l.UnitCost);
-        return new ProjectMaterialTrackingDto
+        var phasing = await PhasingAsync(contractId, plan, exceptRequisitionId, stock, ct);
+        var dto = new ProjectMaterialTrackingDto
         {
             ContractId = contract.Id, ContractNumber = contract.ContractNumber, ProjectName = contract.ProjectName,
             ProjectLocation = contract.ProjectLocation, WarehouseId = wh, PlanStatus = planStatus,
@@ -113,6 +118,165 @@ public class ProjectSupplyService : IProjectSupplyService
                 PendingRequest = lines.Count(l => !l.OutsidePlan && l.RemainingToRequest > 0),
             },
         };
+        await ApplyPhasingAsync(dto, phasing, phaseId, ct);
+        return dto;
+    }
+
+    // ---------------- الطلب حسب مراحل التنفيذ ----------------
+
+    /// <summary>مراحل المشروع وأرقام كل صنف في كل مرحلة (<see cref="PhaseSupply"/>). غير مُدارة إن لم تُسند أي مادة معتمدة لمرحلة.</summary>
+    private sealed class Phasing
+    {
+        public bool Managed { get; init; }
+        public List<ProjectPhase> Phases { get; init; } = new();
+        public Dictionary<Guid, Dictionary<Guid, PhaseSupply.Cell>> Cells { get; init; } = new();
+        public int Unassigned { get; init; }
+        public DateTime EarliestStart => Phases.Count == 0 ? DateTime.MaxValue : Phases.Min(p => p.PlannedStart);
+        public bool IsFuture(ProjectPhase p) => PhaseSupply.IsFuture(p.PlannedStart, EarliestStart, SaudiTime.Today);
+    }
+
+    private static bool Converted(string status) => status is "converted_to_invoice" or "converted_to_po";
+
+    /// <summary>
+    /// أرقام المراحل من الاحتياجات المعتمدة (مرحلة كل سطر من سطره المحفوظ) وطلبات الشراء المرتبطة بكل مرحلة، ومخزون المشروع المشترك:
+    /// المسلَّم للموقع من المستودع العام (التسليم − الإرجاع، دون ما اشتُري عبر المستودع بطلبات المشروع القديمة؛ محسوب في طلباتها)
+    /// + طلبات المشروع بلا مرحلة. <paramref name="warehouseStock"/> رصيد مستودع المشروع لصافي الشراء (فارغ عند التحقق فقط).
+    /// </summary>
+    private async Task<Phasing> PhasingAsync(Guid contractId, ProjectMaterialPlanDto plan, Guid? exceptRequisitionId,
+        IReadOnlyDictionary<Guid, decimal>? warehouseStock, CancellationToken ct)
+    {
+        if (plan.Id == null || plan.Status != ProjectMaterialPlanStatuses.Approved) return new Phasing();
+        var phases = await _db.Set<ProjectPhase>().AsNoTracking().Where(p => p.ContractId == contractId)
+            .OrderBy(p => p.SortOrder).ThenBy(p => p.PlannedStart).ToListAsync(ct);
+        if (phases.Count == 0) return new Phasing();
+        var phaseIds = phases.Select(p => p.Id).ToHashSet();
+        var phaseOfLine = await _db.Set<ProjectMaterialRequirement>().AsNoTracking()
+            .Where(r => r.ContractId == contractId && r.PhaseId != null)
+            .Select(r => new { r.Id, Phase = r.PhaseId!.Value }).ToDictionaryAsync(r => r.Id, r => r.Phase, ct);
+        Guid? PhaseOf(Guid? lineId) => lineId is Guid id && phaseOfLine.TryGetValue(id, out var p) && phaseIds.Contains(p) ? p : null;
+
+        var cells = phases.ToDictionary(p => p.Id, _ => new Dictionary<Guid, PhaseSupply.Cell>());
+        PhaseSupply.Cell Cell(Guid phase, Guid item)
+        {
+            var byItem = cells[phase];
+            if (!byItem.TryGetValue(item, out var c)) byItem[item] = c = new PhaseSupply.Cell();
+            return c;
+        }
+
+        var assigned = 0; var unassigned = 0;
+        foreach (var l in plan.Lines)
+        {
+            if (PhaseOf(l.Id) is not Guid phase) { unassigned++; continue; }
+            assigned++;
+            // المادة غير المربوطة أو بلا تحويل وحدة لا تُطلب (تظهر في «غير القابلة للتحقق»)
+            if (l.ProductId is not Guid product || l.ProductQuantity is not decimal q) continue;
+            var c = Cell(phase, product);
+            c.Required += q; c.RequiredCost += l.EstimatedCost;
+        }
+        if (assigned == 0) return new Phasing();
+
+        var reqs = await _db.Set<MaterialRequisition>().AsNoTracking()
+            .Where(r => r.ContractId == contractId && r.Status != "rejected" && (exceptRequisitionId == null || r.Id != exceptRequisitionId))
+            .Select(r => new { r.Id, r.PhaseId, r.Status, Items = r.Items.Select(i => new { i.ItemId, Q = i.ApprovedQuantity ?? i.RequestedQuantity }).ToList() })
+            .ToListAsync(ct);
+        var received = (await ReceivedAsync(_db, contractId, ct)).GroupBy(x => (x.RequisitionId, x.ItemId)).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        var projectRequisitions = _db.Set<MaterialRequisition>().Where(r => r.ContractId == contractId).Select(r => (Guid?)r.Id);
+        var invoiced = await _db.Set<PurchaseInvoice>().AsNoTracking()
+            .Where(i => i.ReferenceType == "material_requisition" && projectRequisitions.Contains(i.ReferenceId) && i.Status != "cancelled")
+            .SelectMany(i => i.Items.Where(l => l.ItemId != Guid.Empty)
+                .Select(l => new { Requisition = i.ReferenceId!.Value, Posted = i.Status == "posted", l.ItemId, l.Quantity }))
+            .ToListAsync(ct);
+        var invoicedByRequisition = invoiced.GroupBy(x => (x.Requisition, x.ItemId, x.Posted)).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        var postedViaWarehouse = invoiced.Where(x => x.Posted).GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        var inventory = new Dictionary<Guid, decimal>();
+        foreach (var r in reqs)
+            foreach (var g in r.Items.GroupBy(i => i.ItemId))
+            {
+                var q = g.Sum(i => i.Q);
+                if (r.PhaseId is not Guid p || !phaseIds.Contains(p))
+                {
+                    inventory[g.Key] = inventory.GetValueOrDefault(g.Key) + q; // طلب قديم بلا مرحلة: يغطي المراحل بترتيبها
+                    continue;
+                }
+                var c = Cell(p, g.Key);
+                c.Requested += q;
+                if (Converted(r.Status))
+                {
+                    c.Ordered += invoicedByRequisition.GetValueOrDefault((r.Id, g.Key, false));
+                    c.Received += invoicedByRequisition.GetValueOrDefault((r.Id, g.Key, true));
+                    continue;
+                }
+                var rec = received.GetValueOrDefault((r.Id, g.Key));
+                var open = Math.Max(0, q - rec);
+                c.Received += rec; c.Pending += open;
+                if (r.Status == "approved") c.Approved += open;
+            }
+
+        var issued = (await MovementsAsync(contractId, null, ct)).Where(m => m.Kind is K.Issue or K.Return)
+            .GroupBy(m => m.ProductId).ToDictionary(g => g.Key, g => g.Sum(m => m.Kind == K.Issue ? m.Quantity : -m.Quantity));
+        var freeStock = new Dictionary<Guid, decimal>();
+        foreach (var item in cells.Values.SelectMany(c => c.Keys).Distinct())
+        {
+            var fromWarehouse = issued.GetValueOrDefault(item);
+            var viaRequisitions = postedViaWarehouse.GetValueOrDefault(item);
+            inventory[item] = inventory.GetValueOrDefault(item) + Math.Max(0, fromWarehouse - viaRequisitions);
+            // المشترى بطلبات قديمة ولم يُسلَّم بعد ما زال في رصيد المستودع وقد حُسب في طلباته: لا يُطرح مرتين
+            if (warehouseStock != null)
+                freeStock[item] = Math.Max(0, warehouseStock.GetValueOrDefault(item) - Math.Max(0, viaRequisitions - fromWarehouse));
+        }
+        PhaseSupply.Allocate(phases.Select(p => p.Id).ToList(), cells, inventory, freeStock);
+        return new Phasing { Managed = true, Phases = phases, Cells = cells, Unassigned = unassigned };
+    }
+
+    /// <summary>يضيف مراحل المشروع للمتابعة، وعند اختيار مرحلة يستبدل الأسطر بمواد المرحلة وحدها بأرقامها (الأعمدة المشتركة من سطر المشروع).</summary>
+    private async Task ApplyPhasingAsync(ProjectMaterialTrackingDto dto, Phasing phasing, Guid? phaseId, CancellationToken ct)
+    {
+        dto.PhaseManaged = phasing.Managed;
+        if (!phasing.Managed) return;
+        dto.UnassignedMaterials = phasing.Unassigned;
+        dto.CanPurchaseFuturePhases = await _permissions.HasPermissionAsync(PermissionCatalog.ProjectFuturePhasePurchaseScreenId, ScreenAction.Approve, ct);
+        var today = SaudiTime.Today;
+        dto.Phases = phasing.Phases.Select(p =>
+        {
+            var cells = phasing.Cells[p.Id].Values;
+            return new ProjectSupplyPhaseDto
+            {
+                Id = p.Id, Name = p.Name, SortOrder = p.SortOrder, PlannedStart = p.PlannedStart, PlannedEnd = p.PlannedEnd,
+                State = PhaseSupply.State(p.PlannedStart, p.PlannedEnd, today), IsFuture = phasing.IsFuture(p),
+                MaterialCount = cells.Count(c => c.Required > 0), RequestableCount = cells.Count(c => c.Remaining > 0),
+            };
+        }).ToList();
+        if (phaseId is not Guid id) return;
+        if (!phasing.Cells.TryGetValue(id, out var phaseCells)) throw new ValidationFailedException(Messages.ProjectRequisitionPhaseInvalid);
+        dto.PhaseId = id;
+        var project = dto.Lines.ToDictionary(l => l.ProductId);
+        dto.Lines = phaseCells.Where(kv => project.ContainsKey(kv.Key) && (kv.Value.Required > 0 || kv.Value.Requested > 0))
+            .Select(kv => PhaseLine(project[kv.Key], kv.Value)).OrderBy(l => l.OutsidePlan).ThenBy(l => l.Sku).ToList();
+    }
+
+    /// <summary>سطر مرحلة: أرقام الطلب من المرحلة، والتسليم والعهدة والمستهلك من سطر المشروع (لا تُسند لمرحلة).</summary>
+    private static ProjectMaterialTrackingLineDto PhaseLine(ProjectMaterialTrackingLineDto p, PhaseSupply.Cell c)
+    {
+        var line = new ProjectMaterialTrackingLineDto
+        {
+            ProductId = p.ProductId, Sku = p.Sku, ItemName = p.ItemName, Unit = p.Unit,
+            RequiredQuantity = Math.Round(c.Required, Decimals), RequestedQuantity = Math.Round(c.Requested, Decimals),
+            PurchasedQuantity = Math.Round(c.Received, Decimals), ReceivedQuantity = Math.Round(c.Received, Decimals),
+            DeliveredQuantity = p.DeliveredQuantity, ReturnedQuantity = p.ReturnedQuantity, WastedQuantity = p.WastedQuantity,
+            ConsumedQuantity = p.ConsumedQuantity, CustodyQuantity = p.CustodyQuantity, RemainingToDeliver = p.RemainingToDeliver,
+            PendingRequestQuantity = Math.Round(c.Pending, Decimals), ApprovedRequestQuantity = Math.Round(c.Approved, Decimals),
+            OrderedQuantity = Math.Round(c.Ordered, Decimals), ProjectInventoryQuantity = c.ProjectInventory,
+            RemainingToRequest = c.Remaining, WarehouseStock = c.FreeStock, NetToPurchase = c.NetToPurchase, SuggestedRequestQuantity = c.NetToPurchase,
+            UnitCost = c.Required > 0 && c.RequiredCost > 0 ? Math.Round(c.RequiredCost / c.Required, Decimals) : p.UnitCost,
+            OutsidePlan = c.Required <= 0,
+            CoverageStatus = c.Remaining <= 0 || c.FreeStock >= c.Remaining ? MaterialCoverageStatuses.Full
+                : c.FreeStock > 0 ? MaterialCoverageStatuses.Partial : MaterialCoverageStatuses.None,
+        };
+        if (line.PendingRequestQuantity > 0) line.Alerts.Add(new ProjectSupplyAlertDto { Code = MaterialCoverage.PendingRequests, Severity = MaterialCoverage.Info, Quantity = line.PendingRequestQuantity });
+        if (line.OrderedQuantity > 0) line.Alerts.Add(new ProjectSupplyAlertDto { Code = MaterialCoverage.OrderedNotReceived, Severity = MaterialCoverage.Info, Quantity = line.OrderedQuantity });
+        if (line.NetToPurchase > 0) line.Alerts.Add(new ProjectSupplyAlertDto { Code = MaterialCoverage.PurchaseNeeded, Severity = MaterialCoverage.Warning, Quantity = line.NetToPurchase });
+        return line;
     }
 
     /// <summary>ما طُلب شراؤه لكل صنف في طلبات المشروع غير المرفوضة (عدا طلب بعينه عند تعديله).</summary>
@@ -242,30 +406,85 @@ public class ProjectSupplyService : IProjectSupplyService
 
     /// <summary>المطلوب لكل صنف من الاحتياجات المعتمدة؛ يرفض إن لم تُعتمد.</summary>
     private async Task<Dictionary<Guid, decimal>> RequiredAsync(Guid contractId, CancellationToken ct)
+        => Required(await _materials.GetAsync(contractId, ct));
+
+    private static Dictionary<Guid, decimal> Required(ProjectMaterialPlanDto plan)
     {
-        var plan = await _materials.GetAsync(contractId, ct);
         if (plan.Id == null || plan.Status != ProjectMaterialPlanStatuses.Approved)
             throw new ValidationFailedException("اعتمد احتياجات مواد المشروع (دراسة الجدوى) أولاً: منها تُحسب الكميات المسموح طلبها وصرفها.");
         return plan.Lines.Where(l => l.ProductId.HasValue && l.ProductQuantity.HasValue)
             .GroupBy(l => l.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(l => l.ProductQuantity!.Value));
     }
 
-    public async Task EnsureRequisitionWithinPlanAsync(Guid contractId, Guid? requisitionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> lines, CancellationToken ct = default)
+    public async Task EnsureRequisitionWithinPlanAsync(Guid contractId, Guid? requisitionId, Guid? phaseId, bool allowWithoutPhase,
+        IReadOnlyList<(Guid ItemId, decimal Quantity)> lines, CancellationToken ct = default)
     {
         await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, ct);
-        var required = await RequiredAsync(contractId, ct);
-        var others = await RequestedAsync(contractId, requisitionId, ct);
+        // رمز التزامن يُقرأ قبل الأرقام: طلب متزامن على الصنف نفسه يغيّره عند حفظه، فيفشل حفظ هذا الطلب وتُعاد المعاملة على الأرقام الجديدة
+        var guard = await GuardRowsAsync(contractId, lines.Select(l => l.ItemId), ct);
+        var plan = await _materials.GetAsync(contractId, ct);
+        var required = Required(plan);
         var names = await NamesAsync(lines.Select(l => l.ItemId), ct);
-        foreach (var g in lines.GroupBy(l => l.ItemId))
+        var phasing = await PhasingAsync(contractId, plan, requisitionId, null, ct);
+
+        if (phaseId == null && (!phasing.Managed || allowWithoutPhase))
         {
-            var name = names.GetValueOrDefault(g.Key, "?");
-            if (!required.TryGetValue(g.Key, out var req))
-                throw new ValidationFailedException($"«{name}» ليس ضمن احتياجات المشروع المعتمدة: أضفه للاحتياجات (تعديل معتمد) قبل طلب شرائه.");
-            var remaining = Math.Max(0, req - others.GetValueOrDefault(g.Key));
-            var qty = g.Sum(l => l.Quantity);
-            if (qty > remaining + 0.0001m)
-                throw new ValidationFailedException($"«{name}»: الكمية المطلوبة {qty:0.####} تتجاوز المتبقي للطلب {remaining:0.####} (المطلوب في دراسة الجدوى {req:0.####} ناقص ما طُلب سابقاً {others.GetValueOrDefault(g.Key):0.####}).");
+            // مشروع بلا مواد مسندة لمراحل، أو طلب قديم سبق المراحل: الحد على المشروع كله كما كان
+            var others = await RequestedAsync(contractId, requisitionId, ct);
+            foreach (var g in lines.GroupBy(l => l.ItemId))
+            {
+                var name = names.GetValueOrDefault(g.Key, "?");
+                if (!required.TryGetValue(g.Key, out var req))
+                    throw new ValidationFailedException($"«{name}» ليس ضمن احتياجات المشروع المعتمدة: أضفه للاحتياجات (تعديل معتمد) قبل طلب شرائه.");
+                var remaining = Math.Max(0, req - others.GetValueOrDefault(g.Key));
+                var qty = g.Sum(l => l.Quantity);
+                if (qty > remaining + 0.0001m)
+                    throw new ValidationFailedException($"«{name}»: الكمية المطلوبة {qty:0.####} تتجاوز المتبقي للطلب {remaining:0.####} (المطلوب في دراسة الجدوى {req:0.####} ناقص ما طُلب سابقاً {others.GetValueOrDefault(g.Key):0.####}).");
+            }
         }
+        else
+        {
+            if (!phasing.Managed) throw new ValidationFailedException(Messages.ProjectRequisitionPhaseNotManaged);
+            if (phaseId is not Guid id) throw new ValidationFailedException(Messages.ProjectRequisitionPhaseRequired);
+            // ملكية المرحلة: من مراحل هذا المشروع وحده
+            var phase = phasing.Phases.FirstOrDefault(p => p.Id == id) ?? throw new ValidationFailedException(Messages.ProjectRequisitionPhaseInvalid);
+            var cells = phasing.Cells[phase.Id];
+            var errors = new List<string>();
+            foreach (var g in lines.GroupBy(l => l.ItemId))
+            {
+                var name = names.GetValueOrDefault(g.Key, "?");
+                if (!cells.TryGetValue(g.Key, out var c) || c.Required <= 0)
+                {
+                    errors.Add(string.Format(Messages.ProjectRequisitionItemNotInPhase, name, phase.Name));
+                    continue;
+                }
+                var qty = g.Sum(l => l.Quantity);
+                if (qty > c.Remaining + 0.0001m)
+                    errors.Add(string.Format(Messages.ProjectRequisitionPhaseExceeds, name, phase.Name, Q(qty), Q(c.Remaining), Q(c.Required),
+                        Q(c.Requested), Q(c.ProjectInventory)));
+            }
+            if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+            if (phasing.IsFuture(phase)
+                && !await _permissions.HasPermissionAsync(PermissionCatalog.ProjectFuturePhasePurchaseScreenId, ScreenAction.Approve, ct))
+                throw new ForbiddenException(string.Format(Messages.ProjectRequisitionFuturePhase, phase.Name,
+                    phase.PlannedStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+        }
+        foreach (var row in guard) _db.Entry(row).Property(r => r.SortOrder).IsModified = true;
+    }
+
+    private static string Q(decimal v) => v.ToString("0.####", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// أسطر احتياجات المشروع لأصناف الطلب في كل المراحل (بالصنف المحفوظ أو بربط مادتها الحالي)، متتبَّعة برمز تزامنها. تُعلَّم معدَّلة
+    /// عند قبول الطلب فيتغيّر رمزها مع حفظه: طلبان متزامنان على الصنف لا يتجاوزان حده معاً (الثاني يُعاد على الأرقام الجديدة). كل
+    /// المراحل لا مرحلة الطلب وحدها، لأن طلب مرحلة يغيّر توزيع مخزون المشروع المشترك على غيرها.
+    /// </summary>
+    private async Task<List<ProjectMaterialRequirement>> GuardRowsAsync(Guid contractId, IEnumerable<Guid> itemIds, CancellationToken ct)
+    {
+        var ids = itemIds.Distinct().Select(i => (Guid?)i).ToList();
+        var resources = _db.Set<ConstructionResource>().Where(r => ids.Contains(r.ProductId)).Select(r => (Guid?)r.Id);
+        return await _db.Set<ProjectMaterialRequirement>()
+            .Where(r => r.ContractId == contractId && (ids.Contains(r.ProductId) || resources.Contains(r.ResourceId))).ToListAsync(ct);
     }
 
     // ---------------- مستندات الصرف ----------------

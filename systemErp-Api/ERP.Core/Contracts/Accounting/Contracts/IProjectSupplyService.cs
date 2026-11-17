@@ -10,7 +10,9 @@ namespace ERP.Core.Contracts.Accounting;
 public interface IProjectSupplyService
 {
     /// <param name="exceptRequisitionId">طلب شراء يُعدَّل: لا تُحسب كمياته في «ما طُلب سابقاً».</param>
-    Task<ProjectMaterialTrackingDto> TrackingAsync(Guid contractId, Guid? warehouseId = null, Guid? exceptRequisitionId = null, CancellationToken ct = default);
+    /// <param name="phaseId">مرحلة تنفيذ من المشروع: الأسطر مواد المرحلة وحدها بمطلوبها وما طُلب لها والمتبقي بعد مخزون المشروع.</param>
+    Task<ProjectMaterialTrackingDto> TrackingAsync(Guid contractId, Guid? warehouseId = null, Guid? exceptRequisitionId = null, Guid? phaseId = null,
+        CancellationToken ct = default);
     Task<List<ProjectMaterialIssueDocDto>> ListIssuesAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>
     /// أذونات التسليم لكل المشاريع (شاشة المستندات المستقلة): ترقيم وفلترة وفرز في SQL، والعقود من استعلام عام فيسري عليها نطاق
@@ -27,9 +29,13 @@ public interface IProjectSupplyService
     Task<List<ProjectBoqMaterialLineDto>> BoqMaterialsAsync(Guid contractId, CancellationToken ct = default);
 
     /// <summary>
-    /// حدود طلب شراء مرتبط بالمشروع: الاحتياجات معتمدة، وكل صنف ضمنها، ولا تتجاوز كميته المطلوب ناقص ما طُلب في طلبات المشروع الأخرى.
+    /// حدود طلب شراء مرتبط بالمشروع: الاحتياجات معتمدة، وكل صنف ضمنها. في مشروع موادُّه مسندة لمراحل: المرحلة إلزامية ومن المشروع نفسه،
+    /// والأصناف من مواد المرحلة، والكمية ≤ مطلوب المرحلة − ما طُلب لها − حصتها من مخزون المشروع، والمرحلة المستقبلية بصلاحيتها. وإلا
+    /// (أو طلب قديم بلا مرحلة مع <paramref name="allowWithoutPhase"/>): الكمية ≤ المطلوب − ما طُلب في طلبات المشروع الأخرى. يُعلّم أسطر
+    /// الاحتياج للحفظ برمز تزامنها، فيلزم أن يحفظ المستدعي داخل معاملة تُعاد عند التعارض.
     /// </summary>
-    Task EnsureRequisitionWithinPlanAsync(Guid contractId, Guid? requisitionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> lines, CancellationToken ct = default);
+    Task EnsureRequisitionWithinPlanAsync(Guid contractId, Guid? requisitionId, Guid? phaseId, bool allowWithoutPhase,
+        IReadOnlyList<(Guid ItemId, decimal Quantity)> lines, CancellationToken ct = default);
 
     // ---------- عهدة سند استلام المشروع (يستدعيها سند الاستلام داخل معاملته) ----------
     /// <summary>

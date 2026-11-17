@@ -328,6 +328,12 @@ public class ConstructionProjectService : IConstructionProjectService
             // استبدال كامل: المحفوظ بمعرّفه يُحدَّث، والجديد يُضاف، والغائب يُحذف مع بنوده
             var existing = await _db.Set<ProjectPhase>().Include(p => p.Items).Where(p => p.ContractId == contractId).ToListAsync(token);
             var keep = incoming.Where(p => p.Id.HasValue).Select(p => p.Id!.Value).ToHashSet();
+            // سجلات الشراء للمرحلة تبقى مرتبطة بها: المرحلة التي لها طلبات شراء لا تُحذف
+            var goneIds = existing.Where(p => !keep.Contains(p.Id)).Select(p => (Guid?)p.Id).ToList();
+            var used = await _db.Set<MaterialRequisition>().AsNoTracking()
+                .Where(r => r.ContractId == contractId && goneIds.Contains(r.PhaseId)).Select(r => r.PhaseId).FirstOrDefaultAsync(token);
+            if (used is Guid usedId)
+                throw new ConflictException(string.Format(Messages.ProjectPhaseHasRequisitions, existing.First(p => p.Id == usedId).Name));
             foreach (var gone in existing.Where(p => !keep.Contains(p.Id))) _db.Remove(gone);
             var order = 0;
             foreach (var p in incoming)
@@ -448,7 +454,7 @@ public class ConstructionProjectService : IConstructionProjectService
             RateBasis = r.RateBasis, Rate = r.Rate, FuelPerHour = r.FuelPerHour, MaintenancePerHour = r.MaintenancePerHour, OperatorPerHour = r.OperatorPerHour,
             ExtraCostPerHour = r.ExtraCostPerHour, HoursPerDay = r.HoursPerDay, DaysPerMonth = r.DaysPerMonth, OvertimeMultiplier = r.OvertimeMultiplier,
             RentalStart = r.RentalStart, RentalEnd = r.RentalEnd, IsActive = r.IsActive, Notes = r.Notes,
-            IdleBillingPercent = r.IdleBillingPercent, StandbyBillingPercent = r.StandbyBillingPercent,
+            IdleBillingPercent = r.IdleBillingPercent, StandbyBillingPercent = r.StandbyBillingPercent, EquipmentCostMethod = r.EquipmentCostMethod,
             HourlyCost = r.HourlyCost, OvertimeHourlyCost = r.OvertimeHourlyCost,
             OtherProjects = r.EmployeeId is Guid emp ? others.GetValueOrDefault(emp) ?? new List<string>() : new List<string>(),
             EquipmentId = links.GetValueOrDefault(r.Id)?.EquipmentId, EquipmentAssignmentId = links.GetValueOrDefault(r.Id)?.Id,
@@ -464,8 +470,9 @@ public class ConstructionProjectService : IConstructionProjectService
         if (resourceId is Guid linkedId) await EnsureNotFromEquipmentRegistryAsync(linkedId, ct);
         var errors = new List<string>();
         if (!ProjectResourceKinds.IsValid(d.Kind)) throw new ValidationFailedException(Messages.ProjectResourceKindInvalid);
-        // المملوكة تكلفتها بالساعة؛ والمهندس شهرياً افتراضاً
-        var basis = d.Kind == ProjectResourceKinds.OwnedEquipment ? ProjectRateBases.Hour : d.RateBasis?.Trim();
+        // المملوكة تكلفتها بالساعة؛ والمهندس شهرياً افتراضاً. المعدة من السجل بسعر داخلي: الإيجار الداخلي بأساسه (ساعة/يوم/شهر)
+        var registryRate = _fromEquipmentRegistry && d.EquipmentCostMethod == EquipmentCostMethods.InternalRate;
+        var basis = d.Kind == ProjectResourceKinds.OwnedEquipment && !registryRate ? ProjectRateBases.Hour : d.RateBasis?.Trim();
         if (!ProjectRateBases.IsValid(basis)) errors.Add(Messages.ProjectResourceBasisInvalid);
         if (d.Rate < 0 || d.FuelPerHour < 0 || d.MaintenancePerHour < 0 || d.OperatorPerHour < 0 || d.ExtraCostPerHour < 0)
             errors.Add(Messages.ProjectResourceCostNegative);
@@ -510,7 +517,9 @@ public class ConstructionProjectService : IConstructionProjectService
         var multiplier = d.OvertimeMultiplier ?? (ProjectResourceKinds.IsEquipment(d.Kind) ? 1m : 1.5m);
         var (hourly, overtime) = HourlyCost(basis ?? ProjectRateBases.Hour, rate, d.HoursPerDay, d.DaysPerMonth,
             d.FuelPerHour + d.MaintenancePerHour + d.OperatorPerHour + d.ExtraCostPerHour, multiplier);
-        if (errors.Count == 0 && hourly <= 0) errors.Add(Messages.ProjectResourceCostRequired);
+        // معدة السجل بطريقة الإهلاك: لا سعر ملكية بالساعة (حصتها من الإهلاك الفعلي توزَّع شهرياً)، فقد تكون تكلفة ساعتها صفراً
+        var depreciationMethod = _fromEquipmentRegistry && d.EquipmentCostMethod == EquipmentCostMethods.Depreciation;
+        if (errors.Count == 0 && hourly <= 0 && !depreciationMethod) errors.Add(Messages.ProjectResourceCostRequired);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         ProjectResource entity;
@@ -535,6 +544,8 @@ public class ConstructionProjectService : IConstructionProjectService
         entity.IdleBillingPercent = rented ? d.IdleBillingPercent ?? 100m : 100m;
         entity.StandbyBillingPercent = rented ? d.StandbyBillingPercent ?? 0m : 0m;
         entity.HourlyCost = hourly; entity.OvertimeHourlyCost = overtime; entity.IsActive = d.IsActive; entity.Notes = Trim(d.Notes, 500);
+        // لقطة طريقة التحميل من السجل وقت الإسناد (المورد اليدوي بلا طريقة: بسعره كما هو)
+        if (_fromEquipmentRegistry) entity.EquipmentCostMethod = d.EquipmentCostMethod;
         await _db.SaveChangesAsync(ct);
         return await ResourcesAsync(contractId, ct);
     }

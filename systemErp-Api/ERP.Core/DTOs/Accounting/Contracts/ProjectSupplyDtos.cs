@@ -19,6 +19,37 @@ public class ProjectMaterialTrackingDto
     /// <summary>مواد معتمدة لا تُحسب تغطيتها (بلا صنف أو بلا تحويل وحدة)، بتنبيهها.</summary>
     public List<ProjectMaterialUnverifiableDto> Unverifiable { get; set; } = new();
     public ProjectMaterialTrackingTotalsDto Totals { get; set; } = new();
+
+    // ---- الطلب حسب مراحل التنفيذ ----
+    /// <summary>المواد المعتمدة مسندة لمراحل: طلب الشراء الجديد يلزمه مرحلة، ويُقاس على مواد المرحلة وحدها.</summary>
+    public bool PhaseManaged { get; set; }
+    /// <summary>المرحلة المطلوبة في الاستعلام: <see cref="Lines"/> عندها مواد المرحلة وحدها بأرقامها.</summary>
+    public Guid? PhaseId { get; set; }
+    /// <summary>مراحل المشروع بترتيبها وحالتها وعدد موادها (للاختيار).</summary>
+    public List<ProjectSupplyPhaseDto> Phases { get; set; } = new();
+    /// <summary>مواد معتمدة بلا مرحلة في مشروع مراحله تدير الطلب: لا تُطلب حتى تُسند لمرحلة.</summary>
+    public int UnassignedMaterials { get; set; }
+    /// <summary>المستخدم الحالي يملك صلاحية الشراء لمرحلة مستقبلية.</summary>
+    public bool CanPurchaseFuturePhases { get; set; }
+}
+
+/// <summary>
+/// مرحلة تنفيذ للطلب: المستقبلية = لم يحن تاريخ بدايتها وليست من أوائل المراحل (أوائل المراحل مفتوحة للتجهيز قبل البدء). الشراء
+/// لها يحتاج صلاحية «الشراء لمرحلة مستقبلية». المراحل السابقة تبقى مفتوحة لما بقي من موادها.
+/// </summary>
+public class ProjectSupplyPhaseDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public DateTime PlannedStart { get; set; }
+    public DateTime PlannedEnd { get; set; }
+    /// <summary>upcoming | current | completed حسب التواريخ المخططة واليوم.</summary>
+    public string State { get; set; } = "upcoming";
+    public bool IsFuture { get; set; }
+    /// <summary>مواد المرحلة المعتمدة (أصناف)، ومنها ما بقي له متبقٍ للطلب.</summary>
+    public int MaterialCount { get; set; }
+    public int RequestableCount { get; set; }
 }
 
 public class ProjectMaterialTrackingLineDto
@@ -71,6 +102,11 @@ public class ProjectMaterialTrackingLineDto
     /// <summary><see cref="MaterialCoverageStatuses"/>: الرصيد الحالي مقابل المتبقي للتسليم.</summary>
     public string CoverageStatus { get; set; } = MaterialCoverageStatuses.Unverifiable;
     public List<ProjectSupplyAlertDto> Alerts { get; set; } = new();
+    /// <summary>
+    /// سطر مرحلة: ما يغطيه مخزون المشروع (المسلَّم للموقع من المستودع العام) وطلباته السابقة غير المرتبطة بمرحلة، موزّعاً على المراحل
+    /// بترتيبها. يُطرح من مطلوب المرحلة قبل المتبقي للطلب.
+    /// </summary>
+    public decimal ProjectInventoryQuantity { get; set; }
 }
 
 /// <summary>حالة تغطية المادة من رصيد المستودع.</summary>

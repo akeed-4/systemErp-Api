@@ -22,9 +22,12 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
     private readonly ITransactionRunner _tx;
     private readonly IAccountingPostingService _posting;
     private readonly IAuditService _audit;
+    private readonly IEquipmentCostAllocationService _equipmentCost;
 
-    public FixedAssetDepreciationService(ErpDbContext db, ICurrentUser user, ITransactionRunner tx, IAccountingPostingService posting, IAuditService audit)
+    public FixedAssetDepreciationService(ErpDbContext db, ICurrentUser user, ITransactionRunner tx, IAccountingPostingService posting, IAuditService audit,
+        IEquipmentCostAllocationService equipmentCost)
     {
+        _equipmentCost = equipmentCost;
         _db = db; _user = user; _tx = tx; _posting = posting; _audit = audit;
     }
 
@@ -94,6 +97,9 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
                 throw new ConflictException(Messages.DepreciationPostedConcurrently); // الفهرس الفريد (الأصل + الفترة)
             }
 
+            // معدات «طريقة الإهلاك»: يُوزَّع إهلاك الفترة الفعلي على المشاريع بساعاتها (القيد أعلاه على مركز الأصل لا يتغير)
+            foreach (var p in ready) await _equipmentCost.ReallocateAsync(p.Line.FixedAssetId, period, token);
+
             await _audit.LogAsync("DEPRECIATION_POSTED", nameof(FixedAsset), period,
                 $"ترحيل إهلاك الفترة {period}: {ready.Count} أصل بمبلغ {ready.Sum(p => p.Line.Amount):0.00}، القيد {journal.EntryNumber}", token);
 
@@ -132,6 +138,8 @@ public class FixedAssetDepreciationService : IFixedAssetDepreciationService
             _db.RemoveRange(records);
             await _db.SaveChangesAsync(token);
             await _posting.ReverseAsync(journalEntryId, $"عكس إهلاك الفترة {period}", token);
+            // حصص المشاريع من الإهلاك المعكوس تُعكس بالفرق (لا إهلاك للفترة الآن)
+            foreach (var assetId in assetIds) await _equipmentCost.ReallocateAsync(assetId, period, token);
             await _audit.LogAsync("DEPRECIATION_REVERSED", nameof(FixedAsset), period,
                 $"عكس إهلاك الفترة {period}: {records.Count} أصل بمبلغ {records.Sum(d => d.Amount):0.00}", token);
         }, ct);

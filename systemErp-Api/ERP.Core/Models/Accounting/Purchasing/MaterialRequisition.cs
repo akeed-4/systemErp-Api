@@ -21,6 +21,12 @@ public class MaterialRequisition : BaseEntity, IScopedRecord
     
     /// <summary>المشروع (عقد مقاولات) الذي يُطلب له: كمياته تُقارن باحتياجات المشروع المعتمدة وما طُلب سابقاً.</summary>
     public Guid? ContractId { get; set; }
+    /// <summary>
+    /// مرحلة التنفيذ التي يُطلب لها (<see cref="ProjectPhase"/> من المشروع نفسه؛ بلا قيد كبقية مراجع المراحل، وحذف المرحلة يُمنع ما دام لها
+    /// طلبات). إلزامية لطلب جديد في مشروع موادُّه المعتمدة مسندة لمراحل، وتثبت بعد الإنشاء فلا يغيّر تقدم المراحل سجلات المراحل السابقة.
+    /// فارغة في الطلبات القديمة وفي مشروع بلا مراحل (تُقاس على المشروع كله).
+    /// </summary>
+    public Guid? PhaseId { get; set; }
     /// <summary>موقع التوريد (<see cref="RequisitionDeliveryLocations"/>): المستودع، أو موقع المشروع مباشرة.</summary>
     public string DeliveryLocation { get; set; } = RequisitionDeliveryLocations.Warehouse;
     /// <summary>عنوان موقع التوريد (موقع المشروع افتراضياً).</summary>

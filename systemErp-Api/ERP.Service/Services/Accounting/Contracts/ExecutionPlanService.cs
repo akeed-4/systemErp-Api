@@ -219,8 +219,11 @@ public class ExecutionPlanService : IExecutionPlanService
         Dictionary<Guid, decimal> lineHours, CancellationToken ct)
     {
         var existing = await _db.Set<ProjectPhase>().Include(p => p.Items).Where(p => p.ContractId == contract.Id).OrderBy(p => p.SortOrder).ToListAsync(ct);
-        var kept = existing.Where(p => p.Source != Src.Derived).ToList();
-        _db.RemoveRange(existing.Where(p => p.Source == Src.Derived));
+        // المرحلة المولَّدة التي لها طلبات شراء تبقى كالمعدّلة (لا تُستبدل): سجلات الشراء السابقة تبقى على مرحلتها
+        var purchased = (await _db.Set<MaterialRequisition>().AsNoTracking()
+            .Where(r => r.ContractId == contract.Id && r.PhaseId != null).Select(r => r.PhaseId!.Value).Distinct().ToListAsync(ct)).ToHashSet();
+        var kept = existing.Where(p => p.Source != Src.Derived || purchased.Contains(p.Id)).ToList();
+        _db.RemoveRange(existing.Where(p => p.Source == Src.Derived && !purchased.Contains(p.Id)));
         var phaseOfLine = new Dictionary<Guid, Guid>();
         foreach (var p in kept) foreach (var i in p.Items) phaseOfLine[i.ContractItemId] = p.Id;
 

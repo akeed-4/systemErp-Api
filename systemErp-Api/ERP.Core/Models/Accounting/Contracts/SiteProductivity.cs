@@ -69,6 +69,11 @@ public class ProjectResource : BaseEntity
     /// </summary>
     public decimal IdleBillingPercent { get; set; } = 100m;
     public decimal StandbyBillingPercent { get; set; }
+    /// <summary>
+    /// طريقة تحميل الآلية من سجل المعدات وقت الإسناد (<see cref="EquipmentCostMethods"/>). بطريقة الإهلاك لا سعر ملكية في تكلفة الساعة
+    /// وحصتها من الإهلاك الفعلي يوزّعها <see cref="EquipmentDepreciationAllocation"/>. فارغة للمورد اليدوي والقديم (بسعره كما هو).
+    /// </summary>
+    public string? EquipmentCostMethod { get; set; }
 
     /// <summary>محسوبة عند الحفظ.</summary>
     public decimal HourlyCost { get; set; }

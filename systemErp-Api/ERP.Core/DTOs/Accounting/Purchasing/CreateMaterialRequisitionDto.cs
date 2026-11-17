@@ -14,6 +14,8 @@ public partial class CreateMaterialRequisitionDto
     public string? WarehouseName { get; set; }
     /// <summary>المشروع (عقد مقاولات): الكميات تُقارن باحتياجاته المعتمدة وما طُلب سابقاً.</summary>
     public Guid? ContractId { get; set; }
+    /// <summary>مرحلة التنفيذ (إلزامية لطلب جديد في مشروع موادُّه مسندة لمراحل؛ تثبت بعد الإنشاء).</summary>
+    public Guid? PhaseId { get; set; }
     /// <summary>warehouse | project_site</summary>
     public string? DeliveryLocation { get; set; }
     public string? DeliveryAddress { get; set; }

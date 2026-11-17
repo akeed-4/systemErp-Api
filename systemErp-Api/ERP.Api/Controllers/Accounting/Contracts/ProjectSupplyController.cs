@@ -22,10 +22,11 @@ public class ProjectSupplyController : ErpControllerBase
 
     public ProjectSupplyController(IProjectSupplyService supply) => _supply = supply;
 
-    /// <summary>متابعة مواد المشروع لكل صنف (الرصيد في مستودع محدد أو مستودع المشروع).</summary>
+    /// <summary>متابعة مواد المشروع لكل صنف (الرصيد في مستودع محدد أو مستودع المشروع)، أو مواد مرحلة تنفيذ واحدة بـ <c>phaseId</c>.</summary>
     [HttpGet("material-tracking"), RequireScreen(Projects, ScreenAction.View)]
-    public async Task<IActionResult> Tracking(Guid id, [FromQuery] Guid? warehouseId, [FromQuery] Guid? exceptRequisitionId, CancellationToken ct)
-        => Success(await _supply.TrackingAsync(id, warehouseId, exceptRequisitionId, ct));
+    public async Task<IActionResult> Tracking(Guid id, [FromQuery] Guid? warehouseId, [FromQuery] Guid? exceptRequisitionId, [FromQuery] Guid? phaseId,
+        CancellationToken ct)
+        => Success(await _supply.TrackingAsync(id, warehouseId, exceptRequisitionId, phaseId, ct));
 
     /// <summary>مواد كل بند في جدول الكميات (المخطط، المسلَّم وتكلفته، المختار في المستخلصات، المتبقي تحت التنفيذ).</summary>
     [HttpGet("material-tracking/boq"), RequireScreen(Projects, ScreenAction.View)]

@@ -271,6 +271,15 @@ public class ConstructionProjectsIndexController : ErpControllerBase
     [HttpGet, RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.View)]
     public async Task<IActionResult> List(CancellationToken ct) => Success(await _projects.ListAsync(ct));
 
+    /// <summary>
+    /// تحليل أداء المشاريع للإدارة في فترة (افتراضاً آخر 30 يوماً حتى اليوم): الإنتاجية والعمالة والمعدات والمراحل والتوقع والموقف
+    /// المالي والتنبيهات بإجراءاتها. اختيارياً مشروع واحد (<paramref name="contractId"/>) ومرحلة منه (<paramref name="phaseId"/>).
+    /// </summary>
+    [HttpGet("performance"), RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.View)]
+    public async Task<IActionResult> Performance([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] Guid? contractId, [FromQuery] Guid? phaseId,
+        [FromServices] IProjectPerformanceService performance, CancellationToken ct)
+        => Success(await performance.AnalyzeAsync(from, to, contractId, phaseId, ct));
+
     /// <summary>مشاريع التقرير اليومي بصلاحيته وحدها (في نطاق المستخدم): الهوية فقط بلا أرقام مالية.</summary>
     [HttpGet("site-report-projects"), RequireScreen(PermissionCatalog.SiteDailyReportsScreenId, ScreenAction.View)]
     public async Task<IActionResult> SiteReportProjects(CancellationToken ct)

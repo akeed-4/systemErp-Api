@@ -219,6 +219,9 @@ public class ErpDbContext : DbContext
         (typeof(EquipmentMaintenanceOrder), nameof(EquipmentMaintenanceOrder.WarehouseId), typeof(Warehouse)),
         (typeof(EquipmentMaintenancePart), nameof(EquipmentMaintenancePart.ProductId), typeof(Product)),
         (typeof(EquipmentRentalContract), nameof(EquipmentRentalContract.EquipmentId), typeof(Equipment)),
+        (typeof(EquipmentDepreciationAllocation), nameof(EquipmentDepreciationAllocation.EquipmentId), typeof(Equipment)),
+        (typeof(EquipmentDepreciationAllocation), nameof(EquipmentDepreciationAllocation.FixedAssetId), typeof(FixedAsset)),
+        (typeof(EquipmentDepreciationAllocation), nameof(EquipmentDepreciationAllocation.ContractId), typeof(CommercialContract)),
         (typeof(EquipmentRentalContract), nameof(EquipmentRentalContract.SupplierId), typeof(Supplier)),
         // ContractInvoice.InvoiceId: الفاتورة في أحد جداول InvoiceBase (TPC)، فلا قيد قاعدة بيانات عليه.
     };
@@ -649,6 +652,7 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<ProjectResource>(e =>
         {
             e.Property(r => r.Kind).HasMaxLength(32).IsRequired();
+            e.Property(r => r.EquipmentCostMethod).HasMaxLength(20);
             e.Property(r => r.Name).HasMaxLength(200).IsRequired();
             e.Property(r => r.Code).HasMaxLength(50);
             e.Property(r => r.Category).HasMaxLength(100);
@@ -722,6 +726,7 @@ public class ErpDbContext : DbContext
             e.Property(x => x.Capacity).HasMaxLength(100);
             e.Property(x => x.Specifications).HasMaxLength(1000);
             e.Property(x => x.Ownership).HasMaxLength(16).IsRequired();
+            e.Property(x => x.CostMethod).HasMaxLength(20).IsRequired().HasDefaultValue(EquipmentCostMethods.InternalRate);
             e.Property(x => x.Status).HasMaxLength(20).IsRequired();
             e.Property(x => x.RateBasis).HasMaxLength(16).IsRequired();
             e.Property(x => x.Notes).HasMaxLength(1000);
@@ -768,6 +773,15 @@ public class ErpDbContext : DbContext
             e.Property(x => x.ItemName).HasMaxLength(300).IsRequired();
             e.Property(x => x.Sku).HasMaxLength(100);
             e.Property(x => x.Unit).HasMaxLength(50);
+        });
+        // حصص الإهلاك الفعلي الموزّعة على المشاريع: سطر لكل أصل وفترة ومشروع
+        modelBuilder.Entity<EquipmentDepreciationAllocation>(e =>
+        {
+            e.Property(x => x.Period).HasMaxLength(7).IsRequired();
+            e.Property(x => x.Hours).HasPrecision(18, 4);
+            e.Property(x => x.BasisHours).HasPrecision(18, 4);
+            e.HasIndex(x => new { x.TenantId, x.FixedAssetId, x.Period, x.ContractId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.Period });
         });
         modelBuilder.Entity<EquipmentRentalContract>(e =>
         {
@@ -1166,6 +1180,8 @@ public class ErpDbContext : DbContext
         });
         modelBuilder.Entity<MaterialRequisition>().Property(r => r.DeliveryLocation).HasMaxLength(20).HasDefaultValue(RequisitionDeliveryLocations.Warehouse);
         modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.ContractId });
+        // مرحلة الطلب: مرجع بلا قيد (كاحتياجات المواد)، والفهرس لحساب ما طُلب لكل مرحلة ولمنع حذف مرحلة لها طلبات
+        modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.PhaseId });
         modelBuilder.Entity<ProductionOrderLine>(e =>
         {
             e.Property(l => l.Kind).HasMaxLength(16).IsRequired();

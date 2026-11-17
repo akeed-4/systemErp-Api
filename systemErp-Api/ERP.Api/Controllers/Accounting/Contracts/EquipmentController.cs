@@ -54,6 +54,14 @@ public class EquipmentController : ErpControllerBase
     public async Task<IActionResult> CostReport([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
         => Success(await _equipment.CostReportAsync(from, to, ct));
 
+    /// <summary>
+    /// إعادة توزيع الإهلاك الفعلي لمعدات «طريقة الإهلاك» على المشاريع لفترة (yyyy-MM) بالفرق عمّا رُحِّل (بعد تصحيحات متأخرة)؛ يتم آلياً
+    /// عند ترحيل الإهلاك وعكسه واعتماد التقارير. يرحّل قيوداً فيحتاج صلاحية الترحيل.
+    /// </summary>
+    [HttpPost("depreciation-allocation"), RequireScreen(Screen, ScreenAction.Post)]
+    public async Task<IActionResult> ReallocateDepreciation([FromQuery] string period, [FromServices] IEquipmentCostAllocationService allocation, CancellationToken ct)
+        => Success(new { assets = await allocation.ReallocatePeriodAsync(period, ct) });
+
     // ---------- الإسناد (الإسناد والتحويل والإرجاع = تعديل حالة المعدة) ----------
 
     [HttpGet("assignments"), RequireScreen(Screen, ScreenAction.View)]

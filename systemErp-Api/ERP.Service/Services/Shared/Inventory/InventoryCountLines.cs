@@ -1,4 +1,5 @@
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 
 namespace ERP.Service.Services.Shared;
 
@@ -23,7 +24,46 @@ internal static class InventoryCountLines
     private static bool InScope(Guid? countWarehouseId, string? countLocation, Vehicle v, Guid? defaultWarehouseId)
         => countWarehouseId.HasValue ? (v.WarehouseId ?? defaultWarehouseId) == countWarehouseId : SameLocation(countLocation, v.Location);
 
-    private static Task<Guid?> DefaultWarehouseIdAsync(ErpDbContext db, CancellationToken ct)
+    /// <summary>
+    /// جرد آخر المدة للأصناف بلا مستودع يشمل كل المستودعات (رصيد النظام مجموعها)؛ وأي جرد أصناف آخر على مستودع واحد
+    /// يُثبَّت على المستند عند الحفظ، فلا يتغير بين الإرسال والاعتماد بتغيّر موقع جلسة المستخدم.
+    /// </summary>
+    public static bool CoversAllWarehouses(InventoryCountScope scope, InventoryCountType type, Guid? warehouseId)
+        => scope == InventoryCountScope.Items && type == InventoryCountType.Periodic && warehouseId == null;
+
+    public static bool CoversAllWarehouses(InventoryCount count) => CoversAllWarehouses(count.Scope, count.CountType, count.WarehouseId);
+
+    /// <summary>تكلفة وحدة الزيادة كما يسجّلها محرك المخزون: المعيارية في سياستها، وإلا متوسط التكلفة.</summary>
+    public static decimal SurplusUnitCost(Product p, CostingPolicy policy)
+        => policy.Method == CostingMethod.Standard && p.StandardCost.HasValue ? p.StandardCost.Value : p.AverageCost;
+
+    /// <summary>
+    /// شروط لا تُفحص إلا عند الإرسال (العدّ قد يكون جارياً عند الحفظ): جرد آخر المدة في الدوري بلا مستودع، والزيادة على صنف متتبَّع
+    /// برقم تشغيلة، والزيادة بتكلفة غير صفرية (وإلا دخلت الكمية بلا قيمة ولا قيد).
+    /// </summary>
+    public static async Task EnsureSubmittableAsync(ErpDbContext db, InventoryCount count, CancellationToken ct)
+    {
+        if (count.Scope != InventoryCountScope.Items) return;
+        if (count.CountType == InventoryCountType.Periodic && count.WarehouseId != null
+            && (await PostingAccounts.SettingsAsync(db, ct)).IsPeriodic(SaudiTime.Today))
+            throw new ValidationFailedException(Messages.PeriodicCountMustCoverAllWarehouses);
+
+        var surplus = count.Lines.Where(l => l.VarianceQuantity > 0).ToList();
+        if (surplus.Count == 0) return;
+        var ids = surplus.Select(l => l.ItemId!.Value).Distinct().ToList();
+        var products = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var policy = await db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
+        foreach (var line in surplus)
+        {
+            var p = products[line.ItemId!.Value];
+            if (p.TracksLots && line.ItemBatchId == null && string.IsNullOrWhiteSpace(line.BatchNumber))
+                throw new ValidationFailedException(string.Format(p.TrackBatches ? Messages.BatchNumberRequired : Messages.ExpiryDateRequired, p.NameAr));
+            if (SurplusUnitCost(p, policy) <= 0)
+                throw new ValidationFailedException(string.Format(Messages.CountSurplusRequiresCost, p.NameAr));
+        }
+    }
+
+    internal static Task<Guid?> DefaultWarehouseIdAsync(ErpDbContext db, CancellationToken ct)
         => db.Set<Warehouse>().AsNoTracking().OrderByDescending(w => w.IsDefault).ThenBy(w => w.CreatedAt).Select(w => (Guid?)w.Id).FirstOrDefaultAsync(ct);
 
     public static string Describe(Vehicle v) => $"{v.BrandNameAr} {v.ModelNameAr} {v.Year}".Trim();
@@ -40,8 +80,9 @@ internal static class InventoryCountLines
     {
         var ids = count.Lines.Select(l => l.ItemId!.Value).Distinct().ToList();
         var products = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var onHand = await WarehouseQuantitiesAsync(db, count.WarehouseId, ct);
-        var batchOnHand = await BatchQuantitiesAsync(db, count.WarehouseId, ct);
+        var all = CoversAllWarehouses(count);
+        var onHand = await WarehouseQuantitiesAsync(db, count.WarehouseId, all, ct);
+        var batchOnHand = await BatchQuantitiesAsync(db, count.WarehouseId, all, ct);
         var batchIds = count.Lines.Where(l => l.ItemBatchId.HasValue).Select(l => l.ItemBatchId!.Value).Distinct().ToList();
         var batches = await db.Set<ItemBatch>().AsNoTracking().Where(b => batchIds.Contains(b.Id) || ids.Contains(b.ItemId)).ToListAsync(ct);
         foreach (var line in count.Lines)
@@ -49,10 +90,15 @@ internal static class InventoryCountLines
             var p = products.GetValueOrDefault(line.ItemId!.Value) ?? throw new ValidationFailedException(Messages.ItemNotFoundInCountLines);
             line.Sku = p.Sku; line.ItemName = p.NameAr; line.Unit = p.Unit;
             line.SystemQuantity = onHand.GetValueOrDefault(p.Id);
-            if (p.TrackBatches)
+            if (p.TracksLots)
             {
                 // تشغيلة جديدة معثور عليها برقم قائم تُربط به؛ ورصيد النظام رصيد التشغيلة (صفر للجديدة)، والسطر بلا تشغيلة برصيد الصنف كله
                 var number = line.BatchNumber?.Trim();
+                // «صلاحية فقط»: التشغيلة بتاريخها (القائمة بالتاريخ نفسه، وإلا رقم مولَّد منه)
+                if (string.IsNullOrEmpty(number) && line.ItemBatchId == null && !p.TrackBatches && line.ExpiryDate is { } expiry)
+                    number = batches.Where(b => b.ItemId == p.Id && b.ExpiryDate == expiry.Date && b.BatchNumber.StartsWith(ItemBatches.ExpiryPrefix))
+                                 .OrderBy(b => b.CreatedAt).Select(b => b.BatchNumber).FirstOrDefault()
+                             ?? ItemBatches.ExpiryBatchNumber(expiry.Date);
                 var batch = line.ItemBatchId is { } bid ? batches.FirstOrDefault(b => b.Id == bid && b.ItemId == p.Id)
                     : string.IsNullOrEmpty(number) ? null : batches.FirstOrDefault(b => b.ItemId == p.Id && b.BatchNumber == number);
                 if (batch != null)
@@ -64,6 +110,7 @@ internal static class InventoryCountLines
                 {
                     line.ItemBatchId = null; line.BatchNumber = number; line.SystemQuantity = 0;
                 }
+                else { line.ItemBatchId = null; line.BatchNumber = null; line.ExpiryDate = null; } // معرّف تشغيلة لا يخص الصنف: سطر بلا تشغيلة
             }
             else { line.ItemBatchId = null; line.BatchNumber = null; line.ExpiryDate = null; }
             line.UnitCost = p.AverageCost;
@@ -75,6 +122,15 @@ internal static class InventoryCountLines
                 < 0 => InventoryCountLineResolution.StockOut,
                 _ => InventoryCountLineResolution.None,
             };
+        }
+
+        // بعد ربط التشغيلات: السطر بلا تشغيلة يقارَن برصيد الصنف كله فلا يجتمع مع سطر آخر للصنف، ولا تتكرر التشغيلة
+        // (بمعرّفها في سطر وبرقمها في آخر) — وإلا احتُسب الرصيد مرتين وظهرت فروق وهمية
+        foreach (var g in count.Lines.GroupBy(l => l.ItemId))
+        {
+            var mixed = g.Count() > 1 && g.Any(l => l.ItemBatchId == null && l.BatchNumber == null);
+            var repeated = g.GroupBy(l => (l.ItemBatchId, Number: l.ItemBatchId == null ? l.BatchNumber : null)).Any(x => x.Count() > 1);
+            if (mixed || repeated) throw new ValidationFailedException(string.Format(Messages.DuplicateItemBatchInCount, g.First().ItemName));
         }
     }
 
@@ -121,19 +177,31 @@ internal static class InventoryCountLines
         count.NetVarianceValue = count.TotalSurplusValue - count.TotalShortageValue;
     }
 
-    /// <summary>أرصدة الأصناف في المستودع المجرود (الافتراضي عند عدم التحديد): الجرد يقارن بما في مستودعه لا بإجمالي المنشأة.</summary>
-    private static async Task<Dictionary<Guid, decimal>> WarehouseQuantitiesAsync(ErpDbContext db, Guid? warehouseId, CancellationToken ct)
+    /// <summary>
+    /// أرصدة الأصناف في المستودع المجرود (الافتراضي عند عدم التحديد): الجرد يقارن بما في مستودعه لا بإجمالي المنشأة،
+    /// إلا جرد كل المستودعات فيقارن بمجموعها.
+    /// </summary>
+    private static async Task<Dictionary<Guid, decimal>> WarehouseQuantitiesAsync(ErpDbContext db, Guid? warehouseId, bool allWarehouses, CancellationToken ct)
     {
-        var warehouse = await WarehouseStocks.ResolveAsync(db, warehouseId, ct);
-        return await db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == warehouse.Id).ToDictionaryAsync(s => s.ItemId, s => s.Quantity, ct);
+        var q = db.Set<WarehouseStock>().AsNoTracking();
+        if (!allWarehouses)
+        {
+            var warehouse = await WarehouseStocks.ResolveAsync(db, warehouseId, ct);
+            q = q.Where(s => s.WarehouseId == warehouse.Id);
+        }
+        return await q.GroupBy(s => s.ItemId).Select(g => new { g.Key, Qty = g.Sum(s => s.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
     }
 
-    /// <summary>أرصدة التشغيلات في المستودع المجرود.</summary>
-    private static async Task<Dictionary<Guid, decimal>> BatchQuantitiesAsync(ErpDbContext db, Guid? warehouseId, CancellationToken ct)
+    /// <summary>أرصدة التشغيلات في المستودع المجرود (أو كل المستودعات).</summary>
+    private static async Task<Dictionary<Guid, decimal>> BatchQuantitiesAsync(ErpDbContext db, Guid? warehouseId, bool allWarehouses, CancellationToken ct)
     {
-        var warehouse = await WarehouseStocks.ResolveAsync(db, warehouseId, ct);
-        return await db.Set<BatchStock>().AsNoTracking().Where(s => s.WarehouseId == warehouse.Id)
-            .GroupBy(s => s.ItemBatchId).Select(g => new { g.Key, Qty = g.Sum(s => s.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var q = db.Set<BatchStock>().AsNoTracking();
+        if (!allWarehouses)
+        {
+            var warehouse = await WarehouseStocks.ResolveAsync(db, warehouseId, ct);
+            q = q.Where(s => s.WarehouseId == warehouse.Id);
+        }
+        return await q.GroupBy(s => s.ItemBatchId).Select(g => new { g.Key, Qty = g.Sum(s => s.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
     }
 
     /// <summary>قائمة المتوقَّع من رصيد النظام الحالي لتجهيز جرد جديد (الصنف المتتبَّع: سطر لكل تشغيلة برصيدها).</summary>
@@ -144,17 +212,18 @@ internal static class InventoryCountLines
             // الجرد للأصناف ذات الرصيد: الخدمي والمجمّع والمركّب بلا وجود مخزني
             var q = db.Set<Product>().AsNoTracking().Where(p => p.ItemType == ProductItemTypes.Stock || p.ItemType == ProductItemTypes.Manufactured);
             if (!string.IsNullOrWhiteSpace(r.Category)) q = q.Where(p => p.Category == r.Category);
-            var onHand = await WarehouseQuantitiesAsync(db, r.WarehouseId, ct);
-            var batchOnHand = await BatchQuantitiesAsync(db, r.WarehouseId, ct);
+            var all = CoversAllWarehouses(r.Scope, r.CountType ?? InventoryCountType.Full, r.WarehouseId);
+            var onHand = await WarehouseQuantitiesAsync(db, r.WarehouseId, all, ct);
+            var batchOnHand = await BatchQuantitiesAsync(db, r.WarehouseId, all, ct);
             var products = (await q.OrderBy(p => p.Sku).ToListAsync(ct)).Where(p => r.IncludeZeroStock || onHand.GetValueOrDefault(p.Id) != 0).ToList();
-            var trackedIds = products.Where(p => p.TrackBatches).Select(p => p.Id).ToList();
+            var trackedIds = products.Where(p => p.TracksLots).Select(p => p.Id).ToList();
             var batches = (await db.Set<ItemBatch>().AsNoTracking().Where(b => trackedIds.Contains(b.ItemId)).ToListAsync(ct))
                 .Where(b => batchOnHand.GetValueOrDefault(b.Id) != 0)
                 .OrderBy(b => b.ExpiryDate == null).ThenBy(b => b.ExpiryDate).ThenBy(b => b.BatchNumber).ToLookup(b => b.ItemId);
             var lines = new List<InventoryCountLineDto>();
             foreach (var p in products)
             {
-                if (p.TrackBatches && batches[p.Id].Any())
+                if (p.TracksLots && batches[p.Id].Any())
                     lines.AddRange(batches[p.Id].Select(b => new InventoryCountLineDto
                     {
                         ItemId = p.Id, Sku = p.Sku, ItemName = p.NameAr, Unit = p.Unit, ItemBatchId = b.Id, BatchNumber = b.BatchNumber, ExpiryDate = b.ExpiryDate,

@@ -1234,7 +1234,7 @@ public class TradeInvoiceEngine
             line.OriginalInvoiceItemId = src.OriginalInvoiceItemId;
             line.RevenueAccountCode = isSales && !string.IsNullOrWhiteSpace(src.RevenueAccountCode) ? src.RevenueAccountCode.Trim() : null;
             // التشغيلة للصنف المتتبَّع فقط (يُخصِّصها الترحيل ويكتب ما خُصِّص فعلاً)
-            if (p?.TrackBatches == true)
+            if (p?.TracksLots == true)
             {
                 line.ItemBatchId = src.ItemBatchId;
                 line.BatchNumber = string.IsNullOrWhiteSpace(src.BatchNumber) ? null : src.BatchNumber.Trim();

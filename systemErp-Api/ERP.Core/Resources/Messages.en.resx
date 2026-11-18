@@ -337,6 +337,8 @@
   <data name="DraftPurchaseInvoiceCreated" xml:space="preserve"><value>Draft purchase invoice created</value></data>
   <data name="DuplicateItemInAgreement" xml:space="preserve"><value>The item is duplicated in the agreement lines.</value></data>
   <data name="DuplicateItemInCount" xml:space="preserve"><value>The item is duplicated in the count lines.</value></data>
+  <data name="DuplicateItemBatchInCount" xml:space="preserve"><value>Item "{0}" is repeated in the count lines: a line without a batch cannot be combined with other lines of the item, and a batch cannot repeat.</value></data>
+  <data name="CountSurplusRequiresCost" xml:space="preserve"><value>Item "{0}" has no cost: set its cost before approving a count surplus on it, otherwise the quantity enters with no value.</value></data>
   <data name="DuplicateVinInCount" xml:space="preserve"><value>The chassis number is duplicated in the count lines.</value></data>
   <data name="DuplicateVinsInRequest" xml:space="preserve"><value>Chassis numbers are duplicated in the request.</value></data>
   <data name="EmailAlreadyRegistered" xml:space="preserve"><value>This email address is already registered.</value></data>
@@ -1560,6 +1562,9 @@
   <data name="AnnouncementLinkInvalid" xml:space="preserve"><value>The announcement button link must be an internal path starting with / or an https link, with a button label.</value></data>
   <data name="AnnouncementTenantUnknown" xml:space="preserve"><value>One of the companies selected for the announcement does not exist.</value></data>
   <data name="BatchNumberRequired" xml:space="preserve"><value>Item "{0}" is batch-tracked: enter the batch number on its line.</value></data>
+  <data name="ExpiryDateRequired" xml:space="preserve"><value>Item "{0}" is tracked by expiry: enter the expiry date on its line.</value></data>
+  <data name="BatchDatesLockedAfterMovements" xml:space="preserve"><value>Batch {0} has stock movements: correcting its production or expiry date requires the "Correct Dates of a Batch with Movements" permission.</value></data>
+  <data name="ExpiryBatchAlreadyExists" xml:space="preserve"><value>Item "{0}" already has another batch expiring on {1}: an expiry-tracked item cannot have two batches with the same date.</value></data>
   <data name="BatchExpiryRequired" xml:space="preserve"><value>Item "{0}" requires an expiry date for batch "{1}".</value></data>
   <data name="BatchExpiryMismatch" xml:space="preserve"><value>Batch "{1}" of "{0}" is recorded with expiry {2}, which differs from the entered {3}.</value></data>
   <data name="BatchDatesInvalid" xml:space="preserve"><value>The production date of batch "{0}" is after its expiry date.</value></data>

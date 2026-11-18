@@ -182,7 +182,7 @@ public class ProductionOrderService : IProductionOrderService
         order.WarehouseId = finishedWarehouse.Id;
         order.CostCenterId = r.CostCenterId;
         order.Notes = string.IsNullOrWhiteSpace(r.Notes) ? null : r.Notes.Trim();
-        if (product.TrackBatches)
+        if (product.TracksLots)
         {
             order.BatchNumber = string.IsNullOrWhiteSpace(r.BatchNumber) ? null : r.BatchNumber.Trim();
             order.ProductionDate = (r.ProductionDate ?? order.Date).Date;

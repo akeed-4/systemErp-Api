@@ -175,21 +175,46 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         // بضاعة آخر المدة قيمة المخزون كله: الجرد الدوري يشمل كل المستودعات
         if (periodic && count.CountType == InventoryCountType.Periodic && count.WarehouseId != null)
             throw new ValidationFailedException(Messages.PeriodicCountMustCoverAllWarehouses);
+        var all = InventoryCountLines.CoversAllWarehouses(count);
+        // المستودع المسجّل على المستند؛ وجرد كل المستودعات: الزيادة للمستودع الافتراضي (لا لموقع جلسة المعتمِد)
+        var target = await WarehouseStocks.ResolveAsync(_db,
+            count.WarehouseId ?? (all ? await InventoryCountLines.DefaultWarehouseIdAsync(_db, ct) : null), ct);
+        var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
+        var values = new List<(string Account, decimal Value)>();
+
         foreach (var line in count.Lines.Where(l => l.VarianceQuantity != 0))
         {
             var isIn = line.VarianceQuantity > 0;
-            var unitCost = isIn ? await _db.Set<Product>().Where(p => p.Id == line.ItemId).Select(p => p.AverageCost).FirstAsync(ct) : 0;
-            var movement = await _inventory.RecordMovementAsync(new RecordStockMovementDto
+            var quantity = Math.Abs(line.VarianceQuantity);
+            var unitCost = 0m;
+            if (isIn)
             {
-                ItemId = line.ItemId!.Value, WarehouseId = count.WarehouseId,
-                Type = isIn ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
-                Quantity = Math.Abs(line.VarianceQuantity), UnitCost = unitCost, ReferenceNumber = count.CountNumber, Date = SaudiTime.Today,
-                Notes = $"تسوية جرد {count.CountNumber}", SourceType = SourceType, SourceId = count.Id,
-                // الصنف المتتبَّع: الفرق على تشغيلة السطر (الجديدة المعثور عليها برقمها وتاريخها)؛ السطر بلا تشغيلة: العجز بالأقرب انتهاءً
-                ItemBatchId = line.ItemBatchId, BatchNumber = line.BatchNumber, ExpiryDate = line.ExpiryDate, SourceLineId = line.Id,
-            }, ct);
-            line.UnitCost = movement.UnitCost;
-            line.VarianceValue = movement.ValueChange; // تغيّر القيمة الدفترية بإشارته: يطابق حساب المخزون بلا هللات تقريب
+                var product = await _db.Set<Product>().AsNoTracking().FirstAsync(p => p.Id == line.ItemId, ct);
+                if (InventoryCountLines.SurplusUnitCost(product, policy) <= 0)
+                    throw new ValidationFailedException(string.Format(Messages.CountSurplusRequiresCost, product.NameAr));
+                unitCost = product.AverageCost;
+            }
+            var portions = isIn || !all ? new List<(Warehouse Warehouse, decimal Quantity)> { (target, quantity) }
+                : await ShortagePortionsAsync(line, quantity, target, ct);
+
+            decimal value = 0, cost = 0;
+            foreach (var (warehouse, qty) in portions)
+            {
+                var movement = await _inventory.RecordMovementAsync(new RecordStockMovementDto
+                {
+                    ItemId = line.ItemId!.Value, WarehouseId = warehouse.Id,
+                    Type = isIn ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
+                    Quantity = qty, UnitCost = unitCost, ReferenceNumber = count.CountNumber, Date = SaudiTime.Today,
+                    Notes = $"تسوية جرد {count.CountNumber}", SourceType = SourceType, SourceId = count.Id,
+                    // الصنف المتتبَّع: الفرق على تشغيلة السطر (الجديدة المعثور عليها برقمها وتاريخها)؛ السطر بلا تشغيلة: العجز بالأقرب انتهاءً
+                    ItemBatchId = line.ItemBatchId, BatchNumber = line.BatchNumber, ExpiryDate = line.ExpiryDate, SourceLineId = line.Id,
+                }, ct);
+                value += movement.ValueChange; // تغيّر القيمة الدفترية بإشارته: يطابق حساب المخزون بلا هللات تقريب
+                cost += movement.UnitCost * qty;
+                values.Add((warehouse.InventoryAccountCode ?? accounts.Inventory(), movement.ValueChange));
+            }
+            line.UnitCost = Math.Round(cost / quantity, 4);
+            line.VarianceValue = value;
         }
         if (periodic)
         {
@@ -199,10 +224,42 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
                 ? await PeriodicInventory.PostPeriodEndAsync(_db, _posting, accounts, count, SaudiTime.Today, ct)
                 : null;
         }
-        // حساب مخزون المستودع الذي سُجّلت فيه حركات الجرد (المستودع المحدد، وإلا ما تُحسب عليه الحركة بلا مستودع)
-        var warehouse = await WarehouseStocks.ResolveAsync(_db, count.WarehouseId, ct);
-        return await PostVarianceAsync(count, warehouse.InventoryAccountCode ?? accounts.Inventory(),
-            accounts.InventoryShortage(), accounts.InventorySurplus(), ct);
+        // كل فرق على حساب مخزون المستودع الذي سُجّلت فيه حركته
+        return await PostVarianceAsync(count, values, accounts.InventoryShortage(), accounts.InventorySurplus(), ct);
+    }
+
+    /// <summary>
+    /// عجز جرد كل المستودعات يُصرف من المستودعات التي فيها الصنف (أو التشغيلة): المستودع الافتراضي أولاً ثم الأكبر رصيداً،
+    /// وما زاد عن أرصدتها من الافتراضي.
+    /// </summary>
+    private async Task<List<(Warehouse Warehouse, decimal Quantity)>> ShortagePortionsAsync(InventoryCountLine line, decimal quantity, Warehouse fallback,
+        CancellationToken ct)
+    {
+        var stocks = line.ItemBatchId is { } batchId
+            ? await _db.Set<BatchStock>().AsNoTracking().Where(s => s.ItemBatchId == batchId)
+                .GroupBy(s => s.WarehouseId).Select(g => new { WarehouseId = g.Key, Qty = g.Sum(s => s.Quantity) }).ToListAsync(ct)
+            : await _db.Set<WarehouseStock>().AsNoTracking().Where(s => s.ItemId == line.ItemId)
+                .Select(s => new { s.WarehouseId, Qty = s.Quantity }).ToListAsync(ct);
+        var available = stocks.Where(s => s.Qty > 0).OrderByDescending(s => s.WarehouseId == fallback.Id).ThenByDescending(s => s.Qty).ToList();
+        var ids = available.Select(s => s.WarehouseId).ToList();
+        var warehouses = await _db.Set<Warehouse>().Where(w => ids.Contains(w.Id)).ToDictionaryAsync(w => w.Id, ct);
+
+        var portions = new List<(Warehouse, decimal)>();
+        var left = quantity;
+        foreach (var s in available)
+        {
+            if (left <= 0) break;
+            var take = Math.Min(s.Qty, left);
+            portions.Add((warehouses[s.WarehouseId], take));
+            left -= take;
+        }
+        if (left > 0)
+        {
+            var i = portions.FindIndex(p => p.Item1.Id == fallback.Id);
+            if (i >= 0) portions[i] = (fallback, portions[i].Item2 + left);
+            else portions.Add((fallback, left));
+        }
+        return portions;
     }
 
     /// <summary>المفقودة تُشطب، والمعثور عليها بعد شطبها تُستعاد، والموجودة في موقع آخر يُحدَّث موقعها.</summary>
@@ -237,22 +294,33 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         }
         await _db.SaveChangesAsync(ct);
         // فروق السيارات على فروقات الجرد كما كانت (الشطب وإعادة القيد متقابلان)، لا على حسابي عجز وزيادة البضاعة
-        return await PostVarianceAsync(count, (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).VehicleInventoryAccount,
+        var vehicleAccount = (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).VehicleInventoryAccount;
+        return await PostVarianceAsync(count, count.Lines.Select(l => (vehicleAccount, l.VarianceValue)).ToList(),
             DefaultAccounts.InventoryAdjustment, DefaultAccounts.InventoryAdjustment, ct);
     }
 
-    /// <summary>زيادة الجرد: مدين المخزون / دائن حساب الزيادة، والعجز: مدين حساب العجز / دائن المخزون. لا قيد إن لم يكن للفروق قيمة.</summary>
-    private async Task<PostingResult?> PostVarianceAsync(InventoryCount count, string inventoryAccount, string shortageAccount, string surplusAccount,
-        CancellationToken ct)
+    /// <summary>
+    /// زيادة الجرد: مدين المخزون / دائن حساب الزيادة، والعجز: مدين حساب العجز / دائن المخزون، كل فرق على حساب مخزونه.
+    /// لا قيد إن لم يكن للفروق قيمة.
+    /// </summary>
+    private async Task<PostingResult?> PostVarianceAsync(InventoryCount count, IReadOnlyCollection<(string Account, decimal Value)> values,
+        string shortageAccount, string surplusAccount, CancellationToken ct)
     {
-        var surplus = count.Lines.Where(l => l.VarianceValue > 0).Sum(l => l.VarianceValue);
-        var shortage = -count.Lines.Where(l => l.VarianceValue < 0).Sum(l => l.VarianceValue);
         var lines = new List<PostingLine>();
-        if (surplus > 0) lines.AddRange(new PostingLine[] { new(inventoryAccount, surplus, 0, "زيادة جرد"), new(surplusAccount, 0, surplus, "زيادة جرد") });
-        if (shortage > 0) lines.AddRange(new PostingLine[] { new(shortageAccount, shortage, 0, "عجز جرد"), new(inventoryAccount, 0, shortage, "عجز جرد") });
+        foreach (var g in values.GroupBy(v => v.Account))
+        {
+            var accountSurplus = g.Where(v => v.Value > 0).Sum(v => v.Value);
+            var accountShortage = -g.Where(v => v.Value < 0).Sum(v => v.Value);
+            if (accountSurplus > 0) lines.Add(new(g.Key, accountSurplus, 0, "زيادة جرد"));
+            if (accountShortage > 0) lines.Add(new(g.Key, 0, accountShortage, "عجز جرد"));
+        }
+        var surplus = values.Where(v => v.Value > 0).Sum(v => v.Value);
+        var shortage = -values.Where(v => v.Value < 0).Sum(v => v.Value);
+        if (surplus > 0) lines.Add(new(surplusAccount, 0, surplus, "زيادة جرد"));
+        if (shortage > 0) lines.Add(new(shortageAccount, shortage, 0, "عجز جرد"));
         if (lines.Count == 0) return null;
 
-        await DefaultAccounts.EnsureAsync(_db, ct, inventoryAccount, surplusAccount, shortageAccount);
+        await DefaultAccounts.EnsureAsync(_db, ct, values.Select(v => v.Account).Distinct().Append(surplusAccount).Append(shortageAccount).Distinct().ToArray());
         return await _posting.PostAsync(new GenericPostingRequest
         {
             Date = SaudiTime.Today, Description = $"تسوية فروق الجرد {count.CountNumber}",

@@ -98,6 +98,8 @@ public class InventoryCountSnapshotRequestDto
     public Guid? WarehouseId { get; set; }
     /// <summary>للأصناف: تضمين الأصناف ذات الرصيد الصفري.</summary>
     public bool IncludeZeroStock { get; set; }
+    /// <summary>للأصناف: نوع الجرد؛ جرد آخر المدة بلا مستودع يقرأ رصيد كل المستودعات.</summary>
+    public InventoryCountType? CountType { get; set; }
     /// <summary>للمركبات: موقع المعرض.</summary>
     public string? Location { get; set; }
 }

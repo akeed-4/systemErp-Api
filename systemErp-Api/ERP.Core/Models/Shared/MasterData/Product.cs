@@ -33,8 +33,13 @@ public class Product : BaseEntity
     public string? VatExemptionReasonCode { get; set; }
     /// <summary>تتبّع التشغيلات (Lot/Batch): كل وارد برقم تشغيلة، وكل صادر يُخصَّص من تشغيلات المستودع (FEFO افتراضياً).</summary>
     public bool TrackBatches { get; set; }
-    /// <summary>تاريخ صلاحية إلزامي لكل تشغيلة واردة، ويُمنع بيع المنتهي (يتطلب تتبّع التشغيلات).</summary>
+    /// <summary>
+    /// تاريخ صلاحية إلزامي لكل وارد، ويُمنع بيع المنتهي. بلا تتبّع التشغيلات: «صلاحية فقط»، فتُجمَّع الكميات بتاريخ الصلاحية
+    /// في تشغيلة يُولَّد رقمها منه (ItemBatches.ExpiryBatchNumber) ولا يُطلب رقم من المستخدم.
+    /// </summary>
     public bool TrackExpiry { get; set; }
+    /// <summary>الصنف تُتتبَّع كمياته بالتشغيلات (برقم يدخله المستخدم، أو بتاريخ الصلاحية وحده). غير مخزّن.</summary>
+    public bool TracksLots => TrackBatches || TrackExpiry;
     /// <summary>مدة الصلاحية بالأيام من تاريخ الإنتاج: تقترح تاريخ الانتهاء عند الاستلام (اختياري).</summary>
     public int? ShelfLifeDays { get; set; }
     /// <summary>التنبيه قبل انتهاء الصلاحية بعدد أيام (تقرير قرب الانتهاء).</summary>

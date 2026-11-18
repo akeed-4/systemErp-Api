@@ -11,7 +11,12 @@ public class InventoryService : IInventoryService
 {
     private readonly ErpDbContext _db;
     private readonly ERP.Core.Contracts.Accounting.IPeriodLock _periods;
-    public InventoryService(ErpDbContext db, ERP.Core.Contracts.Accounting.IPeriodLock periods) { _db = db; _periods = periods; }
+    private readonly IPermissionService _permissions;
+    private readonly IAuditService _audit;
+    public InventoryService(ErpDbContext db, ERP.Core.Contracts.Accounting.IPeriodLock periods, IPermissionService permissions, IAuditService audit)
+    {
+        _db = db; _periods = periods; _permissions = permissions; _audit = audit;
+    }
 
     public async Task<StockMovementDto> RecordMovementAsync(RecordStockMovementDto r, CancellationToken ct = default)
     {
@@ -118,7 +123,7 @@ public class InventoryService : IInventoryService
     private async Task<List<BatchAllocationDto>> ApplyBatchesAsync(Product product, StockMovement movement, RecordStockMovementDto r, Guid warehouseId,
         CostingPolicy policy, CancellationToken ct)
     {
-        if (!product.TrackBatches) return new();
+        if (!product.TracksLots) return new();
         var isIn = movement.Type is StockMovementType.InPurchase or StockMovementType.AdjustmentIn;
         var parts = new List<BatchAllocationDto>();
         var left = movement.Quantity;
@@ -301,7 +306,7 @@ public class InventoryService : IInventoryService
             throw new ConflictException(string.Format(Messages.InsufficientStockInWarehouse, product.NameAr, from.NameAr, available, r.Quantity));
 
         // التشغيلات: تُخصَّص من المستودع المحوَّل منه (المختارة أو الأقرب انتهاءً) وتنتقل بأرقامها نفسها للمستلم
-        var parts = product.TrackBatches
+        var parts = product.TracksLots
             ? await ItemBatches.AllocateOutAsync(_db, product, from.Id, r.Quantity, r.ItemBatchId, r.Date, isSale: false,
                 allowShortage: policy.NegativeInventoryPolicy != "prohibit", ct)
             : new List<BatchAllocationDto>();
@@ -367,12 +372,31 @@ public class InventoryService : IInventoryService
             throw new ValidationFailedException(string.Format(Messages.BatchDatesInvalid, batch.BatchNumber));
         if (product.TrackExpiry && r.ExpiryDate == null)
             throw new ValidationFailedException(string.Format(Messages.BatchExpiryRequired, product.NameAr, batch.BatchNumber));
+
+        var (oldProduction, oldExpiry) = (batch.ProductionDate, batch.ExpiryDate);
+        var datesChanged = oldProduction != r.ProductionDate?.Date || oldExpiry != r.ExpiryDate?.Date;
+        // تشغيلة دخلت حركات: تغيير تاريخيها يغيّر صلاحية رصيدها وما بيع منها، فلا يصححه إلا صاحب صلاحية التصحيح
+        if (datesChanged && await _db.Set<StockMovementBatch>().AnyAsync(m => m.ItemBatchId == batch.Id, ct)
+            && !await _permissions.HasPermissionAsync(PermissionService.ItemBatchCorrectionScreenId, ScreenAction.Edit, ct))
+            throw new ForbiddenException(string.Format(Messages.BatchDatesLockedAfterMovements, batch.BatchNumber));
+        // «صلاحية فقط»: تاريخ الانتهاء هوية التشغيلة المولَّدة، فلا يُنقل لتاريخ تحمله تشغيلة مولَّدة أخرى للصنف
+        if (!product.TrackBatches && batch.BatchNumber.StartsWith(ItemBatches.ExpiryPrefix) && r.ExpiryDate is { } newExpiry && newExpiry.Date != oldExpiry
+            && await _db.Set<ItemBatch>().AnyAsync(b => b.ItemId == batch.ItemId && b.Id != batch.Id && b.ExpiryDate == newExpiry.Date
+                                                        && b.BatchNumber.StartsWith(ItemBatches.ExpiryPrefix), ct))
+            throw new ConflictException(string.Format(Messages.ExpiryBatchAlreadyExists, product.NameAr, newExpiry.ToString("yyyy-MM-dd")));
+
         batch.ProductionDate = r.ProductionDate?.Date;
         batch.ExpiryDate = r.ExpiryDate?.Date;
         batch.Notes = string.IsNullOrWhiteSpace(r.Notes) ? null : r.Notes.Trim();
         await _db.SaveChangesAsync(ct);
+        if (datesChanged)
+            await _audit.LogAsync("BATCH_CORRECTED", nameof(ItemBatch), batch.Id.ToString(),
+                $"{product.NameAr} — {batch.BatchNumber}: الإنتاج {Day(oldProduction)} ← {Day(batch.ProductionDate)}، الانتهاء {Day(oldExpiry)} ← {Day(batch.ExpiryDate)}"
+                + (batch.Notes != null ? $" — {batch.Notes}" : ""), ct);
         return (await GetBatchesAsync(batch.ItemId, null, true, ct)).First(b => b.Id == batch.Id);
     }
+
+    private static string Day(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
 
     public async Task<List<BatchExpiryRowDto>> GetExpiryReportAsync(Guid? warehouseId, string? status, int? withinDays, CancellationToken ct = default)
     {

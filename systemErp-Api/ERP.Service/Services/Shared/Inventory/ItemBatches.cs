@@ -37,12 +37,15 @@ public static class ItemBatches
             return await FindAsync(db, product.Id, id, ct) ?? throw new NotFoundException(Messages.BatchNotFound);
 
         var code = (number ?? string.Empty).Trim();
-        if (code.Length == 0) throw new ValidationFailedException(string.Format(Messages.BatchNumberRequired, product.NameAr));
-        if (code.Length > 64) code = code[..64];
         production = production?.Date;
         expiry = expiry?.Date ?? (production is { } p && product.ShelfLifeDays is > 0 ? p.AddDays(product.ShelfLifeDays.Value) : null);
+        if (code.Length == 0 && !product.TrackBatches && product.TrackExpiry)
+            return await ResolveByExpiryAsync(db, product, production, expiry, ct);
+        if (code.Length == 0) throw new ValidationFailedException(string.Format(Messages.BatchNumberRequired, product.NameAr));
+        if (code.Length > 64) code = code[..64];
         if (production is { } pd && expiry is { } ed && pd > ed) throw new ValidationFailedException(string.Format(Messages.BatchDatesInvalid, code));
 
+        // الرقم فريد للصنف في المنشأة (فهرس فريد TenantId+ItemId+BatchNumber): الوارد اللاحق بالرقم نفسه يعود للتشغيلة نفسها أياً كان سعره
         var batch = db.Set<ItemBatch>().Local.FirstOrDefault(b => b.ItemId == product.Id && b.BatchNumber == code)
             ?? await db.Set<ItemBatch>().FirstOrDefaultAsync(b => b.ItemId == product.Id && b.BatchNumber == code, ct);
         if (batch != null)
@@ -59,6 +62,40 @@ public static class ItemBatches
         }
         if (product.TrackExpiry && batch.ExpiryDate == null)
             throw new ValidationFailedException(string.Format(Messages.BatchExpiryRequired, product.NameAr, code));
+        return batch;
+    }
+
+    /// <summary>بادئة أرقام تشغيلات «صلاحية فقط» المولَّدة.</summary>
+    public const string ExpiryPrefix = "EXP-";
+
+    /// <summary>رقم تشغيلة «صلاحية فقط»: يُولَّد من تاريخ الانتهاء (EXP-yyyyMMdd).</summary>
+    public static string ExpiryBatchNumber(DateTime expiry) => ExpiryPrefix + expiry.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// صنف «صلاحية فقط» بلا رقم: الكميات بتاريخ الانتهاء نفسه تشغيلة واحدة (تُطابَق بالتاريخ، وإلا تُنشأ برقم مولَّد منه).
+    /// المطابقة على التشغيلات المولَّدة وحدها: تشغيلة سُمّيت برقم المورد (LOT-A) لا تُضاف إليها دفعة بلا رقم وإن اتفق التاريخ.
+    /// </summary>
+    private static async Task<ItemBatch> ResolveByExpiryAsync(ErpDbContext db, Product product, DateTime? production, DateTime? expiry, CancellationToken ct)
+    {
+        if (expiry is not { } date) throw new ValidationFailedException(string.Format(Messages.ExpiryDateRequired, product.NameAr));
+        if (production is { } pd && pd > date) throw new ValidationFailedException(string.Format(Messages.BatchDatesInvalid, Day(date)));
+
+        var batch = db.Set<ItemBatch>().Local.Where(b => b.ItemId == product.Id && b.ExpiryDate == date && b.BatchNumber.StartsWith(ExpiryPrefix))
+                        .OrderBy(b => b.CreatedAt).FirstOrDefault()
+            ?? await db.Set<ItemBatch>().Where(b => b.ItemId == product.Id && b.ExpiryDate == date && b.BatchNumber.StartsWith(ExpiryPrefix))
+                .OrderBy(b => b.CreatedAt).FirstOrDefaultAsync(ct);
+        if (batch != null)
+        {
+            batch.ProductionDate ??= production;
+            return batch;
+        }
+        var code = ExpiryBatchNumber(date);
+        // الرقم المولَّد محجوز بتشغيلة صُحِّح تاريخها: لاحقة تحفظ تفرّد الرقم
+        for (var n = 2; db.Set<ItemBatch>().Local.Any(b => b.ItemId == product.Id && b.BatchNumber == code)
+                        || await db.Set<ItemBatch>().AnyAsync(b => b.ItemId == product.Id && b.BatchNumber == code, ct); n++)
+            code = $"{ExpiryBatchNumber(date)}-{n}";
+        batch = new ItemBatch { ItemId = product.Id, BatchNumber = code, ProductionDate = production, ExpiryDate = date };
+        db.Add(batch);
         return batch;
     }
 

@@ -337,6 +337,8 @@
   <data name="DraftPurchaseInvoiceCreated" xml:space="preserve"><value>تم إنشاء فاتورة شراء مسودة</value></data>
   <data name="DuplicateItemInAgreement" xml:space="preserve"><value>الصنف مكرر في بنود الاتفاقية.</value></data>
   <data name="DuplicateItemInCount" xml:space="preserve"><value>الصنف مكرر في أسطر الجرد.</value></data>
+  <data name="DuplicateItemBatchInCount" xml:space="preserve"><value>الصنف «{0}» مكرر في أسطر الجرد: سطر بلا تشغيلة لا يجتمع مع أسطر أخرى للصنف، ولا تتكرر التشغيلة.</value></data>
+  <data name="CountSurplusRequiresCost" xml:space="preserve"><value>لا تكلفة للصنف «{0}»: حدّد تكلفته قبل اعتماد زيادة الجرد عليه، وإلا دخلت الكمية بلا قيمة.</value></data>
   <data name="DuplicateVinInCount" xml:space="preserve"><value>رقم الهيكل مكرر في أسطر الجرد.</value></data>
   <data name="DuplicateVinsInRequest" xml:space="preserve"><value>أرقام الشواسيه مكررة في الطلب.</value></data>
   <data name="EmailAlreadyRegistered" xml:space="preserve"><value>هذا البريد الإلكتروني مسجّل مسبقاً.</value></data>
@@ -1560,6 +1562,9 @@
   <data name="AnnouncementLinkInvalid" xml:space="preserve"><value>رابط زر الإعلان يجب أن يكون مساراً داخلياً يبدأ بـ / أو رابط https، مع نص للزر.</value></data>
   <data name="AnnouncementTenantUnknown" xml:space="preserve"><value>إحدى المنشآت المختارة للإعلان غير موجودة.</value></data>
   <data name="BatchNumberRequired" xml:space="preserve"><value>الصنف «{0}» يُتتبَّع بالتشغيلات: أدخل رقم التشغيلة في سطره.</value></data>
+  <data name="ExpiryDateRequired" xml:space="preserve"><value>الصنف «{0}» يُتتبَّع بالصلاحية: أدخل تاريخ الصلاحية في سطره.</value></data>
+  <data name="BatchDatesLockedAfterMovements" xml:space="preserve"><value>التشغيلة {0} لها حركات مخزنية: تصحيح تاريخ إنتاجها أو انتهائها يتطلب صلاحية «تصحيح تاريخي تشغيلة لها حركات».</value></data>
+  <data name="ExpiryBatchAlreadyExists" xml:space="preserve"><value>للصنف «{0}» تشغيلة أخرى بتاريخ الانتهاء {1}: الصنف يُتتبَّع بالصلاحية وحدها فلا يحمل التاريخ نفسه تشغيلتان.</value></data>
   <data name="BatchExpiryRequired" xml:space="preserve"><value>الصنف «{0}» يتطلب تاريخ صلاحية للتشغيلة «{1}».</value></data>
   <data name="BatchExpiryMismatch" xml:space="preserve"><value>التشغيلة «{1}» للصنف «{0}» مسجلة بتاريخ انتهاء {2} يختلف عن المُدخل {3}.</value></data>
   <data name="BatchDatesInvalid" xml:space="preserve"><value>تاريخ إنتاج التشغيلة «{0}» بعد تاريخ انتهائها.</value></data>

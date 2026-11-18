@@ -55,7 +55,7 @@ public class StockTransferService : IStockTransferService
                 transfer.Items.Add(new StockTransferItem
                 {
                     ItemId = product.Id, Sku = product.Sku, ItemName = product.NameAr, Unit = product.Unit, Quantity = line.Sum(i => i.Quantity),
-                    ItemBatchId = product.TrackBatches ? line.Key.ItemBatchId : null,
+                    ItemBatchId = product.TracksLots ? line.Key.ItemBatchId : null,
                 });
             }
             _db.Add(transfer);

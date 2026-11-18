@@ -78,7 +78,10 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
             if (d.Lines.Any(l => l.ItemId is null || l.ItemId == Guid.Empty)) errors.Add(Messages.ItemCountLineRequiresItem);
             if (d.Lines.Any(l => !string.IsNullOrWhiteSpace(l.ChassisNumber))) errors.Add(Messages.ItemCountNoVins);
             // الصنف المتتبَّع: سطر لكل تشغيلة (بمعرّفها أو رقمها الجديد)
-            if (d.Lines.Where(l => l.ItemId.HasValue).GroupBy(l => (l.ItemId, l.ItemBatchId, Batch: (l.ItemBatchId == null ? l.BatchNumber?.Trim() : null) ?? "")).Any(g => g.Count() > 1)) errors.Add(Messages.DuplicateItemInCount);
+            // «صلاحية فقط»: السطر بلا رقم يتميّز بتاريخ انتهائه
+            if (d.Lines.Where(l => l.ItemId.HasValue).GroupBy(l => (l.ItemId, l.ItemBatchId,
+                    Batch: l.ItemBatchId != null ? "" : string.IsNullOrWhiteSpace(l.BatchNumber) ? "@" + l.ExpiryDate?.Date.ToString("yyyyMMdd") : l.BatchNumber.Trim()))
+                .Any(g => g.Count() > 1)) errors.Add(Messages.DuplicateItemInCount);
             if (d.Lines.Any(l => l.CountedQuantity < 0)) errors.Add(Messages.CountedQtyCannotBeNegative);
         }
         else
@@ -93,6 +96,9 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
 
         if (d.WarehouseId.HasValue && !await Db.Set<Warehouse>().AnyAsync(w => w.Id == d.WarehouseId, ct))
             throw new ValidationFailedException(Messages.WarehouseNotFound);
+        // جرد كل المستودعات لمن لا تُقيَّد مواقعه فقط
+        if (InventoryCountLines.CoversAllWarehouses(d.Scope, d.CountType, d.WarehouseId) && Db.SessionAllowedWarehouseIds != null)
+            throw new ValidationFailedException(Messages.WarehouseRequired);
     }
 
     protected override async Task OnCreatingAsync(InventoryCount e, CreateInventoryCountDto d, CancellationToken ct)
@@ -121,10 +127,21 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
         if (e.CountDate == default) e.CountDate = SaudiTime.Today;
         if (string.IsNullOrWhiteSpace(e.CountedBy)) e.CountedBy = _user.Name ?? string.Empty;
         e.Location = string.IsNullOrWhiteSpace(e.Location) ? null : e.Location.Trim();
+        await PinWarehouseAsync(e, ct);
         e.WarehouseName = e.WarehouseId.HasValue
             ? await Db.Set<Warehouse>().Where(w => w.Id == e.WarehouseId).Select(w => w.NameAr).FirstOrDefaultAsync(ct)
             : null;
         await InventoryCountLines.RefreshAsync(Db, e, ct);
+    }
+
+    /// <summary>
+    /// جرد أصناف بلا مستودع يُثبَّت على المستودع الذي قُرئ منه رصيده (موقع الجلسة أو الافتراضي)، فتُسجَّل التسوية فيه نفسه
+    /// أياً كان موقع جلسة المعتمِد. جرد كل المستودعات يبقى بلا مستودع.
+    /// </summary>
+    private async Task PinWarehouseAsync(InventoryCount e, CancellationToken ct)
+    {
+        if (e.Scope == InventoryCountScope.Items && e.WarehouseId == null && !InventoryCountLines.CoversAllWarehouses(e))
+            e.WarehouseId = (await WarehouseStocks.ResolveAsync(Db, null, ct)).Id;
     }
 
     protected override Task OnCreatedAsync(InventoryCount e, CancellationToken ct)
@@ -161,7 +178,11 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
             var uncounted = count.Lines.Count(l => !l.CountedQuantity.HasValue);
             if (uncounted > 0) throw new ValidationFailedException(string.Format(Messages.UncountedLinesRemain, uncounted));
 
+            await PinWarehouseAsync(count, token); // مسودة قديمة بلا مستودع
+            if (count.WarehouseId.HasValue && count.WarehouseName == null)
+                count.WarehouseName = await Db.Set<Warehouse>().Where(w => w.Id == count.WarehouseId).Select(w => w.NameAr).FirstOrDefaultAsync(token);
             await InventoryCountLines.RefreshAsync(Db, count, token); // تجميد رصيد النظام لحظة الإرسال
+            await InventoryCountLines.EnsureSubmittableAsync(Db, count, token);
             if (count.Scope == InventoryCountScope.Vehicles)
             {
                 var missingIds = count.Lines.Where(l => l.Resolution == InventoryCountLineResolution.VehicleWrittenOff).Select(l => l.VehicleId).ToList();

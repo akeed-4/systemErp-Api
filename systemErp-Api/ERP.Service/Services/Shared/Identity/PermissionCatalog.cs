@@ -157,6 +157,8 @@ public static class PermissionCatalog
             Crud(A.Import), new[] { "master-data" }),
         new(PermissionService.ItemStandardCostScreenId, "master-data", "الأصناف: تعديل التكلفة المعيارية لصنف مستخدم (إعادة تقييم)", "Items: Change Standard Cost of a Used Item (Revaluation)",
             new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
+        new(PermissionService.ItemBatchCorrectionScreenId, "master-data", "الأصناف: تصحيح تاريخي تشغيلة لها حركات", "Items: Correct Dates of a Batch with Movements",
+            new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
 
         new("hr", "hr", "شؤون الموظفين والرواتب", "Human Resources & Payroll",
             Crud(A.Approve, A.Reject, A.Cancel, A.Post, A.Import), new[] { "hr", "payroll" }, Legacy: CancelFromEdit),

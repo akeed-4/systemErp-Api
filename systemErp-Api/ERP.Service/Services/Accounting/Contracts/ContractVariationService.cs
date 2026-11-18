@@ -218,6 +218,8 @@ public class ContractVariationService : IContractVariationService
                 foreach (var (line, item) in created) line.CreatedItemId = item.Id;
                 await _db.SaveChangesAsync(token);
             }
+            // الاحتياجات المعتمدة لا تتبع الأمر تلقائياً: يُقترح تعديلها ليراجعه المسؤول ويعتمده
+            await ProjectMaterialAdjustments.ProposeForVariationAsync(_db, v, token);
             return ToDto(v, contract, measured);
         }, ct);
 

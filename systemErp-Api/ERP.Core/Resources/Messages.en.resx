@@ -101,6 +101,12 @@
   <data name="BuyerMobileRequired" xml:space="preserve"><value>Buyer mobile number is required.</value></data>
   <data name="BuyerNameRequired" xml:space="preserve"><value>Buyer name is required.</value></data>
   <data name="CannotApproveOwnRequest" xml:space="preserve"><value>You cannot approve your own request.</value></data>
+  <data name="ApprovalLevelChanged" xml:space="preserve"><value>The request level changed meanwhile (now {0} of {1}): refresh and review the request before deciding.</value></data>
+  <data name="ReturnReasonRequired" xml:space="preserve"><value>A reason for returning the request is required.</value></data>
+  <data name="ApprovalOverrideOneLevel" xml:space="preserve"><value>You already approved an earlier level of this request: the remaining levels belong to their assigned approvers.</value></data>
+  <data name="ApprovalReturnNotForCount" xml:space="preserve"><value>Inventory counts are not returned here: reject with a reason and the count goes back to its preparer for editing.</value></data>
+  <data name="ApprovalRequestReturned" xml:space="preserve"><value>The request was returned to its requester for modification.</value></data>
+  <data name="ApprovalSlaHoursRange" xml:space="preserve"><value>Level deadline hours must be between 1 and 8760.</value></data>
   <data name="CannotApproveRequisitionInCurrentState" xml:space="preserve"><value>The requisition cannot be approved in its current state.</value></data>
   <data name="CannotAssignOwnerRole" xml:space="preserve"><value>The owner role cannot be assigned to another user.</value></data>
   <data name="CannotCancelInvoicedContract" xml:space="preserve"><value>An invoiced contract cannot be cancelled; create a sales return.</value></data>
@@ -571,6 +577,16 @@
   <data name="CertificateNothingToInvoice" xml:space="preserve"><value>Nothing taxable to invoice on this certificate after advance recovery.</value></data>
   <data name="RetentionReleaseAfterAcceptance" xml:space="preserve"><value>Retention is released while the contract is in Initial Acceptance.</value></data>
   <data name="RetentionNothingToRelease" xml:space="preserve"><value>No outstanding retention to release on this contract's invoices.</value></data>
+  <data name="RetentionInitialReleasePercentRange" xml:space="preserve"><value>The retention release percentage at initial acceptance must be between 0 and 100.</value></data>
+  <data name="MaintenancePeriodRange" xml:space="preserve"><value>The maintenance period must be between 0 and 120 months.</value></data>
+  <data name="RetentionAwaitingFinalAcceptance" xml:space="preserve"><value>The initial-acceptance share ({0}%) of the retention has been released; the rest follows final acceptance (due {1}).</value></data>
+  <data name="RetentionReleaseAmountInvalid" xml:space="preserve"><value>The release amount must be above zero and not exceed what can be released now ({0}).</value></data>
+  <data name="FinalAcceptanceNeedsInitial" xml:space="preserve"><value>Final acceptance applies only to a contract at the initial-acceptance stage.</value></data>
+  <data name="FinalAcceptanceAlreadyRecorded" xml:space="preserve"><value>Final acceptance was already recorded on {0}.</value></data>
+  <data name="FinalAcceptanceFutureDate" xml:space="preserve"><value>The final acceptance date cannot be after today.</value></data>
+  <data name="FinalAcceptanceBeforeInitial" xml:space="preserve"><value>The final acceptance date is before initial acceptance ({0}).</value></data>
+  <data name="FinalAcceptanceBeforeDue" xml:space="preserve"><value>The maintenance period has not ended: final acceptance is allowed from {0}.</value></data>
+  <data name="FinalAcceptanceRecorded" xml:space="preserve"><value>Final acceptance recorded; the remaining retention can now be released.</value></data>
   <data name="CustomerAccountMissing" xml:space="preserve"><value>The customer has no receivable account in the chart of accounts.</value></data>
   <data name="AccountSettingRequiredForContracts" xml:space="preserve"><value>Set "{0}" in the accounting settings (Contracts section) before this billing.</value></data>
   <data name="ContractAccountAmbiguous" xml:space="preserve"><value>More than one account fits «{0}»: {1}. Choose one in accounting settings (Contracts section).</value></data>
@@ -1670,6 +1686,12 @@
   <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>Material requirements submitted for approval.</value></data>
   <data name="ProjectMaterialPlanApproved" xml:space="preserve"><value>Material requirements approved.</value></data>
   <data name="ProjectMaterialPlanReturned" xml:space="preserve"><value>Material requirements returned to draft.</value></data>
+  <data name="ProjectMaterialAdjustmentNotFound" xml:space="preserve"><value>Material requirement adjustment not found.</value></data>
+  <data name="ProjectMaterialAdjustmentNegative" xml:space="preserve"><value>Line {0}: the reduction makes the material's approved quantity negative.</value></data>
+  <data name="ProjectMaterialAdjustmentItemsMissing" xml:space="preserve"><value>The change order added items with no materials in the adjustment ({0}): add their materials before approving.</value></data>
+  <data name="ProjectMaterialAdjustmentSaved" xml:space="preserve"><value>Material requirement adjustment saved.</value></data>
+  <data name="ProjectMaterialAdjustmentApproved" xml:space="preserve"><value>Adjustment approved; approved quantities and request limits changed with it.</value></data>
+  <data name="ProjectMaterialAdjustmentRejected" xml:space="preserve"><value>Adjustment rejected; approved quantities are unchanged.</value></data>
   <!-- Construction project setup -->
   <data name="ProjectOnlyForBoq" xml:space="preserve"><value>Project setup is only for construction contracts with a bill of quantities.</value></data>
   <data name="ProjectContractClosed" xml:space="preserve"><value>The project setup of a closed or cancelled contract cannot be changed.</value></data>
@@ -1733,6 +1755,15 @@
   <data name="SiteReportReopenNoteRequired" xml:space="preserve"><value>A reason is required to reopen an approved report.</value></data>
   <data name="SiteReportReopened" xml:space="preserve"><value>The report was reopened for editing; its original entries are kept and only the difference is posted when it is approved again.</value></data>
   <data name="SiteReportHasPostedCost" xml:space="preserve"><value>This report's cost was already posted, so it cannot be deleted; edit it and approve it again to post the difference.</value></data>
+  <data name="SiteReportDateInFuture" xml:space="preserve"><value>A daily report cannot be dated after today ({0}).</value></data>
+  <data name="SiteReportDateBeforeStart" xml:space="preserve"><value>The report date {0} is before the contract start {1}.</value></data>
+  <data name="SiteResourceOutsideWindow" xml:space="preserve"><value>Resources, line {0}: the report date is outside the resource's period on the project (equipment assignment or rental contract: {1} to {2}).</value></data>
+  <data name="SiteResourceDayOverbooked" xml:space="preserve"><value>{0}: total hours on {1} are {2}, more than 24{3}.</value></data>
+  <data name="SiteResourceOtherProjects" xml:space="preserve"><value> (including reports on contracts: {0})</value></data>
+  <data name="SiteHourExceedsBoq" xml:space="preserve"><value>Item {0}: cumulative executed quantity in daily reports {1} exceeds the allowed contract quantity {2} {3}. Record a change order to increase it.</value></data>
+  <data name="SiteReportCoveredByCertificate" xml:space="preserve"><value>The report cannot be reopened: its date falls within approved certificate no. {0} (up to {1}). Cancel the certificate first.</value></data>
+  <data name="CertificateExceedsSite" xml:space="preserve"><value>The certificate cannot be approved: {0} item(s) exceed the quantity executed in approved daily reports up to {2} ({1}). Approve the site reports or reduce the current quantity.</value></data>
+  <data name="CertificateExceedsSiteLine" xml:space="preserve"><value>{0}: claimed cumulatively {1}, executed on site {2} {3}.</value></data>
   <data name="RentalAccrualCloseNoteRequired" xml:space="preserve"><value>A reason is required to close accrued rental.</value></data>
   <data name="RentalAccrualNothingToClose" xml:space="preserve"><value>There is no open accrued rental for this lessor on the project up to the selected date.</value></data>
   <data name="RentalAccrualClosed" xml:space="preserve"><value>{0} of accrued rental was closed.</value></data>

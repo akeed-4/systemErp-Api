@@ -130,6 +130,8 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         if (d.Milestones.Any(m => m.Percentage < 0 || m.Amount < 0)) errors.Add(Messages.MilestoneAmountsCannotBeNegative);
         if (d.Milestones.Any(m => m.RetentionDeductionPercent is < 0 or > 100)) errors.Add(Messages.RetentionRateRange);
         if (d.RetentionPercent is < 0 or > 100) errors.Add(Messages.PerformanceBondRateRange);
+        if (d.RetentionInitialReleasePercent is < 0 or > 100) errors.Add(Messages.RetentionInitialReleasePercentRange);
+        if (d.MaintenancePeriodMonths is < 0 or > 120) errors.Add(Messages.MaintenancePeriodRange);
         if (d.AdvancePercent is < 0 or > 100) errors.Add(Messages.AdvancePercentRange);
         if (d.MaxPenaltyPercent is < 0 or > 100) errors.Add(Messages.MaxPenaltyRange);
         if (d.LatePenaltyPerDay < 0) errors.Add(Messages.DailyPenaltyCannotBeNegative);
@@ -168,8 +170,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             errors.Add("المناقصة لعقد عميل (لا لعقد مقاول باطن).");
         if (d.TenderIssueDate.HasValue && d.TenderDeadline.HasValue && d.TenderDeadline < d.TenderIssueDate)
             errors.Add("آخر موعد للتقديم قبل تاريخ طرح المناقصة.");
-        // الدراسة بخطة معتمدة مجمّدة: تُفتح بمراجعة الخطة قبل تعديلها
-        if (existing?.FeasibilityStatus == FeasibilityStatuses.PlanApproved) errors.Add(Messages.FeasibilityPlanApprovedLocked);
+        // الدراسة بخطة معتمدة: جدول كمياتها مجمّد (يُفتح بمراجعة الخطة)، أما الشروط التجارية والمالية (الضمان والدفعة المقدمة
+        // والمحتجزات والتواريخ والدفعات) فتُستكمل قبل «إنشاء العقد» الذي يرفض ما ينقص منها
+        if (existing?.FeasibilityStatus == FeasibilityStatuses.PlanApproved && BoqChanged(d.Items, existing.Items)) errors.Add(Messages.FeasibilityPlanApprovedLocked);
         // وخطتها مقدَّمة للاعتماد: مجمّدة حتى يُعتمد ما راجعه المعتمِد أو يُعاد للمسودة
         else if (existing?.FeasibilityStatus == FeasibilityStatuses.Study && await ExecutionPlanService.IsSubmittedAsync(Db, existing.Id, ct))
             errors.Add(Messages.ExecutionPlanSubmittedStudyLocked);
@@ -188,7 +191,29 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             throw new ValidationFailedException(Messages.ContractWorkItemNotFound);
     }
 
-    private static bool IsSupplier(string? partyType) => string.Equals(partyType, "supplier", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// هل يغيّر الطلب جدول الكميات المعتمد؟ يُقارن كل سطر بمعرّفه في الكمية والسعر والوصف والوحدة والنوع والضريبة ونسبة التجاوز
+    /// وربط المكتبة؛ سعر المجموعة يحسبه الخادم من فروعها فلا يُقارن. سطر مضاف أو محذوف تغيير.
+    /// </summary>
+    private static bool BoqChanged(IReadOnlyCollection<ContractItemDto> requested, ICollection<CommercialContractItem> current)
+    {
+        if (requested.Count != current.Count) return true;
+        var byId = current.ToDictionary(i => i.Id);
+        foreach (var r in requested)
+        {
+            if (!byId.TryGetValue(r.Id, out var c)) return true;
+            if (r.IsSubItem != c.IsSubItem || !string.Equals(r.LineKind, c.LineKind, StringComparison.Ordinal)
+                || r.Quantity != c.Quantity || r.VatRate != c.VatRate || r.OverrunPercent != c.OverrunPercent
+                || r.WorkItemId != c.WorkItemId || r.WorkSubItemId != c.WorkSubItemId
+                || !string.Equals(r.Description?.Trim(), c.Description?.Trim(), StringComparison.Ordinal)
+                || !string.Equals(r.Unit?.Trim(), c.Unit?.Trim(), StringComparison.Ordinal))
+                return true;
+            if (!c.IsGroup && r.UnitPrice != c.UnitPrice) return true;
+        }
+        return false;
+    }
+
+    private static bool IsSupplier(string? partyType) =>string.Equals(partyType, "supplier", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// عقد مقاول الباطن: الربط بعقد المشروع لعقد مورد وحده، والمشروع عقد عميل بجدول كميات (ليس عقد باطن آخر) غير ملغى ولا مغلق.
@@ -346,6 +371,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
         ApplyGuarantee(e, d.RequiresGuarantee ?? o.GetValue<bool>(nameof(CommercialContract.RequiresGuarantee)));
         e.TotalInvoiced = o.GetValue<decimal>(nameof(CommercialContract.TotalInvoiced));
         e.TotalCollected = o.GetValue<decimal>(nameof(CommercialContract.TotalCollected));
+        // الاستلامان من مسار العقد وحده (الانتقال للاستلام الأولي، وتسجيل الاستلام النهائي)
+        e.InitialAcceptanceDate = o.GetValue<DateTime?>(nameof(CommercialContract.InitialAcceptanceDate));
+        e.FinalAcceptanceDate = o.GetValue<DateTime?>(nameof(CommercialContract.FinalAcceptanceDate));
         // جدولة المستخلصات لم تُرسل (عميل قديم): تبقى كما هي
         if (d.CertificateSchedule == null)
         {

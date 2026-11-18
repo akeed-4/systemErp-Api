@@ -76,6 +76,12 @@ public partial class CommercialContractDto
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }
     public DateTime? RetentionReleaseDate { get; set; }
+    public decimal RetentionInitialReleasePercent { get; set; }
+    public int? MaintenancePeriodMonths { get; set; }
+    public DateTime? InitialAcceptanceDate { get; set; }
+    public DateTime? FinalAcceptanceDate { get; set; }
+    /// <summary>موعد الاستلام النهائي = الاستلام الأولي + فترة الصيانة.</summary>
+    public DateTime? FinalAcceptanceDue => ERP.Core.Models.Accounting.CommercialContract.FinalAcceptanceDueOf(InitialAcceptanceDate, MaintenancePeriodMonths);
     public decimal LatePenaltyPerDay { get; set; }
     public decimal MaxPenaltyPercent { get; set; }
     public string? ScopeOfWork { get; set; }

@@ -3,17 +3,51 @@ using ERP.Service.Data;
 
 namespace ERP.Service.Services.Shared;
 
+/// <summary>
+/// محرك الاعتماد العام: السياسات ومستوياتها، والطلبات، والقرارات وسجلها. قواعد القرار (تقوية المرحلة 1):
+/// لا يعتمد أحدٌ طلبه (ولا المالك)؛ المعتمِد المعيَّن للمستوى (مستخدماً أو دوراً) أو المالك، أو مدير مركز الاعتماد
+/// (approval-center.manage) عن المستوى الحالي وحده ضمن نطاق سجلاته؛ ومن يعتمد عن المستوى لا يعتمد مستويين من الطلب نفسه.
+/// القرار يحجز صف الطلب أوله (رمز تزامن) فلا ينجح قراران متزامنان، ويُرفض إن تغيّر المستوى عمّا رآه المعتمِد.
+/// </summary>
 public class ApprovalService : IApprovalService
 {
     private readonly ErpDbContext _db;
     private readonly ICurrentUser _user;
     private readonly ITransactionRunner _tx;
     private readonly IEmailSender _email;
+    private readonly IPermissionService _permissions;
 
-    public ApprovalService(ErpDbContext db, ICurrentUser user, ITransactionRunner tx, IEmailSender email)
+    public ApprovalService(ErpDbContext db, ICurrentUser user, ITransactionRunner tx, IEmailSender email, IPermissionService permissions)
     {
-        _db = db; _user = user; _tx = tx; _email = email;
+        _db = db; _user = user; _tx = tx; _email = email; _permissions = permissions;
     }
+
+    /// <summary>
+    /// نوع سجل النطاق لكل مستند في الفهرس (يُفحص به نطاق مدير المركز حين يعتمد عن المستوى)؛ ما لا نوع له لا نطاق عليه.
+    /// الحجز لإنشاء مستند لا معرّف له بعد، فلا سجل يُفحص (يفحصه تنفيذ العملية).
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> ScopeRecordTypes = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["sales"] = "sales-invoice", ["sales_return"] = "sales-return", ["purchase"] = "purchase-invoice", ["purchase_return"] = "purchase-return",
+        ["quotation"] = "quotation", ["sales_order"] = "commercial-order", ["purchase_order"] = "commercial-order", ["delivery_note"] = "delivery-note",
+        ["material_requisition"] = "material-requisition", ["receipt_voucher"] = "voucher", ["payment_voucher"] = "voucher",
+        ["journal_entry"] = "journal-entry", ["commercial_contract"] = "commercial-contract", ["project_material_plan"] = "commercial-contract",
+        ["project_execution_plan"] = "commercial-contract", ["car_sales_contract"] = "car-sales-contract",
+        ["car_procurement_order"] = "car-procurement-order",
+    };
+
+    /// <summary>يرى كل الطلبات: مدير مركز الاعتماد، أو من يدير سياسات الموافقات (كما كان)، أو صاحب الصلاحية الكاملة.</summary>
+    private async Task<bool> SeesAllAsync(CancellationToken ct)
+        => await _permissions.HasPermissionAsync(PermissionCatalog.ApprovalCenterScreenId, ScreenAction.Manage, ct)
+           || await _permissions.HasPermissionAsync("approval-policies", ScreenAction.View, ct);
+
+    /// <summary>المعتمِد المعيَّن للمستوى الحالي: المستخدم المحدد، أو دوره إن لم يُحدَّد مستخدم.</summary>
+    private static bool IsAssigned(ApprovalRequest r, Guid me, string? role)
+        => r.RequiredApproverUserId.HasValue ? r.RequiredApproverUserId == me
+            : r.RequiredApproverRole != null && r.RequiredApproverRole == role;
+
+    /// <summary>موعد قرار المستوى من مهلة خطوته.</summary>
+    private static DateTime? DueFor(ApprovalPolicyStep? step) => step?.SlaHours is int h and > 0 ? DateTime.UtcNow.AddHours(h) : null;
 
     public Task<ApprovalCheckResultDto> CheckAndCreateAsync(ApprovalCheckRequestDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -89,9 +123,16 @@ public class ApprovalService : IApprovalService
             DocumentDataSnapshot = r.DocumentDataSnapshot,
             IsDeferred = payload != null, Handler = handler, Payload = payload,
             RequesterUserId = me, RequesterName = _user.Name ?? string.Empty,
-            CurrentLevel = 1, TotalLevels = policy.Steps.Count, Status = "pending",
+            CurrentLevel = 1, TotalLevels = policy.Steps.Count, Status = ApprovalRequestStatuses.Pending,
             RequiredApproverRole = first.ApproverRole, RequiredApproverUserId = first.ApproverUserId,
+            DueAt = DueFor(first), LastActionAt = DateTime.UtcNow,
         };
+        // السجل يبدأ بالتقديم (من ومتى) ليكتمل مسار التدقيق
+        request.History.Add(new ApprovalHistoryItem
+        {
+            Level = 1, ApproverUserId = me, ApproverName = _user.Name ?? string.Empty, Status = ApprovalHistoryActions.Submitted,
+            Action = ApprovalHistoryActions.Submitted, Timestamp = DateTime.UtcNow,
+        });
         _db.Add(request);
         await _db.SaveChangesAsync(ct);
         await NotifyApproversAsync(request, ct);
@@ -101,6 +142,16 @@ public class ApprovalService : IApprovalService
     public async Task<PagedResult<ApprovalRequestDto>> ListRequestsAsync(string? status, PaginationParams p, CancellationToken ct = default)
     {
         var q = _db.Set<ApprovalRequest>().AsNoTracking().AsQueryable();
+        // الرؤية: مدير المركز ومدير السياسات يرون الكل؛ غيرهم ما قدّموه، أو ما ينتظرهم (بالمستخدم أو الدور)، أو ما قرّروا فيه
+        if (!await SeesAllAsync(ct))
+        {
+            var me = _user.UserId ?? throw new UnauthorizedAppException();
+            var role = _user.RoleId;
+            q = q.Where(x => x.RequesterUserId == me
+                || (x.Status == ApprovalRequestStatuses.Pending && (x.RequiredApproverUserId == me
+                    || (x.RequiredApproverUserId == null && x.RequiredApproverRole != null && x.RequiredApproverRole == role)))
+                || x.History.Any(h => h.ApproverUserId == me));
+        }
         if (!string.IsNullOrWhiteSpace(status)) q = q.Where(x => x.Status == status);
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
@@ -126,25 +177,25 @@ public class ApprovalService : IApprovalService
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         var role = _user.RoleId;
         var request = await _db.Set<ApprovalRequest>().AsNoTracking().Include(x => x.History)
-            .FirstOrDefaultAsync(x => x.Id == id && x.Status == "pending", ct)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status == ApprovalRequestStatuses.Pending, ct)
             ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
-        var assigned = role == "owner" || (request.RequiredApproverUserId.HasValue
-            ? request.RequiredApproverUserId == me
-            : request.RequiredApproverRole != null && request.RequiredApproverRole == role);
-        if (!assigned) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
+        var allowed = role == "owner" || IsAssigned(request, me, role)
+            || await _permissions.HasPermissionAsync(PermissionCatalog.ApprovalCenterScreenId, ScreenAction.Manage, ct);
+        if (!allowed) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
         return Mapper.Map<ApprovalRequestDto>(request);
     }
 
     public Task<ApprovalRequestDto> ApproveAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var (request, me) = await LoadForDecisionAsync(id, token);
+            var (request, me) = await LoadForDecisionAsync(id, d, approving: true, token);
             request.History.Add(new ApprovalHistoryItem
             {
                 Level = request.CurrentLevel, ApproverUserId = me, ApproverName = _user.Name ?? string.Empty,
-                Status = "approved", Comment = d.Comment, Timestamp = DateTime.UtcNow,
+                Status = ApprovalHistoryActions.Approved, Action = ApprovalHistoryActions.Approved, Comment = d.Comment, Timestamp = DateTime.UtcNow,
             });
 
+            // يتقدّم المستوى الحالي وحده (ولو اعتمده مدير المركز): المستويات الباقية بمعتمديها
             if (request.CurrentLevel < request.TotalLevels)
             {
                 var next = await _db.Set<ApprovalPolicyStep>().AsNoTracking()
@@ -152,62 +203,117 @@ public class ApprovalService : IApprovalService
                 request.CurrentLevel++;
                 request.RequiredApproverRole = next?.ApproverRole;
                 request.RequiredApproverUserId = next?.ApproverUserId;
+                request.DueAt = DueFor(next);
                 await _db.SaveChangesAsync(token);
                 await NotifyApproversAsync(request, token);
             }
             else
             {
-                request.Status = "approved";
+                request.Status = ApprovalRequestStatuses.Approved;
+                request.DueAt = null;
                 await _db.SaveChangesAsync(token);
                 await NotifyRequesterAsync(request, "approval_approved", "تم اعتماد طلبك", token);
             }
             return Mapper.Map<ApprovalRequestDto>(request);
         }, ct);
 
-    public async Task<ApprovalRequestDto> CancelAsync(Guid id, CancellationToken ct = default)
-    {
-        var me = _user.UserId ?? throw new UnauthorizedAppException();
-        var request = await _db.Set<ApprovalRequest>().Include(x => x.History).FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
-        if (request.Status != "pending") throw new ConflictException(Messages.OnlyPendingRequestWithdrawable);
-        if (request.RequesterUserId != me && _user.RoleId is not ("owner" or "admin")) throw new ForbiddenException(Messages.OnlyRequesterOrAdminCanWithdraw);
-        request.Status = "cancelled";
-        await _db.SaveChangesAsync(ct);
-        return Mapper.Map<ApprovalRequestDto>(request);
-    }
-
-    public Task<ApprovalRequestDto> RejectAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
+    public Task<ApprovalRequestDto> CancelAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            if (string.IsNullOrWhiteSpace(d.Comment)) throw new ValidationFailedException(Messages.RejectionReasonRequired);
-            var (request, me) = await LoadForDecisionAsync(id, token);
+            var me = _user.UserId ?? throw new UnauthorizedAppException();
+            var request = await _db.Set<ApprovalRequest>().Include(x => x.History).FirstOrDefaultAsync(x => x.Id == id, token)
+                ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
+            if (request.Status != ApprovalRequestStatuses.Pending) throw new ConflictException(Messages.OnlyPendingRequestWithdrawable);
+            if (request.RequesterUserId != me && _user.RoleId is not ("owner" or "admin")) throw new ForbiddenException(Messages.OnlyRequesterOrAdminCanWithdraw);
+            await ClaimAsync(request, token);
             request.History.Add(new ApprovalHistoryItem
             {
                 Level = request.CurrentLevel, ApproverUserId = me, ApproverName = _user.Name ?? string.Empty,
-                Status = "rejected", Comment = d.Comment, Timestamp = DateTime.UtcNow,
+                Status = ApprovalRequestStatuses.Cancelled, Action = ApprovalHistoryActions.Withdrawn, Timestamp = DateTime.UtcNow,
             });
-            request.Status = "rejected";
-            request.RejectionReason = d.Comment;
+            request.Status = ApprovalRequestStatuses.Cancelled;
+            request.DueAt = null;
             await _db.SaveChangesAsync(token);
-            await NotifyRequesterAsync(request, "approval_rejected", "تم رفض طلبك", token);
             return Mapper.Map<ApprovalRequestDto>(request);
         }, ct);
 
-    private async Task<(ApprovalRequest Request, Guid Me)> LoadForDecisionAsync(Guid id, CancellationToken ct)
+    public Task<ApprovalRequestDto> RejectAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
+        => CloseAsync(id, d, ApprovalRequestStatuses.Rejected, ApprovalHistoryActions.Rejected, Messages.RejectionReasonRequired,
+            "approval_rejected", "تم رفض طلبك", ct);
+
+    /// <summary>
+    /// إعادة الطلب لمقدّمه للتعديل بسبب إلزامي: لا يُنفَّذ (ولا عمليته المحجوزة)، ويُعدّل مقدّمه المستند ويعيد إرساله بطلب جديد.
+    /// أثره على المستند كأثر الرفض (يبقى مسودة)، والفرق في الحالة والسجل والإشعار.
+    /// </summary>
+    public Task<ApprovalRequestDto> ReturnAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
+        => CloseAsync(id, d, ApprovalRequestStatuses.Returned, ApprovalHistoryActions.Returned, Messages.ReturnReasonRequired,
+            "approval_returned", "أُعيد طلبك للتعديل", ct);
+
+    /// <summary>قرار يُنهي الطلب بسبب إلزامي (رفض أو إعادة): السجل والحالة وإشعار مقدّمه.</summary>
+    private Task<ApprovalRequestDto> CloseAsync(Guid id, ApprovalDecisionDto d, string status, string action, string reasonMessage,
+        string notificationType, string notificationTitle, CancellationToken ct)
+        => _tx.RunAsync(async token =>
+        {
+            if (string.IsNullOrWhiteSpace(d.Comment)) throw new ValidationFailedException(reasonMessage);
+            var (request, me) = await LoadForDecisionAsync(id, d, approving: false, token);
+            request.History.Add(new ApprovalHistoryItem
+            {
+                Level = request.CurrentLevel, ApproverUserId = me, ApproverName = _user.Name ?? string.Empty,
+                Status = status, Action = action, Comment = d.Comment, Timestamp = DateTime.UtcNow,
+            });
+            request.Status = status;
+            request.RejectionReason = d.Comment;
+            request.DueAt = null;
+            await _db.SaveChangesAsync(token);
+            await NotifyRequesterAsync(request, notificationType, notificationTitle, token);
+            return Mapper.Map<ApprovalRequestDto>(request);
+        }, ct);
+
+    /// <summary>
+    /// حارس القرار: الطلب معلّق وبالمستوى الذي رآه المعتمِد، والمعتمِد مخوَّل (معيَّن للمستوى، أو المالك، أو مدير المركز
+    /// ضمن نطاق سجلاته)، ولا يعتمد أحدٌ طلبه، ومن يعتمد عن المستوى لا يعتمد مستويين من الطلب نفسه. ثم يحجز الصف.
+    /// </summary>
+    private async Task<(ApprovalRequest Request, Guid Me)> LoadForDecisionAsync(Guid id, ApprovalDecisionDto d, bool approving, CancellationToken ct)
     {
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         var request = await _db.Set<ApprovalRequest>().Include(x => x.History).FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
-        if (request.Status != "pending") throw new ConflictException(Messages.RequestAlreadyDecided);
+        if (request.Status != ApprovalRequestStatuses.Pending) throw new ConflictException(Messages.RequestAlreadyDecided);
+        // قرار متزامن أو نقر مكرر غيّر المستوى في الأثناء: لا يُعتمد المستوى التالي بقرار اتُّخذ على السابق
+        if (d.ExpectedLevel is int expected && expected != request.CurrentLevel)
+            throw new ConflictException(string.Format(Messages.ApprovalLevelChanged, request.CurrentLevel, request.TotalLevels));
 
         var role = _user.RoleId;
         var isOwner = role == "owner";
-        var allowed = isOwner
-            || (request.RequiredApproverUserId.HasValue && request.RequiredApproverUserId == me)
-            || (request.RequiredApproverUserId == null && request.RequiredApproverRole != null && request.RequiredApproverRole == role);
-        if (!allowed) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
-        if (request.RequesterUserId == me && !isOwner) throw new ForbiddenException(Messages.CannotApproveOwnRequest);
+        var assigned = IsAssigned(request, me, role);
+        var manager = !assigned && !isOwner
+            && await _permissions.HasPermissionAsync(PermissionCatalog.ApprovalCenterScreenId, ScreenAction.Manage, ct);
+        if (!assigned && !isOwner && !manager) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
+
+        // لا يعتمد أحدٌ طلبه — ولا المالك. الرفض والإعادة لمقدّمه على قاعدتهما السابقة (والسحب متاح له)
+        if (request.RequesterUserId == me && (approving || !isOwner)) throw new ForbiddenException(Messages.CannotApproveOwnRequest);
+
+        if (!assigned)
+        {
+            // الاعتماد عن المستوى (المالك أو مدير المركز) ضمن نطاق السجل، ومستوى واحد للطلب نفسه
+            if (ScopeRecordTypes.TryGetValue(request.DocumentType, out var recordType) && request.DocumentId != Guid.Empty)
+                await _permissions.EnsureRecordInScopeAsync(recordType, request.DocumentId, ct);
+            if (approving && request.History.Any(h => h.ApproverUserId == me && h.Action == ApprovalHistoryActions.Approved))
+                throw new ConflictException(Messages.ApprovalOverrideOneLevel);
+        }
+
+        await ClaimAsync(request, ct);
         return (request, me);
+    }
+
+    /// <summary>
+    /// يحجز صف الطلب أول القرار: تحديث يمرّ برمز التزامن، فينتظر قرارٌ متزامن حتى تنتهي معاملة الأول ثم يتعارض
+    /// (فيعيد المشغّل المحاولة على الحالة الجديدة ويُرفض). الأثر على المستند لا يبدأ قبل الحجز.
+    /// </summary>
+    private async Task ClaimAsync(ApprovalRequest request, CancellationToken ct)
+    {
+        request.LastActionAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
     }
 
     private async Task NotifyApproversAsync(ApprovalRequest r, CancellationToken ct)

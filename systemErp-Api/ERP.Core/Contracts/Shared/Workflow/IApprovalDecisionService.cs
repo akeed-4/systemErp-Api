@@ -10,4 +10,6 @@ public interface IApprovalDecisionService
 {
     Task<ApprovalRequestDto> ApproveAsync(Guid id, ApprovalDecisionDto decision, CancellationToken ct = default);
     Task<ApprovalRequestDto> RejectAsync(Guid id, ApprovalDecisionDto decision, CancellationToken ct = default);
+    /// <summary>إعادة الطلب لمقدّمه للتعديل بسبب إلزامي (لا يُنفَّذ؛ يُعاد إرساله بطلب جديد).</summary>
+    Task<ApprovalRequestDto> ReturnAsync(Guid id, ApprovalDecisionDto decision, CancellationToken ct = default);
 }

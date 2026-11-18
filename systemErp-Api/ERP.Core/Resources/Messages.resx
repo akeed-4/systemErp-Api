@@ -101,6 +101,12 @@
   <data name="BuyerMobileRequired" xml:space="preserve"><value>جوال المشتري مطلوب.</value></data>
   <data name="BuyerNameRequired" xml:space="preserve"><value>اسم المشتري مطلوب.</value></data>
   <data name="CannotApproveOwnRequest" xml:space="preserve"><value>لا يمكنك اعتماد طلبك بنفسك.</value></data>
+  <data name="ApprovalLevelChanged" xml:space="preserve"><value>تغيّر مستوى الطلب في الأثناء (الحالي {0} من {1}): حدّث الصفحة وراجع الطلب قبل القرار.</value></data>
+  <data name="ReturnReasonRequired" xml:space="preserve"><value>سبب الإعادة للتعديل مطلوب.</value></data>
+  <data name="ApprovalOverrideOneLevel" xml:space="preserve"><value>اعتمدتَ مستوى سابقاً من هذا الطلب: المستويات الباقية لمعتمديها المعيَّنين.</value></data>
+  <data name="ApprovalReturnNotForCount" xml:space="preserve"><value>الجرد لا يُعاد من هنا: ارفضه بسبب فيعود لمُعدّه للتعديل.</value></data>
+  <data name="ApprovalRequestReturned" xml:space="preserve"><value>أُعيد الطلب لمقدّمه للتعديل.</value></data>
+  <data name="ApprovalSlaHoursRange" xml:space="preserve"><value>مهلة المستوى بالساعات بين 1 و8760.</value></data>
   <data name="CannotApproveRequisitionInCurrentState" xml:space="preserve"><value>لا يمكن اعتماد الطلب في حالته الحالية.</value></data>
   <data name="CannotAssignOwnerRole" xml:space="preserve"><value>لا يمكن إسناد دور المالك لمستخدم آخر.</value></data>
   <data name="CannotCancelInvoicedContract" xml:space="preserve"><value>لا يُلغى عقد فُوتر؛ أنشئ مرتجع مبيعات.</value></data>
@@ -571,6 +577,16 @@
   <data name="CertificateNothingToInvoice" xml:space="preserve"><value>لا قيمة خاضعة للفوترة في المستخلص بعد استرداد الدفعة المقدمة.</value></data>
   <data name="RetentionReleaseAfterAcceptance" xml:space="preserve"><value>يُفرج عن ضمان حسن التنفيذ والعقد في «الاستلام الأولي».</value></data>
   <data name="RetentionNothingToRelease" xml:space="preserve"><value>لا ضمان محتجز متبقٍ للإفراج عنه في فواتير العقد.</value></data>
+  <data name="RetentionInitialReleasePercentRange" xml:space="preserve"><value>نسبة الإفراج عن المحتجزات عند الاستلام الأولي بين 0 و100.</value></data>
+  <data name="MaintenancePeriodRange" xml:space="preserve"><value>فترة الصيانة بين 0 و120 شهراً.</value></data>
+  <data name="RetentionAwaitingFinalAcceptance" xml:space="preserve"><value>أُفرج عن نسبة الاستلام الأولي ({0}%) من المحتجزات؛ الباقي بعد الاستلام النهائي (موعده {1}).</value></data>
+  <data name="RetentionReleaseAmountInvalid" xml:space="preserve"><value>مبلغ الإفراج أكبر من صفر ولا يتجاوز الجائز الآن ({0}).</value></data>
+  <data name="FinalAcceptanceNeedsInitial" xml:space="preserve"><value>الاستلام النهائي لعقد في مرحلة الاستلام الأولي فقط.</value></data>
+  <data name="FinalAcceptanceAlreadyRecorded" xml:space="preserve"><value>سُجِّل الاستلام النهائي من قبل بتاريخ {0}.</value></data>
+  <data name="FinalAcceptanceFutureDate" xml:space="preserve"><value>تاريخ الاستلام النهائي لا يتجاوز اليوم.</value></data>
+  <data name="FinalAcceptanceBeforeInitial" xml:space="preserve"><value>تاريخ الاستلام النهائي يسبق الاستلام الأولي ({0}).</value></data>
+  <data name="FinalAcceptanceBeforeDue" xml:space="preserve"><value>لم تنتهِ فترة الصيانة: الاستلام النهائي من {0}.</value></data>
+  <data name="FinalAcceptanceRecorded" xml:space="preserve"><value>سُجِّل الاستلام النهائي؛ يمكن الإفراج عن باقي المحتجزات.</value></data>
   <data name="CustomerAccountMissing" xml:space="preserve"><value>العميل ليس له حساب ذمم في شجرة الحسابات.</value></data>
   <data name="AccountSettingRequiredForContracts" xml:space="preserve"><value>حدد «{0}» في إعدادات الحسابات (قسم العقود) قبل هذه الفوترة.</value></data>
   <data name="ContractAccountAmbiguous" xml:space="preserve"><value>أكثر من حساب في الشجرة يصلح لـ «{0}»: {1}. اختر أحدها في إعدادات الحسابات (قسم العقود).</value></data>
@@ -1670,6 +1686,12 @@
   <data name="ProjectMaterialPlanSubmitted" xml:space="preserve"><value>قُدّمت احتياجات المواد للاعتماد.</value></data>
   <data name="ProjectMaterialPlanApproved" xml:space="preserve"><value>اعتُمدت احتياجات المواد.</value></data>
   <data name="ProjectMaterialPlanReturned" xml:space="preserve"><value>أُعيدت احتياجات المواد للمسودة.</value></data>
+  <data name="ProjectMaterialAdjustmentNotFound" xml:space="preserve"><value>تعديل الاحتياجات غير موجود.</value></data>
+  <data name="ProjectMaterialAdjustmentNegative" xml:space="preserve"><value>السطر {0}: النقص يجعل الكمية المعتمدة للمادة سالبة.</value></data>
+  <data name="ProjectMaterialAdjustmentItemsMissing" xml:space="preserve"><value>أضاف أمر التغيير بنوداً بلا مواد في التعديل ({0}): أضف موادها قبل الاعتماد.</value></data>
+  <data name="ProjectMaterialAdjustmentSaved" xml:space="preserve"><value>حُفظ تعديل الاحتياجات.</value></data>
+  <data name="ProjectMaterialAdjustmentApproved" xml:space="preserve"><value>اعتُمد تعديل الاحتياجات؛ تغيّرت الكميات المعتمدة وحدود الطلب معها.</value></data>
+  <data name="ProjectMaterialAdjustmentRejected" xml:space="preserve"><value>رُفض تعديل الاحتياجات؛ بقيت الكميات المعتمدة كما هي.</value></data>
   <!-- إعداد مشروع المقاولات -->
   <data name="ProjectOnlyForBoq" xml:space="preserve"><value>إعداد المشروع لعقود المقاولات بجدول كميات فقط.</value></data>
   <data name="ProjectContractClosed" xml:space="preserve"><value>لا يُعدَّل إعداد مشروع عقده مغلق أو ملغى.</value></data>
@@ -1733,6 +1755,15 @@
   <data name="SiteReportReopenNoteRequired" xml:space="preserve"><value>سبب إعادة فتح التقرير المعتمد مطلوب.</value></data>
   <data name="SiteReportReopened" xml:space="preserve"><value>أُعيد فتح التقرير للتعديل؛ قيوده الأصلية باقية ويُرحَّل الفرق فقط عند إعادة اعتماده.</value></data>
   <data name="SiteReportHasPostedCost" xml:space="preserve"><value>رُحّلت تكلفة هذا التقرير من قبل فلا يُحذف؛ عدّله وأعد اعتماده فيُرحَّل الفرق.</value></data>
+  <data name="SiteReportDateInFuture" xml:space="preserve"><value>لا يُسجَّل تقرير يومي بتاريخ لاحق لليوم ({0}).</value></data>
+  <data name="SiteReportDateBeforeStart" xml:space="preserve"><value>تاريخ التقرير {0} يسبق بداية العقد {1}.</value></data>
+  <data name="SiteResourceOutsideWindow" xml:space="preserve"><value>الموارد، السطر {0}: تاريخ التقرير خارج فترة وجود المورد في المشروع (إسناد المعدة أو عقد الإيجار: {1} إلى {2}).</value></data>
+  <data name="SiteResourceDayOverbooked" xml:space="preserve"><value>{0}: مجموع ساعاته يوم {1} يبلغ {2} ساعة، أكثر من 24 ساعة{3}.</value></data>
+  <data name="SiteResourceOtherProjects" xml:space="preserve"><value> (منها في تقارير العقود: {0})</value></data>
+  <data name="SiteHourExceedsBoq" xml:space="preserve"><value>البند {0}: المنفّذ التراكمي في التقارير اليومية {1} يتجاوز كمية العقد المسموحة {2} {3}. سجّل أمر تغيير لزيادة الكمية.</value></data>
+  <data name="SiteReportCoveredByCertificate" xml:space="preserve"><value>لا يُعاد فتح التقرير: تاريخه داخل فترة المستخلص رقم {0} المعتمد (حتى {1}). ألغِ المستخلص أولاً.</value></data>
+  <data name="CertificateExceedsSite" xml:space="preserve"><value>لا يُعتمد المستخلص: {0} بند يتجاوز تراكميه المنفّذ في التقارير اليومية المعتمدة حتى {2} ({1}). اعتمد تقارير الموقع أو خفّض الكمية الحالية.</value></data>
+  <data name="CertificateExceedsSiteLine" xml:space="preserve"><value>{0}: المطالب به تراكمياً {1} والمنفّذ في الموقع {2} {3}.</value></data>
   <data name="RentalAccrualCloseNoteRequired" xml:space="preserve"><value>سبب إقفال الإيجار المستحق مطلوب.</value></data>
   <data name="RentalAccrualNothingToClose" xml:space="preserve"><value>لا إيجار مستحق مفتوح لهذا المؤجر في المشروع حتى التاريخ المحدد.</value></data>
   <data name="RentalAccrualClosed" xml:space="preserve"><value>تم إقفال {0} من الإيجار المستحق.</value></data>

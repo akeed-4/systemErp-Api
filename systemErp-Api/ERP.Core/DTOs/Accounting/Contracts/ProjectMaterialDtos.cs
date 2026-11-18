@@ -174,3 +174,71 @@ public class ProjectMaterialPlanActionDto
 {
     public string? Note { get; set; }
 }
+
+/// <summary>تعديل احتياجات مقترح من أمر تغيير (أو معتمد/مرفوض) بأسطره، والبنود الجديدة التي تنتظر موادها.</summary>
+public class ProjectMaterialAdjustmentDto
+{
+    public Guid Id { get; set; }
+    public Guid ContractId { get; set; }
+    public Guid? VariationId { get; set; }
+    public string? VariationNumber { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    public string? DecidedBy { get; set; }
+    public string? DecisionNote { get; set; }
+    public List<ProjectMaterialAdjustmentLineDto> Lines { get; set; } = new();
+    /// <summary>بنود أضافها الأمر ولا سطر مواد لها في التعديل بعد.</summary>
+    public List<ProjectMaterialAdjustmentItemDto> ItemsWithoutMaterials { get; set; } = new();
+}
+
+public class ProjectMaterialAdjustmentLineDto
+{
+    public Guid Id { get; set; }
+    public Guid? RequirementId { get; set; }
+    public Guid? BoqItemId { get; set; }
+    public string? BoqItemCode { get; set; }
+    public string? BoqItemDescription { get; set; }
+    public Guid? SubItemId { get; set; }
+    public string? SubItemCode { get; set; }
+    public string? SubItemDescription { get; set; }
+    public Guid ResourceId { get; set; }
+    public string? ResourceCode { get; set; }
+    public string? ResourceName { get; set; }
+    public string Unit { get; set; } = string.Empty;
+    public decimal ItemQuantityChange { get; set; }
+    public decimal QuantityPerUnit { get; set; }
+    /// <summary>الكمية المعتمدة للاحتياج الآن (قبل هذا التعديل إن لم يُعتمد).</summary>
+    public decimal CurrentQuantity { get; set; }
+    public decimal ProposedQuantityChange { get; set; }
+    public decimal QuantityChange { get; set; }
+    public decimal QuantityAfter { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class ProjectMaterialAdjustmentItemDto
+{
+    public Guid ContractItemId { get; set; }
+    public string? LineCode { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+}
+
+/// <summary>حفظ التعديل المقترح: الأسطر كاملة (القائمة بمعرّفها، والجديدة بمادتها وبندها؛ المحذوف من القائمة يُحذف).</summary>
+public class SaveProjectMaterialAdjustmentDto
+{
+    public string? Notes { get; set; }
+    public List<SaveProjectMaterialAdjustmentLineDto> Lines { get; set; } = new();
+}
+
+public class SaveProjectMaterialAdjustmentLineDto
+{
+    public Guid? Id { get; set; }
+    public Guid? BoqItemId { get; set; }
+    public Guid? SubItemId { get; set; }
+    public Guid? ResourceId { get; set; }
+    public decimal QuantityChange { get; set; }
+    public string? Notes { get; set; }
+}

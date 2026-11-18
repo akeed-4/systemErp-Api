@@ -7,6 +7,8 @@ public partial class ApprovalHistoryItemDto
     public Guid ApproverUserId { get; set; }
     public string ApproverName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    /// <summary>الحدث: submitted، approved، rejected، returned، withdrawn.</summary>
+    public string Action { get; set; } = string.Empty;
     public string? Comment { get; set; }
     public DateTime Timestamp { get; set; }
 }

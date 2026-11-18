@@ -49,6 +49,7 @@ public class ApprovalPolicyService : CrudService<ApprovalPolicy, ApprovalPolicyD
         if (!levels.SequenceEqual(Enumerable.Range(1, levels.Count))) errors.Add(Messages.ApprovalLevelsMustBeSequential);
         if (d.Steps.Any(s => string.IsNullOrWhiteSpace(s.ApproverRole) && s.ApproverUserId == null))
             errors.Add(Messages.LevelNeedsApprover);
+        if (d.Steps.Any(s => s.SlaHours is <= 0 or > 8760)) errors.Add(Messages.ApprovalSlaHoursRange);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
         var userIds = d.Steps.Where(s => s.ApproverUserId.HasValue).Select(s => s.ApproverUserId!.Value).Distinct().ToList();

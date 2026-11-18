@@ -22,12 +22,39 @@ public class ApprovalRequest : BaseEntity
     
     public int CurrentLevel { get; set; }
     public int TotalLevels { get; set; }
-    public string Status { get; set; } = "pending"; // pending, approved, rejected
+    public string Status { get; set; } = ApprovalRequestStatuses.Pending;
     
     public string? RequiredApproverRole { get; set; }
     public Guid? RequiredApproverUserId { get; set; }
     
     public string? RejectionReason { get; set; }
 
+    /// <summary>موعد قرار المستوى الحالي (من مهلة خطوة السياسة)؛ فارغ = بلا مهلة. يُعاد احتسابه عند الانتقال لمستوى.</summary>
+    public DateTime? DueAt { get; set; }
+    /// <summary>آخر إجراء على الطلب (قرار أو سحب)؛ يُحدَّث أول القرار فيحجز الصف ويكشف التزامن.</summary>
+    public DateTime? LastActionAt { get; set; }
+    /// <summary>رمز تزامن: قراران متزامنان على الطلب نفسه لا ينجحان معاً.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
     public virtual ICollection<ApprovalHistoryItem> History { get; set; } = new List<ApprovalHistoryItem>();
+}
+
+/// <summary>حالات طلب الاعتماد. «معاد» = أُعيد لمقدّمه للتعديل (لا يُنفَّذ، ويُعاد إرساله بطلب جديد).</summary>
+public static class ApprovalRequestStatuses
+{
+    public const string Pending = "pending";
+    public const string Approved = "approved";
+    public const string Rejected = "rejected";
+    public const string Returned = "returned";
+    public const string Cancelled = "cancelled";
+}
+
+/// <summary>نوع حدث سجل الطلب (التدقيق الكامل): التقديم، والقرارات، والسحب.</summary>
+public static class ApprovalHistoryActions
+{
+    public const string Submitted = "submitted";
+    public const string Approved = "approved";
+    public const string Rejected = "rejected";
+    public const string Returned = "returned";
+    public const string Withdrawn = "withdrawn";
 }

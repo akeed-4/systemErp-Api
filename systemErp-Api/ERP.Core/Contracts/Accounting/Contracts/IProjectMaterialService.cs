@@ -25,4 +25,12 @@ public interface IProjectMaterialService
     Task<ProjectMaterialPlanDto> ApproveAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>إعادة المقدَّمة للمسودة بسبب إلزامي.</summary>
     Task<ProjectMaterialPlanDto> ReturnAsync(Guid contractId, ProjectMaterialPlanActionDto request, CancellationToken ct = default);
+
+    /// <summary>تعديلات الاحتياجات المعتمدة المقترحة من أوامر التغيير (الأحدث أولاً).</summary>
+    Task<List<ProjectMaterialAdjustmentDto>> ListAdjustmentsAsync(Guid contractId, CancellationToken ct = default);
+    /// <summary>حفظ التعديل المقترح: فروق الأسطر، ومواد البنود الجديدة.</summary>
+    Task<ProjectMaterialAdjustmentDto> SaveAdjustmentAsync(Guid contractId, Guid adjustmentId, SaveProjectMaterialAdjustmentDto request, CancellationToken ct = default);
+    /// <summary>اعتماد التعديل: تتغير الكميات المعتمدة وحدود الطلب والاستلام معها.</summary>
+    Task<ProjectMaterialAdjustmentDto> ApproveAdjustmentAsync(Guid contractId, Guid adjustmentId, CancellationToken ct = default);
+    Task<ProjectMaterialAdjustmentDto> RejectAdjustmentAsync(Guid contractId, Guid adjustmentId, ProjectMaterialPlanActionDto request, CancellationToken ct = default);
 }

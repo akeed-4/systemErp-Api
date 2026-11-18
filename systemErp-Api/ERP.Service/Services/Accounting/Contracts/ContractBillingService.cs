@@ -104,6 +104,9 @@ public class ContractBillingService : IContractBillingService
             var cert = await _db.Set<ContractCertificate>().Include(x => x.Materials).FirstOrDefaultAsync(x => x.Id == certificateId && x.ContractId == contractId, token)
                 ?? throw new NotFoundException(Messages.CertificateNotFound);
             if (cert.Status != St.Approved) throw new ConflictException(string.Format(Messages.CertificateStatusInvalid, cert.Status));
+            // أعمال يقابلها استرداد الدفعة المقدمة كاملاً: ضريبتها حُصّلت في فاتورة الدفعة، فتُسوّى بلا فاتورة ضريبية جديدة
+            if (Math.Abs(cert.TaxableAmount) < 0.005m && cert.CurrentWorkValue > 0 && cert.AdvanceRecovery > 0)
+                return await SettleCertificateAsync(c, cert, date, token);
             if (cert.TaxableAmount <= 0) throw new ValidationFailedException(Messages.CertificateNothingToInvoice);
             // تكلفة المواد: ما رُحِّل تسليمه على أصل تحت التنفيذ يُنقل لتكلفة الإيرادات من الحساب نفسه (الجرد الدوري بلا أصل فلا قيد)
             var materialCost = await MaterialCostByWipAsync(cert, token);
@@ -189,6 +192,56 @@ public class ContractBillingService : IContractBillingService
             await _db.SaveChangesAsync(token);
             return invoice;
         }, ct);
+
+    /// <summary>
+    /// تسوية مستخلص صافيه الخاضع صفر (قيمة أعماله = استرداد الدفعة المقدمة): الضريبة حُصّلت في فاتورة الدفعة، فلا فاتورة ضريبية
+    /// جديدة. يُرحَّل قيد الاسترداد (من الدفعات المستلمة إلى الإيراد، أو للمورد من الخدمات المشتراة إلى الدفعات المدفوعة) وقيد تكلفة
+    /// المواد، ويصير المستخلص مفوتراً بلا فاتورة. الاستقطاعات صفر حتماً (صافٍ سالب يرفضه الاعتماد). لا يُلغى بإلغاء الفاتورة.
+    /// </summary>
+    private async Task<InvoiceDto> SettleCertificateAsync(CommercialContract c, ContractCertificate cert, DateTime? date, CancellationToken ct)
+    {
+        var materialCost = await MaterialCostByWipAsync(cert, ct);
+        await ContractAccountsSetup.EnsureMissingAsync(_db, ct);
+        var settings = await PostingAccounts.SettingsAsync(_db, ct);
+        var supplier = IsSupplier(c);
+        var advanceAccount = settings.ContractAccount(supplier
+            ? nameof(AccountingSettings.ContractAdvancesPaidAccountCode) : nameof(AccountingSettings.ContractAdvancesReceivedAccountCode));
+        var day = InvoiceDay(date ?? cert.CertificateDate);
+
+        var note = $"تسوية مستخلص {cert.CertificateNumber} باسترداد الدفعة المقدمة (بلا فاتورة ضريبية) - عقد {c.ContractNumber}";
+        var other = supplier ? DefaultAccounts.PurchasedServices
+            : string.IsNullOrWhiteSpace(c.RevenueAccountCode) ? settings.SalesRevenue() : c.RevenueAccountCode;
+        var lines = supplier
+            ? new[] { new PostingLine(other, cert.AdvanceRecovery, 0, note, c.CostCenterId), new PostingLine(advanceAccount, 0, cert.AdvanceRecovery, note, c.CostCenterId) }
+            : new[] { new PostingLine(advanceAccount, cert.AdvanceRecovery, 0, note, c.CostCenterId), new PostingLine(other, 0, cert.AdvanceRecovery, note, c.CostCenterId) };
+        var journal = (await PostAsync(c, day, note, cert.CertificateNumber, "contract_certificate", cert.Id, lines[0], lines[1], ct)).JournalEntryId;
+
+        if (materialCost.Count > 0)
+        {
+            var costAccount = settings.ContractAccount(nameof(AccountingSettings.ContractCostOfRevenueAccountCode));
+            var costNote = $"تكلفة مواد مستخلص {cert.CertificateNumber} (تسوية) - عقد {c.ContractNumber}";
+            var costLines = new List<PostingLine> { new(costAccount, materialCost.Values.Sum(), 0, costNote, c.CostCenterId) };
+            costLines.AddRange(materialCost.Select(w => new PostingLine(w.Key, 0, w.Value, costNote, c.CostCenterId)));
+            cert.CostJournalEntryId = (await _posting.PostAsync(new GenericPostingRequest
+            {
+                Date = day, Description = costNote, SourceType = "contract_certificate_cost", SourceId = cert.Id, SourceNumber = cert.CertificateNumber,
+                WarehouseId = c.WarehouseId, Lines = costLines,
+            }, ct)).JournalEntryId;
+        }
+
+        cert.Status = St.Invoiced;
+        cert.InvoicedAt = DateTime.UtcNow;
+        cert.AdvanceJournalEntryId = journal;
+        _db.Add(new ContractInvoice
+        {
+            ContractId = c.Id, Kind = cert.Kind == ContractCertificateKinds.Final ? "final" : "progress",
+            InvoiceNumber = string.Empty, CertificateId = cert.Id, JournalEntryId = journal,
+            GrossAmount = cert.CurrentWorkValue, AdvanceDeduction = cert.AdvanceRecovery, IssuedAt = day,
+        });
+        await _db.SaveChangesAsync(ct);
+        // بلا فاتورة: رقم فارغ تعرضه الواجهة «تسوية»
+        return new InvoiceDto();
+    }
 
     /// <summary>
     /// العقد المبسط: المستخلص يُفوتر مباشرة بعد إعداده — تقديم واعتماد وفوترة في معاملة واحدة (كلها أو لا شيء)،
@@ -291,19 +344,55 @@ public class ContractBillingService : IContractBillingService
 
     // ---------- الإفراج عن الضمان ----------
 
-    public Task<RetentionReleaseResultDto> ReleaseRetentionAsync(Guid contractId, DateTime? date = null, CancellationToken ct = default)
+    /// <summary>
+    /// المحتجز (ضمان فواتير المستخلصات غير الملغاة) والمُفرج عنه حتى الآن. ضمان فواتير أُلغيت بإشعار لم يعد محتجزاً.
+    /// </summary>
+    internal static async Task<(decimal Withheld, decimal Released)> RetentionTotalsAsync(ErpDbContext db, Guid contractId, CancellationToken ct)
+    {
+        var rows = await db.Set<ContractInvoice>().AsNoTracking().Where(i => i.ContractId == contractId)
+            .Select(i => new { i.Kind, i.RetentionAmount, i.GrossAmount }).ToListAsync(ct);
+        var cancelled = rows.Where(i => i.Kind == "credit_note").Sum(i => i.RetentionAmount);
+        var withheld = rows.Where(i => i.Kind != "credit_note" && i.Kind != RetentionRelease).Sum(i => i.RetentionAmount) - cancelled;
+        var released = rows.Where(i => i.Kind == RetentionRelease).Sum(i => i.GrossAmount);
+        return (withheld, released);
+    }
+
+    /// <summary>
+    /// الجائز الإفراج عنه الآن على مرحلتين: لا شيء قبل الاستلام الأولي؛ بعده حتى نسبة الإفراج الأولي من المحتجز كله؛ وبعد الاستلام
+    /// النهائي كل الباقي. نسبة 100 (العقود القائمة) تفرج عن الكل بالاستلام الأولي.
+    /// </summary>
+    internal static decimal RetentionReleasable(CommercialContract c, decimal withheld, decimal released)
+    {
+        if (c.Stage != ContractStageDefinition.InitialAcceptance) return 0;
+        var balance = withheld - released;
+        if (balance <= 0) return 0;
+        if (c.FinalAcceptanceDate != null || c.RetentionInitialReleasePercent >= 100m) return balance;
+        var initialCap = DocumentPricing.Round(withheld * c.RetentionInitialReleasePercent / 100m) - released;
+        return Math.Max(0, Math.Min(balance, initialCap));
+    }
+
+    public Task<RetentionReleaseResultDto> ReleaseRetentionAsync(Guid contractId, DateTime? date = null, decimal? amount = null, CancellationToken ct = default)
         => new TransactionRunner(_db).RunAsync(async token =>
         {
+            // قفل صف العقد قبل قراءة الأرصدة: إفراجان متزامنان يتتابعان فلا يُفرج عن المبلغ نفسه مرتين
+            await _db.Set<CommercialContract>().Where(x => x.Id == contractId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RetentionReleaseDate, x => x.RetentionReleaseDate), token);
             var c = await LoadBoqContractAsync(contractId, token);
             // الإفراج بعد الاستلام الأولي (والإغلاق يشترطه)
             if (c.Stage != ContractStageDefinition.InitialAcceptance) throw new ConflictException(Messages.RetentionReleaseAfterAcceptance);
-            var invoices = _db.Set<ContractInvoice>().Where(i => i.ContractId == c.Id && i.Kind != "credit_note");
-            // ضمان فواتير مستخلصات أُلغيت بإشعار لم يعد محتجزاً
-            var cancelledRetention = await _db.Set<ContractInvoice>().Where(i => i.ContractId == c.Id && i.Kind == "credit_note").SumAsync(i => i.RetentionAmount, token);
-            var withheld = await invoices.Where(i => i.Kind != RetentionRelease).SumAsync(i => i.RetentionAmount, token) - cancelledRetention;
-            var released = await invoices.Where(i => i.Kind == RetentionRelease).SumAsync(i => i.GrossAmount, token);
-            var amount = withheld - released;
-            if (amount <= 0) throw new ConflictException(Messages.RetentionNothingToRelease);
+            var (withheld, released) = await RetentionTotalsAsync(_db, c.Id, token);
+            if (withheld - released <= 0) throw new ConflictException(Messages.RetentionNothingToRelease);
+            var cap = RetentionReleasable(c, withheld, released);
+            if (cap <= 0)
+            {
+                var due = CommercialContract.FinalAcceptanceDueOf(c.InitialAcceptanceDate, c.MaintenancePeriodMonths);
+                throw new ConflictException(string.Format(Messages.RetentionAwaitingFinalAcceptance,
+                    c.RetentionInitialReleasePercent.ToString("0.##"), due?.ToString("yyyy-MM-dd") ?? "—"));
+            }
+            var requested = amount.HasValue ? DocumentPricing.Round(amount.Value) : cap;
+            if (requested <= 0 || requested > cap + 0.005m)
+                throw new ValidationFailedException(string.Format(Messages.RetentionReleaseAmountInvalid, cap.ToString("0.00")));
+            var value = Math.Min(requested, cap);
 
             // منشأة قائمة لم تُهيَّأ حسابات عقودها: تُنشأ/تُربط الناقصة فقط (الإعداد المحدد لا يُمس)
             await ContractAccountsSetup.EnsureMissingAsync(_db, token);
@@ -317,18 +406,43 @@ public class ContractBillingService : IContractBillingService
             // العميل: الضمان يعود ذمة عليه؛ المورد: يعود ذمة له
             var posted = supplier
                 ? await PostAsync(c, day, note, c.ContractNumber, "contract_retention_release", c.Id,
-                    new PostingLine(retentionAccount, amount, 0, note, c.CostCenterId), new PostingLine(partyAccount, 0, amount, note), token)
+                    new PostingLine(retentionAccount, value, 0, note, c.CostCenterId), new PostingLine(partyAccount, 0, value, note), token)
                 : await PostAsync(c, day, note, c.ContractNumber, "contract_retention_release", c.Id,
-                    new PostingLine(partyAccount, amount, 0, note), new PostingLine(retentionAccount, 0, amount, note, c.CostCenterId), token);
+                    new PostingLine(partyAccount, value, 0, note), new PostingLine(retentionAccount, 0, value, note, c.CostCenterId), token);
 
             _db.Add(new ContractInvoice
             {
                 ContractId = c.Id, Kind = RetentionRelease, InvoiceNumber = posted.EntryNumber, JournalEntryId = posted.JournalEntryId,
-                GrossAmount = amount, TotalAmount = amount, IssuedAt = day,
+                GrossAmount = value, TotalAmount = value, IssuedAt = day,
             });
             c.RetentionReleaseDate = day;
             await _db.SaveChangesAsync(token);
-            return new RetentionReleaseResultDto { JournalEntryId = posted.JournalEntryId, EntryNumber = posted.EntryNumber, Amount = amount };
+            return new RetentionReleaseResultDto { JournalEntryId = posted.JournalEntryId, EntryNumber = posted.EntryNumber, Amount = value };
+        }, ct);
+
+    /// <summary>
+    /// الاستلام النهائي بعد فترة الصيانة: يُسجَّل مرة واحدة على عقد في مرحلة الاستلام الأولي، ولا يسبق موعده (الاستلام الأولي + فترة
+    /// الصيانة). بعده يجوز الإفراج عن باقي المحتجزات، والإغلاق يبقى مشروطاً بالإفراج عنها كلها.
+    /// </summary>
+    public Task<BoqProgressDto> RecordFinalAcceptanceAsync(Guid contractId, FinalAcceptanceRequestDto request, CancellationToken ct = default)
+        => new TransactionRunner(_db).RunAsync(async token =>
+        {
+            var c = await LoadBoqContractAsync(contractId, token);
+            if (c.Stage != ContractStageDefinition.InitialAcceptance) throw new ConflictException(Messages.FinalAcceptanceNeedsInitial);
+            if (c.FinalAcceptanceDate != null)
+                throw new ConflictException(string.Format(Messages.FinalAcceptanceAlreadyRecorded, c.FinalAcceptanceDate.Value.ToString("yyyy-MM-dd")));
+            var day = (request.Date ?? SaudiTime.Today).Date;
+            if (day > SaudiTime.Today) throw new ValidationFailedException(Messages.FinalAcceptanceFutureDate);
+            if (c.InitialAcceptanceDate is DateTime initial && day < initial.Date)
+                throw new ValidationFailedException(string.Format(Messages.FinalAcceptanceBeforeInitial, initial.ToString("yyyy-MM-dd")));
+            if (CommercialContract.FinalAcceptanceDueOf(c.InitialAcceptanceDate, c.MaintenancePeriodMonths) is DateTime due && day < due)
+                throw new ValidationFailedException(string.Format(Messages.FinalAcceptanceBeforeDue, due.ToString("yyyy-MM-dd")));
+            c.FinalAcceptanceDate = day;
+            await _db.SaveChangesAsync(token);
+            var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+            await _audit.LogAsync("CONTRACT_FINAL_ACCEPTANCE", nameof(CommercialContract), c.Id.ToString(),
+                $"استلام نهائي لعقد {c.ContractNumber} بتاريخ {day:yyyy-MM-dd}" + (note != null ? $" • {note}" : string.Empty), token);
+            return await _certificates.ProgressAsync(contractId, token);
         }, ct);
 
     // ---------- التحصيل والسداد ----------

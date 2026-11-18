@@ -23,7 +23,8 @@ public class ApprovalsController : ErpControllerBase
     public async Task<IActionResult> Check([FromBody] ApprovalCheckRequestDto request, CancellationToken ct)
         => Success(await _approvals.CheckAndCreateAsync(request, ct));
 
-    [HttpGet, RequireScreen("dashboard")]
+    // الرؤية تُصفّى في الخدمة: مدير المركز ومدير السياسات يرون الكل، وغيرهم ما يخصّهم (مقدّماً أو معتمِداً)
+    [HttpGet, AuthenticatedOnly, EmployeeSelfService]
     public async Task<IActionResult> List([FromQuery] string? status, [FromQuery] PaginationParams query, CancellationToken ct)
         => Success(await _approvals.ListRequestsAsync(status, query, ct));
 
@@ -37,11 +38,17 @@ public class ApprovalsController : ErpControllerBase
     [HttpPost("{id:guid}/approve"), AuthenticatedOnly, EmployeeSelfService]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
     {
-        await _permissions.EnsureApprovalLimitAsync((await _approvals.GetForApproverAsync(id, ct)).DocumentAmount, ct);
+        // حد الاعتماد بمبلغ الطلب؛ الأهلية والحالة يفحصهما حارس القرار (فالطلب المحسوم في الأثناء تعارض 409 لا 404)
+        await _permissions.EnsureApprovalLimitAsync((await _approvals.GetAsync(id, ct)).DocumentAmount, ct);
         return Success(await _decisions.ApproveAsync(id, decision, ct));
     }
 
     [HttpPost("{id:guid}/reject"), AuthenticatedOnly, EmployeeSelfService]
     public async Task<IActionResult> Reject(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
         => Success(await _decisions.RejectAsync(id, decision, ct));
+
+    /// <summary>إعادة الطلب لمقدّمه للتعديل بسبب إلزامي (بقواعد معتمِد المستوى نفسها).</summary>
+    [HttpPost("{id:guid}/return"), AuthenticatedOnly, EmployeeSelfService]
+    public async Task<IActionResult> Return(Guid id, [FromBody] ApprovalDecisionDto decision, CancellationToken ct)
+        => Success(await _decisions.ReturnAsync(id, decision, ct), Messages.ApprovalRequestReturned);
 }

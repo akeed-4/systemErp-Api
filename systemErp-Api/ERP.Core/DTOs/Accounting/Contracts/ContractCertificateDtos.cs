@@ -246,6 +246,17 @@ public class BoqProgressDto
     public decimal RetentionInvoiced { get; set; }
     public decimal RetentionReleased { get; set; }
     public decimal RetentionOutstanding { get; set; }
+    /// <summary>الجائز الإفراج عنه الآن: حتى نسبة الاستلام الأولي قبل الاستلام النهائي، وكل الباقي بعده (صفر قبل الاستلام الأولي).</summary>
+    public decimal RetentionReleasable { get; set; }
+    public decimal RetentionInitialReleasePercent { get; set; }
+    public int? MaintenancePeriodMonths { get; set; }
+    public DateTime? InitialAcceptanceDate { get; set; }
+    public DateTime? FinalAcceptanceDate { get; set; }
+    public DateTime? FinalAcceptanceDue { get; set; }
+    /// <summary>انتهت فترة الصيانة ولم يُسجَّل الاستلام النهائي (تذكير).</summary>
+    public bool FinalAcceptanceOverdue { get; set; }
+    /// <summary>يجوز تسجيل الاستلام النهائي الآن.</summary>
+    public bool CanRecordFinalAcceptance { get; set; }
     /// <summary>إجمالي فواتير العقد (الدفعة والمستخلصات شاملة الضريبة)، والمحصّل عليها من السندات الموزّعة.</summary>
     public decimal InvoicedTotal { get; set; }
     public decimal CollectedTotal { get; set; }
@@ -313,4 +324,11 @@ public class BoqProgressLineDto
     public decimal RemainingQuantity { get; set; }
     public decimal CertifiedAmount { get; set; }
     public decimal CompletionPercent { get; set; }
+}
+
+/// <summary>تسجيل الاستلام النهائي: تاريخه (افتراضياً اليوم) وملاحظة اختيارية.</summary>
+public class FinalAcceptanceRequestDto
+{
+    public DateTime? Date { get; set; }
+    public string? Note { get; set; }
 }

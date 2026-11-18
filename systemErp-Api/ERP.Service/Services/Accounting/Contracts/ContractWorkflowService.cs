@@ -150,6 +150,9 @@ public class ContractWorkflowService : IContractWorkflowService
             c.ReviewRound++;
         }
         if (to == S.Active && c.Stage is S.Approval or S.Draft) c.SignedDate ??= SaudiTime.Today;
+        // الاستلام الأولي يبدأ فترة الصيانة (موعد الاستلام النهائي)؛ الرجوع منه يمحوه فيُثبَّت من جديد عند الاستلام التالي
+        if (to == S.InitialAcceptance) c.InitialAcceptanceDate = SaudiTime.Today;
+        else if (c.Stage == S.InitialAcceptance && to == S.Active) { c.InitialAcceptanceDate = null; c.FinalAcceptanceDate = null; }
 
         _db.Add(new ContractStatusLog
         {

@@ -9,6 +9,8 @@ public class ApprovalPolicyStep : BaseEntity
     public Guid? ApproverUserId { get; set; }
     public string TitleAr { get; set; } = string.Empty;
     public string TitleEn { get; set; } = string.Empty;
+    /// <summary>مهلة قرار هذا المستوى بالساعات؛ فارغة = بلا مهلة.</summary>
+    public int? SlaHours { get; set; }
 
     public virtual ApprovalPolicy Policy { get; set; } = null!;
 }

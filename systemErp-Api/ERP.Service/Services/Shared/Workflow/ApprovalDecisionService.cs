@@ -55,12 +55,31 @@ public class ApprovalDecisionService : IApprovalDecisionService
         var (saved, posted) = await _tx.RunAsync(async token =>
         {
             var result = await _approvals.ApproveAsync(id, d, token);
-            if (result.Status != "approved" || draft == null) return (result, false);
+            await _audit.LogAsync("APPROVAL_APPROVED", result.DocumentType, result.DocumentId.ToString(),
+                $"اعتماد المستوى {request.CurrentLevel}/{result.TotalLevels} لـ {result.DocumentNumber}" + (string.IsNullOrWhiteSpace(d.Comment) ? "" : $": {d.Comment}"), token);
+            if (result.Status != ApprovalRequestStatuses.Approved || draft == null) return (result, false);
             await draft.Post(token);
             return (result, true);
         }, ct);
         if (posted) await draft!.Submit(ct);
         return saved;
+    }
+
+    /// <summary>
+    /// إعادة الطلب للتعديل: لا تُنفَّذ عمليته المحجوزة، والفاتورة تبقى مسودة يعدّلها مقدّمها ويعيد إرسالها. الجرد له مسار
+    /// اعتماده (الرفض يعيده للتعديل) فلا يُعاد من هنا.
+    /// </summary>
+    public async Task<ApprovalRequestDto> ReturnAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)
+    {
+        var request = await _approvals.GetAsync(id, ct);
+        if (request.DocumentType == InventoryCountService.DocumentType) throw new ConflictException(Messages.ApprovalReturnNotForCount);
+        return await _tx.RunAsync(async token =>
+        {
+            var saved = await _approvals.ReturnAsync(id, d, token);
+            await _audit.LogAsync("APPROVAL_RETURNED", request.DocumentType, request.DocumentId.ToString(),
+                $"إعادة {request.DocumentNumber} للتعديل: {d.Comment}", token);
+            return saved;
+        }, ct);
     }
 
     public async Task<ApprovalRequestDto> RejectAsync(Guid id, ApprovalDecisionDto d, CancellationToken ct = default)

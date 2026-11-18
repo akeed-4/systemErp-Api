@@ -8,4 +8,6 @@ public partial class ApprovalPolicyStepDto
     public Guid? ApproverUserId { get; set; }
     public string TitleAr { get; set; } = string.Empty;
     public string TitleEn { get; set; } = string.Empty;
+    /// <summary>مهلة قرار المستوى بالساعات (اختيارية).</summary>
+    public int? SlaHours { get; set; }
 }

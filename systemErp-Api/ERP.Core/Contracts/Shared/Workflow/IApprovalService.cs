@@ -24,4 +24,6 @@ public interface IApprovalService
     /// <summary>سحب طلب معلّق (مقدّم الطلب أو المالك/المدير) - يُحفظ في السجل بحالة cancelled ولا يُحذف فيزيائياً.</summary>
     Task<ApprovalRequestDto> CancelAsync(Guid id, CancellationToken ct = default);
     Task<ApprovalRequestDto> RejectAsync(Guid id, ApprovalDecisionDto decision, CancellationToken ct = default);
+    /// <summary>إعادة الطلب لمقدّمه للتعديل بسبب إلزامي (لا يُنفَّذ؛ يُعاد إرساله بطلب جديد).</summary>
+    Task<ApprovalRequestDto> ReturnAsync(Guid id, ApprovalDecisionDto decision, CancellationToken ct = default);
 }

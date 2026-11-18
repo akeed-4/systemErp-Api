@@ -25,6 +25,8 @@ public sealed record PermissionScreenDefinition(
 /// </summary>
 public static class PermissionCatalog
 {
+    /// <summary>شاشة مركز الاعتماد الموحّد.</summary>
+    public const string ApprovalCenterScreenId = "approval-center";
     public static readonly PermissionActionDefinition[] Actions =
     {
         new(A.View, "view", PermissionActionGroup.Access, "عرض", "View", A.View),
@@ -51,6 +53,8 @@ public static class PermissionCatalog
         new(A.Connect, "connect", PermissionActionGroup.Workflow, "ربط الحساب", "Connect Account", A.Edit),
         new(A.Send, "send", PermissionActionGroup.Workflow, "إرسال", "Send", A.Create),
         new(A.Disconnect, "disconnect", PermissionActionGroup.Workflow, "فصل الحساب", "Disconnect Account", A.Delete),
+        // مركز الاعتماد: إدارة الطلبات (رؤية كل المعلّق، والاعتماد عن المستوى الحالي، والإجراء الجماعي)
+        new(A.Manage, "manage", PermissionActionGroup.Workflow, "إدارة", "Manage", A.Approve),
         new(A.Print, "print", PermissionActionGroup.Reports, "طباعة", "Print", A.View),
         new(A.Export, "export", PermissionActionGroup.Reports, "تصدير Excel", "Export Excel", A.View),
         new(A.Pdf, "pdf", PermissionActionGroup.Reports, "تصدير PDF", "Export PDF", A.View),
@@ -180,6 +184,8 @@ public static class PermissionCatalog
         new("reports", "reports", "التقارير المالية والإقرار الضريبي", "Financial Reports",
             new[] { A.View }.Concat(Docs).ToArray(), new[] { "reports", "financial-statements" }),
 
+        // مركز الاعتماد الموحّد: عرض الطلبات، والقرار، والإدارة (كل المعلّق والاعتماد عن المستوى). حسّاس: للأدوار الإدارية افتراضياً
+        new(ApprovalCenterScreenId, "settings", "مركز الاعتماد", "Approval Center", new[] { A.View, A.Approve, A.Manage }, Array.Empty<string>(), Restricted: true),
         new("approval-policies", "settings", "سياسات الموافقات والطلبات", "Approval Policies & Requests",
             new[] { A.View, A.Create, A.Edit, A.Delete, A.Approve, A.Reject }, Array.Empty<string>()),
         new("zatca", "settings", "الربط الإلكتروني والفوترة (ZATCA)", "ZATCA Integration", new[] { A.View, A.Edit }, new[] { "zatca-integration" }),

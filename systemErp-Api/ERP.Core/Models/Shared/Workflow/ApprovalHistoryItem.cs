@@ -8,6 +8,8 @@ public class ApprovalHistoryItem : BaseEntity
     public Guid ApproverUserId { get; set; }
     public string ApproverName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty; // approved, rejected
+    /// <summary>الحدث (<see cref="ApprovalHistoryActions"/>): يميّز التقديم والسحب عن القرارات في السجل.</summary>
+    public string Action { get; set; } = ApprovalHistoryActions.Approved;
     public string? Comment { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 

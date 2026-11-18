@@ -24,5 +24,8 @@ public partial class ApprovalRequestDto
     public string? RequiredApproverRole { get; set; }
     public Guid? RequiredApproverUserId { get; set; }
     public string? RejectionReason { get; set; }
+    /// <summary>موعد قرار المستوى الحالي؛ تجاوزه يعني تأخراً.</summary>
+    public DateTime? DueAt { get; set; }
+    public DateTime? LastActionAt { get; set; }
     public List<ApprovalHistoryItemDto> History { get; set; } = new();
 }

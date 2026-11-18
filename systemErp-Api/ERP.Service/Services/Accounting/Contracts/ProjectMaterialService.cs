@@ -35,13 +35,15 @@ public class ProjectMaterialService : IProjectMaterialService
         var plan = await _db.Set<ProjectMaterialPlan>().AsNoTracking().Include(p => p.Lines)
             .FirstOrDefaultAsync(p => p.ContractId == contractId, ct);
         var lines = (plan?.Lines ?? new List<ProjectMaterialRequirement>()).OrderBy(l => l.SortOrder).ToList();
+        var changes = plan?.Status == St.Approved
+            ? await ProjectMaterialAdjustments.ApprovedChangesAsync(_db, contractId, ct) : new Dictionary<Guid, decimal>();
         var dto = new ProjectMaterialPlanDto
         {
             Id = plan?.Id, ContractId = contract.Id, ContractNumber = contract.ContractNumber, ProjectName = contract.ProjectName,
             WarehouseId = contract.WarehouseId, Status = plan?.Status ?? St.Draft, Notes = plan?.Notes, ReturnNote = plan?.ReturnNote,
             SubmittedAt = plan?.SubmittedAt, SubmittedBy = plan?.SubmittedBy, ApprovedAt = plan?.ApprovedAt, ApprovedBy = plan?.ApprovedBy,
             Lines = await ToLinesAsync(contract, lines.Select(l => new LineSource(l.Id, l.BoqItemId, l.SubItemId, l.ResourceId, l.ProductId,
-                l.Unit, l.Source, l.BaselineQuantity, l.Notes)).ToList(), ct),
+                l.Unit, l.Source, Math.Round(l.BaselineQuantity + changes.GetValueOrDefault(l.Id), Decimals), l.Notes, l.BaselineQuantity)).ToList(), ct),
         };
         dto.EstimatedCost = dto.Lines.Sum(l => l.EstimatedCost);
         return dto;
@@ -213,6 +215,227 @@ public class ProjectMaterialService : IProjectMaterialService
             return await GetAsync(contractId, token);
         }, ct);
 
+    // ---------- تعديلات الاحتياجات من أوامر التغيير ----------
+
+    public async Task<List<ProjectMaterialAdjustmentDto>> ListAdjustmentsAsync(Guid contractId, CancellationToken ct = default)
+    {
+        var contract = await LoadContractAsync(contractId, ct);
+        var adjustments = await _db.Set<ProjectMaterialAdjustment>().AsNoTracking().Include(a => a.Lines)
+            .Where(a => a.ContractId == contractId).OrderByDescending(a => a.CreatedAt).ToListAsync(ct);
+        return await AdjustmentDtosAsync(contract, adjustments, ct);
+    }
+
+    /// <summary>
+    /// حفظ المقترح: يعدّل المراجع فروق الأسطر القائمة (المقترح يبقى للمقارنة)، ويضيف مواد البنود الجديدة، ويحذف ما لا يلزم. لا تنتج
+    /// كمية معتمدة سالبة، ولا تكرار للمادة على البند.
+    /// </summary>
+    public Task<ProjectMaterialAdjustmentDto> SaveAdjustmentAsync(Guid contractId, Guid adjustmentId, SaveProjectMaterialAdjustmentDto request, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var contract = await LoadContractAsync(contractId, token);
+            EnsureOpen(contract);
+            var adj = await LoadAdjustmentAsync(contractId, adjustmentId, token);
+            RequireAdjustmentStatus(adj, ProjectMaterialAdjustmentStatuses.Proposed);
+            var requirements = await _db.Set<ProjectMaterialRequirement>().AsNoTracking().Where(r => r.ContractId == contractId).ToListAsync(token);
+            var changes = await ProjectMaterialAdjustments.ApprovedChangesAsync(_db, contractId, token);
+            var items = contract.Items.ToDictionary(i => i.Id);
+            var newIds = request.Lines.Where(l => l.Id == null && l.ResourceId.HasValue).Select(l => l.ResourceId!.Value).Distinct().ToList();
+            var resources = await _db.Set<ConstructionResource>().AsNoTracking().Include(r => r.Components)
+                .Where(r => newIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, token);
+            var errors = new List<string>();
+            var keep = new HashSet<Guid>();
+            var seen = new HashSet<(Guid?, Guid?, Guid)>();
+            var order = adj.Lines.Count == 0 ? 0 : adj.Lines.Max(l => l.SortOrder);
+            for (var n = 0; n < request.Lines.Count; n++)
+            {
+                var d = request.Lines[n];
+                var row = n + 1;
+                ProjectMaterialAdjustmentLine? line;
+                if (d.Id is Guid id)
+                {
+                    line = adj.Lines.FirstOrDefault(l => l.Id == id);
+                    if (line == null) { errors.Add(string.Format(Messages.ProjectMaterialLineInvalid, row)); continue; }
+                }
+                else
+                {
+                    // مادة جديدة على بند من العقد (بند أضافه الأمر غالباً)
+                    if (d.ResourceId is not Guid rid || !resources.TryGetValue(rid, out var resource) || !ProjectMaterialAnalysis.IsMaterial(resource))
+                    { errors.Add(string.Format(Messages.ProjectMaterialResourceInvalid, row)); continue; }
+                    if (d.BoqItemId is not Guid boq || !items.TryGetValue(boq, out var main) || main.IsSubItem
+                        || (d.SubItemId is Guid sub && (!items.TryGetValue(sub, out var child) || !child.IsSubItem || child.ParentItemId != boq)))
+                    { errors.Add(string.Format(Messages.ProjectMaterialBoqItemInvalid, row)); continue; }
+                    var existing = requirements.FirstOrDefault(r => r.BoqItemId == d.BoqItemId && r.SubItemId == d.SubItemId && r.ResourceId == rid);
+                    line = new ProjectMaterialAdjustmentLine
+                    {
+                        RequirementId = existing?.Id, BoqItemId = d.BoqItemId, SubItemId = d.SubItemId, ResourceId = rid, ProductId = resource.ProductId,
+                        Unit = resource.Unit, SortOrder = ++order,
+                    };
+                    adj.Lines.Add(line);
+                }
+                if (!seen.Add((line.BoqItemId, line.SubItemId, line.ResourceId))) errors.Add(string.Format(Messages.ProjectMaterialDuplicate, row));
+                line.QuantityChange = Math.Round(d.QuantityChange, Decimals);
+                line.Notes = string.IsNullOrWhiteSpace(d.Notes) ? null : d.Notes.Trim()[..Math.Min(d.Notes.Trim().Length, 500)];
+                var current = line.RequirementId is Guid req
+                    ? (requirements.FirstOrDefault(r => r.Id == req)?.BaselineQuantity ?? 0) + changes.GetValueOrDefault(req) : 0;
+                if (current + line.QuantityChange < 0) errors.Add(string.Format(Messages.ProjectMaterialAdjustmentNegative, row));
+                if (line.Id != Guid.Empty) keep.Add(line.Id);
+            }
+            if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+            foreach (var removed in adj.Lines.Where(l => l.Id != Guid.Empty && !keep.Contains(l.Id)).ToList())
+            {
+                adj.Lines.Remove(removed);
+                _db.Remove(removed);
+            }
+            adj.Notes = string.IsNullOrWhiteSpace(request.Notes) ? adj.Notes : request.Notes.Trim();
+            await _db.SaveChangesAsync(token);
+            return (await AdjustmentDtosAsync(contract, new List<ProjectMaterialAdjustment> { adj }, token))[0];
+        }, ct);
+
+    /// <summary>
+    /// اعتماد التعديل: تصبح فروقه جزءاً من الكمية المعتمدة لاحتياجاتها (وعليها حدود الطلب والاستلام)، والمادة الجديدة تُضاف احتياجاً
+    /// بكمية أساسية صفر. يُعاد فحص عدم السالب من القاعدة لحظة الاعتماد. يمر بفصل المُعِد عن المعتمِد (معتمد أمر التغيير).
+    /// </summary>
+    public Task<ProjectMaterialAdjustmentDto> ApproveAdjustmentAsync(Guid contractId, Guid adjustmentId, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var contract = await LoadContractAsync(contractId, token);
+            EnsureOpen(contract);
+            var adj = await LoadAdjustmentAsync(contractId, adjustmentId, token);
+            RequireAdjustmentStatus(adj, ProjectMaterialAdjustmentStatuses.Proposed);
+            var variationApprover = adj.VariationId is Guid vid
+                ? await _db.Set<ContractVariation>().AsNoTracking().Where(v => v.Id == vid).Select(v => v.DecidedByUserId).FirstOrDefaultAsync(token)
+                : null;
+            await ApprovalSeparation.EnsureAsync(_db, _user.UserId, token, variationApprover);
+            var plan = await _db.Set<ProjectMaterialPlan>().Include(p => p.Lines).FirstOrDefaultAsync(p => p.ContractId == contractId, token)
+                ?? throw new NotFoundException(Messages.ProjectMaterialPlanNotFound);
+            if (plan.Status != St.Approved) throw new ConflictException(string.Format(Messages.ProjectMaterialPlanStatusInvalid, plan.Status));
+            var newItems = await NewItemsWithoutMaterialsAsync(adj, token);
+            if (newItems.Count > 0)
+                throw new ValidationFailedException(string.Format(Messages.ProjectMaterialAdjustmentItemsMissing,
+                    string.Join("، ", newItems.Select(i => string.IsNullOrWhiteSpace(i.LineCode) ? i.Description : $"{i.LineCode} - {i.Description}"))));
+
+            var changes = await ProjectMaterialAdjustments.ApprovedChangesAsync(_db, contractId, token);
+            var errors = new List<string>();
+            var order = plan.Lines.Count == 0 ? 0 : plan.Lines.Max(l => l.SortOrder);
+            var created = new List<(ProjectMaterialAdjustmentLine Line, ProjectMaterialRequirement Requirement)>();
+            foreach (var line in adj.Lines.OrderBy(l => l.SortOrder))
+            {
+                var requirement = line.RequirementId is Guid rid ? plan.Lines.FirstOrDefault(r => r.Id == rid)
+                    : plan.Lines.FirstOrDefault(r => r.BoqItemId == line.BoqItemId && r.SubItemId == line.SubItemId && r.ResourceId == line.ResourceId);
+                if (requirement == null)
+                {
+                    if (line.QuantityChange <= 0) continue; // لا احتياج قائم ولا زيادة: لا أثر
+                    requirement = new ProjectMaterialRequirement
+                    {
+                        ContractId = contractId, BoqItemId = line.BoqItemId, SubItemId = line.SubItemId, ResourceId = line.ResourceId,
+                        ProductId = line.ProductId, Unit = line.Unit, BaselineQuantity = 0, Source = ProjectMaterialSources.Manual,
+                        Notes = $"أُضيف بأمر التغيير {adj.VariationNumber}", SortOrder = ++order,
+                    };
+                    plan.Lines.Add(requirement);
+                    created.Add((line, requirement));
+                    continue;
+                }
+                line.RequirementId = requirement.Id;
+                if (requirement.BaselineQuantity + changes.GetValueOrDefault(requirement.Id) + line.QuantityChange < 0)
+                    errors.Add(string.Format(Messages.ProjectMaterialAdjustmentNegative, line.SortOrder));
+            }
+            if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+            adj.Status = ProjectMaterialAdjustmentStatuses.Approved;
+            adj.DecidedAt = DateTime.UtcNow; adj.DecidedBy = _user.Name ?? "system"; adj.DecidedByUserId = _user.UserId;
+            await _db.SaveChangesAsync(token);
+            // معرّف الاحتياج الجديد يُولَّد عند الحفظ؛ يُثبَّت على سطر التعديل في المعاملة نفسها
+            if (created.Count > 0)
+            {
+                foreach (var (line, requirement) in created) line.RequirementId = requirement.Id;
+                await _db.SaveChangesAsync(token);
+            }
+            return (await AdjustmentDtosAsync(contract, new List<ProjectMaterialAdjustment> { adj }, token))[0];
+        }, ct);
+
+    public Task<ProjectMaterialAdjustmentDto> RejectAdjustmentAsync(Guid contractId, Guid adjustmentId, ProjectMaterialPlanActionDto request, CancellationToken ct = default)
+    {
+        var note = request.Note?.Trim();
+        if (string.IsNullOrWhiteSpace(note)) throw new ValidationFailedException(Messages.ProjectMaterialReturnNoteRequired);
+        return _tx.RunAsync(async token =>
+        {
+            var contract = await LoadContractAsync(contractId, token);
+            var adj = await LoadAdjustmentAsync(contractId, adjustmentId, token);
+            RequireAdjustmentStatus(adj, ProjectMaterialAdjustmentStatuses.Proposed);
+            adj.Status = ProjectMaterialAdjustmentStatuses.Rejected;
+            adj.DecisionNote = note.Length > 500 ? note[..500] : note;
+            adj.DecidedAt = DateTime.UtcNow; adj.DecidedBy = _user.Name ?? "system"; adj.DecidedByUserId = _user.UserId;
+            await _db.SaveChangesAsync(token);
+            return (await AdjustmentDtosAsync(contract, new List<ProjectMaterialAdjustment> { adj }, token))[0];
+        }, ct);
+    }
+
+    private async Task<ProjectMaterialAdjustment> LoadAdjustmentAsync(Guid contractId, Guid adjustmentId, CancellationToken ct)
+        => await _db.Set<ProjectMaterialAdjustment>().Include(a => a.Lines).FirstOrDefaultAsync(a => a.Id == adjustmentId && a.ContractId == contractId, ct)
+            ?? throw new NotFoundException(Messages.ProjectMaterialAdjustmentNotFound);
+
+    private static void RequireAdjustmentStatus(ProjectMaterialAdjustment a, string status)
+    {
+        if (a.Status != status) throw new ConflictException(string.Format(Messages.ProjectMaterialPlanStatusInvalid, a.Status));
+    }
+
+    /// <summary>البنود التي أضافها الأمر ولا سطر مواد عليها في التعديل.</summary>
+    private async Task<List<CommercialContractItem>> NewItemsWithoutMaterialsAsync(ProjectMaterialAdjustment adj, CancellationToken ct)
+    {
+        if (adj.VariationId is not Guid vid) return new();
+        var createdIds = await _db.Set<ContractVariationLine>().AsNoTracking().Where(l => l.VariationId == vid && l.CreatedItemId != null)
+            .Select(l => l.CreatedItemId!.Value).ToListAsync(ct);
+        if (createdIds.Count == 0) return new();
+        var covered = adj.Lines.Select(l => l.SubItemId ?? l.BoqItemId).Where(i => i.HasValue).Select(i => i!.Value).ToHashSet();
+        var list = await _db.Set<CommercialContractItem>().AsNoTracking().Where(i => createdIds.Contains(i.Id) && !i.IsGroup).ToListAsync(ct);
+        return list.Where(i => !covered.Contains(i.Id)).OrderBy(i => i.SortOrder).ToList();
+    }
+
+    private async Task<List<ProjectMaterialAdjustmentDto>> AdjustmentDtosAsync(CommercialContract contract, List<ProjectMaterialAdjustment> adjustments, CancellationToken ct)
+    {
+        if (adjustments.Count == 0) return new();
+        var items = contract.Items.ToDictionary(i => i.Id);
+        var resourceIds = adjustments.SelectMany(a => a.Lines).Select(l => l.ResourceId).Distinct().ToList();
+        var resources = await _db.Set<ConstructionResource>().AsNoTracking().Where(r => resourceIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.Code, r.NameAr }).ToDictionaryAsync(r => r.Id, ct);
+        var baselines = await _db.Set<ProjectMaterialRequirement>().AsNoTracking().Where(r => r.ContractId == contract.Id)
+            .ToDictionaryAsync(r => r.Id, r => r.BaselineQuantity, ct);
+        var changes = await ProjectMaterialAdjustments.ApprovedChangesAsync(_db, contract.Id, ct);
+        var result = new List<ProjectMaterialAdjustmentDto>();
+        foreach (var a in adjustments)
+        {
+            var approved = a.Status == ProjectMaterialAdjustmentStatuses.Approved;
+            var missing = a.Status == ProjectMaterialAdjustmentStatuses.Proposed ? await NewItemsWithoutMaterialsAsync(a, ct) : new();
+            result.Add(new ProjectMaterialAdjustmentDto
+            {
+                Id = a.Id, ContractId = a.ContractId, VariationId = a.VariationId, VariationNumber = a.VariationNumber, Status = a.Status, Notes = a.Notes,
+                CreatedAt = a.CreatedAt, DecidedAt = a.DecidedAt, DecidedBy = a.DecidedBy, DecisionNote = a.DecisionNote,
+                Lines = a.Lines.OrderBy(l => l.SortOrder).Select(l =>
+                {
+                    var main = l.BoqItemId is Guid b ? items.GetValueOrDefault(b) : null;
+                    var sub = l.SubItemId is Guid s ? items.GetValueOrDefault(s) : null;
+                    var res = resources.GetValueOrDefault(l.ResourceId);
+                    // المعتمد الآن يشمل هذا التعديل إن اعتُمد: «قبله» = الحالي − فرقه
+                    var now = l.RequirementId is Guid r ? baselines.GetValueOrDefault(r) + changes.GetValueOrDefault(r) : 0;
+                    var before = approved ? now - l.QuantityChange : now;
+                    return new ProjectMaterialAdjustmentLineDto
+                    {
+                        Id = l.Id, RequirementId = l.RequirementId, BoqItemId = l.BoqItemId, BoqItemCode = main?.LineCode, BoqItemDescription = main?.Description,
+                        SubItemId = l.SubItemId, SubItemCode = sub?.LineCode, SubItemDescription = sub?.Description,
+                        ResourceId = l.ResourceId, ResourceCode = res?.Code, ResourceName = res?.NameAr, Unit = l.Unit,
+                        ItemQuantityChange = l.ItemQuantityChange, QuantityPerUnit = l.QuantityPerUnit, CurrentQuantity = Math.Round(before, Decimals),
+                        ProposedQuantityChange = l.ProposedQuantityChange, QuantityChange = l.QuantityChange,
+                        QuantityAfter = Math.Round(before + l.QuantityChange, Decimals), Notes = l.Notes,
+                    };
+                }).ToList(),
+                ItemsWithoutMaterials = missing.Select(i => new ProjectMaterialAdjustmentItemDto
+                {
+                    ContractItemId = i.Id, LineCode = i.LineCode, Description = i.Description, Unit = i.Unit, Quantity = i.RevisedQuantity,
+                }).ToList(),
+            });
+        }
+        return result;
+    }
+
     // ---------- التحقق ----------
 
     /// <summary>
@@ -283,7 +506,7 @@ public class ProjectMaterialService : IProjectMaterialService
     // ---------- البناء للعرض ----------
 
     private sealed record LineSource(Guid? Id, Guid? BoqItemId, Guid? SubItemId, Guid? ResourceId, Guid? ProductId, string Unit,
-        string Source, decimal Quantity, string? Notes);
+        string Source, decimal Quantity, string? Notes, decimal? Baseline = null);
 
     /// <summary>
     /// أسطر العرض: بيانات البند ومادة المكتبة، والصنف المربوط بالمادة حالياً (أو المحفوظ للسطر القديم) بالكمية المحوّلة لوحدته
@@ -321,7 +544,8 @@ public class ProjectMaterialService : IProjectMaterialService
                 Id = s.Id, BoqItemId = s.BoqItemId, BoqItemCode = main?.LineCode, BoqItemDescription = main?.Description,
                 SubItemId = s.SubItemId, SubItemCode = sub?.LineCode, SubItemDescription = sub?.Description,
                 ResourceId = r?.Id ?? s.ResourceId, ResourceCode = r?.Code, ResourceName = r?.NameAr ?? p?.Name, Unit = unit,
-                Source = s.Source, BaselineQuantity = s.Quantity, ApprovedQuantity = s.Quantity,
+                // الأساسية كما اعتُمدت، والمعتمدة = الأساسية + تعديلات أوامر التغيير المعتمدة (عليها الحدود والتكلفة)
+                Source = s.Source, BaselineQuantity = s.Baseline ?? s.Quantity, ApprovedQuantity = s.Quantity,
                 UnitCost = s.Quantity == 0 ? 0 : Math.Round(cost / s.Quantity, Decimals), EstimatedCost = cost,
                 IsStockLinked = p != null, ProductId = p?.Id, Sku = p?.Sku, ProductName = p?.Name, ProductUnit = p?.Unit,
                 ProductQuantity = productQty is decimal q ? Math.Round(q, Decimals) : null,

@@ -155,6 +155,8 @@ public class ErpDbContext : DbContext
         (typeof(CommercialContract), nameof(CommercialContract.ParentContractId), typeof(CommercialContract)),
         (typeof(ContractVariationLine), nameof(ContractVariationLine.ContractItemId), typeof(CommercialContractItem)),
         (typeof(ProjectMaterialPlan), nameof(ProjectMaterialPlan.ContractId), typeof(CommercialContract)),
+        (typeof(ProjectMaterialAdjustment), nameof(ProjectMaterialAdjustment.ContractId), typeof(CommercialContract)),
+        (typeof(ProjectMaterialAdjustmentLine), nameof(ProjectMaterialAdjustmentLine.ResourceId), typeof(ConstructionResource)),
         // الاحتياج يشير للعقد وللصنف: لا يُحذف عقد أو صنف له احتياجات
         (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ContractId), typeof(CommercialContract)),
         (typeof(ProjectMaterialRequirement), nameof(ProjectMaterialRequirement.ProductId), typeof(Product)),
@@ -589,6 +591,28 @@ public class ErpDbContext : DbContext
             e.Property(r => r.RowVersion).IsRowVersion();
             e.HasIndex(r => new { r.TenantId, r.ContractId, r.ProductId });
             e.HasIndex(r => new { r.TenantId, r.ContractId, r.ResourceId });
+        });
+        // تعديلات الاحتياجات من أوامر التغيير: تعديل واحد لكل أمر، وأسطره تُحذف معه
+        modelBuilder.Entity<ProjectMaterialAdjustment>(e =>
+        {
+            e.Property(a => a.Status).HasMaxLength(16).IsRequired();
+            e.Property(a => a.VariationNumber).HasMaxLength(50);
+            e.Property(a => a.Notes).HasMaxLength(1000);
+            e.Property(a => a.DecidedBy).HasMaxLength(200);
+            e.Property(a => a.DecisionNote).HasMaxLength(500);
+            e.HasIndex(a => new { a.TenantId, a.ContractId, a.Status });
+            e.HasIndex(a => new { a.TenantId, a.VariationId }).IsUnique().HasFilter("[VariationId] IS NOT NULL");
+            e.HasMany(a => a.Lines).WithOne(l => l.Adjustment).HasForeignKey(l => l.AdjustmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProjectMaterialAdjustmentLine>(e =>
+        {
+            e.Property(l => l.Unit).HasMaxLength(20).IsRequired();
+            e.Property(l => l.Notes).HasMaxLength(500);
+            e.Property(l => l.ItemQuantityChange).HasPrecision(18, 4);
+            e.Property(l => l.QuantityPerUnit).HasPrecision(18, 6);
+            e.Property(l => l.ProposedQuantityChange).HasPrecision(18, 4);
+            e.Property(l => l.QuantityChange).HasPrecision(18, 4);
+            e.HasIndex(l => new { l.TenantId, l.RequirementId });
         });
         // إعداد مشروع المقاولات: ملف واحد لكل عقد. القيد على العقد «منع الحذف» (كبقية تابعيه)، وحذف المسودة يحذفها صراحة. مرجع بند المرحلة لسطر العقد بلا قيد.
         modelBuilder.Entity<ConstructionProjectProfile>(e =>
@@ -1136,6 +1160,14 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<InvoiceBase>().HasIndex(i => new { i.TenantId, i.OriginalInvoiceId }).HasFilter("[OriginalInvoiceId] IS NOT NULL");
         // استبعاد الفواتير المعلّقة للاعتماد داخل كل قائمة فواتير
         modelBuilder.Entity<ApprovalRequest>().HasIndex(r => new { r.TenantId, r.DocumentId }).IncludeProperties(r => r.Status);
+        // تقوية محرك الاعتماد: قراران متزامنان على الطلب نفسه لا ينجحان معاً، وفهارس صندوق المعتمِد (المعلّق بمعتمده أو دوره)
+        modelBuilder.Entity<ApprovalRequest>().Property(r => r.RowVersion).IsRowVersion();
+        modelBuilder.Entity<ApprovalRequest>().Property(r => r.Status).HasMaxLength(20).IsRequired();
+        modelBuilder.Entity<ApprovalRequest>().Property(r => r.RequiredApproverRole).HasMaxLength(64);
+        modelBuilder.Entity<ApprovalRequest>().HasIndex(r => new { r.TenantId, r.Status, r.RequiredApproverUserId });
+        modelBuilder.Entity<ApprovalRequest>().HasIndex(r => new { r.TenantId, r.Status, r.RequiredApproverRole });
+        modelBuilder.Entity<ApprovalRequest>().HasIndex(r => new { r.TenantId, r.CreatedAt });
+        modelBuilder.Entity<ApprovalHistoryItem>().Property(h => h.Action).HasMaxLength(20).IsRequired();
         // الفرز الافتراضي لشبكات الأصناف والعملاء (الأحدث أولاً)
         modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.CreatedAt, p.Id }).IsDescending(false, true, true);
         modelBuilder.Entity<Customer>().HasIndex(c => new { c.TenantId, c.CreatedAt, c.Id }).IsDescending(false, true, true);

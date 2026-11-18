@@ -99,6 +99,37 @@ public class CommercialContractsController : CrudController<CommercialContractDt
         return Success(await _materials.ReturnAsync(id, dto, ct), Messages.ProjectMaterialPlanReturned);
     }
 
+    // تعديلات الاحتياجات المعتمدة من أوامر التغيير: التعديل بصلاحية الاستلام (كإعداد الاحتياجات)، والاعتماد والرفض بصلاحية الاعتماد
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpGet("{id:guid}/material-requirements/adjustments"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> MaterialAdjustments(Guid id, CancellationToken ct)
+        => Success(await _materials.ListAdjustmentsAsync(id, ct));
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpPut("{id:guid}/material-requirements/adjustments/{adjustmentId:guid}"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> SaveMaterialAdjustment(Guid id, Guid adjustmentId, [FromBody] SaveProjectMaterialAdjustmentDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, id, ct: ct);
+        return Success(await _materials.SaveAdjustmentAsync(id, adjustmentId, dto, ct), Messages.ProjectMaterialAdjustmentSaved);
+    }
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpPost("{id:guid}/material-requirements/adjustments/{adjustmentId:guid}/approve"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> ApproveMaterialAdjustment(Guid id, Guid adjustmentId, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _materials.ApproveAdjustmentAsync(id, adjustmentId, ct), Messages.ProjectMaterialAdjustmentApproved);
+    }
+
+    [RequireModule(PlatformModules.Construction)]
+    [HttpPost("{id:guid}/material-requirements/adjustments/{adjustmentId:guid}/reject"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> RejectMaterialAdjustment(Guid id, Guid adjustmentId, [FromBody] ProjectMaterialPlanActionDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _materials.RejectAdjustmentAsync(id, adjustmentId, dto, ct), Messages.ProjectMaterialAdjustmentRejected);
+    }
+
     // ---------- المناقصة (مسودة عقد المقاولات قبل الترسية) ----------
     // نقل الحالة بصلاحية التعديل على سجل العقد (المسودة تسمح بها)؛ الخادم يحصرها في المسودة.
 
@@ -445,10 +476,18 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     }
 
     [HttpPost("{id:guid}/retention-release"), RequireScreen(Screen, ScreenAction.Post, Legacy = ScreenAction.Create)]
-    public async Task<IActionResult> ReleaseRetention(Guid id, [FromQuery] DateTime? date, CancellationToken ct)
+    public async Task<IActionResult> ReleaseRetention(Guid id, [FromQuery] DateTime? date, [FromQuery] decimal? amount, CancellationToken ct)
     {
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Post, Record, id, ScreenAction.Create, ct);
-        return Success(await _billing.ReleaseRetentionAsync(id, date, ct), Messages.RetentionReleased);
+        return Success(await _billing.ReleaseRetentionAsync(id, date, amount, ct), Messages.RetentionReleased);
+    }
+
+    /// <summary>الاستلام النهائي بعد فترة الصيانة (صلاحية الاعتماد): بعده يُفرج عن باقي المحتجزات.</summary>
+    [HttpPost("{id:guid}/final-acceptance"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> RecordFinalAcceptance(Guid id, [FromBody] FinalAcceptanceRequestDto dto, CancellationToken ct)
+    {
+        await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _billing.RecordFinalAcceptanceAsync(id, dto, ct), Messages.FinalAcceptanceRecorded);
     }
 
     /// <summary>تحصيل (عقد عميل) أو سداد (عقد مورد) فاتورة مستخلص أو دفعة مقدمة بسند موزَّع عليها.</summary>

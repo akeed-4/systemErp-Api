@@ -144,6 +144,7 @@ public class ContractCertificateService : IContractCertificateService
         }).ToList();
 
         var certifiedValue = lines.Sum(l => l.CertifiedAmount);
+        var finalDue = CommercialContract.FinalAcceptanceDueOf(contract.InitialAcceptanceDate, contract.MaintenancePeriodMonths);
         var advanceDue = advanceInvoice?.InvoiceId is Guid advanceId
             && (await InvoiceBalances.ForAsync(_db, new List<Guid> { advanceId }, null, ct)).TryGetValue(advanceId, out var advanceBalance)
                 ? advanceBalance.AmountDue : 0;
@@ -159,6 +160,14 @@ public class ContractCertificateService : IContractCertificateService
             AdvanceInvoiceId = advanceInvoice?.InvoiceId, AdvanceAmountDue = advanceDue,
             RetentionInvoiced = retentionInvoiced, RetentionReleased = retentionReleased,
             RetentionOutstanding = Math.Max(0, retentionInvoiced - retentionReleased),
+            RetentionReleasable = ContractBillingService.RetentionReleasable(contract, retentionInvoiced, retentionReleased),
+            RetentionInitialReleasePercent = contract.RetentionInitialReleasePercent, MaintenancePeriodMonths = contract.MaintenancePeriodMonths,
+            InitialAcceptanceDate = contract.InitialAcceptanceDate, FinalAcceptanceDate = contract.FinalAcceptanceDate,
+            FinalAcceptanceDue = finalDue,
+            FinalAcceptanceOverdue = contract.Stage == ContractStageDefinition.InitialAcceptance && contract.FinalAcceptanceDate == null
+                && finalDue is DateTime overdue && overdue <= SaudiTime.Today,
+            CanRecordFinalAcceptance = contract.Stage == ContractStageDefinition.InitialAcceptance && contract.FinalAcceptanceDate == null
+                && (finalDue == null || finalDue <= SaudiTime.Today),
             InvoicedTotal = invoices.Where(i => i.InvoiceId != null).Sum(i => i.TotalAmount) - (cancelled?.Total ?? 0), CollectedTotal = collected,
             RetentionHeld = counted.Sum(c => c.RetentionAmount), PenaltiesTotal = counted.Sum(c => c.PenaltyAmount),
             PenaltyCap = PenaltyCap(contract), OtherDeductionsTotal = counted.Sum(c => c.OtherDeductions),
@@ -246,6 +255,35 @@ public class ContractCertificateService : IContractCertificateService
             missing.Select(n => string.Format(Messages.CertificateItemAttachmentMissing, n)).ToList());
     }
 
+    /// <summary>
+    /// منع اعتماد ما لم يُنفَّذ: كل بند بكمية حالية لا يتجاوز تراكميه المنفّذ في التقارير اليومية المعتمدة حتى نهاية فترة المستخلص
+    /// (أو تاريخه)، بقاعدة <see cref="ApplySiteAsync"/> نفسها. عقد بلا تقارير معتمدة (مباشر، أو قديم، أو عقد باطن) لا يُقارن.
+    /// </summary>
+    private async Task EnsureWithinSiteAsync(ContractCertificate cert, CancellationToken ct)
+    {
+        var claimed = cert.Lines.Where(l => l.CurrentQuantity > 0).OrderBy(l => l.SortOrder).ToList();
+        if (claimed.Count == 0) return;
+        var contractId = cert.ContractId;
+        var anyApproved = await _db.Set<SiteDailyReport>().AsNoTracking()
+            .AnyAsync(r => r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved, ct);
+        if (!anyApproved) return;
+        var cutoff = (cert.PeriodTo ?? cert.CertificateDate).Date;
+        var ids = claimed.Select(l => l.ContractItemId).ToList();
+        var executed = await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
+                              join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
+                              where r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved && r.ReportDate <= cutoff
+                                  && ids.Contains(h.ContractItemId)
+                              group h by h.ContractItemId into g
+                              select new { g.Key, Qty = g.Sum(x => x.ActualQuantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var over = claimed.Where(l => l.CumulativeQuantity > executed.GetValueOrDefault(l.ContractItemId) + 0.00005m).ToList();
+        if (over.Count == 0) return;
+        string Name(ContractCertificateLine l) => string.IsNullOrWhiteSpace(l.LineCode) ? l.Description : $"{l.LineCode} - {l.Description}";
+        var shown = string.Join("، ", over.Take(MaxNamedItems).Select(Name)) + (over.Count > MaxNamedItems ? "…" : "");
+        throw new ValidationFailedException(string.Format(Messages.CertificateExceedsSite, over.Count, shown, cutoff.ToString("yyyy-MM-dd")),
+            over.Select(l => string.Format(Messages.CertificateExceedsSiteLine, Name(l), l.CumulativeQuantity.ToString("0.####"),
+                executed.GetValueOrDefault(l.ContractItemId).ToString("0.####"), l.Unit)).ToList());
+    }
+
     /// <summary>عدد البنود المسمّاة في رسالة نقص الأرشيف (والباقي في قائمة الأخطاء).</summary>
     private const int MaxNamedItems = 5;
 
@@ -281,6 +319,7 @@ public class ContractCertificateService : IContractCertificateService
             RequireStatus(cert, St.Submitted);
             // السابق (كميات واسترداد وغرامات) يُعاد من القاعدة لحظة الاعتماد: لو اعتُمد غيره في الأثناء يُرفض التجاوز هنا
             await RemeasureAsync(cert, contract, token);
+            await EnsureWithinSiteAsync(cert, token);
             await EnsureProgressDocumentedAsync(cert, token);
             cert.Status = St.Approved;
             cert.ApprovedAt = DateTime.UtcNow; cert.ApprovedBy = _user.Name ?? "system"; cert.ApprovedByUserId = _user.UserId;

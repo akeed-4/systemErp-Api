@@ -75,6 +75,10 @@ public partial class CreateCommercialContractDto
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }
     public DateTime? RetentionReleaseDate { get; set; }
+    /// <summary>نسبة الإفراج عن المحتجزات عند الاستلام الأولي (0-100)؛ الباقي بعد الاستلام النهائي.</summary>
+    public decimal RetentionInitialReleasePercent { get; set; } = 100m;
+    /// <summary>فترة الصيانة بالأشهر من الاستلام الأولي (0-120)؛ فارغة = بلا فترة.</summary>
+    public int? MaintenancePeriodMonths { get; set; }
     public decimal LatePenaltyPerDay { get; set; }
     public decimal MaxPenaltyPercent { get; set; }
     public string? ScopeOfWork { get; set; }

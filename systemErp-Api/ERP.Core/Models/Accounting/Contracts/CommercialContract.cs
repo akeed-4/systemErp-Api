@@ -119,6 +119,21 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public decimal RetentionPercent { get; set; }
     public decimal RetentionAmount { get; set; }
     public DateTime? RetentionReleaseDate { get; set; }
+    /// <summary>
+    /// نسبة ما يُفرج عنه من المحتجزات عند الاستلام الأولي (من المحتجز كله)؛ والباقي بعد الاستلام النهائي بانتهاء فترة الصيانة.
+    /// 100 = الإفراج كله بالاستلام الأولي (سلوك العقود القائمة).
+    /// </summary>
+    public decimal RetentionInitialReleasePercent { get; set; } = 100m;
+    /// <summary>فترة الصيانة (ضمان الأعمال) بالأشهر من الاستلام الأولي؛ نهايتها موعد الاستلام النهائي. فارغة = بلا فترة.</summary>
+    public int? MaintenancePeriodMonths { get; set; }
+    /// <summary>تاريخ الاستلام الأولي: يُثبَّت عند انتقال العقد لمرحلته.</summary>
+    public DateTime? InitialAcceptanceDate { get; set; }
+    /// <summary>تاريخ الاستلام النهائي: بعده يُفرج عن باقي المحتجزات.</summary>
+    public DateTime? FinalAcceptanceDate { get; set; }
+
+    /// <summary>موعد الاستلام النهائي = الاستلام الأولي + فترة الصيانة (فارغ بلا أحدهما).</summary>
+    public static DateTime? FinalAcceptanceDueOf(DateTime? initialAcceptance, int? maintenanceMonths)
+        => initialAcceptance is DateTime d && maintenanceMonths is int m && m > 0 ? d.Date.AddMonths(m) : null;
     public decimal LatePenaltyPerDay { get; set; }
     public decimal MaxPenaltyPercent { get; set; }
     public string? ScopeOfWork { get; set; }

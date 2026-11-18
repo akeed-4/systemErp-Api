@@ -121,3 +121,59 @@ public class ProjectMaterialRequirement : BaseEntity
 
     public virtual ProjectMaterialPlan Plan { get; set; } = null!;
 }
+
+/// <summary>حالات تعديل احتياجات المواد: مقترح (من أمر تغيير) ← معتمد أو مرفوض.</summary>
+public static class ProjectMaterialAdjustmentStatuses
+{
+    public const string Proposed = "proposed";
+    public const string Approved = "approved";
+    public const string Rejected = "rejected";
+}
+
+/// <summary>
+/// تعديل الاحتياجات المعتمدة بعد العقد: يقترحه اعتماد أمر تغيير يغيّر كميات البنود (بمعدل استهلاك كل احتياج قائم، ومن تحليل
+/// المكتبة للبند الجديد)، ويعدّل المراجع كمياته ثم يعتمده أو يرفضه. لا تعديل مباشر للمعتمدة: الكمية المعتمدة للاحتياج =
+/// الأساسية + مجموع أسطر التعديلات المعتمدة عليه، وعليها تُحسب حدود الطلب والاستلام.
+/// </summary>
+public class ProjectMaterialAdjustment : BaseEntity
+{
+    public Guid ContractId { get; set; }
+    /// <summary>أمر التغيير الذي اقترحه (تعديل واحد لكل أمر).</summary>
+    public Guid? VariationId { get; set; }
+    public string? VariationNumber { get; set; }
+    public string Status { get; set; } = ProjectMaterialAdjustmentStatuses.Proposed;
+    public string? Notes { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    public string? DecidedBy { get; set; }
+    public Guid? DecidedByUserId { get; set; }
+    /// <summary>سبب الرفض.</summary>
+    public string? DecisionNote { get; set; }
+
+    public virtual ICollection<ProjectMaterialAdjustmentLine> Lines { get; set; } = new List<ProjectMaterialAdjustmentLine>();
+}
+
+/// <summary>
+/// سطر التعديل: فرق كمية مادة على بند. على احتياج قائم (<see cref="RequirementId"/>)، أو مادة جديدة لبند أُضيف بالأمر يُنشأ لها
+/// احتياج بكمية أساسية صفر عند الاعتماد. المقترح ثابت للمقارنة، والمعتمد يعدّله المراجع.
+/// </summary>
+public class ProjectMaterialAdjustmentLine : BaseEntity
+{
+    public Guid AdjustmentId { get; set; }
+    public Guid? RequirementId { get; set; }
+    public Guid? BoqItemId { get; set; }
+    public Guid? SubItemId { get; set; }
+    public Guid ResourceId { get; set; }
+    public Guid? ProductId { get; set; }
+    public string Unit { get; set; } = string.Empty;
+    /// <summary>فرق كمية بند جدول الكميات في الأمر (للعرض).</summary>
+    public decimal ItemQuantityChange { get; set; }
+    /// <summary>الكمية لكل وحدة من البند المستخدمة في الاقتراح.</summary>
+    public decimal QuantityPerUnit { get; set; }
+    public decimal ProposedQuantityChange { get; set; }
+    /// <summary>الفرق المعتمد (يعدّله المراجع قبل الاعتماد؛ صفر = لا تغيير).</summary>
+    public decimal QuantityChange { get; set; }
+    public string? Notes { get; set; }
+    public int SortOrder { get; set; }
+
+    public virtual ProjectMaterialAdjustment Adjustment { get; set; } = null!;
+}

@@ -104,6 +104,7 @@ public class SiteDailyReportService : ISiteDailyReportService
             await ExecutionPlanService.EnsureExecutionAllowedAsync(_db, contractId, token);
             if (request.ReportDate == default) throw new ValidationFailedException(Messages.SiteReportDateRequired);
             var day = request.ReportDate.Date;
+            EnsureReportDate(day, contract);
             if (await _db.Set<SiteDailyReport>().AnyAsync(r => r.ContractId == contractId && r.ReportDate == day, token))
                 throw new ConflictException(string.Format(Messages.SiteReportExists, day.ToString("yyyy-MM-dd")));
             var report = new SiteDailyReport
@@ -163,6 +164,10 @@ public class SiteDailyReportService : ISiteDailyReportService
             var report = await LoadTrackedAsync(contractId, reportId, token);
             EnsureStatus(report, St.Submitted);
             await ApprovalSeparation.EnsureAsync(_db, _user.UserId, token, report.PreparedByUserId, report.SubmittedByUserId);
+            // يُعاد فحص سقف البنود لحظة الاعتماد: أمر تغيير أنقص الكمية، أو تقرير آخر حُفظ بعد هذا
+            var boqErrors = new List<string>();
+            await CheckBoqCapAsync(report, contract, report.Hours, boqErrors, token);
+            if (boqErrors.Count > 0) throw new ValidationFailedException(boqErrors[0], boqErrors);
             report.Status = St.Approved; report.ApprovedAt = DateTime.UtcNow; report.ApprovedBy = _user.Name; report.ApprovedByUserId = _user.UserId;
             await PostCostAsync(report, contract, token);
             await _db.SaveChangesAsync(token);
@@ -247,11 +252,12 @@ public class SiteDailyReportService : ISiteDailyReportService
     /// إعادة فتح التقرير المعتمد للتعديل (صلاحية الاعتماد، بسبب إلزامي): يعود مسودة وقيوده كما هي؛ وعند اعتماده ثانية يُرحَّل
     /// الفرق وحده (قيد تعديل) وتُعاد موازنة تسوية فواتير الإيجار. سجل التدقيق يحفظ الحالة قبل وبعد والسبب.
     /// </summary>
-    public Task<SiteDailyReportDto> ReopenAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default)
+    public async Task<SiteDailyReportDto> ReopenAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default)
     {
         var note = request.Note?.Trim();
         if (string.IsNullOrEmpty(note)) throw new ValidationFailedException(Messages.SiteReportReopenNoteRequired);
-        return TransitionAsync(contractId, reportId, St.Approved, r =>
+        await EnsureNotCertifiedAsync(contractId, reportId, ct);
+        return await TransitionAsync(contractId, reportId, St.Approved, r =>
         {
             r.Status = St.Draft; r.ReopenNote = note.Length > 500 ? note[..500] : note; r.ReturnNote = null;
             r.SubmittedAt = null; r.SubmittedBy = null; r.SubmittedByUserId = null; r.ApprovedAt = null; r.ApprovedBy = null; r.ApprovedByUserId = null;
@@ -286,6 +292,120 @@ public class SiteDailyReportService : ISiteDailyReportService
     private static void EnsureStatus(SiteDailyReport r, string expected)
     {
         if (r.Status != expected) throw new ConflictException(string.Format(Messages.SiteReportStatusInvalid, r.Status));
+    }
+
+    /// <summary>
+    /// التقرير الذي يقع تاريخه داخل فترة مستخلص معتمد أو مفوتر لا يُعاد فتحه: المستخلص اعتُمد على منفّذه، وتعديله يفصل
+    /// المطالب به عن الموقع بلا أثر. يُلغى المستخلص أولاً (فتعود كمياته) ثم يُفتح التقرير.
+    /// </summary>
+    private async Task EnsureNotCertifiedAsync(Guid contractId, Guid reportId, CancellationToken ct)
+    {
+        var day = await _db.Set<SiteDailyReport>().AsNoTracking().Where(r => r.Id == reportId && r.ContractId == contractId)
+            .Select(r => (DateTime?)r.ReportDate).FirstOrDefaultAsync(ct);
+        if (day is not DateTime date) return; // غير موجود: يتولاه التحميل برسالته
+        var covering = await _db.Set<ContractCertificate>().AsNoTracking()
+            .Where(c => c.ContractId == contractId
+                && (c.Status == ContractCertificateStatuses.Approved || c.Status == ContractCertificateStatuses.Invoiced)
+                && (c.PeriodTo ?? c.CertificateDate) >= date.Date)
+            .OrderBy(c => c.SequenceNo).Select(c => new { c.SequenceNo, Cutoff = c.PeriodTo ?? c.CertificateDate }).FirstOrDefaultAsync(ct);
+        if (covering != null)
+            throw new ConflictException(string.Format(Messages.SiteReportCoveredByCertificate, covering.SequenceNo, covering.Cutoff.ToString("yyyy-MM-dd")));
+    }
+
+    /// <summary>تاريخ التقرير: لا يتجاوز اليوم، ولا يسبق بداية العقد (تاريخ البدء، أو التوقيع إن لم يُحدَّد).</summary>
+    private static void EnsureReportDate(DateTime day, CommercialContract contract)
+    {
+        if (day > SaudiTime.Today) throw new ValidationFailedException(string.Format(Messages.SiteReportDateInFuture, day.ToString("yyyy-MM-dd")));
+        if ((contract.StartDate ?? contract.SignedDate) is DateTime start && day < start.Date)
+            throw new ValidationFailedException(string.Format(Messages.SiteReportDateBeforeStart, day.ToString("yyyy-MM-dd"), start.ToString("yyyy-MM-dd")));
+    }
+
+    /// <summary>
+    /// سقف المنفّذ: مجموع الكمية الفعلية للبند في تقارير العقد كلها (بأي حالة، عدا هذا التقرير) مع أسطر هذا التقرير لا يتجاوز
+    /// كمية العقد المعدّلة بنسبة التجاوز المسموحة، وهو سقف المستخلص نفسه، فلا يُسجَّل في الموقع ما لا يُطالَب به.
+    /// </summary>
+    private async Task CheckBoqCapAsync(SiteDailyReport report, CommercialContract contract, IEnumerable<SiteHourEntry> hours, List<string> errors, CancellationToken ct)
+    {
+        var current = hours.GroupBy(h => h.ContractItemId).ToDictionary(g => g.Key, g => g.Sum(h => h.ActualQuantity));
+        if (current.Values.All(q => q <= 0)) return;
+        var ids = current.Keys.ToList();
+        var reportId = report.Id;
+        var others = await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
+                            join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
+                            where r.ContractId == contract.Id && r.Id != reportId && ids.Contains(h.ContractItemId)
+                            group h by h.ContractItemId into g
+                            select new { g.Key, Qty = g.Sum(x => x.ActualQuantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var items = contract.Items.ToDictionary(i => i.Id);
+        foreach (var (itemId, qty) in current)
+        {
+            if (qty <= 0 || !items.TryGetValue(itemId, out var item)) continue;
+            var total = qty + others.GetValueOrDefault(itemId);
+            var max = item.RevisedQuantity * (1 + item.OverrunPercent / 100m);
+            if (total > max + 0.00005m)
+                errors.Add(string.Format(Messages.SiteHourExceedsBoq, P.LineLabel(item), total.ToString("0.####"), max.ToString("0.####"), item.Unit));
+        }
+    }
+
+    /// <summary>
+    /// حجز المورد في اليوم: الشخص أو الآلية نفسها (بالموظف، أو المعدة المسندة، أو الأصل الثابت؛ وإلا مورد المشروع ذاته) لا تتجاوز
+    /// ساعاتها (تشغيل وإضافي وتوقف واستعداد) 24 ساعة في اليوم عبر أسطر هذا التقرير وتقارير المشاريع الأخرى في التاريخ نفسه.
+    /// العمل في مشروعين باليوم نفسه جائز (التحويل بين المشاريع) ما دام المجموع في حدود اليوم.
+    /// </summary>
+    private async Task CheckDailyBookingAsync(SiteDailyReport report, IReadOnlyDictionary<Guid, ProjectResource> resources, List<SiteResourceUsage> usages,
+        List<string> errors, CancellationToken ct)
+    {
+        if (usages.Count == 0) return;
+        static decimal Total(SiteResourceUsage u) => u.Hours + u.OvertimeHours + u.IdleHours + u.StandbyHours;
+        var ids = usages.Select(u => u.ProjectResourceId).Distinct().ToList();
+        var equipmentOf = await _db.Set<EquipmentAssignment>().AsNoTracking()
+            .Where(a => a.ProjectResourceId != null && ids.Contains(a.ProjectResourceId.Value))
+            .Select(a => new { Resource = a.ProjectResourceId!.Value, a.EquipmentId }).ToListAsync(ct);
+        var equipmentByResource = equipmentOf.GroupBy(a => a.Resource).ToDictionary(g => g.Key, g => g.First().EquipmentId);
+        string KeyOf(Guid resourceId, Guid? employeeId, Guid? fixedAssetId, Guid? equipmentId)
+            => employeeId is Guid e ? $"e:{e}" : equipmentId is Guid q ? $"q:{q}" : fixedAssetId is Guid f ? $"a:{f}" : $"r:{resourceId}";
+        string Key(Guid resourceId)
+        {
+            var res = resources.GetValueOrDefault(resourceId);
+            return KeyOf(resourceId, res?.EmployeeId, res?.FixedAssetId, equipmentByResource.TryGetValue(resourceId, out var q) ? (Guid?)q : null);
+        }
+
+        var mine = usages.GroupBy(u => Key(u.ProjectResourceId))
+            .Select(g => new { g.Key, Hours = g.Sum(u => Total(u)), Name = resources.GetValueOrDefault(g.First().ProjectResourceId)?.Name ?? string.Empty }).ToList();
+
+        // موارد المشاريع الأخرى التي تمثل الشخص أو الآلية نفسها
+        var employees = resources.Values.Where(r => r.EmployeeId != null).Select(r => r.EmployeeId!.Value).Distinct().ToList();
+        var assets = resources.Values.Where(r => r.FixedAssetId != null).Select(r => r.FixedAssetId!.Value).Distinct().ToList();
+        var equipment = equipmentByResource.Values.Distinct().ToList();
+        var twinRows = await _db.Set<ProjectResource>().AsNoTracking()
+            .Where(r => r.ContractId != report.ContractId
+                && ((r.EmployeeId != null && employees.Contains(r.EmployeeId.Value)) || (r.FixedAssetId != null && assets.Contains(r.FixedAssetId.Value))))
+            .Select(r => new { r.Id, r.EmployeeId, r.FixedAssetId }).ToListAsync(ct);
+        var twinEquipment = await _db.Set<EquipmentAssignment>().AsNoTracking()
+            .Where(a => a.ContractId != report.ContractId && a.ProjectResourceId != null && equipment.Contains(a.EquipmentId))
+            .Select(a => new { Resource = a.ProjectResourceId!.Value, a.EquipmentId }).ToListAsync(ct);
+        var twinKeys = new Dictionary<Guid, string>();
+        foreach (var t in twinEquipment) twinKeys[t.Resource] = $"q:{t.EquipmentId}";
+        foreach (var t in twinRows) twinKeys.TryAdd(t.Id, KeyOf(t.Id, t.EmployeeId, t.FixedAssetId, null));
+        // المورد المسند لمعدة يُعرَّف بالمعدة أولاً (كمفتاح هذا التقرير)، فلا يختلف مفتاحاه بين المشروعين
+        var twinIds = twinKeys.Keys.ToList();
+        var day = report.ReportDate.Date;
+        var reportId = report.Id;
+        var elsewhere = await (from u in _db.Set<SiteResourceUsage>().AsNoTracking()
+                               join r in _db.Set<SiteDailyReport>().AsNoTracking() on u.ReportId equals r.Id
+                               join c in _db.Set<CommercialContract>().AsNoTracking() on r.ContractId equals c.Id
+                               where r.ReportDate == day && r.Id != reportId && twinIds.Contains(u.ProjectResourceId)
+                               select new { u.ProjectResourceId, u.Hours, u.OvertimeHours, u.IdleHours, u.StandbyHours, c.ContractNumber })
+                              .ToListAsync(ct);
+
+        foreach (var m in mine)
+        {
+            var other = elsewhere.Where(x => twinKeys.GetValueOrDefault(x.ProjectResourceId) == m.Key).ToList();
+            var total = m.Hours + other.Sum(x => x.Hours + x.OvertimeHours + x.IdleHours + x.StandbyHours);
+            if (total <= 24m) continue;
+            var projects = other.Select(x => x.ContractNumber).Distinct().ToList();
+            var where = projects.Count == 0 ? string.Empty : string.Format(Messages.SiteResourceOtherProjects, string.Join("، ", projects));
+            errors.Add(string.Format(Messages.SiteResourceDayOverbooked, m.Name, day.ToString("yyyy-MM-dd"), total.ToString("0.##"), where));
+        }
     }
 
     /// <summary>
@@ -324,16 +444,47 @@ public class SiteDailyReportService : ISiteDailyReportService
             });
         }
 
+        // تقرير اعتُمد من قبل ثم أُعيد فتحه: أسعار أسطره القائمة ثابتة (تكلفة الساعة ونسب الفوترة وتكلفة وحدة المادة) فلا يُعاد
+        // تسعير يوم مضى بأسعار اليوم ولا يتغير الفرق المرحّل إلا بتغير الكميات؛ والسطر الجديد بسعر وقت الحفظ
+        var reopened = report.CostRevision > 0 || !string.IsNullOrEmpty(report.ReopenNote);
+        var frozen = reopened ? report.Resources.GroupBy(u => u.ProjectResourceId).ToDictionary(g => g.Key, g => g.First()) : new Dictionary<Guid, SiteResourceUsage>();
+        var frozenMaterials = reopened
+            ? report.Materials.Where(m => m.ResourceId != null).GroupBy(m => m.ResourceId!.Value).ToDictionary(g => g.Key, g => g.First().UnitCost)
+            : new Dictionary<Guid, decimal>();
+        // مورد أُوقف (أُرجعت المعدة أو حُوّلت) يبقى مقبولاً في تقرير كان فيه قبل إيقافه
+        var existing = report.Resources.Select(u => u.ProjectResourceId).ToHashSet();
+
         var resourceIds = usages.Select(u => u.ProjectResourceId).Distinct().ToList();
         var resources = await _db.Set<ProjectResource>().AsNoTracking()
             .Where(r => r.ContractId == contract.Id && resourceIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
+        // فترة وجود المعدة في المشروع: إسنادها (من - إلى)
+        var windows = await _db.Set<EquipmentAssignment>().AsNoTracking()
+            .Where(a => a.ContractId == contract.Id && a.ProjectResourceId != null && resourceIds.Contains(a.ProjectResourceId.Value))
+            .Select(a => new { Resource = a.ProjectResourceId!.Value, a.FromDate, a.ToDate }).ToListAsync(ct);
+        var day = report.ReportDate.Date;
         var newUsages = new List<SiteResourceUsage>();
         var usageKeys = new HashSet<(Guid, Guid?)>();
         for (var k = 0; k < usages.Count; k++)
         {
             var u = usages[k];
             var row = k + 1;
-            if (!resources.TryGetValue(u.ProjectResourceId, out var res) || !res.IsActive) errors.Add(string.Format(Messages.SiteResourceInvalid, row));
+            if (!resources.TryGetValue(u.ProjectResourceId, out var res) || (!res.IsActive && !existing.Contains(res.Id)))
+                errors.Add(string.Format(Messages.SiteResourceInvalid, row));
+            if (res != null)
+            {
+                // تاريخ التقرير داخل عقد إيجار المستأجرة وداخل إسناد المعدة للمشروع
+                DateTime? winFrom = null, winTo = null;
+                if (res.Kind == ProjectResourceKinds.RentedEquipment) { winFrom = res.RentalStart?.Date; winTo = res.RentalEnd?.Date; }
+                var assigned = windows.Where(w => w.Resource == res.Id).ToList();
+                var inAssignment = assigned.Count == 0 || assigned.Any(w => w.FromDate.Date <= day && (w.ToDate == null || w.ToDate.Value.Date >= day));
+                if (!inAssignment)
+                {
+                    winFrom = assigned.Min(w => w.FromDate).Date;
+                    winTo = assigned.Any(w => w.ToDate == null) ? null : assigned.Max(w => w.ToDate)?.Date;
+                }
+                if (!inAssignment || (winFrom is DateTime wf && day < wf) || (winTo is DateTime wt && day > wt))
+                    errors.Add(string.Format(Messages.SiteResourceOutsideWindow, row, winFrom?.ToString("yyyy-MM-dd") ?? "…", winTo?.ToString("yyyy-MM-dd") ?? "…"));
+            }
             if (u.Hours < 0 || u.OvertimeHours < 0 || u.IdleHours < 0 || u.StandbyHours < 0
                 || u.Hours + u.OvertimeHours + u.IdleHours + u.StandbyHours is <= 0 or > 24)
                 errors.Add(string.Format(Messages.SiteResourceHoursInvalid, row));
@@ -346,11 +497,12 @@ public class SiteDailyReportService : ISiteDailyReportService
             var idleReason = string.IsNullOrWhiteSpace(u.IdleReason) ? null : u.IdleReason.Trim();
             if (u.IdleHours > 0 && !SiteDowntimeReasons.IsValid(idleReason)) errors.Add(string.Format(Messages.SiteResourceIdleReasonRequired, row));
             if (!usageKeys.Add((u.ProjectResourceId, u.ContractItemId))) errors.Add(string.Format(Messages.SiteResourceDuplicate, row));
-            var hourly = res?.HourlyCost ?? 0;
-            var overtime = res?.OvertimeHourlyCost ?? 0;
+            var prior = frozen.GetValueOrDefault(u.ProjectResourceId);
+            var hourly = prior?.HourlyCost ?? res?.HourlyCost ?? 0;
+            var overtime = prior?.OvertimeHourlyCost ?? res?.OvertimeHourlyCost ?? 0;
             // شروط فوترة عقد الإيجار للمستأجرة (التوقف والاستعداد بنسبتيهما)؛ غيرها يُحتسب توقفها كاملاً كما كان
-            var idlePercent = rented ? res!.IdleBillingPercent : 100m;
-            var standbyPercent = rented ? res!.StandbyBillingPercent : 0m;
+            var idlePercent = rented ? prior?.IdleBillingPercent ?? res!.IdleBillingPercent : 100m;
+            var standbyPercent = rented ? prior?.StandbyBillingPercent ?? res!.StandbyBillingPercent : 0m;
             var standby = rented ? u.StandbyHours : 0;
             newUsages.Add(new SiteResourceUsage
             {
@@ -382,8 +534,16 @@ public class SiteDailyReportService : ISiteDailyReportService
             newMaterials.Add(new SiteMaterialUsage
             {
                 ContractItemId = m.ContractItemId, ResourceId = material?.Id, ProductId = material?.ProductId, Quantity = m.Quantity,
-                Unit = material?.Unit ?? string.Empty, UnitCost = material?.StandardCost ?? 0, Notes = Trim(m.Notes, 300),
+                Unit = material?.Unit ?? string.Empty,
+                UnitCost = material != null && frozenMaterials.TryGetValue(material.Id, out var frozenCost) ? frozenCost : material?.StandardCost ?? 0,
+                Notes = Trim(m.Notes, 300),
             });
+        }
+        // الفحوص المجمّعة بعد سلامة الأسطر: سقف البند التراكمي، وحجز المورد في اليوم عبر المشاريع
+        if (errors.Count == 0)
+        {
+            await CheckBoqCapAsync(report, contract, newHours, errors, ct);
+            await CheckDailyBookingAsync(report, resources, newUsages, errors, ct);
         }
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 

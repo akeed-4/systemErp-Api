@@ -13,7 +13,10 @@ public interface IContractBillingService
     Task<InvoiceDto> BillCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default);
     /// <summary>العقد المبسط: تقديم المستخلص واعتماده وفوترته في خطوة واحدة.</summary>
     Task<InvoiceDto> IssueCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default);
-    Task<RetentionReleaseResultDto> ReleaseRetentionAsync(Guid contractId, DateTime? date = null, CancellationToken ct = default);
+    /// <summary>الإفراج عن المحتجزات (كله أو جزء ≤ الجائز الآن): حتى نسبة الإفراج الأولي بعد الاستلام الأولي، والباقي بعد الاستلام النهائي.</summary>
+    Task<RetentionReleaseResultDto> ReleaseRetentionAsync(Guid contractId, DateTime? date = null, decimal? amount = null, CancellationToken ct = default);
+    /// <summary>تسجيل الاستلام النهائي بعد فترة الصيانة.</summary>
+    Task<BoqProgressDto> RecordFinalAcceptanceAsync(Guid contractId, FinalAcceptanceRequestDto request, CancellationToken ct = default);
     /// <summary>
     /// إلغاء فاتورة مستخلص مفوتر بإشعار (مرتجع كامل) وعكس قيدي الاسترداد وتكلفة المواد؛ المستخلص يصير ملغى فتعود كمياته ومواده متاحة.
     /// </summary>

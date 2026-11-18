@@ -8,6 +8,16 @@ public class CrudCompletenessTests : TestBase
 {
     public CrudCompletenessTests(ErpFactory f) : base(f) { }
 
+    /// <summary>مستخدم بدور في المنشأة نفسها (معتمِد غير مقدّم الطلب).</summary>
+    private async Task<Client> UserAsync(Client owner, string role)
+    {
+        var email = $"u{Guid.NewGuid():N}@test.com";
+        Assert.Equal(200, (await owner.Post("/users", new { name = "مستخدم", email, phone = "1", password = "Passw0rd!", role })).Status);
+        var user = await owner.LoginAsAsync(NewHttp(), email, "Passw0rd!");
+        Assert.NotNull(user.Token);
+        return user;
+    }
+
     [Fact]
     public async Task Voucher_update_reverses_the_old_journal_and_reposts_with_the_same_number()
     {
@@ -179,7 +189,8 @@ public class CrudCompletenessTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentTypes = new[] { "sales" }, actionType = "create", minAmountTrigger = 1, isActive = true,
-            steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } });
+            steps = new[] { new { level = 1, approverRole = "general_manager", titleAr = "المدير العام" } } });
+        var manager = await UserAsync(api, "general_manager");
         var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
             items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
         var id = draft.Data!["id"].S();
@@ -187,8 +198,9 @@ public class CrudCompletenessTests : TestBase
         Assert.True(check.Data!["approvalRequired"]!.GetValue<bool>());
 
         Assert.Equal(409, (await api.Post(await api.InvoicePath(id, "/post"))).Status);
-        // الاعتماد النهائي يرحّل المسودة مباشرة
-        Assert.Equal(200, (await api.Post($"/approvals/{check.Data["request"]!["id"].S()}/approve", new { comment = "ok" })).Status);
+        // لا يعتمد أحدٌ طلبه (ولا المالك)؛ والاعتماد النهائي من معتمِد المستوى يرحّل المسودة مباشرة
+        Assert.Equal(403, (await api.Post($"/approvals/{check.Data["request"]!["id"].S()}/approve", new { comment = "ok" })).Status);
+        Assert.Equal(200, (await manager.Post($"/approvals/{check.Data["request"]!["id"].S()}/approve", new { comment = "ok" })).Status);
         Assert.Equal("posted", (await api.Get(await api.InvoicePath(id))).Data!["status"].S());
     }
 
@@ -239,7 +251,8 @@ public class CrudCompletenessTests : TestBase
         var api = await NewTenantAsync();
         // سياسة واحدة تغطي أكثر من مستند
         Assert.Equal(201, (await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد القيود والسندات", documentTypes = new[] { "journal_entry", "receipt_voucher" },
-            actionType = "create", minAmountTrigger = 1000, isActive = true, steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } })).Status);
+            actionType = "create", minAmountTrigger = 1000, isActive = true, steps = new[] { new { level = 1, approverRole = "general_manager", titleAr = "المدير العام" } } })).Status);
+        var manager = await UserAsync(api, "general_manager");
         // مستند أو عملية خارج الفهرس تُرفض (لا سياسة شكلية بلا أثر)
         Assert.Equal(400, (await api.Post("/ApprovalPolicies", new { nameAr = "x", documentTypes = new[] { "journal_entry" }, actionType = "approve", isActive = true,
             steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } })).Status);
@@ -263,7 +276,7 @@ public class CrudCompletenessTests : TestBase
         Assert.Equal(held.Data["id"].S(), (await api.Post("/journalentries", Entry(5000))).Data!["id"].S());
 
         // الاعتماد النهائي ينفّذها مرة واحدة ويربط الطلب بالقيد الناتج
-        var approved = await api.Post($"/approvals/{held.Data["id"].S()}/approve", new { comment = "ok" });
+        var approved = await manager.Post($"/approvals/{held.Data["id"].S()}/approve", new { comment = "ok" });
         Assert.Equal(200, approved.Status);
         Assert.Equal("approved", approved.Data!["status"].S());
         Assert.NotEqual(Guid.Empty.ToString(), approved.Data["documentId"].S());

@@ -41,7 +41,7 @@ public class ContractCostAnalysisService : IContractCostAnalysisService
 
         var dto = new ContractCostAnalysisDto
         {
-            ContractId = contract.Id, Editable = IsEditable(contract), EstimatedCost = contract.EstimatedCost,
+            ContractId = contract.Id, Editable = IsEditable(contract) && !await ExecutionPlanService.IsSubmittedAsync(_db, contract.Id, ct), EstimatedCost = contract.EstimatedCost,
             Currency = await ResourceCostRules.CurrencyAsync(_db, ct),
         };
         foreach (var line in contract.Items.OrderBy(i => i.SortOrder))
@@ -131,6 +131,7 @@ public class ContractCostAnalysisService : IContractCostAnalysisService
         {
             var contract = await LoadContractAsync(contractId, track: true, token);
             EnsureEditable(contract);
+            await EnsureNotSubmittedAsync(contract.Id, token);
             var date = (request.PricingDate ?? ResourceCostRules.Today).Date;
             var wanted = request.ContractItemIds is { Count: > 0 } ids ? ids.ToHashSet() : null;
             var priced = (await PriceAsync(contract, date, token)).Where(p => p.SkipReason == null && (wanted == null || wanted.Contains(p.Line.Id))).ToList();
@@ -161,6 +162,7 @@ public class ContractCostAnalysisService : IContractCostAnalysisService
         {
             var contract = await LoadContractAsync(contractId, track: true, token);
             EnsureEditable(contract);
+            await EnsureNotSubmittedAsync(contract.Id, token);
             if (request.UnitCost < 0) throw new ValidationFailedException(Messages.ResourceCostNegative);
             var row = await _db.Set<ContractItemResourceCost>().FirstOrDefaultAsync(r => r.Id == rowId && r.ContractId == contractId, token)
                 ?? throw new NotFoundException(Messages.ContractCostRowNotFound);
@@ -316,6 +318,12 @@ public class ContractCostAnalysisService : IContractCostAnalysisService
     private static void EnsureEditable(CommercialContract c)
     {
         if (!IsEditable(c)) throw new ConflictException(Messages.ContractCostAnalysisLocked);
+    }
+
+    /// <summary>خطة مقدَّمة للاعتماد: الدراسة مجمّدة حتى يُعتمد أو يُعاد ما راجعه المعتمِد (فلا يعتمد أرقاماً غير التي رآها).</summary>
+    private async Task EnsureNotSubmittedAsync(Guid contractId, CancellationToken ct)
+    {
+        if (await ExecutionPlanService.IsSubmittedAsync(_db, contractId, ct)) throw new ConflictException(Messages.ExecutionPlanSubmittedStudyLocked);
     }
 
     private async Task<CommercialContract> LoadContractAsync(Guid contractId, bool track, CancellationToken ct)

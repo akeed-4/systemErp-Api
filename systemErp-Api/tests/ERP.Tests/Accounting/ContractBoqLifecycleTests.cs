@@ -243,6 +243,61 @@ public class ContractBoqLifecycleTests : TestBase
     }
 
     [Fact]
+    public async Task Closing_requires_the_advance_fully_recovered_and_the_advance_invoice_cannot_be_returned_freely()
+    {
+        var api = await NewConstructionTenantAsync();
+        var (customer, _) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
+        var (id, item) = await ActiveBoqAsync(api, "simple", "customer", customer);
+
+        // نصف الأعمال قبل فوترة الدفعة (لا استرداد)، ثم الدفعة 1,000، ثم النصف الباقي يسترد 10% منه = 500 فقط
+        await BilledCertificateAsync(api, id, item, 50);
+        var advance = await api.Post($"/commercialcontracts/{id}/advance-invoice");
+        Ok(advance, "advance");
+        Assert.Equal(409, (await api.PostReturn(new { originalInvoiceId = advance.Data!["id"].S(), returnReason = "x" })).Status);
+        await BilledCertificateAsync(api, id, item, 50);
+
+        Ok(await Move(api, id, "initial_acceptance"), "acceptance at 100%");
+        Ok(await api.Post($"/commercialcontracts/{id}/retention-release"), "retention release");
+        var blocked = await Move(api, id, "closed");
+        Assert.Equal(409, blocked.Status);
+        Assert.Contains("500.00", blocked.Body!.ToJsonString());
+    }
+
+    [Fact]
+    public async Task Only_the_latest_approved_uninvoiced_certificate_returns_to_draft()
+    {
+        var api = await NewConstructionTenantAsync();
+        var (customer, _) = await SeedCustomerAsync(api, creditLimit: 1_000_000);
+        var (id, item) = await ActiveBoqAsync(api, "simple", "customer", customer);
+        async Task<string> ApprovedAsync(decimal qty)
+        {
+            var cert = await api.Post($"/commercialcontracts/{id}/certificates", new
+            {
+                kind = "interim", certificateDate = DateTime.UtcNow.Date, lines = new[] { new { contractItemId = item, currentQuantity = qty } },
+                deductions = Array.Empty<object>(),
+            });
+            Ok(cert, "certificate");
+            var certId = cert.Data!["id"].S();
+            await AttachCertificateEvidenceAsync(api, id, certId);
+            Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/submit"), "submit");
+            Ok(await api.Post($"/commercialcontracts/{id}/certificates/{certId}/approve"), "approve");
+            return certId;
+        }
+        var first = await ApprovedAsync(20);
+        var second = await ApprovedAsync(30);
+        var note = new { note = "تصحيح" };
+
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/certificates/{first}/return", note)).Status); // بعده مستخلص
+        var returned = await api.Post($"/commercialcontracts/{id}/certificates/{second}/return", note);
+        Ok(returned, "return latest approved");
+        Assert.Equal("draft", returned.Data!["status"].S());
+        Ok(await api.Post($"/commercialcontracts/{id}/certificates/{second}/cancel", note), "cancel it");
+
+        Ok(await api.Post($"/commercialcontracts/{id}/certificates/{first}/bill"), "bill first");
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{id}/certificates/{first}/return", note)).Status); // المفوتر لا يُعاد
+    }
+
+    [Fact]
     public async Task Subcontractor_certificate_is_paid_with_a_payment_voucher()
     {
         var api = await NewConstructionTenantAsync();

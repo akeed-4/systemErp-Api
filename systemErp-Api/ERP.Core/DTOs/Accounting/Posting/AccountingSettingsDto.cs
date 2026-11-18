@@ -41,6 +41,8 @@ public class SaveAccountingSettingsDto
     public int? SalesReturnPeriodDays { get; set; }
     /// <summary>فترة إرجاع المشتريات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
     public int? PurchaseReturnPeriodDays { get; set; }
+    /// <summary>فصل المُعِد عن المعتمِد في المقاولات (خطة التنفيذ والتقارير اليومية): null = بلا تغيير.</summary>
+    public bool? ConstructionSeparateApprover { get; set; }
 }
 
 public class AccountingSettingsDto : SaveAccountingSettingsDto

@@ -14,16 +14,42 @@ public class DeliveryNoteService : IDeliveryNoteService
     private readonly IPurchaseInvoiceService _purchases;
     private readonly ITransactionRunner _tx;
     private readonly IProjectSupplyService _supply;
+    private readonly ERP.Core.Contracts.Shared.IPermissionService _permissions;
 
     public DeliveryNoteService(ErpDbContext db, INumberSequenceService numbers, ICommercialContractService contracts, ISalesInvoiceService sales, IPurchaseInvoiceService purchases,
-        ITransactionRunner tx, IProjectSupplyService supply)
+        ITransactionRunner tx, IProjectSupplyService supply, ERP.Core.Contracts.Shared.IPermissionService permissions)
     {
-        _db = db; _numbers = numbers; _contracts = contracts; _sales = sales; _purchases = purchases; _tx = tx; _supply = supply;
+        _db = db; _numbers = numbers; _contracts = contracts; _sales = sales; _purchases = purchases; _tx = tx; _supply = supply; _permissions = permissions;
     }
+
+    // ---------- الصلاحية بنوع المستند ----------
+
+    /// <summary>سندات المشتريات ومرتجعاتها (purchase_delivery…) تتبع شاشة المشتريات، وسندات المبيعات شاشة المبيعات.</summary>
+    internal static string ScreenOf(string? type) => type?.StartsWith("purchase", StringComparison.Ordinal) == true ? "purchases" : "sales";
+
+    /// <summary>
+    /// صلاحية الإجراء على شاشة نوع السند، ولسند مشتريات مرتبط بمشروع: نطاق العقد نفسه (من لا يرى المشروع لا يُرحِّل عهدته ولا يحذفها).
+    /// المتحكم يسمح بالدخول لمن له المبيعات أو المشتريات، والفصل الدقيق هنا.
+    /// </summary>
+    private async Task AuthorizeAsync(string? type, ScreenAction action, Guid? contractId, CancellationToken ct)
+    {
+        if (ApprovalExecutionScope.Active) return; // تنفيذ عملية معتمدة: فُحص مقدّم الطلب عند طلبه
+        var screen = ScreenOf(type);
+        if (!await _permissions.HasPermissionAsync(screen, action, ct)) throw new ForbiddenException();
+        if (screen == "purchases" && contractId is Guid id)
+            await _permissions.AuthorizeRecordAsync(PermissionCatalog.CommercialContractsScreenId, ScreenAction.View, ScopedRecordTypes.CommercialContractKey, id, ct: ct);
+    }
+
+    /// <summary>أنواع السندات التي يراها المستخدم (المبيعات و/أو المشتريات).</summary>
+    private async Task<(bool Sales, bool Purchases)> VisibleAsync(CancellationToken ct)
+        => (await _permissions.HasPermissionAsync("sales", ScreenAction.View, ct), await _permissions.HasPermissionAsync("purchases", ScreenAction.View, ct));
 
     public async Task<PagedResult<DeliveryNoteDto>> ListAsync(PaginationParams p, CancellationToken ct = default)
     {
         var q = _db.Set<DeliveryNote>().AsNoTracking().AsQueryable();
+        var (sales, purchases) = await VisibleAsync(ct);
+        if (!sales) q = q.Where(n => n.Type.StartsWith("purchase"));
+        if (!purchases) q = q.Where(n => !n.Type.StartsWith("purchase"));
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
             var t = p.SearchTerm.Trim();
@@ -45,6 +71,7 @@ public class DeliveryNoteService : IDeliveryNoteService
     {
         var note = await _db.Set<DeliveryNote>().AsNoTracking().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, ct)
             ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+        await AuthorizeAsync(note.Type, ScreenAction.View, note.ContractId, ct);
         var dto = Mapper.Map<DeliveryNoteDto>(note);
         await ApplyProjectNamesAsync(new[] { dto }, ct);
         return dto;
@@ -88,9 +115,14 @@ public class DeliveryNoteService : IDeliveryNoteService
             var note = Mapper.Map<DeliveryNote>(r);
             note.CustodyIssueId = null;
             var projectReceipt = ProjectReceipts.IsProjectReceipt(note);
+            await AuthorizeAsync(r.Type, ScreenAction.Create, r.ContractId, token);
             if (projectReceipt)
+            {
                 // سند استلام مشتريات مشروع: عهدة للمشروع بسعر شرائها، لا مستودع عام (العقد والمورد من الطلب)
                 await ProjectReceipts.PrepareAsync(_db, note, token, r.ConstructionWarehouseReceipt);
+                // العقد يُعرف من الطلب: نطاق المشروع بعد معرفته
+                if (note.ContractId != r.ContractId) await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
+            }
             else
             {
                 CommercialContract? contract = null;
@@ -133,6 +165,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, token)
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+            await AuthorizeAsync(note.Type, ScreenAction.Edit, note.ContractId, token);
             if (note.InvoiceId != null || note.Status is not (DeliveryNoteStatus.Delivered or DeliveryNoteStatus.Draft))
                 throw new ConflictException(Messages.CannotEditBilledOrReturnedNote);
             // سند استلام المشروع رحّل عهدته وقيدها: يُحذف (فيُعكسان) ويُنشأ غيره، أو يُرجع منه
@@ -185,6 +218,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, token)
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+            await AuthorizeAsync(note.Type, ScreenAction.Delete, note.ContractId, token);
             if (note.InvoiceId != null) throw new ConflictException(Messages.CannotDeleteBilledNote);
             if (await _db.Set<DeliveryReturnNote>().AnyAsync(x => x.DeliveryNoteId == id, token)) throw new ConflictException(Messages.DeleteReturnsFirst);
             // عهدة سند المشروع وقيدها تُعكس معه (يمنعها اختيار كمياتها في مستخلص أو هدر منها)
@@ -196,8 +230,16 @@ public class DeliveryNoteService : IDeliveryNoteService
         }, ct);
 
     public async Task<DeliveryReturnNoteDto> GetReturnAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<DeliveryReturnNoteDto>(await _db.Set<DeliveryReturnNote>().AsNoTracking().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, ct)
-            ?? throw new NotFoundException(Messages.DeliveryReturnNotFound));
+    {
+        var ret = await _db.Set<DeliveryReturnNote>().AsNoTracking().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, ct)
+            ?? throw new NotFoundException(Messages.DeliveryReturnNotFound);
+        await AuthorizeAsync(ret.Type, ScreenAction.View, await ContractOfNoteAsync(ret.DeliveryNoteId, ct), ct);
+        return Mapper.Map<DeliveryReturnNoteDto>(ret);
+    }
+
+    /// <summary>عقد السند الأصلي للمرتجع (نطاق المشروع).</summary>
+    private Task<Guid?> ContractOfNoteAsync(Guid deliveryNoteId, CancellationToken ct)
+        => _db.Set<DeliveryNote>().AsNoTracking().Where(n => n.Id == deliveryNoteId).Select(n => n.ContractId).FirstOrDefaultAsync(ct);
 
     public Task DeleteReturnAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -205,6 +247,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             var ret = await _db.Set<DeliveryReturnNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == id, token)
                 ?? throw new NotFoundException(Messages.DeliveryReturnNotFound);
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == ret.DeliveryNoteId, token);
+            await AuthorizeAsync(ret.Type, ScreenAction.Delete, note?.ContractId, token);
             if (note != null)
             {
                 if (note.InvoiceId != null) throw new ConflictException(Messages.OriginalNoteBilled);
@@ -228,6 +271,9 @@ public class DeliveryNoteService : IDeliveryNoteService
     public async Task<PagedResult<DeliveryReturnNoteDto>> ListReturnsAsync(PaginationParams p, CancellationToken ct = default)
     {
         var q = _db.Set<DeliveryReturnNote>().AsNoTracking().AsQueryable();
+        var (sales, purchases) = await VisibleAsync(ct);
+        if (!sales) q = q.Where(n => n.Type.StartsWith("purchase"));
+        if (!purchases) q = q.Where(n => !n.Type.StartsWith("purchase"));
         if (!string.IsNullOrWhiteSpace(p.SearchTerm))
         {
             var t = p.SearchTerm.Trim();
@@ -248,6 +294,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == r.DeliveryNoteId, token)
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+            await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
             if (note.Status == DeliveryNoteStatus.Invoiced) throw new ConflictException(Messages.CannotReturnBilledNote);
             if (r.Items.Count == 0 || r.Items.Any(i => i.Quantity <= 0)) throw new ValidationFailedException(Messages.ReturnedQuantitiesMustBePositive);
             if (r.Type is not ("sales_delivery_return" or "purchase_delivery_return")) throw new ValidationFailedException(Messages.InvalidType);
@@ -304,6 +351,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
             if (note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
+            // الفوترة إنشاء فاتورة من نوع السند: مشتريات لسند المورد، ومبيعات لسند العميل
+            await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
             var lines = note.Items.Select(i => (Item: i, Qty: i.DeliveredQty - i.ReturnedQty)).Where(x => x.Qty > 0).ToList();
             if (lines.Count == 0) throw new ConflictException(Messages.NoNetQuantitiesToBill);
 
@@ -379,6 +428,7 @@ public class DeliveryNoteService : IDeliveryNoteService
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
             if (note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
             if (note.Status == DeliveryNoteStatus.Returned) throw new ConflictException(Messages.DeliveryNoteFullyReturned);
+            await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
             if (note.ContractId == null) throw new ValidationFailedException(Messages.DeliveryNoteNotLinkedToContract);
             if (ProjectReceipts.IsProjectReceipt(note)) throw new ConflictException(Messages.ProjectReceiptOnlyPurchase);
             if (note.Type != "sales_delivery") throw new ConflictException(Messages.MilestoneBillingSalesOnly);

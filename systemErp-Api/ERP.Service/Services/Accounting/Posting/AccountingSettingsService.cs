@@ -50,6 +50,7 @@ public class AccountingSettingsService : IAccountingSettingsService
                 if (role.Get(incoming) is { } value) role.Set(settings, string.IsNullOrWhiteSpace(value) ? null : value.Trim());
             if (d.SalesReturnPeriodDays is { } salesDays) settings.SalesReturnPeriodDays = ReturnPeriod(salesDays);
             if (d.PurchaseReturnPeriodDays is { } purchaseDays) settings.PurchaseReturnPeriodDays = ReturnPeriod(purchaseDays);
+            if (d.ConstructionSeparateApprover is { } separate) settings.ConstructionSeparateApprover = separate;
 
             await ValidateAccountsAsync(settings, token);
             await EnsureChangeableAsync(before, settings, token);
@@ -149,6 +150,7 @@ public class AccountingSettingsService : IAccountingSettingsService
     private static AccountingSettingsDto ToDto(AccountingSettings s)
     {
         var dto = Mapper.Map<AccountingSettingsDto>(s);
+        dto.ConstructionSeparateApprover = s.ConstructionSeparateApprover;
         dto.EffectiveAccounts = PostingAccounts.Roles.ToDictionary(r => r.Key, r => r.Effective(s));
         return dto;
     }

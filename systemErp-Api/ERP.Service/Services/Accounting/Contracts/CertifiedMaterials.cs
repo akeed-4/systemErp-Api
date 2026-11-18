@@ -28,6 +28,26 @@ internal static class CertifiedMaterials
                 .ToListAsync(ct))
             .ToDictionary(x => x.Key, x => (x.Q, x.C));
 
+    /// <summary>
+    /// تكلفة المواد الباقية في «مواد مشاريع تحت التنفيذ»: المسلَّم بأذونات مرحّلة على الحساب الوسيط (لا ما اعتُرفت تكلفته عند التسليم)
+    /// ناقص المختار في المستخلصات غير الملغاة والمسحوب بالإرجاع والهدر. ما بقي لم ينتقل لتكلفة الإيرادات، فلا يُغلق العقد عليه.
+    /// </summary>
+    public static async Task<(decimal Cost, List<string> Issues)> UncertifiedWipAsync(ErpDbContext db, Guid contractId, CancellationToken ct)
+    {
+        var rows = await db.Set<ProjectMaterialIssueLine>().AsNoTracking()
+            .Where(l => l.Issue.ContractId == contractId && l.Issue.Status == ProjectMaterialIssueStatuses.Posted && l.Issue.DebitAccountCode != null
+                && (l.Issue.Kind == ProjectMaterialIssueKinds.Issue || l.Issue.Kind == ProjectMaterialIssueKinds.PurchaseReceipt))
+            .Select(l => new { l.Id, l.Issue.IssueNumber, l.TotalCost }).ToListAsync(ct);
+        var certified = await ByIssueLineAsync(db, contractId, null, ct);
+        var withdrawn = await WithdrawnByLineAsync(db, contractId, null, ct);
+        var remaining = rows.Select(r => new
+        {
+            r.IssueNumber,
+            Cost = Math.Max(0, r.TotalCost - certified.GetValueOrDefault(r.Id).Cost - withdrawn.GetValueOrDefault(r.Id).Cost),
+        }).Where(r => r.Cost > 0.005m).ToList();
+        return (remaining.Sum(r => r.Cost), remaining.Select(r => r.IssueNumber).Distinct().ToList());
+    }
+
     /// <summary>المختار من كل سطر إذن (كمية وتكلفة) في المستخلصات غير الملغاة، عدا مستخلص بعينه عند تعديله.</summary>
     public static async Task<Dictionary<Guid, (decimal Quantity, decimal Cost)>> ByIssueLineAsync(ErpDbContext db, Guid contractId,
         Guid? exceptCertificateId, CancellationToken ct)

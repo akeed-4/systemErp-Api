@@ -189,7 +189,7 @@ public class LightingPolesProjectJourneyTests : TestBase
         var contract = await api.Post($"/feasibility-studies/{id}/create-contract", new { });
         Ok(contract, "create contract");
         Assert.StartsWith("CON-", contract.Data!["contractNumber"].S());
-        Ok(await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" }), "activate");
+        Assert.Equal("active", (await api.Get($"/commercialcontracts/{id}")).Data!["stage"].S()); // يُفعَّل مع إنشائه
         Assert.Contains(id, (await api.Get("/construction-projects")).Data!.AsArray().Select(p => p!["contractId"].S()));
         Log($"العقد {contract.Data["contractNumber"].S()} أُنشئ من الدراسة وفُعّل (ساري)، وظهر في قائمة المشاريع.");
 
@@ -206,27 +206,22 @@ public class LightingPolesProjectJourneyTests : TestBase
         var craneRes = await ProjectResource(new { kind = "owned_equipment", name = "رافعة سلة 01", rate = 200, fuelPerHour = 40, maintenancePerHour = 10, operatorPerHour = 10, libraryResourceId = crane }, "رافعة سلة 01");
         Log("إعداد المشروع: ساعات العمل 07:00–15:00، وموارد فعلية: فريق الكهرباء 45/س، فريق مدني 28/س، رافعة سلة 260/س.");
 
-        // ================= المرحلة 8: الشراء (طلب ← اعتماد ← فاتورة شراء مرحّلة) =================
-        var requisition = await api.Post("/materialrequisitions", new
+        // ================= المرحلة 8: الشراء للمستودع (فاتورة شراء مرحّلة) =================
+        // شراء الشركة لمستودعها ثم الصرف للموقع بأذونات. (طلب شراء المشروع يُستلم عهدةً للمشروع بسند استلام: مسار آخر تغطيه اختباراته.)
+        var purchase = await api.Post("/purchase-invoices", new
         {
-            requestDate = DateTime.UtcNow, requiredDate = DateTime.UtcNow.AddDays(7), department = "المشاريع", requestedBy = "م. سامي", priority = "high",
-            supplierId = supplier, supplierName = "مؤسسة النور للتوريدات الكهربائية", status = "draft", contractId = id,
+            kind = "purchase", invoiceType = "simplified", paymentMethod = "credit", partyId = supplier,
             items = new object[]
             {
-                new { itemId = poleProduct, itemName = "عمود إنارة مجلفن 9م", sku = "POLE-9M", unit = "PCS", requestedQuantity = 50m, estimatedCost = 1850m },
-                new { itemId = ledProduct, itemName = "كشاف LED 150W", sku = "LED-150", unit = "PCS", requestedQuantity = 50m, estimatedCost = 880m },
-                new { itemId = cableProduct, itemName = "كابل نحاس 4×16 مم2", sku = "CBL-4x16", unit = "M", requestedQuantity = 2000m, estimatedCost = 33m },
+                new { itemId = poleProduct, quantity = 50m, unitPrice = 1850m, vatRate = 15 },
+                new { itemId = ledProduct, quantity = 50m, unitPrice = 880m, vatRate = 15 },
+                new { itemId = cableProduct, quantity = 2000m, unitPrice = 33m, vatRate = 15 },
             },
         });
-        Ok(requisition, "requisition");
-        var reqId = requisition.Data!["id"].S();
-        Ok(await api.Post($"/materialrequisitions/{reqId}/approve"), "requisition approve");
-        var purchase = await api.Post($"/materialrequisitions/{reqId}/ConvertToInvoice");
-        Ok(purchase, "convert to purchase");
-        Ok(await api.Post($"/purchase-invoices/{purchase.Data!["id"].S()}/post"), "purchase post");
+        Ok(purchase, "purchase");
         const decimal purchaseCost = 50 * 1850 + 50 * 880 + 2000 * 33; // 202,500
         Assert.Equal(purchaseCost, await BalanceAsync(api, MainSiteInventory));
-        Log($"الشراء: طلب {requisition.Data["requisitionNumber"]?.ToString()} اعتُمد وحُوّل لفاتورة شراء مرحّلة؛ المخزون {purchaseCost:N0}.");
+        Log($"الشراء: فاتورة {purchase.Data!["invoiceNumber"]?.ToString()} مرحّلة للمستودع؛ المخزون {purchaseCost:N0}.");
 
         // ================= المرحلة 9: إذن تسليم أول للموقع (نصف المشروع) =================
         async Task<JsonNode> Deliver(decimal polesQty, decimal cableQty, string step)
@@ -278,9 +273,10 @@ public class LightingPolesProjectJourneyTests : TestBase
         }
         await DailyReport(Today, 50, 25, 1000, "report 1");
         var costs1 = (await api.Get($"/commercialcontracts/{id}/project/cost-report")).Data!;
-        // حفظ ساعات العمل وحدها (المرحلة 7) لا يصفّر الميزانية المعبّأة من الدراسة
-        Assert.Equal(241_400m, costs1["projectBudget"].D());
-        Assert.Equal(241_400m, costs1["budgetAtCompletion"].D());
+        // ميزانية المشروع = الخطة المعتمدة (236,400، لا تكلفة الدراسة 241,400)، وحفظ ساعات العمل وحده (المرحلة 7) لا يصفّرها
+        Assert.Equal(236_400m, costs1["projectBudget"].D());
+        Assert.Equal(236_400m, costs1["budgetAtCompletion"].D());
+        Assert.Equal("approved_plan", costs1["budgetSource"].S());
         Log($"تقرير التكلفة بعد الاعتماد: {costs1.ToJsonString()[..Math.Min(400, costs1.ToJsonString().Length)]}…");
 
         // ================= المرحلة 11: المستخلص الجاري الأول =================
@@ -357,20 +353,25 @@ public class LightingPolesProjectJourneyTests : TestBase
         Assert.Equal(0m, finalCosts["duplicateExcluded"].D());
         Assert.Equal(contractValue - purchaseCost - siteCost, finalCosts["bookedProfit"].D()); // 137,712
         Assert.Equal(finalCosts["actualCost"].D(), finalCosts["accounts"]!.AsArray().Sum(a => a!["amount"].D()));
+        // بخطة معتمدة: المخطط لكل فئة من أساس الخطة (لا فئة «تنفيذ» مجتمعة)
         JsonNode Cat(string key) => finalCosts["categories"]!.AsArray().Single(x => x!["key"].S() == key)!;
-        Assert.Equal(purchaseCost, Cat("materials")["actual"].D());
-        Assert.Equal(208_000m, Cat("materials")["planned"].D());
-        Assert.Equal(siteCost, Cat("execution")["actual"].D());
-        Assert.Equal(33_400m, Cat("execution")["planned"].D());                             // 28,400 عمالة ومعدات + 5,000 البند اليدوي
+        decimal Planned(string key) => Cat(key)["planned"] is JsonNode n ? n.D() : 0m;
+        decimal Actual(string key) => Cat(key)["actual"].D();
+        string[] direct = { "materials", "labor", "equipment", "rented_equipment", "other" };
+        Assert.Equal(purchaseCost, Actual("materials"));
+        Assert.Equal(208_000m, Planned("materials"));
+        Assert.Equal(siteCost, Actual("labor") + Actual("equipment"));
+        Assert.Equal(28_400m, Planned("labor") + Planned("equipment") + Planned("rented_equipment") + Planned("other")); // عمالة ومعدات الخطة
         // الدفاتر: المواد تُعترف مرة واحدة (مخزون ← تحت التنفيذ ← تكلفة الإيرادات)، وضريبة المدخلات خارج التكلفة
         Assert.Equal(purchaseCost, await BalanceAsync(api, "534"));
         Assert.Equal(0m, await BalanceAsync(api, "1134"));
         Assert.Equal(siteCost, await BalanceAsync(api, "535") + await BalanceAsync(api, "536"));
         Assert.Equal(-siteCost, await BalanceAsync(api, "537"));                           // مقابل التحميل الداخلي للموارد
         Assert.Equal(purchaseCost * 0.15m, await BalanceAsync(api, "1131"));
-        // جسر الهامش: 137,712 − 103,100 = وفر أسعار المواد 5,500 + (المخطط 33,400 − الفعلي 4,288) للتنفيذ
+        // جسر الهامش: 137,712 − 103,100 = البند اليدوي خارج الخطة 5,000 (تكلفة الدراسة 241,400 − الخطة 236,400)
+        // + وفر كل فئة (المخطط − الفعلي): المواد 5,500 والعمالة والمعدات 28,400 − 4,288
         Assert.Equal(finalCosts["bookedProfit"].D() - study["margin"].D(),
-            (Cat("materials")["planned"].D() - Cat("materials")["actual"].D()) + (Cat("execution")["planned"].D() - Cat("execution")["actual"].D()));
+            5_000m + direct.Sum(k => Planned(k) - Actual(k)));
         foreach (var r in (await api.Get("/reports/TrialBalance")).Data!.AsArray())
         {
             var net = r!["openingDebit"].D() - r["openingCredit"].D() + r["periodDebit"].D() - r["periodCredit"].D();

@@ -5,7 +5,7 @@ namespace ERP.Tests;
 
 /// <summary>
 /// تغطية مواد المشروع (المرحلة 1): صافي الشراء بعد الرصيد وما في الطريق، بلا عدّ مزدوج عبر دورة الشراء القائمة
-/// (طلب ← اعتماد ← فاتورة شراء مسودة ← ترحيل = استلام في المستودع ← إذن تسليم للموقع).
+/// (طلب لمرحلة ← اعتماد ← سند استلام = عهدة مسلَّمة للمشروع، أو إذن تسليم من رصيد المستودع للموقع).
 /// الأسمنت مادة بالكيس (50 كجم) مربوطة بصنف بالكيلو: قواعد 50 × 7 أكياس + بلاطات 100 × 2 × 1.05 = 560 كيساً = 28,000 كجم.
 /// الرمل بلا صنف مخزني: لا يُحكم عليه (لا اكتمال ولا نقص).
 /// </summary>
@@ -17,7 +17,8 @@ public class ProjectMaterialCoverageTests : TestBase
     private static readonly DateTime Today = DateTime.UtcNow.Date;
     private static void Ok(Res r, string step) => Assert.True(r.Status is 200 or 201, $"{step}: {r.Status} {r.Body?.ToJsonString()}");
 
-    private sealed record Project(Client Api, string Id, Guid Cement, Guid Supplier, Guid BaseLine);
+    /// <summary>المشروع ومرحلتاه من الخطة: القواعد (أسمنت 350 كيساً = 17,500 كجم) والبلاطات (210 أكياس = 10,500 كجم).</summary>
+    private sealed record Project(Client Api, string Id, Guid Cement, Guid Supplier, Guid BaseLine, Guid SlabLine, Guid BasePhase, Guid SlabPhase);
 
     private async Task<Project> ProjectAsync(decimal stockKg)
     {
@@ -68,9 +69,11 @@ public class ProjectMaterialCoverageTests : TestBase
         Ok(await api.Post($"/commercialcontracts/{id}/execution-plan/generate", new { }), "plan");
         Ok(await api.Post($"/commercialcontracts/{id}/execution-plan/submit", new { }), "submit");
         Ok(await api.Post($"/commercialcontracts/{id}/execution-plan/approve", new { }), "approve");
-        Ok(await api.Post($"/feasibility-studies/{id}/create-contract", new { }), "contract");
-        Ok(await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" }), "activate");
-        return new Project(api, id, cementProduct, supplier, baseLine);
+        Ok(await api.Post($"/feasibility-studies/{id}/create-contract", new { }), "contract (active)");
+        var phases = (await api.Get($"/commercialcontracts/{id}/execution-plan")).Data!["phases"]!.AsArray();
+        Guid Phase(string name) => phases.Single(p => p!["name"].S() == name)!["id"].G();
+        var slabLine = s.Data["items"]!.AsArray().Single(i => i!["description"].S() == "بلاطات")!["id"].G();
+        return new Project(api, id, cementProduct, supplier, baseLine, slabLine, Phase("قواعد"), Phase("بلاطات"));
     }
 
     private static async Task<JsonNode> TrackingAsync(Project p)
@@ -86,23 +89,28 @@ public class ProjectMaterialCoverageTests : TestBase
     private static string[] Codes(JsonNode line) => line["alerts"]!.AsArray().Select(a => a!["code"].S()).ToArray();
     private static decimal AlertQty(JsonNode line, string code) => line["alerts"]!.AsArray().Single(a => a!["code"].S() == code)!["quantity"].D();
 
-    /// <summary>طلب شراء للمشروع بالكيلو (مسودة)، واعتماده وتحويله اختيارياً؛ يعيد الطلب ومعرّف الفاتورة إن حُوِّل.</summary>
-    private static async Task<(string Requisition, string? Invoice)> RequestAsync(Project p, decimal kg, bool approve = false, bool convert = false)
+    /// <summary>طلب شراء للمشروع بالكيلو لمرحلة (مسودة)، واعتماده اختيارياً.</summary>
+    private static async Task<string> RequestAsync(Project p, decimal kg, Guid phase, bool approve = false)
     {
         var r = await p.Api.Post("/materialrequisitions", new
         {
             requestDate = DateTime.UtcNow, requiredDate = DateTime.UtcNow.AddDays(5), department = "المشاريع", requestedBy = "م. خالد", priority = "high",
-            supplierId = p.Supplier, supplierName = "مورد", status = "draft", contractId = p.Id,
-            items = new[] { new { itemId = p.Cement, itemName = "أسمنت", sku = "CEM-KG", unit = "KG", requestedQuantity = kg, estimatedCost = 0.4m } },
+            supplierId = p.Supplier, supplierName = "مورد", status = "draft", contractId = p.Id, phaseId = phase,
+            items = new[] { new { itemId = p.Cement, itemName = "أسمنت", sku = "CEM-KG", unit = "KG", requestedQuantity = kg, estimatedCost = 0.4m, boqItemId = phase == p.BasePhase ? p.BaseLine : p.SlabLine } },
         });
         Ok(r, $"request {kg}");
         var id = r.Data!["id"].S();
-        if (approve || convert) Ok(await p.Api.Post($"/materialrequisitions/{id}/approve"), "approve request");
-        if (!convert) return (id, null);
-        var inv = await p.Api.Post($"/materialrequisitions/{id}/ConvertToInvoice");
-        Ok(inv, "convert");
-        return (id, inv.Data!["id"].S());
+        if (approve) Ok(await p.Api.Post($"/materialrequisitions/{id}/approve"), "approve request");
+        return id;
     }
+
+    /// <summary>سند استلام من المورد على الطلب: عهدة للمشروع مباشرة (مسلَّمة له)، لا رصيد في المستودع العام.</summary>
+    private static async Task ReceiveAsync(Project p, string requisitionId, decimal kg)
+        => Ok(await p.Api.Post("/deliverynotes", new
+        {
+            type = "purchase_delivery", requisitionId, date = DateTime.UtcNow.Date,
+            items = new[] { new { itemId = p.Cement, itemName = "أسمنت", deliveredQty = kg, unitPrice = 0.4m, vatRate = 15 } },
+        }), $"receive {kg}");
 
     [Fact]
     public async Task Each_quantity_is_counted_once_through_the_purchase_cycle()
@@ -125,62 +133,46 @@ public class ProjectMaterialCoverageTests : TestBase
         Assert.Equal(27.5m, unverifiable["quantity"].D());   // 50 × 0.5 × 1.1 م3
         Assert.Equal("M3", unverifiable["unit"].S());
 
-        // طلب معلّق (لم يُعتمد): في الطريق، ولا يُعدّ مستلماً
-        var (r1, _) = await RequestAsync(p, 5_000);
+        // طلب معلّق (لم يُعتمد) لمرحلة القواعد: في الطريق، ولا يُعدّ مستلماً — 28,000 − 10,000 − 5,000 = 13,000
+        var r1 = await RequestAsync(p, 5_000, p.BasePhase);
         c = await CementAsync(p);
         Assert.Equal(5_000m, c["pendingRequestQuantity"].D());
         Assert.Equal(0m, c["approvedRequestQuantity"].D());
         Assert.Equal(13_000m, c["netToPurchase"].D());
         Assert.Contains("pending_requests", Codes(c));
 
-        // اعتماده: يبقى معلّقاً (لم يُحوَّل)، ولا يتغير الصافي
+        // اعتماده: يبقى معلّقاً (لم يُستلم)، ولا يتغير الصافي
         Ok(await p.Api.Post($"/materialrequisitions/{r1}/approve"), "approve r1");
         c = await CementAsync(p);
         Assert.Equal(5_000m, c["approvedRequestQuantity"].D());
         Assert.Equal(13_000m, c["netToPurchase"].D());
 
-        // طلب ثانٍ حُوِّل لفاتورة شراء مسودة: مطلوب غير مستلم، وليس معلّقاً أيضاً — مثال 28,000 − 10,000 − 5,000 − 2,000 = 11,000
-        var (_, inv2) = await RequestAsync(p, 2_000, convert: true);
+        // طلب ثانٍ للبلاطات استُلم كاملاً بسند: عهدة مسلَّمة للمشروع، لا رصيد في المستودع ولا معلّق —
+        // المتبقي للتسليم 26,000 − رصيد 10,000 − معلّق 5,000 = 11,000 (المستلم لا يُطرح مرتين)
+        var r2 = await RequestAsync(p, 2_000, p.SlabPhase, approve: true);
+        await ReceiveAsync(p, r2, 2_000);
         c = await CementAsync(p);
-        Assert.Equal(5_000m, c["pendingRequestQuantity"].D());
-        Assert.Equal(2_000m, c["orderedQuantity"].D());
         Assert.Equal(7_000m, c["requestedQuantity"].D());
-        Assert.Equal(11_000m, c["netToPurchase"].D());
-        Assert.Equal(2_000m, AlertQty(c, "ordered_not_received"));
-
-        // الاستلام (ترحيل الفاتورة): يدخل الرصيد ويخرج من المطلوب — لا يُطرح مرتين
-        Ok(await p.Api.Post($"/purchase-invoices/{inv2}/post"), "post inv2");
-        c = await CementAsync(p);
-        Assert.Equal(0m, c["orderedQuantity"].D());
+        Assert.Equal(5_000m, c["pendingRequestQuantity"].D());
         Assert.Equal(2_000m, c["receivedQuantity"].D());
-        Assert.Equal(12_000m, c["warehouseStock"].D());
+        Assert.Equal(2_000m, c["deliveredQuantity"].D());
+        Assert.Equal(10_000m, c["warehouseStock"].D());
+        Assert.Equal(26_000m, c["remainingToDeliver"].D());
         Assert.Equal(11_000m, c["netToPurchase"].D());
 
-        // تحويل الطلب المعتمد: ينتقل من المعلّق إلى المطلوب (تداخل الطلب والفاتورة لا يتكرر)
-        var conv = await p.Api.Post($"/materialrequisitions/{r1}/ConvertToInvoice");
-        Ok(conv, "convert r1");
+        // استلام جزئي للطلب الأول (3,000 من 5,000): الباقي 2,000 يبقى معلّقاً — 23,000 − 10,000 − 2,000 = 11,000
+        await ReceiveAsync(p, r1, 3_000);
         c = await CementAsync(p);
-        Assert.Equal(0m, c["pendingRequestQuantity"].D());
-        Assert.Equal(5_000m, c["orderedQuantity"].D());
-        Assert.Equal(11_000m, c["netToPurchase"].D());
-
-        // استلام جزئي: الفاتورة عُدّلت لـ 3,000 ثم رُحّلت؛ الـ 2,000 غير المستلمة تعود للصافي
-        var invoiceId = conv.Data!["id"].S();
-        var draft = (await p.Api.Get($"/purchase-invoices/{invoiceId}")).Data!.AsObject();
-        draft["items"]![0]!["quantity"] = 3_000;
-        draft["status"] = "posted";
-        Ok(await p.Api.Put($"/purchase-invoices/{invoiceId}", draft), "partial receipt");
-        c = await CementAsync(p);
-        Assert.Equal(0m, c["orderedQuantity"].D());
+        Assert.Equal(2_000m, c["pendingRequestQuantity"].D());
         Assert.Equal(5_000m, c["receivedQuantity"].D());
-        Assert.Equal(15_000m, c["warehouseStock"].D());
-        Assert.Equal(13_000m, c["netToPurchase"].D());   // 28,000 − 15,000
+        Assert.Equal(5_000m, c["deliveredQuantity"].D());
+        Assert.Equal(11_000m, c["netToPurchase"].D());
 
-        // التسليم للموقع: يخرج من الرصيد ومن المتبقي معاً
+        // التسليم من المستودع للموقع: يخرج من الرصيد ومن المتبقي معاً — 13,000 − 0 − 2,000 = 11,000
         var issue = await p.Api.Post($"/commercialcontracts/{p.Id}/material-issues", new
         {
             receiverType = "site_engineer", receiverName = "م. خالد", post = true,
-            lines = new[] { new { boqItemId = p.BaseLine, productId = p.Cement, quantity = 15_000m } },
+            lines = new[] { new { boqItemId = p.BaseLine, productId = p.Cement, quantity = 10_000m } },
         });
         Ok(issue, "deliver");
         c = await CementAsync(p);
@@ -188,10 +180,10 @@ public class ProjectMaterialCoverageTests : TestBase
         Assert.Equal(0m, c["warehouseStock"].D());
         Assert.Equal(13_000m, c["remainingToDeliver"].D());
         Assert.Equal("none", c["coverageStatus"].S());
-        Assert.Equal(13_000m, c["netToPurchase"].D());
+        Assert.Equal(11_000m, c["netToPurchase"].D());
         var noStock = c["alerts"]!.AsArray().Single(a => a!["code"].S() == "no_stock")!;
         Assert.Equal("critical", noStock["severity"].S());
-        Assert.Equal(13_000m, c["suggestedRequestQuantity"].D()); // ≤ المتبقي للطلب 21,000
+        Assert.Equal(11_000m, c["suggestedRequestQuantity"].D()); // ≤ المتبقي للطلب 21,000
     }
 
     [Fact]
@@ -215,7 +207,7 @@ public class ProjectMaterialCoverageTests : TestBase
         Assert.Equal(0m, c["orderedQuantity"].D());
 
         // طلب رغم كفاية الرصيد: زائد عن الحاجة
-        await RequestAsync(p, 3_000);
+        await RequestAsync(p, 3_000, p.BasePhase);
         c = await CementAsync(p);
         Assert.Equal(3_000m, c["excessPurchaseQuantity"].D());
         Assert.Equal(3_000m, AlertQty(c, "excess_purchase"));
@@ -233,7 +225,8 @@ public class ProjectMaterialCoverageTests : TestBase
         Assert.Equal("critical", c["alerts"]!.AsArray().Single(a => a!["code"].S() == "no_stock")!["severity"].S());
 
         // ما في الطريق يغطي الناقص كله: لا شراء إضافي، والتنبيه تحذير لا حرج
-        await RequestAsync(p, 28_000);
+        await RequestAsync(p, 17_500, p.BasePhase); // حد كل مرحلة: القواعد 17,500 والبلاطات 10,500
+        await RequestAsync(p, 10_500, p.SlabPhase);
         c = await CementAsync(p);
         Assert.Equal(0m, c["netToPurchase"].D());
         Assert.Equal("warning", c["alerts"]!.AsArray().Single(a => a!["code"].S() == "no_stock")!["severity"].S());

@@ -474,6 +474,15 @@ public class ContractWorkflowService : IContractWorkflowService
                         .Where(x => x.ContractId == c.Id && x.Status == ContractCertificateStatuses.Approved)
                         .OrderBy(x => x.SequenceNo).Select(x => x.CertificateNumber).ToListAsync(ct);
                     if (unbilledCerts.Count > 0) missing.Add(string.Format(Messages.ContractMissingCertificateInvoicing, string.Join("، ", unbilledCerts)));
+                    // الدفعة المقدمة المفوترة تُسترد كاملة بالمستخلصات قبل الإغلاق، وإلا بقي باقيها التزاماً على العميل بلا عقد مفتوح
+                    var advance = await ContractCertificateService.AdvanceBilledAsync(_db, c.Id, ct)
+                        - await _db.Set<ContractCertificate>().AsNoTracking()
+                            .Where(x => x.ContractId == c.Id && (x.Status == ContractCertificateStatuses.Approved || x.Status == ContractCertificateStatuses.Invoiced))
+                            .SumAsync(x => x.AdvanceRecovery, ct);
+                    if (advance > 0.01m) missing.Add(string.Format(Messages.ContractMissingAdvanceRecovery, advance.ToString("N2")));
+                    // مواد مسلَّمة باقية في الحساب الوسيط لم تُختر في مستخلص: لم تنتقل لتكلفة الإيرادات فالربح مبالغ فيه
+                    var (wip, issues) = await CertifiedMaterials.UncertifiedWipAsync(_db, c.Id, ct);
+                    if (wip > 0.01m) missing.Add(string.Format(Messages.ContractMissingWipMaterials, wip.ToString("N2"), string.Join("، ", issues.Take(10))));
                 }
                 else
                 {

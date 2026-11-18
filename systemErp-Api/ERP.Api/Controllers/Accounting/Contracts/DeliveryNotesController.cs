@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-[Route("api/v1/deliverynotes"), RequireScreen("sales"), ScopedRecord("delivery-note")]
+// سندات المبيعات تتبع شاشة المبيعات وسندات المشتريات (ومنها استلام المشاريع) شاشة المشتريات؛ الدخول بأيهما، والفصل بنوع السند في الخدمة
+[Route("api/v1/deliverynotes"), RequireScreen("sales", AlsoAllow = "purchases"), ScopedRecord("delivery-note")]
 [RequireModule(PlatformModules.Accounting)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class DeliveryNotesController : ErpControllerBase

@@ -592,6 +592,9 @@ public class ProjectSupplyService : IProjectSupplyService
     private async Task CancelCoreAsync(ProjectMaterialIssue issue, string reason, CancellationToken token)
     {
         if (issue.Status != ProjectMaterialIssueStatuses.Posted) throw new ConflictException("يُلغى مستند الصرف المرحّل فقط.");
+        // عقد مغلق أو ملغى: حساباته سُوّيت، فلا يُعكس صرف ولا عهدة سند استلام (ولا يُحذف السند) بقيد بعد الإغلاق
+        var stage = await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == issue.ContractId).Select(c => c.Stage).FirstOrDefaultAsync(token);
+        if (stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled) throw new ConflictException(Messages.ProjectContractClosed);
         // كميات مختارة في مستخلص غير ملغى: تكلفتها مرتبطة بإيراده، فلا يُعكس التسليم قبل إخراجها منه (أو إلغائه/إلغاء فاتورته)
         var certified = await _db.Set<ContractCertificateMaterial>().AsNoTracking()
             .Where(m => m.IssueId == issue.Id && m.Certificate.Status != ContractCertificateStatuses.Cancelled)
@@ -666,6 +669,8 @@ public class ProjectSupplyService : IProjectSupplyService
                 Quantity = item.DeliveredQty, UnitCost = item.UnitPrice, TotalCost = DocumentPricing.Round(item.DeliveredQty * item.UnitPrice), SortOrder = sort++,
             });
         doc.TotalCost = doc.Lines.Sum(l => l.TotalCost);
+        // العهدة تسليم للمشروع كالصرف: سقف الاحتياجات المعتمدة نفسه (المسلَّم بالصرف والاستلام معاً)، فلا يُتجاوز بالشراء بعد الصرف
+        await EnsureWithinPlanAsync(contract.Id, doc, ct);
         _db.Add(doc);
 
         var accounts = await PostingAccounts.SettingsAsync(_db, ct);

@@ -118,7 +118,7 @@ public static class PermissionCatalog
 
         new("sales", "sales", "فواتير المبيعات ونقاط البيع (POS)", "Sales Invoices & POS",
             Crud(A.Approve, A.Post, A.Cancel, A.Discount),
-            new[] { "sales", "pos", "agreements", "sales/agreements", "purchases/agreements", "orders", "delivery-notes", "sales/delivery-notes", "purchases/delivery-notes", "contracts/delivery-notes" },
+            new[] { "sales", "pos", "agreements", "sales/agreements", "purchases/agreements", "orders", "delivery-notes", "sales/delivery-notes", "contracts/delivery-notes" },
             Legacy: CancelFromEdit),
         new("sales-returns", "sales", "مرتجع المبيعات والإشعارات الدائنة", "Sales Returns & Credit Notes",
             Crud(A.Approve, A.Post), new[] { "sales/returns" }),
@@ -126,7 +126,7 @@ public static class PermissionCatalog
             new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
 
         new("purchases", "purchases", "فواتير المشتريات وتكلفة المخزون", "Purchase Invoices",
-            Crud(A.Approve, A.Post), new[] { "purchases", "stock-transfers", "costing" }),
+            Crud(A.Approve, A.Post), new[] { "purchases", "stock-transfers", "costing", "purchases/delivery-notes" }),
         new(PurchaseLandedCostsScreenId, "purchases", "التكاليف الإضافية للمشتريات (شحن، جمارك، تخليص)", "Purchase Landed Costs (Freight, Customs, Clearance)",
             Crud(A.Approve, A.Cancel), new[] { "purchases/landed-costs" }, InheritsFrom: "purchases"),
         // اعتماد طلب الشراء منفصلاً عن اعتماد فواتير المشتريات: مدير يعتمد الطلبات (بحد اعتماده) دون صلاحية على الفواتير؛

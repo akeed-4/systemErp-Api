@@ -434,4 +434,56 @@ public partial class FeasibilityFlowTests
         Assert.DoesNotContain("study_changed", WarningCodes(regenerated));
         Assert.Equal(planCost + 1000m, regenerated["budget"]!["plannedCost"].D()); // 100 ساعة × (40 − 30)
     }
+
+    [Fact]
+    public async Task Submitted_plan_freezes_the_study_and_a_stale_plan_cannot_be_submitted()
+    {
+        var s = await PricedStudyAsync();
+        var api = s.Api;
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { }), "generate");
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { }), "submit");
+
+        // أثناء التقديم: لا تسعير ولا تعديل للتحليل ولا لبنود الدراسة
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{s.Id}/cost-analysis/apply", new { })).Status);
+        var row = (await api.Get($"/commercialcontracts/{s.Id}/cost-analysis")).Data!["lines"]!.AsArray()
+            .Single(l => l!["contractItemId"].G() == s.Dig)!["resources"]!.AsArray().Single(r => r!["resourceId"].G() == s.Labor)!["id"].G();
+        Assert.Equal(409, (await api.Put($"/commercialcontracts/{s.Id}/cost-analysis/{row}", new { unitCost = 40, reason = "x" })).Status);
+        Assert.False((await api.Get($"/commercialcontracts/{s.Id}/cost-analysis")).Data!["editable"]!.GetValue<bool>());
+        Assert.Equal(400, (await api.Put($"/commercialcontracts/{s.Id}", StudyUpdate(s, digQuantity: 120))).Status);
+
+        // بعد الإعادة للمسودة: تغيير كمية بند مسعّر يطلب إعادة تسعيره، ولا تُقدَّم الخطة قبلها
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/return", new { reason = "راجع الكميات" }), "return");
+        Ok(await api.Put($"/commercialcontracts/{s.Id}", StudyUpdate(s, digQuantity: 120)), "change quantity");
+        var stale = await PlanAsync(api, s.Id);
+        Assert.Contains("quantity_changed_after_pricing", WarningCodes(stale));
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { })).Status);
+
+        // إعادة التسعير تزيل تنبيه الكمية، لكن الخطة لم تأخذ التسعير الجديد بعد: لا تقديم قبل إعادة التوليد
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/cost-analysis/apply", new { }), "reprice");
+        var repriced = await PlanAsync(api, s.Id);
+        Assert.DoesNotContain("quantity_changed_after_pricing", WarningCodes(repriced));
+        Assert.Contains("study_changed", WarningCodes(repriced));
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { })).Status);
+
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { }), "regenerate");
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { }), "submit fresh plan");
+    }
+
+    /// <summary>جسم تعديل الدراسة نفسها: بنود <see cref="PricedStudyAsync"/> بمعرّفاتها وربطها بالمكتبة، وكمية الحفر وحدها تتغير.</summary>
+    private static object StudyUpdate(Study s, decimal digQuantity)
+    {
+        var items = System.Text.Json.JsonSerializer.SerializeToNode(s.Items)!.AsArray();
+        var ids = new Dictionary<string, Guid> { ["حفر"] = s.Dig, ["صب"] = s.Pour, ["بند يدوي"] = s.Manual };
+        foreach (var item in items)
+        {
+            item!["id"] = ids[item["description"].S()].ToString();
+            if (item["description"].S() == "حفر") item["quantity"] = digQuantity;
+        }
+        return new
+        {
+            title = "دراسة", projectName = "مشروع الخطة", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false,
+            partyName = "عميل", partyId = s.Party, startDate = Today, endDate = Today.AddDays(29), vatRate = 15,
+            milestones = Array.Empty<object>(), clauses = Array.Empty<object>(), isFeasibilityStudy = true, items,
+        };
+    }
 }

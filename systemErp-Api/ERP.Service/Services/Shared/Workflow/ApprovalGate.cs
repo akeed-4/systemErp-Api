@@ -84,6 +84,7 @@ public class ApprovalGate : IApprovalGate
         _db.SavingChanges += StampRequester;
         try
         {
+            using var _ = ApprovalExecutionScope.Enter();
             var result = await op.Run(_services, documentId, payload, ct);
             return (ApprovalSnapshotBuilder.Id(result) ?? documentId ?? Guid.Empty, ApprovalSnapshotBuilder.Number(result));
         }

@@ -150,7 +150,7 @@ public class SiteDailyReportService : ISiteDailyReportService
         => TransitionAsync(contractId, reportId, St.Draft, r =>
         {
             if (r.Hours.Count == 0) throw new ValidationFailedException(Messages.SiteReportEmpty);
-            r.Status = St.Submitted; r.SubmittedAt = DateTime.UtcNow; r.SubmittedBy = _user.Name; r.ReturnNote = null;
+            r.Status = St.Submitted; r.SubmittedAt = DateTime.UtcNow; r.SubmittedBy = _user.Name; r.SubmittedByUserId = _user.UserId; r.ReturnNote = null;
         }, ct);
 
     /// <summary>الاعتماد يثبّت الإنجاز ويحمّل تكلفة العمالة والمعدات المملوكة على المشروع بقيد في المعاملة نفسها.</summary>
@@ -162,6 +162,7 @@ public class SiteDailyReportService : ISiteDailyReportService
             P.EnsureEditable(contract);
             var report = await LoadTrackedAsync(contractId, reportId, token);
             EnsureStatus(report, St.Submitted);
+            await ApprovalSeparation.EnsureAsync(_db, _user.UserId, token, report.PreparedByUserId, report.SubmittedByUserId);
             report.Status = St.Approved; report.ApprovedAt = DateTime.UtcNow; report.ApprovedBy = _user.Name; report.ApprovedByUserId = _user.UserId;
             await PostCostAsync(report, contract, token);
             await _db.SaveChangesAsync(token);
@@ -253,7 +254,7 @@ public class SiteDailyReportService : ISiteDailyReportService
         return TransitionAsync(contractId, reportId, St.Approved, r =>
         {
             r.Status = St.Draft; r.ReopenNote = note.Length > 500 ? note[..500] : note; r.ReturnNote = null;
-            r.SubmittedAt = null; r.SubmittedBy = null; r.ApprovedAt = null; r.ApprovedBy = null; r.ApprovedByUserId = null;
+            r.SubmittedAt = null; r.SubmittedBy = null; r.SubmittedByUserId = null; r.ApprovedAt = null; r.ApprovedBy = null; r.ApprovedByUserId = null;
         }, ct, "SITE_DAILY_REPORT_REOPENED", $"إعادة فتح تقرير • عقد {contractId} • ملاحظة: {note}");
     }
 
@@ -263,7 +264,7 @@ public class SiteDailyReportService : ISiteDailyReportService
         if (string.IsNullOrEmpty(note)) throw new ValidationFailedException(Messages.SiteReportReturnNoteRequired);
         return TransitionAsync(contractId, reportId, St.Submitted, r =>
         {
-            r.Status = St.Draft; r.ReturnNote = note.Length > 500 ? note[..500] : note; r.SubmittedAt = null; r.SubmittedBy = null;
+            r.Status = St.Draft; r.ReturnNote = note.Length > 500 ? note[..500] : note; r.SubmittedAt = null; r.SubmittedBy = null; r.SubmittedByUserId = null;
         }, ct);
     }
 

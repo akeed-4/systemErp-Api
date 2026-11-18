@@ -118,6 +118,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("CogsAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("ConstructionSeparateApprover")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ContractAdvancesPaidAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -6285,6 +6288,9 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<Guid?>("SubmittedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -7777,6 +7783,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("SubmittedBy")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("SubmittedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");

@@ -60,8 +60,7 @@ public class ProjectResourceCoverageTests : TestBase
         Ok(await api.Post($"/commercialcontracts/{id}/execution-plan/submit", new { }), "submit");
         Ok(await api.Post($"/commercialcontracts/{id}/execution-plan/approve", new { }), "approve");
         var c = await api.Post($"/feasibility-studies/{id}/create-contract", new { });
-        Ok(c, "contract");
-        Ok(await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" }), "activate");
+        Ok(c, "contract (active)");
         return (id, c.Data!["contractNumber"].S());
     }
 

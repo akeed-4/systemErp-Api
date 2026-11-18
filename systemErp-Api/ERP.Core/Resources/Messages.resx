@@ -515,6 +515,8 @@
   <data name="CertificateContractNotActive" xml:space="preserve"><value>تُعَد المستخلصات وتُعتمد والعقد «ساري» أو في «الاستلام الأولي» فقط.</value></data>
   <data name="CertificateOpenExists" xml:space="preserve"><value>يوجد مستخلص مفتوح {0} على العقد: اعتمده أو ألغه قبل إنشاء مستخلص جديد.</value></data>
   <data name="CertificateAfterFinal" xml:space="preserve"><value>اعتُمد المستخلص الختامي للعقد؛ لا تُنشأ مستخلصات بعده.</value></data>
+  <data name="AdvanceInvoiceReturnBlocked" xml:space="preserve"><value>فاتورة الدفعة المقدمة للعقد لا تُرجع بمرتجع مستقل: المستخلصات تستردها وتخفض بها ضريبتها.</value></data>
+  <data name="CertificateReturnNotLatest" xml:space="preserve"><value>لا يُعاد المستخلص المعتمد للمسودة وبعده مستخلص آخر؛ ابدأ من الأحدث.</value></data>
   <data name="CertificateScheduleInvalid" xml:space="preserve"><value>جدولة المستخلصات غير صالحة.</value></data>
   <data name="CertificateCountRange" xml:space="preserve"><value>عدد دفعات المستخلصات بين 1 و{0}.</value></data>
   <data name="CertificatePeriodMonthsRange" xml:space="preserve"><value>فترة المستخلص الدوري بين شهر و{0} شهراً.</value></data>
@@ -596,6 +598,8 @@
   <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>مستخلص ختامي معتمد، أو إنجاز كل البنود 100% في المستخلصات المعتمدة.</value></data>
   <data name="ContractOpenCertificate" xml:space="preserve"><value>المستخلص {0} مفتوح: اعتمده أو ألغه أولاً.</value></data>
   <data name="ContractMissingCertificateInvoicing" xml:space="preserve"><value>فوترة المستخلصات المعتمدة: {0}.</value></data>
+  <data name="ContractMissingAdvanceRecovery" xml:space="preserve"><value>استرداد الدفعة المقدمة: المتبقي {0} لم يُسترد بالمستخلصات.</value></data>
+  <data name="ContractMissingWipMaterials" xml:space="preserve"><value>مواد مسلَّمة بتكلفة {0} لم تُختر في أي مستخلص (أذونات: {1}): اخترها في المستخلص الختامي لتنتقل لتكلفة الإيرادات.</value></data>
   <data name="ContractMissingBoq" xml:space="preserve"><value>جدول الكميات: أضف بنوداً بكمية وسعر أكبر من صفر.</value></data>
   <data name="MilestonesBilledOnlyWhenActive" xml:space="preserve"><value>لا تُفوتر المستخلصات قبل أن يصبح العقد ساري التنفيذ.</value></data>
   <data name="MinPriceAboveSellingPrice" xml:space="preserve"><value>الحد الأدنى للسعر أعلى من سعر البيع.</value></data>
@@ -1609,6 +1613,10 @@
   <data name="FeasibilityPlanApprovedLocked" xml:space="preserve"><value>اعتُمدت خطة تنفيذ هذه الدراسة: افتح مراجعة للخطة قبل تعديل الدراسة.</value></data>
   <data name="ExecutionPlanUnsectioned" xml:space="preserve"><value>بنود غير مصنّفة</value></data>
   <data name="ExecutionPlanResourceNameRequired" xml:space="preserve"><value>أدخل اسم المورد في الاحتياج.</value></data>
+  <data name="ConstructionApproverMustDiffer" xml:space="preserve"><value>فصل المُعِد عن المعتمِد مفعّل: من أعدّ المستند أو قدّمه لا يعتمده؛ يعتمده مستخدم آخر.</value></data>
+  <data name="ExecutionPlanSubmittedStudyLocked" xml:space="preserve"><value>خطة التنفيذ مقدَّمة للاعتماد: الدراسة وتسعيرها مجمّدان حتى تُعتمد الخطة أو تُعاد للمسودة.</value></data>
+  <data name="ExecutionPlanStudyChanged" xml:space="preserve"><value>تغيّر تسعير الدراسة أو تحليلها بعد تجهيز الخطة: أعد توليد الخطة قبل تقديمها أو اعتمادها.</value></data>
+  <data name="ExecutionPlanRepriceNeeded" xml:space="preserve"><value>بنود تغيّرت كميتها بعد تسعيرها ({0}): أعد تسعيرها من المكتبة ثم أعد توليد الخطة.</value></data>
   <data name="ExecutionPlanMaterialsLocked" xml:space="preserve"><value>احتياجات المواد معتمدة؛ لا تُعدَّل في الخطة إلا بعد إعادتها مسودة.</value></data>
   <data name="ExecutionPlanPhaseInvalid" xml:space="preserve"><value>المرحلة أو البند المختار ليس من هذا المشروع.</value></data>
   <data name="ExecutionPlanNoPhases" xml:space="preserve"><value>الخطة بلا مراحل: ولّدها من الدراسة أو أضف مرحلة قبل التقديم.</value></data>
@@ -1797,6 +1805,8 @@
   <data name="ProjectRequisitionFuturePhase" xml:space="preserve"><value>المرحلة «{0}» لم تبدأ بعد (تبدأ {1}): الشراء لمرحلة مستقبلية يحتاج صلاحية «مشاريع المقاولات: الشراء لمرحلة مستقبلية».</value></data>
   <data name="ProjectPhaseHasRequisitions" xml:space="preserve"><value>لا تُحذف المرحلة «{0}»: لها طلبات شراء مسجّلة.</value></data>
   <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>للطلب سندات استلام: احذفها أولاً.</value></data>
+  <data name="ProjectRequisitionRejectAfterReceipt" xml:space="preserve"><value>للطلب سندات استلام: لا يُرفض. لإقفاله على ما وصل أنقص كمياته إلى المستلم.</value></data>
+  <data name="ProjectRequisitionBelowReceived" xml:space="preserve"><value>«{0}»: استُلم منه {1} على هذا الطلب؛ لا تنزل كميته عن المستلم (إنقاصها إلى المستلم يقفل الطلب على ما وصل).</value></data>
   <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>طلب شراء المشروع لا يُحوَّل لفاتورة للمستودع العام: استلمه بسند استلام للمشروع ثم أنشئ الفاتورة من السند.</value></data>
   <data name="ProjectReceiptRequiresRequisition" xml:space="preserve"><value>اختر طلب شراء المشروع المعتمد: استلام مواد المشروع يُربط بطلبه دائماً حتى لا تُستلم الكمية مرتين وتظهر في متابعة المشروع.</value></data>
   <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>لا مستودع لطلب الشراء ولا لمشروع المقاولات: حدّد مستودع المشروع قبل الاستلام.</value></data>

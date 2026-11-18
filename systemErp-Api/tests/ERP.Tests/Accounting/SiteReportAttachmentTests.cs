@@ -34,9 +34,10 @@ public class SiteReportAttachmentTests : TestBase
     /// <summary>عقد مقاولات مبسط ببندين ومجموعة لها فرع، وساعات عمل 07:00–11:00.</summary>
     private static async Task<Project> ProjectAsync(Client api)
     {
+        var (customer, _) = await SeedCustomerAsync(api); // التفعيل يلزم طرفاً مربوطاً بسجله
         var created = await api.Post("/commercialcontracts", new
         {
-            title = "أعمال خرسانية", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyName = "عميل",
+            title = "أعمال خرسانية", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyName = "عميل", partyId = customer,
             startDate = Day.AddDays(-10), endDate = Day.AddMonths(6), vatRate = 15,
             items = new object[]
             {
@@ -49,6 +50,8 @@ public class SiteReportAttachmentTests : TestBase
         });
         Ok(created, "create");
         var id = created.Data!["id"].S();
+        // التنفيذ (التقارير اليومية) لعقد ساري وحده
+        Ok(await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" }), "activate");
         var items = created.Data["items"]!.AsArray();
         Guid Item(string d) => items.First(i => i!["description"].S() == d)!["id"].G();
         Ok(await api.Put($"/commercialcontracts/{id}/project/profile", new { workdayStart = "07:00", workdayEnd = "11:00" }), "hours");

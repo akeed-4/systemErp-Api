@@ -25,6 +25,8 @@ public class ProjectExecutionPlan : BaseEntity
     public string? ReturnNote { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public string? SubmittedBy { get; set; }
+    /// <summary>مقدِّم الخطة للاعتماد (لفصل المُعِد عن المعتمِد إن فُعِّل).</summary>
+    public Guid? SubmittedByUserId { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedBy { get; set; }
     public Guid? ApprovedByUserId { get; set; }

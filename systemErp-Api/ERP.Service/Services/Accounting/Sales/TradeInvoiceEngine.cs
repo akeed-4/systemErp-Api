@@ -526,6 +526,10 @@ public class TradeInvoiceEngine
             // فاتورة المستخلص تُلغى من المستخلص نفسه (يعكس معها قيدي الاسترداد والتكلفة ويعيد كمياته)؛ المرتجع الحر يفصلها عن مستخلصها
             if (original.ReferenceType == "contract_certificate" && !r.SystemGenerated)
                 throw new ConflictException("فاتورة المستخلص تُلغى من شاشة المستخلصات (إلغاء الفاتورة) لا بمرتجع مستقل.");
+            // فاتورة الدفعة المقدمة تستردها المستخلصات (وتخفض بها أساسها الضريبي): مرتجعها الحر يتركها تُسترد وهي ملغاة
+            if (!r.SystemGenerated && await _db.Set<ContractInvoice>().AsNoTracking()
+                    .AnyAsync(i => i.InvoiceId == original.Id && i.Kind == "advance", token))
+                throw new ConflictException(Messages.AdvanceInvoiceReturnBlocked);
             if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
             if (r.RefundPaymentMethod == PaymentMethod.ContractSettlement) throw new ValidationFailedException(Messages.InvalidPaymentMethod);
             if (r.RefundPaymentMethod.HasValue)

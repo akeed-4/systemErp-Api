@@ -22,15 +22,18 @@ public class EquipmentManagementTests : TestBase
     private async Task<Project> ProjectAsync(params string[] extraModules)
     {
         var api = await NewTenantWithModulesAsync(new[] { "accounting", "construction" }.Concat(extraModules).ToArray());
+        var (customer, _) = await SeedCustomerAsync(api); // التفعيل يلزم طرفاً مربوطاً بسجله
         var created = await api.Post("/commercialcontracts", new
         {
-            title = "مشروع المعدات", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyName = "عميل",
+            title = "مشروع المعدات", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyName = "عميل", partyId = customer,
             startDate = Day.AddDays(-10), endDate = Day.AddMonths(6), vatRate = 15,
             items = new[] { new { description = "حفر", unit = "م3", quantity = 1000, unitPrice = 50, vatRate = 15, lineKind = "measured" } },
             milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
         });
         Ok(created, "contract");
         var id = created.Data!["id"].S();
+        // التنفيذ (التقارير اليومية) لعقد ساري وحده
+        Ok(await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" }), "activate");
         Ok(await api.Put($"/commercialcontracts/{id}/project/profile", new { workdayStart = "07:00", workdayEnd = "17:00" }), "profile");
         return new Project(api, id, created.Data["items"]!.AsArray()[0]!["id"].G());
     }

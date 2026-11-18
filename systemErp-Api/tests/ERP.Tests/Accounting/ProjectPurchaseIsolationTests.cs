@@ -274,6 +274,84 @@ public class ProjectPurchaseIsolationTests : TestBase
         }), "return more than custody");
     }
 
+    /// <summary>مستخدم بدور مخصص بصلاحيات شاشات محددة.</summary>
+    private async Task<Client> UserWithAsync(Client owner, string label, params (string Screen, string[] Actions)[] screens)
+    {
+        var role = (await owner.Post("/roles", new { nameAr = label })).Data!["code"].S();
+        Ok(await owner.Post("/permissions", new
+        {
+            roleId = role,
+            permissions = screens.Select(s => new { screenId = s.Screen, screenNameAr = "", screenNameEn = "", actions = s.Actions }).ToArray(),
+        }), label + " permissions");
+        var roleId = (await owner.Get("/roles")).Data!.AsArray().First(r => r!["code"].S() == role)!["id"].G();
+        var email = $"u{Guid.NewGuid():N}@test.com";
+        Ok(await owner.Post("/users", new { name = label, email, phone = "1", password = "Passw0rd!", role = "sales_rep", customRoleId = roleId }), label + " user");
+        return await owner.LoginAsAsync(NewHttp(), email, "Passw0rd!");
+    }
+
+    [Fact]
+    public async Task Project_receipts_follow_the_purchases_permission_not_sales()
+    {
+        var (api, p) = await SetupAsync();
+        var req = await RequisitionAsync(api, p, qty: 10, price: 12);
+        var buyer = await UserWithAsync(api, "مشتريات المشاريع",
+            ("purchases", new[] { "view", "create" }), ("commercial-contracts", new[] { "view" }));
+        var seller = await UserWithAsync(api, "مبيعات فقط", ("sales", new[] { "view", "create" }));
+
+        // المبيعات وحدها لا تكفي لاستلام مشتريات المشروع، والمشتريات تكفي
+        Status(403, await ReceiveAsync(seller, p, req, 2, 12), "sales-only user receives a project purchase");
+        var receipt = await ReceiveAsync(buyer, p, req, 2, 12);
+        Ok(receipt, "purchases user receives");
+
+        // القائمة بنوع الصلاحية: سند المشروع يظهر للمشتريات ولا يظهر للمبيعات
+        var id = receipt.Data!["id"].S();
+        static IEnumerable<string> Ids(Res r) => (r.Data!["items"] ?? r.Data)!.AsArray().Select(n => n!["id"].S());
+        Assert.Contains(id, Ids(await buyer.Get("/deliverynotes?pageSize=100")));
+        Assert.DoesNotContain(id, Ids(await seller.Get("/deliverynotes?pageSize=100")));
+        Status(403, await seller.Get($"/deliverynotes/{id}"), "sales-only user opens a purchase receipt");
+    }
+
+    [Fact]
+    public async Task Receipts_cannot_push_delivered_material_past_the_approved_requirement()
+    {
+        var (api, p) = await SetupAsync();
+        // احتياج 100: طلب 100 معتمد، ثم صرف 50 من رصيد المستودع للموقع — المتبقي للتسليم 50 أياً كان مصدره
+        var req = await RequisitionAsync(api, p, qty: 100, price: 12);
+        Ok(await api.Post($"/commercialcontracts/{p.Id}/material-issues", new
+        {
+            receiverType = "site_engineer", receiverName = "م. خالد", post = true,
+            lines = new[] { new { boqItemId = p.Item, productId = p.Product, quantity = 50m } },
+        }), "issue 50 from stock");
+        Status(400, await ReceiveAsync(api, p, req, 100, 12), "receipt beyond the requirement");
+        Ok(await ReceiveAsync(api, p, req, 50, 12), "receipt up to the requirement");
+        Assert.Equal(100m, (await TrackingAsync(api, p))["deliveredQuantity"].D());
+    }
+
+    [Fact]
+    public async Task A_request_with_receipts_cannot_be_rejected_or_reduced_below_what_arrived()
+    {
+        var (api, p) = await SetupAsync();
+        var req = await RequisitionAsync(api, p, qty: 10, price: 12);
+        Ok(await ReceiveAsync(api, p, req, 6, 12), "receive 6");
+        var dto = (await api.Get($"/materialrequisitions/{req}")).Data!.AsObject();
+
+        var rejected = dto.DeepClone().AsObject();
+        rejected["status"] = "rejected";
+        Status(409, await api.Put($"/materialrequisitions/{req}", rejected), "reject after receipt");
+
+        JsonObject WithQuantity(decimal q)
+        {
+            var body = dto.DeepClone().AsObject();
+            body["items"]![0]!["requestedQuantity"] = q;
+            body["items"]![0]!["approvedQuantity"] = q;
+            return body;
+        }
+        Status(400, await api.Put($"/materialrequisitions/{req}", WithQuantity(5)), "below received");
+        Ok(await api.Put($"/materialrequisitions/{req}", WithQuantity(6)), "close on what arrived");
+        // الطلب مقفل على 6: لا معلّق منه، فالمتبقي من الاحتياج يُطلب بطلب جديد
+        Assert.Equal(0m, (await TrackingAsync(api, p))["pendingRequestQuantity"].D());
+    }
+
     [Fact]
     public async Task Receipts_require_an_approved_request_of_the_same_project_with_its_items_and_boq_lines()
     {

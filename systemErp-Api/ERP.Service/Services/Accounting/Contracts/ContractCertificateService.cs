@@ -293,7 +293,16 @@ public class ContractCertificateService : IContractCertificateService
         {
             var note = RequireNote(request);
             var (_, cert) = await LoadForActionAsync(contractId, certificateId, token);
-            RequireStatus(cert, St.Submitted);
+            // المعتمَد غير المفوتر يُعاد للمسودة إن كان آخر مستخلص (لا شيء بُني على كمياته): يفك مستخلصاً لا يُفوتر أو ختامياً نُسيت
+            // فيه المواد، والاعتماد لا قيد له فلا عكس. المفوتر يُلغى من فاتورته.
+            if (cert.Status == St.Approved)
+            {
+                var later = await _db.Set<ContractCertificate>().AnyAsync(c => c.ContractId == contractId && c.Id != cert.Id
+                    && c.Status != St.Cancelled && c.SequenceNo > cert.SequenceNo, token);
+                if (later) throw new ConflictException(Messages.CertificateReturnNotLatest);
+                cert.ApprovedAt = null; cert.ApprovedBy = null; cert.ApprovedByUserId = null;
+            }
+            else RequireStatus(cert, St.Submitted);
             cert.Status = St.Draft; cert.ReturnNote = note;
             cert.SubmittedAt = null; cert.SubmittedBy = null;
             await SaveAsync(token);

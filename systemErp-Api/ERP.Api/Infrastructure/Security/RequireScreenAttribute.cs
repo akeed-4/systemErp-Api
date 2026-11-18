@@ -30,6 +30,12 @@ public class RequireScreenAttribute : Attribute, IAsyncAuthorizationFilter
 
     public ScreenAction Legacy { get => _legacy ?? ScreenAction.View; set => _legacy = value; }
 
+    /// <summary>
+    /// شاشة بديلة تكفي صلاحيتها للإجراء نفسه (نقطة مشتركة بين شاشتين، مثل سندات التسليم للمبيعات والمشتريات)؛ الفصل الدقيق بنوع
+    /// المستند تفرضه الخدمة.
+    /// </summary>
+    public string? AlsoAllow { get; set; }
+
     /// <summary>الإجراء الصريح إن حُدِّد (لكتالوج نقاط الـ API).</summary>
     public ScreenAction? Action => _action;
 
@@ -53,7 +59,8 @@ public class RequireScreenAttribute : Attribute, IAsyncAuthorizationFilter
 
         var action = _action ?? FromMethod(context.HttpContext.Request.Method);
         var permissions = context.HttpContext.RequestServices.GetRequiredService<IPermissionService>();
-        if (!await permissions.HasPermissionAsync(ScreenId, action, _legacy, context.HttpContext.RequestAborted))
+        if (!await permissions.HasPermissionAsync(ScreenId, action, _legacy, context.HttpContext.RequestAborted)
+            && (AlsoAllow == null || !await permissions.HasPermissionAsync(AlsoAllow, action, _legacy, context.HttpContext.RequestAborted)))
             throw new ForbiddenException();
     }
 }

@@ -515,6 +515,8 @@
   <data name="CertificateContractNotActive" xml:space="preserve"><value>Certificates are prepared and approved only while the contract is Active or in Initial Acceptance.</value></data>
   <data name="CertificateOpenExists" xml:space="preserve"><value>An open certificate {0} exists on this contract: approve or cancel it before creating a new one.</value></data>
   <data name="CertificateAfterFinal" xml:space="preserve"><value>The final certificate is approved; no further certificates can be created.</value></data>
+  <data name="AdvanceInvoiceReturnBlocked" xml:space="preserve"><value>A contract advance-payment invoice cannot be returned with a standalone return: certificates recover it and reduce their VAT with it.</value></data>
+  <data name="CertificateReturnNotLatest" xml:space="preserve"><value>An approved certificate cannot return to draft while a later certificate exists; start with the latest.</value></data>
   <data name="CertificateScheduleInvalid" xml:space="preserve"><value>Invalid certificate schedule.</value></data>
   <data name="CertificateCountRange" xml:space="preserve"><value>The number of certificate installments must be between 1 and {0}.</value></data>
   <data name="CertificatePeriodMonthsRange" xml:space="preserve"><value>The periodic certificate period must be between 1 and {0} months.</value></data>
@@ -596,6 +598,8 @@
   <data name="ContractMissingFinalCertificate" xml:space="preserve"><value>An approved final certificate, or every line 100% complete in approved certificates.</value></data>
   <data name="ContractOpenCertificate" xml:space="preserve"><value>Certificate {0} is open: approve or cancel it first.</value></data>
   <data name="ContractMissingCertificateInvoicing" xml:space="preserve"><value>Invoicing of approved certificates: {0}.</value></data>
+  <data name="ContractMissingAdvanceRecovery" xml:space="preserve"><value>Advance payment recovery: {0} is still not recovered through certificates.</value></data>
+  <data name="ContractMissingWipMaterials" xml:space="preserve"><value>Delivered materials costing {0} are not selected in any certificate (issues: {1}): select them in the final certificate so they move to cost of revenue.</value></data>
   <data name="ContractMissingBoq" xml:space="preserve"><value>Bill of quantities: add lines with a quantity and a price greater than zero.</value></data>
   <data name="MilestonesBilledOnlyWhenActive" xml:space="preserve"><value>Milestones cannot be billed before the contract is in effect.</value></data>
   <data name="MinPriceAboveSellingPrice" xml:space="preserve"><value>The minimum price is higher than the selling price.</value></data>
@@ -1609,6 +1613,10 @@
   <data name="FeasibilityPlanApprovedLocked" xml:space="preserve"><value>This study’s execution plan is approved: open a plan revision before editing the study.</value></data>
   <data name="ExecutionPlanUnsectioned" xml:space="preserve"><value>Unclassified items</value></data>
   <data name="ExecutionPlanResourceNameRequired" xml:space="preserve"><value>Enter the resource name of the requirement.</value></data>
+  <data name="ConstructionApproverMustDiffer" xml:space="preserve"><value>Preparer/approver separation is on: whoever prepared or submitted the document cannot approve it; another user must approve.</value></data>
+  <data name="ExecutionPlanSubmittedStudyLocked" xml:space="preserve"><value>The execution plan is submitted for approval: the study and its pricing are frozen until the plan is approved or returned to draft.</value></data>
+  <data name="ExecutionPlanStudyChanged" xml:space="preserve"><value>The study pricing or analysis changed after the plan was prepared: regenerate the plan before submitting or approving it.</value></data>
+  <data name="ExecutionPlanRepriceNeeded" xml:space="preserve"><value>Items changed quantity after pricing ({0}): reprice them from the library, then regenerate the plan.</value></data>
   <data name="ExecutionPlanMaterialsLocked" xml:space="preserve"><value>The material requirements are approved; they cannot be edited in the plan until returned to draft.</value></data>
   <data name="ExecutionPlanPhaseInvalid" xml:space="preserve"><value>The selected phase or item is not from this project.</value></data>
   <data name="ExecutionPlanNoPhases" xml:space="preserve"><value>The plan has no phases: generate it from the study or add a phase before submitting.</value></data>
@@ -1797,6 +1805,8 @@
   <data name="ProjectRequisitionFuturePhase" xml:space="preserve"><value>Phase "{0}" has not started yet (starts {1}): purchasing for a future phase requires the "Construction Projects: Purchase for a Future Phase" permission.</value></data>
   <data name="ProjectPhaseHasRequisitions" xml:space="preserve"><value>Phase "{0}" cannot be deleted: it has purchase requests.</value></data>
   <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>The request has goods receipts: delete them first.</value></data>
+  <data name="ProjectRequisitionRejectAfterReceipt" xml:space="preserve"><value>The request has goods receipts and cannot be rejected. To close it on what arrived, reduce its quantities to the received amounts.</value></data>
+  <data name="ProjectRequisitionBelowReceived" xml:space="preserve"><value>"{0}": {1} was already received on this request; its quantity cannot go below what was received (reducing it to the received quantity closes the request).</value></data>
   <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>A project purchase request is not converted to a warehouse invoice: receive it with a project goods receipt, then create the invoice from the receipt.</value></data>
   <data name="ProjectReceiptRequiresRequisition" xml:space="preserve"><value>Choose the approved project purchase request: project material receipts are always linked to their request so quantities are not received twice and appear in project tracking.</value></data>
   <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>Neither the purchase request nor the construction project has a warehouse: set the project warehouse before receiving.</value></data>

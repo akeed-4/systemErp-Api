@@ -22,9 +22,10 @@ public class SiteDailyReportTests : TestBase
     /// <summary>عقد مقاولات ببندين، ساعات عمله 07:00–11:00، وخطة 10 م3/ساعة لصب الخرسانة.</summary>
     private static async Task<Project> ProjectAsync(Client api)
     {
+        var (customer, _) = await SeedCustomerAsync(api); // التفعيل يلزم طرفاً مربوطاً بسجله
         var created = await api.Post("/commercialcontracts", new
         {
-            title = "أعمال خرسانية", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyName = "عميل",
+            title = "أعمال خرسانية", contractType = "construction_boq", workflow = "simple", requiresGuarantee = false, partyName = "عميل", partyId = customer,
             startDate = Day.AddDays(-10), endDate = Day.AddMonths(6), vatRate = 15,
             items = new object[]
             {
@@ -35,6 +36,8 @@ public class SiteDailyReportTests : TestBase
         });
         Ok(created, "create");
         var id = created.Data!["id"].S();
+        // التنفيذ (التقارير اليومية) لعقد ساري وحده
+        Ok(await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" }), "activate");
         var items = created.Data["items"]!.AsArray();
         var project = new Project(id, items.First(i => i!["description"].S() == "صب خرسانة")!["id"].G(), items.First(i => i!["description"].S() == "حديد تسليح")!["id"].G());
         Ok(await api.Put($"/commercialcontracts/{id}/project/profile", new { workdayStart = "07:00", workdayEnd = "11:00" }), "hours");

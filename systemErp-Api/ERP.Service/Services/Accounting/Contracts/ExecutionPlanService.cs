@@ -153,6 +153,9 @@ public class ExecutionPlanService : IExecutionPlanService
         // الدراسة سُعّرت أو عُدّلت كمياتها بعد التوليد: الخطة نسخة مستقلة لا تتبعها تلقائياً، فيُنبَّه لإعادة التوليد (والتعديلات اليدوية تبقى)
         Add("study_changed", plan is { Status: St.Draft, StudyFingerprint: not null } && plan.StudyFingerprint != StudyFingerprint(costRows) ? 1 : 0, "plan",
             plan?.StudyCostAtGeneration?.ToString("0.##", CultureInfo.InvariantCulture));
+        // كمية سطر تغيّرت بعد تسعيره: التحليل على القديمة (إعادة التوليد وحدها لا تكفي؛ يُعاد تسعير السطر أولاً)
+        var reprice = RepriceNeeded(contract, costRows);
+        Add("quantity_changed_after_pricing", reprice.Count, "estimate", string.Join("، ", reprice.Take(5).Select(i => i.LineCode ?? i.Description)));
         Add("lines_not_priced", leaves.Count(l => !priced.Contains(l.Id)), "estimate");
         // مورد بتكلفة صفرية في التحليل المجمّد: الدراسة والخطة أقل من الحقيقة (عدد الموارد، والتفصيل أسماؤها)
         var zeroCost = costRows.Where(r => r.UnitCost <= 0 && r.Quantity > 0).GroupBy(r => r.ResourceId).Select(g => g.First().ResourceName).ToList();
@@ -585,7 +588,8 @@ public class ExecutionPlanService : IExecutionPlanService
         {
             var phases = await _db.Set<ProjectPhase>().AsNoTracking().Where(p => p.ContractId == contractId).ToListAsync(token);
             if (phases.Count == 0) throw new ValidationFailedException(Messages.ExecutionPlanNoPhases);
-            plan.Status = St.Submitted; plan.ReturnNote = null; plan.SubmittedAt = DateTime.UtcNow; plan.SubmittedBy = _user.Name;
+            await EnsureMatchesStudyAsync(contract, plan, token);
+            plan.Status = St.Submitted; plan.ReturnNote = null; plan.SubmittedAt = DateTime.UtcNow; plan.SubmittedBy = _user.Name; plan.SubmittedByUserId = _user.UserId;
         }, ct);
 
     /// <summary>
@@ -599,6 +603,8 @@ public class ExecutionPlanService : IExecutionPlanService
             var plan = await _db.Set<ProjectExecutionPlan>().FirstOrDefaultAsync(p => p.ContractId == contractId, token)
                 ?? throw new NotFoundException(Messages.ExecutionPlanNotFound);
             if (plan.Status != St.Submitted) throw new ConflictException(Messages.ExecutionPlanWrongStatus);
+            // الدراسة مقفلة أثناء التقديم؛ والفحص هنا حارس أخير (تعديل سبق القفل أو من مسار آخر): لا يُعتمد غير ما رآه المعتمِد
+            await EnsureMatchesStudyAsync(contract, plan, token);
 
             var materialPlan = await _db.Set<ProjectMaterialPlan>().Include(p => p.Lines).FirstOrDefaultAsync(p => p.ContractId == contractId, token);
             if (materialPlan != null && materialPlan.Status != ProjectMaterialPlanStatuses.Approved && materialPlan.Lines.Count > 0)
@@ -608,6 +614,7 @@ public class ExecutionPlanService : IExecutionPlanService
                 materialPlan.SubmittedAt ??= DateTime.UtcNow; materialPlan.SubmittedBy ??= _user.Name ?? "system";
                 materialPlan.ApprovedAt = DateTime.UtcNow; materialPlan.ApprovedBy = _user.Name ?? "system"; materialPlan.ApprovedByUserId = _user.UserId;
             }
+            await ApprovalSeparation.EnsureAsync(_db, _user.UserId, token, plan.SubmittedByUserId);
             plan.Status = St.Approved; plan.ApprovedAt = DateTime.UtcNow; plan.ApprovedBy = _user.Name; plan.ApprovedByUserId = _user.UserId;
             if (FeasibilityStatuses.IsPreContract(contract.FeasibilityStatus)) contract.FeasibilityStatus = FeasibilityStatuses.PlanApproved;
             await _db.SaveChangesAsync(token);
@@ -655,7 +662,7 @@ public class ExecutionPlanService : IExecutionPlanService
         if (string.IsNullOrWhiteSpace(note)) throw new ValidationFailedException(Messages.ExecutionPlanReturnReasonRequired);
         return ChangeAsync(contractId, St.Submitted, (contract, plan, token) =>
         {
-            plan.Status = St.Draft; plan.ReturnNote = note[..Math.Min(note.Length, 500)]; plan.SubmittedAt = null; plan.SubmittedBy = null;
+            plan.Status = St.Draft; plan.ReturnNote = note[..Math.Min(note.Length, 500)]; plan.SubmittedAt = null; plan.SubmittedBy = null; plan.SubmittedByUserId = null;
             return Task.CompletedTask;
         }, ct);
     }
@@ -667,7 +674,7 @@ public class ExecutionPlanService : IExecutionPlanService
     public Task<ExecutionPlanDto> ReviseAsync(Guid contractId, CancellationToken ct = default)
         => ChangeAsync(contractId, St.Approved, async (contract, plan, token) =>
         {
-            plan.Status = St.Draft; plan.Revision++; plan.SubmittedAt = null; plan.SubmittedBy = null; plan.ApprovedAt = null;
+            plan.Status = St.Draft; plan.Revision++; plan.SubmittedAt = null; plan.SubmittedBy = null; plan.SubmittedByUserId = null; plan.ApprovedAt = null;
             plan.ApprovedBy = null; plan.ApprovedByUserId = null; plan.ReturnNote = null;
             if (contract.FeasibilityStatus == FeasibilityStatuses.PlanApproved)
             {
@@ -792,6 +799,37 @@ public class ExecutionPlanService : IExecutionPlanService
         if (!IsEditable(c, plan)) throw new ConflictException(Messages.ExecutionPlanLocked);
     }
 
+    /// <summary>
+    /// الخطة تطابق الدراسة الحالية: لا سطر تغيّرت كميته بعد تسعيره، ولا تسعير أو تعديل للتحليل بعد آخر توليد (بصمة مختلفة). الخطة
+    /// المولَّدة قبل البصمة (فارغة) تُقبل.
+    /// </summary>
+    private async Task EnsureMatchesStudyAsync(CommercialContract contract, ProjectExecutionPlan plan, CancellationToken ct)
+    {
+        var rows = await _db.Set<ContractItemResourceCost>().AsNoTracking().Where(r => r.ContractId == contract.Id).ToListAsync(ct);
+        var reprice = RepriceNeeded(contract, rows);
+        if (reprice.Count > 0)
+            throw new ConflictException(string.Format(Messages.ExecutionPlanRepriceNeeded, string.Join("، ", reprice.Take(5).Select(i => i.LineCode ?? i.Description))));
+        if (plan.StudyFingerprint != null && plan.StudyFingerprint != StudyFingerprint(rows))
+            throw new ConflictException(Messages.ExecutionPlanStudyChanged);
+    }
+
+    /// <summary>خطة مقدَّمة للاعتماد: الدراسة (التحليل والبنود والأسعار) مجمّدة حتى يُعتمد ما راجعه المعتمِد أو يُعاد للمسودة.</summary>
+    internal static Task<bool> IsSubmittedAsync(ErpDbContext db, Guid contractId, CancellationToken ct)
+        => db.Set<ProjectExecutionPlan>().AsNoTracking().AnyAsync(p => p.ContractId == contractId && p.Status == St.Submitted, ct);
+
+    /// <summary>
+    /// أسطر جدول الكميات التي تغيّرت كميتها بعد تسعيرها: تحليلها (وكميات موادها وساعاتها) على الكمية القديمة، فالخطة المولَّدة منها خاطئة
+    /// حتى يُعاد تسعيرها. يُقارن بكمية التسعير المحفوظة على أسطر التحليل.
+    /// </summary>
+    internal static List<CommercialContractItem> RepriceNeeded(CommercialContract contract, IEnumerable<ContractItemResourceCost> rows)
+    {
+        // قبل التعاقد وحده: التسعير يُعدَّل في الدراسة. بعد العقد التحليل مجمّد وأوامر التغيير تغيّر الكمية المعدّلة بمسارها، فلا يُطلب
+        // تسعير لا يمكن (وإلا قفلت المقارنة مراجعة الخطة)
+        if (contract.FeasibilityStatus != FeasibilityStatuses.Study) return new();
+        var priced = rows.Where(r => r.BaseQuantity > 0).GroupBy(r => r.ContractItemId).ToDictionary(g => g.Key, g => g.First().BaseQuantity);
+        return contract.Items.Where(i => !i.IsGroup && priced.TryGetValue(i.Id, out var q) && Math.Abs(q - i.RevisedQuantity) > 0.0001m).ToList();
+    }
+
     /// <summary>للتحقق من خارج الخدمة (المراحل): خطة مقدَّمة أو معتمدة لا تُعدَّل عناصرها.</summary>
     internal static async Task EnsurePlanEditableAsync(ErpDbContext db, Guid contractId, CancellationToken ct)
     {
@@ -807,7 +845,14 @@ public class ExecutionPlanService : IExecutionPlanService
     {
         var c = await db.Set<CommercialContract>().AsNoTracking().Where(x => x.Id == contractId)
             .Select(x => new { x.FeasibilityStatus, x.Stage }).FirstOrDefaultAsync(ct);
-        if (c?.FeasibilityStatus == null) return;
+        if (c == null) return;
+        // العقد المباشر والقديم (بلا دراسة): لا خطة إلزامية، لكن التنفيذ (تقارير وصرف واستلام) لعقد ساري وحده، لا مسودة ولا موقوف ولا مغلق
+        if (c.FeasibilityStatus == null)
+        {
+            if (c.Stage is not (ContractStageDefinition.Active or ContractStageDefinition.InitialAcceptance))
+                throw new ConflictException(Messages.ExecutionNeedsActiveContract);
+            return;
+        }
         if (FeasibilityStatuses.IsPreContract(c.FeasibilityStatus)) throw new ConflictException(Messages.ExecutionNeedsContract);
         if (c.Stage is not (ContractStageDefinition.Active or ContractStageDefinition.InitialAcceptance))
             throw new ConflictException(Messages.ExecutionNeedsActiveContract);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.DTOs.Accounting.Contracts;
 using ERP.Service.Data;
@@ -338,34 +339,53 @@ public class ProjectCostService : IProjectCostService
     /// تكلفة محمّلة مرتين على مركز المشروع: موظف (عامل/مهندس) أو أصل (معدة مملوكة) مربوط بمورد في المشروع وحُمّلت ساعاته بقيود
     /// التقارير اليومية، ومركز تكلفته في مسير الرواتب أو الإهلاك هو مركز المشروع نفسه. يُستبعد الراتب المرحّل (الصافي قبل الاستقطاعات
     /// + حصة المنشأة في التأمينات، كما في قيد المسير) والإهلاك المرحّل؛ والمورد بلا ساعات محمّلة يبقى راتبه/إهلاكه تكلفته الوحيدة.
+    /// <para>الاستبعاد لكل شهر (yyyy-MM) على حدة: راتب أو إهلاك شهر لا تحميل فيه يبقى كما هو، وما يُستبعد في الشهر لا يتجاوز ما حُمِّل
+    /// فيه من التقارير (فلا تُمحى تكلفة حقيقية أكبر من المحمّل). المعدة بطريقة الإهلاك لا سعر ملكية في ساعتها، فإهلاكها تكلفتها الحقيقية
+    /// ولا يُستبعد.</para>
     /// </summary>
     private async Task<List<Duplicate>> DuplicatesAsync(Guid contractId, Guid cc, CancellationToken ct)
     {
-        var absorbed = await (from u in _db.Set<SiteResourceUsage>().AsNoTracking()
-                              join rep in _db.Set<SiteDailyReport>().AsNoTracking() on u.ReportId equals rep.Id
-                              join res in _db.Set<ProjectResource>().AsNoTracking() on u.ProjectResourceId equals res.Id
-                              where rep.ContractId == contractId && rep.CostJournalEntryId != null && u.Cost > 0
-                              select new { res.Kind, res.EmployeeId, res.FixedAssetId }).Distinct().ToListAsync(ct);
-        var employees = absorbed.Where(x => x.EmployeeId != null && x.Kind is ProjectResourceKinds.Labor or ProjectResourceKinds.Engineer)
-            .Select(x => x.EmployeeId!.Value).Distinct().ToList();
-        var assets = absorbed.Where(x => x.FixedAssetId != null && x.Kind == ProjectResourceKinds.OwnedEquipment)
-            .Select(x => x.FixedAssetId!.Value).Distinct().ToList();
+        var usage = await (from u in _db.Set<SiteResourceUsage>().AsNoTracking()
+                           join rep in _db.Set<SiteDailyReport>().AsNoTracking() on u.ReportId equals rep.Id
+                           join res in _db.Set<ProjectResource>().AsNoTracking() on u.ProjectResourceId equals res.Id
+                           where rep.ContractId == contractId && rep.CostJournalEntryId != null && u.Cost > 0
+                           select new { res.Kind, res.EmployeeId, res.FixedAssetId, res.EquipmentCostMethod, rep.ReportDate, u.Cost }).ToListAsync(ct);
+        var labor = usage.Where(x => x.EmployeeId != null && x.Kind is ProjectResourceKinds.Labor or ProjectResourceKinds.Engineer)
+            .Select(x => (x.EmployeeId!.Value, DuplicateCostMatcher.PeriodOf(x.ReportDate), x.Cost)).ToList();
+        var owned = usage.Where(x => x.FixedAssetId != null && x.Kind == ProjectResourceKinds.OwnedEquipment
+                && x.EquipmentCostMethod != EquipmentCostMethods.Depreciation)
+            .Select(x => (x.FixedAssetId!.Value, DuplicateCostMatcher.PeriodOf(x.ReportDate), x.Cost)).ToList();
+        var employees = labor.Select(x => x.Item1).Distinct().ToList();
+        var assets = owned.Select(x => x.Item1).Distinct().ToList();
+
         var result = new List<Duplicate>();
         if (employees.Count > 0)
-            result.AddRange((await (from l in _db.Set<PayrollLine>().AsNoTracking()
-                                    join run in _db.Set<PayrollRun>().AsNoTracking() on l.PayrollRunId equals run.Id
-                                    where run.Status == "posted" && run.JournalEntryId != null && l.CostCenterId == cc && employees.Contains(l.EmployeeId)
-                                    select new { run.Date, run.RunNumber, l.EmployeeName, Amount = l.Gross - l.Deductions + l.EmployerGosi }).ToListAsync(ct))
-                .Where(x => x.Amount > 0)
-                .Select(x => new Duplicate("labor", x.Date, $"استبعاد راتب {x.EmployeeName} ({x.RunNumber}): محمّل بساعاته من التقارير اليومية", x.Amount)));
+        {
+            var payroll = await (from l in _db.Set<PayrollLine>().AsNoTracking()
+                                 join run in _db.Set<PayrollRun>().AsNoTracking() on l.PayrollRunId equals run.Id
+                                 where run.Status == "posted" && run.JournalEntryId != null && l.CostCenterId == cc && employees.Contains(l.EmployeeId)
+                                 orderby run.Date, run.RunNumber
+                                 select new { run.Date, run.Period, run.RunNumber, l.EmployeeId, l.EmployeeName, Amount = l.Gross - l.Deductions + l.EmployerGosi }).ToListAsync(ct);
+            var excluded = DuplicateCostMatcher.Exclusions(labor, payroll.Select(x => (x.EmployeeId, x.Period, x.Amount)).ToList());
+            for (var i = 0; i < payroll.Count; i++)
+                if (excluded[i] > 0)
+                    result.Add(new Duplicate("labor", payroll[i].Date,
+                        $"استبعاد راتب {payroll[i].EmployeeName} ({payroll[i].RunNumber} · {payroll[i].Period}): محمّل بساعاته من التقارير اليومية", excluded[i]));
+        }
         if (assets.Count > 0)
-            result.AddRange((await (from d in _db.Set<FixedAssetDepreciation>().AsNoTracking()
-                                    join a in _db.Set<FixedAsset>().AsNoTracking() on d.FixedAssetId equals a.Id
-                                    join e in _db.Set<JournalEntry>().AsNoTracking() on d.JournalEntryId equals e.Id
-                                    where d.CostCenterId == cc && assets.Contains(d.FixedAssetId) && e.Status != JournalEntryStatus.Draft
-                                    select new { e.Date, d.Period, a.NameAr, d.Amount }).ToListAsync(ct))
-                .Where(x => x.Amount > 0)
-                .Select(x => new Duplicate("equipment", x.Date, $"استبعاد إهلاك {x.NameAr} ({x.Period}): محمّل بساعات تشغيله من التقارير اليومية", x.Amount)));
+        {
+            var depreciation = await (from d in _db.Set<FixedAssetDepreciation>().AsNoTracking()
+                                      join a in _db.Set<FixedAsset>().AsNoTracking() on d.FixedAssetId equals a.Id
+                                      join e in _db.Set<JournalEntry>().AsNoTracking() on d.JournalEntryId equals e.Id
+                                      where d.CostCenterId == cc && assets.Contains(d.FixedAssetId) && e.Status != JournalEntryStatus.Draft
+                                      orderby e.Date
+                                      select new { e.Date, d.Period, d.FixedAssetId, a.NameAr, d.Amount }).ToListAsync(ct);
+            var excluded = DuplicateCostMatcher.Exclusions(owned, depreciation.Select(x => (x.FixedAssetId, x.Period, x.Amount)).ToList());
+            for (var i = 0; i < depreciation.Count; i++)
+                if (excluded[i] > 0)
+                    result.Add(new Duplicate("equipment", depreciation[i].Date,
+                        $"استبعاد إهلاك {depreciation[i].NameAr} ({depreciation[i].Period}): محمّل بساعات تشغيله من التقارير اليومية", excluded[i]));
+        }
         return result;
     }
 
@@ -380,5 +400,32 @@ public class ProjectCostService : IProjectCostService
                                where r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved
                                select m.Quantity * m.UnitCost).SumAsync(ct);
         return DocumentPricing.Round(resources + materials);
+    }
+}
+
+/// <summary>
+/// مطابقة التكلفة المحمّلة مرتين لكل (موظف أو أصل، شهر): ما يُستبعد من كل قيد راتب أو إهلاك = الأقل من مبلغه ومما بقي من المحمّل
+/// بالتقارير اليومية في الشهر نفسه. القيود بترتيبها تتقاسم سقف شهرها، وشهر بلا تحميل لا يُستبعد منه شيء.
+/// </summary>
+public static class DuplicateCostMatcher
+{
+    /// <summary>الشهر بصيغة الرواتب والإهلاك (yyyy-MM).</summary>
+    public static string PeriodOf(DateTime date) => date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+
+    /// <returns>المستبعد لكل قيد بترتيب <paramref name="postings"/>.</returns>
+    public static decimal[] Exclusions<TKey>(IEnumerable<(TKey Key, string Period, decimal Cost)> absorbed,
+        IReadOnlyList<(TKey Key, string Period, decimal Amount)> postings) where TKey : notnull
+    {
+        var caps = absorbed.GroupBy(a => (a.Key, a.Period)).ToDictionary(g => g.Key, g => g.Sum(a => a.Cost));
+        var result = new decimal[postings.Count];
+        for (var i = 0; i < postings.Count; i++)
+        {
+            var (key, period, amount) = postings[i];
+            if (amount <= 0 || !caps.TryGetValue((key, period), out var cap) || cap <= 0) continue;
+            var taken = Math.Min(amount, cap);
+            caps[(key, period)] = cap - taken;
+            result[i] = DocumentPricing.Round(taken);
+        }
+        return result;
     }
 }

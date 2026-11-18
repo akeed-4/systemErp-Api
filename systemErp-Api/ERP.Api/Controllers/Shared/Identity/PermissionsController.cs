@@ -109,12 +109,16 @@ public class PermissionsController : ErpControllerBase
             foreach (var method in methods.DefaultIfEmpty("GET"))
             {
                 var action = screen.Action ?? RequireScreenAttribute.FromMethod(method);
-                if (!result.TryGetValue(screen.ScreenId, out var list)) result[screen.ScreenId] = list = new();
-                list.Add(new PermissionEndpointDto
+                // النقطة المشتركة تظهر تحت شاشتيها
+                foreach (var screenId in new[] { screen.ScreenId, screen.AlsoAllow }.OfType<string>())
                 {
-                    Action = ERP.Service.Services.Shared.PermissionCatalog.Code(action), Method = method,
-                    Route = "/" + (descriptor.AttributeRouteInfo?.Template ?? string.Empty),
-                });
+                    if (!result.TryGetValue(screenId, out var list)) result[screenId] = list = new();
+                    list.Add(new PermissionEndpointDto
+                    {
+                        Action = ERP.Service.Services.Shared.PermissionCatalog.Code(action), Method = method,
+                        Route = "/" + (descriptor.AttributeRouteInfo?.Template ?? string.Empty),
+                    });
+                }
             }
         }
         foreach (var list in result.Values) list.Sort((a, b) => string.CompareOrdinal(a.Route + a.Method, b.Route + b.Method));

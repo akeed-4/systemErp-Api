@@ -3,8 +3,8 @@ using ERP.Tests.Infrastructure;
 namespace ERP.Tests;
 
 /// <summary>
-/// «إنشاء العقد» من الدراسة والخطة المعتمدتين (السجل نفسه برقم عقد ومركز تكلفة، ورقم الدراسة باقٍ)، وقيد بدء التنفيذ: لا تقرير يومي
-/// قبل العقد، ولا قبل سريانه، ولا أثناء مراجعة مفتوحة للخطة. العقد المباشر يعمل كما كان.
+/// «إنشاء العقد» من الدراسة والخطة المعتمدتين (السجل نفسه برقم عقد ومركز تكلفة، ورقم الدراسة باقٍ، والعقد ساري مع إنشائه)، وقيد بدء
+/// التنفيذ: لا تقرير يومي قبل العقد، ولا أثناء مراجعة مفتوحة للخطة. العقد المباشر يعمل كما كان.
 /// </summary>
 public partial class FeasibilityFlowTests
 {
@@ -41,7 +41,8 @@ public partial class FeasibilityFlowTests
         var contract = (await api.Get($"/commercialcontracts/{s.Id}")).Data!;
         Assert.Equal("contracted", contract["feasibilityStatus"].S());
         Assert.False(string.IsNullOrEmpty(contract["costCenterId"]?.GetValue<string?>()));
-        Assert.Equal("draft", contract["stage"].S());
+        // اعتماد الدراسة والخطة هو قرار التعاقد: العقد يُفعَّل مع إنشائه
+        Assert.Equal("active", contract["stage"].S());
         Assert.Contains(s.Id, (await api.Get("/commercialcontracts?pageSize=100")).Data!["items"]!.AsArray().Select(c => c!["id"].S()));
         Assert.Contains(s.Id, (await api.Get("/construction-projects")).Data!.AsArray().Select(p => p!["contractId"].S()));
         // النسختان المجمّدتان باقيتان على العقد
@@ -49,10 +50,7 @@ public partial class FeasibilityFlowTests
         Assert.Contains(baselines, b => b!["kind"].S() == "feasibility");
         Assert.Contains(baselines, b => b!["kind"].S() == "plan_baseline");
 
-        // عقد مسودة: لا تنفيذ حتى السريان
-        Assert.Equal(409, (await DailyReport(api, s.Id, Today)).Status);
-        Ok(await api.Post($"/commercialcontracts/{s.Id}/move", new { toStatus = "active" }), "activate");
-        Ok(await DailyReport(api, s.Id, Today), "report after activation");
+        Ok(await DailyReport(api, s.Id, Today), "report on the active contract");
 
         // مراجعة مفتوحة للخطة توقف تنفيذاً جديداً حتى اعتمادها
         Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/revise", new { }), "revise");
@@ -73,8 +71,7 @@ public partial class FeasibilityFlowTests
         var s = await PricedStudyAsync();
         var api = s.Api;
         await ApprovePlanAsync(api, s.Id);
-        Ok(await api.Post($"/feasibility-studies/{s.Id}/create-contract", new { }), "create contract");
-        Ok(await api.Post($"/commercialcontracts/{s.Id}/move", new { toStatus = "active" }), "activate");
+        Ok(await api.Post($"/feasibility-studies/{s.Id}/create-contract", new { }), "create contract (active)");
 
         var resources = await api.Post($"/commercialcontracts/{s.Id}/project/resources", new
         {
@@ -126,6 +123,8 @@ public partial class FeasibilityFlowTests
         var direct = await api.Post("/commercialcontracts", StudyBody(party, SimpleItems, study: false));
         Ok(direct, "direct");
         var id = direct.Data!["id"].S();
+        // بلا دراسة لا خطة إلزامية، لكن لا تنفيذ على عقد مسودة
+        Assert.Equal(409, (await DailyReport(api, id, Today)).Status);
         Ok(await api.Post($"/commercialcontracts/{id}/move", new { toStatus = "active" }), "activate");
         Ok(await DailyReport(api, id, Today), "report without plan");
         Assert.Equal(404, (await api.Post($"/feasibility-studies/{Guid.NewGuid()}/create-contract", new { })).Status);

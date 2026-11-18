@@ -127,6 +127,8 @@ public class SiteDailyReport : BaseEntity
     public string? PreparedBy { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public string? SubmittedBy { get; set; }
+    /// <summary>مقدِّم التقرير (لفصل المُعِد عن المعتمِد إن فُعِّل).</summary>
+    public Guid? SubmittedByUserId { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedBy { get; set; }
     public Guid? ApprovedByUserId { get; set; }

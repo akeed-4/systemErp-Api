@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ERP.Tests;
 
 /// <summary>
-/// الموافقة المالية الآلية عند «إنشاء العقد» من دراسة معتمدة: سجل موافقة مالية في الجولة الأولى باسم معتمِد الخطة وتاريخه ومرجع الدراسة
+/// الموافقة المالية الآلية عند «إنشاء العقد» من دراسة معتمدة (والعقد ساري مع إنشائه): سجل موافقة مالية باسم معتمِد الخطة وتاريخه ومرجع الدراسة
 /// (بلا صلاحية المراجعة المالية له)، تُسقط بالرجوع للمسودة أو بتغيّر قيمة العقد فتلزم المراجعة المالية العادية. والضمان البنكي اختيار
 /// للعقد (الدراسة التي أُرسلت بلا ضمان تُفعَّل بلا ضمان).
 /// </summary>
@@ -102,6 +102,7 @@ public partial class FeasibilityFlowTests
         Assert.Equal(StudyValue, auto.ApprovedValue);
         Assert.Null(auto.InvalidatedAt);
 
+
         var wf = (await api.Get($"/commercialcontracts/{s.Id}/workflow")).Data!;
         var row = Assert.Single(wf["approvals"]!.AsArray())!;
         Assert.Equal("feasibility_study", row["source"].S());
@@ -109,99 +110,25 @@ public partial class FeasibilityFlowTests
         Assert.Equal(approver.Name, row["userName"].S());
         Assert.False(wf["requiresGuarantee"]!.GetValue<bool>()); // الدراسة أُرسلت بلا ضمان: لا يُفرض عند إنشاء العقد
 
-        // معتمِد الدراسة لا يملك المراجعة المالية على العقد (الموافقة لم تمر بها)
-        Ok(await Move(api, s.Id, "review"), "submit for review");
-        Assert.Equal(403, (await Review(approver.Api, s.Id, "financial")).Status);
-        Assert.False((await api.Get($"/commercialcontracts/{s.Id}/workflow")).Data!["canReviewFinancial"]!.GetValue<bool>());
-
-        // الموافقة القانونية وحدها تكمل الجولة: المالية محسوبة من الدراسة
-        Ok(await Review(api, s.Id, "legal"), "legal");
-        Assert.Equal("approval", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
-        Assert.Single(await ApprovalsAsync(s.Id), a => a.Kind == "financial"); // لا موافقة مالية يدوية
-
-        // بلا ضمان: التفعيل بلا ضمان ولا نسخة موقعة
-        Ok(await Move(api, s.Id, "active"), "activate");
+        // اعتماد الدراسة والخطة هو قرار التعاقد: العقد ساري مع إنشائه بلا مراجعة ثانية ولا ضمان ولا نسخة موقعة
+        Assert.Equal("active", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
     }
 
+    /// <summary>
+    /// العقد الساري من الدراسة لا يعود للمراجعة ولا تُعدَّل قيمته، فتبقى موافقته المالية الآلية سارية بقيمة الدراسة.
+    /// (إسقاطها بالرجوع للمسودة أو بتغيّر القيمة يخص العقود المنشأة مسودةً قبل التفعيل المباشر.)
+    /// </summary>
     [Fact]
-    public async Task Returning_to_draft_invalidates_the_automatic_approval_and_the_next_round_needs_normal_financial_review()
+    public async Task Active_contract_from_a_study_keeps_its_automatic_approval_and_cannot_be_edited_or_sent_back()
     {
         var s = await ContractFromFullStudyAsync();
         var api = s.Api;
-        Ok(await Move(api, s.Id, "review"), "submit");
-        Ok(await Review(api, s.Id, "legal", "return", "عدّل البنود"), "legal return");
-        Assert.Equal("draft", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
-
-        // السجل باقٍ بمعتمِده وتاريخه ومرجعه، ومُسقط بسبب الرجوع للمسودة
-        var plan = await PlanRowAsync(s.Id);
-        var auto = Assert.Single(await ApprovalsAsync(s.Id), a => a.Source == ContractApprovalSources.FeasibilityStudy);
-        Assert.NotNull(auto.InvalidatedAt);
-        Assert.Equal(ContractApprovalSources.DraftReset, auto.InvalidationReason);
-        Assert.Equal(plan.ApprovedByUserId, auto.UserId);
-        Assert.Equal(plan.ApprovedAt, auto.DecidedAt);
-        Assert.Equal(1, auto.Round);
-        Assert.False(await FinancialApprovedAsync(api, s.Id));
-
-        // الجولة الثانية: القانونية وحدها لا تكفي، والمراجعة المالية العادية مطلوبة
-        Ok(await Move(api, s.Id, "review"), "resubmit");
-        Assert.True((await api.Get($"/commercialcontracts/{s.Id}/workflow")).Data!["canReviewFinancial"]!.GetValue<bool>());
-        Ok(await Review(api, s.Id, "legal"), "legal round 2");
-        Assert.Equal("review", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
-        Ok(await Review(api, s.Id, "financial"), "financial round 2");
-        Assert.Equal("approval", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
-        var manual = Assert.Single(await ApprovalsAsync(s.Id), a => a.Kind == "financial" && a.Round == 2);
-        Assert.Null(manual.Source);
-    }
-
-    [Fact]
-    public async Task Changing_the_contract_value_invalidates_the_automatic_approval_permanently()
-    {
-        var s = await ContractFromFullStudyAsync();
-        var api = s.Api;
-
-        // تعديل لا يغيّر القيمة يبقي الموافقة
-        var same = await api.Put($"/commercialcontracts/{s.Id}", ContractUpdate(s, 80));
-        Ok(same, "same value edit");
-        Assert.Equal(StudyValue, same.Data!["contractValue"].D());
-        Assert.True(await FinancialApprovedAsync(api, s.Id));
-        Assert.Null(Assert.Single(await ApprovalsAsync(s.Id)).InvalidatedAt);
-
-        // تغيّر القيمة يسقطها (والسجل باقٍ بقيمته المعتمدة)
-        var changed = await api.Put($"/commercialcontracts/{s.Id}", ContractUpdate(s, 90));
-        Ok(changed, "value change");
-        Assert.Equal(StudyValue + 1_000m, changed.Data!["contractValue"].D());
+        Assert.Equal(409, (await api.Put($"/commercialcontracts/{s.Id}", ContractUpdate(s, 90))).Status);
+        Assert.Equal(409, (await Move(api, s.Id, "review")).Status);
+        Assert.Equal(StudyValue, (await api.Get($"/commercialcontracts/{s.Id}")).Data!["contractValue"].D());
         var auto = Assert.Single(await ApprovalsAsync(s.Id));
-        Assert.Equal(ContractApprovalSources.ValueChanged, auto.InvalidationReason);
-        Assert.Equal(StudyValue, auto.ApprovedValue);
-        Assert.False(await FinancialApprovedAsync(api, s.Id));
-
-        // إعادة القيمة كما كانت لا تعيد الموافقة الآلية
-        Ok(await api.Put($"/commercialcontracts/{s.Id}", ContractUpdate(s, 80)), "value restored");
-        Assert.False(await FinancialApprovedAsync(api, s.Id));
-
-        Ok(await Move(api, s.Id, "review"), "submit");
-        Ok(await Review(api, s.Id, "legal"), "legal");
-        Assert.Equal("review", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
-        Ok(await Review(api, s.Id, "financial"), "financial");
-        Assert.Equal("approval", (await api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
-    }
-
-    [Fact]
-    public async Task Automatic_approval_whose_value_no_longer_matches_does_not_count_even_if_not_marked()
-    {
-        var s = await ContractFromFullStudyAsync();
-        // تغيير القيمة من خارج مسار التعديل (مباشرة في قاعدة البيانات): شرط الموافقتين يقارن القيمة عند كل فحص
-        using (var scope = Factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
-            var c = await db.Set<CommercialContract>().IgnoreQueryFilters().FirstAsync(x => x.Id == Guid.Parse(s.Id));
-            c.ContractValue += 500m;
-            await db.SaveChangesAsync();
-        }
-        Assert.False(await FinancialApprovedAsync(s.Api, s.Id));
-        Ok(await Move(s.Api, s.Id, "review"), "submit");
-        Ok(await Review(s.Api, s.Id, "legal"), "legal");
-        Assert.Equal("review", (await s.Api.Get($"/commercialcontracts/{s.Id}")).Data!["stage"].S());
+        Assert.Null(auto.InvalidatedAt);
+        Assert.True(await FinancialApprovedAsync(api, s.Id));
     }
 
     [Fact]
@@ -213,5 +140,27 @@ public partial class FeasibilityFlowTests
         Ok(created, "direct");
         var id = created.Data!["id"].S();
         Assert.Empty(await ApprovalsAsync(id));
+    }
+
+    [Fact]
+    public async Task Separating_preparer_and_approver_is_optional_and_when_on_the_submitter_cannot_approve()
+    {
+        var s = await PricedStudyAsync();
+        var api = s.Api;
+        // الافتراضي معطّل: من يعمل وحده يقدّم ويعتمد
+        Assert.False((await api.Get("/accounting-settings")).Data!["constructionSeparateApprover"]!.GetValue<bool>());
+
+        Ok(await api.Put("/accounting-settings", new { constructionSeparateApprover = true }), "enable separation");
+        Assert.True((await api.Get("/accounting-settings")).Data!["constructionSeparateApprover"]!.GetValue<bool>());
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { }), "generate");
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { }), "submit");
+        Assert.Equal(409, (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/approve", new { })).Status);
+
+        var approver = await PlanApproverAsync(api);
+        Ok(await approver.Api.Post($"/commercialcontracts/{s.Id}/execution-plan/approve", new { }), "another user approves");
+
+        // تعديل إعداد آخر لا يمس الخيار (التحديث جزئي)
+        Ok(await api.Put("/accounting-settings", new { salesReturnPeriodDays = 30 }), "unrelated setting");
+        Assert.True((await api.Get("/accounting-settings")).Data!["constructionSeparateApprover"]!.GetValue<bool>());
     }
 }

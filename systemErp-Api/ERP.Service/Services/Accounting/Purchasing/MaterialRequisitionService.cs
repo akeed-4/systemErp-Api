@@ -78,6 +78,25 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
                 .Where(i => i.ContractId == contractId && !i.IsGroup && boqIds.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct);
             if (boqIds.Except(valid).Any()) throw new ValidationFailedException(Messages.ProjectRequisitionBoqItemInvalid);
         }
+        // ما استُلم على الطلب ثابت: لا يُرفض بعده (الرفض يُسقط كمياته من المحسوب فتُطلب مرة ثانية)، ولا تنزل كمية صنف عن مستلمه.
+        // إنقاص الطلب إلى مستلمه إقفال له على ما وصل
+        if (existing != null)
+        {
+            var received = (await ProjectSupplyService.ReceivedAsync(Db, contractId, ct)).Where(r => r.RequisitionId == existing.Id)
+                .GroupBy(r => r.ItemId).ToDictionary(g => g.Key, g => g.Sum(r => r.Quantity));
+            if (received.Values.Any(q => q > 0))
+            {
+                if (d.Status == "rejected") throw new ConflictException(Messages.ProjectRequisitionRejectAfterReceipt);
+                foreach (var (itemId, qty) in received.Where(kv => kv.Value > 0))
+                {
+                    var lines = d.Items.Where(i => i.ItemId == itemId).ToList();
+                    var requested = lines.Sum(i => i.ApprovedQuantity ?? i.RequestedQuantity);
+                    if (requested < qty - 0.0001m)
+                        throw new ValidationFailedException(string.Format(Messages.ProjectRequisitionBelowReceived,
+                            lines.FirstOrDefault()?.ItemName ?? existing.Items.FirstOrDefault(i => i.ItemId == itemId)?.ItemName ?? "?", qty.ToString("0.####")));
+                }
+            }
+        }
         // الرفض يحرر الكميات فلا حد عليه ولا تفويض
         if (d.Status == "rejected") return;
         // الطلب القديم الذي سبق المراحل يبقى على حد المشروع كله

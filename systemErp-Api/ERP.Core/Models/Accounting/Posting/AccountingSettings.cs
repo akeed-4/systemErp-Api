@@ -80,4 +80,10 @@ public class AccountingSettings : BaseEntity
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }
     public int? PurchaseReturnPeriodDays { get; set; }
+
+    /// <summary>
+    /// فصل المُعِد عن المعتمِد في المقاولات: من قدّم خطة التنفيذ أو أعدّ التقرير اليومي أو قدّمه لا يعتمده. معطّل افتراضياً (منشأة يعمل
+    /// فيها شخص واحد)، ويُفعَّل من الإعدادات.
+    /// </summary>
+    public bool ConstructionSeparateApprover { get; set; }
 }

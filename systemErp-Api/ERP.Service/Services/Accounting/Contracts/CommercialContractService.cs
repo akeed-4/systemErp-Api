@@ -170,6 +170,9 @@ public class CommercialContractService : CrudService<CommercialContract, Commerc
             errors.Add("آخر موعد للتقديم قبل تاريخ طرح المناقصة.");
         // الدراسة بخطة معتمدة مجمّدة: تُفتح بمراجعة الخطة قبل تعديلها
         if (existing?.FeasibilityStatus == FeasibilityStatuses.PlanApproved) errors.Add(Messages.FeasibilityPlanApprovedLocked);
+        // وخطتها مقدَّمة للاعتماد: مجمّدة حتى يُعتمد ما راجعه المعتمِد أو يُعاد للمسودة
+        else if (existing?.FeasibilityStatus == FeasibilityStatuses.Study && await ExecutionPlanService.IsSubmittedAsync(Db, existing.Id, ct))
+            errors.Add(Messages.ExecutionPlanSubmittedStudyLocked);
         // دراسة الجدوى: مشروع مقاولات لعميل (لا باطن ولا مناقصة)
         if (existing == null && d.IsFeasibilityStudy == true
             && (!await IsBoqContractAsync(Db, d.ContractType, ct) || IsSupplier(d.PartyType) || d.ParentContractId != null || d.TenderStatus != null))

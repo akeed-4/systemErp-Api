@@ -352,4 +352,86 @@ public partial class FeasibilityFlowTests
         Assert.Equal(2, all.Count(b => b!["kind"].S() == "plan_baseline"));
         Assert.Equal(2, all.Count(b => b!["kind"].S() == "feasibility"));
     }
+
+    [Fact]
+    public async Task Plan_materials_are_edited_in_the_plan_without_touching_the_study_audited_and_kept_on_regeneration()
+    {
+        var s = await PricedStudyAsync();
+        var api = s.Api;
+        var plan = (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { })).Data!;
+        var studyCost = plan["budget"]!["studyCost"].D();
+        var analysisBefore = (await api.Get($"/commercialcontracts/{s.Id}/cost-analysis")).Data!.ToJsonString();
+        var sand = plan["materials"]!.AsArray().Single()!;
+        Assert.Equal(27.5m, sand["studyQuantity"].D());
+        Assert.Equal(50m, sand["studyUnitCost"].D());
+
+        // عرض مورد أرخص وكمية مصحّحة للرمل، ومادة يدوية على بند الحفر
+        var items = new JsonArray
+        {
+            new JsonObject { ["id"] = sand["id"]!.DeepClone(), ["resourceId"] = s.Sand.ToString(), ["phaseId"] = sand["phaseId"]!.DeepClone(), ["quantity"] = 30, ["plannedUnitCost"] = 45 },
+            new JsonObject { ["resourceId"] = s.Sand.ToString(), ["boqItemId"] = s.Dig.ToString(), ["quantity"] = 4, ["plannedUnitCost"] = 50, ["notes"] = "ردم" },
+        };
+        var saved = await api.Put($"/commercialcontracts/{s.Id}/execution-plan/materials", new { items, reason = "عرض المورد" });
+        Ok(saved, "save materials");
+        var p = saved.Data!;
+        Assert.Equal(1350m + 200m, p["budget"]!["materialsCost"].D());
+        Assert.Equal(9175m - 1375m + 1550m, p["budget"]!["plannedCost"].D());
+        Assert.Equal(studyCost, p["budget"]!["studyCost"].D()); // الدراسة لا تتغير
+        var edited = p["materials"]!.AsArray().Single(m => m!["id"].S() == sand["id"].S())!;
+        Assert.Equal("modified", edited["source"].S());
+        Assert.Equal(1350m, edited["plannedCost"].D());
+        Assert.Equal(1375m, edited["studyCost"].D());
+        Assert.Contains(p["materials"]!.AsArray(), m => m!["source"].S() == "manual" && m["boqItemId"].G() == s.Dig && m["notes"].S() == "ردم");
+        Assert.Equal(analysisBefore, (await api.Get($"/commercialcontracts/{s.Id}/cost-analysis")).Data!.ToJsonString());
+
+        // السجل: تعديل الكمية والسعر بقيمة الدراسة، والإضافة، بنوع «مادة» وبالسبب
+        var history = (await api.Get($"/commercialcontracts/{s.Id}/execution-plan/history")).Data!.AsArray();
+        Assert.Contains(history, h => h!["itemKind"].S() == "material" && h["field"].S() == "quantity" && h["studyValue"].S() == "27.5" && h["newValue"].S() == "30");
+        Assert.Contains(history, h => h!["itemKind"].S() == "material" && h["field"].S() == "unitCost" && h["newValue"].S() == "45");
+        Assert.Contains(history, h => h!["itemKind"].S() == "material" && h["action"].S() == "added");
+        Assert.All(history, h => Assert.Equal("عرض المورد", h!["reason"].S()));
+
+        // مادة مكررة للبند نفسه مرفوضة
+        items.Add(new JsonObject { ["resourceId"] = s.Sand.ToString(), ["boqItemId"] = s.Dig.ToString(), ["quantity"] = 1, ["plannedUnitCost"] = 50 });
+        Assert.Equal(400, (await api.Put($"/commercialcontracts/{s.Id}/execution-plan/materials", new { items })).Status);
+
+        // إعادة التوليد تُبقي المعدّل واليدوي ولا تكرر الرمل المولَّد
+        var again = (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { })).Data!;
+        var mats = again["materials"]!.AsArray();
+        Assert.Equal(2, mats.Count);
+        Assert.Equal(30m, mats.Single(m => m!["source"].S() == "modified")!["quantity"].D());
+        Assert.Equal(1550m, again["budget"]!["materialsCost"].D());
+
+        // بعد التقديم تُقفل
+        Ok(await api.Post($"/commercialcontracts/{s.Id}/execution-plan/submit", new { }), "submit");
+        Assert.Equal(409, (await api.Put($"/commercialcontracts/{s.Id}/execution-plan/materials", new { items = Array.Empty<object>() })).Status);
+    }
+
+    [Fact]
+    public async Task Repricing_the_study_after_generation_warns_that_the_plan_is_stale_until_regenerated()
+    {
+        var s = await PricedStudyAsync();
+        var api = s.Api;
+        var plan = (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { })).Data!;
+        Assert.DoesNotContain("study_changed", WarningCodes(plan));
+        var planCost = plan["budget"]!["plannedCost"].D();
+
+        // تعديل سعر العامل في تحليل الدراسة بعد التوليد
+        var analysis = (await api.Get($"/commercialcontracts/{s.Id}/cost-analysis")).Data!;
+        var row = analysis["lines"]!.AsArray().Single(l => l!["contractItemId"].G() == s.Dig)!["resources"]!.AsArray()
+            .Single(r => r!["resourceId"].G() == s.Labor)!["id"].G();
+        Ok(await api.Put($"/commercialcontracts/{s.Id}/cost-analysis/{row}", new { unitCost = 40, reason = "عرض مقاول" }), "reprice");
+
+        // الخطة لا تتغير تلقائياً، وتنبّه بتكلفة الدراسة وقت التجهيز
+        var stale = await PlanAsync(api, s.Id);
+        Assert.Equal(planCost, stale["budget"]!["plannedCost"].D());
+        Assert.NotEqual(plan["budget"]!["studyCost"].D(), stale["budget"]!["studyCost"].D());
+        var warning = stale["warnings"]!.AsArray().Single(w => w!["code"].S() == "study_changed")!;
+        Assert.Equal("9375", warning["detail"].S());
+
+        // إعادة التوليد تأخذ السعر الجديد وتزيل التنبيه
+        var regenerated = (await api.Post($"/commercialcontracts/{s.Id}/execution-plan/generate", new { })).Data!;
+        Assert.DoesNotContain("study_changed", WarningCodes(regenerated));
+        Assert.Equal(planCost + 1000m, regenerated["budget"]!["plannedCost"].D()); // 100 ساعة × (40 − 30)
+    }
 }

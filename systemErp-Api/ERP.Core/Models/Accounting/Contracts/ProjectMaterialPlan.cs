@@ -13,8 +13,10 @@ public static class ProjectMaterialSources
 {
     public const string Derived = "derived";
     public const string Manual = "manual";
+    /// <summary>مولَّد من الدراسة ثم عدّله المدير في خطة التنفيذ: لا يستبدله التوليد.</summary>
+    public const string Modified = "modified";
 
-    public static bool IsValid(string? source) => source is Derived or Manual;
+    public static bool IsValid(string? source) => source is Derived or Manual or Modified;
 }
 
 /// <summary>
@@ -110,6 +112,10 @@ public class ProjectMaterialRequirement : BaseEntity
     public decimal PlannedUnitCost { get; set; }
     /// <summary>الكمية لكل وحدة من بند جدول الكميات (للتتبع).</summary>
     public decimal QuantityPerUnit { get; set; }
+    // قيم الدراسة وقت التوليد (مرجع ثابت للمقارنة): لا يغيّرها تعديل الخطة، وتبقى ولو أعيد تسعير الدراسة. فارغة للسطر اليدوي والقديم.
+    public decimal? StudyQuantity { get; set; }
+    public decimal? StudyUnitCost { get; set; }
+    public decimal? StudyCost { get; set; }
     /// <summary>رمز تزامن: اعتماد طلبات شراء متزامنة على الاحتياج نفسه لا يتجاوز حده دون اكتشاف.</summary>
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 

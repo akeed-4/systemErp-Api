@@ -51,6 +51,13 @@ public class ExecutionPlanController : ErpControllerBase
         return Success(await _plans.SaveResourcesAsync(id, request, ct));
     }
 
+    /// <summary>مواد الخطة: الكمية وتكلفة الوحدة والمرحلة والإضافة والحذف (الدراسة لا تتغير).</summary>
+    [HttpPut("materials"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> SaveMaterials(Guid id, [FromBody] SaveExecutionPlanMaterialsDto request, CancellationToken ct)
+    {
+        return Success(await _plans.SaveMaterialsAsync(id, request, ct));
+    }
+
     [HttpPost("submit"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> Submit(Guid id, CancellationToken ct)
     {

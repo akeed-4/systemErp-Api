@@ -87,13 +87,20 @@ public class ExecutionPlanService : IExecutionPlanService
                 MaterialCount = materials.Count(m => m.PhaseId == p.Id), ResourceCount = resources.Count(r => r.PhaseId == p.Id),
             });
         }
-        dto.Materials = materials.Select(m => new ExecutionPlanMaterialDto
+        var contractLines = contract.Items.ToDictionary(i => i.Id);
+        dto.Materials = materials.Select(m =>
         {
-            Id = m.Id, PhaseId = m.PhaseId, BoqItemId = m.BoqItemId, SubItemId = m.SubItemId, ResourceId = m.ResourceId,
-            Name = m.ResourceId is Guid rid && library.TryGetValue(rid, out var lr) ? lr.NameAr : string.Empty,
-            NameEn = m.ResourceId is Guid rid2 && library.TryGetValue(rid2, out var lr2) && !string.IsNullOrWhiteSpace(lr2.NameEn) ? lr2.NameEn : null, Unit = m.Unit,
-            Quantity = m.BaselineQuantity, QuantityPerUnit = m.QuantityPerUnit, PlannedUnitCost = m.PlannedUnitCost,
-            PlannedCost = DocumentPricing.Round(m.BaselineQuantity * m.PlannedUnitCost), Source = m.Source,
+            var line = (m.SubItemId ?? m.BoqItemId) is Guid lid && contractLines.TryGetValue(lid, out var cl) ? cl : null;
+            return new ExecutionPlanMaterialDto
+            {
+                Id = m.Id, PhaseId = m.PhaseId, BoqItemId = m.BoqItemId, SubItemId = m.SubItemId, ResourceId = m.ResourceId,
+                Name = m.ResourceId is Guid rid && library.TryGetValue(rid, out var lr) ? lr.NameAr : string.Empty,
+                NameEn = m.ResourceId is Guid rid2 && library.TryGetValue(rid2, out var lr2) && !string.IsNullOrWhiteSpace(lr2.NameEn) ? lr2.NameEn : null, Unit = m.Unit,
+                Quantity = m.BaselineQuantity, QuantityPerUnit = m.QuantityPerUnit, PlannedUnitCost = m.PlannedUnitCost,
+                PlannedCost = DocumentPricing.Round(m.BaselineQuantity * m.PlannedUnitCost), Source = m.Source, Notes = m.Notes,
+                LineCode = line?.LineCode, LineDescription = line?.Description,
+                StudyQuantity = m.StudyQuantity, StudyUnitCost = m.StudyUnitCost, StudyCost = m.StudyCost,
+            };
         }).ToList();
         dto.MaterialTotals = dto.Materials.GroupBy(m => (m.ResourceId, m.Unit)).Select(g => new ExecutionPlanMaterialTotalDto
         {
@@ -143,6 +150,9 @@ public class ExecutionPlanService : IExecutionPlanService
         var phased = phases.SelectMany(p => p.Items).Select(i => i.ContractItemId).ToHashSet();
 
         Add("no_plan", plan == null ? 1 : 0, "plan");
+        // الدراسة سُعّرت أو عُدّلت كمياتها بعد التوليد: الخطة نسخة مستقلة لا تتبعها تلقائياً، فيُنبَّه لإعادة التوليد (والتعديلات اليدوية تبقى)
+        Add("study_changed", plan is { Status: St.Draft, StudyFingerprint: not null } && plan.StudyFingerprint != StudyFingerprint(costRows) ? 1 : 0, "plan",
+            plan?.StudyCostAtGeneration?.ToString("0.##", CultureInfo.InvariantCulture));
         Add("lines_not_priced", leaves.Count(l => !priced.Contains(l.Id)), "estimate");
         // مورد بتكلفة صفرية في التحليل المجمّد: الدراسة والخطة أقل من الحقيقة (عدد الموارد، والتفصيل أسماؤها)
         var zeroCost = costRows.Where(r => r.UnitCost <= 0 && r.Quantity > 0).GroupBy(r => r.ResourceId).Select(g => g.First().ResourceName).ToList();
@@ -199,6 +209,7 @@ public class ExecutionPlanService : IExecutionPlanService
             var phaseOfLine = await GeneratePhasesAsync(contract, profile, lineHours, token);
             await GenerateMaterialsAsync(contract, costRows, phaseOfLine, token);
             await GenerateResourcesAsync(contract, profile, costRows, phaseOfLine, token);
+            plan.StudyFingerprint = StudyFingerprint(costRows); plan.StudyCostAtGeneration = contract.EstimatedCost;
             if (profile.EstimatedBudget <= 0 || request.OverwriteBudget) profile.EstimatedBudget = contract.EstimatedCost;
             await _db.SaveChangesAsync(token);
         }, ct);
@@ -306,6 +317,8 @@ public class ExecutionPlanService : IExecutionPlanService
             var key = m.SubItemId ?? m.BoqItemId;
             if (key is Guid k && phaseOfLine.TryGetValue(k, out var ph)) m.PhaseId = ph;
         }
+        // مادة البند التي عدّلها المدير (أو أضافها) تبقى ولا تُولَّد بجانبها
+        var kept = plan.Lines.Where(l => l.ResourceId != null).Select(l => (l.BoqItemId, l.SubItemId, l.ResourceId!.Value)).ToHashSet();
         var materialRows = costRows.Where(r => r.ResourceType == BoqResourceTypes.Material).ToList();
         var ids = materialRows.Select(r => r.ResourceId).Distinct().ToList();
         var products = await _db.Set<ConstructionResource>().AsNoTracking().Where(r => ids.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.ProductId, ct);
@@ -313,12 +326,18 @@ public class ExecutionPlanService : IExecutionPlanService
         foreach (var r in materialRows)
         {
             if (!lines.TryGetValue(r.ContractItemId, out var line)) continue;
+            var boqItemId = line.IsSubItem ? line.ParentItemId : line.Id;
+            var subItemId = line.IsSubItem ? line.Id : (Guid?)null;
+            if (kept.Contains((boqItemId, subItemId, r.ResourceId))) continue;
+            var qty = Math.Round(r.Quantity, Decimals);
             plan.Lines.Add(new ProjectMaterialRequirement
             {
-                ContractId = contract.Id, BoqItemId = line.IsSubItem ? line.ParentItemId : line.Id, SubItemId = line.IsSubItem ? line.Id : null,
-                ResourceId = r.ResourceId, ProductId = products.GetValueOrDefault(r.ResourceId), Unit = r.Unit, BaselineQuantity = Math.Round(r.Quantity, Decimals),
+                ContractId = contract.Id, BoqItemId = boqItemId, SubItemId = subItemId,
+                ResourceId = r.ResourceId, ProductId = products.GetValueOrDefault(r.ResourceId), Unit = r.Unit, BaselineQuantity = qty,
                 Source = ProjectMaterialSources.Derived, SortOrder = ++order, PhaseId = phaseOfLine.TryGetValue(line.Id, out var ph) ? ph : null,
                 PlannedUnitCost = r.UnitCost, QuantityPerUnit = r.QuantityPerUnit,
+                // نسخة الدراسة داخل السطر: مرجع المقارنة الثابت مهما عُدِّلت الخطة أو أعيد تسعير الدراسة
+                StudyQuantity = qty, StudyUnitCost = r.UnitCost, StudyCost = DocumentPricing.Round(qty * r.UnitCost),
             });
         }
     }
@@ -444,6 +463,113 @@ public class ExecutionPlanService : IExecutionPlanService
                     if (e.Id == Guid.Empty) e.Id = Guid.NewGuid();
                     _db.Add(e);
                     history.Added(e.Id, name, plannedCost);
+                }
+            }
+            _db.AddRange(history.Rows);
+            await _db.SaveChangesAsync(token);
+        }, ct);
+        return await GetAsync(contractId, ct);
+    }
+
+    // ---------- تعديل المواد ----------
+
+    /// <summary>
+    /// الخطة ميزانية مستقلة للمواد أيضاً: الكمية وتكلفة الوحدة (عرض مورد، تصحيح كمية بعد زيارة الموقع) والمرحلة والمادة نفسها (بديل)
+    /// تُعدَّل هنا، وتُضاف مواد وتُحذف؛ والدراسة ومكتبة التكاليف لا تُمسّان. المولَّد المعدَّل يصير «معدّلاً» فلا يستبدله التوليد،
+    /// وكل تغيير يُسجَّل بقيمة الدراسة. يُشترط أن تكون احتياجات المواد مسودة (المعتمدة تُغيَّر بمسار الاحتياجات).
+    /// </summary>
+    public async Task<ExecutionPlanDto> SaveMaterialsAsync(Guid contractId, SaveExecutionPlanMaterialsDto request, CancellationToken ct = default)
+    {
+        await _tx.RunAsync(async token =>
+        {
+            var contract = await ConstructionProjectService.LoadBoqContractAsync(_db, contractId, token);
+            var plan = await _db.Set<ProjectExecutionPlan>().FirstOrDefaultAsync(p => p.ContractId == contractId, token)
+                ?? throw new NotFoundException(Messages.ExecutionPlanNotFound);
+            EnsureEditable(contract, plan);
+            var materialPlan = await _db.Set<ProjectMaterialPlan>().Include(p => p.Lines).FirstOrDefaultAsync(p => p.ContractId == contractId, token);
+            if (materialPlan == null)
+            {
+                materialPlan = new ProjectMaterialPlan { ContractId = contractId };
+                _db.Add(materialPlan);
+            }
+            if (materialPlan.Status != ProjectMaterialPlanStatuses.Draft) throw new ConflictException(Messages.ExecutionPlanMaterialsLocked);
+
+            var incoming = request.Items ?? new();
+            var errors = new List<string>();
+            var items = contract.Items.ToDictionary(i => i.Id);
+            var phaseIds = (await _db.Set<ProjectPhase>().AsNoTracking().Where(p => p.ContractId == contractId).Select(p => p.Id).ToListAsync(token)).ToHashSet();
+            var resourceIds = incoming.Where(d => d.ResourceId.HasValue).Select(d => d.ResourceId!.Value)
+                .Concat(materialPlan.Lines.Where(l => l.ResourceId.HasValue).Select(l => l.ResourceId!.Value)).Distinct().ToList();
+            var library = await _db.Set<ConstructionResource>().AsNoTracking().Include(r => r.Components)
+                .Where(r => resourceIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, token);
+            var existing = materialPlan.Lines.ToDictionary(l => l.Id);
+            var seen = new HashSet<(Guid?, Guid?, Guid)>();
+            for (var n = 0; n < incoming.Count; n++)
+            {
+                var d = incoming[n];
+                var row = n + 1;
+                var current = d.Id is Guid eid && existing.TryGetValue(eid, out var cur) ? cur : null;
+                if (d.Id.HasValue && current == null) { errors.Add(string.Format(Messages.ProjectMaterialLineInvalid, row)); continue; }
+                if (d.ResourceId is not Guid rid || d.Quantity <= 0) { errors.Add(string.Format(Messages.ProjectMaterialLineInvalid, row)); continue; }
+                if (!library.TryGetValue(rid, out var res) || !ProjectMaterialAnalysis.IsMaterial(res)) errors.Add(string.Format(Messages.ProjectMaterialResourceInvalid, row));
+                if (d.PlannedUnitCost < 0) errors.Add(Messages.ResourceCostNegative);
+                if (d.PhaseId is Guid p && !phaseIds.Contains(p)) errors.Add(Messages.ExecutionPlanPhaseInvalid);
+                if (d.Notes?.Trim().Length > 500) errors.Add(string.Format(Messages.ProjectMaterialLineInvalid, row));
+                // السطر المحفوظ يبقى على بنده؛ الجديد يُتحقق من بنده
+                var boq = current != null ? current.BoqItemId : d.BoqItemId;
+                var sub = current != null ? current.SubItemId : d.SubItemId;
+                if (current == null)
+                {
+                    if (boq is Guid b && (!items.TryGetValue(b, out var main) || main.IsSubItem)) errors.Add(string.Format(Messages.ProjectMaterialBoqItemInvalid, row));
+                    if (sub is Guid s && (boq == null || !items.TryGetValue(s, out var child) || !child.IsSubItem || child.ParentItemId != boq))
+                        errors.Add(string.Format(Messages.ProjectMaterialSubItemInvalid, row));
+                }
+                if (!seen.Add((boq, sub, rid))) errors.Add(string.Format(Messages.ProjectMaterialDuplicate, row));
+            }
+            if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors.Distinct().ToList());
+
+            string NameOf(Guid? id) => id is Guid g && library.TryGetValue(g, out var r) ? r.NameAr : string.Empty;
+            var keep = incoming.Where(d => d.Id.HasValue).Select(d => d.Id!.Value).ToHashSet();
+            var history = new PlanHistory(contractId, plan.Revision, Trim(request.Reason, 500), _user.Name, _user.UserId, "material");
+            foreach (var removed in materialPlan.Lines.Where(l => !keep.Contains(l.Id)).ToList())
+            {
+                history.Removed(removed.Id, NameOf(removed.ResourceId), DocumentPricing.Round(removed.BaselineQuantity * removed.PlannedUnitCost));
+                materialPlan.Lines.Remove(removed);
+                _db.Remove(removed);
+            }
+            var order = 0;
+            foreach (var d in incoming)
+            {
+                var res = library[d.ResourceId!.Value];
+                var qty = Math.Round(d.Quantity, Decimals);
+                var unitCost = Math.Round(d.PlannedUnitCost, Decimals);
+                var plannedCost = DocumentPricing.Round(qty * unitCost);
+                var notes = Trim(d.Notes, 500);
+                if (d.Id is Guid id && existing.TryGetValue(id, out var e))
+                {
+                    var fields = new List<(string Field, string? Study, string? Old, string? New)>();
+                    void Track(string field, string? study, string? old, string? now) { if (old != now) fields.Add((field, study, old, now)); }
+                    Track("resourceId", null, NameOf(e.ResourceId), res.NameAr);
+                    Track("quantity", Num(e.StudyQuantity), Num(e.BaselineQuantity), Num(qty));
+                    Track("unitCost", Num(e.StudyUnitCost), Num(e.PlannedUnitCost), Num(unitCost));
+                    Track("phaseId", null, e.PhaseId?.ToString(), d.PhaseId?.ToString());
+                    if (fields.Count > 0 && e.Source == ProjectMaterialSources.Derived) e.Source = ProjectMaterialSources.Modified;
+                    history.Modified(e.Id, res.NameAr, fields, plannedCost - DocumentPricing.Round(e.BaselineQuantity * e.PlannedUnitCost));
+                    if (e.ResourceId != res.Id) { e.ResourceId = res.Id; e.ProductId = res.ProductId; e.Unit = res.Unit; }
+                    e.BaselineQuantity = qty; e.PlannedUnitCost = unitCost; e.PhaseId = d.PhaseId; e.Notes = notes; e.SortOrder = ++order;
+                }
+                else
+                {
+                    var line = new ProjectMaterialRequirement
+                    {
+                        Id = Guid.NewGuid(), ContractId = contractId, BoqItemId = d.BoqItemId, SubItemId = d.SubItemId, ResourceId = res.Id, ProductId = res.ProductId,
+                        Unit = res.Unit, BaselineQuantity = qty, PlannedUnitCost = unitCost, PhaseId = d.PhaseId, Notes = notes,
+                        Source = ProjectMaterialSources.Manual, SortOrder = ++order,
+                    };
+                    // المعرّف مسبقاً لسجل التغييرات: الإضافة صريحة حتى لا يعدّه EF سطراً موجوداً
+                    _db.Add(line);
+                    materialPlan.Lines.Add(line);
+                    history.Added(line.Id, res.NameAr, plannedCost);
                 }
             }
             _db.AddRange(history.Rows);
@@ -697,6 +823,18 @@ public class ExecutionPlanService : IExecutionPlanService
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
+    /// <summary>
+    /// بصمة تحليل الدراسة: كل سطر (البند والمورد والكمية وتكلفة الوحدة وساعات الوحدة) بترتيب ثابت. تتغير بأي تسعير من المكتبة أو تعديل
+    /// كمية أو تكلفة أو إضافة بند وحذفه، ولا تتأثر بإعادة إنشاء الأسطر بالقيم نفسها.
+    /// </summary>
+    internal static string StudyFingerprint(IEnumerable<ContractItemResourceCost> rows)
+    {
+        var text = string.Join('\n', rows
+            .Select(r => string.Join('|', r.ContractItemId, r.ResourceId, r.ResourceType, Num(r.Quantity), Num(r.UnitCost), Num(r.HoursPerUnit)))
+            .OrderBy(s => s, StringComparer.Ordinal));
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+    }
+
     /// <summary>رقم بصيغة ثابتة (إنجليزية) لسجل التغييرات.</summary>
     private static string? Num(decimal? v) => v?.ToString("0.####", CultureInfo.InvariantCulture);
 
@@ -723,17 +861,19 @@ public class ExecutionPlanService : IExecutionPlanService
         private readonly string? _reason;
         private readonly string? _by;
         private readonly Guid? _byId;
+        private readonly string _kind;
         private readonly DateTime _at = DateTime.UtcNow;
         public List<ProjectPlanChange> Rows { get; } = new();
 
-        public PlanHistory(Guid contractId, int revision, string? reason, string? by, Guid? byId)
+        /// <param name="kind">resource | material.</param>
+        public PlanHistory(Guid contractId, int revision, string? reason, string? by, Guid? byId, string kind = "resource")
         {
-            _contractId = contractId; _revision = revision; _reason = reason; _by = by; _byId = byId;
+            _contractId = contractId; _revision = revision; _reason = reason; _by = by; _byId = byId; _kind = kind;
         }
 
         private ProjectPlanChange Row(Guid id, string name, string action) => new()
         {
-            ContractId = _contractId, Revision = _revision, ItemKind = "resource", ItemId = id, ItemName = name[..Math.Min(name.Length, 200)], Action = action,
+            ContractId = _contractId, Revision = _revision, ItemKind = _kind, ItemId = id, ItemName = name[..Math.Min(name.Length, 200)], Action = action,
             Reason = _reason, ChangedBy = _by, ChangedByUserId = _byId, ChangedAt = _at,
         };
 

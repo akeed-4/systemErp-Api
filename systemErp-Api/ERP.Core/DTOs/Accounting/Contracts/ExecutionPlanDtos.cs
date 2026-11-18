@@ -88,6 +88,36 @@ public class ExecutionPlanMaterialDto
     public decimal PlannedUnitCost { get; set; }
     public decimal PlannedCost { get; set; }
     public string Source { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    /// <summary>رمز ووصف سطر جدول الكميات (الفرعي إن وُجد) للعرض.</summary>
+    public string? LineCode { get; set; }
+    public string? LineDescription { get; set; }
+    // قيم الدراسة وقت التوليد (للقراءة؛ مرجع ثابت لا تغيّره الخطة): فارغة للسطر اليدوي
+    public decimal? StudyQuantity { get; set; }
+    public decimal? StudyUnitCost { get; set; }
+    public decimal? StudyCost { get; set; }
+}
+
+/// <summary>سطر مادة في حفظ مواد الخطة: المحفوظ بمعرّفه، والجديد بلا معرّف (يدوي).</summary>
+public class SaveExecutionPlanMaterialDto
+{
+    public Guid? Id { get; set; }
+    public Guid? PhaseId { get; set; }
+    public Guid? BoqItemId { get; set; }
+    public Guid? SubItemId { get; set; }
+    /// <summary>مادة المكتبة (مورد من نوع مادة)؛ تغييرها لسطر محفوظ استبدال مادة بأخرى.</summary>
+    public Guid? ResourceId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal PlannedUnitCost { get; set; }
+    public string? Notes { get; set; }
+}
+
+/// <summary>حفظ مواد الخطة (استبدال كامل: المحفوظ بمعرّفه يُحدَّث، والجديد يُضاف، والغائب يُحذف).</summary>
+public class SaveExecutionPlanMaterialsDto
+{
+    public List<SaveExecutionPlanMaterialDto> Items { get; set; } = new();
+    /// <summary>سبب التعديل (اختياري): يُسجَّل مع تغييرات هذا الحفظ في سجل الخطة.</summary>
+    public string? Reason { get; set; }
 }
 
 public class ExecutionPlanMaterialTotalDto

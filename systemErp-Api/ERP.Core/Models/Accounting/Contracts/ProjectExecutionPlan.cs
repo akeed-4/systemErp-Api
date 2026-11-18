@@ -30,6 +30,13 @@ public class ProjectExecutionPlan : BaseEntity
     public Guid? ApprovedByUserId { get; set; }
     /// <summary>نسخة الأساس المعتمدة الحالية.</summary>
     public Guid? BaselineSnapshotId { get; set; }
+    /// <summary>
+    /// بصمة تحليل الدراسة (الأسطر والموارد والكميات والأسعار) وقت آخر توليد: إن اختلفت عن الحالية فالدراسة سُعّرت أو عُدّلت بعد التوليد
+    /// ولم تأخذ الخطة ذلك (تنبيه «الدراسة تغيّرت»). فارغة لخطة وُلّدت قبل هذا الحقل.
+    /// </summary>
+    public string? StudyFingerprint { get; set; }
+    /// <summary>تكلفة الدراسة وقت آخر توليد (تفصيل التنبيه).</summary>
+    public decimal? StudyCostAtGeneration { get; set; }
 }
 
 /// <summary>

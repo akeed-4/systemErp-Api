@@ -14,6 +14,9 @@ public interface IExecutionPlanService
 
     Task<ExecutionPlanDto> SaveResourcesAsync(Guid contractId, SaveResourceRequirementsDto request, CancellationToken ct = default);
 
+    /// <summary>تعديل مواد الخطة (الكمية وتكلفة الوحدة والمرحلة، والإضافة والحذف) دون المساس بالدراسة؛ يُسجَّل في سجل التغييرات.</summary>
+    Task<ExecutionPlanDto> SaveMaterialsAsync(Guid contractId, SaveExecutionPlanMaterialsDto request, CancellationToken ct = default);
+
     Task<ExecutionPlanDto> SubmitAsync(Guid contractId, CancellationToken ct = default);
 
     Task<ExecutionPlanDto> ApproveAsync(Guid contractId, CancellationToken ct = default);

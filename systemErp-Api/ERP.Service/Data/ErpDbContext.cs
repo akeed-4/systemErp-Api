@@ -585,6 +585,7 @@ public class ErpDbContext : DbContext
             e.Property(r => r.Source).HasMaxLength(16).IsRequired();
             e.Property(r => r.Notes).HasMaxLength(500);
             e.Property(r => r.BaselineQuantity).HasPrecision(18, 4);
+            e.Property(r => r.StudyQuantity).HasPrecision(18, 4);
             e.Property(r => r.RowVersion).IsRowVersion();
             e.HasIndex(r => new { r.TenantId, r.ContractId, r.ProductId });
             e.HasIndex(r => new { r.TenantId, r.ContractId, r.ResourceId });
@@ -826,6 +827,7 @@ public class ErpDbContext : DbContext
             e.Property(p => p.ApprovedBy).HasMaxLength(200);
             e.Property(p => p.Notes).HasMaxLength(1000);
             e.Property(p => p.ReturnNote).HasMaxLength(500);
+            e.Property(p => p.StudyFingerprint).HasMaxLength(64);
             e.HasIndex(p => new { p.TenantId, p.ContractId }).IsUnique();
         });
         modelBuilder.Entity<ProjectResourceRequirement>(e =>

@@ -1609,6 +1609,7 @@
   <data name="FeasibilityPlanApprovedLocked" xml:space="preserve"><value>اعتُمدت خطة تنفيذ هذه الدراسة: افتح مراجعة للخطة قبل تعديل الدراسة.</value></data>
   <data name="ExecutionPlanUnsectioned" xml:space="preserve"><value>بنود غير مصنّفة</value></data>
   <data name="ExecutionPlanResourceNameRequired" xml:space="preserve"><value>أدخل اسم المورد في الاحتياج.</value></data>
+  <data name="ExecutionPlanMaterialsLocked" xml:space="preserve"><value>احتياجات المواد معتمدة؛ لا تُعدَّل في الخطة إلا بعد إعادتها مسودة.</value></data>
   <data name="ExecutionPlanPhaseInvalid" xml:space="preserve"><value>المرحلة أو البند المختار ليس من هذا المشروع.</value></data>
   <data name="ExecutionPlanNoPhases" xml:space="preserve"><value>الخطة بلا مراحل: ولّدها من الدراسة أو أضف مرحلة قبل التقديم.</value></data>
   <data name="ExecutionPlanNotFound" xml:space="preserve"><value>لا خطة تنفيذ لهذا المشروع بعد؛ جهّزها من الدراسة.</value></data>

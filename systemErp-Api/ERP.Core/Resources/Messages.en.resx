@@ -101,6 +101,7 @@
   <data name="BuyerMobileRequired" xml:space="preserve"><value>Buyer mobile number is required.</value></data>
   <data name="BuyerNameRequired" xml:space="preserve"><value>Buyer name is required.</value></data>
   <data name="CannotApproveOwnRequest" xml:space="preserve"><value>You cannot approve your own request.</value></data>
+  <data name="CannotRejectOwnRequest" xml:space="preserve"><value>You cannot reject or return a document you prepared yourself; withdraw the request instead.</value></data>
   <data name="ApprovalLevelChanged" xml:space="preserve"><value>The request level changed meanwhile (now {0} of {1}): refresh and review the request before deciding.</value></data>
   <data name="ReturnReasonRequired" xml:space="preserve"><value>A reason for returning the request is required.</value></data>
   <data name="ApprovalOverrideOneLevel" xml:space="preserve"><value>You already approved an earlier level of this request: the remaining levels belong to their assigned approvers.</value></data>

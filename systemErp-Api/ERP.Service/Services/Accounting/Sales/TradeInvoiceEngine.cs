@@ -61,13 +61,21 @@ public class TradeInvoiceEngine
     }
 
     // ---------------- القراءة ----------------
+    /// <summary>
+    /// القوائم لا تعرض مسودة لم تُعتمد: آخر طلب اعتماد عليها معلّق أو مرفوض. المُعادة للتعديل والمسحوبة تبقى ظاهرة
+    /// لمقدّمها ليعدّلها ويعيد إرسالها، والمستند المرحَّل ظاهر دائماً.
+    /// </summary>
+    private IQueryable<T> WithoutUnapproved<T>(IQueryable<T> q) where T : InvoiceBase
+        => q.Where(i => i.Status != "draft" || !_db.Set<ApprovalRequest>().Where(r => r.DocumentId == i.Id)
+            .OrderByDescending(r => r.CreatedAt).Take(1).Any(r => r.Status == "pending" || r.Status == "rejected"));
+
     public async Task<PagedResult<InvoiceDto>> ListAsync<T>(InvoiceKind? kind, PaginationParams p, Expression<Func<T, bool>>? filter, CancellationToken ct)
         where T : InvoiceBase, new()
     {
         var q = _db.Set<T>().AsNoTracking().AsQueryable();
         if (kind.HasValue) q = q.Where(i => i.Kind == kind);
         if (filter != null) q = q.Where(filter);
-        q = q.Where(i => !_db.Set<ApprovalRequest>().Any(r => r.DocumentId == i.Id && r.Status == "pending"));
+        q = WithoutUnapproved(q);
         if (!string.IsNullOrWhiteSpace(p.Status)) q = q.Where(i => i.Status == p.Status);
         if (p.StartDate.HasValue) q = q.Where(i => i.IssueDate >= p.StartDate);
         if (p.EndDate.HasValue) q = q.Where(i => i.IssueDate <= p.EndDate);
@@ -96,7 +104,7 @@ public class TradeInvoiceEngine
         var q = _db.Set<T>().AsNoTracking().AsQueryable();
         if (kind.HasValue) q = q.Where(i => i.Kind == kind);
         if (filter != null) q = q.Where(filter);
-        q = q.Where(i => !_db.Set<ApprovalRequest>().Any(r => r.DocumentId == i.Id && r.Status == "pending"));
+        q = WithoutUnapproved(q);
         return EntityLoader.LoadAsync(Detailed(q), options, async (page, token) =>
         {
             var due = await InvoiceBalances.ForAsync(_db, page.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, token);

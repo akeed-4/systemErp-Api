@@ -101,6 +101,7 @@
   <data name="BuyerMobileRequired" xml:space="preserve"><value>جوال المشتري مطلوب.</value></data>
   <data name="BuyerNameRequired" xml:space="preserve"><value>اسم المشتري مطلوب.</value></data>
   <data name="CannotApproveOwnRequest" xml:space="preserve"><value>لا يمكنك اعتماد طلبك بنفسك.</value></data>
+  <data name="CannotRejectOwnRequest" xml:space="preserve"><value>لا يمكنك رفض أو إعادة مستند أعددته بنفسك؛ يمكنك سحب الطلب بدلاً من ذلك.</value></data>
   <data name="ApprovalLevelChanged" xml:space="preserve"><value>تغيّر مستوى الطلب في الأثناء (الحالي {0} من {1}): حدّث الصفحة وراجع الطلب قبل القرار.</value></data>
   <data name="ReturnReasonRequired" xml:space="preserve"><value>سبب الإعادة للتعديل مطلوب.</value></data>
   <data name="ApprovalOverrideOneLevel" xml:space="preserve"><value>اعتمدتَ مستوى سابقاً من هذا الطلب: المستويات الباقية لمعتمديها المعيَّنين.</value></data>

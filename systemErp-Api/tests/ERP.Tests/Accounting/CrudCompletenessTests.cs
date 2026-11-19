@@ -231,15 +231,16 @@ public class CrudCompletenessTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         await api.Post("/ApprovalPolicies", new { nameAr = "اعتماد المبيعات", documentTypes = new[] { "sales" }, actionType = "create", minAmountTrigger = 1, isActive = true,
-            steps = new[] { new { level = 1, approverRole = "owner", titleAr = "المالك" } } });
+            steps = new[] { new { level = 1, approverRole = "general_manager", titleAr = "المدير العام" } } });
+        var manager = await UserAsync(api, "general_manager");
         var draft = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", paymentMethod = "cash", status = "draft",
             items = new[] { new { itemId = product, quantity = 1, unitPrice = 100, vatRate = 15 } } });
         var id = draft.Data!["id"].S();
         var check = await api.Post("/approvals/check", new { documentType = "sales", actionType = "create", documentId = id, documentNumber = draft.Data["invoiceNumber"].S(), documentAmount = 115 });
         var requestId = check.Data!["request"]!["id"].S();
 
-        Assert.NotEqual(200, (await api.Post($"/approvals/{requestId}/reject", new { comment = "" })).Status); // السبب إلزامي
-        var rejected = await api.Post($"/approvals/{requestId}/reject", new { comment = "السعر غير صحيح" });
+        Assert.NotEqual(200, (await manager.Post($"/approvals/{requestId}/reject", new { comment = "" })).Status); // السبب إلزامي
+        var rejected = await manager.Post($"/approvals/{requestId}/reject", new { comment = "السعر غير صحيح" });
         Assert.Equal(200, rejected.Status); Assert.Equal("rejected", rejected.Data!["status"].S());
         Assert.Equal("draft", (await api.Get(await api.InvoicePath(id))).Data!["status"].S());
         Assert.Equal(409, (await api.Post(await api.InvoicePath(id, "/post"))).Status);

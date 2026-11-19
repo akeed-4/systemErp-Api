@@ -290,8 +290,9 @@ public class ApprovalService : IApprovalService
             && await _permissions.HasPermissionAsync(PermissionCatalog.ApprovalCenterScreenId, ScreenAction.Manage, ct);
         if (!assigned && !isOwner && !manager) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
 
-        // لا يعتمد أحدٌ طلبه — ولا المالك. الرفض والإعادة لمقدّمه على قاعدتهما السابقة (والسحب متاح له)
-        if (request.RequesterUserId == me && (approving || !isOwner)) throw new ForbiddenException(Messages.CannotApproveOwnRequest);
+        // لا يقرّر أحدٌ في مستند أعدّه — ولا المالك: لا اعتماد ولا رفض ولا إعادة؛ وسحب الطلب متاح له بدلاً من ذلك
+        if (request.RequesterUserId == me)
+            throw new ForbiddenException(approving ? Messages.CannotApproveOwnRequest : Messages.CannotRejectOwnRequest);
 
         if (!assigned)
         {

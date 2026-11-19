@@ -31,6 +31,18 @@ public class ContractCertificateDto
     public string? SubmittedBy { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedBy { get; set; }
+    public DateTime? RejectedAt { get; set; }
+    public string? RejectedBy { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public string? CancelledBy { get; set; }
+    /// <summary>
+    /// العقد يسجّل تقارير يومية: كل كمية حالية تلزمها أدلة من التقارير المعتمدة حتى نهاية فترة المستخلص (تُفرض عند التقديم والاعتماد).
+    /// </summary>
+    public bool EvidenceRequired { get; set; }
+    /// <summary>آخر تاريخ تقرير يُقبل دليلاً: نهاية فترة المستخلص أو تاريخه.</summary>
+    public DateTime EvidenceCutoff { get; set; }
+    /// <summary>أدلة الكميات الحالية: أجزاء أسطر الإنجاز في التقارير المعتمدة المخصصة لهذا المستخلص (للتتبع).</summary>
+    public List<ContractCertificateEvidenceDto> Evidence { get; set; } = new();
     public Guid? InvoiceId { get; set; }
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoicedAt { get; set; }
@@ -127,6 +139,30 @@ public class ContractCertificateLineDto
     public decimal? SiteExecutedQuantity { get; set; }
     /// <summary>التراكمي المطالب به يتجاوز المنفذ المعتمد في الموقع (تنبيه؛ لا يمنع).</summary>
     public bool ExceedsSite { get; set; }
+    /// <summary>المخصص لهذا المستخلص من التقارير المعتمدة (دليل الكمية الحالية).</summary>
+    public decimal EvidenceQuantity { get; set; }
+    /// <summary>
+    /// المتاح دليلاً للمستخلص المفتوح أو القالب: المنفّذ المعتمد حتى نهاية الفترة غير المخصص لمستخلصات أخرى غير باطلة (فارغ للمغلق
+    /// أو لعقد بلا تقارير).
+    /// </summary>
+    public decimal? AvailableEvidenceQuantity { get; set; }
+    /// <summary>الكمية الحالية التي لا يغطيها دليل معتمد (تمنع التقديم والاعتماد).</summary>
+    public decimal UnsupportedQuantity { get; set; }
+}
+
+/// <summary>جزء من سطر إنجاز في تقرير يومي معتمد يدعم الكمية الحالية لبند في المستخلص.</summary>
+public class ContractCertificateEvidenceDto
+{
+    public Guid Id { get; set; }
+    public Guid ContractItemId { get; set; }
+    public Guid ReportId { get; set; }
+    public Guid HourEntryId { get; set; }
+    public DateTime ReportDate { get; set; }
+    /// <summary>بداية ونهاية فترة الإنجاز بالدقائق من منتصف الليل.</summary>
+    public int SlotStart { get; set; }
+    public int SlotEnd { get; set; }
+    public decimal EntryQuantity { get; set; }
+    public decimal Quantity { get; set; }
 }
 
 public class ContractCertificateDeductionDto

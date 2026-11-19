@@ -142,4 +142,6 @@ public static class ConstructionProjectAlerts
     public const string OverBudget = "over_budget";
     /// <summary>انتهت مدة العقد والمشروع لم يُستلم.</summary>
     public const string Overdue = "overdue";
+    /// <summary>مشروع ساري بلا خطة إنجاز يومية: لا مستهدف في التقارير اليومية ولا نسبة إنجاز.</summary>
+    public const string NoDailyPlan = "no_daily_plan";
 }

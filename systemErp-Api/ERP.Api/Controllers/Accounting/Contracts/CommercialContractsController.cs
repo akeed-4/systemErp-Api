@@ -390,6 +390,15 @@ public class CommercialContractsController : CrudController<CommercialContractDt
     }
 
     [RequireModule(PlatformModules.Construction)]
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/reject"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> RejectCertificate(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
+    {
+        // الرفض النهائي قرار المعتمِد كالإعادة
+        await _permissions.AuthorizeRecordAsync(PermissionCatalog.ContractCertificateApprovalScreenId, ScreenAction.Approve, Record, id, ct: ct);
+        return Success(await _certificates.RejectAsync(id, certificateId, dto, ct), Messages.CertificateRejected);
+    }
+
+    [RequireModule(PlatformModules.Construction)]
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/cancel"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> CancelCertificate(Guid id, Guid certificateId, [FromBody] ContractCertificateActionDto dto, CancellationToken ct)
     {

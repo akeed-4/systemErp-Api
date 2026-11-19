@@ -88,7 +88,7 @@ public class ProjectPerformanceService : IProjectPerformanceService
     // ---------- تحميل البيانات المحفوظة ----------
 
     private sealed record ItemInfo(Guid Id, Guid ContractId, string? LineCode, string Description, string Unit, decimal Quantity, decimal UnitPrice);
-    private sealed record HourAgg(Guid ContractId, DateTime Date, Guid ItemId, decimal Target, decimal Actual);
+    private sealed record HourAgg(Guid ContractId, DateTime Date, Guid ItemId, decimal Target, decimal Actual, decimal PlannedTarget = 0, decimal PlannedActual = 0);
     private sealed record HourRaw(Guid ContractId, Guid ReportId, DateTime Date, int SlotStart, int SlotEnd, Guid ItemId, int Downtime, string? Reason);
     private sealed record Usage(Guid ContractId, DateTime Date, Guid ResourceId, string Name, string Kind, Guid? ItemId, decimal Hours, decimal Overtime, decimal Idle, decimal Standby);
     private sealed record ReportInfo(Guid ContractId, DateTime Date, string Status);
@@ -126,9 +126,10 @@ public class ProjectPerformanceService : IProjectPerformanceService
                                  join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
                                  where ids.Contains(r.ContractId) && r.Status == approved && r.ReportDate <= rangeTo
                                  group h by new { r.ContractId, r.ReportDate, h.ContractItemId } into g
-                                 select new { g.Key.ContractId, g.Key.ReportDate, g.Key.ContractItemId, Target = g.Sum(x => x.TargetQuantity), Actual = g.Sum(x => x.ActualQuantity) })
+                                 select new { g.Key.ContractId, g.Key.ReportDate, g.Key.ContractItemId, Target = g.Sum(x => x.TargetQuantity), Actual = g.Sum(x => x.ActualQuantity),
+                                     PlannedTarget = g.Sum(x => x.PlannedTargetQuantity ?? 0), PlannedActual = g.Sum(x => x.PlannedTargetQuantity != null ? x.ActualQuantity : 0) })
                 .ToListAsync(ct))
-            .Select(x => new HourAgg(x.ContractId, x.ReportDate.Date, x.ContractItemId, x.Target, x.Actual)).ToList();
+            .Select(x => new HourAgg(x.ContractId, x.ReportDate.Date, x.ContractItemId, x.Target, x.Actual, x.PlannedTarget, x.PlannedActual)).ToList();
         var raw = (await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
                           join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
                           where ids.Contains(r.ContractId) && r.Status == approved && r.ReportDate >= rangeFrom && r.ReportDate <= rangeTo
@@ -246,6 +247,7 @@ public class ProjectPerformanceService : IProjectPerformanceService
             {
                 ContractItemId = g.Key, LineCode = info.LineCode, Description = info.Description, Unit = info.Unit, PhaseName = phaseOfItem.GetValueOrDefault(g.Key),
                 TargetQuantity = target, ActualQuantity = actual, ProductivityPercent = Pct(actual, target),
+                PlannedTargetQuantity = g.Sum(x => x.PlannedTarget), PlannedProductivityPercent = Pct(g.Sum(x => x.PlannedActual), g.Sum(x => x.PlannedTarget)),
                 ContractQuantity = info.Quantity, ExecutedToDate = done, RemainingQuantity = Math.Max(0, info.Quantity - done),
             };
         }).OrderBy(x => x.ProductivityPercent ?? decimal.MaxValue).Take(TopItems).ToList();

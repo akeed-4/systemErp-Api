@@ -30,6 +30,10 @@ public interface IConstructionProjectService
     /// <summary>خطة الإنجاز اليومية: المستهدف بالساعة لكل بند وتاريخ سريانه.</summary>
     Task<List<ProjectDailyPlanDto>> DailyPlansAsync(Guid contractId, CancellationToken ct = default);
     Task<List<ProjectDailyPlanDto>> SaveDailyPlansAsync(Guid contractId, SaveProjectDailyPlansDto request, CancellationToken ct = default);
+    /// <summary>تغطية الخطة لبنود المشروع: المستهدف الساري والأيام اللازمة للمتبقي والتاريخ المتوقع مقابل المرحلة.</summary>
+    Task<DailyPlanCoverageDto> DailyPlanCoverageAsync(Guid contractId, CancellationToken ct = default);
+    /// <summary>مقترح مستهدفات من المراحل (لا يُحفظ): المتبقي ÷ (أيام المرحلة المتبقية × ساعات اليوم).</summary>
+    Task<List<ProjectDailyPlanDto>> ProposeDailyPlansAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>ينشئ أدوار المقاولات الجاهزة (مدير المشروع، المهندس المشرف، ...) بصلاحياتها؛ الموجود باسمه يُترك كما هو.</summary>
     Task<ConstructionRoleTemplatesResultDto> CreateRoleTemplatesAsync(CancellationToken ct = default);
 }

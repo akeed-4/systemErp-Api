@@ -22,6 +22,8 @@ public class AuditTrailInterceptor : SaveChangesInterceptor
         typeof(ConstructionProjectProfile), typeof(ProjectPhase), typeof(ProjectPhaseItem), typeof(ProjectMember),
         // موارد المشروع وخطته والتقرير اليومي بأسطره (التسجيل والتعديل والاعتماد)
         typeof(ProjectResource), typeof(ProjectDailyPlan), typeof(SiteDailyReport), typeof(SiteHourEntry), typeof(SiteResourceUsage), typeof(SiteMaterialUsage),
+        // المستخلص: الكميات والحالة (تقديم/اعتماد/رفض/إلغاء) قبل ← بعد
+        typeof(ContractCertificate),
     };
 
     // حقول يحدّثها النظام مع كل حركة (أرصدة، كميات، تكلفة، طوابع): تغيّرها وحده ليس تعديلاً من مستخدم

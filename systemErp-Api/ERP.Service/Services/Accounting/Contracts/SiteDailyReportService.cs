@@ -68,18 +68,20 @@ public class SiteDailyReportService : ISiteDailyReportService
 
         // قالب اليوم: لكل فترة من ساعات العمل × كل بند له خطة سارية، والمستهدف = المستهدف بالساعة × طول الفترة
         var slots = await SlotsAsync(contractId, ct);
-        var plans = await _db.Set<ProjectDailyPlan>().AsNoTracking().Where(p => p.ContractId == contractId && p.EffectiveFrom <= day).ToListAsync(ct);
-        var effective = plans.GroupBy(p => p.ContractItemId).Select(g => g.OrderByDescending(p => p.EffectiveFrom).First()).ToList();
+        var effective = await EffectivePlansAsync(contractId, day, ct);
         var order = contract.Items.ToDictionary(i => i.Id, i => i.SortOrder);
         var template = new SiteDailyReport { ContractId = contractId, ReportDate = day, Status = St.Draft };
         var sort = 0;
         foreach (var (start, end) in slots)
-            foreach (var plan in effective.Where(p => order.ContainsKey(p.ContractItemId)).OrderBy(p => order[p.ContractItemId]))
+            foreach (var plan in effective.Values.Where(p => order.ContainsKey(p.ContractItemId)).OrderBy(p => order[p.ContractItemId]))
+            {
+                var target = PlannedTarget(effective, plan.ContractItemId, start, end);
                 template.Hours.Add(new SiteHourEntry
                 {
                     SlotStart = start, SlotEnd = end, ContractItemId = plan.ContractItemId, SortOrder = ++sort,
-                    TargetQuantity = Math.Round(plan.TargetPerHour * (end - start) / 60m, 4),
+                    TargetQuantity = target ?? 0, PlannedTargetQuantity = target,
                 });
+            }
         var dto = await ToDtoAsync(contract, template, ct);
         dto.Id = null;
         return dto;
@@ -256,12 +258,16 @@ public class SiteDailyReportService : ISiteDailyReportService
     {
         var note = request.Note?.Trim();
         if (string.IsNullOrEmpty(note)) throw new ValidationFailedException(Messages.SiteReportReopenNoteRequired);
-        await EnsureNotCertifiedAsync(contractId, reportId, ct);
-        return await TransitionAsync(contractId, reportId, St.Approved, r =>
+        // في معاملة: تغيير الحالة يتحقق من رمز تزامن التقرير، فيتعارض مع مستخلص يخصص منه دليلاً في اللحظة نفسها وتُعاد المحاولة
+        return await _tx.RunAsync(async token =>
         {
-            r.Status = St.Draft; r.ReopenNote = note.Length > 500 ? note[..500] : note; r.ReturnNote = null;
-            r.SubmittedAt = null; r.SubmittedBy = null; r.SubmittedByUserId = null; r.ApprovedAt = null; r.ApprovedBy = null; r.ApprovedByUserId = null;
-        }, ct, "SITE_DAILY_REPORT_REOPENED", $"إعادة فتح تقرير • عقد {contractId} • ملاحظة: {note}");
+            await EnsureNotCertifiedAsync(contractId, reportId, token);
+            return await TransitionAsync(contractId, reportId, St.Approved, r =>
+            {
+                r.Status = St.Draft; r.ReopenNote = note.Length > 500 ? note[..500] : note; r.ReturnNote = null;
+                r.SubmittedAt = null; r.SubmittedBy = null; r.SubmittedByUserId = null; r.ApprovedAt = null; r.ApprovedBy = null; r.ApprovedByUserId = null;
+            }, token, "SITE_DAILY_REPORT_REOPENED", $"إعادة فتح تقرير • عقد {contractId} • ملاحظة: {note}");
+        }, ct);
     }
 
     public Task<SiteDailyReportDto> ReturnAsync(Guid contractId, Guid reportId, SiteReportActionDto request, CancellationToken ct = default)
@@ -310,7 +316,24 @@ public class SiteDailyReportService : ISiteDailyReportService
             .OrderBy(c => c.SequenceNo).Select(c => new { c.SequenceNo, Cutoff = c.PeriodTo ?? c.CertificateDate }).FirstOrDefaultAsync(ct);
         if (covering != null)
             throw new ConflictException(string.Format(Messages.SiteReportCoveredByCertificate, covering.SequenceNo, covering.Cutoff.ToString("yyyy-MM-dd")));
+        // كمياته دليل لمستخلص غير باطل (ولو مسودة أو مقدَّماً): تعديله يفصل المطالب به عن دليله
+        var evidence = await _db.Set<ContractCertificateEvidence>().AsNoTracking()
+            .Where(e => e.ReportId == reportId && e.Certificate.ContractId == contractId
+                && e.Certificate.Status != ContractCertificateStatuses.Cancelled && e.Certificate.Status != ContractCertificateStatuses.Rejected)
+            .OrderBy(e => e.Certificate.SequenceNo)
+            .Select(e => new { e.Certificate.SequenceNo, e.Certificate.CertificateNumber }).FirstOrDefaultAsync(ct);
+        if (evidence != null)
+            throw new ConflictException(string.Format(Messages.SiteReportUsedAsCertificateEvidence, evidence.SequenceNo, evidence.CertificateNumber));
     }
+
+    /// <summary>خطة الإنجاز السارية يوم <paramref name="day"/> لكل بند: أحدث تاريخ سريان لا يتجاوزه.</summary>
+    private async Task<Dictionary<Guid, ProjectDailyPlan>> EffectivePlansAsync(Guid contractId, DateTime day, CancellationToken ct)
+        => (await _db.Set<ProjectDailyPlan>().AsNoTracking().Where(p => p.ContractId == contractId && p.EffectiveFrom <= day.Date).ToListAsync(ct))
+            .GroupBy(p => p.ContractItemId).ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.EffectiveFrom).First());
+
+    /// <summary>المستهدف المخطط للفترة = المستهدف بالساعة × طولها؛ فارغ لبند بلا خطة سارية.</summary>
+    private static decimal? PlannedTarget(Dictionary<Guid, ProjectDailyPlan> plans, Guid itemId, int start, int end)
+        => plans.TryGetValue(itemId, out var plan) ? Math.Round(plan.TargetPerHour * (end - start) / 60m, 4) : null;
 
     /// <summary>تاريخ التقرير: لا يتجاوز اليوم، ولا يسبق بداية العقد (تاريخ البدء، أو التوقيع إن لم يُحدَّد).</summary>
     private static void EnsureReportDate(DateTime day, CommercialContract contract)
@@ -443,6 +466,10 @@ public class SiteDailyReportService : ISiteDailyReportService
                 DowntimeMinutes = h.DowntimeMinutes, DowntimeReason = h.DowntimeMinutes > 0 ? reason : null, Notes = Trim(h.Notes, 300), SortOrder = row,
             });
         }
+
+        // المستهدف المخطط من الخطة السارية يوم التقرير (لا من الطلب): يكشف تعديل المشرف للمستهدف ويقاس عليه الإنجاز المخطط
+        var planned = await EffectivePlansAsync(report.ContractId, report.ReportDate, ct);
+        foreach (var h in newHours) h.PlannedTargetQuantity = PlannedTarget(planned, h.ContractItemId, h.SlotStart, h.SlotEnd);
 
         // تقرير اعتُمد من قبل ثم أُعيد فتحه: أسعار أسطره القائمة ثابتة (تكلفة الساعة ونسب الفوترة وتكلفة وحدة المادة) فلا يُعاد
         // تسعير يوم مضى بأسعار اليوم ولا يتغير الفرق المرحّل إلا بتغير الكميات؛ والسطر الجديد بسعر وقت الحفظ
@@ -660,6 +687,9 @@ public class SiteDailyReportService : ISiteDailyReportService
         var items = itemIds.Select(i =>
         {
             var target = r.Hours.Where(h => h.ContractItemId == i).Sum(h => h.TargetQuantity);
+            // الإنجاز المخطط: منفّذ أسطر البند التي لها خطة على مستهدفها المخطط
+            var plannedRows = r.Hours.Where(h => h.ContractItemId == i && h.PlannedTargetQuantity != null).ToList();
+            var plannedTarget = plannedRows.Count == 0 ? (decimal?)null : plannedRows.Sum(h => h.PlannedTargetQuantity!.Value);
             var direct = r.Resources.Where(u => u.ContractItemId == i).Sum(u => u.Cost)
                 + r.Materials.Where(m => m.ContractItemId == i).Sum(m => DocumentPricing.Round(m.Quantity * m.UnitCost));
             var share = producedValue > 0 ? unassigned * actualValue[i] / producedValue : 0;
@@ -668,12 +698,18 @@ public class SiteDailyReportService : ISiteDailyReportService
             {
                 ContractItemId = i, Label = Label(ctx.Lines, i), Unit = ctx.Lines.GetValueOrDefault(i)?.Unit ?? string.Empty,
                 Target = target, Actual = actual[i], AchievementPercent = Percent(actual[i], target),
+                PlannedTarget = plannedTarget,
+                PlannedAchievementPercent = plannedTarget is decimal pt ? Percent(plannedRows.Sum(h => h.ActualQuantity), pt) : null,
                 DowntimeMinutes = r.Hours.Where(h => h.ContractItemId == i).Sum(h => h.DowntimeMinutes),
                 Cost = cost, CostPerUnit = actual[i] > 0 ? Math.Round(cost / actual[i], 4) : 0,
             };
         }).OrderBy(i => ctx.Lines.GetValueOrDefault(i.ContractItemId)?.SortOrder ?? int.MaxValue).ToList();
 
         var targetValue = r.Hours.Sum(h => h.TargetQuantity * Price(h.ContractItemId));
+        var plannedHours = r.Hours.Where(h => h.PlannedTargetQuantity != null).ToList();
+        var plannedValue = plannedHours.Sum(h => h.PlannedTargetQuantity!.Value * Price(h.ContractItemId));
+        var plannedProduced = plannedHours.Sum(h => h.ActualQuantity * Price(h.ContractItemId));
+        var overrides = plannedHours.Count(h => Math.Abs(h.TargetQuantity - h.PlannedTargetQuantity!.Value) > 0.00005m);
         var reasons = r.Hours.Where(h => h.DowntimeMinutes > 0 && h.DowntimeReason != null).Select(h => (Reason: h.DowntimeReason!, Minutes: h.DowntimeMinutes))
             .Concat(r.Resources.Where(u => u.IdleHours > 0 && u.IdleReason != null).Select(u => (Reason: u.IdleReason!, Minutes: (int)Math.Round(u.IdleHours * 60))))
             .GroupBy(x => x.Reason)
@@ -694,6 +730,9 @@ public class SiteDailyReportService : ISiteDailyReportService
             CostPerHour = workingHours > 0 ? DocumentPricing.Round(total / workingHours) : 0,
             TargetValue = DocumentPricing.Round(targetValue), ActualValue = DocumentPricing.Round(producedValue),
             AchievementPercent = Percent(producedValue, targetValue),
+            PlannedTargetValue = DocumentPricing.Round(plannedValue),
+            PlannedAchievementPercent = plannedHours.Count == 0 ? null : Percent(plannedProduced, plannedValue),
+            TargetOverrides = overrides,
             UnallocatedCost = producedValue > 0 ? 0 : unassigned,
             Items = items, Reasons = reasons, LowSlots = low,
         };
@@ -745,6 +784,8 @@ public class SiteDailyReportService : ISiteDailyReportService
                 ItemLabel = Label(ctx.Lines, h.ContractItemId), Unit = ctx.Lines.GetValueOrDefault(h.ContractItemId)?.Unit,
                 TargetQuantity = h.TargetQuantity, ActualQuantity = h.ActualQuantity, DowntimeMinutes = h.DowntimeMinutes, DowntimeReason = h.DowntimeReason,
                 Notes = h.Notes, AchievementPercent = Percent(h.ActualQuantity, h.TargetQuantity),
+                PlannedTargetQuantity = h.PlannedTargetQuantity,
+                PlannedAchievementPercent = h.PlannedTargetQuantity is decimal pt ? Percent(h.ActualQuantity, pt) : null,
             }).ToList(),
             Resources = r.Resources.Select(u => new SiteResourceUsageDto
             {

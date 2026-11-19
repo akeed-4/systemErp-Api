@@ -597,7 +597,7 @@ public class ProjectSupplyService : IProjectSupplyService
         if (stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled) throw new ConflictException(Messages.ProjectContractClosed);
         // كميات مختارة في مستخلص غير ملغى: تكلفتها مرتبطة بإيراده، فلا يُعكس التسليم قبل إخراجها منه (أو إلغائه/إلغاء فاتورته)
         var certified = await _db.Set<ContractCertificateMaterial>().AsNoTracking()
-            .Where(m => m.IssueId == issue.Id && m.Certificate.Status != ContractCertificateStatuses.Cancelled)
+            .Where(m => m.IssueId == issue.Id && m.Certificate.Status != ContractCertificateStatuses.Cancelled && m.Certificate.Status != ContractCertificateStatuses.Rejected)
             .Select(m => m.Certificate.CertificateNumber).Distinct().ToListAsync(token);
         if (certified.Count > 0)
             throw new ConflictException($"كميات من الإذن {issue.IssueNumber} مختارة في المستخلص {string.Join("، ", certified)}: أخرجها منه أو ألغِه (أو ألغِ فاتورته) قبل إلغاء الإذن.");

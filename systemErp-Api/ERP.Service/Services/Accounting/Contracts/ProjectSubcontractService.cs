@@ -28,7 +28,7 @@ public class ProjectSubcontractService : IProjectSubcontractService
         var subIds = subs.Select(s => s.Id).ToList();
 
         var certs = await _db.Set<ContractCertificate>().AsNoTracking()
-            .Where(c => subIds.Contains(c.ContractId) && c.Status != CertSt.Cancelled)
+            .Where(c => subIds.Contains(c.ContractId) && c.Status != CertSt.Cancelled && c.Status != CertSt.Rejected)
             .Select(c => new { c.Id, c.ContractId, c.Status, c.CurrentWorkValue, c.TotalWithVat, c.RetentionAmount }).ToListAsync(ct);
         var counted = certs.Where(c => c.Status is CertSt.Approved or CertSt.Invoiced).ToList();
         var countedIds = counted.Select(c => c.Id).ToList();

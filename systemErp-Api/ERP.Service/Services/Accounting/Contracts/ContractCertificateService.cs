@@ -30,7 +30,8 @@ public class ContractCertificateService : IContractCertificateService
     public async Task<List<ContractCertificateDto>> ListAsync(Guid contractId, CancellationToken ct = default)
     {
         await LoadContractAsync(contractId, track: false, ct);
-        var list = await _db.Set<ContractCertificate>().AsNoTracking().Include(c => c.Lines).Include(c => c.Deductions).Include(c => c.Materials).AsSplitQuery()
+        var list = await _db.Set<ContractCertificate>().AsNoTracking().Include(c => c.Lines).Include(c => c.Deductions).Include(c => c.Materials)
+            .Include(c => c.Evidence).AsSplitQuery()
             .Where(c => c.ContractId == contractId).OrderByDescending(c => c.SequenceNo).ToListAsync(ct);
         var dtos = list.Select(ToDto).ToList();
         await ApplyCollectionsAsync(dtos, ct);
@@ -83,29 +84,162 @@ public class ContractCertificateService : IContractCertificateService
     }
 
     /// <summary>
-    /// المنفذ في الموقع لكل بند: مجموع الكميات الفعلية في التقارير اليومية المعتمدة حتى نهاية فترة المستخلص (أو تاريخه)، وتنبيه حين
-    /// يتجاوزه التراكمي المطالب به. مشروع بلا تقارير معتمدة لا يُقارن (فارغ). عقد الباطن يُقاس على تقارير مشروعه لا تقاريره.
+    /// موقف الموقع والأدلة لكل بند: المنفذ في التقارير اليومية المعتمدة حتى نهاية فترة المستخلص (أو تاريخه) وتنبيه حين يتجاوزه التراكمي،
+    /// والمخصص دليلاً لهذا المستخلص؛ وللمفتوح والقالب: المتاح دليلاً (غير المخصص لمستخلصات أخرى) والكمية غير المدعومة.
+    /// عقد بلا تقارير يومية (مباشر أو قديم أو عقد باطن) لا يُقارن.
     /// </summary>
     internal async Task ApplySiteAsync(Guid contractId, List<ContractCertificateDto> certificates, CancellationToken ct)
     {
         if (certificates.Count == 0) return;
+        var uses = await UsesSiteReportsAsync(contractId, ct);
+        foreach (var c in certificates)
+        {
+            c.EvidenceRequired = uses;
+            c.EvidenceCutoff = Cutoff(c.PeriodTo, c.CertificateDate);
+            var evidenced = c.Evidence.GroupBy(e => e.ContractItemId).ToDictionary(g => g.Key, g => g.Sum(e => e.Quantity));
+            foreach (var l in c.Lines) l.EvidenceQuantity = evidenced.GetValueOrDefault(l.ContractItemId);
+        }
+        if (!uses) return;
+
         var rows = await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
                           join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
                           where r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved
                           select new { h.ContractItemId, r.ReportDate, h.ActualQuantity }).ToListAsync(ct);
-        if (rows.Count == 0) return;
-        foreach (var c in certificates)
+        foreach (var c in certificates.Where(_ => rows.Count > 0))
         {
-            var cutoff = (c.PeriodTo ?? c.CertificateDate).Date;
-            var executed = rows.Where(x => x.ReportDate.Date <= cutoff).GroupBy(x => x.ContractItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.ActualQuantity));
+            var executed = rows.Where(x => x.ReportDate.Date <= c.EvidenceCutoff).GroupBy(x => x.ContractItemId)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.ActualQuantity));
             foreach (var l in c.Lines)
             {
                 var done = executed.GetValueOrDefault(l.ContractItemId);
                 l.SiteExecutedQuantity = done;
-                l.ExceedsSite = l.CumulativeQuantity > done + 0.00005m && l.CurrentQuantity > 0;
+                l.ExceedsSite = l.CumulativeQuantity > done + Tolerance && l.CurrentQuantity > 0;
+            }
+        }
+        foreach (var c in certificates.Where(c => St.IsOpen(c.Status)))
+        {
+            var pool = await EvidencePoolAsync(contractId, c.Id == Guid.Empty ? null : c.Id, c.EvidenceCutoff, ct);
+            foreach (var l in c.Lines)
+            {
+                var available = pool.TryGetValue(l.ContractItemId, out var slots) ? slots.Sum(s => s.Available) : 0;
+                l.AvailableEvidenceQuantity = available;
+                l.UnsupportedQuantity = Math.Max(0, l.CurrentQuantity - available);
             }
         }
     }
+
+    // ---------- أدلة التقارير اليومية ----------
+
+    /// <summary>هامش مقارنة الكميات العشرية.</summary>
+    private const decimal Tolerance = 0.00005m;
+
+    /// <summary>آخر تاريخ تقرير يدعم المستخلص: نهاية فترته، أو تاريخه إن لم تُحدَّد.</summary>
+    private static DateTime Cutoff(DateTime? periodTo, DateTime date) => (periodTo ?? date).Date;
+
+    /// <summary>العقد يسجّل تقارير يومية (بأي حالة): كل كمية حالية في مستخلصاته تلزمها أدلة معتمدة.</summary>
+    private Task<bool> UsesSiteReportsAsync(Guid contractId, CancellationToken ct)
+        => _db.Set<SiteDailyReport>().AsNoTracking().AnyAsync(r => r.ContractId == contractId, ct);
+
+    /// <summary>جزء متاح من سطر إنجاز معتمد (بترتيب التخصيص: الأقدم أولاً).</summary>
+    private sealed record EvidenceSlot(Guid EntryId, Guid ReportId, DateTime ReportDate, int SlotStart, int SlotEnd, decimal EntryQuantity, decimal Available);
+
+    /// <summary>
+    /// الأدلة المتاحة لمستخلص لكل بند: أسطر الإنجاز في التقارير المعتمدة حتى <paramref name="cutoff"/> (الأقدم أولاً)، ناقص المخصص منها
+    /// لمستخلصات أخرى غير باطلة. الكميات المعتمدة في مستخلصات أخرى بلا أدلة (مستخلصات قبل تفعيل الأدلة، أو قبل أن يسجّل المشروع
+    /// تقاريره) تستهلك أقدم المتاح أولاً، فلا يُطالب بالمنفّذ نفسه مرتين (القاعدة نفسها لمقارنة التراكمي بالمنفّذ).
+    /// </summary>
+    private async Task<Dictionary<Guid, List<EvidenceSlot>>> EvidencePoolAsync(Guid contractId, Guid? certificateId, DateTime cutoff, CancellationToken ct)
+    {
+        var entries = await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
+                             join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
+                             where r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved && r.ReportDate <= cutoff
+                                 && h.ActualQuantity > 0
+                             select new { h.Id, h.ReportId, r.ReportDate, h.SlotStart, h.SlotEnd, h.SortOrder, h.ContractItemId, h.ActualQuantity })
+            .ToListAsync(ct);
+        var pool = new Dictionary<Guid, List<EvidenceSlot>>();
+        if (entries.Count == 0) return pool;
+
+        var self = certificateId ?? Guid.Empty;
+        var others = _db.Set<ContractCertificateEvidence>().AsNoTracking()
+            .Where(e => e.Certificate.ContractId == contractId && e.CertificateId != self
+                && e.Certificate.Status != St.Cancelled && e.Certificate.Status != St.Rejected);
+        var allocated = await others.GroupBy(e => e.HourEntryId).Select(g => new { g.Key, Qty = g.Sum(e => e.Quantity) })
+            .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var evidenced = await others.GroupBy(e => e.ContractItemId).Select(g => new { g.Key, Qty = g.Sum(e => e.Quantity) })
+            .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var claimed = await _db.Set<ContractCertificateLine>().AsNoTracking()
+            .Where(l => l.Certificate.ContractId == contractId && l.CertificateId != self && l.CurrentQuantity > 0
+                && l.Certificate.Status != St.Cancelled && l.Certificate.Status != St.Rejected)
+            .GroupBy(l => l.ContractItemId).Select(g => new { g.Key, Qty = g.Sum(l => l.CurrentQuantity) })
+            .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+
+        foreach (var item in entries.GroupBy(e => e.ContractItemId))
+        {
+            var unevidenced = Math.Max(0, claimed.GetValueOrDefault(item.Key) - evidenced.GetValueOrDefault(item.Key));
+            var slots = new List<EvidenceSlot>();
+            foreach (var e in item.OrderBy(x => x.ReportDate).ThenBy(x => x.SlotStart).ThenBy(x => x.SortOrder).ThenBy(x => x.Id))
+            {
+                var free = e.ActualQuantity - allocated.GetValueOrDefault(e.Id);
+                var skip = Math.Min(Math.Max(0, free), unevidenced);
+                unevidenced -= skip; free -= skip;
+                if (free > Tolerance) slots.Add(new EvidenceSlot(e.Id, e.ReportId, e.ReportDate, e.SlotStart, e.SlotEnd, e.ActualQuantity, free));
+            }
+            pool[item.Key] = slots;
+        }
+        return pool;
+    }
+
+    /// <summary>
+    /// يعيد تخصيص أدلة المستخلص لكمياته الحالية: لكل بند من أقدم المتاح (<see cref="EvidencePoolAsync"/>). في المسودة يُخصص ما يتوفر
+    /// (والنقص يظهر في العرض)، وعند التقديم والاعتماد (<paramref name="enforce"/>) تُرفض الكمية غير المدعومة بقائمة لكل بند.
+    /// التقارير المخصص منها تُلمس (رمز التزامن)، فيتعارض الحفظ مع إعادة فتح أحدها في اللحظة نفسها وتُعاد المعاملة على القاعدة المحدَّثة.
+    /// العقد بلا تقارير يومية لا أدلة له.
+    /// </summary>
+    private async Task AllocateEvidenceAsync(ContractCertificate cert, bool enforce, CancellationToken ct)
+    {
+        foreach (var old in cert.Evidence.ToList())
+        {
+            cert.Evidence.Remove(old);
+            if (_db.Entry(old).State != EntityState.Detached) _db.Remove(old);
+        }
+        if (!await UsesSiteReportsAsync(cert.ContractId, ct)) return;
+
+        var cutoff = Cutoff(cert.PeriodTo, cert.CertificateDate);
+        var pool = await EvidencePoolAsync(cert.ContractId, cert.Id == Guid.Empty ? null : cert.Id, cutoff, ct);
+        var errors = new List<string>();
+        var reports = new HashSet<Guid>();
+        var order = 0;
+        foreach (var line in cert.Lines.Where(l => l.CurrentQuantity > 0).OrderBy(l => l.SortOrder))
+        {
+            var need = line.CurrentQuantity;
+            foreach (var slot in pool.GetValueOrDefault(line.ContractItemId) ?? new List<EvidenceSlot>())
+            {
+                if (need <= Tolerance) break;
+                var take = Math.Min(need, slot.Available);
+                cert.Evidence.Add(new ContractCertificateEvidence
+                {
+                    CertificateId = cert.Id, ContractItemId = line.ContractItemId, ReportId = slot.ReportId, HourEntryId = slot.EntryId,
+                    ReportDate = slot.ReportDate, SlotStart = slot.SlotStart, SlotEnd = slot.SlotEnd, EntryQuantity = slot.EntryQuantity,
+                    Quantity = take, SortOrder = ++order,
+                });
+                reports.Add(slot.ReportId);
+                need -= take;
+            }
+            if (enforce && need > Tolerance)
+                errors.Add(string.Format(Messages.CertificateEvidenceShortLine, LineName(line), line.CurrentQuantity.ToString("0.####"),
+                    (line.CurrentQuantity - need).ToString("0.####"), line.Unit));
+        }
+        if (errors.Count > 0)
+            throw new ValidationFailedException(string.Format(Messages.CertificateEvidenceShort, errors.Count, cutoff.ToString("yyyy-MM-dd")), errors);
+
+        if (reports.Count == 0) return;
+        var touched = await _db.Set<SiteDailyReport>().Where(r => reports.Contains(r.Id)).ToListAsync(ct);
+        if (touched.Count != reports.Count || touched.Any(r => r.Status != SiteDailyReportStatuses.Approved))
+            throw new ConflictException(Messages.CertificateEvidenceChanged);
+        foreach (var r in touched) _db.Entry(r).Property(x => x.Status).IsModified = true;
+    }
+
+    private static string LineName(ContractCertificateLine l) => string.IsNullOrWhiteSpace(l.LineCode) ? l.Description : $"{l.LineCode} - {l.Description}";
 
     public async Task<BoqProgressDto> ProgressAsync(Guid contractId, CancellationToken ct = default)
     {
@@ -208,6 +342,7 @@ public class ContractCertificateService : IContractCertificateService
             };
             ApplyHeader(cert, request, date);
             BuildLines(cert, contract, await CertifiedQuantitiesAsync(contractId, token), CurrentQuantities(request, contract), validate: true);
+            await AllocateEvidenceAsync(cert, enforce: false, token);
             await ApplyMaterialsAsync(cert, contract, request.Materials ?? new(), token);
             SetDeductions(cert, request.Deductions);
             ApplyDeductions(cert, contract, await PriorDeductionsAsync(contractId, token), request.PenaltyAmount, validate: true);
@@ -227,6 +362,7 @@ public class ContractCertificateService : IContractCertificateService
             await ApplyScheduleAsync(contract, request, cert.Id, token);
             ApplyHeader(cert, request, request.CertificateDate?.Date ?? cert.CertificateDate);
             BuildLines(cert, contract, await CertifiedQuantitiesAsync(contractId, token), CurrentQuantities(request, contract), validate: true);
+            await AllocateEvidenceAsync(cert, enforce: false, token);
             await ApplyMaterialsAsync(cert, contract, request.Materials, token);
             SetDeductions(cert, request.Deductions);
             ApplyDeductions(cert, contract, await PriorDeductionsAsync(contractId, token), request.PenaltyAmount, validate: true);
@@ -255,35 +391,6 @@ public class ContractCertificateService : IContractCertificateService
             missing.Select(n => string.Format(Messages.CertificateItemAttachmentMissing, n)).ToList());
     }
 
-    /// <summary>
-    /// منع اعتماد ما لم يُنفَّذ: كل بند بكمية حالية لا يتجاوز تراكميه المنفّذ في التقارير اليومية المعتمدة حتى نهاية فترة المستخلص
-    /// (أو تاريخه)، بقاعدة <see cref="ApplySiteAsync"/> نفسها. عقد بلا تقارير معتمدة (مباشر، أو قديم، أو عقد باطن) لا يُقارن.
-    /// </summary>
-    private async Task EnsureWithinSiteAsync(ContractCertificate cert, CancellationToken ct)
-    {
-        var claimed = cert.Lines.Where(l => l.CurrentQuantity > 0).OrderBy(l => l.SortOrder).ToList();
-        if (claimed.Count == 0) return;
-        var contractId = cert.ContractId;
-        var anyApproved = await _db.Set<SiteDailyReport>().AsNoTracking()
-            .AnyAsync(r => r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved, ct);
-        if (!anyApproved) return;
-        var cutoff = (cert.PeriodTo ?? cert.CertificateDate).Date;
-        var ids = claimed.Select(l => l.ContractItemId).ToList();
-        var executed = await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
-                              join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
-                              where r.ContractId == contractId && r.Status == SiteDailyReportStatuses.Approved && r.ReportDate <= cutoff
-                                  && ids.Contains(h.ContractItemId)
-                              group h by h.ContractItemId into g
-                              select new { g.Key, Qty = g.Sum(x => x.ActualQuantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
-        var over = claimed.Where(l => l.CumulativeQuantity > executed.GetValueOrDefault(l.ContractItemId) + 0.00005m).ToList();
-        if (over.Count == 0) return;
-        string Name(ContractCertificateLine l) => string.IsNullOrWhiteSpace(l.LineCode) ? l.Description : $"{l.LineCode} - {l.Description}";
-        var shown = string.Join("، ", over.Take(MaxNamedItems).Select(Name)) + (over.Count > MaxNamedItems ? "…" : "");
-        throw new ValidationFailedException(string.Format(Messages.CertificateExceedsSite, over.Count, shown, cutoff.ToString("yyyy-MM-dd")),
-            over.Select(l => string.Format(Messages.CertificateExceedsSiteLine, Name(l), l.CumulativeQuantity.ToString("0.####"),
-                executed.GetValueOrDefault(l.ContractItemId).ToString("0.####"), l.Unit)).ToList());
-    }
-
     /// <summary>عدد البنود المسمّاة في رسالة نقص الأرشيف (والباقي في قائمة الأخطاء).</summary>
     private const int MaxNamedItems = 5;
 
@@ -304,7 +411,8 @@ public class ContractCertificateService : IContractCertificateService
                 var from = cert.PeriodFrom?.Date ?? SaudiTime.Today;
                 cert.PeriodTo = SaudiTime.Today < from ? from : SaudiTime.Today;
             }
-            // بعد قواعد الحالة والفترة: نقص الأرشيف آخر ما يُبلَّغ به
+            // بعد قواعد الحالة والفترة (الفترة قد تُغلق اليوم): أدلة التقارير المعتمدة، ثم نقص الأرشيف آخر ما يُبلَّغ به
+            await AllocateEvidenceAsync(cert, enforce: true, token);
             await EnsureProgressDocumentedAsync(cert, token);
             cert.Status = St.Submitted;
             cert.SubmittedAt = DateTime.UtcNow; cert.SubmittedBy = _user.Name ?? "system";
@@ -319,7 +427,8 @@ public class ContractCertificateService : IContractCertificateService
             RequireStatus(cert, St.Submitted);
             // السابق (كميات واسترداد وغرامات) يُعاد من القاعدة لحظة الاعتماد: لو اعتُمد غيره في الأثناء يُرفض التجاوز هنا
             await RemeasureAsync(cert, contract, token);
-            await EnsureWithinSiteAsync(cert, token);
+            // الأدلة تُعاد من القاعدة: تقرير أُعيد فتحه أو كمية خُصصت لغيره في الأثناء يُرفض هنا
+            await AllocateEvidenceAsync(cert, enforce: true, token);
             await EnsureProgressDocumentedAsync(cert, token);
             cert.Status = St.Approved;
             cert.ApprovedAt = DateTime.UtcNow; cert.ApprovedBy = _user.Name ?? "system"; cert.ApprovedByUserId = _user.UserId;
@@ -337,7 +446,7 @@ public class ContractCertificateService : IContractCertificateService
             if (cert.Status == St.Approved)
             {
                 var later = await _db.Set<ContractCertificate>().AnyAsync(c => c.ContractId == contractId && c.Id != cert.Id
-                    && c.Status != St.Cancelled && c.SequenceNo > cert.SequenceNo, token);
+                    && c.Status != St.Cancelled && c.Status != St.Rejected && c.SequenceNo > cert.SequenceNo, token);
                 if (later) throw new ConflictException(Messages.CertificateReturnNotLatest);
                 cert.ApprovedAt = null; cert.ApprovedBy = null; cert.ApprovedByUserId = null;
             }
@@ -354,7 +463,21 @@ public class ContractCertificateService : IContractCertificateService
             var note = RequireNote(request);
             var cert = await LoadCertificateAsync(contractId, certificateId, track: true, token);
             if (!St.IsOpen(cert.Status)) throw new ConflictException(string.Format(Messages.CertificateStatusInvalid, cert.Status));
+            // الأسطر والأدلة والمواد تبقى للتدقيق؛ الحالة الباطلة تحررها من كل حساب
             cert.Status = St.Cancelled; cert.ReturnNote = note;
+            cert.CancelledAt = DateTime.UtcNow; cert.CancelledBy = _user.Name ?? "system";
+            await SaveAsync(token);
+            return ToDto(cert);
+        }, ct);
+
+    public Task<ContractCertificateDto> RejectAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct = default)
+        => new TransactionRunner(_db).RunAsync(async token =>
+        {
+            var note = RequireNote(request);
+            var cert = await LoadCertificateAsync(contractId, certificateId, track: true, token);
+            RequireStatus(cert, St.Submitted);
+            cert.Status = St.Rejected; cert.ReturnNote = note;
+            cert.RejectedAt = DateTime.UtcNow; cert.RejectedBy = _user.Name ?? "system";
             await SaveAsync(token);
             return ToDto(cert);
         }, ct);
@@ -691,7 +814,7 @@ public class ContractCertificateService : IContractCertificateService
     /// <summary>المستخلصات غير الملغاة بترتيبها (عدا <paramref name="excludeId"/>): تشغل خانات الجدولة.</summary>
     private async Task<List<ScheduledCertificate>> ScheduledAsync(Guid contractId, Guid? excludeId, CancellationToken ct)
         => (await _db.Set<ContractCertificate>().AsNoTracking()
-                .Where(c => c.ContractId == contractId && c.Status != St.Cancelled && (excludeId == null || c.Id != excludeId))
+                .Where(c => c.ContractId == contractId && c.Status != St.Cancelled && c.Status != St.Rejected && (excludeId == null || c.Id != excludeId))
                 .OrderBy(c => c.SequenceNo)
                 .Select(c => new
                 {
@@ -738,7 +861,7 @@ public class ContractCertificateService : IContractCertificateService
 
     private async Task<ContractCertificate> LoadCertificateAsync(Guid contractId, Guid certificateId, bool track, CancellationToken ct)
     {
-        var q = _db.Set<ContractCertificate>().Include(c => c.Lines).Include(c => c.Deductions).Include(c => c.Materials).AsSplitQuery();
+        var q = _db.Set<ContractCertificate>().Include(c => c.Lines).Include(c => c.Deductions).Include(c => c.Materials).Include(c => c.Evidence).AsSplitQuery();
         return await (track ? q : q.AsNoTracking()).FirstOrDefaultAsync(c => c.Id == certificateId && c.ContractId == contractId, ct)
             ?? throw new NotFoundException(Messages.CertificateNotFound);
     }
@@ -771,6 +894,10 @@ public class ContractCertificateService : IContractCertificateService
         }).ToList();
         dto.Deductions = c.Deductions.OrderBy(d => d.SortOrder).Select(d => Mapper.Map<ContractCertificateDeductionDto>(d)).ToList();
         dto.Materials = c.Materials.OrderBy(m => m.SortOrder).Select(m => Mapper.Map<ContractCertificateMaterialDto>(m)).ToList();
+        dto.Evidence = c.Evidence.OrderBy(e => e.SortOrder).Select(e => Mapper.Map<ContractCertificateEvidenceDto>(e)).ToList();
+        dto.EvidenceCutoff = Cutoff(c.PeriodTo, c.CertificateDate);
+        var evidenced = dto.Evidence.GroupBy(e => e.ContractItemId).ToDictionary(g => g.Key, g => g.Sum(e => e.Quantity));
+        foreach (var line in dto.Lines) line.EvidenceQuantity = evidenced.GetValueOrDefault(line.ContractItemId);
         return dto;
     }
 }

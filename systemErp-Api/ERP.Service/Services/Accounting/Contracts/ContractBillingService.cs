@@ -301,7 +301,7 @@ public class ContractBillingService : IContractBillingService
             if (cert.Kind == ContractCertificateKinds.Final && c.Stage != ContractStageDefinition.Active)
                 throw new ConflictException("المستخلص الختامي لا تُلغى فاتورته بعد الاستلام الأولي.");
             var later = await _db.Set<ContractCertificate>().AsNoTracking()
-                .Where(x => x.ContractId == contractId && x.SequenceNo > cert.SequenceNo && x.Status != St.Cancelled)
+                .Where(x => x.ContractId == contractId && x.SequenceNo > cert.SequenceNo && x.Status != St.Cancelled && x.Status != St.Rejected)
                 .Select(x => x.CertificateNumber).ToListAsync(token);
             if (later.Count > 0)
                 throw new ConflictException($"بُني على هذا المستخلص ما بعده ({string.Join("، ", later)}): ألغِ المستخلصات اللاحقة أولاً.");
@@ -334,6 +334,7 @@ public class ContractBillingService : IContractBillingService
             AddInvoiced(c, -credit.GrandTotal);
             cert.Status = St.Cancelled;
             cert.ReturnNote = reason;
+            cert.CancelledAt = DateTime.UtcNow; cert.CancelledBy = _user.Name ?? "system";
             cert.CreditNoteInvoiceId = credit.Id; cert.CreditNoteNumber = credit.InvoiceNumber;
             cert.InvoiceCancelledAt = DateTime.UtcNow; cert.InvoiceCancelledBy = _user.Name ?? "system";
             await _db.SaveChangesAsync(token);

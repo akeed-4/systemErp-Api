@@ -68,7 +68,7 @@ public class ContractCertificateAttachmentService : IContractCertificateAttachme
         string fileName, byte[] content, CancellationToken ct = default)
     {
         var cert = await LoadAsync(contractId, certificateId, ct);
-        if (cert.Status == St.Cancelled) throw new ConflictException(Messages.CertificateAttachmentCancelled);
+        if (St.IsVoid(cert.Status)) throw new ConflictException(Messages.CertificateAttachmentCancelled);
         await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, contractId, ct: ct);
 
         if (!await _db.Set<CommercialContractItem>().AnyAsync(i => i.Id == contractItemId && i.ContractId == contractId, ct))
@@ -120,7 +120,7 @@ public class ContractCertificateAttachmentService : IContractCertificateAttachme
     public async Task DeleteAsync(Guid contractId, Guid certificateId, Guid attachmentId, CancellationToken ct = default)
     {
         var cert = await LoadAsync(contractId, certificateId, ct);
-        if (cert.Status == St.Cancelled) throw new ConflictException(Messages.CertificateAttachmentCancelled);
+        if (St.IsVoid(cert.Status)) throw new ConflictException(Messages.CertificateAttachmentCancelled);
         if (cert.Status == St.Draft) await _permissions.AuthorizeRecordAsync(Screen, ScreenAction.Receive, Record, contractId, ct: ct);
         else if (!await _permissions.HasPermissionAsync(Screen, ScreenAction.Delete, ct))
             throw new ForbiddenException(Messages.CertificateAttachmentDeleteForbidden);
@@ -161,11 +161,11 @@ public class ContractCertificateAttachmentService : IContractCertificateAttachme
     }
 
     private async Task<bool> CanAddAsync(CertificateRef cert, CancellationToken ct)
-        => cert.Status != St.Cancelled && await AllowedAsync(ScreenAction.Receive, cert.ContractId, ct);
+        => !St.IsVoid(cert.Status) && await AllowedAsync(ScreenAction.Receive, cert.ContractId, ct);
 
     private async Task<bool> CanDeleteAsync(CertificateRef cert, CancellationToken ct) => cert.Status switch
     {
-        St.Cancelled => false,
+        St.Cancelled or St.Rejected => false,
         St.Draft => await AllowedAsync(ScreenAction.Receive, cert.ContractId, ct),
         _ => await _permissions.HasPermissionAsync(Screen, ScreenAction.Delete, ct),
     };

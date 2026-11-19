@@ -1,6 +1,9 @@
 namespace ERP.Core.Models.Accounting;
 
-/// <summary>حالات المستخلص: مسودة ← مقدَّم ← معتمد ← مفوتر، أو ملغى (من المسودة أو المقدَّم).</summary>
+/// <summary>
+/// حالات المستخلص: مسودة ← مقدَّم ← معتمد ← مفوتر، أو ملغى (من المسودة أو المقدَّم)، أو مرفوض (من المقدَّم، بقرار المعتمِد).
+/// الملغى والمرفوض نهائيان «باطلان»: لا يُحتسبان في الكميات ولا يحجزان مواد ولا أدلة تقارير يومية، ويبقيان بسجلهم للتدقيق.
+/// </summary>
 public static class ContractCertificateStatuses
 {
     public const string Draft = "draft";
@@ -8,9 +11,13 @@ public static class ContractCertificateStatuses
     public const string Approved = "approved";
     public const string Invoiced = "invoiced";
     public const string Cancelled = "cancelled";
+    public const string Rejected = "rejected";
 
     /// <summary>مستخلص مفتوح: لم يُعتمد ولم يُلغَ (واحد فقط لكل عقد).</summary>
     public static bool IsOpen(string status) => status is Draft or Submitted;
+
+    /// <summary>باطل: ملغى أو مرفوض (لا يحجز كميات ولا مواد ولا أدلة).</summary>
+    public static bool IsVoid(string status) => status is Cancelled or Rejected;
 }
 
 /// <summary>جاري (interim) أو ختامي (final): الختامي آخر مستخلص ويُشترط للاستلام الأولي.</summary>
@@ -85,6 +92,11 @@ public class ContractCertificate : BaseEntity
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedBy { get; set; }
     public Guid? ApprovedByUserId { get; set; }
+    /// <summary>الرفض (من المقدَّم، نهائي) والإلغاء: وقته ومنفّذه؛ السبب في <see cref="ReturnNote"/>.</summary>
+    public DateTime? RejectedAt { get; set; }
+    public string? RejectedBy { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public string? CancelledBy { get; set; }
 
     /// <summary>فاتورة المستخلص: بالخاضع والضريبة، واستقطاعاته (ضمان/غرامة/أخرى) أجزاء غير آجلة على حساباتها.</summary>
     public Guid? InvoiceId { get; set; }
@@ -106,6 +118,32 @@ public class ContractCertificate : BaseEntity
     public virtual ICollection<ContractCertificateLine> Lines { get; set; } = new List<ContractCertificateLine>();
     public virtual ICollection<ContractCertificateMaterial> Materials { get; set; } = new List<ContractCertificateMaterial>();
     public virtual ICollection<ContractCertificateDeduction> Deductions { get; set; } = new List<ContractCertificateDeduction>();
+    public virtual ICollection<ContractCertificateEvidence> Evidence { get; set; } = new List<ContractCertificateEvidence>();
+}
+
+/// <summary>
+/// دليل كمية بند المستخلص: جزء من الكمية الفعلية لسطر إنجاز (<see cref="SiteHourEntry"/>) في تقرير يومي معتمد، مخصص لهذا المستخلص.
+/// الكمية الحالية يدخلها المستخدم على بند جدول الكميات، والخادم يخصص لها الأدلة (الأقدم أولاً) من المنفّذ المعتمد حتى نهاية فترة
+/// المستخلص غير المخصص لمستخلص آخر غير باطل؛ فلا تُطالَب كمية الموقع نفسها مرتين. التقرير والسطر مرجعان بلا قيد مع لقطة التاريخ
+/// والفترة، لأن أسطر التقرير يُعاد بناؤها عند تعديله بعد إعادة فتحه (ولا يُعاد فتحه ما دام مخصصاً لمستخلص غير باطل)، فيبقى سجل
+/// المستخلص الباطل للتدقيق.
+/// </summary>
+public class ContractCertificateEvidence : BaseEntity
+{
+    public Guid CertificateId { get; set; }
+    /// <summary>بند جدول الكميات.</summary>
+    public Guid ContractItemId { get; set; }
+    public Guid ReportId { get; set; }
+    public Guid HourEntryId { get; set; }
+    public DateTime ReportDate { get; set; }
+    public int SlotStart { get; set; }
+    public int SlotEnd { get; set; }
+    /// <summary>الكمية الفعلية لسطر الإنجاز وقت التخصيص، والمخصص منها لهذا المستخلص.</summary>
+    public decimal EntryQuantity { get; set; }
+    public decimal Quantity { get; set; }
+    public int SortOrder { get; set; }
+
+    public virtual ContractCertificate Certificate { get; set; } = null!;
 }
 
 /// <summary>خصم آخر على المستخلص (مواد مورّدة من المالك، استهلاك خدمات، تأمينات...) يُخصم من الصافي بعد الضريبة.</summary>

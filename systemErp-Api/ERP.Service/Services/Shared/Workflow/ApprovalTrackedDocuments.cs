@@ -134,7 +134,7 @@ public static class ApprovalTrackedDocuments
             nameof(ContractCertificate.Status), S(ContractCertificateStatuses.Submitted),
             S(ContractCertificateStatuses.Approved, ContractCertificateStatuses.Invoiced),
             c => c.CertificateNumber, c => Project(c.ContractId, "certificates"),
-            returned: S(ContractCertificateStatuses.Draft), amount: c => c.NetPayable),
+            rejected: S(ContractCertificateStatuses.Rejected), returned: S(ContractCertificateStatuses.Draft), amount: c => c.NetPayable),
         Doc<ContractVariation>("contract_variation", PermissionCatalog.CommercialContractsScreenId, "أمر تغيير", "Contract variation",
             nameof(ContractVariation.Status), S(ContractVariationStatuses.Submitted), S(ContractVariationStatuses.Approved),
             v => v.VariationNumber, v => Project(v.ContractId, "variations"),

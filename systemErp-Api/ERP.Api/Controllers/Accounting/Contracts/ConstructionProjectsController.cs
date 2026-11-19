@@ -98,6 +98,13 @@ public class ConstructionProjectsController : ErpControllerBase
     [HttpGet("daily-plans"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> DailyPlans(Guid id, CancellationToken ct) => Success(await _projects.DailyPlansAsync(id, ct));
 
+    [HttpGet("daily-plans/coverage"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> DailyPlanCoverage(Guid id, CancellationToken ct) => Success(await _projects.DailyPlanCoverageAsync(id, ct));
+
+    /// <summary>مستهدفات مقترحة من مراحل التنفيذ (لا تُحفظ؛ يراجعها المستخدم ثم يحفظ الخطة).</summary>
+    [HttpGet("daily-plans/proposal"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> DailyPlanProposal(Guid id, CancellationToken ct) => Success(await _projects.ProposeDailyPlansAsync(id, ct));
+
     [HttpPut("daily-plans"), RequireScreen(Screen, ScreenAction.Edit)]
     public async Task<IActionResult> SaveDailyPlans(Guid id, [FromBody] SaveProjectDailyPlansDto dto, CancellationToken ct)
         => Success(await _projects.SaveDailyPlansAsync(id, dto, ct), Messages.ProjectSetupSaved);

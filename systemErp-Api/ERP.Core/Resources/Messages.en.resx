@@ -1859,4 +1859,12 @@ Please contact the approval officer to approve it: {0}.</value></data>
   <data name="ApproverUserLabel" xml:space="preserve"><value>the user "{0}"</value></data>
   <data name="DocApprovalSubmitted" xml:space="preserve"><value>Saved and sent "{0}" no. {1} for approval to: {2}.
 Track it from "My documents awaiting approval".</value></data>
+  <data name="CertificateRejected" xml:space="preserve"><value>Certificate rejected.</value></data>
+  <data name="CertificateEvidenceShort" xml:space="preserve"><value>The certificate cannot be submitted or approved: {0} item(s) lack enough evidence from approved daily reports up to {1} that is not allocated to other certificates. Approve the site reports or reduce the current quantity.</value></data>
+  <data name="CertificateEvidenceShortLine" xml:space="preserve"><value>{0}: current quantity {1}, available from approved reports {2} {3}.</value></data>
+  <data name="CertificateEvidenceChanged" xml:space="preserve"><value>A daily report supporting the certificate quantities changed while saving (it was reopened). Try again.</value></data>
+  <data name="SiteReportUsedAsCertificateEvidence" xml:space="preserve"><value>The report cannot be reopened: its quantities are evidence in certificate no. {0} ({1}). Cancel or reject the certificate, or remove the quantity from it and save, then reopen the report.</value></data>
+  <data name="ProjectPlanChanged" xml:space="preserve"><value>Another user changed the progress plan after you loaded it. Reload the plan and apply your changes again.</value></data>
+  <data name="ProjectPlanTargetExceedsItem" xml:space="preserve"><value>Progress plan "{0}": the hourly target {1} exceeds the whole item quantity {2}.</value></data>
+  <data name="ProjectPlanDateOutsideContract" xml:space="preserve"><value>Progress plan "{0}": effective date {1} is outside the contract period ({2} – {3}).</value></data>
 </root>

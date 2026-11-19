@@ -348,7 +348,7 @@ public class ContractVariationService : IContractVariationService
     /// <summary>المقاس لكل بند في المستخلصات غير الملغاة (المعتمدة والمفوترة والمفتوحة).</summary>
     private Task<Dictionary<Guid, decimal>> MeasuredQuantitiesAsync(Guid contractId, CancellationToken ct)
         => _db.Set<ContractCertificateLine>().AsNoTracking()
-            .Where(l => l.Certificate.ContractId == contractId && l.Certificate.Status != CertSt.Cancelled)
+            .Where(l => l.Certificate.ContractId == contractId && l.Certificate.Status != CertSt.Cancelled && l.Certificate.Status != CertSt.Rejected)
             .GroupBy(l => l.ContractItemId)
             .Select(g => new { g.Key, Qty = g.Sum(l => l.CurrentQuantity) })
             .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);

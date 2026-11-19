@@ -90,6 +90,8 @@ public class ProjectDailyPlan : BaseEntity
     public decimal TargetPerHour { get; set; }
     public DateTime EffectiveFrom { get; set; }
     public string? Notes { get; set; }
+    /// <summary>رمز التزامن: تعديل سطر عدّله غيرك بعد تحميلك يُرفض بدل أن يُكتب فوقه.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 /// <summary>حالات التقرير اليومي: مسودة ← مقدَّم (من المشرف) ← معتمد (من المهندس المسؤول)، أو إعادة للمسودة بسبب.</summary>
@@ -146,6 +148,10 @@ public class SiteDailyReport : BaseEntity
     public int CostRevision { get; set; }
     /// <summary>سبب آخر إعادة فتح للتقرير المعتمد.</summary>
     public string? ReopenNote { get; set; }
+    /// <summary>
+    /// رمز التزامن: تخصيص أدلة المستخلص يلمس التقارير التي خصص منها، فيتعارض مع إعادة فتحها (أو تخصيص آخر) في اللحظة نفسها.
+    /// </summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public virtual ICollection<SiteHourEntry> Hours { get; set; } = new List<SiteHourEntry>();
     public virtual ICollection<SiteResourceUsage> Resources { get; set; } = new List<SiteResourceUsage>();
@@ -160,7 +166,13 @@ public class SiteHourEntry : BaseEntity
     public int SlotStart { get; set; }
     public int SlotEnd { get; set; }
     public Guid ContractItemId { get; set; }
+    /// <summary>المستهدف في التقرير: يُملأ من الخطة ويجوز للمشرف تعديله.</summary>
     public decimal TargetQuantity { get; set; }
+    /// <summary>
+    /// المستهدف المخطط: من خطة الإنجاز السارية يوم التقرير × طول الفترة، يحسبه الخادم عند كل حفظ ولا يُقبل من الطلب؛
+    /// فارغ = البند بلا خطة سارية. يكشف تعديل المستهدف في التقرير ويقاس عليه الإنجاز المخطط.
+    /// </summary>
+    public decimal? PlannedTargetQuantity { get; set; }
     public decimal ActualQuantity { get; set; }
     public int DowntimeMinutes { get; set; }
     public string? DowntimeReason { get; set; }

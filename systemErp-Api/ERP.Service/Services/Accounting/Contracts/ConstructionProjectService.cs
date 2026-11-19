@@ -166,7 +166,7 @@ public class ConstructionProjectService : IConstructionProjectService
                            where ids.Contains(m.ContractId)
                            select new { m.ContractId, m.UserId, u.Name, m.Role, m.CreatedAt }).ToListAsync(ct)).ToLookup(m => m.ContractId);
         var certificates = (await _db.Set<ContractCertificate>().AsNoTracking()
-            .Where(c => ids.Contains(c.ContractId) && c.Status != ContractCertificateStatuses.Cancelled)
+            .Where(c => ids.Contains(c.ContractId) && c.Status != ContractCertificateStatuses.Cancelled && c.Status != ContractCertificateStatuses.Rejected)
             .Select(c => new { c.ContractId, c.Status, c.SequenceNo, c.CumulativeWorkValue, c.TotalWithVat }).ToListAsync(ct)).ToLookup(c => c.ContractId);
         var plans = await _db.Set<ProjectMaterialPlan>().AsNoTracking().Where(p => ids.Contains(p.ContractId))
             .ToDictionaryAsync(p => p.ContractId, p => p.Status, ct);
@@ -178,6 +178,8 @@ public class ConstructionProjectService : IConstructionProjectService
             .ToLookup(l => l.ContractId);
         var reports = (await _db.Set<SiteDailyReport>().AsNoTracking().Where(r => ids.Contains(r.ContractId))
             .Select(r => new { r.ContractId, r.ReportDate, r.Status }).ToListAsync(ct)).ToLookup(r => r.ContractId);
+        var dailyPlanned = (await _db.Set<ProjectDailyPlan>().AsNoTracking().Where(p => ids.Contains(p.ContractId))
+            .Select(p => p.ContractId).Distinct().ToListAsync(ct)).ToHashSet();
         var resourceCost = await (from u in _db.Set<SiteResourceUsage>().AsNoTracking()
                                   join r in _db.Set<SiteDailyReport>().AsNoTracking() on u.ReportId equals r.Id
                                   where ids.Contains(r.ContractId) && r.Status == SiteDailyReportStatuses.Approved
@@ -238,6 +240,7 @@ public class ConstructionProjectService : IConstructionProjectService
             if (dto.MaterialPlanStatus != ProjectMaterialPlanStatuses.Approved) dto.Alerts.Add(ConstructionProjectAlerts.MaterialsNotApproved);
             if (dto.MaterialsNotStocked > 0) dto.Alerts.Add(ConstructionProjectAlerts.MaterialsNotStocked);
             if (dto.PendingReports > 0) dto.Alerts.Add(ConstructionProjectAlerts.ReportsPending);
+            if (c.Stage == ContractStageDefinition.Active && !dailyPlanned.Contains(c.Id)) dto.Alerts.Add(ConstructionProjectAlerts.NoDailyPlan);
             if (dto.PhaseCount > 0 && dto.PlannedProgressPercent - dto.CertifiedProgressPercent > BehindPlanMargin) dto.Alerts.Add(ConstructionProjectAlerts.BehindPlan);
             if (budget > 0 && cost > budget) dto.Alerts.Add(ConstructionProjectAlerts.OverBudget);
             if (!finished && c.EndDate is DateTime end && end.Date < today) dto.Alerts.Add(ConstructionProjectAlerts.Overdue);
@@ -606,6 +609,7 @@ public class ConstructionProjectService : IConstructionProjectService
     {
         var contract = await LoadContractAsync(contractId, ct);
         var lines = contract.Items.ToDictionary(i => i.Id);
+        var hoursPerDay = await HoursPerDayAsync(contractId, ct);
         var plans = await _db.Set<ProjectDailyPlan>().AsNoTracking().Where(p => p.ContractId == contractId).ToListAsync(ct);
         return plans
             .OrderBy(p => lines.TryGetValue(p.ContractItemId, out var l) ? l.SortOrder : int.MaxValue).ThenBy(p => p.EffectiveFrom)
@@ -613,9 +617,15 @@ public class ConstructionProjectService : IConstructionProjectService
             {
                 Id = p.Id, ContractItemId = p.ContractItemId, TargetPerHour = p.TargetPerHour, EffectiveFrom = p.EffectiveFrom, Notes = p.Notes,
                 ItemLabel = lines.TryGetValue(p.ContractItemId, out var line) ? LineLabel(line) : null, Unit = line?.Unit,
+                TargetPerDay = Math.Round(p.TargetPerHour * hoursPerDay, 4), RowVersion = p.RowVersion,
             }).ToList();
     }
 
+    /// <summary>
+    /// حفظ الخطة بالتعديل لا بالاستبدال: السطر بمعرّفه يُحدَّث (ويُرفض إن تغيّر رمز تزامنه منذ تحميله)، وبلا معرّف يُضاف، والمحذوف
+    /// يُحذف بمعرّفه؛ فتبقى معرّفات الأسطر وسجل مراجعتها. التحقق: بند مقاس من العقد، مستهدف موجب لا يتجاوز في الساعة كمية البند
+    /// بنسبة تجاوزها، تاريخ سريان داخل مدة العقد، ولا تكرار للبند والتاريخ مع ما يبقى محفوظاً.
+    /// </summary>
     public async Task<List<ProjectDailyPlanDto>> SaveDailyPlansAsync(Guid contractId, SaveProjectDailyPlansDto request, CancellationToken ct = default)
     {
         await _tx.RunAsync(async token =>
@@ -624,27 +634,179 @@ public class ConstructionProjectService : IConstructionProjectService
             EnsureEditable(contract);
             var lines = contract.Items.ToDictionary(i => i.Id);
             var incoming = request.Plans ?? new List<ProjectDailyPlanDto>();
+            var stored = await _db.Set<ProjectDailyPlan>().Where(p => p.ContractId == contractId).ToListAsync(token);
+            var byId = stored.ToDictionary(p => p.Id);
+            var sentIds = incoming.Where(p => p.Id is Guid g && g != Guid.Empty).Select(p => p.Id!.Value).ToHashSet();
+            // سطر أرسله العميل بمعرّف لم يعد موجوداً: حذفه غيره بعد التحميل
+            if (sentIds.Any(id => !byId.ContainsKey(id))) throw new ConflictException(Messages.ProjectPlanChanged);
+            var deleted = request.DeletedIds == null
+                ? stored.Where(p => !sentIds.Contains(p.Id)).ToList()
+                : stored.Where(p => request.DeletedIds.Contains(p.Id) && !sentIds.Contains(p.Id)).ToList();
+            var deletedIds = deleted.Select(p => p.Id).ToHashSet();
+
             var errors = new List<string>();
-            var seen = new HashSet<(Guid, DateTime)>();
+            // ما يبقى محفوظاً بلا تعديل يدخل فحص التكرار
+            var seen = stored.Where(p => !sentIds.Contains(p.Id) && !deletedIds.Contains(p.Id))
+                .Select(p => (p.ContractItemId, p.EffectiveFrom.Date)).ToHashSet();
+            var start = (contract.StartDate ?? contract.SignedDate)?.Date;
+            var end = contract.EndDate?.Date;
             for (var k = 0; k < incoming.Count; k++)
             {
                 var p = incoming[k];
                 if (!lines.TryGetValue(p.ContractItemId, out var line) || line.IsGroup) { errors.Add(string.Format(Messages.ProjectPlanItemInvalid, k + 1)); continue; }
                 if (p.TargetPerHour <= 0) errors.Add(string.Format(Messages.ProjectPlanTargetInvalid, LineLabel(line)));
-                if (p.EffectiveFrom == default) errors.Add(string.Format(Messages.ProjectPlanDateRequired, LineLabel(line)));
-                else if (!seen.Add((p.ContractItemId, p.EffectiveFrom.Date))) errors.Add(string.Format(Messages.ProjectPlanDuplicate, LineLabel(line), p.EffectiveFrom.ToString("yyyy-MM-dd")));
+                else
+                {
+                    var max = line.RevisedQuantity * (1 + line.OverrunPercent / 100m);
+                    if (max > 0 && p.TargetPerHour > max + 0.00005m)
+                        errors.Add(string.Format(Messages.ProjectPlanTargetExceedsItem, LineLabel(line), p.TargetPerHour.ToString("0.####"), max.ToString("0.####")));
+                }
+                if (p.EffectiveFrom == default) { errors.Add(string.Format(Messages.ProjectPlanDateRequired, LineLabel(line))); continue; }
+                var day = p.EffectiveFrom.Date;
+                if ((start is DateTime s && day < s) || (end is DateTime e && day > e))
+                    errors.Add(string.Format(Messages.ProjectPlanDateOutsideContract, LineLabel(line), day.ToString("yyyy-MM-dd"),
+                        start?.ToString("yyyy-MM-dd") ?? "—", end?.ToString("yyyy-MM-dd") ?? "—"));
+                if (!seen.Add((p.ContractItemId, day))) errors.Add(string.Format(Messages.ProjectPlanDuplicate, LineLabel(line), day.ToString("yyyy-MM-dd")));
             }
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
-            _db.RemoveRange(await _db.Set<ProjectDailyPlan>().Where(p => p.ContractId == contractId).ToListAsync(token));
+            _db.RemoveRange(deleted);
             foreach (var p in incoming)
-                _db.Add(new ProjectDailyPlan
+            {
+                if (p.Id is Guid id && id != Guid.Empty)
                 {
-                    ContractId = contractId, ContractItemId = p.ContractItemId, TargetPerHour = p.TargetPerHour, EffectiveFrom = p.EffectiveFrom.Date, Notes = Trim(p.Notes, 300),
-                });
-            await _db.SaveChangesAsync(token);
+                    var row = byId[id];
+                    if (p.RowVersion is { Length: > 0 } version)
+                    {
+                        if (!version.SequenceEqual(row.RowVersion)) throw new ConflictException(Messages.ProjectPlanChanged);
+                        // التزامن الفعلي في القاعدة: التحديث مشروط بالرمز كما أرسله العميل
+                        _db.Entry(row).Property(x => x.RowVersion).OriginalValue = version;
+                    }
+                    row.ContractItemId = p.ContractItemId; row.TargetPerHour = p.TargetPerHour; row.EffectiveFrom = p.EffectiveFrom.Date;
+                    row.Notes = Trim(p.Notes, 300);
+                }
+                else
+                    _db.Add(new ProjectDailyPlan
+                    {
+                        ContractId = contractId, ContractItemId = p.ContractItemId, TargetPerHour = p.TargetPerHour, EffectiveFrom = p.EffectiveFrom.Date, Notes = Trim(p.Notes, 300),
+                    });
+            }
+            try
+            {
+                await _db.SaveChangesAsync(token);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw new ConflictException(Messages.ProjectPlanChanged);
+            }
         }, ct);
         return await DailyPlansAsync(contractId, ct);
+    }
+
+    /// <summary>ساعات يوم العمل من ملف المشروع (مجموع فترات الإنجاز؛ الافتراضي 07:00–17:00 بلا ملف).</summary>
+    private async Task<decimal> HoursPerDayAsync(Guid contractId, CancellationToken ct)
+    {
+        var profile = await _db.Set<ConstructionProjectProfile>().AsNoTracking().FirstOrDefaultAsync(p => p.ContractId == contractId, ct)
+            ?? new ConstructionProjectProfile { ContractId = contractId };
+        return HourSlots(profile.WorkdayStartMinutes, profile.WorkdayEndMinutes, profile.BreakStartMinutes, profile.BreakEndMinutes)
+            .Sum(s => s.End - s.Start) / 60m;
+    }
+
+    /// <summary>الخطة السارية لكل بند يوم <paramref name="day"/> (أحدث تاريخ سريان لا يتجاوزه)، وإلا أقرب خطة تبدأ بعده.</summary>
+    private static Dictionary<Guid, ProjectDailyPlan> CurrentPlans(IEnumerable<ProjectDailyPlan> plans, DateTime day)
+        => plans.GroupBy(p => p.ContractItemId).ToDictionary(g => g.Key,
+            g => g.Where(p => p.EffectiveFrom.Date <= day).OrderByDescending(p => p.EffectiveFrom).FirstOrDefault()
+                 ?? g.OrderBy(p => p.EffectiveFrom).First());
+
+    /// <summary>البنود المقاسة بالكمية المعدّلة والمنفّذ في التقارير المعتمدة ومرحلة كل بند (أول مرحلة تضمه).</summary>
+    private async Task<(List<CommercialContractItem> Lines, Dictionary<Guid, decimal> Executed, Dictionary<Guid, ProjectPhase> Phases)> PlanBasisAsync(
+        CommercialContract contract, CancellationToken ct)
+    {
+        var lines = contract.Items.Where(i => !i.IsGroup).OrderBy(i => i.SortOrder).ThenBy(i => i.CreatedAt).ToList();
+        var executed = await (from h in _db.Set<SiteHourEntry>().AsNoTracking()
+                              join r in _db.Set<SiteDailyReport>().AsNoTracking() on h.ReportId equals r.Id
+                              where r.ContractId == contract.Id && r.Status == SiteDailyReportStatuses.Approved
+                              group h by h.ContractItemId into g
+                              select new { g.Key, Qty = g.Sum(x => x.ActualQuantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var phases = await _db.Set<ProjectPhase>().AsNoTracking().Include(p => p.Items).Where(p => p.ContractId == contract.Id)
+            .OrderBy(p => p.SortOrder).ToListAsync(ct);
+        var byItem = new Dictionary<Guid, ProjectPhase>();
+        foreach (var phase in phases)
+            foreach (var item in phase.Items)
+                byItem.TryAdd(item.ContractItemId, phase);
+        return (lines, executed, byItem);
+    }
+
+    public async Task<DailyPlanCoverageDto> DailyPlanCoverageAsync(Guid contractId, CancellationToken ct = default)
+    {
+        var contract = await LoadContractAsync(contractId, ct);
+        var hoursPerDay = await HoursPerDayAsync(contractId, ct);
+        var (lines, executed, phases) = await PlanBasisAsync(contract, ct);
+        var plans = CurrentPlans(await _db.Set<ProjectDailyPlan>().AsNoTracking().Where(p => p.ContractId == contractId).ToListAsync(ct), SaudiTime.Today);
+        var today = SaudiTime.Today;
+        var result = new DailyPlanCoverageDto { WorkingHoursPerDay = Math.Round(hoursPerDay, 2), MeasuredItems = lines.Count };
+        foreach (var line in lines)
+        {
+            var done = executed.GetValueOrDefault(line.Id);
+            var remaining = Math.Max(0, line.RevisedQuantity - done);
+            var phase = phases.GetValueOrDefault(line.Id);
+            var dto = new DailyPlanCoverageLineDto
+            {
+                ContractItemId = line.Id, LineCode = line.LineCode, Description = line.Description, Unit = line.Unit,
+                ContractQuantity = line.RevisedQuantity, ExecutedQuantity = done, RemainingQuantity = remaining,
+                PhaseName = phase?.Name, PhaseStart = phase?.PlannedStart, PhaseEnd = phase?.PlannedEnd,
+            };
+            if (plans.TryGetValue(line.Id, out var plan))
+            {
+                var perDay = Math.Round(plan.TargetPerHour * hoursPerDay, 4);
+                dto.HasPlan = true; dto.TargetPerHour = plan.TargetPerHour; dto.TargetPerDay = perDay; dto.EffectiveFrom = plan.EffectiveFrom;
+                dto.PercentPerDay = line.RevisedQuantity > 0 ? Math.Round(perDay / line.RevisedQuantity * 100m, 4) : null;
+                if (perDay > 0 && remaining > 0)
+                {
+                    var days = Math.Ceiling(remaining / perDay * 10) / 10;
+                    var from = plan.EffectiveFrom.Date > today ? plan.EffectiveFrom.Date : today;
+                    dto.DaysToComplete = days;
+                    dto.ForecastFinish = from.AddDays((double)Math.Ceiling(days) - 1);
+                    dto.BehindPhase = phase != null && dto.ForecastFinish.Value.Date > phase.PlannedEnd.Date;
+                }
+            }
+            if (!dto.HasPlan && remaining > 0) result.ItemsWithoutPlan++;
+            if (dto.HasPlan) result.PlannedItems++;
+            if (dto.BehindPhase) result.ItemsBehindPhase++;
+            result.Lines.Add(dto);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// مستهدفات مقترحة من المراحل لكل بند مقاس في مرحلة ولم يكتمل: المستهدف بالساعة = المتبقي ÷ (أيام المرحلة الباقية من اليوم أو
+    /// من بدايتها × ساعات يوم العمل)، ساريةً من اليوم أو من بداية المرحلة. مرحلة انتهت مدتها لا يُقترح لبنودها (تظهر متأخرة في
+    /// التغطية). لا يُحفظ شيء.
+    /// </summary>
+    public async Task<List<ProjectDailyPlanDto>> ProposeDailyPlansAsync(Guid contractId, CancellationToken ct = default)
+    {
+        var contract = await LoadContractAsync(contractId, ct);
+        var hoursPerDay = await HoursPerDayAsync(contractId, ct);
+        var (lines, executed, phases) = await PlanBasisAsync(contract, ct);
+        var today = SaudiTime.Today;
+        var proposals = new List<ProjectDailyPlanDto>();
+        if (hoursPerDay <= 0) return proposals;
+        foreach (var line in lines)
+        {
+            if (!phases.TryGetValue(line.Id, out var phase)) continue;
+            var remaining = Math.Max(0, line.RevisedQuantity - executed.GetValueOrDefault(line.Id));
+            var from = phase.PlannedStart.Date > today ? phase.PlannedStart.Date : today;
+            var days = (phase.PlannedEnd.Date - from).Days + 1;
+            if (remaining <= 0 || days <= 0) continue;
+            // تقريب للأعلى بأربع خانات: المستهدف يكفي لإنهاء المتبقي داخل المرحلة
+            var perHour = Math.Ceiling(remaining / (days * hoursPerDay) * 10_000m) / 10_000m;
+            proposals.Add(new ProjectDailyPlanDto
+            {
+                ContractItemId = line.Id, ItemLabel = LineLabel(line), Unit = line.Unit, TargetPerHour = perHour, EffectiveFrom = from,
+                TargetPerDay = Math.Round(perHour * hoursPerDay, 4), PhaseName = phase.Name,
+            });
+        }
+        return proposals;
     }
 
     // ---------- أدوار المقاولات الجاهزة ----------

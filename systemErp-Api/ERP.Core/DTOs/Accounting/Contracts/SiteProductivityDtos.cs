@@ -56,12 +56,62 @@ public class ProjectDailyPlanDto
     public decimal TargetPerHour { get; set; }
     public DateTime EffectiveFrom { get; set; }
     public string? Notes { get; set; }
+    /// <summary>للقراءة: المستهدف في اليوم = بالساعة × ساعات يوم العمل في ملف المشروع.</summary>
+    public decimal TargetPerDay { get; set; }
+    /// <summary>رمز التزامن كما حُمِّل؛ يُعاد مع السطر القائم عند الحفظ فيُرفض إن عدّله غيرك بعدها.</summary>
+    public byte[]? RowVersion { get; set; }
+    /// <summary>في المقترح من المراحل: المرحلة التي حُسب منها المستهدف.</summary>
+    public string? PhaseName { get; set; }
 }
 
-/// <summary>خطة الإنجاز اليومية كاملة (تستبدل المحفوظ).</summary>
+/// <summary>
+/// حفظ خطة الإنجاز: الأسطر المرسلة تُضاف (بلا معرّف) أو تُحدَّث (بمعرّفها ورمز تزامنها)، والمحذوفة في <see cref="DeletedIds"/>.
+/// غياب <see cref="DeletedIds"/> (عميل قديم) = استبدال كامل: ما لم يُرسل يُحذف.
+/// </summary>
 public class SaveProjectDailyPlansDto
 {
     public List<ProjectDailyPlanDto> Plans { get; set; } = new();
+    public List<Guid>? DeletedIds { get; set; }
+}
+
+/// <summary>
+/// تغطية خطة الإنجاز لبنود المشروع: لكل بند مقاس كميته المعدّلة والمنفّذ المعتمد والمتبقي، والمستهدف الساري، والأيام اللازمة
+/// للمتبقي بهذا المستهدف، والتاريخ المتوقع مقابل نهاية مرحلته. الأيام تقويمية كتوزيع المراحل.
+/// </summary>
+public class DailyPlanCoverageDto
+{
+    public decimal WorkingHoursPerDay { get; set; }
+    public int MeasuredItems { get; set; }
+    public int PlannedItems { get; set; }
+    /// <summary>بنود لم ينتهِ تنفيذها وبلا خطة.</summary>
+    public int ItemsWithoutPlan { get; set; }
+    /// <summary>بنود يتجاوز تاريخها المتوقع نهاية مرحلتها.</summary>
+    public int ItemsBehindPhase { get; set; }
+    public List<DailyPlanCoverageLineDto> Lines { get; set; } = new();
+}
+
+public class DailyPlanCoverageLineDto
+{
+    public Guid ContractItemId { get; set; }
+    public string? LineCode { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string? Unit { get; set; }
+    public decimal ContractQuantity { get; set; }
+    public decimal ExecutedQuantity { get; set; }
+    public decimal RemainingQuantity { get; set; }
+    public bool HasPlan { get; set; }
+    /// <summary>المستهدف الساري اليوم (أو الأقرب سرياناً إن بدأت الخطة لاحقاً).</summary>
+    public decimal? TargetPerHour { get; set; }
+    public decimal? TargetPerDay { get; set; }
+    public DateTime? EffectiveFrom { get; set; }
+    /// <summary>نسبة المستهدف في اليوم من كمية البند.</summary>
+    public decimal? PercentPerDay { get; set; }
+    public decimal? DaysToComplete { get; set; }
+    public DateTime? ForecastFinish { get; set; }
+    public string? PhaseName { get; set; }
+    public DateTime? PhaseStart { get; set; }
+    public DateTime? PhaseEnd { get; set; }
+    public bool BehindPhase { get; set; }
 }
 
 // ---------- التقرير اليومي ----------
@@ -81,6 +131,9 @@ public class SiteHourEntryDto
     public string? DowntimeReason { get; set; }
     public string? Notes { get; set; }
     public decimal AchievementPercent { get; set; }
+    /// <summary>للقراءة: المستهدف المخطط من الخطة السارية (فارغ = بلا خطة)، والإنجاز عليه.</summary>
+    public decimal? PlannedTargetQuantity { get; set; }
+    public decimal? PlannedAchievementPercent { get; set; }
 }
 
 public class SiteResourceUsageDto
@@ -136,6 +189,11 @@ public class SiteDailySummaryDto
     public decimal TargetValue { get; set; }
     public decimal ActualValue { get; set; }
     public decimal AchievementPercent { get; set; }
+    /// <summary>قيمة المستهدف المخطط (للأسطر التي لها خطة) والإنجاز عليها بقيمة منفّذ تلك الأسطر.</summary>
+    public decimal PlannedTargetValue { get; set; }
+    public decimal? PlannedAchievementPercent { get; set; }
+    /// <summary>أسطر عدّل المشرف مستهدفها عن الخطة.</summary>
+    public int TargetOverrides { get; set; }
     /// <summary>تكلفة لم تُوزَّع على بند (يوم بلا إنتاج).</summary>
     public decimal UnallocatedCost { get; set; }
     public List<SiteItemSummaryDto> Items { get; set; } = new();
@@ -152,6 +210,9 @@ public class SiteItemSummaryDto
     public decimal Target { get; set; }
     public decimal Actual { get; set; }
     public decimal AchievementPercent { get; set; }
+    /// <summary>المستهدف المخطط للبند في اليوم والإنجاز عليه (فارغ = بلا خطة).</summary>
+    public decimal? PlannedTarget { get; set; }
+    public decimal? PlannedAchievementPercent { get; set; }
     public int DowntimeMinutes { get; set; }
     public decimal Cost { get; set; }
     /// <summary>تكلفة إنتاج الوحدة = تكلفة البند في اليوم ÷ المنفَّذ.</summary>

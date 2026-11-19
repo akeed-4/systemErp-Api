@@ -1784,6 +1784,13 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("ApprovedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CancelledBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<DateTime>("CertificateDate")
                         .HasColumnType("datetime2");
 
@@ -1865,6 +1872,13 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("PreviousWorkValue")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal>("RetentionAmount")
                         .HasPrecision(18, 4)
@@ -1966,6 +1980,69 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("ContractCertificateDeduction");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateEvidence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CertificateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("EntryQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("HourEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("ReportDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SlotEnd")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SlotStart")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractItemId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("CertificateId", "HourEntryId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "HourEntryId");
+
+                    b.HasIndex("TenantId", "ReportId");
+
+                    b.ToTable("ContractCertificateEvidence");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateItemAttachment", b =>
@@ -6309,6 +6386,12 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<decimal>("TargetPerHour")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -8027,6 +8110,12 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -8086,6 +8175,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal?>("PlannedTargetQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("ReportId")
                         .HasColumnType("uniqueidentifier");
@@ -17442,6 +17535,23 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Certificate");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateEvidence", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.ContractCertificate", "Certificate")
+                        .WithMany("Evidence")
+                        .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContractItem", null)
+                        .WithMany()
+                        .HasForeignKey("ContractItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Certificate");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificateItemAttachment", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.ContractCertificate", null)
@@ -19500,6 +19610,8 @@ namespace ERP.Service.Data.Migrations
             modelBuilder.Entity("ERP.Core.Models.Accounting.ContractCertificate", b =>
                 {
                     b.Navigation("Deductions");
+
+                    b.Navigation("Evidence");
 
                     b.Navigation("Lines");
 

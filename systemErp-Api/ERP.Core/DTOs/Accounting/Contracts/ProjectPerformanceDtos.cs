@@ -85,6 +85,9 @@ public class ProjectItemProductivityDto
     public decimal TargetQuantity { get; set; }
     public decimal ActualQuantity { get; set; }
     public decimal? ProductivityPercent { get; set; }
+    /// <summary>المستهدف المخطط (أسطر لها خطة) والإنتاجية عليه بمنفّذ تلك الأسطر.</summary>
+    public decimal PlannedTargetQuantity { get; set; }
+    public decimal? PlannedProductivityPercent { get; set; }
     public decimal ContractQuantity { get; set; }
     /// <summary>المنفَّذ تراكمياً في التقارير المعتمدة حتى نهاية الفترة.</summary>
     public decimal ExecutedToDate { get; set; }

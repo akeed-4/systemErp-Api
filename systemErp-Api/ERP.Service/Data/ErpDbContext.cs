@@ -208,6 +208,8 @@ public class ErpDbContext : DbContext
         (typeof(MaterialRequisition), nameof(MaterialRequisition.ContractId), typeof(CommercialContract)),
         // مواد المستخلص تشير لسطر إذن التسليم: لا يُحذف سطر اختير في مستخلص (المرحّل لا يُحذف أصلاً، والإلغاء يُمنع ما دام مختاراً)
         (typeof(ContractCertificateMaterial), nameof(ContractCertificateMaterial.IssueLineId), typeof(ProjectMaterialIssueLine)),
+        // دليل المستخلص على بند جدول الكميات؛ التقرير وسطر الإنجاز مرجعان بلا قيد (لقطة تبقى بعد إعادة بناء أسطر التقرير)
+        (typeof(ContractCertificateEvidence), nameof(ContractCertificateEvidence.ContractItemId), typeof(CommercialContractItem)),
         // المعدات: الأصل الثابت والمؤجر والمركز لا تُحذف وعليها معدة؛ والمعدة لا تُحذف وعليها إسناد أو سجل أو صيانة أو إيجار
         (typeof(Equipment), nameof(Equipment.FixedAssetId), typeof(FixedAsset)),
         (typeof(Equipment), nameof(Equipment.SupplierId), typeof(Supplier)),
@@ -642,6 +644,19 @@ public class ErpDbContext : DbContext
             e.HasIndex(m => new { m.CertificateId, m.IssueLineId }).IsUnique();
             e.HasIndex(m => new { m.TenantId, m.IssueLineId });
         });
+        // أدلة المستخلص من التقارير اليومية: سطر الإنجاز مرة واحدة في المستخلص، والفهرس لحساب المخصص منه في المستخلصات الأخرى
+        modelBuilder.Entity<ContractCertificateEvidence>(e =>
+        {
+            e.HasOne(x => x.Certificate).WithMany(c => c.Evidence).HasForeignKey(x => x.CertificateId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.CertificateId, x.HourEntryId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.HourEntryId });
+            e.HasIndex(x => new { x.TenantId, x.ReportId });
+        });
+        modelBuilder.Entity<ContractCertificate>(e =>
+        {
+            e.Property(c => c.RejectedBy).HasMaxLength(200);
+            e.Property(c => c.CancelledBy).HasMaxLength(200);
+        });
         modelBuilder.Entity<ContractCertificateLine>(e =>
         {
             e.Property(l => l.LineCode).HasMaxLength(32);
@@ -782,6 +797,7 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<ProjectDailyPlan>(e =>
         {
             e.Property(p => p.Notes).HasMaxLength(300);
+            e.Property(p => p.RowVersion).IsRowVersion();
             e.HasIndex(p => new { p.TenantId, p.ContractId, p.ContractItemId, p.EffectiveFrom }).IsUnique();
         });
         modelBuilder.Entity<SiteDailyReport>(e =>
@@ -792,6 +808,7 @@ public class ErpDbContext : DbContext
             e.Property(r => r.PreparedBy).HasMaxLength(200);
             e.Property(r => r.SubmittedBy).HasMaxLength(200);
             e.Property(r => r.ApprovedBy).HasMaxLength(200);
+            e.Property(r => r.RowVersion).IsRowVersion();
             e.HasIndex(r => new { r.TenantId, r.ContractId, r.ReportDate }).IsUnique();
             e.HasMany(r => r.Hours).WithOne(h => h.Report).HasForeignKey(h => h.ReportId);
             e.HasMany(r => r.Resources).WithOne(u => u.Report).HasForeignKey(u => u.ReportId);

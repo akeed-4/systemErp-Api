@@ -1859,4 +1859,12 @@
   <data name="ApproverUserLabel" xml:space="preserve"><value>المستخدم «{0}»</value></data>
   <data name="DocApprovalSubmitted" xml:space="preserve"><value>تم الحفظ وأُرسل «{0}» رقم {1} للاعتماد إلى: {2}.
 تابِع حالته من «مستنداتي بانتظار الاعتماد».</value></data>
+  <data name="CertificateRejected" xml:space="preserve"><value>رُفض المستخلص.</value></data>
+  <data name="CertificateEvidenceShort" xml:space="preserve"><value>لا يُقدَّم المستخلص ولا يُعتمد: {0} بند كميته الحالية بلا دليل كافٍ من التقارير اليومية المعتمدة حتى {1} غير المخصصة لمستخلصات أخرى. اعتمد تقارير الموقع أو خفّض الكمية الحالية.</value></data>
+  <data name="CertificateEvidenceShortLine" xml:space="preserve"><value>{0}: الكمية الحالية {1} والمتاح من التقارير المعتمدة {2} {3}.</value></data>
+  <data name="CertificateEvidenceChanged" xml:space="preserve"><value>تغيّر تقرير يومي يدعم كميات المستخلص أثناء الحفظ (أُعيد فتحه). أعد المحاولة.</value></data>
+  <data name="SiteReportUsedAsCertificateEvidence" xml:space="preserve"><value>لا يُعاد فتح التقرير: كمياته دليل في المستخلص رقم {0} ({1}). ألغِ المستخلص أو ارفضه، أو أزل الكمية منه وأعد حفظه، ثم أعد فتح التقرير.</value></data>
+  <data name="ProjectPlanChanged" xml:space="preserve"><value>عدّل مستخدم آخر خطة الإنجاز بعد تحميلك لها. أعد تحميل الخطة ثم أعد التعديل.</value></data>
+  <data name="ProjectPlanTargetExceedsItem" xml:space="preserve"><value>خطة الإنجاز «{0}»: المستهدف بالساعة {1} أكبر من كمية البند كلها {2}.</value></data>
+  <data name="ProjectPlanDateOutsideContract" xml:space="preserve"><value>خطة الإنجاز «{0}»: تاريخ السريان {1} خارج مدة العقد ({2} – {3}).</value></data>
 </root>

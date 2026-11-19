@@ -10,7 +10,7 @@ internal static class CertifiedMaterials
 {
     public static IQueryable<ContractCertificateMaterial> Active(ErpDbContext db, Guid contractId, Guid? exceptCertificateId = null)
         => db.Set<ContractCertificateMaterial>().AsNoTracking()
-            .Where(m => m.Certificate.ContractId == contractId && m.Certificate.Status != ContractCertificateStatuses.Cancelled
+            .Where(m => m.Certificate.ContractId == contractId && m.Certificate.Status != ContractCertificateStatuses.Cancelled && m.Certificate.Status != ContractCertificateStatuses.Rejected
                 && (exceptCertificateId == null || m.CertificateId != exceptCertificateId));
 
     /// <summary>

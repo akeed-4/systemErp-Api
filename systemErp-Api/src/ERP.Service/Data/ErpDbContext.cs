@@ -45,6 +45,101 @@ public class ErpDbContext : DbContext
         (typeof(FixedAsset), nameof(FixedAsset.AssetAccountId), typeof(Account)),
         (typeof(FixedAsset), nameof(FixedAsset.AccumulatedDepreciationAccountId), typeof(Account)),
         (typeof(PasswordResetOtp), nameof(PasswordResetOtp.UserId), typeof(User)),
+
+        // ---- الأطراف (PartyId يُوزَّع على CustomerId/SupplierId عند الحفظ - انظر IPartyDocument) ----
+        (typeof(Invoice), nameof(Invoice.CustomerId), typeof(Customer)),
+        (typeof(Invoice), nameof(Invoice.SupplierId), typeof(Supplier)),
+        (typeof(Quotation), nameof(Quotation.CustomerId), typeof(Customer)),
+        (typeof(Quotation), nameof(Quotation.SupplierId), typeof(Supplier)),
+        (typeof(CommercialOrder), nameof(CommercialOrder.CustomerId), typeof(Customer)),
+        (typeof(CommercialOrder), nameof(CommercialOrder.SupplierId), typeof(Supplier)),
+        (typeof(Agreement), nameof(Agreement.CustomerId), typeof(Customer)),
+        (typeof(Agreement), nameof(Agreement.SupplierId), typeof(Supplier)),
+        (typeof(CommercialContract), nameof(CommercialContract.CustomerId), typeof(Customer)),
+        (typeof(CommercialContract), nameof(CommercialContract.SupplierId), typeof(Supplier)),
+        (typeof(DeliveryNote), nameof(DeliveryNote.CustomerId), typeof(Customer)),
+        (typeof(DeliveryNote), nameof(DeliveryNote.SupplierId), typeof(Supplier)),
+        (typeof(MaterialRequisition), nameof(MaterialRequisition.SupplierId), typeof(Supplier)),
+        (typeof(CarSalesContract), nameof(CarSalesContract.CustomerId), typeof(Customer)),
+        (typeof(PosTransaction), nameof(PosTransaction.CustomerId), typeof(Customer)),
+        (typeof(PosSalesReturn), nameof(PosSalesReturn.CustomerId), typeof(Customer)),
+        (typeof(PosHeldCart), nameof(PosHeldCart.CustomerId), typeof(Customer)),
+
+        // ---- الأصناف ----
+        (typeof(InvoiceItem), nameof(InvoiceItem.ProductId), typeof(Product)),
+        (typeof(QuotationItem), nameof(QuotationItem.ItemId), typeof(Product)),
+        (typeof(CommercialOrderItem), nameof(CommercialOrderItem.ItemId), typeof(Product)),
+        (typeof(AgreementItem), nameof(AgreementItem.ItemId), typeof(Product)),
+        (typeof(MaterialRequisitionItem), nameof(MaterialRequisitionItem.ItemId), typeof(Product)),
+        (typeof(CommercialContractItem), nameof(CommercialContractItem.ItemId), typeof(Product)),
+        (typeof(PosTransactionItem), nameof(PosTransactionItem.ItemId), typeof(Product)),
+        (typeof(PosSalesReturnItem), nameof(PosSalesReturnItem.ItemId), typeof(Product)),
+        (typeof(PosHeldCartItem), nameof(PosHeldCartItem.ItemId), typeof(Product)),
+        (typeof(PosOffer), nameof(PosOffer.TargetItemId), typeof(Product)),
+        (typeof(PosOffer), nameof(PosOffer.TargetCategoryId), typeof(ProductCategory)),
+        (typeof(StockMovement), nameof(StockMovement.ItemId), typeof(Product)),
+        (typeof(StockMovement), nameof(StockMovement.WarehouseId), typeof(Warehouse)),
+        (typeof(MaterialRequisition), nameof(MaterialRequisition.WarehouseId), typeof(Warehouse)),
+
+        // ---- الفواتير والمستندات المصدر ----
+        (typeof(Invoice), nameof(Invoice.OriginalInvoiceId), typeof(Invoice)),
+        (typeof(Quotation), nameof(Quotation.ConvertedInvoiceId), typeof(Invoice)),
+        (typeof(CommercialOrder), nameof(CommercialOrder.ConvertedInvoiceId), typeof(Invoice)),
+        (typeof(CommercialOrder), nameof(CommercialOrder.AgreementId), typeof(Agreement)),
+        (typeof(MaterialRequisition), nameof(MaterialRequisition.ConvertedInvoiceId), typeof(Invoice)),
+        (typeof(ContractMilestone), nameof(ContractMilestone.InvoiceId), typeof(Invoice)),
+        (typeof(DeliveryNote), nameof(DeliveryNote.InvoiceId), typeof(Invoice)),
+        (typeof(DeliveryNote), nameof(DeliveryNote.ContractId), typeof(CommercialContract)),
+        (typeof(DeliveryReturnNote), nameof(DeliveryReturnNote.DeliveryNoteId), typeof(DeliveryNote)),
+        (typeof(DeliveryReturnNote), nameof(DeliveryReturnNote.ContractId), typeof(CommercialContract)),
+        (typeof(PosTransaction), nameof(PosTransaction.InvoiceId), typeof(Invoice)),
+        (typeof(PosSalesReturn), nameof(PosSalesReturn.ShiftId), typeof(PosShift)),
+        (typeof(PosSalesReturn), nameof(PosSalesReturn.OriginalInvoiceId), typeof(Invoice)),
+        (typeof(PosSalesReturn), nameof(PosSalesReturn.CreditNoteInvoiceId), typeof(Invoice)),
+        (typeof(PosCashMovement), nameof(PosCashMovement.ShiftId), typeof(PosShift)),
+        (typeof(OnlinePayment), nameof(OnlinePayment.VoucherId), typeof(Voucher)),
+
+        // ---- القيود ومراكز التكلفة ----
+        (typeof(Invoice), nameof(Invoice.JournalEntryId), typeof(JournalEntry)),
+        (typeof(Voucher), nameof(Voucher.JournalEntryId), typeof(JournalEntry)),
+        (typeof(PosCashMovement), nameof(PosCashMovement.JournalEntryId), typeof(JournalEntry)),
+        (typeof(PosShift), nameof(PosShift.VarianceJournalEntryId), typeof(JournalEntry)),
+        (typeof(JournalEntryLine), nameof(JournalEntryLine.CostCenterId), typeof(CostCenter)),
+        (typeof(InvoiceItem), nameof(InvoiceItem.CostCenterId), typeof(CostCenter)),
+        (typeof(CommercialContract), nameof(CommercialContract.CostCenterId), typeof(CostCenter)),
+
+        // ---- معرض السيارات ----
+        (typeof(CarAgent), nameof(CarAgent.BrandId), typeof(CarBrand)),
+        (typeof(CarModel), nameof(CarModel.AgentId), typeof(CarAgent)),
+        (typeof(Vehicle), nameof(Vehicle.AgentId), typeof(CarAgent)),
+        (typeof(Vehicle), nameof(Vehicle.BrandId), typeof(CarBrand)),
+        (typeof(Vehicle), nameof(Vehicle.ModelId), typeof(CarModel)),
+        (typeof(Vehicle), nameof(Vehicle.TrimId), typeof(CarTrim)),
+        (typeof(Vehicle), nameof(Vehicle.YearId), typeof(CarYearModel)),
+        (typeof(Vehicle), nameof(Vehicle.ProcurementOrderId), typeof(CarProcurementOrder)),
+        (typeof(Vehicle), nameof(Vehicle.PurchaseInvoiceId), typeof(Invoice)),
+        (typeof(InvoiceVehicleLine), nameof(InvoiceVehicleLine.BrandId), typeof(CarBrand)),
+        (typeof(InvoiceVehicleLine), nameof(InvoiceVehicleLine.ModelId), typeof(CarModel)),
+        (typeof(InvoiceVehicleLine), nameof(InvoiceVehicleLine.TrimId), typeof(CarTrim)),
+        (typeof(InvoiceVehicleLine), nameof(InvoiceVehicleLine.VehicleId), typeof(Vehicle)),
+        (typeof(CarProcurementOrder), nameof(CarProcurementOrder.PurchaseInvoiceId), typeof(Invoice)),
+        (typeof(CarProcurementOrderVin), nameof(CarProcurementOrderVin.ItemId), typeof(CarProcurementOrderItem)),
+        (typeof(CarProcurementOrderVin), nameof(CarProcurementOrderVin.VehicleId), typeof(Vehicle)),
+        (typeof(CarSalesContract), nameof(CarSalesContract.InvoiceId), typeof(Invoice)),
+        (typeof(CarSalesContract), nameof(CarSalesContract.FinancingBankId), typeof(BankEntity)),
+
+        // ---- المستخدمون وسير العمل والدعم ----
+        (typeof(UserRolePermission), nameof(UserRolePermission.UserId), typeof(User)),
+        (typeof(ApprovalPolicyStep), nameof(ApprovalPolicyStep.ApproverUserId), typeof(User)),
+        (typeof(ApprovalRequest), nameof(ApprovalRequest.RequiredApproverUserId), typeof(User)),
+        (typeof(AppNotification), nameof(AppNotification.ApprovalRequestId), typeof(ApprovalRequest)),
+        (typeof(SupportTicket), nameof(SupportTicket.CreatedByUserId), typeof(User)),
+        (typeof(SupportTicketReply), nameof(SupportTicketReply.AuthorUserId), typeof(User)),
+
+        // عن قصد بلا مفتاح أجنبي (مرجع متعدد الأنواع يُحدَّد نوعه بعمود آخر):
+        // Invoice.ReferenceId, JournalEntry.ReferenceId/SourceReferenceId, StockMovement.SourceId, OnlinePayment.ReferenceId,
+        // ApprovalRequest.DocumentId, AppNotification.RelatedDocId, Account.LinkedEntityId،
+        // و DeliveryNoteItem/DeliveryReturnItem.ItemId (صنف أو بند عقد وصفي أو بند يدوي).
     };
 
     // فهارس فريدة على مستوى المنشأة (TenantId + الخاصية).
@@ -161,6 +256,13 @@ public class ErpDbContext : DbContext
 
         foreach (var entry in ChangeTracker.Entries<BaseEntity>())
         {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                // الأعمدة المقيّدة بمفاتيح أجنبية تُشتق من الحقول التي يتعامل معها الكود والـ API.
+                if (entry.Entity is IPartyDocument doc) PartySide.Sync(doc);
+                if (entry.Entity is InvoiceItem item) item.ProductId = item.ItemId == Guid.Empty ? null : item.ItemId;
+            }
+
             switch (entry.State)
             {
                 case EntityState.Added:

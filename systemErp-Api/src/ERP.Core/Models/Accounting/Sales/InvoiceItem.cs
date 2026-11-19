@@ -4,7 +4,10 @@ namespace ERP.Core.Models.Accounting;
 public class InvoiceItem : BaseEntity
 {
     public Guid InvoiceId { get; set; }
+    /// <summary>معرّف الصنف، أو Guid.Empty لبند خدمة/وصفي (سيارة، مستخلص...).</summary>
     public Guid ItemId { get; set; }
+    /// <summary>نسخة ItemId المقيّدة بمفتاح أجنبي إلى Product (فارغة لبند الخدمة)؛ تُعبّأ تلقائياً عند الحفظ.</summary>
+    public Guid? ProductId { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;

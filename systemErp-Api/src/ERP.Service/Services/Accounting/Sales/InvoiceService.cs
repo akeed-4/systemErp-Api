@@ -259,6 +259,8 @@ public class InvoiceService : IInvoiceService
         {
             var invoice = await _db.Set<Invoice>().Include(i => i.Items).Include(i => i.PaymentSplits).Include(i => i.VehicleLines).AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException("الفاتورة غير موجودة");
+            if (await _db.Set<Invoice>().AnyAsync(i => i.OriginalInvoiceId == invoice.Id, token))
+                throw new ConflictException("للفاتورة مرتجعات مرتبطة بها؛ احذفها أولاً.");
             if (invoice.Status == "posted") await UnpostAsync(invoice, bypassSourceGuard, token);
             await ReleaseSourceAsync(invoice, token);
             _db.RemoveRange(invoice.Items);
@@ -309,6 +311,14 @@ public class InvoiceService : IInvoiceService
             case "material_requisition":
                 var m = await _db.Set<MaterialRequisition>().FirstOrDefaultAsync(x => x.Id == sourceId && x.ConvertedInvoiceId == invoice.Id, ct);
                 if (m != null) { m.ConvertedInvoiceId = null; m.Status = "approved"; }
+                break;
+            case "delivery_note":
+                var n = await _db.Set<DeliveryNote>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == sourceId && x.InvoiceId == invoice.Id, ct);
+                if (n != null)
+                {
+                    n.InvoiceId = null; n.InvoiceNumber = null;
+                    n.Status = n.Items.Any(i => i.ReturnedQty > 0) ? DeliveryNoteStatus.PartiallyReturned : DeliveryNoteStatus.Delivered;
+                }
                 break;
         }
     }

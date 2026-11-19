@@ -1,7 +1,7 @@
 
 namespace ERP.Core.Models.Accounting;
 
-public class Invoice : BaseEntity
+public class Invoice : BaseEntity, IPartyDocument
 {
     public string InvoiceNumber { get; set; } = string.Empty;
     public Guid Uuid { get; set; } = Guid.NewGuid();
@@ -12,6 +12,11 @@ public class Invoice : BaseEntity
     
     public string PartyName { get; set; } = string.Empty;
     public Guid? PartyId { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Customer (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? CustomerId { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Supplier (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? SupplierId { get; set; }
+    public bool IsSupplierParty => PartySide.IsSupplier(null, Kind is InvoiceKind.Purchase or InvoiceKind.PurchaseReturn);
     public string? PartyPhone { get; set; }
     public string? PartyEmail { get; set; }
     public string? PartyVatNumber { get; set; }

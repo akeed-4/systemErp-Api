@@ -29,7 +29,7 @@ public class ImportCostAdvancesController : ErpControllerBase
 
     private async Task RequireApprovalAsync(CancellationToken ct)
     {
-        if (!await _permissions.HasPermissionAsync(PermissionService.LandedCostApprovalScreenId, ScreenAction.Approve, ct)) throw new ForbiddenException();
+        await _permissions.DemandAsync(PermissionService.LandedCostApprovalScreenId, ScreenAction.Approve, null, ct);
     }
 
     [HttpGet]

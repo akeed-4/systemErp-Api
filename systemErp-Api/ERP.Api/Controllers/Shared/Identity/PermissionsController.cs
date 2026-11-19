@@ -43,6 +43,19 @@ public class PermissionsController : ErpControllerBase
     public async Task<IActionResult> MySettings([FromServices] ICurrentUser me, CancellationToken ct)
         => Success(me.UserId == null ? new PermissionSettingsDto() : await _permissions.GetSettingsAsync(me.UserId, null, ct));
 
+    /// <summary>
+    /// الأدوار التي تملك الإجراء (افتراضياً «اعتماد») على الشاشة، والرسالة الجاهزة لمن لا يملكه — لأي مستخدم مسجّل، لتظهر له عند
+    /// ضغط زر الاعتماد قبل إرسال العملية.
+    /// </summary>
+    [HttpGet("approvers"), AuthenticatedOnly]
+    public async Task<IActionResult> Approvers([FromQuery] string screenId, [FromQuery] string? action, CancellationToken ct)
+    {
+        var parsed = ScreenAction.Approve;
+        if (!string.IsNullOrWhiteSpace(action) && !ERP.Service.Services.Shared.PermissionCatalog.TryParse(action, out parsed))
+            throw new ValidationFailedException(string.Format(Messages.UnknownPermissionAction, action));
+        return Success(await _permissions.GetApproversAsync(screenId, parsed, null, ct));
+    }
+
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] Guid? userId, [FromQuery] string? roleId, CancellationToken ct)
         => Success(await _permissions.GetForEditingAsync(userId, roleId, ct));

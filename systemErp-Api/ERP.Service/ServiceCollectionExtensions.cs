@@ -40,7 +40,14 @@ public static class ServiceCollectionExtensions
             options.AddInterceptors(provider.GetRequiredService<AuditTrailInterceptor>(),
                 provider.GetRequiredService<TenantDirectoryMirror>(), provider.GetRequiredService<TenantConnectionInterceptor>());
         });
-        services.AddScoped<ErpDbContext>(provider => provider.GetRequiredService<TenantErpDbContext>());
+        // متابعة اعتماد المستندات من شاشاتها: خطّاف قبل كل حفظ، وقائمة ما قُدِّم في الطلب لرسالة الاستجابة
+        services.AddScoped<DocumentApprovalTracker>();
+        services.AddScoped<ErpDbContext>(provider =>
+        {
+            var db = provider.GetRequiredService<TenantErpDbContext>();
+            db.ApprovalHook ??= provider.GetRequiredService<DocumentApprovalTracker>();
+            return db;
+        });
 
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
         services.Configure<PaymobOptions>(config.GetSection(PaymobOptions.Section));

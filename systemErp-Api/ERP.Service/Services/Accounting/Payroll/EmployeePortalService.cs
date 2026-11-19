@@ -187,8 +187,7 @@ public class EmployeePortalService : IEmployeePortalService
         {
             EmployeeId = me.Id, LeaveTypeId = request.LeaveTypeId, StartDate = request.StartDate, EndDate = request.EndDate, Reason = request.Reason,
         }, ct);
-        // إعادة إرسال بعد الاستكمال: يعود للمعتمدين
-        if (status == LeaveStatuses.NeedsInfo) await NotifyApproversAsync(updated, ct, resubmitted: true);
+        // إعادة الإرسال بعد الاستكمال تعيده «بانتظار الاعتماد»، فيُشعَر المعتمدون تلقائياً (DocumentApprovalTracker)
         return updated;
     }
 
@@ -231,7 +230,7 @@ public class EmployeePortalService : IEmployeePortalService
         {
             EmployeeId = me.Id, LeaveTypeId = request.LeaveTypeId, StartDate = request.StartDate, EndDate = request.EndDate, Reason = request.Reason,
         }, ct);
-        await NotifyApproversAsync(created, ct);
+        // المعتمدون (من يملك «اعتماد» شؤون الموظفين) يُشعَرون تلقائياً عند حفظه بانتظار الاعتماد (DocumentApprovalTracker)
         return created;
     }
 
@@ -314,33 +313,5 @@ public class EmployeePortalService : IEmployeePortalService
         var origin = url.Trim().TrimEnd('/');
         if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp || uri.IsLoopback) return origin;
         return new UriBuilder(uri) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
-    }
-
-    /// <summary>إشعار لكل من يملك اعتماد شؤون الموظفين بطلب جديد من البوابة. تعذّر الإشعار لا يُسقط الطلب.</summary>
-    private async Task NotifyApproversAsync(LeaveRequestDto leave, CancellationToken ct, bool resubmitted = false)
-    {
-        try
-        {
-            var users = await _db.Set<User>().AsNoTracking().Where(u => u.IsActive && u.Role != UserRole.Employee).ToListAsync(ct);
-            foreach (var u in users)
-            {
-                if (u.Role is not (UserRole.Owner or UserRole.Admin))
-                {
-                    var hr = (await _permissions.GetForUserOrRoleAsync(u.Id, RoleIds.From(u.Role), ct)).FirstOrDefault(p => p.ScreenId == "hr");
-                    if (hr is { CanApprove: false } or { CanView: false }) continue;
-                }
-                await _notifications.NotifyAsync(new NotifyRequestDto
-                {
-                    RecipientUserId = u.Id,
-                    Title = string.Format(resubmitted ? Messages.PortalLeaveResubmittedTitle : Messages.PortalLeaveNotificationTitle, leave.EmployeeName),
-                    Body = string.Format(Messages.PortalLeaveNotificationBody, leave.LeaveTypeName, leave.StartDate.ToString("yyyy-MM-dd"), leave.EndDate.ToString("yyyy-MM-dd"), leave.Days),
-                    RelatedDocType = "leave_request", RelatedDocId = leave.Id, RelatedDocNumber = leave.RequestNumber,
-                }, ct);
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _log.LogError(ex, "تعذّر إشعار المعتمدين بطلب الإجازة {RequestNumber}.", leave.RequestNumber);
-        }
     }
 }

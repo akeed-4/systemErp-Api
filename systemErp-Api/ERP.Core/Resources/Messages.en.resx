@@ -1850,4 +1850,13 @@
   <data name="DeliveryInvoiceSupplierOnSales" xml:space="preserve"><value>A supplier cannot be set on a sales delivery-note invoice.</value></data>
   <data name="DeliveryInvoiceSupplierMismatch" xml:space="preserve"><value>The chosen supplier is not the goods receipt supplier: the invoice is issued to whoever delivered the goods.</value></data>
   <data name="ProjectPerformanceRangeInvalid" xml:space="preserve"><value>Invalid analysis period: the start must precede the end, at most 366 days, and a phase requires its project.</value></data>
+  <data name="ApprovalNotAllowed" xml:space="preserve"><value>You cannot approve this document because you do not have the "Approve" permission on "{0}".
+Please contact the approval officer to approve it.
+Roles allowed to approve: {1}.</value></data>
+  <data name="ApprovalLevelNotAllowed" xml:space="preserve"><value>You cannot approve at this level because you are not the required approver.
+Please contact the approval officer to approve it: {0}.</value></data>
+  <data name="ApproverRoleLabel" xml:space="preserve"><value>the "{0}" role</value></data>
+  <data name="ApproverUserLabel" xml:space="preserve"><value>the user "{0}"</value></data>
+  <data name="DocApprovalSubmitted" xml:space="preserve"><value>Saved and sent "{0}" no. {1} for approval to: {2}.
+Track it from "My documents awaiting approval".</value></data>
 </root>

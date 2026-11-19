@@ -325,7 +325,59 @@ public class PermissionService : IPermissionService
         var facts = await LoadFactsAsync(type, recordId, ct) ?? throw new NotFoundException(Messages.PermissionCheckRecordNotFound);
         var (subject, grants) = await MineAsync(ct);
         var result = await EvaluateAsync(subject, grants, screenId, action, legacy, type, facts, null, ct);
-        if (!result.Allowed) throw Denied(result);
+        if (result.Allowed) return;
+        // لا يملك «اعتماد» أصلاً: رسالة واضحة بمن يعتمد بدل «لا توجد الصلاحية»
+        if (action == A.Approve && result.ReasonCode == "no_permission") throw await ApprovalDeniedAsync(screenId, legacy, ct);
+        throw Denied(result);
+    }
+
+    // ---------- «لا يمكنك الاعتماد»: من يملك الإجراء على الشاشة ----------
+
+    private static bool English => System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase);
+
+    public async Task DemandAsync(string screenId, ScreenAction action, ScreenAction? legacy = null, CancellationToken ct = default)
+    {
+        if (await HasPermissionAsync(screenId, action, legacy, ct)) return;
+        if (action == A.Approve) throw await ApprovalDeniedAsync(screenId, legacy, ct);
+        throw new ForbiddenException();
+    }
+
+    public async Task<ForbiddenException> ApprovalDeniedAsync(string screenId, ScreenAction? legacy = null, CancellationToken ct = default)
+        => new((await GetApproversAsync(screenId, A.Approve, legacy, ct)).Message);
+
+    public async Task<ApproversDto> GetApproversAsync(string screenId, ScreenAction action, ScreenAction? legacy = null, CancellationToken ct = default)
+    {
+        var screen = PermissionCatalog.Find(screenId) ?? throw new ValidationFailedException(Messages.UnknownScreensPrefix + screenId);
+        var defs = await _db.Set<RoleDefinition>().AsNoTracking().ToListAsync(ct);
+        var rows = await _db.Set<UserRolePermission>().AsNoTracking().Include(p => p.Permissions)
+            .Where(p => p.UserId == null && p.RoleId != null).ToListAsync(ct);
+
+        // نفس حساب الفحص: صلاحيات الدور المحفوظة أو افتراضيه؛ الأدوار المعطّلة ودور الموظف لا تعتمد
+        var roles = new List<ApproverRoleDto>();
+        void Add(string code, string nameAr, string nameEn, bool active)
+        {
+            if (!active || code == EmployeeRoleId) return;
+            if (!PermissionStore.Build(rows.FirstOrDefault(r => r.RoleId == code), code).Allows(screenId, action, legacy)) return;
+            roles.Add(new ApproverRoleDto { Code = code, NameAr = nameAr, NameEn = string.IsNullOrWhiteSpace(nameEn) ? nameAr : nameEn });
+        }
+        foreach (var system in PermissionStore.SystemRoles)
+        {
+            var def = defs.FirstOrDefault(d => d.Code == system.Code);
+            Add(system.Code, def?.NameAr is { Length: > 0 } ar ? ar : system.NameAr, def?.NameEn is { Length: > 0 } en ? en : system.NameEn, def?.IsActive ?? true);
+        }
+        foreach (var def in defs.Where(d => !d.IsSystem && PermissionStore.FindSystem(d.Code) == null).OrderBy(d => d.CreatedAt))
+            Add(def.Code, def.NameAr, def.NameEn, def.IsActive);
+
+        var english = English;
+        var roleNames = string.Join(Messages.ListSeparator, roles.Select(r => english ? r.NameEn : r.NameAr));
+        return new ApproversDto
+        {
+            ScreenId = screenId, ScreenNameAr = screen.NameAr, ScreenNameEn = screen.NameEn,
+            Action = PermissionCatalog.Action(action).Code,
+            Allowed = await HasPermissionAsync(screenId, action, legacy, ct),
+            Roles = roles,
+            Message = string.Format(Messages.ApprovalNotAllowed, english ? screen.NameEn : screen.NameAr, roleNames),
+        };
     }
 
     public async Task AuthorizeAnyAsync(string recordType, Guid recordId, IReadOnlyCollection<ScreenAction> anyOf, CancellationToken ct = default)
@@ -345,6 +397,7 @@ public class PermissionService : IPermissionService
         // سبب أدق من «لا صلاحية» (خارج النطاق، تجاوز الحد) يتقدّم؛ وإلا تُذكر الصلاحيات المطلوبة كلها
         var specific = failures.FirstOrDefault(f => f.ReasonCode != "no_permission");
         if (specific != null) throw Denied(specific);
+        if (anyOf.All(a => a == A.Approve)) throw await ApprovalDeniedAsync(type.ScreenId, null, ct);
         throw new ForbiddenException(string.Format(Messages.ContractTransitionNoPermission,
             string.Join(" / ", anyOf.Select(a => PermissionCatalog.Action(a).NameAr))));
     }
@@ -515,20 +568,8 @@ public class PermissionService : IPermissionService
     };
 
     /// <summary>المستخدمون النشطون في المنشأة الذين يملكون أياً من الإجراءات على الشاشة (لتوجيه الإشعارات لمن يستطيع التصرف).</summary>
-    public async Task<List<Guid>> UsersWithAnyActionAsync(string screenId, IReadOnlyCollection<ScreenAction> anyOf, CancellationToken ct = default)
-    {
-        var result = new List<Guid>();
-        if (anyOf.Count == 0) return result;
-        var ids = await _db.Set<User>().AsNoTracking().Where(u => u.IsActive).Select(u => u.Id).ToListAsync(ct);
-        foreach (var id in ids)
-        {
-            var subject = await _store.SubjectAsync(id, ct);
-            if (subject == null || !subject.IsActive || !subject.RoleActive || subject.RoleCode == EmployeeRoleId) continue;
-            var grants = await _store.GrantsForAsync(subject, ct);
-            if (anyOf.Any(a => grants.Allows(screenId, a))) result.Add(id);
-        }
-        return result;
-    }
+    public Task<List<Guid>> UsersWithAnyActionAsync(string screenId, IReadOnlyCollection<ScreenAction> anyOf, CancellationToken ct = default)
+        => _store.UsersWithAnyActionAsync(screenId, anyOf, ct);
 
     // ---------- مركز الصلاحيات ----------
 

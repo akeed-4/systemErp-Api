@@ -20,6 +20,7 @@ builder.Services.AddControllers(o =>
         o.Filters.Add(new AuthorizeFilter(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()));
         o.Filters.Add<EmployeeRoleGateFilter>(); // دور «موظف» محصور في مسارات بوابة الخدمة الذاتية
         o.Filters.Add<SubscriptionGateFilter>(); // بوابة الاشتراك: الحالة والوحدات المرخّصة
+        o.Filters.Add<ApprovalSubmissionHeaderFilter>(); // «تم الحفظ وأُرسل للاعتماد إلى...» لمن قدّم مستنداً لا يملك اعتماده
     })
     .AddJsonOptions(o => JsonConfiguration.Apply(o.JsonSerializerOptions))
     .ConfigureApiBehaviorOptions(o =>
@@ -99,7 +100,7 @@ builder.Services.AddRateLimiter(o =>
 var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 {
-    if (origins.Length > 0) p.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod();
+    if (origins.Length > 0) p.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders(ApprovalSubmissionHeaderFilter.HeaderName);
 }));
 
 var app = builder.Build();

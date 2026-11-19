@@ -26,6 +26,16 @@ public interface IPermissionService
     /// </summary>
     Task<bool> HasPermissionAsync(string screenId, ScreenAction action, ScreenAction? legacy, CancellationToken ct = default);
 
+    /// <summary>
+    /// يرمي 403 إن لم يملك المستخدم الحالي الإجراء على الشاشة. لإجراء «اعتماد» تكون الرسالة واضحة: لا يمكنك الاعتماد، تواصل
+    /// مع مسؤول الاعتماد، مع الأدوار المخوّلة به.
+    /// </summary>
+    Task DemandAsync(string screenId, ScreenAction action, ScreenAction? legacy = null, CancellationToken ct = default);
+    /// <summary>الأدوار النشطة التي تملك الإجراء على الشاشة، وهل يملكه المستخدم الحالي، والرسالة الجاهزة لمن لا يملكه.</summary>
+    Task<ApproversDto> GetApproversAsync(string screenId, ScreenAction action, ScreenAction? legacy = null, CancellationToken ct = default);
+    /// <summary>استثناء 403 برسالة «لا يمكنك الاعتماد، تواصل مع مسؤول الاعتماد» والأدوار المخوّلة بالاعتماد على الشاشة.</summary>
+    Task<ForbiddenException> ApprovalDeniedAsync(string screenId, ScreenAction? legacy = null, CancellationToken ct = default);
+
     /// <summary>صلاحية + نطاق + مرحلة + حد اعتماد على سجل محدد للمستخدم الحالي؛ يرمي 403 بسبب الرفض.</summary>
     Task AuthorizeRecordAsync(string screenId, ScreenAction action, string recordType, Guid recordId, ScreenAction? legacy = null, CancellationToken ct = default);
     /// <summary>أي إجراء من <paramref name="anyOf"/> على سجل محدد: صلاحية + نطاق + حد اعتماد (بلا فحص المرحلة: الانتقال يحدده جدول الانتقالات)؛ يرمي 403 بسبب الرفض.</summary>

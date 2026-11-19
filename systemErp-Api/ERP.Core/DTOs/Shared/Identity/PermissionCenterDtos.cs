@@ -195,3 +195,25 @@ public class AssignRecordDto
     public Guid RecordId { get; set; }
     public Guid? UserId { get; set; }
 }
+
+/// <summary>من يملك إجراءً (عادةً «اعتماد») على شاشة: لرسالة «تواصل مع مسؤول الاعتماد» عند محاولة من لا يملكه.</summary>
+public class ApproversDto
+{
+    public string ScreenId { get; set; } = string.Empty;
+    public string ScreenNameAr { get; set; } = string.Empty;
+    public string ScreenNameEn { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    /// <summary>هل يملك المستخدم الحالي الإجراء نفسه.</summary>
+    public bool Allowed { get; set; }
+    /// <summary>الأدوار النشطة التي تملك الإجراء (المالك والمدير دائماً).</summary>
+    public List<ApproverRoleDto> Roles { get; set; } = new();
+    /// <summary>الرسالة الجاهزة بلغة الطلب لمن لا يملك الإجراء.</summary>
+    public string Message { get; set; } = string.Empty;
+}
+
+public class ApproverRoleDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string NameEn { get; set; } = string.Empty;
+}

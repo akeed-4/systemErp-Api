@@ -101,6 +101,12 @@ Angular → Controller (ERP.Api) → Contract (ERP.Core) → Service (ERP.Servic
 - بقية المستندات تُحجز عمليتها: المتحكم يستدعي `HoldForApprovalAsync(handler, action, id, payload)` بعد فحص الصلاحية (أو `ApprovalHandler` في `CrudController`)؛ فتُجرَّب داخل معاملة تُلغى للتحقق وبناء ملخص المعتمِد، وتُحفظ بطلب اعتماد (202) ولا تُنفَّذ إلا عند الاعتماد النهائي في `ApprovalDecisionService` عبر `IApprovalGate.ExecuteAsync`.
 - لإضافة مستند جديد: أضفه للفهرس، وسجّل معالجه في `ERP.Service/Services/Shared/Workflow/ApprovalRegistry.cs` (خدمته وعملياته)، واستدعِ البوابة في إجراءات متحكمه. العمليات التي تُرسل للهيئة بعد معاملتها تُسجَّل بـ `dryRun: false`.
 
+### الاعتماد من شاشة المستند (صلاحية «اعتماد») ومتابعته
+
+- من لا يملك «اعتماد» على شاشة يُرفض بـ 403 برسالة «لا يمكنك الاعتماد، تواصل مع مسؤول الاعتماد» مع الأدوار المخوّلة: `RequireScreenAttribute` و`AuthorizeRecordAsync`/`AuthorizeAnyAsync` و`IPermissionService.DemandAsync` (للفحص اليدوي) كلها تبنيها من `GetApproversAsync`، والواجهة تقرأها مسبقاً من `GET permissions/approvers`.
+- متابعة المستندات المعلّقة بلا تعديل خدماتها: `DocumentApprovalTracker` خطّاف في `ErpDbContext.SaveChanges` يراقب عمود حالة كل مستند مسجّل في `Services/Shared/Workflow/ApprovalTrackedDocuments.cs`. دخوله «بانتظار الاعتماد» يفتح سجل `DocumentApprovalTrack` ويُشعر من يملك «اعتماد» على شاشته (إن لم يملكه من حفظه)، وخروجه منها يغلق السجل ويُشعر مقدّمه بالنتيجة (`doc_approval_*`). `ApprovalSubmissionHeaderFilter` يضيف للاستجابة الترويسة `X-Approval-Submitted` برسالة «أُرسل للاعتماد إلى...». القوائم في `GET approval-tracking?scope=mine|awaiting`.
+- لمتابعة مستند جديد: سطر في `ApprovalTrackedDocuments` (الكيان، عمود الحالة وقيم الانتظار/الاعتماد/الرفض/الإرجاع، الرقم والمبلغ، شاشة الاعتماد، رابط الواجهة). «الإرجاع» يُصنَّف عند الخروج من الانتظار فقط، فيصح أن يكون «مسودة».
+
 ## مكتبة المقاولات
 
 - المقاولات إضافة مرخّصة `PlatformModules.Construction` فوق المحاسبة، سعرها باتفاق مع العميل (`PricedByAgreement`): لا تُضاف لباقة، ويمنحها مدير المنصة من «الوحدات»، وتنتقل للاشتراك الجديد عند التجديد أو تغيير الباقة (`SubscriptionCatalog.CarryAgreementAddOns`). متحكمات المقاولات بـ `RequireModule(Construction)`، ومسارات جدول الكميات في متحكم العقود بسمة على الإجراء، وحفظ عقد بجدول كميات يتحقق منها في `CommercialContractService`. الهجرة `ConstructionAddOn` منحتها لمن لديه بيانات مقاولات.

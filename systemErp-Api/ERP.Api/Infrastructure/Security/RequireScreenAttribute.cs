@@ -61,6 +61,9 @@ public class RequireScreenAttribute : Attribute, IAsyncAuthorizationFilter
         var permissions = context.HttpContext.RequestServices.GetRequiredService<IPermissionService>();
         if (!await permissions.HasPermissionAsync(ScreenId, action, _legacy, context.HttpContext.RequestAborted)
             && (AlsoAllow == null || !await permissions.HasPermissionAsync(AlsoAllow, action, _legacy, context.HttpContext.RequestAborted)))
-            throw new ForbiddenException();
+            // من لا يملك «اعتماد»: رسالة واضحة بأن يتواصل مع مسؤول الاعتماد، مع الأدوار المخوّلة به
+            throw action == ScreenAction.Approve
+                ? await permissions.ApprovalDeniedAsync(ScreenId, _legacy, context.HttpContext.RequestAborted)
+                : new ForbiddenException();
     }
 }

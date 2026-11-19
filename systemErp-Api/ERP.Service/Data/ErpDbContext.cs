@@ -1168,6 +1168,18 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<ApprovalRequest>().HasIndex(r => new { r.TenantId, r.Status, r.RequiredApproverRole });
         modelBuilder.Entity<ApprovalRequest>().HasIndex(r => new { r.TenantId, r.CreatedAt });
         modelBuilder.Entity<ApprovalHistoryItem>().Property(h => h.Action).HasMaxLength(20).IsRequired();
+        // متابعة اعتماد المستندات من شاشاتها: سجل واحد لكل مستند، وقوائم «مستنداتي» و«بانتظار اعتمادي»
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.DocumentType).HasMaxLength(64).IsRequired();
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.DocumentNumber).HasMaxLength(100);
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.ScreenId).HasMaxLength(64).IsRequired();
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.Status).HasMaxLength(20).IsRequired();
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.Url).HasMaxLength(400);
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.RequesterName).HasMaxLength(200);
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.DecidedByName).HasMaxLength(200);
+        modelBuilder.Entity<DocumentApprovalTrack>().Property(t => t.Amount).HasPrecision(18, 2);
+        modelBuilder.Entity<DocumentApprovalTrack>().HasIndex(t => new { t.TenantId, t.DocumentType, t.DocumentId }).IsUnique();
+        modelBuilder.Entity<DocumentApprovalTrack>().HasIndex(t => new { t.TenantId, t.Status, t.ScreenId });
+        modelBuilder.Entity<DocumentApprovalTrack>().HasIndex(t => new { t.TenantId, t.RequesterUserId, t.SubmittedAt });
         // الفرز الافتراضي لشبكات الأصناف والعملاء (الأحدث أولاً)
         modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.CreatedAt, p.Id }).IsDescending(false, true, true);
         modelBuilder.Entity<Customer>().HasIndex(c => new { c.TenantId, c.CreatedAt, c.Id }).IsDescending(false, true, true);
@@ -1418,8 +1430,12 @@ public class ErpDbContext : DbContext
             && (!WarehouseFilterOn || EF.Property<Guid?>(e, "WarehouseId") == null || WarehouseFilterIds.Contains(EF.Property<Guid?>(e, "WarehouseId")!.Value))
             && (!WarehouseOwnerOnly || e.CreatedByUserId == WarehouseOwnerId));
 
+    /// <summary>متابعة اعتماد المستندات من شاشاتها (يعيّنه حاوي الخدمات لكل طلب؛ null خارج الطلبات وفي الاختبارات).</summary>
+    public ERP.Service.Services.Shared.IDocumentApprovalHook? ApprovalHook { get; set; }
+
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        if (ApprovalHook != null && !PreserveStamps) await ApprovalHook.BeforeSaveAsync(this, cancellationToken);
         GuardContractStatus();
         GuardResourceCostHistory();
         StampWarehouses();
@@ -1431,6 +1447,7 @@ public class ErpDbContext : DbContext
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        if (ApprovalHook != null && !PreserveStamps) ApprovalHook.BeforeSaveAsync(this, CancellationToken.None).GetAwaiter().GetResult();
         GuardContractStatus();
         GuardResourceCostHistory();
         StampWarehouses();

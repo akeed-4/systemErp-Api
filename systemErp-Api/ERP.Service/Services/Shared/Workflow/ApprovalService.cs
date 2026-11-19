@@ -46,6 +46,33 @@ public class ApprovalService : IApprovalService
         => r.RequiredApproverUserId.HasValue ? r.RequiredApproverUserId == me
             : r.RequiredApproverRole != null && r.RequiredApproverRole == role;
 
+    /// <summary>
+    /// من ليس معتمِد المستوى الحالي: «لا يمكنك الاعتماد، تواصل مع مسؤول الاعتماد» مع المعتمِد المطلوب (المستخدم المعيَّن أو دوره).
+    /// </summary>
+    private async Task<ForbiddenException> LevelDeniedAsync(ApprovalRequest r, CancellationToken ct)
+    {
+        string? approver = null;
+        if (r.RequiredApproverUserId is Guid userId)
+        {
+            var name = await _db.Set<User>().AsNoTracking().Where(u => u.Id == userId).Select(u => u.Name).FirstOrDefaultAsync(ct);
+            if (!string.IsNullOrWhiteSpace(name)) approver = string.Format(Messages.ApproverUserLabel, name);
+        }
+        else if (!string.IsNullOrWhiteSpace(r.RequiredApproverRole))
+        {
+            try
+            {
+                var (nameAr, nameEn, _) = await new PermissionStore(_db).RoleInfoAsync(r.RequiredApproverRole, ct);
+                var english = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase);
+                approver = string.Format(Messages.ApproverRoleLabel, english && !string.IsNullOrWhiteSpace(nameEn) ? nameEn : nameAr);
+            }
+            catch (NotFoundException)
+            {
+                approver = string.Format(Messages.ApproverRoleLabel, r.RequiredApproverRole);
+            }
+        }
+        return new ForbiddenException(approver == null ? Messages.NotRequiredApproverAtLevel : string.Format(Messages.ApprovalLevelNotAllowed, approver));
+    }
+
     /// <summary>موعد قرار المستوى من مهلة خطوته.</summary>
     private static DateTime? DueFor(ApprovalPolicyStep? step) => step?.SlaHours is int h and > 0 ? DateTime.UtcNow.AddHours(h) : null;
 
@@ -181,7 +208,7 @@ public class ApprovalService : IApprovalService
             ?? throw new NotFoundException(Messages.ApprovalRequestNotFound);
         var allowed = role == "owner" || IsAssigned(request, me, role)
             || await _permissions.HasPermissionAsync(PermissionCatalog.ApprovalCenterScreenId, ScreenAction.Manage, ct);
-        if (!allowed) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
+        if (!allowed) throw await LevelDeniedAsync(request, ct);
         return Mapper.Map<ApprovalRequestDto>(request);
     }
 
@@ -288,7 +315,7 @@ public class ApprovalService : IApprovalService
         var assigned = IsAssigned(request, me, role);
         var manager = !assigned && !isOwner
             && await _permissions.HasPermissionAsync(PermissionCatalog.ApprovalCenterScreenId, ScreenAction.Manage, ct);
-        if (!assigned && !isOwner && !manager) throw new ForbiddenException(Messages.NotRequiredApproverAtLevel);
+        if (!assigned && !isOwner && !manager) throw await LevelDeniedAsync(request, ct);
 
         // لا يقرّر أحدٌ في مستند أعدّه — ولا المالك: لا اعتماد ولا رفض ولا إعادة؛ وسحب الطلب متاح له بدلاً من ذلك
         if (request.RequesterUserId == me)

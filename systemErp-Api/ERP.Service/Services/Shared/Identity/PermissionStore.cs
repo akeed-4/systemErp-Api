@@ -135,6 +135,22 @@ public sealed class PermissionStore
         return await RoleGrantsAsync(subject.RoleCode, ct);
     }
 
+    /// <summary>المستخدمون النشطون في المنشأة الذين يملكون أياً من الإجراءات على الشاشة (لتوجيه الإشعارات لمن يستطيع التصرف).</summary>
+    public async Task<List<Guid>> UsersWithAnyActionAsync(string screenId, IReadOnlyCollection<A> anyOf, CancellationToken ct)
+    {
+        var result = new List<Guid>();
+        if (anyOf.Count == 0) return result;
+        var ids = await _db.Set<User>().AsNoTracking().Where(u => u.IsActive).Select(u => u.Id).ToListAsync(ct);
+        foreach (var id in ids)
+        {
+            var subject = await SubjectAsync(id, ct);
+            if (subject == null || !subject.IsActive || !subject.RoleActive || subject.RoleCode == PermissionService.EmployeeRoleId) continue;
+            var grants = await GrantsForAsync(subject, ct);
+            if (anyOf.Any(a => grants.Allows(screenId, a))) result.Add(id);
+        }
+        return result;
+    }
+
     public async Task<PermissionGrants> RoleGrantsAsync(string roleCode, CancellationToken ct)
     {
         if (IsFullAccess(roleCode)) return Build(null, roleCode);

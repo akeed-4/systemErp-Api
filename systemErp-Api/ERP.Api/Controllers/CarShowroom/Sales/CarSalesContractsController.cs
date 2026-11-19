@@ -126,6 +126,6 @@ public class CarSalesContractsController : ErpControllerBase
 
     private async Task Require(ScreenAction action, CancellationToken ct, ScreenAction? legacy = null)
     {
-        if (!await _permissions.HasPermissionAsync("car-showroom", action, legacy, ct)) throw new ForbiddenException();
+        await _permissions.DemandAsync("car-showroom", action, legacy, ct);
     }
 }

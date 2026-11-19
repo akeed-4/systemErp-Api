@@ -1850,4 +1850,13 @@
   <data name="DeliveryInvoiceSupplierOnSales" xml:space="preserve"><value>لا يُحدَّد مورد لفاتورة بيان تسليم مبيعات.</value></data>
   <data name="DeliveryInvoiceSupplierMismatch" xml:space="preserve"><value>المورد المختار غير مورد سند الاستلام: الفاتورة تصدر لمن سلّم البضاعة.</value></data>
   <data name="ProjectPerformanceRangeInvalid" xml:space="preserve"><value>فترة التحليل غير صحيحة: البداية قبل النهاية، وبحد أقصى 366 يوماً، والمرحلة تتطلب اختيار مشروعها.</value></data>
+  <data name="ApprovalNotAllowed" xml:space="preserve"><value>لا يمكنك اعتماد هذا المستند لأنك لا تملك صلاحية «اعتماد» على «{0}».
+يرجى التواصل مع مسؤول الاعتماد لاعتماده.
+الأدوار المخوّلة بالاعتماد: {1}.</value></data>
+  <data name="ApprovalLevelNotAllowed" xml:space="preserve"><value>لا يمكنك الاعتماد في هذا المستوى لأنك لست المعتمِد المطلوب.
+يرجى التواصل مع مسؤول الاعتماد لاعتماده: {0}.</value></data>
+  <data name="ApproverRoleLabel" xml:space="preserve"><value>الدور «{0}»</value></data>
+  <data name="ApproverUserLabel" xml:space="preserve"><value>المستخدم «{0}»</value></data>
+  <data name="DocApprovalSubmitted" xml:space="preserve"><value>تم الحفظ وأُرسل «{0}» رقم {1} للاعتماد إلى: {2}.
+تابِع حالته من «مستنداتي بانتظار الاعتماد».</value></data>
 </root>

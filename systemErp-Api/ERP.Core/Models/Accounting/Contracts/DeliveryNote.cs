@@ -1,7 +1,7 @@
 
 namespace ERP.Core.Models.Accounting;
 
-public class DeliveryNote : BaseEntity, IScopedRecord
+public class DeliveryNote : BaseEntity, IScopedRecord, IPartyDocument
 {
     /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
     public Guid? CreatedByUserId { get; set; }
@@ -15,6 +15,11 @@ public class DeliveryNote : BaseEntity, IScopedRecord
     public Guid? PartyId { get; set; }
     /// <summary>customer | supplier</summary>
     public string? PartyType { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Customer (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? CustomerId { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Supplier (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? SupplierId { get; set; }
+    public bool IsSupplierParty => PartySide.IsSupplier(PartyType, Type.StartsWith("purchase"));
     public string PartyName { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public DeliveryNoteStatus Status { get; set; } = DeliveryNoteStatus.Draft;

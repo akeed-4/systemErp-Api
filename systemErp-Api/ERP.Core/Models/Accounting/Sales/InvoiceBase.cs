@@ -7,7 +7,7 @@ namespace ERP.Core.Models.Accounting;
 /// التجارة العامة: SalesInvoice، PurchaseInvoice، SalesReturn، PurchaseReturn. المعارض: Invoice (بكل أنواعها).
 /// المنطق المشترك (البناء، الترحيل، الضريبة، الأرصدة) يعمل على هذا النوع، فيُستعلم عن الجداول كلها معاً بـ Set&lt;InvoiceBase&gt;.
 /// </summary>
-public abstract class InvoiceBase : BaseEntity, IScopedRecord
+public abstract class InvoiceBase : BaseEntity, IScopedRecord, IPartyDocument
 {
     /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
     public Guid? CreatedByUserId { get; set; }
@@ -23,6 +23,11 @@ public abstract class InvoiceBase : BaseEntity, IScopedRecord
     
     public string PartyName { get; set; } = string.Empty;
     public Guid? PartyId { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Customer (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? CustomerId { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Supplier (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? SupplierId { get; set; }
+    public bool IsSupplierParty => PartySide.IsSupplier(null, Kind is InvoiceKind.Purchase or InvoiceKind.PurchaseReturn);
     public string? PartyPhone { get; set; }
     public string? PartyEmail { get; set; }
     public string? PartyVatNumber { get; set; }

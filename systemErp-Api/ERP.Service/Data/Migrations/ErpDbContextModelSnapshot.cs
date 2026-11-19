@@ -252,6 +252,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("datetime2");
 
@@ -281,6 +284,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -292,6 +298,10 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
@@ -373,6 +383,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AgreementId");
+
+                    b.HasIndex("ItemId");
 
                     b.HasIndex("TenantId");
 
@@ -704,6 +716,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("DiscountPercent")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -874,6 +889,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -944,7 +962,13 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CostCenterId");
+
+                    b.HasIndex("CustomerId");
+
                     b.HasIndex("ParentContractId");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
@@ -1074,6 +1098,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("ContractId");
 
+                    b.HasIndex("ItemId");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "MainContractItemId");
@@ -1107,6 +1133,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("ExpectedDeliveryDate")
@@ -1153,6 +1182,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1171,6 +1203,12 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AgreementId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
@@ -1242,6 +1280,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
 
                     b.HasIndex("OrderId");
 
@@ -3231,6 +3271,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("CustodyIssueId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
@@ -3281,6 +3324,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3305,6 +3351,12 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
@@ -3517,6 +3569,10 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("DeliveryNoteId");
 
                     b.HasIndex("TenantId");
 
@@ -4893,6 +4949,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("DiscountTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -5053,6 +5112,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -5105,6 +5167,14 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CostCenterId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("JournalEntryId");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
@@ -5186,6 +5256,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("OriginalInvoiceItemId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("ProductionDate")
                         .HasColumnType("datetime2");
 
@@ -5255,8 +5328,12 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CostCenterId");
+
                     b.HasIndex("OriginalInvoiceItemId")
                         .HasFilter("[OriginalInvoiceItemId] IS NOT NULL");
+
+                    b.HasIndex("ProductId");
 
                     b.HasIndex("ProjectResourceId")
                         .HasFilter("[ProjectResourceId] IS NOT NULL");
@@ -5513,9 +5590,17 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("BatchId");
 
+                    b.HasIndex("BrandId");
+
                     b.HasIndex("InvoiceId");
 
+                    b.HasIndex("ModelId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TrimId");
+
+                    b.HasIndex("VehicleId");
 
                     b.ToTable("InvoiceVehicleLine");
                 });
@@ -5646,6 +5731,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CostCenterId");
 
                     b.HasIndex("JournalEntryId");
 
@@ -5934,7 +6021,11 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("ContractId");
 
+                    b.HasIndex("SupplierId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.HasIndex("TenantId", "ContractId");
 
@@ -5998,6 +6089,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
 
                     b.HasIndex("RequisitionId");
 
@@ -7714,6 +7807,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
@@ -7762,6 +7858,9 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -7786,6 +7885,10 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
@@ -7857,6 +7960,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
 
                     b.HasIndex("QuotationId");
 
@@ -8466,6 +8571,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("JournalEntryId");
 
                     b.HasIndex("TenantId");
 
@@ -9251,6 +9358,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BrandId");
+
                     b.HasIndex("TenantId");
 
                     b.ToTable("CarAgent");
@@ -9354,6 +9463,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
 
                     b.HasIndex("BrandId");
 
@@ -9524,6 +9635,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PurchaseInvoiceId");
+
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
@@ -9642,9 +9755,13 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ItemId");
+
                     b.HasIndex("OrderId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("VehicleId");
 
                     b.ToTable("CarProcurementOrderVin");
                 });
@@ -9981,6 +10098,12 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("FinancingBankId");
+
+                    b.HasIndex("InvoiceId");
 
                     b.HasIndex("TenantId");
 
@@ -11260,7 +11383,21 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("BrandId");
+
+                    b.HasIndex("ModelId");
+
+                    b.HasIndex("ProcurementOrderId");
+
+                    b.HasIndex("PurchaseInvoiceId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TrimId");
+
+                    b.HasIndex("YearId");
 
                     b.HasIndex("TenantId", "ChassisNumber")
                         .IsUnique();
@@ -11668,6 +11805,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("JournalEntryId");
+
+                    b.HasIndex("ShiftId");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "ClientReference")
@@ -11778,6 +11919,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CustomerId");
+
                     b.HasIndex("TenantId");
 
                     b.ToTable("PosHeldCart");
@@ -11834,6 +11977,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("HeldCartId");
+
+                    b.HasIndex("ItemId");
 
                     b.HasIndex("TenantId");
 
@@ -11957,6 +12102,10 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TargetCategoryId");
+
+                    b.HasIndex("TargetItemId");
 
                     b.HasIndex("TenantId");
 
@@ -12110,7 +12259,11 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CustomerId");
+
                     b.HasIndex("OriginalTransactionId");
+
+                    b.HasIndex("ShiftId");
 
                     b.HasIndex("TenantId");
 
@@ -12202,6 +12355,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
 
                     b.HasIndex("ReturnId");
 
@@ -12348,6 +12503,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("CashierId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("VarianceJournalEntryId");
 
                     b.HasIndex("TenantId", "ShiftNumber")
                         .IsUnique();
@@ -12589,6 +12746,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CustomerId");
+
                     b.HasIndex("ShiftId");
 
                     b.HasIndex("TenantId");
@@ -12685,6 +12844,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ItemId");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TransactionId");
@@ -12741,6 +12902,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ApprovalRequestId");
 
                     b.HasIndex("RecipientUserId");
 
@@ -12891,6 +13054,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ApproverUserId");
+
                     b.HasIndex("PolicyId");
 
                     b.HasIndex("TenantId");
@@ -12996,6 +13161,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("PolicyId");
 
                     b.HasIndex("RequesterUserId");
+
+                    b.HasIndex("RequiredApproverUserId");
 
                     b.HasIndex("TenantId");
 
@@ -14270,6 +14437,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("VoucherId");
 
                     b.ToTable("OnlinePayment");
                 });
@@ -15666,7 +15835,11 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ItemId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.HasIndex("TenantId", "SourceId")
                         .HasFilter("[SourceId] IS NOT NULL");
@@ -16114,6 +16287,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedByUserId");
+
                     b.HasIndex("TenantId");
 
                     b.ToTable("SupportTicket");
@@ -16152,6 +16327,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
 
                     b.HasIndex("SupportTicketId");
 
@@ -16615,6 +16792,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("UserId");
+
                     b.ToTable("UserRolePermission");
                 });
 
@@ -17026,12 +17205,31 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("SalesReturnItem");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Agreement", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.AgreementItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.Agreement", "Agreement")
                         .WithMany("Items")
                         .HasForeignKey("AgreementId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Agreement");
@@ -17081,9 +17279,24 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialContract", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
+                        .WithMany()
+                        .HasForeignKey("CostCenterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
                         .WithMany()
                         .HasForeignKey("ParentContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
@@ -17095,11 +17308,40 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Contract");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialOrder", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.Agreement", null)
+                        .WithMany()
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.CommercialOrderItem", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ERP.Core.Models.Accounting.CommercialOrder", "Order")
                         .WithMany("Items")
                         .HasForeignKey("OrderId")
@@ -17337,6 +17579,24 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNote", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.DeliveryNote", "DeliveryNote")
@@ -17357,6 +17617,20 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("ReturnNote");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryReturnNote", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.DeliveryNote", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryNoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.Employee", b =>
@@ -17594,9 +17868,42 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceBase", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
+                        .WithMany()
+                        .HasForeignKey("CostCenterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
                         .WithMany()
                         .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceItemBase", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
+                        .WithMany()
+                        .HasForeignKey("CostCenterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
@@ -17624,17 +17931,42 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceVehicleLine", b =>
                 {
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarBrand", null)
+                        .WithMany()
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Accounting.Invoice", "Invoice")
                         .WithMany("VehicleLines")
                         .HasForeignKey("InvoiceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarModel", null)
+                        .WithMany()
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarTrim", null)
+                        .WithMany()
+                        .HasForeignKey("TrimId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.Vehicle", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.JournalEntryLine", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
+                        .WithMany()
+                        .HasForeignKey("CostCenterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Accounting.JournalEntry", "JournalEntry")
                         .WithMany("Lines")
                         .HasForeignKey("JournalEntryId")
@@ -17674,10 +18006,26 @@ namespace ERP.Service.Data.Migrations
                         .WithMany()
                         .HasForeignKey("ContractId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.MaterialRequisitionItem", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ERP.Core.Models.Accounting.MaterialRequisition", "Requisition")
                         .WithMany("Items")
                         .HasForeignKey("RequisitionId")
@@ -17890,8 +18238,27 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Voucher");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.QuotationItem", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ERP.Core.Models.Accounting.Quotation", "Quotation")
                         .WithMany("Items")
                         .HasForeignKey("QuotationId")
@@ -18022,6 +18389,14 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Report");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.Voucher", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.VoucherAllocation", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.Voucher", "Voucher")
@@ -18129,8 +18504,21 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarAgent", b =>
+                {
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarBrand", null)
+                        .WithMany()
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarModel", b =>
                 {
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarAgent", null)
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.CarShowroom.CarBrand", null)
                         .WithMany()
                         .HasForeignKey("BrandId")
@@ -18140,6 +18528,11 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarProcurementOrder", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Accounting.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Shared.Supplier", null)
                         .WithMany()
                         .HasForeignKey("SupplierId")
@@ -18160,17 +18553,42 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarProcurementOrderVin", b =>
                 {
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarProcurementOrderItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.CarShowroom.CarProcurementOrder", "Order")
                         .WithMany("ReceivedVins")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ERP.Core.Models.CarShowroom.Vehicle", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Order");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.CarSalesContract", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.BankEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FinancingBankId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.CarShowroom.Vehicle", null)
                         .WithMany()
                         .HasForeignKey("VehicleId")
@@ -18303,6 +18721,41 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.Vehicle", b =>
                 {
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarAgent", null)
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarBrand", null)
+                        .WithMany()
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarModel", null)
+                        .WithMany()
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarProcurementOrder", null)
+                        .WithMany()
+                        .HasForeignKey("ProcurementOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarTrim", null)
+                        .WithMany()
+                        .HasForeignKey("TrimId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.CarYearModel", null)
+                        .WithMany()
+                        .HasForeignKey("YearId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.OwnsOne("ERP.Core.Models.CarShowroom.VehiclePdiChecklist", "PdiChecklist", b1 =>
                         {
                             b1.Property<Guid>("VehicleId")
@@ -18387,12 +18840,40 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.POS.PosCashMovement", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.POS.PosShift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.POS.PosHeldCart", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.POS.PosHeldCartItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.POS.PosHeldCart", "HeldCart")
                         .WithMany("Items")
                         .HasForeignKey("HeldCartId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("HeldCart");
@@ -18406,17 +18887,47 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.POS.PosOffer", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.ProductCategory", null)
+                        .WithMany()
+                        .HasForeignKey("TargetCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("TargetItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.POS.PosSalesReturn", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.POS.PosTransaction", null)
                         .WithMany()
                         .HasForeignKey("OriginalTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.POS.PosShift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.POS.PosSalesReturnItem", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ERP.Core.Models.POS.PosSalesReturn", "Return")
                         .WithMany("Items")
                         .HasForeignKey("ReturnId")
@@ -18433,10 +18944,20 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("CashierId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("VarianceJournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.POS.PosTransaction", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.POS.PosShift", null)
                         .WithMany()
                         .HasForeignKey("ShiftId")
@@ -18446,6 +18967,12 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.POS.PosTransactionItem", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ERP.Core.Models.POS.PosTransaction", "Transaction")
                         .WithMany("Items")
                         .HasForeignKey("TransactionId")
@@ -18457,6 +18984,11 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.Shared.AppNotification", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.ApprovalRequest", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovalRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Shared.User", null)
                         .WithMany()
                         .HasForeignKey("RecipientUserId")
@@ -18483,6 +19015,11 @@ namespace ERP.Service.Data.Migrations
 
             modelBuilder.Entity("ERP.Core.Models.Shared.ApprovalPolicyStep", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("ApproverUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Shared.ApprovalPolicy", "Policy")
                         .WithMany("Steps")
                         .HasForeignKey("PolicyId")
@@ -18505,6 +19042,11 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("RequesterUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequiredApproverUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.BatchStock", b =>
@@ -18555,6 +19097,14 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.OnlinePayment", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.Voucher", null)
+                        .WithMany()
+                        .HasForeignKey("VoucherId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.PasswordResetOtp", b =>
@@ -18616,6 +19166,20 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("UserRolePermission");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.StockMovement", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.StockMovementBatch", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.ItemBatch", null)
@@ -18661,8 +19225,21 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.SupportTicket", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.SupportTicketReply", b =>
                 {
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Shared.SupportTicket", "SupportTicket")
                         .WithMany("Replies")
                         .HasForeignKey("SupportTicketId")
@@ -18809,6 +19386,14 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.UserRolePermission", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.WarehouseStock", b =>

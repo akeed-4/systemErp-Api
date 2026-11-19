@@ -43,6 +43,12 @@ public class ExceptionHandlingMiddleware
             _log.LogWarning(ex, "Unique constraint conflict for {Method} {Path}", context.Request.Method, context.Request.Path);
             await Write(context, 409, Messages.RecordModifiedByAnotherUser);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (IsForeignKeyViolation(ex))
+        {
+            _log.LogWarning(ex, "Foreign key violation for {Method} {Path}", context.Request.Method, context.Request.Path);
+            await Write(context, 409, "لا يمكن إتمام العملية: السجل مرتبط بسجلات أخرى أو يشير إلى سجل غير موجود.",
+                _env.IsDevelopment() ? new List<string> { ex.InnerException?.Message ?? ex.Message } : null);
+        }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
             context.Response.StatusCode = 499;
@@ -52,6 +58,14 @@ public class ExceptionHandlingMiddleware
             _log.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
             await Write(context, 500, Messages.UnexpectedError, _env.IsDevelopment() ? new List<string> { ex.Message } : null);
         }
+    }
+
+    /// <summary>SQL Server 547 = تعارض مع قيد FOREIGN KEY/REFERENCE.</summary>
+    private static bool IsForeignKeyViolation(Microsoft.EntityFrameworkCore.DbUpdateException ex)
+    {
+        var text = ex.InnerException?.Message ?? ex.Message;
+        return text.Contains("FOREIGN KEY constraint", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("REFERENCE constraint", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task Write(HttpContext context, int status, string message, List<string>? errors = null)

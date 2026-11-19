@@ -915,6 +915,15 @@ public class TradeInvoiceEngine
                 var m = await _db.Set<MaterialRequisition>().FirstOrDefaultAsync(x => x.Id == sourceId && x.ConvertedInvoiceId == invoice.Id, ct);
                 if (m != null) { m.ConvertedInvoiceId = null; m.Status = "approved"; }
                 break;
+            case "delivery_note":
+                // حذف فاتورة البيان يعيده قابلاً للفوترة بدل أن يبقى مرتبطاً بفاتورة محذوفة
+                var n = await _db.Set<DeliveryNote>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == sourceId && x.InvoiceId == invoice.Id, ct);
+                if (n != null)
+                {
+                    n.InvoiceId = null; n.InvoiceNumber = null;
+                    n.Status = n.Items.Any(i => i.ReturnedQty > 0) ? DeliveryNoteStatus.PartiallyReturned : DeliveryNoteStatus.Delivered;
+                }
+                break;
         }
     }
 

@@ -5,7 +5,7 @@ namespace ERP.Core.Models.Accounting;
 /// العقود التجارية العامة - تمر بدورة معتمدة من 7 مراحل (انظر Stage)
 /// تنتهي بفوترة المستخلصات (<see cref="ContractMilestone"/>) عبر محرك المحاسبة المركزي.
 /// </summary>
-public class CommercialContract : BaseEntity, IScopedRecord
+public class CommercialContract : BaseEntity, IScopedRecord, IPartyDocument
 {
     /// <summary>منشئ المستند (يُختم آلياً) لنطاق «السجلات التي أنشأها».</summary>
     public Guid? CreatedByUserId { get; set; }
@@ -36,6 +36,12 @@ public class CommercialContract : BaseEntity, IScopedRecord
     public Guid? PartyId { get; set; }
     /// <summary>customer | supplier</summary>
     public string? PartyType { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Customer (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? CustomerId { get; set; }
+    /// <summary>نسخة PartyId المقيّدة بمفتاح أجنبي إلى Supplier (تُعبّأ تلقائياً عند الحفظ).</summary>
+    public Guid? SupplierId { get; set; }
+    /// <summary>العقد مع مورد (مقاول باطن/شراء) فقط حين PartyType = supplier، كما تعامله خدمات العقود.</summary>
+    public bool IsSupplierParty => PartySide.IsSupplier(PartyType, false);
 
     public string PartyName { get; set; } = string.Empty;
     public string? PartyVatNumber { get; set; }

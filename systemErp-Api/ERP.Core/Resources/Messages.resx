@@ -1301,6 +1301,11 @@
   <data name="PostedInvoiceDeleteHasPayments" xml:space="preserve"><value>وُزِّعت على الفاتورة سندات قبض/صرف؛ ألغِ توزيعها أولاً ثم احذف الفاتورة.</value></data>
   <data name="MarginSchemeItemNotAllowed" xml:space="preserve"><value>نظام هامش الربح خاص بسطر سيارة مستعملة مؤهلة في فاتورة مبيعات المعرض ويُشتق من بطاقة السيارة؛ لا يُختار لصنف أو بند آخر.</value></data>
   <data name="InvoiceTaxTreatmentOverrideForbidden" xml:space="preserve"><value>تغيير التصنيف الضريبي للصنف في الفاتورة عن تعريفه يتطلب صلاحية تجاوز التصنيف الضريبي.</value></data>
+  <data name="InvoicePricingMethodInvalid" xml:space="preserve"><value>طريقة تسعير الفاتورة غير صحيحة: شامل الضريبة أو غير شامل.</value></data>
+  <data name="VatExclusivePricingForbidden" xml:space="preserve"><value>لا تملك صلاحية إصدار فاتورة بأسعار غير شاملة الضريبة؛ استخدم التسعير الشامل أو تواصل مع مسؤول الصلاحيات.</value></data>
+  <data name="VatInclusivePricingForbidden" xml:space="preserve"><value>لا تملك صلاحية إصدار فاتورة بأسعار شاملة الضريبة؛ استخدم التسعير غير الشامل أو تواصل مع مسؤول الصلاحيات.</value></data>
+  <data name="VatInclusivePricingUnsupportedLine" xml:space="preserve"><value>التسعير الشامل للضريبة لا يُستخدم مع سطر عليه ضريبة انتقائية أو مبلغ ضريبة ثابت؛ استخدم التسعير غير الشامل لهذه الفاتورة.</value></data>
+  <data name="VatInclusivePricingShowroomNotAllowed" xml:space="preserve"><value>فواتير المعارض تُسعَّر بأسعار غير شاملة الضريبة فقط.</value></data>
   <data name="MarginSchemeNotSubmittedToZatca" xml:space="preserve"><value>فواتير هامش الربح للسيارات المستعملة المؤهلة معلَّق إلزامها بالفوترة الإلكترونية (المرحلة الثانية) من الهيئة، فلا تُرسل لها.</value></data>
   <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>نظام هامش الربح للسيارات المستعملة فقط؛ غيّر حالة السيارة إلى مستعملة أولاً.</value></data>
   <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>هامش الربح لا يُعرَّف على الصنف: يُحدَّد في بطاقة السيارة المستعملة المؤهلة.</value></data>

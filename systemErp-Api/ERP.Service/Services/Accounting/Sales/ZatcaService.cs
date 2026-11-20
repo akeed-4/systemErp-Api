@@ -545,8 +545,9 @@ public class ZatcaService : IZatcaService
         var lines = invoice.Lines.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id).Select(i =>
         {
             var reason = VatExemptionReasons.Find(i.VatExemptionReasonCode);
-            return new ZatcaLine(i.ItemName, i.Quantity, i.UnitPrice,
-                Math.Max(0, DocumentPricing.Round(i.Quantity * i.UnitPrice) - i.TotalBeforeVat),
+            // سعر الوحدة صافٍ دائماً في PriceAmount (الفاتورة الشاملة يُستخرج صافيها)، والخصم يطابق صافي السطر المحفوظ
+            var (unitPrice, allowance) = VatPricing.ZatcaLinePrice(invoice.PricingMethod, i.Quantity, i.UnitPrice, i.VatRate, i.TotalBeforeVat);
+            return new ZatcaLine(i.ItemName, i.Quantity, unitPrice, allowance,
                 i.TotalBeforeVat + i.ExciseTaxAmount, i.ExciseTaxAmount, i.VatRate, i.VatAmount, i.VatCategory, reason?.Code, reason?.NameAr);
         }).ToList();
 

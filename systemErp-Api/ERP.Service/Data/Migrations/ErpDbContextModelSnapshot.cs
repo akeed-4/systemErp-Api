@@ -5160,6 +5160,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("PaymentMethodCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PricingMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("Exclusive");
+
                     b.Property<Guid?>("ReferenceId")
                         .HasColumnType("uniqueidentifier");
 

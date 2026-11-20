@@ -1373,7 +1373,11 @@ public class ErpDbContext : DbContext
         });
         // الفواتير القائمة «أساسي»: كل سطر بتصنيفه كما رُحِّل
         foreach (var t in new[] { typeof(Invoice), typeof(SalesInvoice), typeof(PurchaseInvoice), typeof(SalesReturn), typeof(PurchaseReturn) })
+        {
             modelBuilder.Entity(t).Property(nameof(InvoiceBase.VatTreatment)).HasDefaultValue(InvoiceVatTreatment.Standard);
+            // الفواتير القائمة «غير شامل»: أسعارها وخصومها قبل الضريبة كما صدرت
+            modelBuilder.Entity(t).Property(nameof(InvoiceBase.PricingMethod)).HasDefaultValue(InvoicePricingMethod.Exclusive);
+        }
         // الحسابات القائمة «اختياري» (سلوكها قبل الإعداد)، وتقارير المراكز تقرأ سطور القيود بمركزها
         modelBuilder.Entity<Account>().Property(a => a.CostCenterPolicy).HasDefaultValue(CostCenterPolicy.Optional);
         modelBuilder.Entity<JournalEntryLine>().HasIndex(l => new { l.TenantId, l.CostCenterId });

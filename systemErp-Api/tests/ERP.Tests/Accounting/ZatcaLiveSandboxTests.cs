@@ -76,4 +76,58 @@ public class ZatcaLiveSandboxTests
         _out.WriteLine($"production csid: success={production.Success} message={production.Message}");
         Assert.True(production.Success, production.Message);
     }
+
+    /// <summary>
+    /// فواتير بتسعير شامل وغير شامل للضريبة، بخصم سطر وخصم فاتورة وفروق تقريب، وإشعاراتها: أسطرها من تسعير النظام نفسه
+    /// (<see cref="DocumentPricing"/> و<see cref="VatPricing.ZatcaLinePrice"/>) كما يبنيها ZatcaService، وتُفحص لدى الهيئة.
+    /// يُطبع لكل مستند نتيجته وأخطاؤه وتحذيراته لتوثيقها. لا يعمل إلا بضبط ZATCA_LIVE=1.
+    /// </summary>
+    [Fact]
+    public async Task Inclusive_and_exclusive_priced_invoices_with_discounts_pass_the_compliance_checks()
+    {
+        if (Environment.GetEnvironmentVariable("ZATCA_LIVE") != "1") return;
+
+        var api = new ZatcaApiClient(new Factory());
+        using var key = ZatcaCsr.NewKey();
+        var csr = ZatcaCsr.Create(key, new ZatcaCsrInput(ZatcaEnvironment.Sandbox, "TST-886431145-399999999900003", "الفرع الرئيسي", "شركة اختبار الفوترة", "SA",
+            "1-ERP|2-1.0|3-" + Guid.NewGuid(), Vat, "1100", "RRRD2929", "Trading"));
+        var csid = await api.RequestComplianceCsidAsync(Sandbox, csr, SandboxOtp);
+        Assert.True(csid.Success, csid.Message);
+        var certificate = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(csid.BinarySecurityToken!));
+
+        var cases = new (string Name, ERP.Core.Models.Shared.InvoicePricingMethod Method, ERP.Service.Services.Shared.PricedLineInput[] Lines, decimal InvoiceDiscount)[]
+        {
+            ("inclusive-simple", ERP.Core.Models.Shared.InvoicePricingMethod.Inclusive, new[] { new ERP.Service.Services.Shared.PricedLineInput(1, 100, 0, 15) }, 0m),
+            ("inclusive-discounts", ERP.Core.Models.Shared.InvoicePricingMethod.Inclusive, new[]
+            {
+                new ERP.Service.Services.Shared.PricedLineInput(2, 57.5m, 11.5m, 15), new ERP.Service.Services.Shared.PricedLineInput(3, 33.33m, 0.99m, 15),
+                new ERP.Service.Services.Shared.PricedLineInput(1, 10, 0, 0),
+            }, 14.95m),
+            ("exclusive-discounts", ERP.Core.Models.Shared.InvoicePricingMethod.Exclusive, new[]
+            {
+                new ERP.Service.Services.Shared.PricedLineInput(2, 50.33m, 0.66m, 15), new ERP.Service.Services.Shared.PricedLineInput(3, 33.33m, 0, 15),
+            }, 5m),
+        };
+
+        var previous = ZatcaInvoiceXml.FirstPreviousHash;
+        long counter = 0;
+        var failures = new List<string>();
+        foreach (var c in cases)
+            foreach (var simplified in new[] { true, false })
+                foreach (var type in new[] { ZatcaInvoiceXml.Invoice, ZatcaInvoiceXml.CreditNote })
+                {
+                    var priced = ERP.Service.Services.Shared.DocumentPricing.Price(c.Lines, c.InvoiceDiscount, c.Method);
+                    var document = VatPricingXmlTests.Document(type, VatPricingXmlTests.ZatcaLines(c.Lines, priced, c.Method), ++counter, simplified,
+                        previous, DateTime.UtcNow.AddHours(3));
+                    var signed = ZatcaSigner.Sign(document, certificate, key, DateTime.UtcNow);
+                    previous = signed.Hash;
+                    VatPricingXmlTests.AssertXmlMatches(signed.Xml, c.Lines, priced, c.Method); // XML المرسل نفسه يطابق النظام
+                    var result = await api.CheckComplianceAsync(Sandbox, csid.BinarySecurityToken!, csid.Secret!, new ZatcaSubmission(signed.Hash, signed.Uuid, signed.Xml));
+                    _out.WriteLine($"{c.Name} {(simplified ? "simplified" : "standard")} {type}: net={priced.NetTotal} vat={priced.VatTotal} total={priced.GrandTotal} http={result.HttpStatus} accepted={result.Accepted} {result.Message}");
+                    foreach (var e in result.Errors) _out.WriteLine("   ERROR " + e);
+                    foreach (var w in result.Warnings) _out.WriteLine("   WARN  " + w);
+                    if (!result.Accepted) failures.Add($"{c.Name}/{simplified}/{type}: {string.Join(" | ", result.Errors)} {result.Message}");
+                }
+        Assert.Empty(failures);
+    }
 }

@@ -48,6 +48,8 @@ public partial class InvoiceDto
     public InvoiceVatTreatment VatTreatment { get; set; } = InvoiceVatTreatment.Standard;
     /// <summary>سبب الهيئة (VATEX) لمعالجة الفاتورة غير الأساسية؛ يُنسخ لكل الأسطر.</summary>
     public string? VatTreatmentReasonCode { get; set; }
+    /// <summary>طريقة تسعير الفاتورة المحفوظة: UnitPrice/Discount/InvoiceDiscount بها، والإجماليات صافية دائماً.</summary>
+    public InvoicePricingMethod PricingMethod { get; set; } = InvoicePricingMethod.Exclusive;
     public decimal Subtotal { get; set; }
     public decimal ItemsDiscountTotal { get; set; }
     public decimal InvoiceDiscount { get; set; }

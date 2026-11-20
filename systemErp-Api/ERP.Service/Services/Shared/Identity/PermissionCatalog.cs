@@ -128,6 +128,11 @@ public static class PermissionCatalog
             Crud(A.Approve, A.Post), new[] { "sales/returns" }),
         new(PermissionService.InvoiceTaxTreatmentOverrideScreenId, "sales", "الفواتير: تجاوز التصنيف الضريبي للصنف في سطر الفاتورة", "Invoices: Override Item Tax Treatment on a Line",
             new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
+        // طريقة تسعير فواتير المبيعات والمشتريات: من يملك الاثنتين يبدّل بينهما، ومن يملك واحدة تُفرض عليه
+        new(PermissionService.InvoiceVatExclusivePricingScreenId, "sales", "الفواتير: التسعير غير الشامل للضريبة", "Invoices: VAT-Exclusive Pricing",
+            new[] { A.Edit }, Array.Empty<string>()),
+        new(PermissionService.InvoiceVatInclusivePricingScreenId, "sales", "الفواتير: التسعير الشامل للضريبة", "Invoices: VAT-Inclusive Pricing",
+            new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
 
         new("purchases", "purchases", "فواتير المشتريات وتكلفة المخزون", "Purchase Invoices",
             Crud(A.Approve, A.Post), new[] { "purchases", "stock-transfers", "costing", "purchases/delivery-notes" }),

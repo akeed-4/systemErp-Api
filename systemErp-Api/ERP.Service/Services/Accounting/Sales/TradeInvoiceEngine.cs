@@ -481,7 +481,7 @@ public class TradeInvoiceEngine
                 UnitCost = stockIn ? 0 : item.UnitCost, // المبيعات ومرتجع المشتريات تعود بتكلفة خروجها
                 // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)، وتحمل الحركة تلك القيمة
                 OutUnitCost = restoreAverage ? item.UnitCost : null,
-                UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
+                UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate), ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
                 SourceType = "invoice_reversal", SourceId = invoice.Id, SourceLineId = item.Id,
                 // الصنف المتتبَّع: يعود العكس لتشغيلات ترحيل هذا السطر نفسها
                 BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, item.ItemId, item.Id, ct),
@@ -497,7 +497,7 @@ public class TradeInvoiceEngine
                     ItemId = c.ItemId, WarehouseId = invoice.WarehouseId, Quantity = c.Quantity,
                     Type = stockIn ? StockMovementType.AdjustmentOut : StockMovementType.AdjustmentIn,
                     UnitCost = stockIn ? 0 : c.UnitCost, OutUnitCost = stockIn && restoreAverage ? c.UnitCost : null,
-                    UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
+                    UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate), ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
                     SourceType = "invoice_reversal", SourceId = invoice.Id, SourceLineId = item.Id,
                     BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, c.ItemId, item.Id, ct),
                 }, ct);
@@ -820,15 +820,21 @@ public class TradeInvoiceEngine
         return normalized;
     }
 
+    /// <summary>
+    /// تسعير طلب الفاتورة بطريقته المحفوظة (شامل/غير شامل): مصدر واحد لكل مسارات الإنشاء والتعديل والمرتجع ومعاينته وتوزيع ردّه،
+    /// فلا يُعاد تسعير مستند بغير طريقته.
+    /// </summary>
+    private static PricedDocument PriceDocument(CreateInvoiceDto dto) => DocumentPricing.Price(
+        dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
+            i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount, dto.PricingMethod);
+
     /// <summary>تسعير المرتجع كما يسعّره الإنشاء: معالجة الضريبة من الأصل ثم محرك التسعير، بأسطره بترتيب بنوده.</summary>
     private static (ReturnTotalsDto Totals, IReadOnlyList<PricedLine> Lines) PriceReturn(CreateInvoiceDto dto)
     {
         var errors = new List<string>();
         ApplyDocumentVatTreatment(dto, errors);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
-        var p = DocumentPricing.Price(
-            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
-                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount);
+        var p = PriceDocument(dto);
         return (new ReturnTotalsDto
         {
             Gross = p.Subtotal, ItemsDiscount = p.ItemsDiscountTotal, InvoiceDiscount = p.InvoiceDiscount, NetTotal = p.NetTotal,
@@ -856,6 +862,7 @@ public class TradeInvoiceEngine
             // الحسابات المحددة يدوياً على الأصل تتقدم في مرتجعه كما تقدمت فيه: المخزون يعود لحسابه والإيراد يُعكس من حسابه
             RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
             VatTreatment = original.VatTreatment, VatTreatmentReasonCode = original.VatTreatmentReasonCode, // المرتجع بمعالجة أصله
+            PricingMethod = original.PricingMethod, // وبطريقة تسعيره: أسعار الأصل وخصومه تُقرأ كما صدرت
             PartyStreet = original.PartyStreet, PartyBuildingNo = original.PartyBuildingNo, PartyDistrict = original.PartyDistrict,
             PartyCity = original.PartyCity, PartyPostalCode = original.PartyPostalCode, PartyAdditionalNo = original.PartyAdditionalNo, PartyCountry = original.PartyCountry,
             PaymentMethod = r.RefundPaymentMethod ?? original.PaymentMethod, PaymentMethodCode = r.RefundPaymentMethod == null ? original.PaymentMethodCode : r.RefundPaymentMethodCode, CurrencyCode = original.CurrencyCode, ExchangeRate = original.ExchangeRate,
@@ -908,9 +915,7 @@ public class TradeInvoiceEngine
         // طريقة ردٍّ يختارها المستخدم لا تكون استقطاع عقد (حسابه يحدده النظام)
         if (lines.Any(s => s.Method == PaymentMethod.ContractSettlement)) throw new ValidationFailedException(Messages.InvalidPaymentMethod);
         PaymentSplitRules.EnsureDistinctMethods(lines.Select(s => (s.Method, s.PaymentMethodCode)));
-        var total = DocumentPricing.Price(
-            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
-                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount).GrandTotal;
+        var total = PriceDocument(dto).GrandTotal;
         var entered = lines.Sum(s => s.Amount);
         dto.PaymentSplits.Clear();
         var allocated = 0m;
@@ -932,9 +937,7 @@ public class TradeInvoiceEngine
     internal static void MirrorOriginalSplits(CreateInvoiceDto dto, InvoiceBase original)
     {
         if (original.PaymentSplits.Count == 0 || original.GrandTotal <= 0) return;
-        var returned = DocumentPricing.Price(
-            dto.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
-                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), dto.InvoiceDiscount).GrandTotal;
+        var returned = PriceDocument(dto).GrandTotal;
         var allocated = 0m;
         for (var i = 0; i < original.PaymentSplits.Count; i++)
         {
@@ -1236,6 +1239,7 @@ public class TradeInvoiceEngine
         await ApplyProductVatDefaultsAsync(r, ct);
         await ApplyProductExciseDefaultsAsync(r, ct);
         await EnsureVatTreatmentAllowedAsync(r, ct);
+        await EnsurePricingMethodAllowedAsync<T>(r, showroom, ct);
         var rentalCostCenters = await ValidateRentalResourceSelectionsAsync<T>(r, ct);
         foreach (var item in r.Items)
             if (item.ProjectResourceId is Guid resourceId && rentalCostCenters.TryGetValue(resourceId, out var costCenterId))
@@ -1266,9 +1270,7 @@ public class TradeInvoiceEngine
         if (r.Kind == InvoiceKind.Purchase && r.InvoiceType == InvoiceType.TaxInvoice && !r.PartyId.HasValue)
             throw new ValidationFailedException(Messages.TaxPurchaseRequiresSupplier);
 
-        var priced = DocumentPricing.Price(
-            r.Items.Select(i => new PricedLineInput(i.Quantity, i.UnitPrice, i.Discount, i.VatRate, i.VatAmountOverride,
-                i.ExciseTaxRate, i.ExciseRetailPrice, i.ExciseStandardPrice)).ToList(), r.InvoiceDiscount);
+        var priced = PriceDocument(r);
 
         var productIds = r.Items.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct().ToList();
         if (r.Items.Any(i => i.ItemId == Guid.Empty && string.IsNullOrWhiteSpace(i.ItemName)))
@@ -1307,7 +1309,8 @@ public class TradeInvoiceEngine
             throw new ValidationFailedException(string.Format(Messages.FeatureNotInPlan, PlanFeatures.NameAr(PlanFeatures.MultiCurrency)));
         invoice.Subtotal = priced.NetTotal;
         invoice.ItemsDiscountTotal = priced.ItemsDiscountTotal;
-        invoice.InvoiceDiscount = priced.InvoiceDiscount;
+        // خصم الفاتورة يُحفظ بطريقة تسعيرها (الشامل كما أُدخل) ليُعاد تسعيرها ومرتجعها منه؛ وبقية الإجماليات صافية دائماً
+        invoice.InvoiceDiscount = r.PricingMethod == InvoicePricingMethod.Inclusive ? r.InvoiceDiscount : priced.InvoiceDiscount;
         invoice.DiscountTotal = priced.DiscountTotal;
         invoice.ExciseTaxTotal = priced.ExciseTaxTotal;
         invoice.VatTotal = priced.VatTotal;
@@ -1563,6 +1566,29 @@ public class TradeInvoiceEngine
     }
 
     /// <summary>
+    /// طريقة التسعير يختارها المستخدم بصلاحيتها: «غير شامل» بـ <see cref="PermissionService.InvoiceVatExclusivePricingScreenId"/>
+    /// و«شامل» بـ <see cref="PermissionService.InvoiceVatInclusivePricingScreenId"/>. المرتجع يرث طريقة أصله، والمستند الذي ينشئه النظام
+    /// (تحويل من عرض/أمر/سند، مستخلص...) غير شامل دائماً، وتعديل فاتورة بطريقتها المحفوظة نفسها لا يُعدّ اختياراً جديداً (كالمعالجة الضريبية).
+    /// فواتير المعارض بطريقة «غير شامل» وحدها ولا يتغير سلوكها.
+    /// </summary>
+    private async Task EnsurePricingMethodAllowedAsync<T>(CreateInvoiceDto r, bool showroom, CancellationToken ct) where T : InvoiceBase
+    {
+        if (!Enum.IsDefined(r.PricingMethod)) throw new ValidationFailedException(Messages.InvoicePricingMethodInvalid);
+        var exclusive = r.PricingMethod == InvoicePricingMethod.Exclusive;
+        if (showroom)
+        {
+            if (!exclusive) throw new ValidationFailedException(Messages.VatInclusivePricingShowroomNotAllowed);
+            return;
+        }
+        if (r.OriginalInvoiceId.HasValue || (r.SystemGenerated && exclusive)) return;
+        if (r.ExistingInvoiceId is Guid id
+            && await _db.Set<T>().AsNoTracking().AnyAsync(i => i.Id == id && i.PricingMethod == r.PricingMethod, ct)) return;
+        var screen = exclusive ? PermissionService.InvoiceVatExclusivePricingScreenId : PermissionService.InvoiceVatInclusivePricingScreenId;
+        if (!await _permissions.HasPermissionAsync(screen, ScreenAction.Edit, ct))
+            throw new ForbiddenException(exclusive ? Messages.VatExclusivePricingForbidden : Messages.VatInclusivePricingForbidden);
+    }
+
+    /// <summary>
     /// مركز التكلفة الذي يختاره المستخدم (الافتراضي أو مركز سطر) يحتاج صلاحية تعيينه؛ والمرتجع يتبع مراكز أصله، والفاتورة الناتجة
     /// عن مستند مصدر تحمل مركزه. تعديل مستند بمراكزه المحفوظة نفسها (ولو تغيّرت أسطره) لا يُعدّ تعييناً جديداً.
     /// </summary>
@@ -1777,7 +1803,7 @@ public class TradeInvoiceEngine
                 {
                     ItemId = c.ItemId, Quantity = c.Quantity, WarehouseId = invoice.WarehouseId,
                     Type = isSale ? StockMovementType.OutSales : StockMovementType.AdjustmentIn, UnitCost = isSale ? 0 : inCost,
-                    UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate,
+                    UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate), ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate,
                     Notes = $"مكوّن {item.ItemName}", SourceType = "invoice", SourceId = invoice.Id, SourceLineId = item.Id,
                 }, ct);
                 c.UnitCost = isSale ? recorded.UnitCost : inCost;
@@ -1799,7 +1825,7 @@ public class TradeInvoiceEngine
                 _ => new RecordStockMovementDto { Type = StockMovementType.AdjustmentOut },
             };
             movement.ItemId = item.ItemId; movement.Quantity = item.Quantity;
-            movement.UnitPrice = item.UnitPrice; movement.ReferenceNumber = invoice.InvoiceNumber;
+            movement.UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate); movement.ReferenceNumber = invoice.InvoiceNumber;
             movement.Date = invoice.IssueDate;
             movement.SourceType = "invoice"; movement.SourceId = invoice.Id;
             movement.WarehouseId = invoice.WarehouseId;

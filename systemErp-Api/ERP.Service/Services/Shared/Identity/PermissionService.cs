@@ -20,6 +20,10 @@ public class PermissionService : IPermissionService
     /// <summary>تصحيح تاريخ إنتاج/انتهاء تشغيلة دخلت حركات (يغيّر صلاحية رصيدها وتاريخها)؛ التشغيلة بلا حركات تُعدَّل بصلاحية الأصناف.</summary>
     public const string ItemBatchCorrectionScreenId = "item-batch-correction";
     public const string InvoiceTaxTreatmentOverrideScreenId = "invoice-tax-treatment-override";
+    /// <summary>إصدار فواتير المبيعات والمشتريات بأسعار غير شاملة الضريبة (السلوك القائم؛ مُنح بالهجرة لكل من يُصدرها).</summary>
+    public const string InvoiceVatExclusivePricingScreenId = "invoice-vat-exclusive-pricing";
+    /// <summary>إصدار فواتير المبيعات والمشتريات بأسعار شاملة الضريبة (حسّاسة: للأدوار الإدارية افتراضياً).</summary>
+    public const string InvoiceVatInclusivePricingScreenId = "invoice-vat-inclusive-pricing";
     /// <summary>تعيين مركز التكلفة أو تغييره على الفواتير (عامة ومعارض) والمستندات التي تُصدر فواتير (عقود بيع السيارات وأوامر شرائها).</summary>
     public const string InvoiceCostCenterScreenId = "invoice-cost-center";
 

@@ -1301,6 +1301,11 @@
   <data name="PostedInvoiceDeleteHasPayments" xml:space="preserve"><value>Vouchers are allocated to this invoice; remove the allocation first, then delete the invoice.</value></data>
   <data name="MarginSchemeItemNotAllowed" xml:space="preserve"><value>The margin scheme applies only to a qualifying used-car line in a showroom sales invoice and comes from the vehicle card; it cannot be chosen for another item or line.</value></data>
   <data name="InvoiceTaxTreatmentOverrideForbidden" xml:space="preserve"><value>Changing an item tax treatment on an invoice line requires the tax treatment override permission.</value></data>
+  <data name="InvoicePricingMethodInvalid" xml:space="preserve"><value>Invalid invoice pricing method: VAT-inclusive or VAT-exclusive.</value></data>
+  <data name="VatExclusivePricingForbidden" xml:space="preserve"><value>You are not allowed to issue invoices with VAT-exclusive prices; use VAT-inclusive pricing or contact your permissions administrator.</value></data>
+  <data name="VatInclusivePricingForbidden" xml:space="preserve"><value>You are not allowed to issue invoices with VAT-inclusive prices; use VAT-exclusive pricing or contact your permissions administrator.</value></data>
+  <data name="VatInclusivePricingUnsupportedLine" xml:space="preserve"><value>VAT-inclusive pricing cannot be used with a line that carries excise tax or a fixed VAT amount; use VAT-exclusive pricing for this invoice.</value></data>
+  <data name="VatInclusivePricingShowroomNotAllowed" xml:space="preserve"><value>Showroom invoices are priced VAT-exclusive only.</value></data>
   <data name="MarginSchemeNotSubmittedToZatca" xml:space="preserve"><value>Margin-scheme invoices for qualifying used cars are suspended from e-invoicing (Phase 2) by ZATCA and are not submitted.</value></data>
   <data name="MarginSchemeRequiresUsedVehicle" xml:space="preserve"><value>The margin scheme applies to used cars only; set the vehicle condition to used first.</value></data>
   <data name="ProductMarginSchemeNotAllowed" xml:space="preserve"><value>The margin scheme is not set on an item: it is set on the qualifying used vehicle card.</value></data>

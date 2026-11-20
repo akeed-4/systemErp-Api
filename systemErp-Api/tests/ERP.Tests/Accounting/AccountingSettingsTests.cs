@@ -54,8 +54,13 @@ public class AccountingSettingsTests : TestBase
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "114" })).Status);         // حساب رئيسي
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "411" })).Status);         // نوع لا يناسب
         Assert.Equal(400, (await api.Put("/accounting-settings", new { salesRevenueAccountCode = customerAccount })).Status); // حساب طرف
+        // حسابات الدوري الناقصة تُهيّأ مع الحفظ؛ إن تعذّرت (حسابان مرشّحان للمشتريات) يُرفض الحفظ ويُلغى كل ما أُنشئ معه
+        foreach (var (code, name) in new[] { ("5188", "المشتريات"), ("5189", "Purchases") })
+            Assert.Equal(201, (await api.Post("/accounts", new { code, nameAr = name, nameEn = name, type = "expense", parentCode = "51", isDebitNature = true })).Status);
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryMethod = "periodic" })).Status);         // حسابات الدوري ناقصة
-        Assert.Equal("perpetual", (await api.Get("/accounting-settings")).Data!["inventoryMethod"].S());
+        var settings = (await api.Get("/accounting-settings")).Data!;
+        Assert.Equal("perpetual", settings["inventoryMethod"].S());
+        Assert.Null(settings["openingInventoryAccountCode"]?.GetValue<string?>()); // لا ربط ولا حساب باقٍ من التهيئة الملغاة
     }
 
     [Fact]

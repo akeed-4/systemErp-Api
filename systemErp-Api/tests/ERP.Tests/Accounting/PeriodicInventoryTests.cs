@@ -54,8 +54,13 @@ public class PeriodicInventoryTests : TestBase
     {
         var created = await api.Post("/inventorycounts", count);
         Assert.True(created.Status == 201, created.Body?.ToJsonString());
-        return (await api.Post($"/inventorycounts/{created.Data!["id"].S()}/submit")).Data!["id"].S();
+        var submitted = await api.Post($"/inventorycounts/{created.Data!["id"].S()}/submit");
+        Assert.True(submitted.Status is 200 or 201, $"{submitted.Status}: {submitted.Body?.ToJsonString()}");
+        return submitted.Data!["id"].S();
     }
+
+    /// <summary>نجاح مع نص الاستجابة عند الفشل (رسالة السرفر).</summary>
+    private static void Ok(Res r) => Assert.True(r.Status == 200, $"{r.Status}: {r.Body?.ToJsonString()}");
 
     private static Task<Res> ApproveAsync(Client api, string approvalId) => api.Post($"/inventorycountapprovals/{approvalId}/approve", new { });
 
@@ -135,7 +140,7 @@ public class PeriodicInventoryTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 2))).Status);
 
         var approved = await ApproveCountAsync(api, ItemCount(product, 7)); // عجز قطعة: 7 × 40
-        Assert.Equal(200, approved.Status);
+        Ok(approved);
         var entry = await JournalLinesAsync(api, approved.Data!["journalEntryId"].S());
         Assert.Equal(400m, Credit(entry, MainSiteInventory)); // X: الرصيد الدفتري
         Assert.Equal(400m, Debit(entry, a.Opening));
@@ -168,7 +173,7 @@ public class PeriodicInventoryTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 2))).Status); // من الموقع الرئيسي
 
         var approved = await ApproveCountAsync(api, ItemCount(product, 13)); // بلا فروق: 8 في الرئيسي و5 في جدة
-        Assert.Equal(200, approved.Status);
+        Ok(approved);
         var entry = await JournalLinesAsync(api, approved.Data!["journalEntryId"].S());
         Assert.Equal(400m, Credit(entry, MainSiteInventory));
         Assert.Equal(200m, Credit(entry, "1149"));
@@ -188,11 +193,11 @@ public class PeriodicInventoryTests : TestBase
         var product = await SeedProductAsync(api, stock: 0);
         var first = Today.AddDays(-10);
         await OpeningStockAsync(api, product, 10, 40, first.AddDays(-1));
-        Assert.Equal(200, (await ApproveCountAsync(api, ItemCount(product, 10, date: first))).Status); // Y1 = 400 = X
+        Ok(await ApproveCountAsync(api, ItemCount(product, 10, date: first))); // Y1 = 400 = X
 
         Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, product, 5, 60))).Status);
         Assert.Equal(201, (await api.PostInvoice(Sale(product, 3))).Status);
-        Assert.Equal(200, (await ApproveCountAsync(api, ItemCount(product, 12))).Status);
+        Ok(await ApproveCountAsync(api, ItemCount(product, 12)));
 
         var y2 = await BalanceAsync(api, MainSiteInventory);
         var stock = (await api.Get($"/products/{product}")).Data!;
@@ -226,7 +231,7 @@ public class PeriodicInventoryTests : TestBase
         var countDate = Today.AddDays(-5);
         await OpeningStockAsync(api, product, 10, 40, countDate.AddDays(-1));
         var approved = await ApproveCountAsync(api, ItemCount(product, 10, date: countDate));
-        Assert.Equal(200, approved.Status);
+        Ok(approved);
         var entry = (await api.Get($"/journalentries/{approved.Data!["journalEntryId"].S()}")).Data!;
         Assert.Equal(countDate, entry["date"]!.GetValue<DateTime>().Date);
 
@@ -256,7 +261,10 @@ public class PeriodicInventoryTests : TestBase
         var (api, _) = await PeriodicTenantAsync();
         var product = await SeedProductAsync(api);
         var warehouse = (await api.Get("/warehouses")).Data!["items"]!.AsArray().First()!["id"].G();
-        Assert.Equal(400, (await ApproveCountAsync(api, ItemCount(product, 9, warehouseId: warehouse))).Status);
+        // يُرفض عند الإرسال (EnsureSubmittableAsync) قبل الاعتماد
+        var created = await api.Post("/inventorycounts", ItemCount(product, 9, warehouseId: warehouse));
+        Assert.Equal(201, created.Status);
+        Assert.Equal(400, (await api.Post($"/inventorycounts/{created.Data!["id"].S()}/submit")).Status);
     }
 
     [Fact]
@@ -279,7 +287,7 @@ public class PeriodicInventoryTests : TestBase
         Assert.Equal(409, (await api.Post("/stockmovements/adjust", new { itemId = product, type = "adjustment_in", quantity = 1, unitCost = 40,
             referenceNumber = "LATE", date = thisYear.AddDays(-1) })).Status); // ما قبل بدء الدوري أُقفل
 
-        Assert.Equal(200, (await ApproveCountAsync(api, ItemCount(product, 8))).Status);
+        Ok(await ApproveCountAsync(api, ItemCount(product, 8)));
         Assert.Equal(400m, await BalanceAsync(api, a.Opening));          // الجرد الأول يحمّل الرصيد الدفتري مرة واحدة
         Assert.Equal(320m, await BalanceAsync(api, MainSiteInventory));
     }
@@ -340,7 +348,7 @@ public class PeriodicInventoryTests : TestBase
         var product2 = await SeedProductAsync(api2, stock: 0);
         await OpeningStockAsync(api2, product2, 10, 40, yearEnd.AddDays(-30));
         var approved = await ApproveCountAsync(api2, ItemCount(product2, 9, date: yearEnd));
-        Assert.Equal(200, approved.Status);
+        Ok(approved);
         Assert.Equal(yearEnd, (await api2.Get($"/journalentries/{approved.Data!["journalEntryId"].S()}")).Data!["date"]!.GetValue<DateTime>().Date);
         Assert.Equal(360m, await BalanceAsync(api2, MainSiteInventory));
         var closed = await api2.Post("/fiscalperiods/close-year", new { year = lastYear });
@@ -397,7 +405,7 @@ public class PeriodicInventoryTests : TestBase
         Assert.Equal(400, (await api.Post("/accounting-settings/periodic-legacy", new { fingerprint = again["fingerprint"].S() })).Status); // لا تكرار
 
         // الجرد التالي يحمّل الرصيد مرة واحدة: أول المدة 400 لا 800
-        Assert.Equal(200, (await ApproveCountAsync(api, ItemCount(product, 10))).Status);
+        Ok(await ApproveCountAsync(api, ItemCount(product, 10)));
         Assert.Equal(400m, await LinesBalanceAsync(api, a.Opening));
         Assert.Equal(400m, await LinesBalanceAsync(api, MainSiteInventory));
     }

@@ -55,9 +55,10 @@ internal static class PeriodicInventory
     {
         if (date > SaudiTime.Today) throw new ValidationFailedException(Messages.CountDateInFuture);
         var submitted = count.SubmittedAt;
+        var nextDay = date.Date.AddDays(1); // الحركات تحمل وقت المستند: «بعد تاريخ الجرد» من اليوم التالي
         var conflicts = db.Set<StockMovement>().AsNoTracking()
             .Where(m => !(m.SourceType == InventoryCountSource && m.SourceId == count.Id)
-                        && (m.Date > date || (submitted != null && m.CreatedAt > submitted)));
+                        && (m.Date >= nextDay || (submitted != null && m.CreatedAt > submitted)));
         var total = await conflicts.CountAsync(ct);
         if (total == 0) return;
         var samples = await conflicts.OrderBy(m => m.Date).ThenBy(m => m.CreatedAt).Take(5)

@@ -34,10 +34,12 @@ internal static class PeriodicLegacyRemediation
         preview.FirstOpenDate = tenant.BooksLockedThrough?.AddDays(1);
         var closedEnd = await FiscalPeriodService.LastClosedYearEndAsync(db, tenant, ct);
 
+        // القيود تحمل وقت المستند: الدورة الحالية من اليوم التالي لآخر جرد
+        DateTime? cycleFrom = cycleStart?.Date.AddDays(1);
         var done = await entries.Where(e => e.Status == JournalEntryStatus.Posted && e.SourceType == PeriodicInventory.LegacyReclassSource && e.SourceReferenceId != null)
             .Select(e => e.SourceReferenceId!.Value).ToListAsync(ct);
         var legacy = await entries.Include(e => e.Lines)
-            .Where(e => e.Status == JournalEntryStatus.Posted && (cycleStart == null || e.Date > cycleStart)
+            .Where(e => e.Status == JournalEntryStatus.Posted && (cycleFrom == null || e.Date >= cycleFrom)
                         && (e.SourceType == PeriodicInventory.PeriodOpeningSource || e.SourceType == PeriodicInventory.MethodOpeningSource
                             || (e.SourceType == StockAdjustmentSource && e.Lines.Any(l => l.AccountCode == opening)))
                         && !done.Contains(e.Id))
@@ -65,8 +67,8 @@ internal static class PeriodicLegacyRemediation
                     _ => "opening_balance",
                 },
             };
-            if (closedEnd is { } closed && e.Date <= closed) item.Status = PeriodicLegacyStatus.ClosedYear;
-            else if (tenant.BooksLockedThrough is { } locked && e.Date <= locked)
+            if (closedEnd is { } closed && e.Date.Date <= closed) item.Status = PeriodicLegacyStatus.ClosedYear;
+            else if (tenant.BooksLockedThrough is { } locked && e.Date.Date <= locked)
             {
                 item.Status = PeriodicLegacyStatus.LockedPeriod;
                 var year = FiscalPeriodService.YearOf(tenant, e.Date);

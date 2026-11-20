@@ -33,6 +33,16 @@ public class AccountingSettingsController : ErpControllerBase
     public async Task<IActionResult> InitializePeriodicAccounts(CancellationToken ct)
         => Success(await _settings.InitializePeriodicAccountsAsync(ct));
 
+    /// <summary>فحص اكتمال حسابات إضافة الورش أو التأجير (`workshop` / `equipment_rental`؛ للمنشأة المرخّصة بها).</summary>
+    [HttpGet("module-accounts/{module}")]
+    public async Task<IActionResult> ModuleAccountsStatus(string module, CancellationToken ct)
+        => Success(await _settings.GetModuleAccountsStatusAsync(module, ct));
+
+    /// <summary>تهيئة حسابات الإضافة الناقصة وربطها (لا يغيّر الإعدادات المحددة)؛ يعيد تقرير النتيجة.</summary>
+    [HttpPost("module-accounts/{module}"), RequireScreen("accounting-settings", ScreenAction.Edit)]
+    public async Task<IActionResult> InitializeModuleAccounts(string module, CancellationToken ct)
+        => Success(await _settings.InitializeModuleAccountsAsync(module, ct));
+
     /// <summary>معاينة معالجة قيود الجرد الدوري القديمة التي نقلت رصيد المخزون إلى بضاعة أول المدة.</summary>
     [HttpGet("periodic-legacy")]
     public async Task<IActionResult> PeriodicLegacy(CancellationToken ct)

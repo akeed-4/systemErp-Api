@@ -26,11 +26,12 @@ public class AccountingSettingsService : IAccountingSettingsService
     private readonly IAuditService _audit;
     private readonly IAccountingPostingService _posting;
     private readonly IPermissionService _permissions;
+    private readonly ISubscriptionEntitlements _entitlements;
 
     public AccountingSettingsService(ErpDbContext db, IPeriodLock periods, ITransactionRunner tx, IAuditService audit, IAccountingPostingService posting,
-        IPermissionService permissions)
+        IPermissionService permissions, ISubscriptionEntitlements entitlements)
     {
-        _db = db; _periods = periods; _tx = tx; _audit = audit; _posting = posting; _permissions = permissions;
+        _db = db; _periods = periods; _tx = tx; _audit = audit; _posting = posting; _permissions = permissions; _entitlements = entitlements;
     }
 
     public async Task<AccountingSettingsDto> GetAsync(CancellationToken ct = default)
@@ -105,6 +106,38 @@ public class AccountingSettingsService : IAccountingSettingsService
                 + (request.UseFirstOpenDateForLocked ? " — قيود الفترات المقفلة بأول يوم مفتوح" : ""), token);
             return result;
         }, ct);
+
+    /// <summary>فحص اكتمال حسابات إضافة (الورش أو التأجير) بلا كتابة؛ للمنشأة المرخّصة بالإضافة فقط.</summary>
+    public async Task<ContractAccountsSetupDto> GetModuleAccountsStatusAsync(string module, CancellationToken ct = default)
+        => await ContractAccountsSetup.EnsureModuleAsync(_db, await ModuleAccountSetAsync(module, ct), preview: true, ct);
+
+    /// <summary>زر تهيئة حسابات إضافة: ينشئ الناقص ويربطه ولا يغيّر الإعدادات المحددة (يبلّغ عن غير الصالح منها).</summary>
+    public Task<ContractAccountsSetupDto> InitializeModuleAccountsAsync(string module, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var set = await ModuleAccountSetAsync(module, token);
+            var report = await ContractAccountsSetup.EnsureModuleAsync(_db, set, preview: false, token);
+            if (report.Created > 0 || report.Reused > 0)
+                await _audit.LogAsync("MODULE_ACCOUNTS_INITIALIZED", nameof(AccountingSettings), module,
+                    $"تهيئة حسابات {module}: " + string.Join("، ", report.Items
+                        .Where(i => i.Status is ContractAccountSetupStatus.Created or ContractAccountSetupStatus.Reused)
+                        .Select(i => $"{i.RoleLabel} {i.AccountCode} ({i.Status})")), token);
+            return report;
+        }, ct);
+
+    /// <summary>مجموعة حسابات الإضافة من مفتاح وحدتها، بشرط أن تكون مرخّصة للمنشأة.</summary>
+    private async Task<ContractAccountsSetup.ModuleAccountSet> ModuleAccountSetAsync(string module, CancellationToken ct)
+    {
+        var key = (module ?? string.Empty).Trim().ToLowerInvariant();
+        ContractAccountsSetup.ModuleAccountSet set = key switch
+        {
+            PlatformModules.Workshop => ContractAccountsSetup.ModuleAccountSet.Workshop,
+            PlatformModules.EquipmentRental => ContractAccountsSetup.ModuleAccountSet.Rental,
+            _ => throw new NotFoundException(Messages.ModuleAccountsUnknown),
+        };
+        if (!(await _entitlements.GetAsync(ct)).Allows(key)) throw new ForbiddenException(Messages.AddOnNotLicensed);
+        return set;
+    }
 
     private Task LogPeriodicSetupAsync(ContractAccountsSetupDto report, CancellationToken ct)
         => _audit.LogAsync("PERIODIC_ACCOUNTS_INITIALIZED", nameof(AccountingSettings), "periodic",

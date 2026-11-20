@@ -70,6 +70,8 @@ public static class PermissionCatalog
         new("master-data", "البيانات الرئيسية", "Master Data", "folder_shared"),
         new("hr", "الموارد البشرية", "Human Resources", "groups"),
         new("car-showroom", "معارض السيارات", "Car Showroom", "directions_car"),
+        new(WorkshopModuleId, "ورش السيارات", "Automotive Workshop", "car_repair"),
+        new(EquipmentRentalModuleId, "تأجير المعدات", "Equipment Rental", "front_loader"),
         new("reports", "التقارير", "Reports", "insights"),
         new("settings", "الإعدادات", "Settings", "settings"),
     };
@@ -113,7 +115,7 @@ public static class PermissionCatalog
         // المعدات والآليات: السجل والإسناد والتشغيل وعقود الإيجار واللوحة والتقارير؛ ترث صلاحية مشاريع المقاولات حتى تُحفظ لها صلاحية.
         // «إغلاق» = إغلاق عقد الإيجار، و«ترحيل» = تسجيل وقود أو مصروف بقيد
         new(EquipmentScreenId, "contracts", "المعدات والآليات (السجل والإسناد والتشغيل والإيجار)", "Equipment & Machinery (Registry, Assignment, Operation, Rental)",
-            Crud(A.Approve, A.Close, A.Post), new[] { "construction/equipment" }, InheritsFrom: ConstructionProjectsScreenId),
+            Crud(A.Approve, A.Close, A.Post), new[] { "construction/equipment", "rental/equipment" }, InheritsFrom: ConstructionProjectsScreenId),
         // صيانة المعدات (أوامر العمل وقطع الغيار): الإكمال يصرف القطع ويقيّد التكلفة (ترحيل)، والإلغاء يعكسها؛ ترث صلاحية المعدات
         new(EquipmentMaintenanceScreenId, "contracts", "صيانة المعدات (أوامر العمل وقطع الغيار)", "Equipment Maintenance (Work Orders & Spare Parts)",
             Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: EquipmentScreenId),
@@ -185,6 +187,48 @@ public static class PermissionCatalog
         new(PermissionService.SoldVehicleAdjustmentScreenId, "car-showroom", "السيارات: قيود التعديل على سيارات مباعة", "Cars: Cost Adjustments on Sold Vehicles",
             new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
 
+        // ورش السيارات (إضافة workshop). أمر العمل هو المستند الرئيسي: الشاشات الفرعية ترثه حتى تُحفظ لها صلاحية مستقلة.
+        new(WorkshopSettingsScreenId, WorkshopModuleId, "الورش: الإعدادات والخدمات ومراحل العمل وقوالب الفحص", "Workshop: Settings, Services, Stages & Inspection Templates",
+            new[] { A.View, A.Edit }, new[] { "workshop/settings" }),
+        new(WorkshopVehiclesScreenId, WorkshopModuleId, "الورش: سجل مركبات العملاء وتاريخ صيانتها", "Workshop: Customer Vehicles & Service History",
+            Crud(A.Import), new[] { "workshop/vehicles" }),
+        // الاستقبال وأمر العمل والتقديرات وموافقة العميل والفوترة والتسليم. «خصم يدوي» = خصم على التقدير أو الفاتورة
+        new(WorkshopOrdersScreenId, WorkshopModuleId, "الورش: الاستقبال وأوامر العمل والتقديرات والفوترة والتسليم", "Workshop: Reception, Work Orders, Estimates, Billing & Delivery",
+            Crud(A.Approve, A.Close, A.Cancel, A.Reopen, A.Discount), new[] { "workshop", "workshop/reception", "workshop/orders" }),
+        new(WorkshopTimeLogsScreenId, WorkshopModuleId, "الورش: ساعات الفنيين والتوقف", "Workshop: Technician Time & Downtime",
+            new[] { A.View, A.Create, A.Edit, A.Delete }.Concat(Docs).ToArray(), new[] { "workshop/technicians" }, InheritsFrom: WorkshopOrdersScreenId),
+        // حجز قطع الغيار وصرفها وإرجاعها لأمر العمل: الترحيل = الصرف بحركة مخزون وقيد، والإلغاء = الإرجاع
+        new(WorkshopPartsScreenId, WorkshopModuleId, "الورش: حجز قطع الغيار وصرفها وإرجاعها", "Workshop: Reserve, Issue & Return Spare Parts",
+            Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: WorkshopOrdersScreenId),
+        new(WorkshopQualityScreenId, WorkshopModuleId, "الورش: فحص الجودة قبل التسليم", "Workshop: Quality Check Before Delivery",
+            new[] { A.View, A.Approve, A.Reject }, Array.Empty<string>(), InheritsFrom: WorkshopOrdersScreenId),
+        // تنفيذ بند لم يوافق عليه العميل باستثناء موثق (سبب ومرفق): تفويض حسّاس
+        new(WorkshopUnapprovedExecutionScreenId, WorkshopModuleId, "الورش: تنفيذ بند غير معتمد من العميل (استثناء)", "Workshop: Execute a Line Not Approved by the Customer (Exception)",
+            new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
+        new(WorkshopCostViewScreenId, WorkshopModuleId, "الورش: رؤية التكلفة والربحية", "Workshop: View Cost & Profitability",
+            new[] { A.View }.Concat(Docs).ToArray(), Array.Empty<string>(), Restricted: true),
+
+        // تأجير المعدات (إضافة equipment_rental). سجل المعدات نفسه شاشة «equipment» القائمة؛ هنا دورة التأجير للعملاء.
+        new(RentalSettingsScreenId, EquipmentRentalModuleId, "التأجير: الإعدادات والفئات والتسعير وأنواع الرسوم", "Rental: Settings, Categories, Pricing & Charge Types",
+            new[] { A.View, A.Edit }, new[] { "rental/settings" }),
+        new(RentalBookingsScreenId, EquipmentRentalModuleId, "التأجير: التوفر والحجوزات وعروض الأسعار", "Rental: Availability, Bookings & Quotes",
+            Crud(A.Approve, A.Cancel), new[] { "rental", "rental/availability", "rental/bookings" }),
+        // العقد وتمديده وتجديده: «إغلاق» = إغلاق العقد بعد الاستلام والتسوية، و«إعادة فتح» = فتح عقد مغلق بسبب
+        new(RentalContractsScreenId, EquipmentRentalModuleId, "التأجير: عقود التأجير وتمديدها وتجديدها", "Rental: Rental Contracts, Extensions & Renewals",
+            Crud(A.Submit, A.Approve, A.Close, A.Reopen, A.Cancel, A.Discount), new[] { "rental/contracts" }),
+        // محاضر التسليم والاستلام والنقل: «ترحيل» = اعتماد المحضر فيتغير حال المعدة
+        new(RentalHandoversScreenId, EquipmentRentalModuleId, "التأجير: محاضر التسليم والاستلام والنقل", "Rental: Handover, Return & Transport Records",
+            Crud(A.Post, A.Cancel), new[] { "rental/handovers" }, InheritsFrom: RentalContractsScreenId),
+        // الرسوم والفوترة الدورية: «ترحيل» = إصدار فاتورة الفترة عبر محرك الفواتير
+        new(RentalBillingScreenId, EquipmentRentalModuleId, "التأجير: الرسوم والفوترة الدورية", "Rental: Charges & Periodic Billing",
+            Crud(A.Approve, A.Post, A.Cancel), new[] { "rental/billing" }, InheritsFrom: RentalContractsScreenId),
+        // التأمينات النقدية: الاستلام والخصم والرد بسندات القبض والصرف القائمة
+        new(RentalDepositsScreenId, EquipmentRentalModuleId, "التأجير: التأمينات النقدية والضمانات", "Rental: Security Deposits & Guarantees",
+            Crud(A.Post, A.Cancel), new[] { "rental/deposits" }),
+        // الإعفاء من رسم (تأخير، تلف، غرامة) أو تخفيضه بسبب: تفويض حسّاس
+        new(RentalChargeWaiverScreenId, EquipmentRentalModuleId, "التأجير: الإعفاء من الرسوم والغرامات", "Rental: Waive Charges & Penalties",
+            new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
+
         new("dashboard", "reports", "لوحة المؤشرات والملخص المالي", "Dashboard & Summary", new[] { A.View }, new[] { "dashboard" }),
         new("reports", "reports", "التقارير المالية والإقرار الضريبي", "Financial Reports",
             new[] { A.View }.Concat(Docs).ToArray(), new[] { "reports", "financial-statements" }),
@@ -220,6 +264,25 @@ public static class PermissionCatalog
     public const string PurchaseRequisitionApprovalScreenId = "purchase-requisition-approval";
     public const string ContractCertificateApprovalScreenId = "contract-certificate-approval";
     public const string ProductionOrdersScreenId = "production-orders";
+
+    public const string WorkshopModuleId = "workshop";
+    public const string WorkshopSettingsScreenId = "workshop-settings";
+    public const string WorkshopVehiclesScreenId = "workshop-vehicles";
+    public const string WorkshopOrdersScreenId = "workshop-orders";
+    public const string WorkshopTimeLogsScreenId = "workshop-time-logs";
+    public const string WorkshopPartsScreenId = "workshop-parts";
+    public const string WorkshopQualityScreenId = "workshop-quality";
+    public const string WorkshopUnapprovedExecutionScreenId = "workshop-unapproved-execution";
+    public const string WorkshopCostViewScreenId = "workshop-cost-view";
+
+    public const string EquipmentRentalModuleId = "equipment-rental";
+    public const string RentalSettingsScreenId = "rental-settings";
+    public const string RentalBookingsScreenId = "rental-bookings";
+    public const string RentalContractsScreenId = "rental-contracts";
+    public const string RentalHandoversScreenId = "rental-handovers";
+    public const string RentalBillingScreenId = "rental-billing";
+    public const string RentalDepositsScreenId = "rental-deposits";
+    public const string RentalChargeWaiverScreenId = "rental-charge-waiver";
 
     private static readonly Dictionary<string, PermissionScreenDefinition> ById = Screens.ToDictionary(s => s.Id);
     private static readonly Dictionary<A, PermissionActionDefinition> ActionsByEnum = Actions.ToDictionary(a => a.Action);

@@ -137,7 +137,7 @@ public class EquipmentService : IEquipmentService
         if (!string.IsNullOrWhiteSpace(r.Status) && r.Status != e.Status)
         {
             if (!St.Manual.Contains(r.Status)) errors.Add("حالة المعدة تُضبط يدوياً إلى: متاحة، خارج الخدمة، مُعادة للمؤجر.");
-            else if (e.Status is St.Assigned or St.Maintenance) errors.Add("المعدة مسندة لمشروع أو في الصيانة؛ أرجعها أو أكمل أمر العمل قبل تغيير حالتها.");
+            else if (e.Status is St.Assigned or St.Maintenance or St.Rented) errors.Add("المعدة مسندة لمشروع أو مؤجَّرة لعميل أو في الصيانة؛ أرجعها أو أكمل أمر العمل قبل تغيير حالتها.");
             else if (r.Status == St.Returned && owned) errors.Add("«مُعادة للمؤجر» للمعدة المستأجرة فقط.");
         }
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
@@ -270,6 +270,8 @@ public class EquipmentService : IEquipmentService
             });
         if (await _db.Set<EquipmentAssignment>().AnyAsync(a => a.EquipmentId == e.Id && a.Status == ASt.Active, ct))
             throw new ConflictException($"للمعدة {e.Code} إسناد نشط.");
+        // الإسناد مفتوح من تاريخه: لا يتداخل مع حجز تأجير للعملاء (يقفل صف المعدة فلا يسبقه حجز متزامن)
+        await RentalAvailability.EnsureFreeForAssignmentAsync(_db, e.Id, date, ct);
         await EnsureOperatorAsync(operatorId, ct);
 
         var owned = e.Ownership == EquipmentOwnerships.Owned;

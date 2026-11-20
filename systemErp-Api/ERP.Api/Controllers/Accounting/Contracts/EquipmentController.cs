@@ -9,9 +9,11 @@ namespace ERP.Api.Controllers.Accounting;
 /// <summary>
 /// المعدات والآليات (وحدة المقاولات): السجل، والإسناد للمشاريع والتحويل والإرجاع، وسجل التشغيل، وعقود الإيجار، واللوحة وتقرير التكلفة.
 /// الإسناد ينشئ مورد المشروع بقواعد خدمة المشاريع (العقد غير مغلق)، فتُحمَّل تكلفة الساعة من التقرير اليومي المعتمد.
+/// السجل وسجل التشغيل وعقود الاستئجار من المورد متاحة لإضافة التأجير أيضاً (سجل واحد للمعدات)؛ الإسناد للمشاريع وتسعيرات إيرادها
+/// وربحيتها وتوزيع الإهلاك وتقرير التكلفة للمقاولات وحدها (سمة على الإجراء).
 /// </summary>
 [Route("api/v1/equipment"), RequireScreen(PermissionCatalog.EquipmentScreenId)]
-[RequireModule(PlatformModules.Construction)]
+[RequireModule(PlatformModules.Construction, PlatformModules.EquipmentRental)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class EquipmentController : ErpControllerBase
 {
@@ -50,36 +52,36 @@ public class EquipmentController : ErpControllerBase
     [HttpGet("dashboard"), RequireScreen(Screen, ScreenAction.View)]
     public async Task<IActionResult> Dashboard(CancellationToken ct) => Success(await _equipment.DashboardAsync(ct));
 
-    [HttpGet("cost-report"), RequireScreen(Screen, ScreenAction.View)]
+    [HttpGet("cost-report"), RequireScreen(Screen, ScreenAction.View), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> CostReport([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
         => Success(await _equipment.CostReportAsync(from, to, ct));
 
     // ---------- الإيرادات والربحية (حساب بلا قيود) ----------
 
     /// <summary>ربحية المعدات لفترة: الإيراد التشغيلي المحسوب والمحاسبي المعتمد في المستخلصات مقابل التكلفة الفعلية، لكل معدة ومشروع.</summary>
-    [HttpGet("profitability"), RequireScreen(Screen, ScreenAction.View)]
+    [HttpGet("profitability"), RequireScreen(Screen, ScreenAction.View), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> Profitability([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] Guid? contractId,
         [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
         => Success(await profit.ReportAsync(from, to, contractId, ct));
 
-    [HttpGet("revenue-rates"), RequireScreen(Screen, ScreenAction.View)]
+    [HttpGet("revenue-rates"), RequireScreen(Screen, ScreenAction.View), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> RevenueRates([FromQuery] Guid? equipmentId, [FromQuery] Guid? contractId, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
         => Success(await profit.RatesAsync(equipmentId, contractId, ct));
 
     /// <summary>بنود جدول كميات العقد القابلة للربط بتسعيرة معدة.</summary>
-    [HttpGet("revenue-rates/items"), RequireScreen(Screen, ScreenAction.View)]
+    [HttpGet("revenue-rates/items"), RequireScreen(Screen, ScreenAction.View), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> RevenueItems([FromQuery] Guid contractId, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
         => Success(await profit.ItemOptionsAsync(contractId, ct));
 
-    [HttpPost("revenue-rates"), RequireScreen(Screen, ScreenAction.Edit)]
+    [HttpPost("revenue-rates"), RequireScreen(Screen, ScreenAction.Edit), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> CreateRevenueRate([FromBody] SaveEquipmentRevenueRateDto request, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
         => Success(await profit.CreateRateAsync(request, ct), Messages.CreatedSuccessfully);
 
-    [HttpPut("revenue-rates/{rateId:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
+    [HttpPut("revenue-rates/{rateId:guid}"), RequireScreen(Screen, ScreenAction.Edit), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> UpdateRevenueRate(Guid rateId, [FromBody] SaveEquipmentRevenueRateDto request, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
         => Success(await profit.UpdateRateAsync(rateId, request, ct), Messages.UpdatedSuccessfully);
 
-    [HttpDelete("revenue-rates/{rateId:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
+    [HttpDelete("revenue-rates/{rateId:guid}"), RequireScreen(Screen, ScreenAction.Edit), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> DeleteRevenueRate(Guid rateId, [FromServices] IEquipmentProfitabilityService profit, CancellationToken ct)
     {
         await profit.DeleteRateAsync(rateId, ct);
@@ -90,29 +92,29 @@ public class EquipmentController : ErpControllerBase
     /// إعادة توزيع الإهلاك الفعلي لمعدات «طريقة الإهلاك» على المشاريع لفترة (yyyy-MM) بالفرق عمّا رُحِّل (بعد تصحيحات متأخرة)؛ يتم آلياً
     /// عند ترحيل الإهلاك وعكسه واعتماد التقارير. يرحّل قيوداً فيحتاج صلاحية الترحيل.
     /// </summary>
-    [HttpPost("depreciation-allocation"), RequireScreen(Screen, ScreenAction.Post)]
+    [HttpPost("depreciation-allocation"), RequireScreen(Screen, ScreenAction.Post), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> ReallocateDepreciation([FromQuery] string period, [FromServices] IEquipmentCostAllocationService allocation, CancellationToken ct)
         => Success(new { assets = await allocation.ReallocatePeriodAsync(period, ct) });
 
     // ---------- الإسناد (الإسناد والتحويل والإرجاع = تعديل حالة المعدة) ----------
 
-    [HttpGet("assignments"), RequireScreen(Screen, ScreenAction.View)]
+    [HttpGet("assignments"), RequireScreen(Screen, ScreenAction.View), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> Assignments([FromQuery] Guid? equipmentId, [FromQuery] Guid? contractId, [FromQuery] bool activeOnly, CancellationToken ct)
         => Success(await _equipment.AssignmentsAsync(equipmentId, contractId, activeOnly, ct));
 
-    [HttpPost("assignments"), RequireScreen(Screen, ScreenAction.Edit)]
+    [HttpPost("assignments"), RequireScreen(Screen, ScreenAction.Edit), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> Assign([FromBody] AssignEquipmentDto request, CancellationToken ct)
         => Success(await _equipment.AssignAsync(request, ct), "تم إسناد المعدة للمشروع.");
 
-    [HttpPut("assignments/{assignmentId:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
+    [HttpPut("assignments/{assignmentId:guid}"), RequireScreen(Screen, ScreenAction.Edit), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> UpdateAssignment(Guid assignmentId, [FromBody] UpdateEquipmentAssignmentDto request, CancellationToken ct)
         => Success(await _equipment.UpdateAssignmentAsync(assignmentId, request, ct));
 
-    [HttpPost("assignments/{assignmentId:guid}/return"), RequireScreen(Screen, ScreenAction.Edit)]
+    [HttpPost("assignments/{assignmentId:guid}/return"), RequireScreen(Screen, ScreenAction.Edit), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> Return(Guid assignmentId, [FromBody] ReturnEquipmentDto request, CancellationToken ct)
         => Success(await _equipment.ReturnAsync(assignmentId, request, ct), "تم إرجاع المعدة من المشروع.");
 
-    [HttpPost("assignments/{assignmentId:guid}/transfer"), RequireScreen(Screen, ScreenAction.Edit)]
+    [HttpPost("assignments/{assignmentId:guid}/transfer"), RequireScreen(Screen, ScreenAction.Edit), RequireModule(PlatformModules.Construction)]
     public async Task<IActionResult> Transfer(Guid assignmentId, [FromBody] TransferEquipmentDto request, CancellationToken ct)
         => Success(await _equipment.TransferAsync(assignmentId, request, ct), "تم تحويل المعدة للمشروع الجديد.");
 
@@ -167,7 +169,7 @@ public class EquipmentController : ErpControllerBase
 
 /// <summary>أوامر عمل صيانة المعدات بقطع غيارها: الإكمال (ترحيل) يصرف القطع ويقيد التكلفة، والإلغاء يعكسها.</summary>
 [Route("api/v1/equipment-maintenance"), RequireScreen(PermissionCatalog.EquipmentMaintenanceScreenId)]
-[RequireModule(PlatformModules.Construction)]
+[RequireModule(PlatformModules.Construction, PlatformModules.EquipmentRental)]
 [RequireFeature(PlanFeatures.CommercialCycle)]
 public class EquipmentMaintenanceController : ErpControllerBase
 {

@@ -77,6 +77,24 @@ public class AccountingSettings : BaseEntity
     /// </summary>
     public string? ProjectGoodsReceivedNotInvoicedAccountCode { get; set; }
 
+    // ---- ورش السيارات (إضافة workshop): تكلفة أمر العمل تحت التنفيذ حتى فوترته (لا افتراضي؛ تُهيّأ بزرها أو عند أول ترحيل) ----
+    /// <summary>أعمال ورشة تحت التنفيذ (أصل): قطع الغيار المصروفة والعمالة المحمّلة والخدمات الخارجية لأوامر العمل المفتوحة.</summary>
+    public string? WorkshopWipAccountCode { get; set; }
+    /// <summary>عمالة ورشة محمّلة (مصروف دائن الطبيعة): مقابل تحميل ساعات الفنيين بتكلفتها المعيارية؛ الرواتب الفعلية على حساباتها.</summary>
+    public string? WorkshopAbsorbedLaborAccountCode { get; set; }
+    /// <summary>تكلفة إيرادات الورشة (مصروف): تكلفة أسطر أمر العمل المفوترة للعميل، تُنقل من تحت التنفيذ عند الفوترة.</summary>
+    public string? WorkshopCostOfRevenueAccountCode { get; set; }
+    /// <summary>مصروف ضمان أعمال الورشة (مصروف): تكلفة أسطر الضمان والأعمال الداخلية غير المفوترة.</summary>
+    public string? WorkshopWarrantyExpenseAccountCode { get; set; }
+
+    // ---- تأجير المعدات (إضافة equipment_rental) ----
+    /// <summary>إيراد تأجير المعدات (إيراد): الإيجار والساعات الإضافية والمشغّل والنقل في فواتير التأجير.</summary>
+    public string? RentalRevenueAccountCode { get; set; }
+    /// <summary>إيراد تعويضات وغرامات التأجير (إيراد): التلفيات والتأخير؛ طبيعتها الضريبية تُحدَّد لكل رسم.</summary>
+    public string? RentalCompensationIncomeAccountCode { get; set; }
+    /// <summary>تأمينات عملاء التأجير (التزام): التأمين النقدي المستلم حتى خصمه أو رده؛ غير خاضع للضريبة.</summary>
+    public string? RentalDepositsLiabilityAccountCode { get; set; }
+
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }
     public int? PurchaseReturnPeriodDays { get; set; }

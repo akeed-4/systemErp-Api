@@ -1890,4 +1890,106 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="PeriodicYearEndCountStale" xml:space="preserve"><value>Fiscal year {0} cannot be closed under periodic inventory: the last approved periodic count is dated {1:yyyy-MM-dd} and {2} stock movement(s) follow it before year end, so it does not represent closing inventory.</value></data>
   <data name="YearCloseOverrideReasonRequired" xml:space="preserve"><value>A reason is required to close the year without a closing inventory count.</value></data>
   <data name="YearCloseOverrideForbidden" xml:space="preserve"><value>You are not allowed to close the year without a closing inventory count (chart of accounts approve permission).</value></data>
+  <data name="AttachmentOwnerTypeUnknown" xml:space="preserve"><value>The document type for these attachments is unknown.</value></data>
+  <data name="AttachmentModuleNotLicensed" xml:space="preserve"><value>Attachments of this document belong to a module that is not included in your subscription.</value></data>
+  <data name="AttachmentNotFound" xml:space="preserve"><value>The attachment was not found.</value></data>
+  <data name="AttachmentAddForbidden" xml:space="preserve"><value>You cannot add attachments to this document in its current state.</value></data>
+  <data name="AttachmentDeleteForbidden" xml:space="preserve"><value>You cannot delete attachments of this document in its current state.</value></data>
+  <data name="AttachmentLimitReached" xml:space="preserve"><value>A document cannot have more than {0} files.</value></data>
+  <data name="AttachmentCategoryInvalid" xml:space="preserve"><value>This attachment category is not allowed for this document.</value></data>
+  <data name="AccountRole_WorkshopWipAccountCode" xml:space="preserve"><value>Workshop work in progress</value></data>
+  <data name="AccountRole_WorkshopAbsorbedLaborAccountCode" xml:space="preserve"><value>Workshop absorbed labor</value></data>
+  <data name="AccountRole_WorkshopCostOfRevenueAccountCode" xml:space="preserve"><value>Workshop cost of revenue</value></data>
+  <data name="AccountRole_WorkshopWarrantyExpenseAccountCode" xml:space="preserve"><value>Workshop warranty expense</value></data>
+  <data name="AccountRole_RentalRevenueAccountCode" xml:space="preserve"><value>Equipment rental revenue</value></data>
+  <data name="AccountRole_RentalCompensationIncomeAccountCode" xml:space="preserve"><value>Rental compensation and penalty income</value></data>
+  <data name="AccountRole_RentalDepositsLiabilityAccountCode" xml:space="preserve"><value>Rental customer deposits</value></data>
+  <data name="ModuleAccountsUnknown" xml:space="preserve"><value>There are no dedicated accounts for this add-on.</value></data>
+  <data name="AddOnNotLicensed" xml:space="preserve"><value>This operation belongs to an add-on that is not included in your subscription.</value></data>
+  <data name="EmployeeCostPurposeInvalid" xml:space="preserve"><value>Invalid standard cost purpose (technician or operator).</value></data>
+  <data name="EmployeeCostRateEmployeeNotFound" xml:space="preserve"><value>The employee was not found.</value></data>
+  <data name="EmployeeCostRateEmployeeInactive" xml:space="preserve"><value>A standard cost cannot be set for an inactive employee.</value></data>
+  <data name="EmployeeCostRateNegative" xml:space="preserve"><value>The hourly cost cannot be negative.</value></data>
+  <data name="EmployeeCostRateDuplicateDate" xml:space="preserve"><value>The employee already has a standard cost for this purpose effective from {0:yyyy-MM-dd}; delete it or choose another date.</value></data>
+  <data name="EmployeeCostRateNotFound" xml:space="preserve"><value>The standard cost line was not found.</value></data>
+  <data name="RentalBasis_hour" xml:space="preserve"><value>hourly</value></data>
+  <data name="RentalBasis_day" xml:space="preserve"><value>daily</value></data>
+  <data name="RentalBasis_week" xml:space="preserve"><value>weekly</value></data>
+  <data name="RentalBasis_month" xml:space="preserve"><value>monthly</value></data>
+  <data name="RentalBlock_assignment" xml:space="preserve"><value>assigned to a project</value></data>
+  <data name="RentalBlock_booking" xml:space="preserve"><value>booked</value></data>
+  <data name="RentalBlock_maintenance" xml:space="preserve"><value>under maintenance</value></data>
+  <data name="RentalBlock_status" xml:space="preserve"><value>out of service or returned to the lessor</value></data>
+  <data name="RentalBlock_supplier_contract" xml:space="preserve"><value>outside its supplier rental contract period</value></data>
+  <data name="RentalPeriodInvalid" xml:space="preserve"><value>The rental end must be after its start.</value></data>
+  <data name="RentalRateMissing" xml:space="preserve"><value>No {0} rental rate is effective for the equipment or its category at the start of the period.</value></data>
+  <data name="RentalOperatorRateMissing" xml:space="preserve"><value>No {0} operator rate for the equipment or its category; rent without an operator or set the operator rate.</value></data>
+  <data name="EquipmentBookedForRental" xml:space="preserve"><value>The equipment is booked for rental ({0}) from {1:yyyy-MM-dd HH:mm} to {2:yyyy-MM-dd HH:mm}; cancel the booking or wait for it to end before assigning it to a project.</value></data>
+  <data name="RentalCategoryNotFound" xml:space="preserve"><value>The rental category was not found.</value></data>
+  <data name="RentalCategoryInUse" xml:space="preserve"><value>The category is in use (equipment, rates, sub-categories or bookings); deactivate it instead of deleting.</value></data>
+  <data name="RentalCategoryNameRequired" xml:space="preserve"><value>The category name is required.</value></data>
+  <data name="RentalCategoryCodeTaken" xml:space="preserve"><value>The category code "{0}" is already used.</value></data>
+  <data name="RentalCategoryCycle" xml:space="preserve"><value>A category cannot be its own parent or the parent of one of its ancestors.</value></data>
+  <data name="RentalRateNotFound" xml:space="preserve"><value>The rental rate was not found.</value></data>
+  <data name="RentalRateTargetRequired" xml:space="preserve"><value>Set a category or an equipment for the rate (one of them).</value></data>
+  <data name="RentalBasisInvalid" xml:space="preserve"><value>Invalid rate basis (hour, day, week, month).</value></data>
+  <data name="RentalRateMustBePositive" xml:space="preserve"><value>The rental rate must be greater than zero.</value></data>
+  <data name="RentalRateNegative" xml:space="preserve"><value>Operator rate, included hours, overtime rate and minimum periods cannot be negative.</value></data>
+  <data name="RentalRateEffectiveRangeInvalid" xml:space="preserve"><value>The effective end is before its start.</value></data>
+  <data name="RentalRateOverlap" xml:space="preserve"><value>A rate with the same basis for the same target has an overlapping effective period; end the previous rate first.</value></data>
+  <data name="RentalEquipmentNotFound" xml:space="preserve"><value>The equipment was not found.</value></data>
+  <data name="RentalWarehouseNotFound" xml:space="preserve"><value>The location (warehouse) was not found.</value></data>
+  <data name="RentalCalendarRangeInvalid" xml:space="preserve"><value>Invalid calendar range (end after start, at most {0} days).</value></data>
+  <data name="RentalLineTargetRequired" xml:space="preserve"><value>Set an equipment or a category for the line (one of them).</value></data>
+  <data name="RentalLineQuantityInvalid" xml:space="preserve"><value>The quantity of a category line is between 1 and 1000.</value></data>
+  <data name="RentalBookingNotFound" xml:space="preserve"><value>The booking was not found.</value></data>
+  <data name="RentalBookingNotEditable" xml:space="preserve"><value>The booking cannot be changed in its current status; a confirmed booking is cancelled and booked again.</value></data>
+  <data name="RentalBookingDeleteDraftOnly" xml:space="preserve"><value>Only a draft booking can be deleted; cancel it with a reason afterwards.</value></data>
+  <data name="RentalBookingLinesRequired" xml:space="preserve"><value>Add at least one line.</value></data>
+  <data name="RentalBookingTooManyLines" xml:space="preserve"><value>A booking cannot have more than {0} lines.</value></data>
+  <data name="RentalBookingNeedsEquipment" xml:space="preserve"><value>Holding and confirming require a specific equipment on every line; assign equipment to category lines first.</value></data>
+  <data name="RentalBookingSelfOverlap" xml:space="preserve"><value>The same equipment has two overlapping lines in the booking.</value></data>
+  <data name="RentalHoldUntilInvalid" xml:space="preserve"><value>The hold expiry must be in the future.</value></data>
+  <data name="RentalCancelReasonRequired" xml:space="preserve"><value>A cancellation reason is required.</value></data>
+  <data name="RentalEquipmentUnavailable" xml:space="preserve"><value>Equipment {0} is unavailable: {1} {2} from {3:yyyy-MM-dd HH:mm} to {4}.</value></data>
+  <data name="RentalEquipmentNotRentable" xml:space="preserve"><value>Equipment {0} is not enabled for rental in the rental settings.</value></data>
+  <data name="RentalCustomerNotFound" xml:space="preserve"><value>The customer was not found.</value></data>
+  <data name="RentalCustomerInactive" xml:space="preserve"><value>The customer is inactive; it cannot be booked for.</value></data>
+  <data name="RentalBlock_contract" xml:space="preserve"><value>rented under a contract</value></data>
+  <data name="RentalBookingNotConvertible" xml:space="preserve"><value>Only a confirmed booking or an unexpired held booking can be converted to a contract.</value></data>
+  <data name="RentalContractNotFound" xml:space="preserve"><value>The rental contract was not found.</value></data>
+  <data name="RentalContractNotEditable" xml:space="preserve"><value>This action is not allowed for the contract in its current status.</value></data>
+  <data name="RentalContractDeleteDraftOnly" xml:space="preserve"><value>Only a draft contract can be deleted; cancel it with a reason afterwards.</value></data>
+  <data name="RentalContractHasHandovers" xml:space="preserve"><value>Equipment from the contract has been handed over; it cannot be cancelled, receive the equipment and close it instead.</value></data>
+  <data name="RentalTermInvalid" xml:space="preserve"><value>Invalid contract term (short or long).</value></data>
+  <data name="RentalBillingCycleInvalid" xml:space="preserve"><value>Invalid billing cycle (end of contract, weekly, monthly).</value></data>
+  <data name="RentalDepositNegative" xml:space="preserve"><value>The required deposit cannot be negative.</value></data>
+  <data name="RentalOperatorNotFound" xml:space="preserve"><value>The operator was not found among employees or is inactive.</value></data>
+  <data name="RentalRateOverrideForbidden" xml:space="preserve"><value>Changing the rental rate from the price list requires the manual discount permission on rental contracts.</value></data>
+  <data name="RentalExtendReasonRequired" xml:space="preserve"><value>An extension reason is required.</value></data>
+  <data name="RentalExtendNoLines" xml:space="preserve"><value>No lines can be extended (pending or out).</value></data>
+  <data name="RentalExtendMustBeLater" xml:space="preserve"><value>The new end must be after the current end of every line.</value></data>
+  <data name="RentalRenewActiveOnly" xml:space="preserve"><value>Only an active contract can be renewed.</value></data>
+  <data name="RentalRenewReasonRequired" xml:space="preserve"><value>A renewal reason is required.</value></data>
+  <data name="RentalContractAlreadyRenewed" xml:space="preserve"><value>The contract already has a renewal ({0}); edit or cancel it instead of renewing again.</value></data>
+  <data name="RentalHandoverNotFound" xml:space="preserve"><value>Handover or return record not found.</value></data>
+  <data name="RentalHandoverKindInvalid" xml:space="preserve"><value>Invalid record type (delivery or return).</value></data>
+  <data name="RentalHandoverContractNotActive" xml:space="preserve"><value>Records are for active contracts only; activate the contract first.</value></data>
+  <data name="RentalHandoverLinesRequired" xml:space="preserve"><value>Select at least one piece of equipment.</value></data>
+  <data name="RentalHandoverDuplicateLine" xml:space="preserve"><value>Equipment is repeated in the record.</value></data>
+  <data name="RentalHandoverLineNotFound" xml:space="preserve"><value>The equipment line does not belong to this contract.</value></data>
+  <data name="RentalHandoverInFuture" xml:space="preserve"><value>The record time cannot be in the future.</value></data>
+  <data name="RentalConditionInvalid" xml:space="preserve"><value>Invalid equipment condition (good, fair, damaged).</value></data>
+  <data name="RentalFuelInvalid" xml:space="preserve"><value>Fuel level is a percentage between 0 and 100.</value></data>
+  <data name="RentalMeterInvalid" xml:space="preserve"><value>The meter reading cannot be negative.</value></data>
+  <data name="RentalMeterBackwards" xml:space="preserve"><value>The meter reading of equipment {0} ({1}) is lower than the last recorded reading ({2}).</value></data>
+  <data name="RentalHandoverLineNotPending" xml:space="preserve"><value>Equipment {0} is not awaiting delivery on this contract.</value></data>
+  <data name="RentalHandoverAfterPlannedEnd" xml:space="preserve"><value>The planned period of equipment {0} has ended; extend the contract before delivering it.</value></data>
+  <data name="RentalHandoverEquipmentNotAvailable" xml:space="preserve"><value>Equipment {0} is not available for delivery (in maintenance, out of service, assigned, or with another customer).</value></data>
+  <data name="RentalHandoverLineNotOut" xml:space="preserve"><value>Equipment {0} is not out on this contract.</value></data>
+  <data name="RentalHandoverBeforeOut" xml:space="preserve"><value>The return time of equipment {0} is before its delivery.</value></data>
+  <data name="RentalHandoverAlreadyCancelled" xml:space="preserve"><value>Record {0} is already cancelled.</value></data>
+  <data name="RentalHandoverNotLatest" xml:space="preserve"><value>Record {0} is not the latest movement of its equipment; cancel the later records first.</value></data>
+  <data name="RentalHandoverBilled" xml:space="preserve"><value>Part of the period of the equipment in record {0} has been billed; it cannot be cancelled.</value></data>
+  <data name="RentalHandoverCannotRestore" xml:space="preserve"><value>The return of equipment {0} cannot be cancelled: it is no longer available or its period was taken after the return.</value></data>
 </root>

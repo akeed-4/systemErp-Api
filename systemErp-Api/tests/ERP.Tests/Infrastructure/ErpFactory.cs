@@ -59,6 +59,8 @@ public class ErpFactory : WebApplicationFactory<Program>
             services.AddSingleton<ERP.Core.Contracts.Shared.IWhatsAppProvider>(FakeWhatsAppProvider.Instance);
             // ساعة قابلة للتثبيت (الحضور الميداني: اليوم المحلي والتأخير)
             services.AddSingleton<TimeProvider>(TestClock.Instance);
+            // مالك مرفقات للاختبار (المرفقات المشتركة قبل مستندات الورش والتأجير)
+            services.AddScoped<ERP.Core.Contracts.Shared.IAttachmentOwner, TestAttachmentOwner>();
         });
     }
 

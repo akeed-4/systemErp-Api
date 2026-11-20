@@ -131,8 +131,51 @@ internal static class ContractAccountsSetup
             CostOfSalesOnly: true),
     };
 
+    /// <summary>ورش السيارات: تكلفة أمر العمل تحت التنفيذ ومقابل العمالة المحمّلة وتكلفة الإيراد ومصروف الضمان.</summary>
+    private static readonly Spec[] WorkshopSpecs =
+    {
+        new(nameof(AccountingSettings.WorkshopWipAccountCode), AccountCategory.Asset,
+            "أعمال ورشة تحت التنفيذ", "Workshop Work in Progress", AssetAnchors,
+            new[] { "أعمال ورشة تحت التنفيذ", "أوامر عمل تحت التنفيذ", "workshop work in progress", "workshop wip", "work orders in progress" }),
+        new(nameof(AccountingSettings.WorkshopAbsorbedLaborAccountCode), AccountCategory.Expense,
+            "عمالة ورشة محمّلة", "Workshop Absorbed Labor", ExpenseAnchors,
+            new[] { "عمالة ورشة محملة", "عمالة الورشة المحملة", "workshop absorbed labor", "workshop absorbed labour", "absorbed workshop labor" }),
+        new(nameof(AccountingSettings.WorkshopCostOfRevenueAccountCode), AccountCategory.Expense,
+            "تكلفة إيرادات الورشة", "Workshop Cost of Revenue", ExpenseAnchors,
+            new[] { "تكلفة إيرادات الورشة", "تكلفة خدمات الورشة", "workshop cost of revenue", "workshop cost of services" }),
+        new(nameof(AccountingSettings.WorkshopWarrantyExpenseAccountCode), AccountCategory.Expense,
+            "مصروف ضمان أعمال الورشة", "Workshop Warranty Expense", ExpenseAnchors,
+            new[] { "مصروف ضمان الورشة", "مصروفات الضمان", "مصروف الضمان", "workshop warranty expense", "warranty expense" }),
+    };
+
+    /// <summary>تأجير المعدات: الإيراد، والتعويضات والغرامات، والتأمينات النقدية (التزام).</summary>
+    private static readonly Spec[] RentalSpecs =
+    {
+        new(nameof(AccountingSettings.RentalRevenueAccountCode), AccountCategory.Revenue,
+            "إيراد تأجير المعدات", "Equipment Rental Revenue", RevenueAnchors,
+            new[] { "إيرادات تأجير المعدات", "إيراد تأجير معدات", "إيرادات التأجير", "equipment rental revenue", "rental revenue", "rental income" }),
+        new(nameof(AccountingSettings.RentalCompensationIncomeAccountCode), AccountCategory.Revenue,
+            "إيراد تعويضات وغرامات التأجير", "Rental Compensation & Penalty Income", RevenueAnchors,
+            new[] { "إيرادات تعويضات التأجير", "إيراد غرامات التأجير", "rental compensation income", "rental penalty income" }),
+        new(nameof(AccountingSettings.RentalDepositsLiabilityAccountCode), AccountCategory.Liability,
+            "تأمينات عملاء التأجير", "Rental Customer Deposits", LiabilityAnchors,
+            new[] { "تأمينات عملاء التأجير", "تأمينات التأجير المستردة", "تأمينات نقدية للعملاء", "rental deposits", "customer security deposits", "rental customer deposits" }),
+    };
+
     public static IEnumerable<string> RoleKeys => ContractSpecs.Select(s => s.Role);
     public static IEnumerable<string> PeriodicRoleKeys => PeriodicSpecs.Select(s => s.Role);
+
+    /// <summary>مجموعة حسابات إضافة (الورش أو التأجير): لا تُنشأ مع المنشأة، بل من زرها أو قبل أول ترحيل يحتاجها في الوحدة.</summary>
+    public enum ModuleAccountSet { Workshop, Rental }
+
+    private static Spec[] SpecsOf(ModuleAccountSet set) => set switch
+    {
+        ModuleAccountSet.Workshop => WorkshopSpecs,
+        ModuleAccountSet.Rental => RentalSpecs,
+        _ => throw new ArgumentOutOfRangeException(nameof(set)),
+    };
+
+    public static IEnumerable<string> ModuleRoleKeys(ModuleAccountSet set) => SpecsOf(set).Select(s => s.Role);
 
     private static PostingAccounts.Role RoleOf(Spec spec) => PostingAccounts.Roles.First(r => r.Key == spec.Role);
 
@@ -167,6 +210,33 @@ internal static class ContractAccountsSetup
         var isNewSettings = settings == null;
         settings ??= new AccountingSettings();
         var report = await RunAsync(db, ContractSpecs, settings, preview: false, ct);
+        var linked = report.Items.Any(i => i.Status is ContractAccountSetupStatus.Created or ContractAccountSetupStatus.Reused);
+        if (linked && isNewSettings) db.Add(settings);
+        if (linked) await db.SaveChangesAsync(ct);
+        return report;
+    }
+
+    /// <summary>لترحيل في الوحدة: لا شيء إن كانت حسابات المجموعة كلها محددة (بلا تحميل الشجرة)، وإلا تهيئة الناقص.</summary>
+    public static async Task EnsureModuleMissingAsync(ErpDbContext db, ModuleAccountSet set, CancellationToken ct)
+    {
+        var specs = SpecsOf(set);
+        var settings = await db.Set<AccountingSettings>().AsNoTracking().FirstOrDefaultAsync(ct);
+        if (settings != null && specs.All(s => RoleOf(s).Get(settings) != null)) return;
+        await EnsureModuleAsync(db, set, preview: false, ct);
+    }
+
+    /// <summary>
+    /// حسابات إضافة للمنشأة الحالية بقواعد حسابات العقود نفسها (يبقى المحدد، ويُعاد استخدام القائم باسمه، وإلا يُنشأ بجوار المماثل).
+    /// <paramref name="preview"/>: فحص بلا كتابة. التنفيذ يحفظ (في معاملة المستدعي) ويعيد التقرير.
+    /// </summary>
+    public static async Task<ContractAccountsSetupDto> EnsureModuleAsync(ErpDbContext db, ModuleAccountSet set, bool preview, CancellationToken ct)
+    {
+        var specs = SpecsOf(set);
+        if (preview) return await RunAsync(db, specs, await PostingAccounts.SettingsAsync(db, ct), preview: true, ct);
+        var settings = await db.Set<AccountingSettings>().FirstOrDefaultAsync(ct);
+        var isNewSettings = settings == null;
+        settings ??= new AccountingSettings();
+        var report = await RunAsync(db, specs, settings, preview: false, ct);
         var linked = report.Items.Any(i => i.Status is ContractAccountSetupStatus.Created or ContractAccountSetupStatus.Reused);
         if (linked && isNewSettings) db.Add(settings);
         if (linked) await db.SaveChangesAsync(ct);

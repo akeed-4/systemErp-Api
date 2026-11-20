@@ -3,7 +3,8 @@ namespace ERP.Core.Models.Accounting;
 // ملكية المعدة: EquipmentOwnerships نفسها في مكتبة المقاولات (owned / rented).
 
 /// <summary>
-/// حالة المعدة: متاحة، مسندة لمشروع، في الصيانة، خارج الخدمة، أو مُعادة للمؤجر. «مسندة» و«في الصيانة» يضبطهما النظام من الإسناد
+/// حالة المعدة: متاحة، مسندة لمشروع، مؤجَّرة لعميل، في الصيانة، خارج الخدمة، أو مُعادة للمؤجر. «مسندة» و«مؤجَّرة» و«في الصيانة» يضبطها النظام من الإسناد
+/// ومحاضر تسليم التأجير
 /// وأوامر العمل؛ «خارج الخدمة» و«مُعادة» يدويان لمعدة غير مسندة.
 /// </summary>
 public static class EquipmentStatuses
@@ -11,6 +12,8 @@ public static class EquipmentStatuses
     public const string Available = "available";
     public const string Assigned = "assigned";
     public const string Maintenance = "maintenance";
+    /// <summary>عند عميل بمحضر تسليم تأجير (equipment_rental) حتى استلامها.</summary>
+    public const string Rented = "rented";
     public const string OutOfService = "out_of_service";
     public const string Returned = "returned";
     public static readonly string[] Manual = { Available, OutOfService, Returned };
@@ -93,6 +96,13 @@ public class Equipment : BaseEntity
     public decimal? LastServiceMeter { get; set; }
     public DateTime? LastServiceDate { get; set; }
     public string? Notes { get; set; }
+
+    // ---- تأجير المعدات للعملاء (إضافة equipment_rental؛ تُضبط من إعدادات التأجير، ولا تمس المقاولات) ----
+    /// <summary>تظهر في تقويم التوفر وتُحجز وتُؤجَّر للعملاء.</summary>
+    public bool IsRentable { get; set; }
+    public Guid? RentalCategoryId { get; set; }
+    /// <summary>الموقع التشغيلي (المستودع) الذي تُسلَّم منه وتعود إليه.</summary>
+    public Guid? HomeWarehouseId { get; set; }
 }
 
 /// <summary>

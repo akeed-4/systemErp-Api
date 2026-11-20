@@ -28,6 +28,16 @@ public static class PlatformModules
     /// إضافة فوق النظام المحاسبي تُمنح صراحةً كشؤون الموظفين، وسعرها باتفاق مع العميل لا ضمن سعر الباقة.
     /// </summary>
     public const string Construction = "construction";
+    /// <summary>
+    /// ورش السيارات: مركبات العملاء والاستقبال وأوامر العمل والتقديرات والفنيين وقطع الغيار والجودة والضمان.
+    /// إضافة فوق النظام المحاسبي (فواتيرها وقيودها ومخزونها من خدماته)، تُمنح من «الوحدات» حتى يتقرر تسعيرها.
+    /// </summary>
+    public const string Workshop = "workshop";
+    /// <summary>
+    /// تأجير المعدات للعملاء: الفئات والتسعير والتوفر والحجوزات والعقود والتسليم والاستلام والفوترة الدورية والتأمينات.
+    /// يمتد على سجل المعدات القائم (المشترك مع المقاولات) بلا سجل ثانٍ؛ إضافة فوق النظام المحاسبي تُمنح من «الوحدات».
+    /// </summary>
+    public const string EquipmentRental = "equipment_rental";
 
     /// <summary>الدليل المركزي للوحدات التي لها شاشات فعلية في النظام.</summary>
     public static readonly PlatformModuleDefinition[] Catalog =
@@ -38,12 +48,17 @@ public static class PlatformModules
         new() { Number = 4, Key = Hr, NameAr = "شؤون الموظفين", NameEn = "Human Resources", DescriptionAr = "الموظفون والإجازات والحضور والسلف والرواتب ونهاية الخدمة.", DescriptionEn = "Employees, leaves, attendance, loans, payroll and end of service.", Icon = "groups", SortOrder = 4 },
         new() { Number = 6, Key = Construction, NameAr = "المقاولات", NameEn = "Construction", DescriptionAr = "المناقصات وعقود جدول الكميات والمشاريع والتقارير اليومية والمواد والمستخلصات. سعرها حسب الاتفاق.", DescriptionEn = "Tenders, BOQ contracts, projects, daily site reports, materials and certificates. Priced by agreement.", Icon = "engineering", SortOrder = 6 },
         new() { Number = 5, Key = WhatsApp, NameAr = "واتساب للأعمال", NameEn = "WhatsApp Business", DescriptionAr = "ربط رقم واتساب المنشأة وإرسال الفواتير للعملاء منه.", DescriptionEn = "Connect the company WhatsApp number and send invoices to customers from it.", Icon = "chat", SortOrder = 5 },
+        new() { Number = 7, Key = Workshop, NameAr = "ورش السيارات", NameEn = "Automotive Workshop", DescriptionAr = "مركبات العملاء والاستقبال وأوامر العمل والتقديرات والفنيين وقطع الغيار والجودة والضمان.", DescriptionEn = "Customer vehicles, reception, work orders, estimates, technicians, spare parts, quality and warranty.", Icon = "car_repair", SortOrder = 7 },
+        new() { Number = 8, Key = EquipmentRental, NameAr = "تأجير المعدات", NameEn = "Equipment Rental", DescriptionAr = "تسعير المعدات وتوفرها وحجوزاتها وعقود التأجير والتسليم والاستلام والفوترة الدورية والتأمينات.", DescriptionEn = "Equipment pricing, availability, bookings, rental contracts, handovers, periodic billing and deposits.", Icon = "front_loader", SortOrder = 8 },
     };
 
     /// <summary>الإضافات: تُرخَّص مع وحدة دفاتر ولا تحمل قيوداً ولا تقارير.</summary>
-    public static readonly string[] AddOns = { WhatsApp, Construction };
-    /// <summary>إضافات بسعر حسب الاتفاق مع العميل (لا تدخل في سعر الباقة، يمنحها مدير المنصة بعد الاتفاق).</summary>
-    public static readonly string[] PricedByAgreement = { Construction };
+    public static readonly string[] AddOns = { WhatsApp, Construction, Workshop, EquipmentRental };
+    /// <summary>
+    /// إضافات بسعر حسب الاتفاق مع العميل (لا تدخل في سعر الباقة، يمنحها مدير المنصة بعد الاتفاق). الورش والتأجير هنا حتى يتقرر
+    /// تسعيرهما، فلا تُضافان لباقة قبل ذلك.
+    /// </summary>
+    public static readonly string[] PricedByAgreement = { Construction, Workshop, EquipmentRental };
     /// <summary>وحدات الدفاتر: وحدة القيد والسند والتقرير.</summary>
     public static readonly string[] All = Catalog.Select(module => module.Key).Except(AddOns).ToArray();
     /// <summary>كل ما يحمله الاشتراك: وحدات الدفاتر والإضافات.</summary>
@@ -60,6 +75,8 @@ public static class PlatformModules
         if (unknown.Count > 0) throw new ValidationFailedException($"وحدة غير معروفة: {string.Join("، ", unknown)}.");
         if (!list.Any(All.Contains)) throw new ValidationFailedException("يجب اختيار وحدة واحدة على الأقل.");
         if (list.Contains(Construction) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة المقاولات تتطلب النظام المحاسبي.");
+        if (list.Contains(Workshop) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة ورش السيارات تتطلب النظام المحاسبي.");
+        if (list.Contains(EquipmentRental) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة تأجير المعدات تتطلب النظام المحاسبي.");
         return Licensable.Where(list.Contains).ToArray();
     }
 

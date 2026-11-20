@@ -37,6 +37,13 @@ public class SaveAccountingSettingsDto
     public string? ProjectRentedEquipmentCostAccountCode { get; set; }
     public string? ProjectAccruedRentalAccountCode { get; set; }
     public string? ProjectGoodsReceivedNotInvoicedAccountCode { get; set; }
+    public string? WorkshopWipAccountCode { get; set; }
+    public string? WorkshopAbsorbedLaborAccountCode { get; set; }
+    public string? WorkshopCostOfRevenueAccountCode { get; set; }
+    public string? WorkshopWarrantyExpenseAccountCode { get; set; }
+    public string? RentalRevenueAccountCode { get; set; }
+    public string? RentalCompensationIncomeAccountCode { get; set; }
+    public string? RentalDepositsLiabilityAccountCode { get; set; }
     /// <summary>فترة إرجاع المبيعات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
     public int? SalesReturnPeriodDays { get; set; }
     /// <summary>فترة إرجاع المشتريات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>

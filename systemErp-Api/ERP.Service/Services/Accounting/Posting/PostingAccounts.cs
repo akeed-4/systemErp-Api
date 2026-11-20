@@ -86,6 +86,22 @@ internal static class PostingAccounts
         // مشتريات المشاريع: سند الاستلام يقيّده دائناً وفاتورة المورد منه تسوّيه
         new(nameof(AccountingSettings.ProjectGoodsReceivedNotInvoicedAccountCode), s => s.ProjectGoodsReceivedNotInvoicedAccountCode,
             (s, v) => s.ProjectGoodsReceivedNotInvoicedAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
+        // ورش السيارات: تحت التنفيذ يُقفل بعد استخدامه (الفوترة تُخفّض الحساب نفسه الذي حُمِّل عليه الصرف والعمالة)
+        new(nameof(AccountingSettings.WorkshopWipAccountCode), s => s.WorkshopWipAccountCode,
+            (s, v) => s.WorkshopWipAccountCode = v, null, Asset, LockedAfterUse: true),
+        new(nameof(AccountingSettings.WorkshopAbsorbedLaborAccountCode), s => s.WorkshopAbsorbedLaborAccountCode,
+            (s, v) => s.WorkshopAbsorbedLaborAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.WorkshopCostOfRevenueAccountCode), s => s.WorkshopCostOfRevenueAccountCode,
+            (s, v) => s.WorkshopCostOfRevenueAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.WorkshopWarrantyExpenseAccountCode), s => s.WorkshopWarrantyExpenseAccountCode,
+            (s, v) => s.WorkshopWarrantyExpenseAccountCode = v, null, Expense),
+        // تأجير المعدات: التأمينات تُقفل بعد استخدامها (الرد والخصم من الحساب نفسه الذي قُيِّد عليه الاستلام)
+        new(nameof(AccountingSettings.RentalRevenueAccountCode), s => s.RentalRevenueAccountCode,
+            (s, v) => s.RentalRevenueAccountCode = v, null, Revenue),
+        new(nameof(AccountingSettings.RentalCompensationIncomeAccountCode), s => s.RentalCompensationIncomeAccountCode,
+            (s, v) => s.RentalCompensationIncomeAccountCode = v, null, Revenue),
+        new(nameof(AccountingSettings.RentalDepositsLiabilityAccountCode), s => s.RentalDepositsLiabilityAccountCode,
+            (s, v) => s.RentalDepositsLiabilityAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)

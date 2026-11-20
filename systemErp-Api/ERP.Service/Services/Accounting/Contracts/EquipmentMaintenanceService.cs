@@ -218,7 +218,9 @@ public class EquipmentMaintenanceService : IEquipmentMaintenanceService
         if (e.Status != ESt.Maintenance) return;
         if (await _db.Set<EquipmentMaintenanceOrder>().AnyAsync(x => x.EquipmentId == e.Id && x.Id != o.Id && x.Status == St.InProgress, ct)) return;
         var assigned = await _db.Set<EquipmentAssignment>().AnyAsync(a => a.EquipmentId == e.Id && a.Status == EquipmentAssignmentStatuses.Active, ct);
-        e.Status = assigned ? ESt.Assigned : o.StatusBefore is ESt.OutOfService or ESt.Returned ? o.StatusBefore : ESt.Available;
+        // عند عميل بعقد تأجير (سطر خارج لم يُستلم): تعود «مؤجَّرة»
+        var rented = !assigned && await _db.Set<RentalContractLine>().AnyAsync(l => l.EquipmentId == e.Id && l.Status == RentalLineStatuses.Out, ct);
+        e.Status = assigned ? ESt.Assigned : rented ? ESt.Rented : o.StatusBefore is ESt.OutOfService or ESt.Returned ? o.StatusBefore : ESt.Available;
     }
 
     private async Task ApplyAsync(EquipmentMaintenanceOrder o, SaveEquipmentMaintenanceOrderDto r, DateTime date, CancellationToken ct)

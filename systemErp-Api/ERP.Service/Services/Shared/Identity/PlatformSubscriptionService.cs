@@ -416,9 +416,9 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         plan.Branches = r.Branches;
         plan.ZatcaPhase2Enabled = r.ZatcaPhase2Enabled;
         var planModules = PlatformModules.Normalize(r.Modules);
-        // الإضافة بسعر حسب الاتفاق (المقاولات) تُمنح للمنشأة من وحداتها بعد الاتفاق، لا ضمن سعر الباقة
+        // الإضافة بسعر حسب الاتفاق (المقاولات، الورش، تأجير المعدات) تُمنح للمنشأة من وحداتها بعد الاتفاق، لا ضمن سعر الباقة
         if (planModules.Any(PlatformModules.PricedByAgreement.Contains))
-            throw new ValidationFailedException("المقاولات إضافة بسعر حسب الاتفاق: تُمنح للمنشأة من «الوحدات» بعد الاتفاق، ولا تُضاف للباقة.");
+            throw new ValidationFailedException("المقاولات والورش وتأجير المعدات إضافات بسعر حسب الاتفاق: تُمنح للمنشأة من «الوحدات» بعد الاتفاق، ولا تُضاف للباقة.");
         plan.ModuleKeys = PlatformModules.ToCsv(planModules);
         if (r.FeatureKeys != null) plan.FeatureKeys = PlanFeatures.ToCsv(PlanFeatures.Normalize(r.FeatureKeys));
         else if (isNew) plan.FeatureKeys = PlanFeatures.AllCsv;

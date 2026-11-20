@@ -36,6 +36,13 @@ public static class DocumentNumberTypes
         new("project_material_issue", "صرف مواد للمشاريع", "Project material issues", "contracts", "PMI-", true),
         new("equipment_maintenance", "أوامر صيانة المعدات", "Equipment work orders", "contracts", "EMO-", false),
         new("equipment_rental", "عقود إيجار المعدات", "Equipment rental contracts", "contracts", "ERC-", false),
+        // ورش السيارات وتأجير المعدات للعملاء (equipment_rental أعلاه = الاستئجار من المورد للمقاولات)
+        new("workshop_reception", "استقبال المركبات", "Vehicle receptions", "workshop", "WRC-", false),
+        new("work_order", "أوامر عمل الورشة", "Workshop work orders", "workshop", "WO-", false),
+        new("rental_booking", "حجوزات التأجير", "Rental bookings", "rental", "RBK-", false),
+        new("rental_contract", "عقود تأجير المعدات للعملاء", "Customer rental contracts", "rental", "RC-", true),
+        new("rental_handover", "محاضر التسليم والاستلام", "Handover & return records", "rental", "RHO-", false),
+        new("rental_transport", "مهام نقل المعدات", "Equipment transport jobs", "rental", "RTJ-", false),
         new("car_procurement_order", "أوامر شراء السيارات", "Car purchase orders", "showroom", "CPO-", true),
         new("car_sales_contract", "عقود بيع السيارات", "Car sales contracts", "showroom", "CSC-", true),
     };

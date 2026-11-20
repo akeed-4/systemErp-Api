@@ -314,12 +314,41 @@ public class ErpDbContext : DbContext
         (typeof(AppNotification), nameof(AppNotification.ApprovalRequestId), typeof(ApprovalRequest)),
         (typeof(SupportTicket), nameof(SupportTicket.CreatedByUserId), typeof(User)),
         (typeof(SupportTicketReply), nameof(SupportTicketReply.AuthorUserId), typeof(User)),
+        // تأجير المعدات للعملاء: الفئة وسعرها ومعداتها وحجوزاتها لا تُحذف ما دامت مستخدمة
+        (typeof(RentalCategory), nameof(RentalCategory.ParentId), typeof(RentalCategory)),
+        (typeof(RentalRate), nameof(RentalRate.CategoryId), typeof(RentalCategory)),
+        (typeof(RentalRate), nameof(RentalRate.EquipmentId), typeof(Equipment)),
+        (typeof(Equipment), nameof(Equipment.RentalCategoryId), typeof(RentalCategory)),
+        (typeof(Equipment), nameof(Equipment.HomeWarehouseId), typeof(Warehouse)),
+        (typeof(RentalBooking), nameof(RentalBooking.CustomerId), typeof(Customer)),
+        (typeof(RentalBooking), nameof(RentalBooking.WarehouseId), typeof(Warehouse)),
+        (typeof(RentalBookingLine), nameof(RentalBookingLine.EquipmentId), typeof(Equipment)),
+        (typeof(RentalBookingLine), nameof(RentalBookingLine.CategoryId), typeof(RentalCategory)),
+        (typeof(RentalContract), nameof(RentalContract.CustomerId), typeof(Customer)),
+        (typeof(RentalContract), nameof(RentalContract.WarehouseId), typeof(Warehouse)),
+        (typeof(RentalContract), nameof(RentalContract.BookingId), typeof(RentalBooking)),
+        (typeof(RentalContract), nameof(RentalContract.ParentContractId), typeof(RentalContract)),
+        (typeof(RentalContractLine), nameof(RentalContractLine.EquipmentId), typeof(Equipment)),
+        (typeof(RentalContractLine), nameof(RentalContractLine.OperatorEmployeeId), typeof(Employee)),
+        (typeof(RentalContractChange), nameof(RentalContractChange.ContractId), typeof(RentalContract)),
+        (typeof(RentalContractChange), nameof(RentalContractChange.NewContractId), typeof(RentalContract)),
+        (typeof(RentalHandover), nameof(RentalHandover.ContractId), typeof(RentalContract)),
+        (typeof(RentalHandover), nameof(RentalHandover.WarehouseId), typeof(Warehouse)),
+        (typeof(RentalHandoverLine), nameof(RentalHandoverLine.ContractLineId), typeof(RentalContractLine)),
+        (typeof(RentalHandoverLine), nameof(RentalHandoverLine.EquipmentId), typeof(Equipment)),
+        (typeof(RentalHandoverLine), nameof(RentalHandoverLine.CarriedFromLineId), typeof(RentalContractLine)),
+        // التكلفة المعيارية لساعة الموظف (الورش والتأجير): الموظف الذي له سجل تكلفة لا يُحذف
+        (typeof(EmployeeStandardCostRate), nameof(EmployeeStandardCostRate.EmployeeId), typeof(Employee)),
+        // محتوى المرفق المشترك (مزود قاعدة البيانات): يُحذف صراحة مع سجله
+        (typeof(DocumentAttachmentContent), nameof(DocumentAttachmentContent.AttachmentId), typeof(DocumentAttachment)),
 
         // عن قصد بلا مفتاح أجنبي:
         // - مراجع لفواتير التجارة العامة (TPC): InvoiceBase.OriginalInvoiceId، Quotation/CommercialOrder/MaterialRequisition.ConvertedInvoiceId،
         //   ContractMilestone.InvoiceId، DeliveryNote.InvoiceId، PosTransaction.InvoiceId، PosSalesReturn.OriginalInvoiceId/CreditNoteInvoiceId.
         // - مراجع متعددة الأنواع يحدّدها عمود آخر: InvoiceBase.ReferenceId، JournalEntry.ReferenceId/SourceReferenceId، StockMovement.SourceId،
-        //   OnlinePayment.ReferenceId، ApprovalRequest.DocumentId، AppNotification.RelatedDocId، Account.LinkedEntityId.
+        //   OnlinePayment.ReferenceId، ApprovalRequest.DocumentId، AppNotification.RelatedDocId، Account.LinkedEntityId،
+        //   DocumentAttachment.OwnerId (نوعه في OwnerType).
+        // - RentalBooking.ContractId (العقد المحوَّل إليه؛ العقد يحمل BookingId بقيد)، وRentalContractChange.LineId (سطر مسودة يُستبدل).
         // - DeliveryNoteItem/DeliveryReturnItem.ItemId (صنف أو بند عقد وصفي أو بند يدوي).
     };
 
@@ -1086,6 +1115,122 @@ public class ErpDbContext : DbContext
             e.Property(a => a.UploadedBy).HasMaxLength(200);
             e.HasIndex(a => new { a.TenantId, a.ReportId, a.ContractItemId });
             e.HasIndex(a => new { a.TenantId, a.ContractId });
+        });
+
+        // المرفقات المشتركة للوحدات الجديدة (الورش والتأجير): السجل بلا محتوى، والمحتوى عند مزوده
+        modelBuilder.Entity<DocumentAttachment>(e =>
+        {
+            e.Property(a => a.OwnerType).HasMaxLength(64).IsRequired();
+            e.Property(a => a.Category).HasMaxLength(32).IsRequired();
+            e.Property(a => a.Note).HasMaxLength(300);
+            e.Property(a => a.FileName).HasMaxLength(200).IsRequired();
+            e.Property(a => a.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(a => a.Checksum).HasMaxLength(64).IsRequired();
+            e.Property(a => a.StorageProvider).HasMaxLength(32).IsRequired();
+            e.Property(a => a.StorageKey).HasMaxLength(400).IsRequired();
+            e.Property(a => a.UploadedBy).HasMaxLength(200);
+            e.HasIndex(a => new { a.TenantId, a.OwnerType, a.OwnerId });
+        });
+        modelBuilder.Entity<DocumentAttachmentContent>(e =>
+        {
+            e.HasIndex(c => new { c.TenantId, c.AttachmentId }).IsUnique();
+        });
+
+        // تأجير المعدات للعملاء: الفئات والأسعار والحجوزات بأسطرها
+        modelBuilder.Entity<RentalCategory>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(200);
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<RentalRate>(e =>
+        {
+            e.Property(x => x.Basis).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.CategoryId, x.Basis });
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.Basis });
+        });
+        modelBuilder.Entity<RentalBooking>(e =>
+        {
+            e.Property(x => x.BookingNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.BookingNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasMany(x => x.Lines).WithOne(l => l.Booking).HasForeignKey(l => l.BookingId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<RentalBookingLine>(e =>
+        {
+            e.Property(x => x.Basis).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            // فحص التوفر: أسطر المعدة المتداخلة مع فترة
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.From, x.To });
+        });
+        modelBuilder.Entity<RentalContract>(e =>
+        {
+            e.Property(x => x.ContractNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Term).HasMaxLength(16).IsRequired();
+            e.Property(x => x.BillingCycle).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Terms).HasMaxLength(4000);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.ActivatedBy).HasMaxLength(200);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ContractNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasIndex(x => new { x.TenantId, x.CustomerId });
+            e.HasMany(x => x.Lines).WithOne(l => l.Contract).HasForeignKey(l => l.ContractId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<RentalContractLine>(e =>
+        {
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Basis).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.EquipmentId, x.PlannedFrom, x.PlannedTo });
+        });
+        modelBuilder.Entity<RentalContractChange>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ContractId });
+        });
+        modelBuilder.Entity<RentalHandover>(e =>
+        {
+            e.Property(x => x.HandoverNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.SiteLocation).HasMaxLength(300);
+            e.Property(x => x.CounterpartyName).HasMaxLength(200);
+            e.Property(x => x.CounterpartyIdNumber).HasMaxLength(50);
+            e.Property(x => x.CounterpartyPhone).HasMaxLength(30);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.HandoverNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ContractId });
+            e.HasMany(x => x.Lines).WithOne(l => l.Handover).HasForeignKey(l => l.HandoverId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<RentalHandoverLine>(e =>
+        {
+            e.Property(x => x.Condition).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ConditionNotes).HasMaxLength(500);
+            e.Property(x => x.Accessories).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.ContractLineId });
+        });
+
+        // سجل التكلفة المعيارية لساعة الموظف بغرضه: سطر واحد للموظف والغرض في اليوم
+        modelBuilder.Entity<EmployeeStandardCostRate>(e =>
+        {
+            e.Property(r => r.Purpose).HasMaxLength(16).IsRequired();
+            e.Property(r => r.Notes).HasMaxLength(300);
+            e.Property(r => r.CreatedBy).HasMaxLength(200);
+            e.HasIndex(r => new { r.TenantId, r.EmployeeId, r.Purpose, r.EffectiveFrom }).IsUnique();
         });
 
         modelBuilder.Entity<CarStageDefinition>(e =>

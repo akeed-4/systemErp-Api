@@ -92,6 +92,8 @@ public class ArchitectureTests
             // الهوية والمنصة والإعدادات
             "AuditLogs", "Auth", "Company", "Permissions", "Roles", "Platform", "Subscriptions", "Users", "WarehouseSession", "Payments", "SupportTickets",
             "ApprovalPolicies", "Approvals", "Notifications",
+            // المرفقات المشتركة: الوحدة والشاشة من معالج نوع المالك وتفرضهما الخدمة
+            "Attachments",
             // المحاسبة مشتركة بين كل الوحدات
             "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports", "AccountingSettings",
             "DocumentNumbering", "DocumentNumberingModes",

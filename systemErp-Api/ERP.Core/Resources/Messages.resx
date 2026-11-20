@@ -1890,4 +1890,106 @@
   <data name="PeriodicYearEndCountStale" xml:space="preserve"><value>لا تُقفل السنة المالية {0} في الجرد الدوري: آخر جرد دوري معتمد بتاريخ {1:yyyy-MM-dd} وبعده {2} حركة مخزون حتى نهاية السنة، فلا يمثل بضاعة آخر المدة.</value></data>
   <data name="YearCloseOverrideReasonRequired" xml:space="preserve"><value>تجاوز غياب جرد آخر المدة يتطلب ذكر السبب.</value></data>
   <data name="YearCloseOverrideForbidden" xml:space="preserve"><value>لا تملك صلاحية إقفال السنة دون جرد آخر المدة (اعتماد دليل الحسابات).</value></data>
+  <data name="AttachmentOwnerTypeUnknown" xml:space="preserve"><value>نوع المستند المطلوب لمرفقاته غير معروف.</value></data>
+  <data name="AttachmentModuleNotLicensed" xml:space="preserve"><value>مرفقات هذا المستند تتبع وحدة غير مشمولة في اشتراكك.</value></data>
+  <data name="AttachmentNotFound" xml:space="preserve"><value>المرفق غير موجود.</value></data>
+  <data name="AttachmentAddForbidden" xml:space="preserve"><value>لا يمكنك إضافة مرفقات لهذا المستند في حالته الحالية.</value></data>
+  <data name="AttachmentDeleteForbidden" xml:space="preserve"><value>لا يمكنك حذف مرفقات هذا المستند في حالته الحالية.</value></data>
+  <data name="AttachmentLimitReached" xml:space="preserve"><value>لا يُرفق بالمستند الواحد أكثر من {0} ملفاً.</value></data>
+  <data name="AttachmentCategoryInvalid" xml:space="preserve"><value>تصنيف المرفق غير مسموح لهذا المستند.</value></data>
+  <data name="AccountRole_WorkshopWipAccountCode" xml:space="preserve"><value>أعمال ورشة تحت التنفيذ</value></data>
+  <data name="AccountRole_WorkshopAbsorbedLaborAccountCode" xml:space="preserve"><value>عمالة ورشة محمّلة</value></data>
+  <data name="AccountRole_WorkshopCostOfRevenueAccountCode" xml:space="preserve"><value>تكلفة إيرادات الورشة</value></data>
+  <data name="AccountRole_WorkshopWarrantyExpenseAccountCode" xml:space="preserve"><value>مصروف ضمان أعمال الورشة</value></data>
+  <data name="AccountRole_RentalRevenueAccountCode" xml:space="preserve"><value>إيراد تأجير المعدات</value></data>
+  <data name="AccountRole_RentalCompensationIncomeAccountCode" xml:space="preserve"><value>إيراد تعويضات وغرامات التأجير</value></data>
+  <data name="AccountRole_RentalDepositsLiabilityAccountCode" xml:space="preserve"><value>تأمينات عملاء التأجير</value></data>
+  <data name="ModuleAccountsUnknown" xml:space="preserve"><value>لا توجد حسابات مخصصة لهذه الإضافة.</value></data>
+  <data name="AddOnNotLicensed" xml:space="preserve"><value>هذه العملية تتبع إضافة غير مشمولة في اشتراكك.</value></data>
+  <data name="EmployeeCostPurposeInvalid" xml:space="preserve"><value>غرض التكلفة المعيارية غير صالح (فني أو مشغّل).</value></data>
+  <data name="EmployeeCostRateEmployeeNotFound" xml:space="preserve"><value>الموظف غير موجود.</value></data>
+  <data name="EmployeeCostRateEmployeeInactive" xml:space="preserve"><value>لا تُحدَّد تكلفة معيارية لموظف غير نشط.</value></data>
+  <data name="EmployeeCostRateNegative" xml:space="preserve"><value>تكلفة الساعة لا تكون سالبة.</value></data>
+  <data name="EmployeeCostRateDuplicateDate" xml:space="preserve"><value>للموظف تكلفة معيارية بهذا الغرض سارية من {0:yyyy-MM-dd}؛ احذفها أو اختر تاريخاً آخر.</value></data>
+  <data name="EmployeeCostRateNotFound" xml:space="preserve"><value>سطر التكلفة المعيارية غير موجود.</value></data>
+  <data name="RentalBasis_hour" xml:space="preserve"><value>بالساعة</value></data>
+  <data name="RentalBasis_day" xml:space="preserve"><value>باليوم</value></data>
+  <data name="RentalBasis_week" xml:space="preserve"><value>بالأسبوع</value></data>
+  <data name="RentalBasis_month" xml:space="preserve"><value>بالشهر</value></data>
+  <data name="RentalBlock_assignment" xml:space="preserve"><value>مسندة لمشروع</value></data>
+  <data name="RentalBlock_booking" xml:space="preserve"><value>محجوزة</value></data>
+  <data name="RentalBlock_maintenance" xml:space="preserve"><value>في الصيانة</value></data>
+  <data name="RentalBlock_status" xml:space="preserve"><value>خارج الخدمة أو مُعادة للمؤجر</value></data>
+  <data name="RentalBlock_supplier_contract" xml:space="preserve"><value>خارج فترة عقد استئجارها من المورد</value></data>
+  <data name="RentalPeriodInvalid" xml:space="preserve"><value>نهاية فترة التأجير يجب أن تكون بعد بدايتها.</value></data>
+  <data name="RentalRateMissing" xml:space="preserve"><value>لا سعر تأجير {0} ساري للمعدة أو فئتها في بداية الفترة.</value></data>
+  <data name="RentalOperatorRateMissing" xml:space="preserve"><value>لا سعر مشغّل {0} للمعدة أو فئتها؛ اختر التأجير بدون مشغّل أو حدّد سعر المشغّل.</value></data>
+  <data name="EquipmentBookedForRental" xml:space="preserve"><value>المعدة محجوزة للتأجير ({0}) من {1:yyyy-MM-dd HH:mm} إلى {2:yyyy-MM-dd HH:mm}؛ ألغِ الحجز أو انتظر انتهاءه قبل إسنادها لمشروع.</value></data>
+  <data name="RentalCategoryNotFound" xml:space="preserve"><value>فئة التأجير غير موجودة.</value></data>
+  <data name="RentalCategoryInUse" xml:space="preserve"><value>الفئة مستخدمة (معدات أو أسعار أو فئات فرعية أو حجوزات)؛ أوقفها بدل حذفها.</value></data>
+  <data name="RentalCategoryNameRequired" xml:space="preserve"><value>اسم الفئة مطلوب.</value></data>
+  <data name="RentalCategoryCodeTaken" xml:space="preserve"><value>رمز الفئة «{0}» مستخدم.</value></data>
+  <data name="RentalCategoryCycle" xml:space="preserve"><value>لا تكون الفئة أماً لنفسها أو لإحدى فئاتها الأم.</value></data>
+  <data name="RentalRateNotFound" xml:space="preserve"><value>سعر التأجير غير موجود.</value></data>
+  <data name="RentalRateTargetRequired" xml:space="preserve"><value>حدّد فئة أو معدة للسعر (واحداً منهما).</value></data>
+  <data name="RentalBasisInvalid" xml:space="preserve"><value>أساس السعر غير صحيح (ساعة، يوم، أسبوع، شهر).</value></data>
+  <data name="RentalRateMustBePositive" xml:space="preserve"><value>سعر التأجير يجب أن يكون أكبر من صفر.</value></data>
+  <data name="RentalRateNegative" xml:space="preserve"><value>سعر المشغّل والساعات المشمولة وسعر الإضافي والحد الأدنى لا تكون سالبة.</value></data>
+  <data name="RentalRateEffectiveRangeInvalid" xml:space="preserve"><value>نهاية السريان قبل بدايته.</value></data>
+  <data name="RentalRateOverlap" xml:space="preserve"><value>يوجد سعر بالأساس نفسه للهدف نفسه في فترة سريان متداخلة؛ أنهِ السعر السابق أولاً.</value></data>
+  <data name="RentalEquipmentNotFound" xml:space="preserve"><value>المعدة غير موجودة.</value></data>
+  <data name="RentalWarehouseNotFound" xml:space="preserve"><value>الموقع (المستودع) غير موجود.</value></data>
+  <data name="RentalCalendarRangeInvalid" xml:space="preserve"><value>فترة التقويم غير صحيحة (النهاية بعد البداية وبحد {0} يوماً).</value></data>
+  <data name="RentalLineTargetRequired" xml:space="preserve"><value>حدّد معدة أو فئة للسطر (واحداً منهما).</value></data>
+  <data name="RentalLineQuantityInvalid" xml:space="preserve"><value>عدد المعدات في سطر الفئة بين 1 و1000.</value></data>
+  <data name="RentalBookingNotFound" xml:space="preserve"><value>الحجز غير موجود.</value></data>
+  <data name="RentalBookingNotEditable" xml:space="preserve"><value>لا يُعدَّل الحجز في حالته الحالية؛ المؤكد يُلغى ويُعاد حجزه.</value></data>
+  <data name="RentalBookingDeleteDraftOnly" xml:space="preserve"><value>يُحذف الحجز في المسودة فقط؛ ألغِه بسبب بعد ذلك.</value></data>
+  <data name="RentalBookingLinesRequired" xml:space="preserve"><value>أضف سطراً واحداً على الأقل.</value></data>
+  <data name="RentalBookingTooManyLines" xml:space="preserve"><value>لا يزيد الحجز عن {0} سطراً.</value></data>
+  <data name="RentalBookingNeedsEquipment" xml:space="preserve"><value>الحجز المؤقت والتأكيد يتطلبان معدة محددة لكل سطر؛ عيّن معدات أسطر الفئات أولاً.</value></data>
+  <data name="RentalBookingSelfOverlap" xml:space="preserve"><value>للمعدة نفسها سطران متداخلان في الحجز.</value></data>
+  <data name="RentalHoldUntilInvalid" xml:space="preserve"><value>موعد انتهاء الحجز المؤقت يجب أن يكون في المستقبل.</value></data>
+  <data name="RentalCancelReasonRequired" xml:space="preserve"><value>سبب الإلغاء مطلوب.</value></data>
+  <data name="RentalEquipmentUnavailable" xml:space="preserve"><value>المعدة {0} غير متاحة: {1} {2} من {3:yyyy-MM-dd HH:mm} إلى {4}.</value></data>
+  <data name="RentalEquipmentNotRentable" xml:space="preserve"><value>المعدة {0} غير مفعّلة للتأجير في إعدادات التأجير.</value></data>
+  <data name="RentalCustomerNotFound" xml:space="preserve"><value>العميل غير موجود.</value></data>
+  <data name="RentalCustomerInactive" xml:space="preserve"><value>العميل موقوف؛ لا يُحجز له.</value></data>
+  <data name="RentalBlock_contract" xml:space="preserve"><value>مؤجرة بعقد</value></data>
+  <data name="RentalBookingNotConvertible" xml:space="preserve"><value>يُحوَّل لعقد الحجز المؤكد أو المؤقت الساري فقط.</value></data>
+  <data name="RentalContractNotFound" xml:space="preserve"><value>عقد التأجير غير موجود.</value></data>
+  <data name="RentalContractNotEditable" xml:space="preserve"><value>لا يُجرى هذا على العقد في حالته الحالية.</value></data>
+  <data name="RentalContractDeleteDraftOnly" xml:space="preserve"><value>يُحذف العقد في المسودة فقط؛ ألغِه بسبب بعد ذلك.</value></data>
+  <data name="RentalContractHasHandovers" xml:space="preserve"><value>سُلِّمت معدات من العقد؛ لا يُلغى، بل تُستلم المعدات ويُغلق.</value></data>
+  <data name="RentalTermInvalid" xml:space="preserve"><value>مدة العقد غير صحيحة (قصير أو طويل).</value></data>
+  <data name="RentalBillingCycleInvalid" xml:space="preserve"><value>دورة الفوترة غير صحيحة (نهاية العقد، أسبوعية، شهرية).</value></data>
+  <data name="RentalDepositNegative" xml:space="preserve"><value>التأمين المطلوب لا يكون سالباً.</value></data>
+  <data name="RentalOperatorNotFound" xml:space="preserve"><value>المشغّل غير موجود في الموظفين أو غير نشط.</value></data>
+  <data name="RentalRateOverrideForbidden" xml:space="preserve"><value>تغيير سعر التأجير عن سعر القائمة يتطلب صلاحية «خصم يدوي» على عقود التأجير.</value></data>
+  <data name="RentalExtendReasonRequired" xml:space="preserve"><value>سبب التمديد مطلوب.</value></data>
+  <data name="RentalExtendNoLines" xml:space="preserve"><value>لا أسطر قابلة للتمديد (بانتظار التسليم أو خارجة).</value></data>
+  <data name="RentalExtendMustBeLater" xml:space="preserve"><value>النهاية الجديدة يجب أن تكون بعد النهاية الحالية لكل سطر.</value></data>
+  <data name="RentalRenewActiveOnly" xml:space="preserve"><value>التجديد للعقد الساري فقط.</value></data>
+  <data name="RentalRenewReasonRequired" xml:space="preserve"><value>سبب التجديد مطلوب.</value></data>
+  <data name="RentalContractAlreadyRenewed" xml:space="preserve"><value>للعقد تجديد قائم ({0})؛ عدّله أو ألغِه بدل تجديد آخر.</value></data>
+  <data name="RentalHandoverNotFound" xml:space="preserve"><value>محضر التسليم أو الاستلام غير موجود.</value></data>
+  <data name="RentalHandoverKindInvalid" xml:space="preserve"><value>نوع المحضر غير صحيح (تسليم أو استلام).</value></data>
+  <data name="RentalHandoverContractNotActive" xml:space="preserve"><value>المحاضر للعقد الساري فقط؛ اعتمد العقد أولاً.</value></data>
+  <data name="RentalHandoverLinesRequired" xml:space="preserve"><value>اختر معدة واحدة على الأقل.</value></data>
+  <data name="RentalHandoverDuplicateLine" xml:space="preserve"><value>المعدة مكررة في المحضر.</value></data>
+  <data name="RentalHandoverLineNotFound" xml:space="preserve"><value>سطر المعدة ليس من هذا العقد.</value></data>
+  <data name="RentalHandoverInFuture" xml:space="preserve"><value>لحظة المحضر لا تكون في المستقبل.</value></data>
+  <data name="RentalConditionInvalid" xml:space="preserve"><value>حالة المعدة غير صحيحة (سليمة، ملاحظات بسيطة، تالفة).</value></data>
+  <data name="RentalFuelInvalid" xml:space="preserve"><value>مستوى الوقود نسبة بين 0 و100.</value></data>
+  <data name="RentalMeterInvalid" xml:space="preserve"><value>قراءة العدّاد لا تكون سالبة.</value></data>
+  <data name="RentalMeterBackwards" xml:space="preserve"><value>قراءة عدّاد المعدة {0} ({1}) أقل من آخر قراءة مسجّلة ({2}).</value></data>
+  <data name="RentalHandoverLineNotPending" xml:space="preserve"><value>المعدة {0} ليست بانتظار التسليم في هذا العقد.</value></data>
+  <data name="RentalHandoverAfterPlannedEnd" xml:space="preserve"><value>انتهت الفترة المخططة للمعدة {0}؛ مدّد العقد قبل تسليمها.</value></data>
+  <data name="RentalHandoverEquipmentNotAvailable" xml:space="preserve"><value>المعدة {0} ليست متاحة للتسليم (في الصيانة أو خارج الخدمة أو مسندة أو عند عميل آخر).</value></data>
+  <data name="RentalHandoverLineNotOut" xml:space="preserve"><value>المعدة {0} ليست خارجة على هذا العقد.</value></data>
+  <data name="RentalHandoverBeforeOut" xml:space="preserve"><value>لحظة استلام المعدة {0} قبل تسليمها.</value></data>
+  <data name="RentalHandoverAlreadyCancelled" xml:space="preserve"><value>المحضر {0} ملغى من قبل.</value></data>
+  <data name="RentalHandoverNotLatest" xml:space="preserve"><value>المحضر {0} ليس آخر حركة على معداته؛ ألغِ المحاضر اللاحقة أولاً.</value></data>
+  <data name="RentalHandoverBilled" xml:space="preserve"><value>فُوترت فترة من معدات المحضر {0}؛ لا يُلغى.</value></data>
+  <data name="RentalHandoverCannotRestore" xml:space="preserve"><value>لا يُلغى استلام المعدة {0}: لم تعد متاحة أو شُغلت فترتها بعد الاستلام.</value></data>
 </root>

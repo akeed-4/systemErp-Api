@@ -53,6 +53,12 @@ public abstract class TradeReturnService<T, TOriginal> : TradeDocumentService<T>
 
     public Task<ReturnPreviewDto> PreviewReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default)
         => Engine.PreviewReturnAsync<TOriginal, T>(request, ct);
+
+    public Task<InvoiceDto> UpdateReturnAsync(Guid id, CreateReturnInvoiceRequestDto request, CancellationToken ct = default)
+        => Engine.UpdateReturnAsync<TOriginal, T>(id, request, ct);
+
+    public Task<int?> ReturnPeriodDaysAsync(CancellationToken ct = default)
+        => Engine.ReturnPeriodDaysAsync(TradeInvoiceEngine.KindOf<TOriginal>()!.Value, ct);
 }
 
 public class SalesInvoiceService : TradeDocumentService<SalesInvoice>, ISalesInvoiceService

@@ -22,4 +22,24 @@ public class AccountingSettingsController : ErpControllerBase
     [HttpPost("contract-accounts")]
     public async Task<IActionResult> InitializeContractAccounts(CancellationToken ct)
         => Success(await _settings.InitializeContractAccountsAsync(ct));
+
+    /// <summary>فحص اكتمال حسابات الجرد الدوري (معاينة بلا كتابة: ما سيُنشأ «ناقص»).</summary>
+    [HttpGet("periodic-accounts")]
+    public async Task<IActionResult> PeriodicAccountsStatus(CancellationToken ct)
+        => Success(await _settings.GetPeriodicAccountsStatusAsync(ct));
+
+    /// <summary>تهيئة حسابات الجرد الدوري الناقصة وربطها (لا يغيّر الإعدادات المحددة)؛ يعيد تقرير النتيجة.</summary>
+    [HttpPost("periodic-accounts"), RequireScreen("accounting-settings", ScreenAction.Edit)]
+    public async Task<IActionResult> InitializePeriodicAccounts(CancellationToken ct)
+        => Success(await _settings.InitializePeriodicAccountsAsync(ct));
+
+    /// <summary>معاينة معالجة قيود الجرد الدوري القديمة التي نقلت رصيد المخزون إلى بضاعة أول المدة.</summary>
+    [HttpGet("periodic-legacy")]
+    public async Task<IActionResult> PeriodicLegacy(CancellationToken ct)
+        => Success(await _settings.GetPeriodicLegacyAsync(ct));
+
+    /// <summary>تنفيذ المعالجة للمنشأة الحالية (يتطلب أيضاً صلاحية ترحيل القيود؛ تُفحص في الخدمة).</summary>
+    [HttpPost("periodic-legacy"), RequireScreen("accounting-settings", ScreenAction.Edit)]
+    public async Task<IActionResult> ApplyPeriodicLegacy([FromBody] ApplyPeriodicLegacyDto dto, CancellationToken ct)
+        => Success(await _settings.ApplyPeriodicLegacyAsync(dto, ct));
 }

@@ -13,7 +13,6 @@ public class FinancialStatementService : IFinancialStatementService
 {
     private const string YearClosingSource = "year_closing";
     private const string ReversalSource = "reversal";
-    private const string CostOfSalesGroup = "51";
     private const string NonCurrentAssetsGroup = "12";
     private const string LongTermLiabilitiesGroup = "22";
 
@@ -93,6 +92,7 @@ public class FinancialStatementService : IFinancialStatementService
         if (compare) EnsurePeriod(compareFrom!.Value, compareTo!.Value);
 
         var accounts = await AccountsAsync(ct);
+        var isCostOfSales = await CostOfSalesRuleAsync(accounts, ct);
         var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
         var current = await NetByAccountAsync(from.Date, to, excludeYearClosing: true, module, ct, centers);
         var previous = compare ? await NetByAccountAsync(compareFrom!.Value.Date, compareTo!.Value, excludeYearClosing: true, module, ct, centers) : null;
@@ -101,16 +101,28 @@ public class FinancialStatementService : IFinancialStatementService
         {
             From = from.Date, To = to.Date, CompareFrom = compare ? compareFrom!.Value.Date : null, CompareTo = compare ? compareTo!.Value.Date : null,
             CostCenterId = costCenterId,
-            Revenue = Section(accounts, current, previous, a => a.Type == AccountCategory.Revenue, -1),
-            CostOfSales = Section(accounts, current, previous, IsCostOfSales, 1),
-            OperatingExpenses = Section(accounts, current, previous, a => a.Type == AccountCategory.Expense && !IsCostOfSales(a), 1),
+            Revenue = Section(accounts, current, previous, a => a.Type == AccountCategory.Revenue && !isCostOfSales(a), -1),
+            CostOfSales = Section(accounts, current, previous, isCostOfSales, 1),
+            OperatingExpenses = Section(accounts, current, previous, a => a.Type == AccountCategory.Expense && !isCostOfSales(a), 1),
         };
         statement.GrossProfit = Total((statement.Revenue, 1), (statement.CostOfSales, -1));
         statement.NetProfit = Total((statement.GrossProfit, 1), (statement.OperatingExpenses, -1));
         return statement;
     }
 
-    private static bool IsCostOfSales(Account a) => a.Type == AccountCategory.Expense && a.Code.StartsWith(CostOfSalesGroup, StringComparison.Ordinal);
+    /// <summary>
+    /// مجموعة تكلفة المبيعات (CostOfSales): تحت 51 أو داخل مجموعة حساب تكلفة البضاعة المباعة. ومنشأة على الجرد الدوري (حالياً أو سابقاً):
+    /// حسابات المشتريات ومردوداتها وأول المدة وآخرها المحددة تُعرض هنا أياً كان نوعها (آخر المدة لا يظهر إيراداً ولو اختير حساب إيراد قديماً).
+    /// </summary>
+    private async Task<Func<Account, bool>> CostOfSalesRuleAsync(Dictionary<string, Account> accounts, CancellationToken ct)
+    {
+        var settings = await PostingAccounts.SettingsAsync(_db, ct);
+        string? ParentOf(string code) => accounts.TryGetValue(code, out var a) ? a.ParentCode : null;
+        var group = CostOfSales.Group(settings, ParentOf);
+        var periodic = settings.InventoryMethod == InventorySystem.Periodic || settings.PreviousInventoryMethod == InventorySystem.Periodic
+            ? CostOfSales.PeriodicAccounts(settings) : new HashSet<string>();
+        return a => periodic.Contains(a.Code) || CostOfSales.Contains(a.Code, a.Type, ParentOf, group);
+    }
 
     // ---------------- أداء مراكز التكلفة ----------------
     /// <summary>
@@ -124,6 +136,7 @@ public class FinancialStatementService : IFinancialStatementService
         EnsurePeriod(from, to);
         var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
         var accounts = await AccountsAsync(ct);
+        var isCostOfSales = await CostOfSalesRuleAsync(accounts, ct);
         var movements = await (from l in IncomeLines(@from.Date, to, excludeYearClosing: true, module, centers)
                                group l by new { l.CostCenterId, l.AccountCode } into g
                                select new { g.Key.CostCenterId, g.Key.AccountCode, Net = g.Sum(x => x.Debit - x.Credit) }).ToListAsync(ct);
@@ -137,8 +150,8 @@ public class FinancialStatementService : IFinancialStatementService
             CostCenterPerformanceRowDto row;
             if (m.CostCenterId is not { } id) row = report.Unassigned ??= new CostCenterPerformanceRowDto();
             else if (!rows.TryGetValue(id, out row!)) rows[id] = row = new CostCenterPerformanceRowDto { CostCenterId = id };
-            if (account.Type == AccountCategory.Revenue) row.Revenue -= m.Net;
-            else if (IsCostOfSales(account)) row.CostOfSales += m.Net;
+            if (isCostOfSales(account)) row.CostOfSales += m.Net;
+            else if (account.Type == AccountCategory.Revenue) row.Revenue -= m.Net;
             else row.OperatingExpenses += m.Net;
         }
 
@@ -179,6 +192,8 @@ public class FinancialStatementService : IFinancialStatementService
         position.TotalAssets = Total((position.CurrentAssets, 1), (position.NonCurrentAssets, 1));
         position.TotalLiabilitiesAndEquity = Total((position.Liabilities, 1), (position.Equity, 1), (position.UnclosedProfit, 1));
         position.IsBalanced = Math.Abs(position.TotalAssets.Total - position.TotalLiabilitiesAndEquity.Total) < 0.01m;
+        // الجرد الدوري: قيود قديمة نقلت أصل المخزون إلى بضاعة أول المدة ولم تُعالج بعد (رصيد المخزون أقل من حقيقته)
+        position.Warnings = await PeriodicLegacyRemediation.WarningsAsync(_db, ct);
         return position;
     }
 

@@ -156,7 +156,7 @@ public class WarehouseInventoryAccountTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 6, 40, main))).Status);
         Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 4, 40, branch))).Status);
 
-        var created = await api.Post("/inventorycounts", new { scope = "items", countType = "periodic", countDate = DateTime.UtcNow,
+        var created = await api.Post("/inventorycounts", new { scope = "items", countType = "periodic", countDate = ERP.Core.Models.Shared.SaudiTime.Today, // جرد آخر المدة يمثل تاريخه: يوم المنشأة لا UTC
             lines = new[] { new { itemId = item, countedQuantity = 6m } } }); // الجرد بلا مستودع يعدّ المستودع الافتراضي: بلا فرق
         var approval = await api.Post($"/inventorycounts/{created.Data!["id"].S()}/submit");
         var approved = await api.Post($"/inventorycountapprovals/{approval.Data!["id"].S()}/approve", new { });

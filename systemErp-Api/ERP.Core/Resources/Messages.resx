@@ -772,6 +772,8 @@
   <data name="PolicyNeedsOneLevel" xml:space="preserve"><value>السياسة تحتاج مستوى اعتماد واحداً على الأقل.</value></data>
   <data name="PolicyNotFound" xml:space="preserve"><value>السياسة غير موجودة</value></data>
   <data name="PostedInvoiceLocked" xml:space="preserve"><value>الفاتورة المرحّلة مستند صادر لا يُعدَّل ولا يُحذف؛ صحّحها بمرتجع (إشعار دائن/مدين).</value></data>
+  <data name="PostedReturnEditFromReturnScreen" xml:space="preserve"><value>المرتجع المرحّل يُعدَّل من شاشة المرتجعات (يُعاد بناؤه من فاتورته الأصلية) أو يُحذف ما لم يُرسل للهيئة.</value></data>
+  <data name="ReturnVehicleChangedAfterReturn" xml:space="preserve"><value>تغيّرت حالة السيارة {0} بعد المرتجع (بيعت أو حُجزت أو دخلت عقداً)؛ لا يُعدَّل المرتجع ولا يُحذف.</value></data>
   <data name="PosVoidReturnReason" xml:space="preserve"><value>إلغاء عملية نقطة البيع {0}</value></data>
   <data name="PriceAndDiscountInvalid" xml:space="preserve"><value>السعر والخصم غير صالحين.</value></data>
   <data name="PriceAndVatInvalid" xml:space="preserve"><value>السعر غير سالب ونسبة الضريبة بين 0 و100.</value></data>
@@ -1867,4 +1869,20 @@
   <data name="ProjectPlanChanged" xml:space="preserve"><value>عدّل مستخدم آخر خطة الإنجاز بعد تحميلك لها. أعد تحميل الخطة ثم أعد التعديل.</value></data>
   <data name="ProjectPlanTargetExceedsItem" xml:space="preserve"><value>خطة الإنجاز «{0}»: المستهدف بالساعة {1} أكبر من كمية البند كلها {2}.</value></data>
   <data name="ProjectPlanDateOutsideContract" xml:space="preserve"><value>خطة الإنجاز «{0}»: تاريخ السريان {1} خارج مدة العقد ({2} – {3}).</value></data>
+  <data name="PeriodicWarehouseInventoryAccounts" xml:space="preserve"><value>حسابات مخزون المستودعات: {0}.</value></data>
+  <data name="AccountSettingNotCostOfSales" xml:space="preserve"><value>{0}: الحساب {1} يجب أن يكون مصروفاً ضمن مجموعة تكلفة المبيعات في قائمة الدخل.</value></data>
+  <data name="PurchaseReturnsReducePurchases" xml:space="preserve"><value>لا يوجد حساب مردودات مشتريات مناسب: لم يُنشأ، وتُخفَّض المشتريات نفسها بالمردودات.</value></data>
+  <data name="PurchaseReturnsSameAsPurchases" xml:space="preserve"><value>حساب مردودات المشتريات ({0}) هو حساب المشتريات نفسه: اتركه فارغاً لتُخفَّض المشتريات نفسها بالمردودات.</value></data>
+  <data name="AccountSettingPeriodicOverlap" xml:space="preserve"><value>في الجرد الدوري لا يشترك {0} و{1} في حساب واحد ({2}): يؤدي إلى احتساب مزدوج في تكلفة المبيعات.</value></data>
+  <data name="PeriodicCountLaterMovements" xml:space="preserve"><value>لا يُعتمد الجرد {0} بتاريخ {1:yyyy-MM-dd}: توجد {2} حركة مخزون بعد تاريخه أو مسجّلة بعد إرساله تغيّر الكميات التي يمثلها، منها: {3}. ألغِ هذه الحركات أو أنشئ جرداً بتاريخ لاحق.</value></data>
+  <data name="PeriodicLegacyNotApplicable" xml:space="preserve"><value>معالجة قيود الجرد الدوري القديمة متاحة للمنشأة على الجرد الدوري فقط.</value></data>
+  <data name="PeriodicLegacyChanged" xml:space="preserve"><value>تغيّرت قيود الجرد الدوري القديمة منذ المعاينة: أعد المعاينة ثم نفّذ.</value></data>
+  <data name="PeriodicLegacyNothingToApply" xml:space="preserve"><value>لا قيود قديمة قابلة للمعالجة الآن (القيود في الفترات المقفلة تحتاج فتح الفترة أو اختيار أول يوم مفتوح).</value></data>
+  <data name="PeriodicLegacyBalanceWarning" xml:space="preserve"><value>رصيد المخزون في الميزانية لا يشمل {0:N2} نقلتها قيود جرد دوري قديمة إلى بضاعة أول المدة. عالجها من إعدادات المحاسبة.</value></data>
+  <data name="PeriodicLegacyClosedYearWarning" xml:space="preserve"><value>{0:N2} من أصل المخزون نُقلت إلى بضاعة أول المدة في سنوات مقفلة: لا تُعالج آلياً؛ اعتمد جرداً دورياً وراجع المحاسب.</value></data>
+  <data name="PeriodicLegacyPostForbidden" xml:space="preserve"><value>معالجة قيود الجرد الدوري القديمة تُنشئ قيوداً: تتطلب صلاحية ترحيل القيود في دليل الحسابات.</value></data>
+  <data name="PeriodicYearEndCountMissing" xml:space="preserve"><value>لا تُقفل السنة المالية {0} في الجرد الدوري قبل اعتماد جرد دوري شامل يمثل نهايتها (بضاعة آخر المدة).</value></data>
+  <data name="PeriodicYearEndCountStale" xml:space="preserve"><value>لا تُقفل السنة المالية {0} في الجرد الدوري: آخر جرد دوري معتمد بتاريخ {1:yyyy-MM-dd} وبعده {2} حركة مخزون حتى نهاية السنة، فلا يمثل بضاعة آخر المدة.</value></data>
+  <data name="YearCloseOverrideReasonRequired" xml:space="preserve"><value>تجاوز غياب جرد آخر المدة يتطلب ذكر السبب.</value></data>
+  <data name="YearCloseOverrideForbidden" xml:space="preserve"><value>لا تملك صلاحية إقفال السنة دون جرد آخر المدة (اعتماد دليل الحسابات).</value></data>
 </root>

@@ -254,7 +254,6 @@ public class AccountingPostingService : IAccountingPostingService
         var accounts = await PostingAccounts.SettingsAsync(_db, ct);
         // الدوري: لا تكلفة مع البيع (تُستنتج من بضاعة آخر المدة)، إلا مستنداً بحساب مخزون محدد يدوياً (السيارات) فيبقى بتكلفته
         var periodic = r.InventoryAccountCode == null && accounts.IsPeriodic(r.Date);
-        if (periodic) await PeriodicInventory.EnsureMethodOpeningAsync(_db, this, accounts, r.Date, ct);
         var total = r.NetAmount + r.ExciseTaxAmount + r.VatAmount;
         var payments = ValidatePayments(r.Payments, total);
         var receivable = total - payments.Sum(p => p.Amount);
@@ -346,7 +345,6 @@ public class AccountingPostingService : IAccountingPostingService
             throw new ValidationFailedException(Messages.PurchaseAmountsInvalid);
         // الدوري: الأصناف على حساب المشتريات (والمرتجع على مردوداتها) بسعر المستند، ولا يُمس حساب المخزون داخل الفترة
         var periodic = r.InventoryAccountCode == null && accounts.IsPeriodic(r.Date);
-        if (periodic) await PeriodicInventory.EnsureMethodOpeningAsync(_db, this, accounts, r.Date, ct);
         var inventory = periodic ? r.NetAmount - r.ExpenseAmount : r.InventoryAmount ?? r.NetAmount - r.ExpenseAmount;
         var inventoryAccount = r.InventoryAccountCode
             ?? (periodic ? (r.IsReturn ? accounts.PurchaseReturns() : accounts.Purchases()) : await accounts.InventoryAsync(_db, r.WarehouseId, ct));

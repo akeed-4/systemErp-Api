@@ -10,6 +10,8 @@ public interface IFiscalPeriodService
     Task<FiscalPeriodStatusDto> SetLockAsync(SetPeriodLockDto request, CancellationToken ct = default);
     /// <summary>يقفل السنة المالية المنتهية: قيد إقفال للإيرادات والمصروفات إلى الأرباح المبقاة ثم إقفال الدفاتر حتى نهايتها.</summary>
     Task<YearClosingResultDto> CloseYearAsync(CloseYearRequestDto request, CancellationToken ct = default);
+    /// <summary>فحص الإقفال في الجرد الدوري: جرد آخر المدة، وإمكان التجاوز للمستخدم الحالي.</summary>
+    Task<CloseYearCheckDto> CheckCloseYearAsync(int year, CancellationToken ct = default);
     /// <summary>يعيد فتح السنة المقفلة: يفتح دفاترها ويعكس قيد إقفالها بتاريخه. يُرجع القيد العكسي.</summary>
     Task<PostingResult> ReopenYearAsync(Guid closingEntryId, CancellationToken ct = default);
 }

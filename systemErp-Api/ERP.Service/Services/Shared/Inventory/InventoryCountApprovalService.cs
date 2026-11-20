@@ -171,10 +171,14 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
     private async Task<PostingResult?> AdjustItemsAsync(InventoryCount count, CancellationToken ct)
     {
         var accounts = await PostingAccounts.SettingsAsync(_db, ct);
-        var periodic = accounts.IsPeriodic(SaudiTime.Today);
+        // جرد آخر المدة في الدوري يُرحَّل بتاريخ الجرد (لا الاعتماد) ويمثل الكميات فيه؛ غيره كما كان بتاريخ الاعتماد
+        var periodEnd = count.CountType == InventoryCountType.Periodic && accounts.IsPeriodic(count.CountDate.Date);
+        var date = periodEnd ? count.CountDate.Date : SaudiTime.Today;
+        var periodic = accounts.IsPeriodic(date);
         // بضاعة آخر المدة قيمة المخزون كله: الجرد الدوري يشمل كل المستودعات
-        if (periodic && count.CountType == InventoryCountType.Periodic && count.WarehouseId != null)
+        if (periodEnd && count.WarehouseId != null)
             throw new ValidationFailedException(Messages.PeriodicCountMustCoverAllWarehouses);
+        if (periodEnd) await PeriodicInventory.EnsureCountRepresentsDateAsync(_db, count, date, ct);
         var all = InventoryCountLines.CoversAllWarehouses(count);
         // المستودع المسجّل على المستند؛ وجرد كل المستودعات: الزيادة للمستودع الافتراضي (لا لموقع جلسة المعتمِد)
         var target = await WarehouseStocks.ResolveAsync(_db,
@@ -204,7 +208,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
                 {
                     ItemId = line.ItemId!.Value, WarehouseId = warehouse.Id,
                     Type = isIn ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
-                    Quantity = qty, UnitCost = unitCost, ReferenceNumber = count.CountNumber, Date = SaudiTime.Today,
+                    Quantity = qty, UnitCost = unitCost, ReferenceNumber = count.CountNumber, Date = date,
                     Notes = $"تسوية جرد {count.CountNumber}", SourceType = SourceType, SourceId = count.Id,
                     // الصنف المتتبَّع: الفرق على تشغيلة السطر (الجديدة المعثور عليها برقمها وتاريخها)؛ السطر بلا تشغيلة: العجز بالأقرب انتهاءً
                     ItemBatchId = line.ItemBatchId, BatchNumber = line.BatchNumber, ExpiryDate = line.ExpiryDate, SourceLineId = line.Id,
@@ -218,11 +222,8 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         }
         if (periodic)
         {
-            // الدوري: الفروق بلا قيد (أثرها في القيمة)، والجرد الدوري يُثبت بضاعة آخر المدة
-            await PeriodicInventory.EnsureMethodOpeningAsync(_db, _posting, accounts, SaudiTime.Today, ct);
-            return count.CountType == InventoryCountType.Periodic
-                ? await PeriodicInventory.PostPeriodEndAsync(_db, _posting, accounts, count, SaudiTime.Today, ct)
-                : null;
+            // الدوري: الفروق بلا قيد (أثرها في القيمة)، والجرد الدوري يرحّل القيد الموحد بتاريخ الجرد
+            return periodEnd ? await PeriodicInventory.PostPeriodEndAsync(_db, _posting, accounts, count, date, ct) : null;
         }
         // كل فرق على حساب مخزون المستودع الذي سُجّلت فيه حركته
         return await PostVarianceAsync(count, values, accounts.InventoryShortage(), accounts.InventorySurplus(), ct);

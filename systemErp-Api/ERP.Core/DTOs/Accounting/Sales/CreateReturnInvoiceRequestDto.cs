@@ -28,4 +28,9 @@ public class CreateReturnInvoiceRequestDto
     public DateTime? ReturnDate { get; set; }
     /// <summary>ملاحظات المرتجع (تُضاف إلى سبب الإرجاع في سجل المستند).</summary>
     public string? Notes { get; set; }
+    /// <summary>
+    /// المعاينة فقط: مرتجع يُعدَّل لا تُحسب كمياته وسياراته «مرتجعة من قبل»، فيظهر متبقي الأصل كما يراه التعديل.
+    /// الإنشاء يتجاهله، والتعديل يستثني المرتجع بمعرّفه في المسار.
+    /// </summary>
+    public Guid? ExcludeReturnId { get; set; }
 }

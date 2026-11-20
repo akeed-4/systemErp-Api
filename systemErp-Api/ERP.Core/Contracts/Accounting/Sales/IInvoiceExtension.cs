@@ -36,6 +36,13 @@ public interface IInvoiceExtension
         Func<CreateInvoiceDto, CancellationToken, Task<InvoiceDto>> create, CancellationToken ct);
 
     /// <summary>
+    /// تعديل مرتجع فاتورة تخص الوحدة، بعد إلغاء ترحيله (OnUnpostingAsync): طلب المرتجع الجديد من أصله (<paramref name="returnId"/>
+    /// لا يُعد مرتجعاً من قبل)، وخطوة بعد إعادة ترحيله تلحق سجلات الوحدة به. null = الأصل لا يخص الوحدة.
+    /// </summary>
+    Task<(UpdateInvoiceDto Request, Func<Invoice, CancellationToken, Task> AfterPost)?> RebuildReturnAsync(
+        CreateReturnInvoiceRequestDto r, Invoice original, Guid returnId, CancellationToken ct);
+
+    /// <summary>
     /// معاينة مرتجع فاتورة تخص الوحدة بلا أي أثر: الوحدات المرتجعة من قبل، وطلب المرتجع للمختار (r.VehicleIds؛ null بلا اختيار).
     /// null = الأصل لا يخص الوحدة.
     /// </summary>

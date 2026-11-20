@@ -18,6 +18,11 @@ public class FiscalPeriodsController : ErpControllerBase
     public async Task<IActionResult> SetLock([FromBody] SetPeriodLockDto dto, CancellationToken ct)
         => Success(await _periods.SetLockAsync(dto, ct), Messages.PeriodLockSaved);
 
+    /// <summary>فحص ما قبل الإقفال (الجرد الدوري: جرد آخر المدة وإمكان التجاوز).</summary>
+    [HttpGet("close-year-check"), RequireScreen("accounts", ScreenAction.Close, Legacy = ScreenAction.Create)]
+    public async Task<IActionResult> CloseYearCheck([FromQuery] int year, CancellationToken ct)
+        => Success(await _periods.CheckCloseYearAsync(year, ct));
+
     [HttpPost("close-year"), RequireScreen("accounts", ScreenAction.Close, Legacy = ScreenAction.Create)]
     public async Task<IActionResult> CloseYear([FromBody] CloseYearRequestDto dto, CancellationToken ct)
         => Success(await _periods.CloseYearAsync(dto, ct), Messages.FiscalYearClosed);

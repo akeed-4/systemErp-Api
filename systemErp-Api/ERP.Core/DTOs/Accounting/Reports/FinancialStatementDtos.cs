@@ -48,6 +48,8 @@ public class FinancialPositionDto
     public StatementSectionDto UnclosedProfit { get; set; } = new();
     public StatementSectionDto TotalLiabilitiesAndEquity { get; set; } = new();
     public bool IsBalanced { get; set; }
+    /// <summary>تنبيهات تمس صحة القائمة (مثل قيود جرد دوري قديمة لم تُعالج فأظهرت المخزون أقل من حقيقته).</summary>
+    public List<string> Warnings { get; set; } = new();
 }
 
 /// <summary>

@@ -564,6 +564,12 @@ public class PosSaleService : IPosSaleService
         var total = await q.CountAsync(ct);
         var items = await q.Include(t => t.Items).OrderByDescending(t => t.CreatedAt)
             .Skip((p.NormalizedPage - 1) * p.NormalizedSize).Take(p.NormalizedSize).ToListAsync(ct);
+        // حالة الهيئة الحية من الفاتورة (المحفوظة على العملية نسخة وقت البيع، وقد تُرسَل الفاتورة بعده من شاشة الفواتير)
+        var invoiceIds = items.Where(t => t.InvoiceId.HasValue).Select(t => t.InvoiceId!.Value).ToList();
+        var live = invoiceIds.Count == 0 ? new Dictionary<Guid, ZatcaSubmissionStatus>()
+            : await _db.Set<InvoiceBase>().AsNoTracking().Where(i => invoiceIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.ZatcaStatus }).ToDictionaryAsync(i => i.Id, i => i.ZatcaStatus, ct);
+        foreach (var t in items) if (t.InvoiceId is { } inv && live.TryGetValue(inv, out var s)) t.ZatcaStatus = s;
         return new PagedResult<PosTransactionDto>
         {
             Items = items.Select(ToDto).ToList(),
@@ -582,6 +588,13 @@ public class PosSaleService : IPosSaleService
     public async Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default)
     {
         var tx = await _db.Set<PosTransaction>().AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new NotFoundException(Messages.TransactionNotFound);
-        return await _invoices.SubmitToZatcaAsync(tx.InvoiceId ?? throw new ConflictException(Messages.NoLinkedInvoice), ct);
+        var invoiceId = tx.InvoiceId ?? throw new ConflictException(Messages.NoLinkedInvoice);
+        var result = await _invoices.SubmitToZatcaAsync(invoiceId, ct);
+        // حالة العملية نسخة من حالة فاتورتها وقت البيع: تُحدَّث من الفاتورة بعد إعادة الإرسال كي لا تبقى قائمة نقاط البيع
+        // على «لم تُرسَل/مرفوضة» بعد قبولها (تُقرأ من الفاتورة نفسها، فإخفاق الفحص المحلي لا يغيّر حالة سابقة)
+        var status = await _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Id == invoiceId).Select(i => i.ZatcaStatus).FirstOrDefaultAsync(ct);
+        await _db.Set<PosTransaction>().Where(t => t.Id == id && t.ZatcaStatus != status)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.ZatcaStatus, status), ct);
+        return result;
     }
 }

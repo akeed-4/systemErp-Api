@@ -151,6 +151,40 @@ public class AuthTests : TestBase
         Assert.Equal(firstTenant, byEmail.Body!["tenantId"]!.GetValue<string>());
     }
 
+    [Fact]
+    public async Task Three_companies_sharing_a_mobile_bind_to_the_only_matching_account_even_if_it_is_not_the_latest()
+    {
+        // ثلاثة حسابات (الفحص المتوازي): كلمة المرور تصح للأقدم وحده، فيُدخَل حسابه هو لا الأحدث دخولاً
+        var anon = new Client(NewHttp());
+        var phone = NewMobile();
+        var (oldestTenant, _) = await RegisterWithPhoneAsync(anon, phone, "Oldest-Passw0rd!");
+        await RegisterWithPhoneAsync(anon, phone, "Middle-Passw0rd!");
+        var (latestTenant, latestEmail) = await RegisterWithPhoneAsync(anon, phone, "Latest-Passw0rd!");
+        Assert.Equal(200, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = latestEmail, password = "Latest-Passw0rd!" }, true)).Status);
+
+        var login = await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = phone, password = "Oldest-Passw0rd!" }, true);
+        Assert.Equal(200, login.Status);
+        Assert.Equal(oldestTenant, login.Body!["tenantId"]!.GetValue<string>());
+        Assert.NotEqual(latestTenant, oldestTenant);
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = phone, password = "Nobody-Passw0rd!" }, true)).Status);
+    }
+
+    [Fact]
+    public async Task Three_companies_where_the_password_matches_two_is_still_refused_as_ambiguous()
+    {
+        // التطابق الأول وحده لا يكفي: الفحص لا يتوقف قبل التطابق الثاني، فيُرفض الدخول بدل اختيار حساب منشأة أخرى
+        var anon = new Client(NewHttp());
+        var phone = NewMobile();
+        await RegisterWithPhoneAsync(anon, phone, "Shared-Passw0rd!");
+        await RegisterWithPhoneAsync(anon, phone, "Other-Passw0rd!");
+        var (lastTenant, lastEmail) = await RegisterWithPhoneAsync(anon, phone, "Shared-Passw0rd!");
+
+        Assert.Equal(401, (await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = phone, password = "Shared-Passw0rd!" }, true)).Status);
+        var byEmail = await anon.SendAsync(HttpMethod.Post, "/auth/login", new { email = lastEmail, password = "Shared-Passw0rd!" }, true);
+        Assert.Equal(200, byEmail.Status);
+        Assert.Equal(lastTenant, byEmail.Body!["tenantId"]!.GetValue<string>());
+    }
+
     [Theory]
     [InlineData("0")]
     [InlineData("966")]

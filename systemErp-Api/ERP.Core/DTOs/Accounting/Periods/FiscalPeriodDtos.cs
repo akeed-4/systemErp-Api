@@ -20,10 +20,28 @@ public class CloseYearRequestDto
 {
     /// <summary>السنة المالية المراد إقفالها (السنة التي تنتهي فيها).</summary>
     public int Year { get; set; }
+    /// <summary>الجرد الدوري: الإقفال رغم غياب جرد آخر مدة يمثل نهاية السنة (لمن له صلاحية الاعتماد على دليل الحسابات).</summary>
+    public bool OverrideMissingPeriodEnd { get; set; }
+    /// <summary>سبب التجاوز (إلزامي معه)، يُسجَّل في سجل التدقيق.</summary>
+    public string? OverrideReason { get; set; }
+}
+
+/// <summary>فحص ما قبل إقفال السنة: في الجرد الدوري هل يمثل جرد معتمد نهايتها، وهل يملك المستخدم التجاوز.</summary>
+public class CloseYearCheckDto
+{
+    public int Year { get; set; }
+    public bool Periodic { get; set; }
+    /// <summary>جرد دوري شامل معتمد داخل السنة بلا حركات مخزون بعده حتى نهايتها (دائماً صحيح في المستمر).</summary>
+    public bool YearEndCounted { get; set; }
+    public DateTime? LastCountDate { get; set; }
+    public int MovementsAfterCount { get; set; }
+    public bool CanOverride { get; set; }
 }
 
 public class YearClosingResultDto
 {
+    /// <summary>أُقفلت السنة بتجاوز غياب جرد آخر المدة.</summary>
+    public bool OverriddenMissingPeriodEnd { get; set; }
     public int Year { get; set; }
     public DateTime FromDate { get; set; }
     public DateTime ToDate { get; set; }

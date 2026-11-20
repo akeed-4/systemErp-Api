@@ -19,6 +19,10 @@ public interface IInvoiceService
     Task<InvoiceDto> CreateReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
     /// <summary>معاينة مرتجع فاتورة معرض (السيارات المرتجعة من قبل وتسعير المختار) بلا أي أثر.</summary>
     Task<ReturnPreviewDto> PreviewReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
+    /// <summary>تعديل مرتجع معرض مرحّل لم يُرسل للهيئة: يُعاد بناؤه من أصله برقمه وقيده.</summary>
+    Task<InvoiceDto> UpdateReturnAsync(Guid id, CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
+    /// <summary>مدة الإرجاع بالأيام لأصل مبيعات أو مشتريات (null = بلا حد).</summary>
+    Task<int?> ReturnPeriodDaysAsync(InvoiceKind originalKind, CancellationToken ct = default);
     /// <summary>يرحّل مسودة فاتورة: مخزون + قيد + QR.</summary>
     Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default);
     /// <summary>حذف مسودة فقط (رقمها مؤقت فلا فجوة في التسلسل). الفاتورة المرحّلة لا تُحذف.</summary>

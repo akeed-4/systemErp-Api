@@ -123,6 +123,26 @@ public abstract class TradeReturnsControllerBase : TradeDocumentsControllerBase
         return Success(await _returns.CreateFromInvoiceAsync(dto, ct), Messages.ReturnCreated);
     }
 
+    /// <summary>
+    /// تعديل مرتجع مرحّل لم يُرسل للهيئة (أو رفضته) بطلب الإنشاء نفسه: يُعاد بناؤه من أصله، ويُعكس أثره ويُرحَّل برقمه وقيده.
+    /// الحذف بـ DELETE {id} (يُعكس قيده وحركاته). المرسل للهيئة يرفضه الخادم.
+    /// </summary>
+    /// <summary>مدة الإرجاع من إعدادات المنشأة (لتمييز الفواتير المنتهية في شاشة المرتجع)؛ days = null بلا حد.</summary>
+    [HttpGet("return-period")]
+    public async Task<IActionResult> ReturnPeriod(CancellationToken ct)
+    {
+        await Require(ScreenAction.View, ct);
+        return Success(new { days = await _returns.ReturnPeriodDaysAsync(ct) });
+    }
+
+    [HttpPut("{id:guid}/return")]
+    public async Task<IActionResult> UpdateReturn(Guid id, [FromBody] CreateReturnInvoiceRequestDto dto, CancellationToken ct)
+    {
+        await _returns.GetAsync(id, ct); // غير موجود في جدول هذا النوع ← 404
+        await Require(ScreenAction.Edit, ct);
+        return Success(await _returns.UpdateReturnAsync(id, dto, ct), Messages.InvoiceUpdated);
+    }
+
     /// <summary>معاينة المرتجع قبل إصداره: الأصل، المتبقي من كل صنف، وتسعير المختار بلا أي أثر.</summary>
     [HttpPost("return-preview")]
     public async Task<IActionResult> PreviewReturn([FromBody] CreateReturnInvoiceRequestDto dto, CancellationToken ct)

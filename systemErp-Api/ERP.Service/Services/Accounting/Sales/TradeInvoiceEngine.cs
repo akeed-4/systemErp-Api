@@ -289,20 +289,55 @@ public class TradeInvoiceEngine
         d.Subtotal, d.DiscountTotal, d.VatTotal, d.GrandTotal,
     }, SnapshotJson);
 
-    public async Task<InvoiceDto> UpdateAsync<T>(Guid id, UpdateInvoiceDto r, CancellationToken ct) where T : InvoiceBase, new()
+    public Task<InvoiceDto> UpdateAsync<T>(Guid id, UpdateInvoiceDto r, CancellationToken ct) where T : InvoiceBase, new()
+        => UpdateCoreAsync<T>(id, r, null, ct);
+
+    /// <summary>
+    /// إعادة بناء المرتجع بعد إلغاء ترحيله: تُرجع طلب المستند الجديد، وخطوة اختيارية بعد إعادة ترحيله (إلحاق سيارات المرتجع).
+    /// </summary>
+    private delegate Task<(UpdateInvoiceDto Request, Func<InvoiceBase, CancellationToken, Task>? AfterPost)> ReturnRebuilder(InvoiceBase current, CancellationToken ct);
+
+    /// <summary>
+    /// تعديل الفاتورة: بطلب جاهز (<paramref name="given"/>)، أو بطلب يُبنى بعد إلغاء ترحيل المستند (<paramref name="rebuild"/>،
+    /// للمرتجع: يُعاد بناؤه من أصله بعد أن تعود كمياته وسياراته).
+    /// </summary>
+    private async Task<InvoiceDto> UpdateCoreAsync<T>(Guid id, UpdateInvoiceDto? given, ReturnRebuilder? rebuild, CancellationToken ct) where T : InvoiceBase, new()
         => await SendToZatcaIfRequestedAsync<T>(await _tx.RunAsync(async token =>
         {
             var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
-            await EnsureOpenPeriodAsync(r.IssueDate == default ? invoice.IssueDate : r.IssueDate, token);
-            if (r.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
+            var returnEdit = rebuild != null;
+            if (returnEdit)
+            {
+                if (!invoice.IsReturn || !invoice.OriginalInvoiceId.HasValue) throw new ConflictException(Messages.CannotChangeDocumentType);
+                await EnsureOpenPeriodAsync(invoice.IssueDate, token);
+                // المرسل للهيئة لا يُعدَّل إلا المرفوض: يُصحَّح ويُعاد بمعرّف جديد
+                if (invoice.ZatcaStatus is not (ZatcaSubmissionStatus.NotSubmitted or ZatcaSubmissionStatus.Rejected))
+                    throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
+            }
+            else
+            {
+                await EnsureOpenPeriodAsync(given!.IssueDate == default ? invoice.IssueDate : given.IssueDate, token);
+                if (given.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
+            }
             // المرحّلة (قبل إرسالها للهيئة): يُعكس قيدها وحركاتها المخزنية ثم يُعاد ترحيلها بنفس رقمها بعد التعديل
             var wasPosted = invoice.Status == "posted";
-            if (wasPosted) await UnpostForEditAsync(invoice, token);
+            if (wasPosted) await UnpostForEditAsync(invoice, token, allowReturn: returnEdit);
             else
             {
                 EnsureNotLinkedToAnotherDocument(invoice);
                 if (invoice.Status != "draft") throw new ConflictException(Messages.CannotEditCancelledInvoice);
             }
+
+            // المرتجع يُبنى من أصله الآن: كمياته وسياراته عادت فلا يُحسب «مرتجعاً من قبل» (يُستثنى بمعرّفه أيضاً)
+            Func<InvoiceBase, CancellationToken, Task>? afterPost = null;
+            UpdateInvoiceDto r;
+            if (returnEdit)
+            {
+                (r, afterPost) = await rebuild!(invoice, token);
+                if (r.Kind != invoice.Kind) throw new ConflictException(Messages.CannotChangeDocumentType);
+                await EnsureOpenPeriodAsync(r.IssueDate == default ? invoice.IssueDate : r.IssueDate, token);
+            }
+            else r = given!;
 
             r.ExistingInvoiceId = id; // شواصي هذه المسودة المحفوظة ليست تكراراً
             var fresh = await BuildAsync<T>(r, token); // نفس تحقق الإنشاء وحساب الأرقام في السرفر
@@ -358,9 +393,10 @@ public class TradeInvoiceEngine
             if (posting && !wasPosted && !IsShowroom<T>() && await LatestApprovalAsync(id, token) != "approved" && await RequiresApprovalAsync(invoice, token))
                 posting = false;
             if (posting) await FinalizeAsync(invoice, token);
+            if (posting && afterPost != null) await afterPost(invoice, token);
             await LogTaxOverridesAsync(invoice, token);
             if (wasPosted)
-                await _audit.LogAsync(wasRejected ? "INVOICE_ZATCA_REJECTED_EDITED" : "INVOICE_POSTED_EDITED", typeof(T).Name, invoice.Id.ToString(),
+                await _audit.LogAsync(wasRejected ? "INVOICE_ZATCA_REJECTED_EDITED" : returnEdit ? "RETURN_POSTED_EDITED" : "INVOICE_POSTED_EDITED", typeof(T).Name, invoice.Id.ToString(),
                     $"تعديل {DescribeKind(invoice.Kind)} مرحّلة {invoice.InvoiceNumber}{(wasRejected ? $" بعد رفض الهيئة (معرّف جديد {invoice.Uuid})" : string.Empty)}: عُكس قيدها وحركاتها وأُعيد ترحيلها بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
             return await GetAsync<T>(id, token);
         }, ct), ct);
@@ -376,16 +412,25 @@ public class TradeInvoiceEngine
     /// ويعكس حركاتها المخزنية (المبيعات تعود بتكلفة خروجها، والمشتريات تخرج بتكلفتها). يُمنع ما لا يُصحَّح إلا بمرتجع:
     /// المرسلة للهيئة، المرتجعات وما عليه مرتجعات أو سندات موزّعة، فواتير السيارات ومستندات النقاط والعقود،
     /// والمشتريات التي تلتها حركات على أصنافها (يتغيّر بها المتوسط) أو بطريقة الوارد أولاً.
+    /// المرتجع (<paramref name="allowReturn"/>: حذفه، أو تعديله من أصله عبر UpdateReturnAsync) يُلغى أثره بالقاعدة نفسها
+    /// قبل إرساله للهيئة: مرتجع المبيعات تخرج كمياته بتكلفة دخولها، ومرتجع المشتريات تعود كمياته بتكلفة خروجها.
     /// </summary>
-    private async Task UnpostForEditAsync(InvoiceBase invoice, CancellationToken ct, bool forDelete = false)
+    private async Task UnpostForEditAsync(InvoiceBase invoice, CancellationToken ct, bool forDelete = false, bool allowReturn = false)
     {
-        if (invoice.Kind is not (InvoiceKind.Sales or InvoiceKind.Purchase) || invoice.IsReturn || invoice.OriginalInvoiceId.HasValue)
-            throw new ConflictException(Messages.PostedInvoiceLocked);
+        var isReturnDoc = invoice.IsReturn || invoice.OriginalInvoiceId.HasValue;
+        var editableKind = isReturnDoc
+            ? allowReturn && invoice.Kind is InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn
+            : invoice.Kind is InvoiceKind.Sales or InvoiceKind.Purchase;
+        if (!editableKind) throw new ConflictException(isReturnDoc ? Messages.PostedReturnEditFromReturnScreen : Messages.PostedInvoiceLocked);
         // المرسلة للهيئة لا تُعدَّل، إلا المرفوضة: تُصحَّح وتُعاد بمعرّف جديد (الحذف ممنوع لها أيضاً: صارت حلقة في السلسلة)
         if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted && (forDelete || invoice.ZatcaStatus != ZatcaSubmissionStatus.Rejected))
             throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
         // فاتورة نقطة بيع/عقد: مجاميع مستندها المصدر (الوردية، العقد) تتبعها، فتُعدَّل من ذلك المستند
         if (invoice.ReferenceType != null && !IsCommercialSource(invoice.ReferenceType))
+            throw new ConflictException(Messages.InvoiceFromSourceDocument);
+        // مرتجع فاتورة مستخلص يتبع إلغاء المستخلص نفسه، فلا يُعدَّل ولا يُحذف وحده
+        if (isReturnDoc && invoice.OriginalInvoiceId is Guid originalId && await _db.Set<InvoiceBase>().AsNoTracking()
+                .AnyAsync(i => i.Id == originalId && i.ReferenceType == "contract_certificate", ct))
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
         // تكاليف إضافية معتمدة رفعت تكلفة حركات شرائها: إعادة الترحيل تُسقطها، فيُلغى السند أولاً
         if (invoice.Kind == InvoiceKind.Purchase && await _db.Set<PurchaseLandedCostInvoice>()
@@ -394,9 +439,11 @@ public class TradeInvoiceEngine
 
         var stockItems = invoice.Lines.Where(InvoiceLineStock.MovesItself).ToList();
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
-        // شراء تلته حركات على أصنافه: يُعكس بتكلفته الحالية، وأي فرق عن أثره الأصلي يُرحَّل بقيد إعادة تقييم أدناه
+        // ما أدخل المخزون (الشراء ومرتجع المبيعات) يُعكس بإخراج، وما أخرجه (البيع ومرتجع المشتريات) يُعكس بإدخال بتكلفة خروجه
+        var stockIn = invoice.Kind is InvoiceKind.Purchase or InvoiceKind.SalesReturn;
+        // إدخال تلته حركات على أصنافه: يُعكس بتكلفته الحالية، وأي فرق عن أثره الأصلي يُرحَّل بقيد إعادة تقييم أدناه
         var restoreAverage = false;
-        if (invoice.Kind == InvoiceKind.Purchase && stockItems.Count > 0 && policy.Method == CostingMethod.MovingAverage)
+        if (stockIn && stockItems.Count > 0 && policy.Method == CostingMethod.MovingAverage)
         {
             var ids = stockItems.Select(i => i.ItemId).Distinct().ToList();
             var postedAt = await _db.Set<StockMovement>().AsNoTracking()
@@ -423,15 +470,15 @@ public class TradeInvoiceEngine
 
         // أثر الفاتورة الأصلي على قيمة المخزون (ما رُحِّل لحساب المخزون): تكلفتها ناقص تكلفة بنود الخدمات
         var serviceCost = invoice.Lines.Where(i => InvoiceLineStock.IsNonStock(i) && i.UnitCost > 0).Sum(i => Math.Round(i.Quantity * i.UnitCost, 2));
-        var originalStockChange = invoice.Kind == InvoiceKind.Purchase ? invoice.TotalCost - serviceCost : -(invoice.TotalCost - serviceCost);
+        var originalStockChange = stockIn ? invoice.TotalCost - serviceCost : -(invoice.TotalCost - serviceCost);
         decimal reversalChange = 0;
         foreach (var item in stockItems)
         {
             var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
             {
                 ItemId = item.ItemId, WarehouseId = invoice.WarehouseId, Quantity = item.Quantity,
-                Type = invoice.Kind == InvoiceKind.Sales ? StockMovementType.AdjustmentIn : StockMovementType.AdjustmentOut,
-                UnitCost = invoice.Kind == InvoiceKind.Sales ? item.UnitCost : 0, // المبيعات تعود بتكلفة خروجها
+                Type = stockIn ? StockMovementType.AdjustmentOut : StockMovementType.AdjustmentIn,
+                UnitCost = stockIn ? 0 : item.UnitCost, // المبيعات ومرتجع المشتريات تعود بتكلفة خروجها
                 // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)، وتحمل الحركة تلك القيمة
                 OutUnitCost = restoreAverage ? item.UnitCost : null,
                 UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
@@ -441,14 +488,15 @@ public class TradeInvoiceEngine
             }, ct);
             reversalChange += recorded.ValueChange;
         }
-        // المجمّع والمركّب: تعود مكوناته بتكلفة خروجها المحفوظة على السطر (لا من تعريف الصنف الحالي)
+        // المجمّع والمركّب: تعود مكوناته بتكلفة خروجها المحفوظة على السطر (لا من تعريف الصنف الحالي)؛ ومرتجعه تخرج مكوناته بتكلفة دخولها
         foreach (var item in invoice.Lines.Where(InvoiceLineStock.SellsComponents))
             foreach (var c in InvoiceLineStock.Components(item).Where(c => c.Quantity > 0))
             {
                 var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
                 {
                     ItemId = c.ItemId, WarehouseId = invoice.WarehouseId, Quantity = c.Quantity,
-                    Type = StockMovementType.AdjustmentIn, UnitCost = c.UnitCost,
+                    Type = stockIn ? StockMovementType.AdjustmentOut : StockMovementType.AdjustmentIn,
+                    UnitCost = stockIn ? 0 : c.UnitCost, OutUnitCost = stockIn && restoreAverage ? c.UnitCost : null,
                     UnitPrice = item.UnitPrice, ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
                     SourceType = "invoice_reversal", SourceId = invoice.Id, SourceLineId = item.Id,
                     BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, c.ItemId, item.Id, ct),
@@ -528,35 +576,91 @@ public class TradeInvoiceEngine
         where TOriginal : InvoiceBase, new() where TReturn : InvoiceBase, new()
         => await SendToZatcaIfRequestedAsync<TReturn>(await _tx.RunAsync(async token =>
         {
-            var original = await Detailed(_db.Set<TOriginal>().AsNoTracking()).FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, token)
-                ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
-            if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
-            // فاتورة المستخلص تُلغى من المستخلص نفسه (يعكس معها قيدي الاسترداد والتكلفة ويعيد كمياته)؛ المرتجع الحر يفصلها عن مستخلصها
-            if (original.ReferenceType == "contract_certificate" && !r.SystemGenerated)
-                throw new ConflictException("فاتورة المستخلص تُلغى من شاشة المستخلصات (إلغاء الفاتورة) لا بمرتجع مستقل.");
-            // فاتورة الدفعة المقدمة تستردها المستخلصات (وتخفض بها أساسها الضريبي): مرتجعها الحر يتركها تُسترد وهي ملغاة
-            if (!r.SystemGenerated && await _db.Set<ContractInvoice>().AsNoTracking()
-                    .AnyAsync(i => i.InvoiceId == original.Id && i.Kind == "advance", token))
-                throw new ConflictException(Messages.AdvanceInvoiceReturnBlocked);
-            if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
-            if (r.RefundPaymentMethod == PaymentMethod.ContractSettlement) throw new ValidationFailedException(Messages.InvalidPaymentMethod);
-            if (r.RefundPaymentMethod.HasValue)
-                r.RefundPaymentMethod = await PaymentMethodRules.MethodForAsync(_db, r.RefundPaymentMethod.Value, r.RefundPaymentMethodCode, token);
+            var original = await ReturnOriginalAsync<TOriginal>(r, token);
             if (original is Invoice car)
                 foreach (var ext in _extensions)
                     if (await ext.CreateReturnAsync(r, car, CreateAsync<TReturn>, token) is { } extensionReturn) return extensionReturn;
 
-            var originalLines = original.Lines.ToList();
-            var rentalContractPurchase = IsRentalContractPurchase(original);
-            var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, token);
-            var lines = NormalizeReturnLines(originalLines, r.Lines, previouslyReturned, rentalContractPurchase, returnAllWhenEmpty: true);
-            if (lines.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
-
-            var dto = BuildTradeReturn(original, r, lines, previouslyReturned, rentalContractPurchase);
-            if (r.RefundSplits.Count > 0) await ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
-            else if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
+            var dto = await BuildTradeReturnRequestAsync<TReturn>(original, r, null, token);
             return await CreateAsync<TReturn>(dto, token);
         }, ct), ct);
+
+    /// <summary>
+    /// تعديل مرتجع مرحّل لم يُرسل للهيئة (أو رفضته): يُلغى ترحيله ثم يُعاد بناؤه من أصله بالطلب نفسه الذي ينشئه (الأصناف والكميات
+    /// أو السيارات، السبب، التاريخ، طريقة الرد) ويُرحَّل بقيده في مكانه وبرقمه نفسه. الأصل لا يتغير، ورقم المرتجع لا يُعدَّل.
+    /// </summary>
+    public Task<InvoiceDto> UpdateReturnAsync<TOriginal, TReturn>(Guid id, CreateReturnInvoiceRequestDto r, CancellationToken ct)
+        where TOriginal : InvoiceBase, new() where TReturn : InvoiceBase, new()
+        => UpdateCoreAsync<TReturn>(id, null, async (current, token) =>
+        {
+            r.OriginalInvoiceId = current.OriginalInvoiceId!.Value; // المرتجع يبقى على أصله
+            r.ManualNumber = null;
+            r.SystemGenerated = false;
+            var original = await ReturnOriginalAsync<TOriginal>(r, token);
+            // مرتجع سيارات: الوحدة تبنيه وتلحق سياراته بعد إعادة ترحيله
+            if (original is Invoice car)
+                foreach (var ext in _extensions)
+                    if (await ext.RebuildReturnAsync(r, car, current.Id, token) is { } unit)
+                    {
+                        if (!r.ReturnDate.HasValue) unit.Request.IssueDate = current.IssueDate;
+                        return (unit.Request, (invoice, t) => unit.AfterPost((Invoice)invoice, t));
+                    }
+            var dto = await BuildTradeReturnRequestAsync<TReturn>(original, r, current.Id, token);
+            if (!r.ReturnDate.HasValue) dto.IssueDate = current.IssueDate; // بلا تاريخ جديد يبقى تاريخ المرتجع
+            return (dto, null);
+        }, ct);
+
+    /// <summary>مدة الإرجاع بالأيام لأصل من نوع <paramref name="originalKind"/> (مبيعات أو مشتريات)؛ null أو 0 = بلا حد.</summary>
+    public async Task<int?> ReturnPeriodDaysAsync(InvoiceKind originalKind, CancellationToken ct)
+    {
+        var settings = await PostingAccounts.SettingsAsync(_db, ct);
+        var days = originalKind == InvoiceKind.Purchase ? settings.PurchaseReturnPeriodDays : settings.SalesReturnPeriodDays;
+        return days is > 0 ? days : null;
+    }
+
+    /// <summary>يرفض مرتجعاً بتاريخ <paramref name="returnDate"/> بعد انقضاء مدة الإرجاع من تاريخ أصله.</summary>
+    private async Task EnsureWithinReturnPeriodAsync(InvoiceBase original, DateTime returnDate, CancellationToken ct)
+    {
+        var periodDays = await ReturnPeriodDaysAsync(original.Kind, ct);
+        if (periodDays.HasValue && (returnDate.Date - original.IssueDate.Date).TotalDays > periodDays)
+            throw new ConflictException(string.Format(Messages.ReturnPeriodExpired, periodDays, original.InvoiceNumber));
+    }
+
+    /// <summary>أصل المرتجع وتحقق طلبه (إنشاءً وتعديلاً): أصل مرحّل، ليس مستخلصاً ولا دفعة مقدمة، سبب، وطريقة رد صالحة.</summary>
+    private async Task<InvoiceBase> ReturnOriginalAsync<TOriginal>(CreateReturnInvoiceRequestDto r, CancellationToken token) where TOriginal : InvoiceBase, new()
+    {
+        var original = await Detailed(_db.Set<TOriginal>().AsNoTracking()).FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, token)
+            ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
+        if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
+        // فاتورة المستخلص تُلغى من المستخلص نفسه (يعكس معها قيدي الاسترداد والتكلفة ويعيد كمياته)؛ المرتجع الحر يفصلها عن مستخلصها
+        if (original.ReferenceType == "contract_certificate" && !r.SystemGenerated)
+            throw new ConflictException("فاتورة المستخلص تُلغى من شاشة المستخلصات (إلغاء الفاتورة) لا بمرتجع مستقل.");
+        // فاتورة الدفعة المقدمة تستردها المستخلصات (وتخفض بها أساسها الضريبي): مرتجعها الحر يتركها تُسترد وهي ملغاة
+        if (!r.SystemGenerated && await _db.Set<ContractInvoice>().AsNoTracking()
+                .AnyAsync(i => i.InvoiceId == original.Id && i.Kind == "advance", token))
+            throw new ConflictException(Messages.AdvanceInvoiceReturnBlocked);
+        if (string.IsNullOrWhiteSpace(r.ReturnReason)) throw new ValidationFailedException(Messages.ReturnReasonRequired);
+        if (r.RefundPaymentMethod == PaymentMethod.ContractSettlement) throw new ValidationFailedException(Messages.InvalidPaymentMethod);
+        if (r.RefundPaymentMethod.HasValue)
+            r.RefundPaymentMethod = await PaymentMethodRules.MethodForAsync(_db, r.RefundPaymentMethod.Value, r.RefundPaymentMethodCode, token);
+        return original;
+    }
+
+    /// <summary>طلب مرتجع أصناف من أصله: الكميات ضمن المتبقي (بلا المرتجع <paramref name="excludeReturnId"/> عند تعديله) وطريقة الرد.</summary>
+    private async Task<UpdateInvoiceDto> BuildTradeReturnRequestAsync<TReturn>(InvoiceBase original, CreateReturnInvoiceRequestDto r, Guid? excludeReturnId, CancellationToken token)
+        where TReturn : InvoiceBase
+    {
+        var originalLines = original.Lines.ToList();
+        var rentalContractPurchase = IsRentalContractPurchase(original);
+        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, token, excludeReturnId);
+        var lines = NormalizeReturnLines(originalLines, r.Lines, previouslyReturned, rentalContractPurchase, returnAllWhenEmpty: true);
+        if (lines.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
+
+        var dto = BuildTradeReturn(original, r, lines, previouslyReturned, rentalContractPurchase);
+        if (r.RefundSplits.Count > 0) await ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
+        else if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
+        return dto;
+    }
 
     /// <summary>
     /// معاينة مرتجع بلا أي أثر (لا رقم ولا قيد ولا مخزون ولا هيئة): الأصل كاملاً، المتبقي من كل صنف/سيارة، وتسعير المختار
@@ -568,6 +672,12 @@ public class TradeInvoiceEngine
         var original = await Detailed(_db.Set<TOriginal>().AsNoTracking()).FirstOrDefaultAsync(i => i.Id == r.OriginalInvoiceId, ct)
             ?? throw new NotFoundException(Messages.OriginalInvoiceNotFound);
         if (original.Status != "posted" || original.IsReturn) throw new ConflictException(Messages.OnlyPostedOriginalInvoiceCanBeReturned);
+        // فترة الإرجاع تُفحص هنا أيضاً فيعرفها المستخدم قبل الاختيار لا عند الحفظ؛ تعديل مرتجع بتاريخه نفسه لا يُفحص (كالحفظ)
+        var returnDate = r.ReturnDate ?? SaudiTime.Now;
+        var savedDate = r.ExcludeReturnId is Guid editingId
+            ? await _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Id == editingId).Select(i => (DateTime?)i.IssueDate).FirstOrDefaultAsync(ct)
+            : null;
+        if (!(savedDate.HasValue && savedDate.Value.Date == returnDate.Date)) await EnsureWithinReturnPeriodAsync(original, returnDate, ct);
         var preview = new ReturnPreviewDto { Original = await GetAsync<TOriginal>(original.Id, ct) };
 
         if (original is Invoice car)
@@ -581,7 +691,7 @@ public class TradeInvoiceEngine
 
         var originalLines = original.Lines.ToList();
         var rentalContractPurchase = IsRentalContractPurchase(original);
-        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, ct);
+        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, ct, r.ExcludeReturnId);
         var chosen = NormalizeReturnLines(originalLines, r.Lines.Where(l => l.Quantity > 0).ToList(), previouslyReturned, rentalContractPurchase);
         var priced = chosen.Count > 0 ? PriceReturn(BuildTradeReturn(original, r, chosen, previouslyReturned, rentalContractPurchase)) : (Totals: null, Lines: Array.Empty<PricedLine>());
         var previewLines = rentalContractPurchase
@@ -612,10 +722,12 @@ public class TradeInvoiceEngine
         => original.Kind == InvoiceKind.Purchase && original.Lines.Any(line => line.ProjectResourceId.HasValue);
 
     private async Task<Dictionary<Guid, decimal>> PreviouslyReturnedAsync<TReturn>(
-        InvoiceBase original, bool rentalContractPurchase, CancellationToken ct) where TReturn : InvoiceBase
+        InvoiceBase original, bool rentalContractPurchase, CancellationToken ct, Guid? excludeReturnId = null) where TReturn : InvoiceBase
     {
+        // المرتجع الجاري تعديله لا يُحسب من «المرتجع من قبل»: كمياته تُعاد اختيارها
         var rows = await _db.Set<InvoiceItemBase>().AsNoTracking()
-            .Where(i => _db.Set<TReturn>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"))
+            .Where(i => _db.Set<TReturn>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"
+                && (excludeReturnId == null || inv.Id != excludeReturnId)))
             .ToListAsync(ct);
         if (!rentalContractPurchase)
             return rows.GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
@@ -725,12 +837,12 @@ public class TradeInvoiceEngine
     }
 
     /// <summary>طلب مرتجع تجارة عامة من الأصل: بيانات الطرف والحسابات والمعالجة منه، وكل سطر بسعر أصله وخصمه النسبي.</summary>
-    private static CreateInvoiceDto BuildTradeReturn(
+    private static UpdateInvoiceDto BuildTradeReturn(
         InvoiceBase original, CreateReturnInvoiceRequestDto r, List<ReturnLineDto> lines,
         Dictionary<Guid, decimal> previouslyReturned, bool rentalContractPurchase)
     {
         var originalLines = original.Lines.ToList();
-        var dto = new CreateInvoiceDto
+        var dto = new UpdateInvoiceDto
         {
             Kind = original.Kind == InvoiceKind.Sales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
             InvoiceType = original.Kind == InvoiceKind.Sales ? InvoiceType.CreditNote : InvoiceType.DebitNote,
@@ -846,11 +958,13 @@ public class TradeInvoiceEngine
                 throw new ConflictException(string.Format(Messages.InvoiceSentToZatcaCannotBeDeleted, invoice.InvoiceNumber));
             // المرحّلة (قبل إرسالها للهيئة) تُحذف: يُعكس قيدها وحركاتها وتعود سياراتها؛ المسودة تُحذف مباشرة
             var wasPosted = invoice.Status == "posted";
-            if (wasPosted) await UnpostForEditAsync(invoice, token, forDelete: true);
+            // المرتجع المرحّل (قبل إرساله للهيئة) يُحذف كالفاتورة: يُعكس قيده وحركاته وتعود كمياته متاحة للإرجاع من أصله
+            if (wasPosted) await UnpostForEditAsync(invoice, token, forDelete: true, allowReturn: true);
             else EnsureNotLinkedToAnotherDocument(invoice);
             await ReleaseSourceAsync(invoice, token);
             await OnSavingAsync(invoice, deleting: true, token);
-            await _audit.LogAsync(wasPosted ? "INVOICE_POSTED_DELETED" : "INVOICE_DRAFT_DELETED", typeof(T).Name, invoice.Id.ToString(), $"حذف {(wasPosted ? $"{invoice.InvoiceNumber} المرحّلة" : "مسودة")} {DescribeKind(invoice.Kind)} بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
+            var isReturnDoc = invoice.IsReturn || invoice.OriginalInvoiceId.HasValue;
+            await _audit.LogAsync(wasPosted ? (isReturnDoc ? "RETURN_POSTED_DELETED" : "INVOICE_POSTED_DELETED") : "INVOICE_DRAFT_DELETED", typeof(T).Name, invoice.Id.ToString(), $"حذف {(wasPosted ? $"{invoice.InvoiceNumber} المرحّلة" : "مسودة")} {DescribeKind(invoice.Kind)} بإجمالي {invoice.GrandTotal:0.00} - {invoice.PartyName}", token);
             _db.RemoveRange(invoice.Lines.ToList());
             _db.RemoveRange(invoice.PaymentSplits);
             if (invoice is Invoice car)
@@ -1354,11 +1468,13 @@ public class TradeInvoiceEngine
             var expected = r.Kind == InvoiceKind.SalesReturn ? InvoiceKind.Sales : InvoiceKind.Purchase;
             var expectedTable = showroom ? typeof(Invoice) : expected == InvoiceKind.Sales ? typeof(SalesInvoice) : typeof(PurchaseInvoice);
             if (orig.Kind != expected || orig.Status != "posted" || orig.GetType() != expectedTable) throw new ConflictException(Messages.OriginalInvoiceNotReturnable);
-            // فترة الإرجاع من إعدادات المنشأة: منع نهائي بعد انقضائها (كل مسارات الإرجاع تمر من هنا)
-            var settings = await PostingAccounts.SettingsAsync(_db, ct);
-            var periodDays = expected == InvoiceKind.Sales ? settings.SalesReturnPeriodDays : settings.PurchaseReturnPeriodDays;
-            if (periodDays is > 0 && (invoice.IssueDate.Date - orig.IssueDate.Date).TotalDays > periodDays)
-                throw new ConflictException(string.Format(Messages.ReturnPeriodExpired, periodDays, orig.InvoiceNumber));
+            // فترة الإرجاع من إعدادات المنشأة: منع نهائي بعد انقضائها (كل مسارات الإرجاع تمر من هنا).
+            // تعديل مرتجع قائم بتاريخه نفسه لا يُعاد فحصه: أُنشئ داخل المدة، وتقصيرها لاحقاً لا يقفله
+            var savedDate = r.ExistingInvoiceId is Guid existingId
+                ? await _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Id == existingId).Select(i => (DateTime?)i.IssueDate).FirstOrDefaultAsync(ct)
+                : null;
+            var keepsDate = savedDate.HasValue && savedDate.Value.Date == invoice.IssueDate.Date;
+            if (!keepsDate) await EnsureWithinReturnPeriodAsync(orig, invoice.IssueDate, ct);
             invoice.OriginalInvoiceNumber = orig.InvoiceNumber;
             invoice.Module = orig.Module;
         }

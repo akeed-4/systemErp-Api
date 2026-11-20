@@ -20,10 +20,58 @@ public class FiscalPeriodService : IFiscalPeriodService
     private readonly IAccountingPostingService _posting;
     private readonly ITransactionRunner _tx;
     private readonly IAuditService _audit;
+    private readonly IPermissionService _permissions;
 
-    public FiscalPeriodService(ErpDbContext db, IAccountingPostingService posting, ITransactionRunner tx, IAuditService audit)
+    public FiscalPeriodService(ErpDbContext db, IAccountingPostingService posting, ITransactionRunner tx, IAuditService audit, IPermissionService permissions)
     {
-        _db = db; _posting = posting; _tx = tx; _audit = audit;
+        _db = db; _posting = posting; _tx = tx; _audit = audit; _permissions = permissions;
+    }
+
+    /// <summary>صلاحية تجاوز غياب جرد آخر المدة عند إقفال سنة دورية (المالك وكامل الصلاحيات ضمناً).</summary>
+    private Task<bool> CanOverrideMissingPeriodEndAsync(CancellationToken ct) => _permissions.HasPermissionAsync("accounts", ScreenAction.Approve, ct);
+
+    /// <summary>
+    /// الجرد الدوري: السنة «مغطاة بالجرد» إن اعتُمد فيها جرد دوري شامل (معتمد، لكل المستودعات، بتاريخ داخلها) ولا حركة مخزون بعد تاريخه
+    /// حتى نهايتها، فتمثل بضاعة آخر المدة نهاية السنة. يُعتمد الجرد لا قيده (المخزون الصفري لا قيد له).
+    /// </summary>
+    public async Task<CloseYearCheckDto> CheckCloseYearAsync(int year, CancellationToken ct = default)
+    {
+        if (year is < 2000 or > 2200) throw new ValidationFailedException(Messages.FiscalYearInvalid);
+        var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
+        var (from, to) = YearRange(tenant, year);
+        var check = new CloseYearCheckDto { Year = year, Periodic = (await PostingAccounts.SettingsAsync(_db, ct)).IsPeriodic(to) };
+        if (!check.Periodic) { check.YearEndCounted = true; return check; }
+
+        check.LastCountDate = await _db.Set<InventoryCount>().AsNoTracking()
+            .Where(c => c.Status == InventoryCountStatus.Approved && c.Scope == InventoryCountScope.Items && c.CountType == InventoryCountType.Periodic
+                        && c.WarehouseId == null && c.CountDate >= from && c.CountDate < to.AddDays(1))
+            .MaxAsync(c => (DateTime?)c.CountDate, ct);
+        if (check.LastCountDate is { } counted)
+        {
+            var after = counted.Date.AddDays(1);
+            check.MovementsAfterCount = await _db.Set<StockMovement>().AsNoTracking().CountAsync(m => m.Date >= after && m.Date < to.AddDays(1), ct);
+            check.YearEndCounted = check.MovementsAfterCount == 0;
+        }
+        check.CanOverride = !check.YearEndCounted && await CanOverrideMissingPeriodEndAsync(ct);
+        return check;
+    }
+
+    /// <summary>نهاية آخر سنة مالية مقفلة بقيد إقفال قائم، أو null.</summary>
+    internal static async Task<DateTime?> LastClosedYearEndAsync(ErpDbContext db, Tenant tenant, CancellationToken ct)
+    {
+        var closed = await ClosedYearsAsync(db, ct);
+        return closed.Count == 0 ? null : YearRange(tenant, closed.Max()).To;
+    }
+
+    /// <summary>السنة المالية التي يقع فيها التاريخ.</summary>
+    internal static (DateTime From, DateTime To) YearOf(Tenant tenant, DateTime date)
+    {
+        foreach (var y in new[] { date.Year, date.Year + 1 })
+        {
+            var range = YearRange(tenant, y);
+            if (date.Date >= range.From && date.Date <= range.To) return range;
+        }
+        return YearRange(tenant, date.Year);
     }
 
     public async Task<FiscalPeriodStatusDto> GetAsync(CancellationToken ct = default)
@@ -56,6 +104,20 @@ public class FiscalPeriodService : IFiscalPeriodService
             var (from, to) = YearRange(tenant, r.Year);
             if (to >= SaudiTime.Today) throw new ValidationFailedException(string.Format(Messages.FiscalYearNotEnded, to));
             if ((await ClosedYearsAsync(token)).Contains(r.Year)) throw new ConflictException(string.Format(Messages.FiscalYearAlreadyClosed, r.Year));
+
+            // الجرد الدوري: لا إقفال بلا جرد آخر مدة يمثل نهاية السنة، إلا بتجاوز صريح بسبب ممن له الصلاحية (يُسجَّل في التدقيق)
+            var check = await CheckCloseYearAsync(r.Year, token);
+            var overridden = false;
+            if (!check.YearEndCounted)
+            {
+                if (!r.OverrideMissingPeriodEnd)
+                    throw new ConflictException(check.LastCountDate is { } last
+                        ? string.Format(Messages.PeriodicYearEndCountStale, r.Year, last, check.MovementsAfterCount)
+                        : string.Format(Messages.PeriodicYearEndCountMissing, r.Year));
+                if (string.IsNullOrWhiteSpace(r.OverrideReason)) throw new ValidationFailedException(Messages.YearCloseOverrideReasonRequired);
+                if (!await CanOverrideMissingPeriodEndAsync(token)) throw new ForbiddenException(Messages.YearCloseOverrideForbidden);
+                overridden = true;
+            }
 
             // صافي حركة كل حساب إيراد/مصروف خلال السنة (من سطور القيود، لا من الأرصدة الجارية)، لكل مركز تكلفة على حدة
             // فيُقفل رصيد كل مركز أيضاً لا رصيد الحساب وحده
@@ -102,6 +164,12 @@ public class FiscalPeriodService : IFiscalPeriodService
             await _db.SaveChangesAsync(token);
             await _audit.LogAsync("FISCAL_YEAR_CLOSED", nameof(Tenant), r.Year.ToString(CultureInfo.InvariantCulture),
                 $"إقفال السنة المالية {r.Year} ({from:yyyy-MM-dd} – {to:yyyy-MM-dd}): صافي {profit:0.00}، القيد {result.JournalEntryNumber ?? "—"}", token);
+            if (overridden)
+                await _audit.LogAsync("FISCAL_YEAR_CLOSE_OVERRIDE", nameof(Tenant), r.Year.ToString(CultureInfo.InvariantCulture),
+                    $"إقفال السنة المالية {r.Year} في الجرد الدوري بلا جرد آخر مدة يمثل نهايتها"
+                    + (check.LastCountDate is { } lastCount ? $" (آخر جرد {lastCount:yyyy-MM-dd} وبعده {check.MovementsAfterCount} حركة)" : " (لا جرد)")
+                    + $" — السبب: {r.OverrideReason!.Trim()}", token);
+            result.OverriddenMissingPeriodEnd = overridden;
             result.BooksLockedThrough = tenant.BooksLockedThrough.Value;
             return result;
         }, ct);
@@ -132,8 +200,10 @@ public class FiscalPeriodService : IFiscalPeriodService
             return reversal;
         }, ct);
 
-    private async Task<List<int>> ClosedYearsAsync(CancellationToken ct)
-        => (await _db.Set<JournalEntry>().AsNoTracking()
+    private Task<List<int>> ClosedYearsAsync(CancellationToken ct) => ClosedYearsAsync(_db, ct);
+
+    private static async Task<List<int>> ClosedYearsAsync(ErpDbContext db, CancellationToken ct)
+        => (await db.Set<JournalEntry>().AsNoTracking()
                 .Where(e => e.SourceType == ClosingSource && e.Status == JournalEntryStatus.Posted).Select(e => e.ReferenceNumber).ToListAsync(ct))
             .Select(n => int.TryParse(n, NumberStyles.None, CultureInfo.InvariantCulture, out var y) ? y : 0).Where(y => y > 0).Distinct().OrderBy(y => y).ToList();
 

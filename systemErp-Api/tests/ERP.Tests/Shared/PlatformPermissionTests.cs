@@ -45,6 +45,45 @@ public class PlatformPermissionTests : TestBase
         return await by.Post("/permissions", new { userId, permissions });
     }
 
+    private static Guid UserIdOf(Client c) => Guid.Parse(c.Registration!.Body!["user"]!["id"]!.GetValue<string>());
+
+    private static async Task<(bool View, bool Manage)> AccessAsync(Client c)
+    {
+        var a = (await c.Get("/platform/access")).Data!;
+        return (a["isPlatformAdmin"]!.GetValue<bool>(), a["canManage"]?.GetValue<bool>() ?? false);
+    }
+
+    [Fact]
+    public async Task Root_admin_is_identified_by_user_id_without_any_admin_email()
+    {
+        var admin = await NewTenantAsync("مدير منصة بالمعرّف");
+        var other = await NewTenantAsync("منشأة أخرى");
+        var host = Factory.WithWebHostBuilder(b => b.UseSetting("Platform:AdminUserIds:0", UserIdOf(admin).ToString()));
+
+        var byId = await admin.LoginAsAsync(host.CreateClient(), admin.Email, "Passw0rd!");
+        Assert.Equal((true, true), await AccessAsync(byId));
+        Assert.Equal(200, (await byId.Get("/platform/tenants")).Status);
+
+        // غيره في المضيف نفسه ليس مديراً
+        var notListed = await other.LoginAsAsync(host.CreateClient(), other.Email, "Passw0rd!");
+        Assert.Equal((false, false), await AccessAsync(notListed));
+        Assert.Equal(403, (await notListed.Get("/platform/tenants")).Status);
+    }
+
+    [Fact]
+    public async Task Legacy_admin_email_still_grants_access_alongside_admin_user_ids()
+    {
+        // أثناء النقل: مدير بالمعرّف وآخر بالبريد القديم، كلاهما بصلاحية كاملة
+        var byIdAdmin = await NewTenantAsync("مدير بالمعرّف");
+        var byEmailAdmin = await NewTenantAsync("مدير بالبريد");
+        var host = Factory.WithWebHostBuilder(b => b
+            .UseSetting("Platform:AdminUserIds:0", UserIdOf(byIdAdmin).ToString())
+            .UseSetting("Platform:AdminEmails:0", byEmailAdmin.Email));
+
+        Assert.Equal((true, true), await AccessAsync(await byIdAdmin.LoginAsAsync(host.CreateClient(), byIdAdmin.Email, "Passw0rd!")));
+        Assert.Equal((true, true), await AccessAsync(await byEmailAdmin.LoginAsAsync(host.CreateClient(), byEmailAdmin.Email, "Passw0rd!")));
+    }
+
     private static async Task<bool> GridHasPlatformRowAsync(Client by, string query)
         => (await by.Get($"/permissions?{query}")).Data!.AsArray().Any(p => p!["screenId"].S() == Screen);
 

@@ -50,4 +50,6 @@ public class AccountingSettingsDto : SaveAccountingSettingsDto
     public InventorySystem? PreviousInventoryMethod { get; set; }
     /// <summary>الحسابات الفعّالة بعد تطبيق الافتراضي على الفارغ (مفتاحها اسم الإعداد).</summary>
     public Dictionary<string, string?> EffectiveAccounts { get; set; } = new();
+    /// <summary>تقرير تهيئة حسابات الجرد الدوري إن شُغّلت تلقائياً مع الحفظ (اختيار الدوري وحساباته ناقصة)؛ وإلا فارغ.</summary>
+    public ContractAccountsSetupDto? PeriodicAccountsSetup { get; set; }
 }

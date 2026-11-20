@@ -23,10 +23,14 @@ public class AccountingSettingsService : IAccountingSettingsService
     private readonly ErpDbContext _db;
     private readonly IPeriodLock _periods;
     private readonly ITransactionRunner _tx;
+    private readonly IAuditService _audit;
+    private readonly IAccountingPostingService _posting;
+    private readonly IPermissionService _permissions;
 
-    public AccountingSettingsService(ErpDbContext db, IPeriodLock periods, ITransactionRunner tx)
+    public AccountingSettingsService(ErpDbContext db, IPeriodLock periods, ITransactionRunner tx, IAuditService audit, IAccountingPostingService posting,
+        IPermissionService permissions)
     {
-        _db = db; _periods = periods; _tx = tx;
+        _db = db; _periods = periods; _tx = tx; _audit = audit; _posting = posting; _permissions = permissions;
     }
 
     public async Task<AccountingSettingsDto> GetAsync(CancellationToken ct = default)
@@ -52,16 +56,61 @@ public class AccountingSettingsService : IAccountingSettingsService
             if (d.PurchaseReturnPeriodDays is { } purchaseDays) settings.PurchaseReturnPeriodDays = ReturnPeriod(purchaseDays);
             if (d.ConstructionSeparateApprover is { } separate) settings.ConstructionSeparateApprover = separate;
 
+            // اختيار الدوري وحساباته الإلزامية ناقصة: تُهيّأ في المعاملة نفسها قبل التحقق (فشل الحفظ يلغي ما أُنشئ)
+            ContractAccountsSetupDto? periodicSetup = null;
+            if (settings.InventoryMethod == InventorySystem.Periodic && PostingAccounts.Roles.Any(r => r.RequiredForPeriodic && r.Get(settings) == null))
+                periodicSetup = await ContractAccountsSetup.EnsurePeriodicAsync(_db, settings, token);
+
             await ValidateAccountsAsync(settings, token);
             await EnsureChangeableAsync(before, settings, token);
             if (settings.InventoryMethod != before.InventoryMethod) await ApplyMethodChangeAsync(before, settings, d.InventoryMethodEffectiveFrom, token);
 
             await _db.SaveChangesAsync(token);
-            return ToDto(settings);
+            if (periodicSetup is { Created: > 0 } or { Reused: > 0 }) await LogPeriodicSetupAsync(periodicSetup, token);
+            var dto = ToDto(settings);
+            dto.PeriodicAccountsSetup = periodicSetup;
+            return dto;
         }, ct);
 
     public Task<ContractAccountsSetupDto> InitializeContractAccountsAsync(CancellationToken ct = default)
         => _tx.RunAsync(token => ContractAccountsSetup.EnsureAsync(_db, token), ct);
+
+    /// <summary>فحص اكتمال حسابات الجرد الدوري بلا أي كتابة (عند فتح الإعدادات).</summary>
+    public Task<ContractAccountsSetupDto> GetPeriodicAccountsStatusAsync(CancellationToken ct = default)
+        => ContractAccountsSetup.EnsurePeriodicAsync(_db, preview: true, ct);
+
+    /// <summary>زر تهيئة حسابات الجرد الدوري: ينشئ الناقص ويربطه، ولا يغيّر الإعدادات المحددة (يبلّغ عن غير الصالح منها).</summary>
+    public Task<ContractAccountsSetupDto> InitializePeriodicAccountsAsync(CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var report = await ContractAccountsSetup.EnsurePeriodicAsync(_db, preview: false, token);
+            if (report.Created > 0 || report.Reused > 0) await LogPeriodicSetupAsync(report, token);
+            return report;
+        }, ct);
+
+    public Task<PeriodicLegacyPreviewDto> GetPeriodicLegacyAsync(CancellationToken ct = default) => PeriodicLegacyRemediation.PreviewAsync(_db, ct);
+
+    /// <summary>
+    /// معالجة قيود الجرد الدوري القديمة للمنشأة الحالية: تُنشئ قيوداً، فتتطلب مع تعديل الإعدادات صلاحية ترحيل القيود؛ وتُسجَّل في التدقيق.
+    /// </summary>
+    public Task<PeriodicLegacyResultDto> ApplyPeriodicLegacyAsync(ApplyPeriodicLegacyDto request, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            if (!await _permissions.HasPermissionAsync("accounts", ScreenAction.Post, token))
+                throw new ForbiddenException(Messages.PeriodicLegacyPostForbidden);
+            var result = await PeriodicLegacyRemediation.ApplyAsync(_db, _posting, request, token);
+            await _audit.LogAsync("PERIODIC_LEGACY_RECLASSIFIED", nameof(AccountingSettings), "periodic",
+                $"معالجة قيود الجرد الدوري القديمة: {result.Posted.Count} قيد بمبلغ {result.Posted.Sum(p => p.Amount):0.00} — "
+                + string.Join("، ", result.Posted.Select(p => $"{p.LegacyEntryNumber} ← {p.EntryNumber} ({p.Date:yyyy-MM-dd})"))
+                + (request.UseFirstOpenDateForLocked ? " — قيود الفترات المقفلة بأول يوم مفتوح" : ""), token);
+            return result;
+        }, ct);
+
+    private Task LogPeriodicSetupAsync(ContractAccountsSetupDto report, CancellationToken ct)
+        => _audit.LogAsync("PERIODIC_ACCOUNTS_INITIALIZED", nameof(AccountingSettings), "periodic",
+            "تهيئة حسابات الجرد الدوري: " + string.Join("، ", report.Items
+                .Where(i => i.Status is ContractAccountSetupStatus.Created or ContractAccountSetupStatus.Reused)
+                .Select(i => $"{i.RoleLabel} {i.AccountCode} ({i.Status})")), ct);
 
     /// <summary>0 = بلا حد (يُحفظ فارغاً).</summary>
     private static int? ReturnPeriod(int days)
@@ -85,7 +134,43 @@ public class AccountingSettingsService : IAccountingSettingsService
         foreach (var vat in PostingAccounts.Roles.Where(r => r.LockedAfterUse && r.Key != PostingAccounts.InventoryRole.Key))
             if (vat.Effective(s) is { } code && warehouseAccounts.Contains(code))
                 errors.Add(string.Format(Messages.AccountSettingSharedByRoles, code, $"{vat.Label}، {PostingAccounts.InventoryRole.Label}"));
+        errors.AddRange(await PeriodicProblemsAsync(s, ct));
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
+    }
+
+    /// <summary>
+    /// قواعد الجرد الدوري، تُطبَّق عند اختياره فقط (لا يتأثر حفظ إعدادات المستمر): المشتريات ومردوداتها وأول المدة وآخرها مصروفات داخل
+    /// مجموعة تكلفة المبيعات، ولا يشترك حساب المشتريات أو المردودات مع أول المدة أو آخرها أو تكلفة البضاعة المباعة (احتساب مزدوج).
+    /// أول المدة وآخرها في حساب واحد مسموح (حساب تغيّر المخزون): القيد الموحد صحيح به.
+    /// </summary>
+    private async Task<List<string>> PeriodicProblemsAsync(AccountingSettings s, CancellationToken ct)
+    {
+        var errors = new List<string>();
+        if (s.InventoryMethod != InventorySystem.Periodic) return errors;
+
+        var chart = await _db.Set<Account>().AsNoTracking().Select(a => new { a.Code, a.ParentCode, a.Type }).ToDictionaryAsync(a => a.Code, ct);
+        string? ParentOf(string code) => chart.TryGetValue(code, out var a) ? a.ParentCode : null;
+        var group = CostOfSales.Group(s, ParentOf);
+        foreach (var role in PostingAccounts.Roles.Where(r => ContractAccountsSetup.PeriodicRoleKeys.Contains(r.Key)))
+            if (role.Get(s) is { } code && chart.TryGetValue(code, out var account) && !CostOfSales.Contains(code, account.Type, ParentOf, group))
+                errors.Add(string.Format(Messages.AccountSettingNotCostOfSales, role.Label, code));
+
+        string Label(string key) => PostingAccounts.Roles.First(r => r.Key == key).Label;
+        const string purchases = nameof(AccountingSettings.PurchasesAccountCode), returns = nameof(AccountingSettings.PurchaseReturnsAccountCode),
+            opening = nameof(AccountingSettings.OpeningInventoryAccountCode), ending = nameof(AccountingSettings.EndingInventoryAccountCode),
+            cogs = nameof(AccountingSettings.CogsAccountCode);
+        var codes = new Dictionary<string, string?>
+        {
+            [purchases] = s.PurchasesAccountCode, [returns] = s.PurchaseReturnsAccountCode,
+            [opening] = s.OpeningInventoryAccountCode, [ending] = s.EndingInventoryAccountCode, [cogs] = s.Cogs(),
+        };
+        if (codes[returns] != null && codes[returns] == codes[purchases])
+            errors.Add(string.Format(Messages.PurchaseReturnsSameAsPurchases, codes[returns]));
+        foreach (var (a, b) in new[] { (purchases, opening), (purchases, ending), (purchases, cogs), (returns, opening), (returns, ending), (returns, cogs),
+                     (opening, cogs), (ending, cogs) })
+            if (codes[a] is { } code && code == codes[b])
+                errors.Add(string.Format(Messages.AccountSettingPeriodicOverlap, Label(a), Label(b), code));
+        return errors;
     }
 
     /// <summary>حساب ميزانية عليه حركة لا يُبدَّل ولو صار رصيده صفراً (انظر PostingAccounts.Role.LockedAfterUse).</summary>

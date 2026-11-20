@@ -40,6 +40,10 @@ public interface ITradeReturnService : ITradeDocumentService
     Task<InvoiceDto> CreateFromInvoiceAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
     /// <summary>معاينة المرتجع قبل إصداره (المتبقي لكل صنف وتسعير المختار) بلا أي أثر.</summary>
     Task<ReturnPreviewDto> PreviewReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
+    /// <summary>تعديل مرتجع مرحّل لم يُرسل للهيئة (أو رفضته): يُعاد بناؤه من أصله ويُرحَّل برقمه وقيده نفسيهما.</summary>
+    Task<InvoiceDto> UpdateReturnAsync(Guid id, CreateReturnInvoiceRequestDto request, CancellationToken ct = default);
+    /// <summary>مدة الإرجاع بالأيام من إعدادات المنشأة لأصل هذا النوع (null = بلا حد).</summary>
+    Task<int?> ReturnPeriodDaysAsync(CancellationToken ct = default);
 }
 
 /// <summary>مرتجعات المبيعات (جدول SalesReturn) على فواتير المبيعات.</summary>

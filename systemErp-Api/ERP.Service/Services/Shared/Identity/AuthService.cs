@@ -54,10 +54,7 @@ public class AuthService : IAuthService
             ? await FindByEmailAsync(request.Email.Trim(), ct)
             : await FindByPhoneAsync(request.Email.Trim(), ct);
 
-        // تُفحص كل الحسابات المطابقة: إن صحّت كلمة المرور لأكثر من حساب (جوال مشترك بين منشآت بكلمة مرور واحدة)
-        // لا يُختار أحدها، ويُطلب الدخول بالبريد الذي لا يتكرر بين المنشآت.
-        var matches = candidates.Where(c => c.PasswordHash != null
-            && _hasher.VerifyHashedPassword(c, c.PasswordHash, request.Password) != PasswordVerificationResult.Failed).Take(2).ToList();
+        var matches = MatchPassword(candidates, request.Password, ct);
         if (matches.Count == 0) throw new UnauthorizedAppException();
         if (matches.Count > 1) throw new UnauthorizedAppException(Messages.LoginAmbiguousUseEmail);
         var user = matches[0];
@@ -75,6 +72,32 @@ public class AuthService : IAuthService
 
         return Build(user, tenant, Messages.LoginSucceeded);
     }
+
+    /// <summary>
+    /// الحسابات التي تصح لها كلمة المرور، حتى حسابين (الثاني يكفي لإثبات الالتباس). تُفحص كل الحسابات المطابقة: إن صحّت كلمة المرور
+    /// لأكثر من حساب (جوال مشترك بين منشآت بكلمة مرور واحدة) لا يُختار أحدها، ويُطلب الدخول بالبريد الذي لا يتكرر بين المنشآت.
+    /// فلا يُوقف الفحص عند أول تطابق (قد يكون حساب منشأة أخرى)، بل عند الثاني. الأحدث دخولاً أولاً (ترتيب الاستعلام)، والحسابات
+    /// المتعددة تُفحص بالتوازي فيقارب زمن الدخول فحصاً واحداً بدل فحص لكل حساب. بلا حساب بكلمة مرور يُجرى فحص وهمي بالكلفة نفسها،
+    /// فلا يكشف زمن الرد وجود الحساب من عدمه.
+    /// </summary>
+    private List<User> MatchPassword(List<User> candidates, string password, CancellationToken ct)
+    {
+        var withHash = candidates.Where(c => c.PasswordHash != null).ToList();
+        if (withHash.Count == 0)
+        {
+            _hasher.VerifyHashedPassword(DummyUser, DummyHash.Value, password);
+            return [];
+        }
+        bool Valid(User c) => _hasher.VerifyHashedPassword(c, c.PasswordHash!, password) != PasswordVerificationResult.Failed;
+        if (withHash.Count == 1) return Valid(withHash[0]) ? [withHash[0]] : [];
+        // PLINQ مرتّب: النتيجة بترتيب الأحدث دخولاً، ويتوقف بعد تطابقين
+        return withHash.AsParallel().AsOrdered().WithCancellation(ct).Where(Valid).Take(2).ToList();
+    }
+
+    /// <summary>حساب وهمي وبصمة كلمة مرور عشوائية بخوارزمية الحسابات نفسها (للفحص الوهمي متساوي الكلفة).</summary>
+    private static readonly User DummyUser = new() { Id = Guid.Empty, Email = string.Empty };
+    private static readonly Lazy<string> DummyHash = new(() =>
+        new PasswordHasher<User>().HashPassword(DummyUser, Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))));
 
     /// <summary>البحث بالبريد عبر كل المنشآت: مقارنة مكشوفة على العمود تخدم فهرس Email مباشرة.</summary>
     private async Task<List<User>> FindByEmailAsync(string email, CancellationToken ct)

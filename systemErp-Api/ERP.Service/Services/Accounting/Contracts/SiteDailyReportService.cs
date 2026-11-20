@@ -39,7 +39,7 @@ public class SiteDailyReportService : ISiteDailyReportService
     {
         var contract = await P.LoadBoqContractAsync(_db, contractId, ct);
         return contract.Items.Where(i => !i.IsGroup).OrderBy(i => i.SortOrder)
-            .Select(i => new SiteReportBoqLineDto { Id = i.Id, LineCode = i.LineCode, Description = i.Description, Unit = i.Unit, IsSubItem = i.IsSubItem })
+            .Select(i => new SiteReportBoqLineDto { Id = i.Id, LineCode = i.LineCode, Description = i.Description, Unit = i.Unit, IsSubItem = i.IsSubItem, Quantity = i.RevisedQuantity })
             .ToList();
     }
 

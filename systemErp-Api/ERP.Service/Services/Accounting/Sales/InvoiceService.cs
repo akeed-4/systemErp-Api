@@ -31,6 +31,8 @@ public class InvoiceService : IInvoiceService
     public Task<InvoiceDto> UpdateAsync(Guid id, UpdateInvoiceDto request, CancellationToken ct = default) => _engine.UpdateAsync<Invoice>(id, request, ct);
     public Task<InvoiceDto> CreateReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default) => _engine.CreateReturnAsync<Invoice, Invoice>(request, ct);
     public Task<ReturnPreviewDto> PreviewReturnAsync(CreateReturnInvoiceRequestDto request, CancellationToken ct = default) => _engine.PreviewReturnAsync<Invoice, Invoice>(request, ct);
+    public Task<InvoiceDto> UpdateReturnAsync(Guid id, CreateReturnInvoiceRequestDto request, CancellationToken ct = default) => _engine.UpdateReturnAsync<Invoice, Invoice>(id, request, ct);
+    public Task<int?> ReturnPeriodDaysAsync(InvoiceKind originalKind, CancellationToken ct = default) => _engine.ReturnPeriodDaysAsync(originalKind, ct);
     public Task<InvoiceDto> PostDraftAsync(Guid id, CancellationToken ct = default) => _engine.PostDraftAsync<Invoice>(id, ct);
     public Task DeleteAsync(Guid id, CancellationToken ct = default) => _engine.DeleteAsync<Invoice>(id, ct);
     public Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default) => _engine.SubmitToZatcaAsync<Invoice>(id, ct);

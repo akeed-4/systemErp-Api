@@ -82,6 +82,24 @@ public class InvoicesController : ErpControllerBase
         return Success(await _invoices.CreateReturnAsync(dto, ct), Messages.ReturnCreated);
     }
 
+    /// <summary>تعديل مرتجع معرض مرحّل لم يُرسل للهيئة (أو رفضته): يُعاد بناؤه من أصله (السيارات أو الأصناف) برقمه وقيده.</summary>
+    /// <summary>مدة الإرجاع لفواتير المعارض (kind = sales أو purchase للأصل)؛ days = null بلا حد.</summary>
+    [HttpGet("returns/period")]
+    public async Task<IActionResult> ReturnPeriod([FromQuery] InvoiceKind kind, CancellationToken ct)
+    {
+        await Require(kind == InvoiceKind.Purchase ? InvoiceKind.PurchaseReturn : InvoiceKind.SalesReturn, ScreenAction.View, ct);
+        return Success(new { days = await _invoices.ReturnPeriodDaysAsync(kind == InvoiceKind.Purchase ? InvoiceKind.Purchase : InvoiceKind.Sales, ct) });
+    }
+
+    [HttpPut("returns/{id:guid}")]
+    public async Task<IActionResult> UpdateReturn(Guid id, [FromBody] CreateReturnInvoiceRequestDto dto, CancellationToken ct)
+    {
+        var current = await _invoices.GetAsync(id, ct);
+        if (!current.IsReturn) throw new ConflictException(Messages.CannotChangeDocumentType);
+        await Require(current.Kind, ScreenAction.Edit, ct);
+        return Success(await _invoices.UpdateReturnAsync(id, dto, ct), Messages.InvoiceUpdated);
+    }
+
     /// <summary>معاينة مرتجع فاتورة معرض: السيارات المرتجعة من قبل وتسعير المختار بلا أي أثر.</summary>
     [HttpPost("returns/preview")]
     public async Task<IActionResult> PreviewReturn([FromBody] CreateReturnInvoiceRequestDto dto, CancellationToken ct)

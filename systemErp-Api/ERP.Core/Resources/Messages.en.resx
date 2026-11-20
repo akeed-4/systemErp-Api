@@ -772,6 +772,8 @@
   <data name="PolicyNeedsOneLevel" xml:space="preserve"><value>The policy needs at least one approval level.</value></data>
   <data name="PolicyNotFound" xml:space="preserve"><value>Policy not found</value></data>
   <data name="PostedInvoiceLocked" xml:space="preserve"><value>A posted invoice is an issued document that cannot be edited or deleted; correct it with a return (credit/debit note).</value></data>
+  <data name="PostedReturnEditFromReturnScreen" xml:space="preserve"><value>A posted return is edited from the returns screen (rebuilt from its original invoice), or deleted, as long as it has not been sent to ZATCA.</value></data>
+  <data name="ReturnVehicleChangedAfterReturn" xml:space="preserve"><value>Vehicle {0} changed after the return (sold, reserved or contracted); the return cannot be edited or deleted.</value></data>
   <data name="PosVoidReturnReason" xml:space="preserve"><value>Void of POS sale {0}</value></data>
   <data name="PriceAndDiscountInvalid" xml:space="preserve"><value>The price and discount are invalid.</value></data>
   <data name="PriceAndVatInvalid" xml:space="preserve"><value>Price must be non-negative and VAT between 0 and 100.</value></data>
@@ -1867,4 +1869,20 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="ProjectPlanChanged" xml:space="preserve"><value>Another user changed the progress plan after you loaded it. Reload the plan and apply your changes again.</value></data>
   <data name="ProjectPlanTargetExceedsItem" xml:space="preserve"><value>Progress plan "{0}": the hourly target {1} exceeds the whole item quantity {2}.</value></data>
   <data name="ProjectPlanDateOutsideContract" xml:space="preserve"><value>Progress plan "{0}": effective date {1} is outside the contract period ({2} – {3}).</value></data>
+  <data name="PeriodicWarehouseInventoryAccounts" xml:space="preserve"><value>Warehouse inventory accounts: {0}.</value></data>
+  <data name="AccountSettingNotCostOfSales" xml:space="preserve"><value>{0}: account {1} must be an expense inside the income statement's cost of sales group.</value></data>
+  <data name="PurchaseReturnsReducePurchases" xml:space="preserve"><value>No suitable purchase returns account exists: none was created, and returns reduce the purchases account itself.</value></data>
+  <data name="PurchaseReturnsSameAsPurchases" xml:space="preserve"><value>The purchase returns account ({0}) is the purchases account itself: leave it empty so returns reduce purchases directly.</value></data>
+  <data name="AccountSettingPeriodicOverlap" xml:space="preserve"><value>Under periodic inventory, {0} and {1} cannot share one account ({2}): it double-counts cost of sales.</value></data>
+  <data name="PeriodicCountLaterMovements" xml:space="preserve"><value>Count {0} dated {1:yyyy-MM-dd} cannot be approved: {2} stock movement(s) dated after it or recorded after it was submitted change the quantities it represents, including: {3}. Cancel these movements or create a count with a later date.</value></data>
+  <data name="PeriodicLegacyNotApplicable" xml:space="preserve"><value>Legacy periodic entries can only be remediated for a company on periodic inventory.</value></data>
+  <data name="PeriodicLegacyChanged" xml:space="preserve"><value>The legacy periodic entries changed since the preview: preview again, then apply.</value></data>
+  <data name="PeriodicLegacyNothingToApply" xml:space="preserve"><value>No legacy entries can be remediated now (entries in locked periods need the period opened or the first open date chosen).</value></data>
+  <data name="PeriodicLegacyBalanceWarning" xml:space="preserve"><value>The inventory balance excludes {0:N2} moved to opening inventory by legacy periodic entries. Remediate them from accounting settings.</value></data>
+  <data name="PeriodicLegacyClosedYearWarning" xml:space="preserve"><value>{0:N2} of inventory was moved to opening inventory in closed years: not remediated automatically; approve a periodic count and review with your accountant.</value></data>
+  <data name="PeriodicLegacyPostForbidden" xml:space="preserve"><value>Remediating legacy periodic entries posts journal entries: it requires the post permission on the chart of accounts.</value></data>
+  <data name="PeriodicYearEndCountMissing" xml:space="preserve"><value>Fiscal year {0} cannot be closed under periodic inventory before a full periodic count representing its end (closing inventory) is approved.</value></data>
+  <data name="PeriodicYearEndCountStale" xml:space="preserve"><value>Fiscal year {0} cannot be closed under periodic inventory: the last approved periodic count is dated {1:yyyy-MM-dd} and {2} stock movement(s) follow it before year end, so it does not represent closing inventory.</value></data>
+  <data name="YearCloseOverrideReasonRequired" xml:space="preserve"><value>A reason is required to close the year without a closing inventory count.</value></data>
+  <data name="YearCloseOverrideForbidden" xml:space="preserve"><value>You are not allowed to close the year without a closing inventory count (chart of accounts approve permission).</value></data>
 </root>

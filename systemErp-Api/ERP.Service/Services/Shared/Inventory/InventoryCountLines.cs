@@ -45,7 +45,7 @@ internal static class InventoryCountLines
     {
         if (count.Scope != InventoryCountScope.Items) return;
         if (count.CountType == InventoryCountType.Periodic && count.WarehouseId != null
-            && (await PostingAccounts.SettingsAsync(db, ct)).IsPeriodic(SaudiTime.Today))
+            && (await PostingAccounts.SettingsAsync(db, ct)).IsPeriodic(count.CountDate.Date)) // جرد آخر المدة يُرحَّل بتاريخه
             throw new ValidationFailedException(Messages.PeriodicCountMustCoverAllWarehouses);
 
         var surplus = count.Lines.Where(l => l.VarianceQuantity > 0).ToList();

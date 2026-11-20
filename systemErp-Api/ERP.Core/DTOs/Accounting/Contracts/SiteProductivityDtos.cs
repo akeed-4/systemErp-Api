@@ -309,6 +309,8 @@ public class SiteReportBoqLineDto
     public string Description { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public bool IsSubItem { get; set; }
+    /// <summary>كمية البند المعتمدة بعد الملاحق: أساس إدخال المستهدف نسبةً منها في التقرير.</summary>
+    public decimal Quantity { get; set; }
 }
 
 // ---------- تقارير الإنجاز ----------

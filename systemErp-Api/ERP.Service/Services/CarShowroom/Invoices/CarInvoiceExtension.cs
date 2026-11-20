@@ -78,7 +78,9 @@ public class CarInvoiceExtension : IInvoiceExtension
     }
 
     public Task OnUnpostingAsync(Invoice invoice, CancellationToken ct)
-        => invoice.VehicleLines.Count > 0 ? UnpostVehiclesAsync(invoice, ct) : Task.CompletedTask;
+        => invoice.VehicleLines.Count == 0 ? Task.CompletedTask
+            : invoice.IsReturn || invoice.OriginalInvoiceId.HasValue ? UnpostVehicleReturnAsync(invoice, ct)
+            : UnpostVehiclesAsync(invoice, ct);
 
     public async Task<InvoiceDto?> CreateReturnAsync(CreateReturnInvoiceRequestDto r, Invoice original,
         Func<CreateInvoiceDto, CancellationToken, Task<InvoiceDto>> create, CancellationToken ct)
@@ -118,8 +120,33 @@ public class CarInvoiceExtension : IInvoiceExtension
     private async Task<InvoiceDto> CreateVehicleReturnAsync(CreateReturnInvoiceRequestDto r, Invoice original, List<InvoiceVehicleLine> originalLines,
         Func<CreateInvoiceDto, CancellationToken, Task<InvoiceDto>> create, CancellationToken ct)
     {
+        var (dto, attach) = await PrepareVehicleReturnAsync(r, original, originalLines, null, ct);
+        var created = await create(dto, ct);
+        var ret = await _db.Set<Invoice>().Include(i => i.VehicleLines).Include(i => i.VehicleBatches).FirstAsync(i => i.Id == created.Id, ct);
+        await attach(ret, ct);
+        return created;
+    }
+
+    /// <summary>
+    /// تعديل مرتجع سيارات (بعد أن أعاد إلغاء ترحيله سياراته لحالتها): طلبه من أصله بالسيارات المختارة الآن، وخطوة تلحقها به بعد ترحيله.
+    /// </summary>
+    public async Task<(UpdateInvoiceDto Request, Func<Invoice, CancellationToken, Task> AfterPost)?> RebuildReturnAsync(
+        CreateReturnInvoiceRequestDto r, Invoice original, Guid returnId, CancellationToken ct)
+    {
+        var originalLines = await _db.Set<InvoiceVehicleLine>().AsNoTracking().Where(l => l.InvoiceId == original.Id).OrderBy(l => l.LineNo).ToListAsync(ct);
+        if (originalLines.Count == 0) return null;
+        return await PrepareVehicleReturnAsync(r, original, originalLines, returnId, ct);
+    }
+
+    /// <summary>
+    /// طلب مرتجع السيارات المختارة بعد التحقق منها (في الأصل، لم تُرجع في مرتجع آخر، وبالحالة المتوقعة)، وخطوة تلحق أسطرها
+    /// بالمرتجع بعد ترحيله وتغيّر حالتها. <paramref name="excludeReturnId"/>: المرتجع الجاري تعديله لا يُعد مرتجعاً من قبل.
+    /// </summary>
+    private async Task<(UpdateInvoiceDto Request, Func<Invoice, CancellationToken, Task> Attach)> PrepareVehicleReturnAsync(
+        CreateReturnInvoiceRequestDto r, Invoice original, List<InvoiceVehicleLine> originalLines, Guid? excludeReturnId, CancellationToken ct)
+    {
         var isSales = original.Kind == InvoiceKind.Sales;
-        var alreadyReturned = await ReturnedVehicleIdsAsync(original.Id, ct);
+        var alreadyReturned = await ReturnedVehicleIdsAsync(original.Id, ct, excludeReturnId);
 
         var chosen = r.VehicleIds.Count == 0
             ? originalLines.Where(l => l.VehicleId.HasValue && !alreadyReturned.Contains(l.VehicleId.Value)).ToList()
@@ -139,11 +166,13 @@ public class CarInvoiceExtension : IInvoiceExtension
         var dto = BuildVehicleReturn(r, original, chosen);
         if (r.RefundSplits.Count > 0) await TradeInvoiceEngine.ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, ct);
         else if (r.RefundPaymentMethod == null && chosen.Count == originalLines.Count) TradeInvoiceEngine.MirrorOriginalSplits(dto, original);
+        return (dto, (ret, token) => AttachReturnVehiclesAsync(ret, chosen, vehicles, isSales, token));
+    }
 
-        var created = await create(dto, ct);
-
-        // أسطر المرتجع تتبّع المركبات (لمنع إرجاعها مرة ثانية) وتتغير حالة المركبة
-        var ret = await _db.Set<Invoice>().Include(i => i.VehicleLines).Include(i => i.VehicleBatches).FirstAsync(i => i.Id == created.Id, ct);
+    /// <summary>أسطر المرتجع تتبّع المركبات (لمنع إرجاعها مرة ثانية) وتتغير حالة المركبة.</summary>
+    private async Task AttachReturnVehiclesAsync(Invoice ret, List<InvoiceVehicleLine> chosen, Dictionary<Guid, Vehicle> vehicles, bool isSales, CancellationToken ct)
+    {
+        var vehicleIds = chosen.Select(l => l.VehicleId!.Value).ToList();
         var no = 1;
         foreach (var l in chosen)
         {
@@ -167,7 +196,6 @@ public class CarInvoiceExtension : IInvoiceExtension
             await VehicleCostLedger.RecomputeAsync(_db, vehicleIds, ct);
             await _db.SaveChangesAsync(ct);
         }
-        return created;
     }
 
     /// <summary>معاينة مرتجع سيارات بلا أثر: المرتجع منها من قبل، وطلب المرتجع للمختار غير المرتجع (كما يبنيه الإنشاء).</summary>
@@ -175,24 +203,25 @@ public class CarInvoiceExtension : IInvoiceExtension
     {
         var originalLines = await _db.Set<InvoiceVehicleLine>().AsNoTracking().Where(l => l.InvoiceId == original.Id).OrderBy(l => l.LineNo).ToListAsync(ct);
         if (originalLines.Count == 0) return null;
-        var returned = await ReturnedVehicleIdsAsync(original.Id, ct);
+        var returned = await ReturnedVehicleIdsAsync(original.Id, ct, r.ExcludeReturnId);
         var chosen = r.VehicleIds.Distinct()
             .Select(id => originalLines.FirstOrDefault(l => l.VehicleId == id))
             .OfType<InvoiceVehicleLine>().Where(l => !returned.Contains(l.VehicleId!.Value)).ToList();
         return new ReturnUnitsPreview(returned, chosen.Count > 0 ? BuildVehicleReturn(r, original, chosen) : null);
     }
 
-    /// <summary>المركبات المرتجعة من الأصل في مرتجعات مرحّلة.</summary>
-    private async Task<HashSet<Guid>> ReturnedVehicleIdsAsync(Guid originalId, CancellationToken ct)
+    /// <summary>المركبات المرتجعة من الأصل في مرتجعات مرحّلة (بلا المرتجع <paramref name="excludeReturnId"/> الجاري تعديله).</summary>
+    private async Task<HashSet<Guid>> ReturnedVehicleIdsAsync(Guid originalId, CancellationToken ct, Guid? excludeReturnId = null)
         => (await _db.Set<InvoiceVehicleLine>().AsNoTracking()
-                .Where(l => l.VehicleId != null && _db.Set<Invoice>().Any(inv => inv.Id == l.InvoiceId && inv.OriginalInvoiceId == originalId && inv.Status == "posted"))
+                .Where(l => l.VehicleId != null && _db.Set<Invoice>().Any(inv => inv.Id == l.InvoiceId && inv.OriginalInvoiceId == originalId && inv.Status == "posted"
+                    && (excludeReturnId == null || inv.Id != excludeReturnId)))
                 .Select(l => l.VehicleId!.Value).ToListAsync(ct)).ToHashSet();
 
     /// <summary>طلب مرتجع السيارات المختارة: بنود من بنود الأصل نفسها (الدفعات مجمّعة بمواصفاتها وسعرها).</summary>
-    private static CreateInvoiceDto BuildVehicleReturn(CreateReturnInvoiceRequestDto r, Invoice original, List<InvoiceVehicleLine> chosen)
+    private static UpdateInvoiceDto BuildVehicleReturn(CreateReturnInvoiceRequestDto r, Invoice original, List<InvoiceVehicleLine> chosen)
     {
         var isSales = original.Kind == InvoiceKind.Sales;
-        var dto = new CreateInvoiceDto
+        var dto = new UpdateInvoiceDto
         {
             Kind = isSales ? InvoiceKind.SalesReturn : InvoiceKind.PurchaseReturn,
             InvoiceNumber = r.ManualNumber ?? string.Empty, SystemGenerated = r.SystemGenerated, // رقم المرتجع اليدوي إن ضُبط نوعه يدوياً
@@ -241,6 +270,35 @@ public class CarInvoiceExtension : IInvoiceExtension
         return dto;
     }
 
+
+    /// <summary>
+    /// يلغي أثر مرتجع سيارات مرحّل (لتعديله أو حذفه): مرتجع البيع يعيد السيارة «مباعة» (وتُعاد تكلفتها)، ومرتجع الشراء يعيدها «متاحة».
+    /// يُمنع إن تغيّرت السيارة بعد المرتجع (بيعت أو حُجزت أو دخلت عقداً)، فيبقى المرتجع ويُصحَّح بمستند جديد.
+    /// مصاريف ما بعد البيع التي صارت مصروفاً عند المرتجع تبقى مصروفاً: هي على تكلفة المبيعات أصلاً والسيارة تعود مباعة.
+    /// </summary>
+    private async Task UnpostVehicleReturnAsync(Invoice ret, CancellationToken ct)
+    {
+        var isSales = ret.Kind == InvoiceKind.SalesReturn;
+        var ids = ret.VehicleLines.Where(l => l.VehicleId.HasValue).Select(l => l.VehicleId!.Value).Distinct().ToList();
+        var vehicles = await _db.Set<Vehicle>().Where(v => ids.Contains(v.Id)).ToListAsync(ct);
+        var expected = isSales ? VehicleStatus.Available : VehicleStatus.WrittenOff;
+        var changed = vehicles.FirstOrDefault(v => v.Status != expected);
+        if (changed == null && isSales)
+        {
+            var linked = await _db.Set<CarSalesContract>().AsNoTracking()
+                .Where(c => ids.Contains(c.VehicleId) && c.CreatedAt > ret.CreatedAt).Select(c => (Guid?)c.VehicleId).FirstOrDefaultAsync(ct);
+            changed = linked.HasValue ? vehicles.First(v => v.Id == linked) : null;
+        }
+        if (changed != null) throw new ConflictException(string.Format(Messages.ReturnVehicleChangedAfterReturn, changed.ChassisNumber));
+
+        foreach (var v in vehicles) v.Status = isSales ? VehicleStatus.Sold : VehicleStatus.Available;
+        await _db.SaveChangesAsync(ct);
+        if (isSales)
+        {
+            await VehicleCostLedger.RecomputeAsync(_db, ids, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+    }
 
     /// <summary>
     /// يعيد سيارات الفاتورة المرحّلة لحالتها قبل الترحيل: البيع ← «متاحة» من جديد، وشراء الدفعات ← بطاقات «مسودة» تُطابَق

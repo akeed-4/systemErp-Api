@@ -91,7 +91,7 @@ public class StockAdjustmentService : IStockAdjustmentService
     /// على حسابها المقابل، وما زاد أو نقص عنها (إعادة تسعير بقية الرصيد أو صرف سابق) قيد إعادة تقييم على حساب فروق التكلفة؛
     /// والخصم قيده بتغيّر القيمة كله. التغيّر الصفري لا قيد له.
     /// في الجرد الدوري لا قيد للتسوية العادية (أثرها في بضاعة آخر المدة)، والتسوية مقابل حساب صريح (أرصدة افتتاحية مثلاً)
-    /// تُرحَّل على بضاعة أول المدة بدل المخزون، بلا إعادة تقييم.
+    /// تُرحَّل على حساب مخزون المستودع أصلاً (لا على بضاعة أول المدة)، بلا إعادة تقييم: يحمّلها الجرد التالي إلى أول المدة ضمن رصيده الدفتري.
     /// </summary>
     private async Task<StockMovementDto> PostAsync(Guid movementId, string? counterAccountCode, decimal signedValue, CancellationToken ct)
     {
@@ -104,9 +104,9 @@ public class StockAdjustmentService : IStockAdjustmentService
         var accounts = await PostingAccounts.SettingsAsync(_db, ct);
         if (accounts.IsPeriodic(movement.Date))
         {
-            await PeriodicInventory.EnsureMethodOpeningAsync(_db, _posting, accounts, movement.Date, ct);
             movement.JournalEntryId = own == 0 || string.IsNullOrWhiteSpace(counterAccountCode) ? null
-                : (await PostEntryAsync(movement.Id, movement.ReferenceNumber, movement.Date, accounts.OpeningInventory(), counter, own, note, ct)).JournalEntryId;
+                : (await PostEntryAsync(movement.Id, movement.ReferenceNumber, movement.Date, await accounts.InventoryAsync(_db, movement.WarehouseId, ct),
+                    counter, own, note, ct)).JournalEntryId;
         }
         else
         {

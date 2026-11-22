@@ -103,6 +103,11 @@ public class RentalContractsController : ErpControllerBase
     public async Task<IActionResult> Renew(Guid id, [FromBody] RenewRentalContractDto request, CancellationToken ct)
         => Success(await _contracts.RenewAsync(id, request, ct), Messages.CreatedSuccessfully);
 
+    /// <summary>تعيين مشغّل سطر بمشغّل أو تغييره (تعديل العقد).</summary>
+    [HttpPost("contracts/{id:guid}/lines/{lineId:guid}/operator"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> AssignOperator(Guid id, Guid lineId, [FromBody] AssignRentalOperatorDto request, CancellationToken ct)
+        => Success(await _contracts.AssignOperatorAsync(id, lineId, request, ct));
+
     [HttpPost("contracts/{id:guid}/cancel"), RequireScreen(Screen, ScreenAction.Cancel)]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] RentalReasonDto request, CancellationToken ct)
         => Success(await _contracts.CancelAsync(id, request, ct));
@@ -193,4 +198,119 @@ public class RentalBookingsController : ErpControllerBase
         await _bookings.DeleteAsync(id, ct);
         return Success(Messages.DeletedSuccessfully);
     }
+}
+
+/// <summary>
+/// مهام نقل معدات العقود (ضمن شاشة المحاضر): «اعتماد» = تنفيذ المهمة، و«إلغاء» = إلغاؤها بسبب. لا قيود محاسبية.
+/// </summary>
+[Route("api/v1/rental/transport"), RequireScreen(Screen), RequireModule(PlatformModules.EquipmentRental)]
+public class RentalTransportController : ErpControllerBase
+{
+    private const string Screen = PermissionCatalog.RentalHandoversScreenId;
+    private readonly IRentalTransportService _transport;
+    public RentalTransportController(IRentalTransportService transport) => _transport = transport;
+
+    [HttpGet]
+    public async Task<IActionResult> List([FromQuery] Guid? contractId, [FromQuery] string? status, CancellationToken ct)
+        => Success(await _transport.ListAsync(contractId, status, ct));
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _transport.GetAsync(id, ct));
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] SaveRentalTransportJobDto request, CancellationToken ct)
+        => Success(await _transport.CreateAsync(request, ct), Messages.CreatedSuccessfully);
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] SaveRentalTransportJobDto request, CancellationToken ct)
+        => Success(await _transport.UpdateAsync(id, request, ct));
+
+    [HttpPost("{id:guid}/complete"), RequireScreen(Screen, ScreenAction.Post)]
+    public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteRentalTransportJobDto request, CancellationToken ct)
+        => Success(await _transport.CompleteAsync(id, request, ct));
+
+    [HttpPost("{id:guid}/cancel"), RequireScreen(Screen, ScreenAction.Cancel)]
+    public async Task<IActionResult> Cancel(Guid id, [FromBody] RentalReasonDto request, CancellationToken ct)
+        => Success(await _transport.CancelAsync(id, request, ct));
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await _transport.DeleteAsync(id, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
+}
+
+/// <summary>
+/// الرسوم والفوترة (شاشة الرسوم والفوترة): «إنشاء» = رسم يدوي أو توليد الإضافي والتأخير والنقل، «اعتماد» = اعتماد الرسم بتصنيفه،
+/// «ترحيل» = إصدار فاتورة الفترة، «إلغاء» = إلغاء آخر فوترة بسبب. الإعفاء من رسم بالشاشة المقيدة `rental-charge-waiver` (تفرضه الخدمة).
+/// الإعداد وأنواع الرسوم بشاشة إعدادات التأجير، وإغلاق العقد بشاشة العقود (إغلاق).
+/// </summary>
+[Route("api/v1/rental"), RequireScreen(Screen), RequireModule(PlatformModules.EquipmentRental)]
+public class RentalBillingController : ErpControllerBase
+{
+    private const string Screen = PermissionCatalog.RentalBillingScreenId;
+    private const string Settings = PermissionCatalog.RentalSettingsScreenId;
+    private readonly IRentalBillingService _billing;
+    public RentalBillingController(IRentalBillingService billing) => _billing = billing;
+
+    [HttpGet("billing-settings"), RequireScreen(Settings, AlsoAllow = Screen)]
+    public async Task<IActionResult> GetSettings(CancellationToken ct) => Success(await _billing.SettingsAsync(ct));
+
+    [HttpPut("billing-settings"), RequireScreen(Settings, ScreenAction.Edit)]
+    public async Task<IActionResult> SaveSettings([FromBody] RentalSettingsDto request, CancellationToken ct) => Success(await _billing.SaveSettingsAsync(request, ct));
+
+    [HttpGet("charge-types"), RequireScreen(Settings, AlsoAllow = Screen)]
+    public async Task<IActionResult> ChargeTypes(CancellationToken ct) => Success(await _billing.ChargeTypesAsync(ct));
+
+    [HttpPost("charge-types"), RequireScreen(Settings, ScreenAction.Edit)]
+    public async Task<IActionResult> CreateChargeType([FromBody] SaveRentalChargeTypeDto request, CancellationToken ct)
+        => Success(await _billing.SaveChargeTypeAsync(request, null, ct), Messages.CreatedSuccessfully);
+
+    [HttpPut("charge-types/{id:guid}"), RequireScreen(Settings, ScreenAction.Edit)]
+    public async Task<IActionResult> UpdateChargeType(Guid id, [FromBody] SaveRentalChargeTypeDto request, CancellationToken ct)
+        => Success(await _billing.SaveChargeTypeAsync(request, id, ct));
+
+    [HttpGet("charges")]
+    public async Task<IActionResult> Charges([FromQuery] Guid? contractId, [FromQuery] string? status, CancellationToken ct)
+        => Success(await _billing.ChargesAsync(contractId, status, ct));
+
+    [HttpPost("charges")]
+    public async Task<IActionResult> AddCharge([FromBody] SaveRentalChargeDto request, CancellationToken ct)
+        => Success(await _billing.AddChargeAsync(request, ct), Messages.CreatedSuccessfully);
+
+    [HttpPost("charges/{id:guid}/approve"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> ApproveCharge(Guid id, [FromBody] ApproveRentalChargeDto request, CancellationToken ct)
+        => Success(await _billing.ApproveChargeAsync(id, request, ct));
+
+    [HttpPost("charges/{id:guid}/waive"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> WaiveCharge(Guid id, [FromBody] RentalReasonDto request, CancellationToken ct)
+        => Success(await _billing.WaiveChargeAsync(id, request, ct));
+
+    [HttpDelete("charges/{id:guid}")]
+    public async Task<IActionResult> DeleteCharge(Guid id, CancellationToken ct)
+    {
+        await _billing.DeleteChargeAsync(id, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
+
+    [HttpPost("contracts/{id:guid}/generate-charges"), RequireScreen(Screen, ScreenAction.Create)]
+    public async Task<IActionResult> Generate(Guid id, CancellationToken ct) => Success(await _billing.GenerateChargesAsync(id, ct));
+
+    [HttpGet("contracts/{id:guid}/billing-preview")]
+    public async Task<IActionResult> Preview(Guid id, [FromQuery] DateTime? until, CancellationToken ct) => Success(await _billing.PreviewAsync(id, until, ct));
+
+    [HttpPost("contracts/{id:guid}/bill"), RequireScreen(Screen, ScreenAction.Post)]
+    public async Task<IActionResult> Bill(Guid id, [FromBody] BillRentalContractDto request, CancellationToken ct)
+        => Success(await _billing.BillAsync(id, request, ct), Messages.CreatedSuccessfully);
+
+    [HttpGet("billings")]
+    public async Task<IActionResult> Billings([FromQuery] Guid? contractId, CancellationToken ct) => Success(await _billing.BillingsAsync(contractId, ct));
+
+    [HttpPost("billings/{id:guid}/cancel"), RequireScreen(Screen, ScreenAction.Cancel)]
+    public async Task<IActionResult> CancelBilling(Guid id, [FromBody] RentalReasonDto request, CancellationToken ct)
+        => Success(await _billing.CancelBillingAsync(id, request, ct));
+
+    [HttpPost("contracts/{id:guid}/close"), RequireScreen(PermissionCatalog.RentalContractsScreenId, ScreenAction.Close)]
+    public async Task<IActionResult> Close(Guid id, CancellationToken ct) => Success(await _billing.CloseContractAsync(id, ct));
 }

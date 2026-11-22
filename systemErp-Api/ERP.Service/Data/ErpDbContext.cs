@@ -337,6 +337,72 @@ public class ErpDbContext : DbContext
         (typeof(RentalHandoverLine), nameof(RentalHandoverLine.ContractLineId), typeof(RentalContractLine)),
         (typeof(RentalHandoverLine), nameof(RentalHandoverLine.EquipmentId), typeof(Equipment)),
         (typeof(RentalHandoverLine), nameof(RentalHandoverLine.CarriedFromLineId), typeof(RentalContractLine)),
+        // R3a: الرسوم والفوترة (الفاتورة مرجع بلا مفتاح)
+        (typeof(RentalCharge), nameof(RentalCharge.ContractId), typeof(RentalContract)),
+        (typeof(RentalCharge), nameof(RentalCharge.LineId), typeof(RentalContractLine)),
+        (typeof(RentalCharge), nameof(RentalCharge.ChargeTypeId), typeof(RentalChargeType)),
+        (typeof(RentalCharge), nameof(RentalCharge.BillingId), typeof(RentalBilling)),
+        (typeof(RentalBilling), nameof(RentalBilling.ContractId), typeof(RentalContract)),
+        (typeof(RentalBillingLine), nameof(RentalBillingLine.ContractLineId), typeof(RentalContractLine)),
+        (typeof(RentalTransportJob), nameof(RentalTransportJob.ContractId), typeof(RentalContract)),
+        (typeof(RentalTransportJob), nameof(RentalTransportJob.HandoverId), typeof(RentalHandover)),
+        (typeof(RentalTransportJob), nameof(RentalTransportJob.DriverEmployeeId), typeof(Employee)),
+        (typeof(RentalTransportJob), nameof(RentalTransportJob.TransportEquipmentId), typeof(Equipment)),
+        (typeof(RentalTransportJob), nameof(RentalTransportJob.SupplierId), typeof(Supplier)),
+        (typeof(RentalTransportJobLine), nameof(RentalTransportJobLine.ContractLineId), typeof(RentalContractLine)),
+        (typeof(RentalTransportJobLine), nameof(RentalTransportJobLine.EquipmentId), typeof(Equipment)),
+        // ورش السيارات (W1)
+        (typeof(WorkshopSettings), nameof(WorkshopSettings.DefaultWarehouseId), typeof(Warehouse)),
+        (typeof(WorkshopServiceDefinition), nameof(WorkshopServiceDefinition.ProductId), typeof(Product)),
+        (typeof(ServiceVehicle), nameof(ServiceVehicle.CustomerId), typeof(Customer)),
+        (typeof(ServiceVehicle), nameof(ServiceVehicle.ShowroomVehicleId), typeof(Vehicle)),
+        (typeof(WorkshopReception), nameof(WorkshopReception.CustomerId), typeof(Customer)),
+        (typeof(WorkshopReception), nameof(WorkshopReception.WarehouseId), typeof(Warehouse)),
+        (typeof(WorkOrder), nameof(WorkOrder.ReceptionId), typeof(WorkshopReception)),
+        (typeof(WorkOrder), nameof(WorkOrder.WarehouseId), typeof(Warehouse)),
+        (typeof(WorkOrder), nameof(WorkOrder.CustomerId), typeof(Customer)),
+        (typeof(WorkOrder), nameof(WorkOrder.VehicleId), typeof(ServiceVehicle)),
+        (typeof(WorkOrder), nameof(WorkOrder.StageId), typeof(WorkshopStage)),
+        (typeof(WorkOrder), nameof(WorkOrder.PauseReasonId), typeof(WorkshopPauseReason)),
+        (typeof(WorkOrderStatusHistory), nameof(WorkOrderStatusHistory.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderStatusHistory), nameof(WorkOrderStatusHistory.StageId), typeof(WorkshopStage)),
+        (typeof(WorkOrderStatusHistory), nameof(WorkOrderStatusHistory.PauseReasonId), typeof(WorkshopPauseReason)),
+        // W2: الفحص (بنده لقطة بلا مفتاح لبند القالب، فتعديل القالب لا يمسه) والأسطر والتقديرات والاستثناء (المرفق مرجع بلا مفتاح)
+        (typeof(WorkOrderInspection), nameof(WorkOrderInspection.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderInspection), nameof(WorkOrderInspection.TemplateId), typeof(InspectionTemplate)),
+        (typeof(WorkOrderLine), nameof(WorkOrderLine.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderLine), nameof(WorkOrderLine.ServiceId), typeof(WorkshopServiceDefinition)),
+        (typeof(WorkOrderLine), nameof(WorkOrderLine.ProductId), typeof(Product)),
+        (typeof(WorkOrderLine), nameof(WorkOrderLine.ApprovedEstimateId), typeof(WorkOrderEstimate)),
+        (typeof(WorkOrderLine), nameof(WorkOrderLine.SourceResultId), typeof(WorkOrderInspectionResult)),
+        (typeof(WorkOrderEstimate), nameof(WorkOrderEstimate.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderEstimateLine), nameof(WorkOrderEstimateLine.LineId), typeof(WorkOrderLine)),
+        (typeof(WorkOrderExecutionException), nameof(WorkOrderExecutionException.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderExecutionException), nameof(WorkOrderExecutionException.LineId), typeof(WorkOrderLine)),
+        // W3: التنفيذ (القيود والحركات مراجع بلا مفتاح كبقية المستندات المرحّلة)، وطلب الشراء لأمر العمل (D7)
+        (typeof(WorkOrderTimeLog), nameof(WorkOrderTimeLog.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderTimeLog), nameof(WorkOrderTimeLog.LineId), typeof(WorkOrderLine)),
+        (typeof(WorkOrderTimeLog), nameof(WorkOrderTimeLog.EmployeeId), typeof(Employee)),
+        (typeof(WorkOrderTimeLog), nameof(WorkOrderTimeLog.PauseReasonId), typeof(WorkshopPauseReason)),
+        (typeof(WorkOrderPartReservation), nameof(WorkOrderPartReservation.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderPartReservation), nameof(WorkOrderPartReservation.LineId), typeof(WorkOrderLine)),
+        (typeof(WorkOrderPartReservation), nameof(WorkOrderPartReservation.ProductId), typeof(Product)),
+        (typeof(WorkOrderPartReservation), nameof(WorkOrderPartReservation.WarehouseId), typeof(Warehouse)),
+        (typeof(WorkOrderPartIssue), nameof(WorkOrderPartIssue.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderPartIssue), nameof(WorkOrderPartIssue.LineId), typeof(WorkOrderLine)),
+        (typeof(WorkOrderPartIssue), nameof(WorkOrderPartIssue.ProductId), typeof(Product)),
+        (typeof(WorkOrderPartIssue), nameof(WorkOrderPartIssue.WarehouseId), typeof(Warehouse)),
+        (typeof(WorkOrderPartIssue), nameof(WorkOrderPartIssue.ReturnOfId), typeof(WorkOrderPartIssue)),
+        (typeof(WorkOrderExternalService), nameof(WorkOrderExternalService.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkOrderExternalService), nameof(WorkOrderExternalService.LineId), typeof(WorkOrderLine)),
+        (typeof(WorkOrderExternalService), nameof(WorkOrderExternalService.SupplierId), typeof(Supplier)),
+        (typeof(MaterialRequisition), nameof(MaterialRequisition.WorkOrderId), typeof(WorkOrder)),
+        // W4: الضمان ومطالبته (الفاتورة وقيد التكلفة مراجع بلا مفتاح)
+        (typeof(WorkOrder), nameof(WorkOrder.WarrantyId), typeof(WorkshopWarranty)),
+        (typeof(WorkshopWarranty), nameof(WorkshopWarranty.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkshopWarranty), nameof(WorkshopWarranty.LineId), typeof(WorkOrderLine)),
+        (typeof(WorkshopWarranty), nameof(WorkshopWarranty.VehicleId), typeof(ServiceVehicle)),
+        (typeof(WorkshopWarranty), nameof(WorkshopWarranty.ClaimWorkOrderId), typeof(WorkOrder)),
         // التكلفة المعيارية لساعة الموظف (الورش والتأجير): الموظف الذي له سجل تكلفة لا يُحذف
         (typeof(EmployeeStandardCostRate), nameof(EmployeeStandardCostRate.EmployeeId), typeof(Employee)),
         // محتوى المرفق المشترك (مزود قاعدة البيانات): يُحذف صراحة مع سجله
@@ -810,6 +876,14 @@ public class ErpDbContext : DbContext
             // المستخدم بلا قيد (دليل المستخدمين يُنسخ بين قواعد المنشآت)؛ الخدمة تتحقق أنه فعّال عند الإسناد
             e.HasOne<CommercialContract>().WithMany().HasForeignKey(m => m.ContractId);
         });
+        modelBuilder.Entity<ProjectMemberRoleDefinition>(e =>
+        {
+            e.Property(r => r.Code).HasMaxLength(32).IsRequired();
+            e.Property(r => r.NameAr).HasMaxLength(100).IsRequired();
+            e.Property(r => r.NameEn).HasMaxLength(100);
+            e.HasIndex(r => new { r.TenantId, r.Code }).IsUnique();
+            e.HasIndex(r => new { r.TenantId, r.NameAr }).IsUnique();
+        });
         // موارد المشروع بتكلفة ساعتها، وخطة الإنجاز اليومية، والتقرير اليومي بأسطره (تُحذف معه). مراجع بنود العقد بلا قيد.
         modelBuilder.Entity<ProjectResource>(e =>
         {
@@ -1222,6 +1296,266 @@ public class ErpDbContext : DbContext
             e.Property(x => x.ConditionNotes).HasMaxLength(500);
             e.Property(x => x.Accessories).HasMaxLength(500);
             e.HasIndex(x => new { x.TenantId, x.ContractLineId });
+        });
+        modelBuilder.Entity<RentalChargeType>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.RevenueAccountCode).HasMaxLength(32);
+            e.Property(x => x.DefaultTaxTreatment).HasMaxLength(16).IsRequired();
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<RentalCharge>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(300).IsRequired();
+            e.Property(x => x.TaxTreatment).HasMaxLength(16);
+            e.Property(x => x.SourceType).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.WaiveReason).HasMaxLength(500);
+            e.Property(x => x.WaivedBy).HasMaxLength(200);
+            e.Property(x => x.ApprovedBy).HasMaxLength(200);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ContractId, x.Status });
+        });
+        modelBuilder.Entity<RentalBilling>(e =>
+        {
+            e.Property(x => x.BillingNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.InvoiceNumber).HasMaxLength(50);
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.BillingNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ContractId });
+            e.HasMany(x => x.Lines).WithOne(l => l.Billing).HasForeignKey(l => l.BillingId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<RentalTransportJob>(e =>
+        {
+            e.Property(x => x.JobNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Mode).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.FromLocation).HasMaxLength(300);
+            e.Property(x => x.ToLocation).HasMaxLength(300);
+            e.Property(x => x.VehicleDescription).HasMaxLength(200);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CompletedBy).HasMaxLength(200);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.JobNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ContractId });
+            e.HasMany(x => x.Lines).WithOne(l => l.Job).HasForeignKey(l => l.JobId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<RentalDeposit>(e =>
+        {
+            e.Property(x => x.ReceiptVoucherNumber).HasMaxLength(50);
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ContractId, x.Status });
+            e.HasMany(x => x.Settlements).WithOne(s => s.Deposit).HasForeignKey(s => s.DepositId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<RentalDepositSettlement>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.InvoiceNumber).HasMaxLength(50);
+            e.Property(x => x.VoucherNumber).HasMaxLength(50);
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+        });
+
+        // ورش السيارات (W1): الإعداد سطر للمنشأة (تفرضه الخدمة)، والهيكل فريد إن وُجد، وأمر قائم واحد للمركبة تفرضه الخدمة بقفل صفها
+        modelBuilder.Entity<WorkshopStage>(e =>
+        {
+            e.Property(x => x.Status).HasMaxLength(24).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+        });
+        modelBuilder.Entity<WorkshopPauseReason>(e =>
+        {
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+        });
+        modelBuilder.Entity<WorkshopServiceDefinition>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(200);
+            e.Property(x => x.PricingMethod).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<InspectionTemplate>(e =>
+        {
+            e.Property(x => x.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(200);
+            e.Property(x => x.Usage).HasMaxLength(16).IsRequired();
+            e.HasMany(x => x.Items).WithOne(i => i.Template).HasForeignKey(i => i.TemplateId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<InspectionTemplateItem>(e =>
+        {
+            e.Property(x => x.Section).HasMaxLength(100);
+            e.Property(x => x.TextAr).HasMaxLength(300).IsRequired();
+            e.Property(x => x.TextEn).HasMaxLength(300);
+            e.Property(x => x.ResultType).HasMaxLength(16).IsRequired();
+        });
+        modelBuilder.Entity<ServiceVehicle>(e =>
+        {
+            e.Property(x => x.Vin).HasMaxLength(32);
+            e.Property(x => x.PlateNumber).HasMaxLength(30);
+            e.Property(x => x.Make).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.Color).HasMaxLength(50);
+            e.Property(x => x.EngineNumber).HasMaxLength(50);
+            e.Property(x => x.FuelType).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.HasIndex(x => new { x.TenantId, x.Vin }).IsUnique().HasFilter("[Vin] IS NOT NULL");
+            e.HasIndex(x => new { x.TenantId, x.PlateNumber });
+        });
+        modelBuilder.Entity<WorkshopReception>(e =>
+        {
+            e.Property(x => x.ReceptionNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.ContactName).HasMaxLength(200);
+            e.Property(x => x.ContactPhone).HasMaxLength(30);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ReceptionNumber }).IsUnique();
+        });
+        modelBuilder.Entity<WorkOrder>(e =>
+        {
+            e.Property(x => x.OrderNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.CustomerName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.CustomerPhone).HasMaxLength(30);
+            e.Property(x => x.PlateSnapshot).HasMaxLength(30);
+            e.Property(x => x.Status).HasMaxLength(24).IsRequired();
+            e.Property(x => x.Priority).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Complaint).HasMaxLength(2000);
+            e.Property(x => x.Accessories).HasMaxLength(500);
+            e.Property(x => x.ServiceAdvisorName).HasMaxLength(200);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.Property(x => x.InvoiceNumber).HasMaxLength(50);
+            e.Property(x => x.DeliveredTo).HasMaxLength(200);
+            e.Property(x => x.DeliveredBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.OrderNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.VehicleId });
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasMany(x => x.DamageMarks).WithOne(d => d.WorkOrder).HasForeignKey(d => d.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<WorkOrderStatusHistory>(e =>
+        {
+            e.Property(x => x.FromStatus).HasMaxLength(24);
+            e.Property(x => x.ToStatus).HasMaxLength(24).IsRequired();
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.ChangedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.WorkOrderId });
+        });
+        modelBuilder.Entity<WorkOrderInspection>(e =>
+        {
+            e.Property(x => x.Usage).HasMaxLength(16).IsRequired();
+            e.Property(x => x.TemplateName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.InspectorName).HasMaxLength(200);
+            e.Property(x => x.Summary).HasMaxLength(2000);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.WorkOrderId });
+            e.HasMany(x => x.Results).WithOne(r => r.Inspection).HasForeignKey(r => r.InspectionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<WorkOrderInspectionResult>(e =>
+        {
+            e.Property(x => x.Section).HasMaxLength(100);
+            e.Property(x => x.TextAr).HasMaxLength(300).IsRequired();
+            e.Property(x => x.TextEn).HasMaxLength(300);
+            e.Property(x => x.ResultType).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Condition).HasMaxLength(16);
+            e.Property(x => x.TextValue).HasMaxLength(500);
+            e.Property(x => x.Note).HasMaxLength(500);
+        });
+        modelBuilder.Entity<WorkOrderLine>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            e.Property(x => x.ApprovalStatus).HasMaxLength(16).IsRequired();
+            e.Property(x => x.BillingType).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ExecutionStatus).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.WorkOrderId });
+        });
+        modelBuilder.Entity<WorkOrderEstimate>(e =>
+        {
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ResponseChannel).HasMaxLength(16);
+            e.Property(x => x.RespondedByName).HasMaxLength(200);
+            e.Property(x => x.ResponseNotes).HasMaxLength(1000);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.Property(x => x.RecordedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.WorkOrderId, x.Version }).IsUnique();
+            e.HasMany(x => x.Lines).WithOne(l => l.Estimate).HasForeignKey(l => l.EstimateId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<WorkOrderEstimateLine>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            e.Property(x => x.BillingType).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Decision).HasMaxLength(16);
+        });
+        modelBuilder.Entity<WorkOrderExecutionException>(e =>
+        {
+            e.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
+            e.Property(x => x.AuthorizedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.LineId }).IsUnique();
+        });
+        modelBuilder.Entity<WorkshopWarranty>(e =>
+        {
+            e.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.VoidReason).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.VehicleId });
+        });
+        modelBuilder.Entity<WorkOrderTimeLog>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.WorkOrderId });
+            // سجل مفتوح واحد للفني
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId }).IsUnique().HasFilter("[EndedAt] IS NULL").HasDatabaseName("IX_WorkOrderTimeLog_TenantId_EmployeeId_Open");
+        });
+        modelBuilder.Entity<WorkOrderPartReservation>(e =>
+        {
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ProductId, x.WarehouseId, x.Status });
+        });
+        modelBuilder.Entity<WorkOrderPartIssue>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.WorkOrderId });
+        });
+        modelBuilder.Entity<WorkOrderExternalService>(e =>
+        {
+            e.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.WorkOrderId });
+        });
+        modelBuilder.Entity<WorkOrderDamageMark>(e =>
+        {
+            e.Property(x => x.Area).HasMaxLength(100).IsRequired();
+            e.Property(x => x.DamageType).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Severity).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
         });
 
         // سجل التكلفة المعيارية لساعة الموظف بغرضه: سطر واحد للموظف والغرض في اليوم

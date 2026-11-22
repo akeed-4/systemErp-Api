@@ -45,6 +45,8 @@ public static class RentalContractChangeKinds
 {
     public const string Extension = "extension";
     public const string Renewal = "renewal";
+    /// <summary>تعيين مشغّل السطر أو تغييره (السبب يحمل السابق واللاحق).</summary>
+    public const string Operator = "operator";
 }
 
 /// <summary>
@@ -108,6 +110,8 @@ public class RentalContractLine : BaseEntity
     public decimal EstimatedAmount { get; set; }
     /// <summary>آخر لحظة فُوترت حتى نهايتها (الفوترة الدورية).</summary>
     public DateTime? BilledThrough { get; set; }
+    /// <summary>الإيجار المفوتر تراكمياً من الخروج حتى <see cref="BilledThrough"/> (الفوترة التالية = التقدير التراكمي ناقصه، فيبقى الحد الأدنى والكسور صحيحة).</summary>
+    public decimal BilledAmount { get; set; }
     public int SortOrder { get; set; }
     public string? Notes { get; set; }
     public virtual RentalContract Contract { get; set; } = null!;

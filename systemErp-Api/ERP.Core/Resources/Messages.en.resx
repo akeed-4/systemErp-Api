@@ -1715,6 +1715,11 @@
   <data name="ProjectPhaseItemInvalid" xml:space="preserve"><value>Phase "{0}": an item is not in the contract BOQ or is a main item with sub-items.</value></data>
   <data name="ProjectPhaseItemDuplicate" xml:space="preserve"><value>Item "{0}" is in more than one phase.</value></data>
   <data name="ProjectMemberRoleInvalid" xml:space="preserve"><value>Unknown project member role.</value></data>
+  <data name="ProjectMemberRoleNameRequired" xml:space="preserve"><value>The Arabic role name is required.</value></data>
+  <data name="ProjectMemberRoleNameTooLong" xml:space="preserve"><value>The role name exceeds 100 characters.</value></data>
+  <data name="ProjectMemberRoleNameExists" xml:space="preserve"><value>A role with the same name already exists.</value></data>
+  <data name="ProjectMemberRoleInUse" xml:space="preserve"><value>The role is assigned to project members; deactivate it instead of deleting it.</value></data>
+  <data name="ProjectMemberRoleSystem" xml:space="preserve"><value>Built-in system roles cannot be edited or deleted.</value></data>
   <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>The user does not exist or is inactive.</value></data>
   <data name="ProjectMemberExists" xml:space="preserve"><value>The user is already a project member.</value></data>
   <data name="ProjectMemberNotFound" xml:space="preserve"><value>The member is not in this project.</value></data>
@@ -1992,4 +1997,206 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="RentalHandoverNotLatest" xml:space="preserve"><value>Record {0} is not the latest movement of its equipment; cancel the later records first.</value></data>
   <data name="RentalHandoverBilled" xml:space="preserve"><value>Part of the period of the equipment in record {0} has been billed; it cannot be cancelled.</value></data>
   <data name="RentalHandoverCannotRestore" xml:space="preserve"><value>The return of equipment {0} cannot be cancelled: it is no longer available or its period was taken after the return.</value></data>
+  <data name="RentalLineWithoutOperator" xml:space="preserve"><value>The line is without an operator; no operator can be assigned.</value></data>
+  <data name="RentalOperatorBusy" xml:space="preserve"><value>The operator is committed in the same period to {0}.</value></data>
+  <data name="RentalOperatorLineClosed" xml:space="preserve"><value>An operator can only be assigned to a pending or out line.</value></data>
+  <data name="RentalOperatorReasonRequired" xml:space="preserve"><value>A reason is required to change the operator while the equipment is with the customer.</value></data>
+  <data name="RentalOperatorTwiceInContract" xml:space="preserve"><value>The same operator is assigned to two overlapping lines in this contract.</value></data>
+  <data name="RentalTransportAmountNegative" xml:space="preserve"><value>Transport cost and customer charge cannot be negative.</value></data>
+  <data name="RentalTransportCompletedInFuture" xml:space="preserve"><value>The transport completion time cannot be in the future.</value></data>
+  <data name="RentalTransportContractLocked" xml:space="preserve"><value>A transport job's contract cannot change after it is created.</value></data>
+  <data name="RentalTransportDriverNotFound" xml:space="preserve"><value>The driver was not found among employees or is inactive.</value></data>
+  <data name="RentalTransportHandoverInvalid" xml:space="preserve"><value>The linked record is not a posted handover of this contract.</value></data>
+  <data name="RentalTransportKindInvalid" xml:space="preserve"><value>Invalid transport purpose (delivery, return, transfer).</value></data>
+  <data name="RentalTransportLinesRequired" xml:space="preserve"><value>Select at least one equipment from the contract lines.</value></data>
+  <data name="RentalTransportModeInvalid" xml:space="preserve"><value>Invalid transport mode (internal or external supplier).</value></data>
+  <data name="RentalTransportNotFound" xml:space="preserve"><value>Transport job not found.</value></data>
+  <data name="RentalTransportNotPlanned" xml:space="preserve"><value>The transport job is not planned; it cannot be edited, completed, cancelled or deleted.</value></data>
+  <data name="RentalTransportSupplierRequired" xml:space="preserve"><value>An existing external transport supplier is required.</value></data>
+  <data name="RentalTransportVehicleIsCargo" xml:space="preserve"><value>The transport vehicle cannot be one of the transported equipment.</value></data>
+  <data name="RentalTransportVehicleNotFound" xml:space="preserve"><value>The transport vehicle was not found in the equipment register.</value></data>
+  <data name="InspectionItemTextRequired" xml:space="preserve"><value>Inspection item text is required.</value></data>
+  <data name="InspectionItemsRequired" xml:space="preserve"><value>Add at least one item to the inspection template.</value></data>
+  <data name="InspectionResultTypeInvalid" xml:space="preserve"><value>Invalid item result type (condition, number, text).</value></data>
+  <data name="InspectionTemplateNotFound" xml:space="preserve"><value>Inspection template not found.</value></data>
+  <data name="InspectionTooManyItems" xml:space="preserve"><value>The inspection template has more than {0} items.</value></data>
+  <data name="InspectionUsageInvalid" xml:space="preserve"><value>Invalid template usage (reception, diagnosis, quality).</value></data>
+  <data name="ServiceVehicleFuelInvalid" xml:space="preserve"><value>Invalid fuel type.</value></data>
+  <data name="ServiceVehicleIdentifierRequired" xml:space="preserve"><value>A VIN or plate number is required.</value></data>
+  <data name="ServiceVehicleInUse" xml:space="preserve"><value>The vehicle has work orders; it cannot be deleted (deactivate it instead).</value></data>
+  <data name="ServiceVehicleInactive" xml:space="preserve"><value>The vehicle is inactive in the register.</value></data>
+  <data name="ServiceVehicleMakeRequired" xml:space="preserve"><value>The vehicle make is required.</value></data>
+  <data name="ServiceVehicleNotFound" xml:space="preserve"><value>Vehicle not found in the workshop register.</value></data>
+  <data name="ServiceVehicleShowroomNotFound" xml:space="preserve"><value>The linked showroom car was not found.</value></data>
+  <data name="ServiceVehicleVinTaken" xml:space="preserve"><value>VIN {0} is registered to another vehicle.</value></data>
+  <data name="ServiceVehicleYearInvalid" xml:space="preserve"><value>Invalid model year.</value></data>
+  <data name="WorkOrderBackReasonRequired" xml:space="preserve"><value>A reason is required to move back to an earlier status.</value></data>
+  <data name="WorkOrderDamageAreaRequired" xml:space="preserve"><value>The damage area is required.</value></data>
+  <data name="WorkOrderDamageNotFound" xml:space="preserve"><value>Damage mark not found.</value></data>
+  <data name="WorkOrderDamageTypeInvalid" xml:space="preserve"><value>Invalid damage type or severity.</value></data>
+  <data name="WorkOrderDeleteReceivedOnly" xml:space="preserve"><value>A work order can only be deleted while received and untouched; cancel it with a reason instead.</value></data>
+  <data name="WorkOrderFuelInvalid" xml:space="preserve"><value>The fuel level must be between 0 and 100.</value></data>
+  <data name="WorkOrderInspectionRequired" xml:space="preserve"><value>Workshop settings require a reception inspection before requesting approval.</value></data>
+  <data name="WorkOrderNotEditable" xml:space="preserve"><value>The work order is invoiced, delivered, closed or cancelled; it cannot be edited.</value></data>
+  <data name="WorkOrderNotFound" xml:space="preserve"><value>Work order not found.</value></data>
+  <data name="WorkOrderOdometerBackwards" xml:space="preserve"><value>Odometer reading {0} is below the vehicle's last recorded reading {1}.</value></data>
+  <data name="WorkOrderOdometerInvalid" xml:space="preserve"><value>The odometer reading cannot be negative.</value></data>
+  <data name="WorkOrderPauseReasonRequired" xml:space="preserve"><value>A pause reason is required.</value></data>
+  <data name="WorkOrderPriorityInvalid" xml:space="preserve"><value>Invalid priority (normal or urgent).</value></data>
+  <data name="WorkOrderPromisedBeforeReception" xml:space="preserve"><value>The promised time cannot be before reception.</value></data>
+  <data name="WorkOrderStageInvalid" xml:space="preserve"><value>The stage does not exist, is inactive, or does not belong to the selected status.</value></data>
+  <data name="WorkOrderStatusInvalid" xml:space="preserve"><value>Invalid work order status.</value></data>
+  <data name="WorkOrderTooManyDamages" xml:space="preserve"><value>More than {0} damage marks.</value></data>
+  <data name="WorkOrderTransitionNotAllowed" xml:space="preserve"><value>The work order cannot move from "{0}" to "{1}".</value></data>
+  <data name="WorkshopCancelReasonRequired" xml:space="preserve"><value>A cancellation reason is required.</value></data>
+  <data name="WorkshopCustomerNotFound" xml:space="preserve"><value>Customer not found.</value></data>
+  <data name="WorkshopFixedPriceRequired" xml:space="preserve"><value>A fixed-price service requires a price greater than zero.</value></data>
+  <data name="WorkshopNameRequired" xml:space="preserve"><value>The Arabic name is required.</value></data>
+  <data name="WorkshopPauseReasonInUse" xml:space="preserve"><value>The pause reason is used by work orders; deactivate it instead of deleting.</value></data>
+  <data name="WorkshopPauseReasonNotFound" xml:space="preserve"><value>The pause reason does not exist or is inactive.</value></data>
+  <data name="WorkshopPricingMethodInvalid" xml:space="preserve"><value>Invalid pricing method (fixed or hourly).</value></data>
+  <data name="WorkshopReceptionDuplicateVehicle" xml:space="preserve"><value>The vehicle is repeated in the reception.</value></data>
+  <data name="WorkshopReceptionInFuture" xml:space="preserve"><value>The reception time cannot be in the future.</value></data>
+  <data name="WorkshopReceptionNotFound" xml:space="preserve"><value>Reception not found.</value></data>
+  <data name="WorkshopReceptionTooManyVehicles" xml:space="preserve"><value>More than {0} vehicles in one reception.</value></data>
+  <data name="WorkshopReceptionVehicleRequired" xml:space="preserve"><value>Select a vehicle from the register or enter a new vehicle.</value></data>
+  <data name="WorkshopReceptionVehiclesRequired" xml:space="preserve"><value>Add at least one vehicle to the reception.</value></data>
+  <data name="WorkshopServiceCodeTaken" xml:space="preserve"><value>Service code {0} is already used.</value></data>
+  <data name="WorkshopServiceNotFound" xml:space="preserve"><value>Service not found.</value></data>
+  <data name="WorkshopServiceProductInvalid" xml:space="preserve"><value>A service must be defined on an existing service item.</value></data>
+  <data name="WorkshopSettingsNegative" xml:space="preserve"><value>Prices, hours and durations cannot be negative.</value></data>
+  <data name="WorkshopStageInUse" xml:space="preserve"><value>The stage is used by work orders; deactivate it instead of deleting it or changing its status.</value></data>
+  <data name="WorkshopStageNotFound" xml:space="preserve"><value>Stage not found.</value></data>
+  <data name="WorkshopStageStatusInvalid" xml:space="preserve"><value>A stage belongs to an operational status before invoicing.</value></data>
+  <data name="WorkshopStandardHoursRequired" xml:space="preserve"><value>An hourly service requires standard hours greater than zero.</value></data>
+  <data name="WorkshopVehicleHasOpenOrder" xml:space="preserve"><value>The vehicle has an open work order {0}.</value></data>
+  <data name="WorkshopVehicleOtherCustomer" xml:space="preserve"><value>The vehicle is registered to another customer; update its owner in the vehicle register first.</value></data>
+  <data name="WorkshopWarehouseNotFound" xml:space="preserve"><value>The location (warehouse) was not found.</value></data>
+  <data name="WorkOrderStatus_received" xml:space="preserve"><value>Received</value></data>
+  <data name="WorkOrderStatus_inspection" xml:space="preserve"><value>Inspection</value></data>
+  <data name="WorkOrderStatus_awaiting_approval" xml:space="preserve"><value>Awaiting approval</value></data>
+  <data name="WorkOrderStatus_approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="WorkOrderStatus_in_progress" xml:space="preserve"><value>In progress</value></data>
+  <data name="WorkOrderStatus_paused" xml:space="preserve"><value>Paused</value></data>
+  <data name="WorkOrderStatus_quality" xml:space="preserve"><value>Quality check</value></data>
+  <data name="WorkOrderStatus_ready" xml:space="preserve"><value>Ready</value></data>
+  <data name="WorkOrderStatus_invoiced" xml:space="preserve"><value>Invoiced</value></data>
+  <data name="WorkOrderStatus_delivered" xml:space="preserve"><value>Delivered</value></data>
+  <data name="WorkOrderStatus_closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="WorkOrderStatus_cancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="EstimateChannelInvalid" xml:space="preserve"><value>Invalid response channel (in person, phone, WhatsApp, email).</value></data>
+  <data name="EstimateDecisionInvalid" xml:space="preserve"><value>Invalid line decision (approved, rejected, deferred).</value></data>
+  <data name="EstimateDecisionsIncomplete" xml:space="preserve"><value>Record a decision for every line in the estimate, and only its lines.</value></data>
+  <data name="EstimateNoPendingLines" xml:space="preserve"><value>No lines are waiting for a customer decision to issue an estimate.</value></data>
+  <data name="EstimateNotDraft" xml:space="preserve"><value>The estimate is not a draft.</value></data>
+  <data name="EstimateNotFound" xml:space="preserve"><value>Estimate not found.</value></data>
+  <data name="EstimateNotSent" xml:space="preserve"><value>A customer response is recorded on a sent estimate that has not been superseded.</value></data>
+  <data name="EstimateRespondentRequired" xml:space="preserve"><value>The name of the customer's respondent is required.</value></data>
+  <data name="EstimateResponseTimeInvalid" xml:space="preserve"><value>The response time cannot be in the future or before the estimate was sent.</value></data>
+  <data name="ExecutionExceptionAttachmentInvalid" xml:space="preserve"><value>The attachment is not one of the work order's attachments.</value></data>
+  <data name="ExecutionExceptionExists" xml:space="preserve"><value>The line already has an execution exception.</value></data>
+  <data name="ExecutionExceptionNotNeeded" xml:space="preserve"><value>The line is approved; no exception is needed.</value></data>
+  <data name="ExecutionExceptionReasonRequired" xml:space="preserve"><value>An exception reason is required.</value></data>
+  <data name="InspectionCompleted" xml:space="preserve"><value>The inspection is completed; it cannot be edited or deleted.</value></data>
+  <data name="InspectionConditionInvalid" xml:space="preserve"><value>Invalid item result (OK, attention, fail).</value></data>
+  <data name="InspectionHasLines" xml:space="preserve"><value>Lines were suggested from this inspection; delete them first.</value></data>
+  <data name="InspectionNotFound" xml:space="preserve"><value>Inspection not found.</value></data>
+  <data name="InspectionPhotoRequired" xml:space="preserve"><value>Attach a photo for the failed items: {0}.</value></data>
+  <data name="InspectionResultNotFound" xml:space="preserve"><value>The inspection item was not found on this work order.</value></data>
+  <data name="InspectionUnanswered" xml:space="preserve"><value>Complete the item results: {0}.</value></data>
+  <data name="WorkOrderExecutionStatusInvalid" xml:space="preserve"><value>Invalid execution status.</value></data>
+  <data name="WorkOrderLineApprovedLocked" xml:space="preserve"><value>The line is approved or has an execution exception; it cannot be edited or deleted.</value></data>
+  <data name="WorkOrderLineBillingInvalid" xml:space="preserve"><value>Invalid billing type (customer, warranty, internal, goodwill).</value></data>
+  <data name="WorkOrderLineDescriptionRequired" xml:space="preserve"><value>A line description is required.</value></data>
+  <data name="WorkOrderLineDiscountTooLarge" xml:space="preserve"><value>The discount exceeds the line amount.</value></data>
+  <data name="WorkOrderLineInEstimate" xml:space="preserve"><value>The line is in an issued estimate; it cannot be deleted (edit it to propose it again).</value></data>
+  <data name="WorkOrderLineInSentEstimate" xml:space="preserve"><value>The line is in a sent estimate awaiting the customer; issue a new estimate or record the response first.</value></data>
+  <data name="WorkOrderLineKindInvalid" xml:space="preserve"><value>Invalid line type (labor, part, external service, fee).</value></data>
+  <data name="WorkOrderLineNotApproved" xml:space="preserve"><value>The customer has not approved the line and it has no documented exception; it cannot be executed.</value></data>
+  <data name="WorkOrderLineNotFound" xml:space="preserve"><value>Work order line not found.</value></data>
+  <data name="WorkOrderLinePartProductInvalid" xml:space="preserve"><value>A part must be an existing stock item.</value></data>
+  <data name="WorkOrderLinePriceForbidden" xml:space="preserve"><value>Changing the price or discount requires the manual discount permission on work orders.</value></data>
+  <data name="WorkOrderLineQuantityInvalid" xml:space="preserve"><value>The quantity must be greater than zero.</value></data>
+  <data name="WorkOrderNoApprovedLines" xml:space="preserve"><value>No approved lines (or documented exceptions) for this transition.</value></data>
+  <data name="WorkOrderNotInExecution" xml:space="preserve"><value>Execution status is updated while the order is approved, in progress, paused or in quality check.</value></data>
+  <data name="WorkOrderTooManyLines" xml:space="preserve"><value>More than {0} work order lines.</value></data>
+  <data name="WorkshopServiceInUse" xml:space="preserve"><value>The service is used by work order lines; deactivate it instead of deleting.</value></data>
+  <data name="InspectionTemplateInUse" xml:space="preserve"><value>The template is used by recorded inspections; deactivate it instead of deleting.</value></data>
+  <data name="ExternalServiceInvoiceInvalid" xml:space="preserve"><value>The linked purchase invoice is not a posted invoice of the same service supplier.</value></data>
+  <data name="ExternalServiceLineInvalid" xml:space="preserve"><value>An external service is recorded on an "external service" line.</value></data>
+  <data name="ExternalServiceNotFound" xml:space="preserve"><value>External service not found.</value></data>
+  <data name="ExternalServiceNotRequested" xml:space="preserve"><value>The external service is completed or cancelled.</value></data>
+  <data name="PartExceedsLine" xml:space="preserve"><value>"{0}": reserved and issued quantities exceed the line quantity {1}.</value></data>
+  <data name="PartIssueNotFound" xml:space="preserve"><value>Part issue not found on this work order.</value></data>
+  <data name="PartLineInvalid" xml:space="preserve"><value>Reservation and issue are for a "part" line.</value></data>
+  <data name="PartLineRejected" xml:space="preserve"><value>The customer rejected the line; parts cannot be reserved for it.</value></data>
+  <data name="PartNotAvailable" xml:space="preserve"><value>"{0}": only {1} is available to the workshop in the warehouse (after other orders' reservations).</value></data>
+  <data name="PartReservationNotActive" xml:space="preserve"><value>The reservation is consumed or released.</value></data>
+  <data name="PartReservationNotFound" xml:space="preserve"><value>Reservation not found.</value></data>
+  <data name="PartReturnDateInvalid" xml:space="preserve"><value>The return date cannot be in the future or before the issue.</value></data>
+  <data name="PartReturnExceeds" xml:space="preserve"><value>The quantity exceeds what remains of the issue ({0}).</value></data>
+  <data name="RequisitionWorkOrderLocked" xml:space="preserve"><value>The work order on a purchase requisition is fixed after creation.</value></data>
+  <data name="RequisitionWorkOrderWithProject" xml:space="preserve"><value>A purchase requisition is for a work order or a project, not both.</value></data>
+  <data name="TimeLogAlreadyOpen" xml:space="preserve"><value>The technician has an open log; close it first.</value></data>
+  <data name="TimeLogBeforeReception" xml:space="preserve"><value>The log cannot start before the vehicle was received.</value></data>
+  <data name="TimeLogClosed" xml:space="preserve"><value>The log is already closed.</value></data>
+  <data name="TimeLogEndBeforeStart" xml:space="preserve"><value>The log must end after it starts.</value></data>
+  <data name="TimeLogInFuture" xml:space="preserve"><value>The time or date cannot be in the future.</value></data>
+  <data name="TimeLogKindInvalid" xml:space="preserve"><value>Invalid log type (work or idle).</value></data>
+  <data name="TimeLogLaborOnly" xml:space="preserve"><value>Work hours are recorded on a labor line.</value></data>
+  <data name="TimeLogLineRequired" xml:space="preserve"><value>Choose a labor line of this work order.</value></data>
+  <data name="TimeLogNotFound" xml:space="preserve"><value>Time log not found.</value></data>
+  <data name="TimeLogOverlap" xml:space="preserve"><value>The log overlaps another log of the same technician.</value></data>
+  <data name="TimeLogTechnicianNotFound" xml:space="preserve"><value>The technician was not found among employees or is inactive.</value></data>
+  <data name="TimeLogTooLong" xml:space="preserve"><value>A single log cannot exceed 24 hours.</value></data>
+  <data name="WorkOrderCancelHasCosts" xml:space="preserve"><value>The order has issued parts, posted hours or an open log; return the parts and delete the hours before cancelling.</value></data>
+  <data name="WorkOrderLineHasExecution" xml:space="preserve"><value>The line has a reservation, issue, hours or external service; it cannot be edited or deleted.</value></data>
+  <data name="WorkshopAccountsMissing" xml:space="preserve"><value>Workshop accounts (work in progress and absorbed labor) are not set in accounting settings.</value></data>
+  <data name="WarrantyExpired" xml:space="preserve"><value>The warranty period has ended.</value></data>
+  <data name="WarrantyKmExceeded" xml:space="preserve"><value>The odometer exceeds the warranty limit ({0} km).</value></data>
+  <data name="WarrantyNotActive" xml:space="preserve"><value>The warranty is not active (claimed or voided).</value></data>
+  <data name="WarrantyNotFound" xml:space="preserve"><value>Warranty not found.</value></data>
+  <data name="WorkOrderDeliveredToRequired" xml:space="preserve"><value>The name of the person receiving the vehicle is required.</value></data>
+  <data name="WorkOrderDeliveryTimeInvalid" xml:space="preserve"><value>The delivery time cannot be in the future or before reception.</value></data>
+  <data name="WorkOrderExternalPending" xml:space="preserve"><value>The order has an external service that is neither completed nor cancelled.</value></data>
+  <data name="WorkOrderHasOpenLogs" xml:space="preserve"><value>The order has an open time log; stop it first.</value></data>
+  <data name="WorkOrderInvoiceDateInvalid" xml:space="preserve"><value>The invoice date cannot be in the future or before reception.</value></data>
+  <data name="WorkOrderInvoiceHasPayments" xml:space="preserve"><value>The order's invoice has a collection; cancel the voucher first.</value></data>
+  <data name="WorkOrderInvoiceReadyOnly" xml:space="preserve"><value>A work order is invoiced while it is ready.</value></data>
+  <data name="WorkOrderInvoiceReturnBlocked" xml:space="preserve"><value>A work order invoice is cancelled from the work order itself (cancel invoice), not with a standalone return.</value></data>
+  <data name="WorkOrderLinesNotDone" xml:space="preserve"><value>Lines not done yet: {0}.</value></data>
+  <data name="WorkOrderNotDelivered" xml:space="preserve"><value>A work order is closed after delivery.</value></data>
+  <data name="WorkOrderNotInvoiced" xml:space="preserve"><value>The work order is not invoiced.</value></data>
+  <data name="WorkOrderQualityFailed" xml:space="preserve"><value>The last quality check has failed items; rework and inspect again.</value></data>
+  <data name="WorkOrderQualityRequired" xml:space="preserve"><value>Complete the quality check before marking the order ready.</value></data>
+  <data name="WorkshopReportRangeInvalid" xml:space="preserve"><value>The period end cannot be before its start.</value></data>
+  <data name="WorkshopReportRangeTooLong" xml:space="preserve"><value>The report period cannot exceed 400 days.</value></data>
+  <data name="ExternalServiceExceedsInvoice" xml:space="preserve"><value>The cost exceeds what remains of the supplier invoice before VAT ({0}).</value></data>
+  <data name="RentalAccountsMissing" xml:space="preserve"><value>The rental revenue account is not set in accounting settings.</value></data>
+  <data name="RentalBillingCancelled" xml:space="preserve"><value>The billing is already cancelled.</value></data>
+  <data name="RentalBillingFutureNotAllowed" xml:space="preserve"><value>Billing up to a future time is only for contracts billed in advance.</value></data>
+  <data name="RentalBillingNotFound" xml:space="preserve"><value>Billing not found.</value></data>
+  <data name="RentalBillingNotLatest" xml:space="preserve"><value>A later billing exists for the contract; cancel the later one first.</value></data>
+  <data name="RentalChargeAccountInvalid" xml:space="preserve"><value>Account {0} does not exist in the chart of accounts or is inactive.</value></data>
+  <data name="RentalChargeDeleteManualPending" xml:space="preserve"><value>Only a pending manual charge can be deleted; generated or approved charges are waived with a reason.</value></data>
+  <data name="RentalChargeKindInvalid" xml:space="preserve"><value>Invalid charge kind.</value></data>
+  <data name="RentalChargeNeedsClassification" xml:space="preserve"><value>Classify the charge for VAT (standard or out of scope) before approving it.</value></data>
+  <data name="RentalChargeNotFound" xml:space="preserve"><value>Charge not found.</value></data>
+  <data name="RentalChargeNotPending" xml:space="preserve"><value>The charge is not pending or approved and unbilled.</value></data>
+  <data name="RentalChargeTypeNotFound" xml:space="preserve"><value>The charge type does not exist or is inactive.</value></data>
+  <data name="RentalCloseChargesOpen" xml:space="preserve"><value>The contract has pending or approved unbilled charges; approve and bill them or waive them before closing.</value></data>
+  <data name="RentalCloseLinesOpen" xml:space="preserve"><value>Not all contract equipment has been returned yet.</value></data>
+  <data name="RentalCloseNotBilled" xml:space="preserve"><value>Returned lines are not billed up to their return; bill the contract first.</value></data>
+  <data name="RentalInvoiceReturnBlocked" xml:space="preserve"><value>A rental billing invoice is cancelled from the billing itself, not with a standalone return.</value></data>
+  <data name="RentalNothingToBill" xml:space="preserve"><value>No rent or approved charges to bill up to this time.</value></data>
+  <data name="RentalTaxTreatmentInvalid" xml:space="preserve"><value>Invalid tax treatment (standard or out of scope).</value></data>
+  <data name="RentalDepositNotFound" xml:space="preserve"><value>The deposit was not found.</value></data>
+  <data name="RentalDepositContractState" xml:space="preserve"><value>The rental contract status does not allow this deposit operation.</value></data>
+  <data name="RentalDepositAmountInvalid" xml:space="preserve"><value>The deposit amount must be greater than zero.</value></data>
+  <data name="RentalDepositInvoiceNotForContract" xml:space="preserve"><value>The invoice is not an issued billing invoice for this contract.</value></data>
+  <data name="RentalDepositExceedsBalance" xml:space="preserve"><value>The amount exceeds the remaining deposit balance ({0}).</value></data>
+  <data name="RentalDepositSettlementNotFound" xml:space="preserve"><value>The deposit settlement was not found.</value></data>
+  <data name="RentalDepositNotHeld" xml:space="preserve"><value>This deposit has no outstanding balance.</value></data>
+  <data name="RentalDepositHasSettlements" xml:space="preserve"><value>The deposit cannot be cancelled while it has settlements; cancel them first.</value></data>
+  <data name="ReasonRequired" xml:space="preserve"><value>A reason is required.</value></data>
 </root>

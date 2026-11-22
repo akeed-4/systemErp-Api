@@ -27,6 +27,8 @@ public class MaterialRequisition : BaseEntity, IScopedRecord
     /// فارغة في الطلبات القديمة وفي مشروع بلا مراحل (تُقاس على المشروع كله).
     /// </summary>
     public Guid? PhaseId { get; set; }
+    /// <summary>أمر عمل الورشة الذي يُطلب له (D7): يُستلم للمستودع بالمسار العادي ثم يُصرف للأمر (O12). لا يجتمع مع المشروع، ويثبت بعد الإنشاء.</summary>
+    public Guid? WorkOrderId { get; set; }
     /// <summary>موقع التوريد (<see cref="RequisitionDeliveryLocations"/>): المستودع، أو موقع المشروع مباشرة.</summary>
     public string DeliveryLocation { get; set; } = RequisitionDeliveryLocations.Warehouse;
     /// <summary>عنوان موقع التوريد (موقع المشروع افتراضياً).</summary>

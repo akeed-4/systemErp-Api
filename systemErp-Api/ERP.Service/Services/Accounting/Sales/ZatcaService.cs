@@ -67,8 +67,19 @@ public class ZatcaService : IZatcaService
         if (!target.IsActive || target.Role == UserRole.Employee) throw new ValidationFailedException(Messages.ZatcaUserNotFound);
         var unit = await _db.Set<ZatcaUnit>().FirstOrDefaultAsync(u => u.UserId == targetId, ct);
         var session = await _db.Set<ZatcaOnboardingSession>()
-            .Where(s => s.UserId == targetId && s.Environment == config.Environment && s.Status != "completed")
+            .Where(s => s.UserId == targetId && s.Environment == config.Environment && s.Status != "completed" && s.Status != "abandoned")
             .OrderByDescending(s => s.StartedAt).FirstOrDefaultAsync(ct);
+
+        // A Compliance CSID request with an unconfirmed outcome is safe to replace: ZATCA OTPs are single-use and
+        // an unused compliance certificate grants nothing. A new OTP abandons the stuck session and starts a fresh CSR.
+        // Production CSID uncertainty stays blocked below.
+        if (otp.Length > 0 && session?.ComplianceRequestId == null && session?.Status is "compliance_csid_requesting" or "compliance_csid_unknown")
+        {
+            session.Status = "abandoned";
+            session.ErrorMessage = "Replaced by a new onboarding attempt with a new OTP.";
+            await _db.SaveChangesAsync(ct);
+            session = null;
+        }
 
         if (session?.Status == "compliance_csid_requesting")
         {
@@ -84,7 +95,9 @@ public class ZatcaService : IZatcaService
             await _db.SaveChangesAsync(ct);
             throw new ConflictException(session.ErrorMessage);
         }
-        if (session?.Status is "compliance_csid_unknown" or "production_unknown")
+        if (session?.Status == "compliance_csid_unknown")
+            throw new ConflictException("The previous Compliance CSID request has an unconfirmed outcome. Enter a new OTP from ZATCA to start a fresh onboarding attempt.");
+        if (session?.Status == "production_unknown")
             throw new ConflictException("The previous ZATCA request has an unresolved outcome. Do not retry it automatically; review its status before starting a new onboarding attempt.");
 
         var missing = new List<string>();

@@ -295,6 +295,23 @@ public class ConstructionProjectsIndexController : ErpControllerBase
             ContractId = p.ContractId, ContractNumber = p.ContractNumber, Title = p.Title, ProjectName = p.ProjectName, ProjectLocation = p.ProjectLocation,
         }).ToList());
 
+    // ---------- أدوار أعضاء المشاريع (النظام + المضافة من المنشأة) ----------
+
+    [HttpGet("member-roles"), RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.View)]
+    public async Task<IActionResult> MemberRoles(CancellationToken ct) => Success(await _projects.MemberRolesAsync(ct));
+
+    [HttpPost("member-roles"), RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.Edit)]
+    public async Task<IActionResult> CreateMemberRole([FromBody] SaveProjectMemberRoleDto dto, CancellationToken ct)
+        => Success(await _projects.CreateMemberRoleAsync(dto, ct), Messages.ProjectSetupSaved);
+
+    [HttpPut("member-roles/{code}"), RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.Edit)]
+    public async Task<IActionResult> UpdateMemberRole(string code, [FromBody] SaveProjectMemberRoleDto dto, CancellationToken ct)
+        => Success(await _projects.UpdateMemberRoleAsync(code, dto, ct), Messages.ProjectSetupSaved);
+
+    [HttpDelete("member-roles/{code}"), RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.Edit)]
+    public async Task<IActionResult> DeleteMemberRole(string code, CancellationToken ct)
+        => Success(await _projects.DeleteMemberRoleAsync(code, ct), Messages.ProjectSetupSaved);
+
     [HttpPost("role-templates"), RequireScreen("user-permissions", ScreenAction.Create)]
     public async Task<IActionResult> CreateRoleTemplates(CancellationToken ct) => Success(await _projects.CreateRoleTemplatesAsync(ct));
 }

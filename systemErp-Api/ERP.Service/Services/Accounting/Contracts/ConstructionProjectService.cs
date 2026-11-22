@@ -399,7 +399,8 @@ public class ConstructionProjectService : IConstructionProjectService
         var member = await _db.Set<ProjectMember>().FirstOrDefaultAsync(m => m.Id == memberId && m.ContractId == contractId, ct)
             ?? throw new NotFoundException(Messages.ProjectMemberNotFound);
         request.UserId = member.UserId; // تغيير المستخدم = حذف وإضافة
-        await ValidateMemberAsync(request, ct);
+        // دور مضاف أُوقف لاحقاً يبقى لمن أُسند إليه (تعديل الملاحظات لا يُلزم بتغييره)
+        await ValidateMemberAsync(request, ct, keepRole: member.Role);
         member.Role = request.Role;
         member.Notes = Trim(request.Notes, 300);
         await _db.SaveChangesAsync(ct);
@@ -421,9 +422,81 @@ public class ConstructionProjectService : IConstructionProjectService
         => _db.Set<User>().AsNoTracking().Where(u => u.IsActive).OrderBy(u => u.Name)
             .Select(u => new ProjectMemberCandidateDto { Id = u.Id, Name = u.Name, Email = u.Email }).ToListAsync(ct);
 
-    private async Task ValidateMemberAsync(SaveProjectMemberDto request, CancellationToken ct)
+    // ---------- أدوار أعضاء المشاريع ----------
+
+    public async Task<List<ProjectMemberRoleDto>> MemberRolesAsync(CancellationToken ct = default)
     {
-        if (!ProjectMemberRoles.IsValid(request.Role)) throw new ValidationFailedException(Messages.ProjectMemberRoleInvalid);
+        var usage = await _db.Set<ProjectMember>().AsNoTracking().GroupBy(m => m.Role)
+            .Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+        var custom = await _db.Set<ProjectMemberRoleDefinition>().AsNoTracking()
+            .OrderBy(r => r.SortOrder).ThenBy(r => r.NameAr).ToListAsync(ct);
+        return ProjectMemberRoles.All
+            .Select(code => new ProjectMemberRoleDto { Code = code, IsSystem = true, UsageCount = usage.GetValueOrDefault(code) })
+            .Concat(custom.Select(r => new ProjectMemberRoleDto
+            {
+                Code = r.Code, NameAr = r.NameAr, NameEn = r.NameEn, IsActive = r.IsActive, UsageCount = usage.GetValueOrDefault(r.Code),
+            }))
+            .ToList();
+    }
+
+    public async Task<List<ProjectMemberRoleDto>> CreateMemberRoleAsync(SaveProjectMemberRoleDto request, CancellationToken ct = default)
+    {
+        var (nameAr, nameEn) = await ValidateMemberRoleAsync(request, null, ct);
+        var maxOrder = await _db.Set<ProjectMemberRoleDefinition>().MaxAsync(r => (int?)r.SortOrder, ct) ?? 0;
+        _db.Add(new ProjectMemberRoleDefinition
+        {
+            Code = ProjectMemberRoles.CustomPrefix + Guid.NewGuid().ToString("N")[..12],
+            NameAr = nameAr, NameEn = nameEn, IsActive = request.IsActive, SortOrder = maxOrder + 1,
+        });
+        await _db.SaveChangesAsync(ct);
+        return await MemberRolesAsync(ct);
+    }
+
+    public async Task<List<ProjectMemberRoleDto>> UpdateMemberRoleAsync(string code, SaveProjectMemberRoleDto request, CancellationToken ct = default)
+    {
+        var role = await FindCustomRoleAsync(code, ct);
+        var (nameAr, nameEn) = await ValidateMemberRoleAsync(request, role.Id, ct);
+        role.NameAr = nameAr;
+        role.NameEn = nameEn;
+        role.IsActive = request.IsActive;
+        await _db.SaveChangesAsync(ct);
+        return await MemberRolesAsync(ct);
+    }
+
+    public async Task<List<ProjectMemberRoleDto>> DeleteMemberRoleAsync(string code, CancellationToken ct = default)
+    {
+        var role = await FindCustomRoleAsync(code, ct);
+        if (await _db.Set<ProjectMember>().AnyAsync(m => m.Role == role.Code, ct))
+            throw new ConflictException(Messages.ProjectMemberRoleInUse);
+        _db.Remove(role);
+        await _db.SaveChangesAsync(ct);
+        return await MemberRolesAsync(ct);
+    }
+
+    private async Task<ProjectMemberRoleDefinition> FindCustomRoleAsync(string code, CancellationToken ct)
+    {
+        if (ProjectMemberRoles.IsSystem(code)) throw new ValidationFailedException(Messages.ProjectMemberRoleSystem);
+        return await _db.Set<ProjectMemberRoleDefinition>().FirstOrDefaultAsync(r => r.Code == code, ct)
+            ?? throw new NotFoundException(Messages.ProjectMemberRoleInvalid);
+    }
+
+    private async Task<(string NameAr, string? NameEn)> ValidateMemberRoleAsync(SaveProjectMemberRoleDto request, Guid? id, CancellationToken ct)
+    {
+        var nameAr = request.NameAr?.Trim() ?? string.Empty;
+        var nameEn = string.IsNullOrWhiteSpace(request.NameEn) ? null : request.NameEn.Trim();
+        if (nameAr.Length == 0) throw new ValidationFailedException(Messages.ProjectMemberRoleNameRequired);
+        if (nameAr.Length > 100 || nameEn?.Length > 100) throw new ValidationFailedException(Messages.ProjectMemberRoleNameTooLong);
+        if (await _db.Set<ProjectMemberRoleDefinition>().AnyAsync(r => r.NameAr == nameAr && r.Id != id, ct))
+            throw new ConflictException(Messages.ProjectMemberRoleNameExists);
+        return (nameAr, nameEn);
+    }
+
+    private async Task ValidateMemberAsync(SaveProjectMemberDto request, CancellationToken ct, string? keepRole = null)
+    {
+        var roleOk = ProjectMemberRoles.IsSystem(request.Role)
+            || (request.Role == keepRole && await _db.Set<ProjectMemberRoleDefinition>().AnyAsync(r => r.Code == request.Role, ct))
+            || await _db.Set<ProjectMemberRoleDefinition>().AnyAsync(r => r.Code == request.Role && r.IsActive, ct);
+        if (!roleOk) throw new ValidationFailedException(Messages.ProjectMemberRoleInvalid);
         if (!await _db.Set<User>().AnyAsync(u => u.Id == request.UserId && u.IsActive, ct))
             throw new ValidationFailedException(Messages.ProjectMemberUserInvalid);
     }

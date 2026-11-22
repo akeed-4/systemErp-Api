@@ -16,6 +16,8 @@ public partial class CreateMaterialRequisitionDto
     public Guid? ContractId { get; set; }
     /// <summary>مرحلة التنفيذ (إلزامية لطلب جديد في مشروع موادُّه مسندة لمراحل؛ تثبت بعد الإنشاء).</summary>
     public Guid? PhaseId { get; set; }
+    /// <summary>أمر عمل الورشة (لا يجتمع مع المشروع؛ يثبت بعد الإنشاء).</summary>
+    public Guid? WorkOrderId { get; set; }
     /// <summary>warehouse | project_site</summary>
     public string? DeliveryLocation { get; set; }
     public string? DeliveryAddress { get; set; }

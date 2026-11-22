@@ -43,6 +43,7 @@ public static class DocumentNumberTypes
         new("rental_contract", "عقود تأجير المعدات للعملاء", "Customer rental contracts", "rental", "RC-", true),
         new("rental_handover", "محاضر التسليم والاستلام", "Handover & return records", "rental", "RHO-", false),
         new("rental_transport", "مهام نقل المعدات", "Equipment transport jobs", "rental", "RTJ-", false),
+        new("rental_billing", "فوترة التأجير", "Rental billing runs", "rental", "RB-", false),
         new("car_procurement_order", "أوامر شراء السيارات", "Car purchase orders", "showroom", "CPO-", true),
         new("car_sales_contract", "عقود بيع السيارات", "Car sales contracts", "showroom", "CSC-", true),
     };

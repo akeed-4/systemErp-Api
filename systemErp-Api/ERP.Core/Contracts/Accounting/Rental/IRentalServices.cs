@@ -57,6 +57,8 @@ public interface IRentalContractService
     Task<RentalContractDto> ExtendAsync(Guid id, ExtendRentalContractDto request, CancellationToken ct = default);
     /// <summary>ينشئ عقداً لاحقاً (مسودة) مرتبطاً بالساري من نهاية أسطره المختارة، ويسجّل التجديد على السابق؛ المعدة الخارجة تنتقل إليه بمحضر تسليمه.</summary>
     Task<RentalContractDto> RenewAsync(Guid id, RenewRentalContractDto request, CancellationToken ct = default);
+    /// <summary>تعيين مشغّل سطر بمشغّل أو تغييره أو إزالته (مسودة أو ساري، السطر بانتظار التسليم أو خارج)، بفحص تعارض المشغّل ويسجّل التغيير.</summary>
+    Task<RentalContractDto> AssignOperatorAsync(Guid id, Guid lineId, AssignRentalOperatorDto request, CancellationToken ct = default);
     Task<RentalContractDto> CancelAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
@@ -71,4 +73,59 @@ public interface IRentalHandoverService
     Task<RentalHandoverDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<RentalHandoverDto> CreateAsync(SaveRentalHandoverDto request, CancellationToken ct = default);
     Task<RentalHandoverDto> CancelAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
+}
+
+/// <summary>
+/// مهام نقل معدات عقود التأجير (مسودة أو ساري): مجدولة ← منفَّذة أو ملغاة بسبب. سجل تشغيلي بتكلفته والمبلغ على العميل، بلا قيود.
+/// </summary>
+public interface IRentalTransportService
+{
+    Task<List<RentalTransportJobDto>> ListAsync(Guid? contractId, string? status, CancellationToken ct = default);
+    Task<RentalTransportJobDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<RentalTransportJobDto> CreateAsync(SaveRentalTransportJobDto request, CancellationToken ct = default);
+    Task<RentalTransportJobDto> UpdateAsync(Guid id, SaveRentalTransportJobDto request, CancellationToken ct = default);
+    Task<RentalTransportJobDto> CompleteAsync(Guid id, CompleteRentalTransportJobDto request, CancellationToken ct = default);
+    Task<RentalTransportJobDto> CancelAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
+}
+
+/// <summary>
+/// الرسوم والفوترة (R3a): الإعداد وأنواع الرسوم، والرسوم اليدوية والمولّدة (الإضافي، التأخير، النقل)، والفوترة الدورية عبر محرك فواتير
+/// المبيعات (مرجع <c>rental_billing</c>)، وإلغاء آخر فوترة، وإغلاق العقد بعد الاستلام والفوترة.
+/// </summary>
+public interface IRentalBillingService
+{
+    Task<RentalSettingsDto> SettingsAsync(CancellationToken ct = default);
+    Task<RentalSettingsDto> SaveSettingsAsync(RentalSettingsDto request, CancellationToken ct = default);
+    Task<List<RentalChargeTypeDto>> ChargeTypesAsync(CancellationToken ct = default);
+    Task<RentalChargeTypeDto> SaveChargeTypeAsync(SaveRentalChargeTypeDto request, Guid? id, CancellationToken ct = default);
+
+    Task<List<RentalChargeDto>> ChargesAsync(Guid? contractId, string? status, CancellationToken ct = default);
+    Task<RentalChargeDto> AddChargeAsync(SaveRentalChargeDto request, CancellationToken ct = default);
+    Task<RentalChargeDto> ApproveChargeAsync(Guid id, ApproveRentalChargeDto request, CancellationToken ct = default);
+    Task<RentalChargeDto> WaiveChargeAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
+    Task DeleteChargeAsync(Guid id, CancellationToken ct = default);
+    /// <summary>يولّد رسوم الإضافي والتأخير للأسطر المستلمة، ورسوم النقل المنفَّذة على العميل (مرة واحدة لكل مصدر).</summary>
+    Task<List<RentalChargeDto>> GenerateChargesAsync(Guid contractId, CancellationToken ct = default);
+
+    Task<RentalBillingPreviewDto> PreviewAsync(Guid contractId, DateTime? until, CancellationToken ct = default);
+    Task<RentalBillingDto> BillAsync(Guid contractId, BillRentalContractDto request, CancellationToken ct = default);
+    Task<List<RentalBillingDto>> BillingsAsync(Guid? contractId, CancellationToken ct = default);
+    Task<RentalBillingDto> CancelBillingAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
+    Task<RentalContractDto> CloseContractAsync(Guid contractId, CancellationToken ct = default);
+}
+
+/// <summary>
+/// تأمينات العقود (R3b) عبر خدمة السندات القائمة: القبض (سند قبض لحساب تأمينات العملاء)، والخصم من فاتورة العقد (سند قبض موزّع على
+/// الفاتورة خزينته حساب التأمينات)، والرد (سند صرف من حساب التأمينات)، وإلغاء آخر أثر بحذف سنده وعكس قيده.
+/// </summary>
+public interface IRentalDepositService
+{
+    Task<List<RentalDepositDto>> ListAsync(Guid? contractId, string? status, CancellationToken ct = default);
+    Task<RentalDepositDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<RentalDepositDto> ReceiveAsync(ReceiveRentalDepositDto request, CancellationToken ct = default);
+    Task<RentalDepositDto> ApplyAsync(Guid id, ApplyRentalDepositDto request, CancellationToken ct = default);
+    Task<RentalDepositDto> RefundAsync(Guid id, RefundRentalDepositDto request, CancellationToken ct = default);
+    Task<RentalDepositDto> CancelSettlementAsync(Guid id, Guid settlementId, RentalReasonDto request, CancellationToken ct = default);
+    Task<RentalDepositDto> CancelAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
 }

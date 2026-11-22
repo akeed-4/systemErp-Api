@@ -1,5 +1,4 @@
-
-                                         && (parentContractId == null || c.Id != parentContractId)using ERP.Service.Data;
+using ERP.Service.Data;
 using B = ERP.Core.Models.Accounting.RentalRateBases;
 using BSt = ERP.Core.Models.Accounting.RentalBookingStatuses;
 
@@ -174,7 +173,7 @@ internal static class RentalAvailability
 
         var bookings = await (from l in db.Set<RentalBookingLine>().AsNoTracking()
                               join b in db.Set<RentalBooking>().AsNoTracking() on l.BookingId equals b.Id
-                              where l.EquipmentId != null && ids.Contains(l.EquipmentId.Value) && l.From < to && l.To > from
+                              where l.EquipmentId != null && ids.Contains(l.EquipmentId.Value) && l.From < to && l.To > @from
                                     && (excludeBookingId == null || b.Id != excludeBookingId)
                                     && (b.Status == BSt.Confirmed || (b.Status == BSt.Held && b.HoldUntil != null && b.HoldUntil > now))
                               select new { l.EquipmentId, l.From, l.To, b.Id, b.BookingNumber, b.Status })
@@ -284,5 +283,33 @@ internal static class RentalAvailability
             .FirstOrDefaultAsync(ct);
         if (rented != null)
             throw new ConflictException(string.Format(Messages.EquipmentBookedForRental, rented.ContractNumber, rented.PlannedFrom, rented.PlannedTo));
+    }
+}
+
+/// <summary>
+/// تعارض المشغّل: الموظف لا يُعيَّن على سطرين متداخلين في عقود تأجير مسودة أو سارية (السطر بانتظار التسليم أو خارج)، ولا على فترة
+/// إسناد معدة نشط في المقاولات يكون فيه مشغّلاً. يعيد وصف أول تعارض أو null.
+/// </summary>
+internal static class RentalOperators
+{
+    public static async Task<string?> ConflictAsync(ErpDbContext db, Guid employeeId, DateTime from, DateTime to, Guid? excludeLineId,
+        Guid? excludeContractId, CancellationToken ct)
+    {
+        var rental = await (from l in db.Set<RentalContractLine>().AsNoTracking()
+                            join c in db.Set<RentalContract>().AsNoTracking() on l.ContractId equals c.Id
+                            where l.OperatorEmployeeId == employeeId && RentalLineStatuses.Blocking.Contains(l.Status)
+                                  && RentalContractStatuses.Blocking.Contains(c.Status)
+                                  && (excludeLineId == null || l.Id != excludeLineId)
+                                  && (excludeContractId == null || c.Id != excludeContractId)
+                                  && l.PlannedFrom < to && l.PlannedTo > @from
+                            select c.ContractNumber).FirstOrDefaultAsync(ct);
+        if (rental != null) return rental;
+        var day = from.Date;
+        var assignment = await (from a in db.Set<EquipmentAssignment>().AsNoTracking()
+                                join e in db.Set<Equipment>().AsNoTracking() on a.EquipmentId equals e.Id
+                                where a.OperatorEmployeeId == employeeId && a.Status == EquipmentAssignmentStatuses.Active
+                                      && a.FromDate < to && (a.ToDate == null || a.ToDate >= day)
+                                select e.Code).FirstOrDefaultAsync(ct);
+        return assignment;
     }
 }

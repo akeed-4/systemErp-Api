@@ -104,6 +104,25 @@ public class SaveProjectMemberDto
     public string? Notes { get; set; }
 }
 
+/// <summary>دور عضو المشروع: أدوار النظام (IsSystem، أسماؤها تترجمها الواجهة) ثم أدوار المنشأة المحفوظة.</summary>
+public class ProjectMemberRoleDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string? NameAr { get; set; }
+    public string? NameEn { get; set; }
+    public bool IsSystem { get; set; }
+    public bool IsActive { get; set; } = true;
+    /// <summary>عدد أعضاء المشاريع المسندين لهذا الدور.</summary>
+    public int UsageCount { get; set; }
+}
+
+public class SaveProjectMemberRoleDto
+{
+    public string NameAr { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
 /// <summary>مستخدم فعّال يمكن إسناده للمشروع.</summary>
 public class ProjectMemberCandidateDto
 {

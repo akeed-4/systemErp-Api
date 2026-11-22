@@ -44,6 +44,26 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
         if (d.WarehouseId.HasValue && !await Db.Set<Warehouse>().AnyAsync(w => w.Id == d.WarehouseId, ct))
             throw new ValidationFailedException(Messages.WarehouseNotFound);
         await ValidateProjectAsync(d, existing, ct);
+        await ValidateWorkOrderAsync(d, existing, ct);
+    }
+
+    /// <summary>
+    /// طلب لأمر عمل الورشة (D7): الأمر موجود وقبل الفوترة، ولا يجتمع مع المشروع، ويثبت بعد الإنشاء؛ المستودع الافتراضي مستودع الأمر.
+    /// الطلب بلا أمر لا يتأثر.
+    /// </summary>
+    private async Task ValidateWorkOrderAsync(CreateMaterialRequisitionDto d, MaterialRequisition? existing, CancellationToken ct)
+    {
+        if (existing != null)
+        {
+            if (d.WorkOrderId != null && d.WorkOrderId != existing.WorkOrderId) throw new ValidationFailedException(Messages.RequisitionWorkOrderLocked);
+            d.WorkOrderId = existing.WorkOrderId;
+        }
+        if (d.WorkOrderId is not Guid workOrderId) return;
+        if (d.ContractId != null) throw new ValidationFailedException(Messages.RequisitionWorkOrderWithProject);
+        var order = await Db.Set<WorkOrder>().AsNoTracking().Where(o => o.Id == workOrderId).Select(o => new { o.Status, o.WarehouseId }).FirstOrDefaultAsync(ct)
+            ?? throw new ValidationFailedException(Messages.WorkOrderNotFound);
+        if (existing == null && !WorkOrderStatuses.Editable.Contains(order.Status)) throw new ConflictException(Messages.WorkOrderNotEditable);
+        d.WarehouseId ??= order.WarehouseId;
     }
 
     /// <summary>
@@ -115,6 +135,8 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             dto.ProjectName = c?.ProjectName;
             dto.ProjectNameEn = c?.ProjectNameEn;
         }
+        if (entity.WorkOrderId is { } workOrderId)
+            dto.WorkOrderNumber = Db.Set<WorkOrder>().AsNoTracking().Where(o => o.Id == workOrderId).Select(o => o.OrderNumber).FirstOrDefault();
         if (entity.PhaseId is { } phaseId)
             dto.PhaseName = Db.Set<ProjectPhase>().AsNoTracking().Where(p => p.Id == phaseId).Select(p => p.Name).FirstOrDefault();
         return dto;

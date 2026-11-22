@@ -17,7 +17,24 @@ public static class ProjectMemberRoles
     public const string Finance = "finance";
 
     public static readonly string[] All = { ProjectManager, Engineer, SiteSupervisor, CostController, Procurement, Storekeeper, Finance };
-    public static bool IsValid(string? role) => role != null && All.Contains(role);
+    /// <summary>دور أساسي من النظام (له سلوك في الكود). الأدوار المضافة تُحفظ في <see cref="ProjectMemberRoleDefinition"/>.</summary>
+    public static bool IsSystem(string? role) => role != null && All.Contains(role);
+    /// <summary>بادئة رموز الأدوار المضافة من المنشأة، فلا تتعارض مع رموز النظام.</summary>
+    public const string CustomPrefix = "c_";
+}
+
+/// <summary>
+/// دور عضو مشروع تضيفه المنشأة (فني خطوط، سائق رافعة، مسؤول السلامة...) إضافة إلى أدوار النظام الثابتة.
+/// وصفي فقط: لا يمنح صلاحيات ولا يدخل في منطق الاعتماد. الموقوف لا يظهر للإسناد الجديد ويبقى لمن أُسند إليه.
+/// </summary>
+public class ProjectMemberRoleDefinition : BaseEntity
+{
+    /// <summary>رمز ثابت يُحفظ في <see cref="ProjectMember.Role"/> (يبدأ بـ c_).</summary>
+    public string Code { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; } = true;
 }
 
 /// <summary>

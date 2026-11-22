@@ -108,17 +108,71 @@ public class EmployeeCostRateService : IEmployeeCostRateService
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<List<AddOnStaffDto>> StaffAsync(string purpose, CancellationToken ct = default)
+    {
+        var key = await AuthorizeAsync(purpose, ScreenAction.View, ct, allowDocumentScreen: true);
+        var today = SaudiTime.Today;
+        var staff = await _db.Set<Employee>().AsNoTracking().Where(e => e.Status == EmployeeStatuses.Active).OrderBy(e => e.Code)
+            .Select(e => new AddOnStaffDto { EmployeeId = e.Id, Code = e.Code, NameAr = e.NameAr, NameEn = e.NameEn, Phone = e.Phone, JobTitle = e.JobTitle })
+            .ToListAsync(ct);
+        var rates = (await _db.Set<EmployeeStandardCostRate>().AsNoTracking().Where(r => r.Purpose == key && r.EffectiveFrom <= today)
+                .Select(r => new { r.EmployeeId, r.EffectiveFrom, r.CostPerHour }).ToListAsync(ct))
+            .GroupBy(r => r.EmployeeId).ToDictionary(g => g.Key, g => g.MaxBy(r => r.EffectiveFrom)!.CostPerHour);
+        foreach (var s in staff) s.CurrentCostPerHour = rates.TryGetValue(s.EmployeeId, out var rate) ? rate : null;
+        return staff;
+    }
+
+    public Task<AddOnStaffDto> RegisterStaffAsync(RegisterAddOnStaffDto request, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var key = await AuthorizeAsync(request.Purpose, ScreenAction.Edit, token);
+            if (request.CostPerHour is < 0) throw new ValidationFailedException(Messages.EmployeeCostRateNegative);
+            var hire = (request.HireDate ?? SaudiTime.Today).Date;
+            var code = string.IsNullOrWhiteSpace(request.Code) ? await NextCodeAsync(key, token) : request.Code.Trim();
+            // ملف الموظف نفسه بقواعد خدمة الموظفين (لا جدول ثانٍ)؛ ما لا يُدخل هنا يكمله شؤون الموظفين لاحقاً
+            var employee = await _employees.CreateAsync(new CreateEmployeeDto
+            {
+                Code = code, NameAr = request.NameAr?.Trim() ?? string.Empty, NameEn = Clean(request.NameEn), Phone = Clean(request.Phone),
+                NationalId = Clean(request.NationalId), IdType = string.IsNullOrWhiteSpace(request.IdType) ? EmployeeIdTypes.NationalId : request.IdType.Trim(),
+                Nationality = Clean(request.Nationality), JobTitle = Clean(request.JobTitle) ?? DefaultJobTitle(key), HireDate = hire,
+                BasicSalary = request.BasicSalary, Status = EmployeeStatuses.Active,
+                Notes = key == EmployeeCostPurposes.Technician ? "سُجِّل من إعدادات الورش" : "سُجِّل من إعدادات التأجير",
+            }, token);
+            await _audit.LogAsync("ADDON_STAFF_REGISTERED", nameof(Employee), employee.Id.ToString(), $"{employee.Code} / {key}", token);
+            if (request.CostPerHour is decimal cost)
+                await AddAsync(new CreateEmployeeCostRateDto { EmployeeId = employee.Id, Purpose = key, CostPerHour = cost, EffectiveFrom = hire }, token);
+            return new AddOnStaffDto
+            {
+                EmployeeId = employee.Id, Code = employee.Code, NameAr = employee.NameAr, NameEn = employee.NameEn, Phone = employee.Phone,
+                JobTitle = employee.JobTitle, CurrentCostPerHour = request.CostPerHour is decimal c && hire <= SaudiTime.Today ? decimal.Round(c, 4) : null,
+            };
+        }, ct);
+
+    private async Task<string> NextCodeAsync(string purpose, CancellationToken ct)
+    {
+        var prefix = purpose == EmployeeCostPurposes.Technician ? "TEC-" : "OPR-";
+        var n = await _db.Set<Employee>().CountAsync(e => e.Code.StartsWith(prefix), ct) + 1;
+        while (await _db.Set<Employee>().AnyAsync(e => e.Code == prefix + n.ToString("0000"), ct)) n++;
+        return prefix + n.ToString("0000");
+    }
+
+    private static string DefaultJobTitle(string purpose) => purpose == EmployeeCostPurposes.Technician ? "فني" : "مشغّل معدات";
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     /// <summary>الغرض معروف، وإضافته مرخّصة، والإجراء مسموح على شاشة إعداداتها؛ يعيد الغرض بصيغته المحفوظة.</summary>
-    private async Task<string> AuthorizeAsync(string? purpose, ScreenAction action, CancellationToken ct)
+    /// <param name="allowDocumentScreen">العرض يكفيه أيضاً شاشة مستندات الإضافة (أوامر العمل أو عقود التأجير) لاختيار الموظف فيها.</param>
+    private async Task<string> AuthorizeAsync(string? purpose, ScreenAction action, CancellationToken ct, bool allowDocumentScreen = false)
     {
         var key = (purpose ?? string.Empty).Trim().ToLowerInvariant();
-        var (module, screen) = key switch
+        var (module, screen, documents) = key switch
         {
-            EmployeeCostPurposes.Technician => (PlatformModules.Workshop, PermissionCatalog.WorkshopSettingsScreenId),
-            EmployeeCostPurposes.Operator => (PlatformModules.EquipmentRental, PermissionCatalog.RentalSettingsScreenId),
+            EmployeeCostPurposes.Technician => (PlatformModules.Workshop, PermissionCatalog.WorkshopSettingsScreenId, PermissionCatalog.WorkshopOrdersScreenId),
+            EmployeeCostPurposes.Operator => (PlatformModules.EquipmentRental, PermissionCatalog.RentalSettingsScreenId, PermissionCatalog.RentalContractsScreenId),
             _ => throw new ValidationFailedException(Messages.EmployeeCostPurposeInvalid),
         };
         if (!(await _entitlements.GetAsync(ct)).Allows(module)) throw new ForbiddenException(Messages.AddOnNotLicensed);
+        if (allowDocumentScreen && await _permissions.HasPermissionAsync(documents, action, ct)) return key;
         await _permissions.DemandAsync(screen, action, ct: ct);
         return key;
     }

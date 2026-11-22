@@ -194,7 +194,7 @@ public static class PermissionCatalog
             Crud(A.Import), new[] { "workshop/vehicles" }),
         // الاستقبال وأمر العمل والتقديرات وموافقة العميل والفوترة والتسليم. «خصم يدوي» = خصم على التقدير أو الفاتورة
         new(WorkshopOrdersScreenId, WorkshopModuleId, "الورش: الاستقبال وأوامر العمل والتقديرات والفوترة والتسليم", "Workshop: Reception, Work Orders, Estimates, Billing & Delivery",
-            Crud(A.Approve, A.Close, A.Cancel, A.Reopen, A.Discount), new[] { "workshop", "workshop/reception", "workshop/orders" }),
+            Crud(A.Approve, A.Close, A.Cancel, A.Reopen, A.Discount), new[] { "workshop", "workshop/reception", "workshop/orders", "workshop/board" }),
         new(WorkshopTimeLogsScreenId, WorkshopModuleId, "الورش: ساعات الفنيين والتوقف", "Workshop: Technician Time & Downtime",
             new[] { A.View, A.Create, A.Edit, A.Delete }.Concat(Docs).ToArray(), new[] { "workshop/technicians" }, InheritsFrom: WorkshopOrdersScreenId),
         // حجز قطع الغيار وصرفها وإرجاعها لأمر العمل: الترحيل = الصرف بحركة مخزون وقيد، والإلغاء = الإرجاع
@@ -206,7 +206,7 @@ public static class PermissionCatalog
         new(WorkshopUnapprovedExecutionScreenId, WorkshopModuleId, "الورش: تنفيذ بند غير معتمد من العميل (استثناء)", "Workshop: Execute a Line Not Approved by the Customer (Exception)",
             new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
         new(WorkshopCostViewScreenId, WorkshopModuleId, "الورش: رؤية التكلفة والربحية", "Workshop: View Cost & Profitability",
-            new[] { A.View }.Concat(Docs).ToArray(), Array.Empty<string>(), Restricted: true),
+            new[] { A.View }.Concat(Docs).ToArray(), new[] { "workshop/reports" }, Restricted: true),
 
         // تأجير المعدات (إضافة equipment_rental). سجل المعدات نفسه شاشة «equipment» القائمة؛ هنا دورة التأجير للعملاء.
         new(RentalSettingsScreenId, EquipmentRentalModuleId, "التأجير: الإعدادات والفئات والتسعير وأنواع الرسوم", "Rental: Settings, Categories, Pricing & Charge Types",

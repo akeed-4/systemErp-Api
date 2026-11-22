@@ -5088,6 +5088,96 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("FixedAssetDepreciation");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InspectionTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Usage")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("InspectionTemplate");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InspectionTemplateItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("PhotoRequiredOnFail")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ResultType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Section")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TextAr")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("TextEn")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("InspectionTemplateItem");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceBase", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6187,6 +6277,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("WarehouseName")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContractId");
@@ -6196,6 +6289,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.HasIndex("WarehouseId");
+
+                    b.HasIndex("WorkOrderId");
 
                     b.HasIndex("TenantId", "ContractId");
 
@@ -7114,6 +7209,54 @@ namespace ERP.Service.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectMember");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ProjectMemberRoleDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "NameAr")
+                        .IsUnique();
+
+                    b.ToTable("ProjectMemberRoleDefinition");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.ProjectPhase", b =>
@@ -8146,6 +8289,135 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("QuotationItem");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBilling", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("BilledUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("BillingNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("ChargesAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("RentAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "BillingNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ContractId");
+
+                    b.ToTable("RentalBilling");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBillingLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("BillingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PeriodFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PeriodTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("PreviousBilledAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("PreviousBilledThrough")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillingId");
+
+                    b.HasIndex("ContractLineId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("RentalBillingLine");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBooking", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8343,6 +8615,168 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("RentalCategory");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalCharge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("BillingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ChargeTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid?>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TaxTreatment")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WaiveReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("WaivedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillingId");
+
+                    b.HasIndex("ChargeTypeId");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId", "Status");
+
+                    b.ToTable("RentalCharge");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalChargeType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DefaultTaxTreatment")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("RequiresClassification")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("RevenueAccountCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("RentalChargeType");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.RentalContract", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8527,6 +8961,10 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<decimal>("BilledAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTime?>("BilledThrough")
                         .HasColumnType("datetime2");
 
@@ -8617,6 +9055,128 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId", "EquipmentId", "PlannedFrom", "PlannedTo");
 
                     b.ToTable("RentalContractLine");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalDeposit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ReceiptVoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReceiptVoucherNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ContractId", "Status");
+
+                    b.ToTable("RentalDeposit");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalDepositSettlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("DepositId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("SettledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("VoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("VoucherNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepositId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("RentalDepositSettlement");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.RentalHandover", b =>
@@ -8849,6 +9409,275 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId", "EquipmentId", "Basis");
 
                     b.ToTable("RentalRate");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("LateFeeFactor")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("LateGraceHours")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<bool>("RequireDepositBeforeDelivery")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("RentalSettings");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalTransportJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("ChargeAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CompletedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Cost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DriverEmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FromLocation")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid?>("HandoverId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("JobNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("ScheduledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToLocation")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid?>("TransportEquipmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VehicleDescription")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("DriverEmployeeId");
+
+                    b.HasIndex("HandoverId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TransportEquipmentId");
+
+                    b.HasIndex("TenantId", "ContractId");
+
+                    b.HasIndex("TenantId", "JobNumber")
+                        .IsUnique();
+
+                    b.ToTable("RentalTransportJob");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalTransportJobLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("JobId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractLineId");
+
+                    b.HasIndex("EquipmentId");
+
+                    b.HasIndex("JobId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("RentalTransportJobLine");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ServiceVehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EngineNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("FuelType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LastOdometer")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Make")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("PlateNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("ShowroomVehicleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Vin")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("ShowroomVehicleId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "PlateNumber");
+
+                    b.HasIndex("TenantId", "Vin")
+                        .IsUnique()
+                        .HasFilter("[Vin] IS NOT NULL");
+
+                    b.ToTable("ServiceVehicle");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.SiteDailyReport", b =>
@@ -9761,6 +10590,1390 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("WorkItemId");
 
                     b.ToTable("WorkItemSubItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Accessories")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Complaint")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal>("CostAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("CostJournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CustomerPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeliveredBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DeliveredTo")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("FuelLevelIn")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("InvoicedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsWarrantyJob")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("OdometerIn")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("OdometerOut")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("PauseReasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PlateSnapshot")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime?>("PromisedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ReadyAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ReceptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ServiceAdvisorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ServiceAdvisorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("WarrantyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("PauseReasonId");
+
+                    b.HasIndex("ReceptionId");
+
+                    b.HasIndex("StageId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("WarrantyId");
+
+                    b.HasIndex("TenantId", "OrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.HasIndex("TenantId", "VehicleId");
+
+                    b.ToTable("WorkOrder");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderDamageMark", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DamageType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.ToTable("WorkOrderDamageMark");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderEstimate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("DiscountTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("RecordedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RespondedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ResponseChannel")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("ResponseNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "WorkOrderId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("WorkOrderEstimate");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderEstimateLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BillingType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Decision")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("VatRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstimateId");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("WorkOrderEstimateLine");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderExecutionException", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AttachmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AuthorizedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AuthorizedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("AuthorizedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "LineId")
+                        .IsUnique();
+
+                    b.ToTable("WorkOrderExecutionException");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderExternalService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("ActualCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("EstimatedCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("PurchaseInvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "WorkOrderId");
+
+                    b.ToTable("WorkOrderExternalService");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderInspection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("InspectorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("InspectorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("TemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TemplateName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Usage")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "WorkOrderId");
+
+                    b.ToTable("WorkOrderInspection");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderInspectionResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Condition")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("InspectionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal?>("NumberValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<bool>("PhotoRequiredOnFail")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ResultType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Section")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("TemplateItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TextAr")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("TextEn")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("TextValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InspectionId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("WorkOrderInspectionResult");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AddedAfterApproval")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid?>("ApprovedEstimateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BillingType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("EstimatedCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("ExecutionStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("PriceOverridden")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SourceResultId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedEstimateId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.HasIndex("SourceResultId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "WorkOrderId");
+
+                    b.ToTable("WorkOrderLine");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderPartIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("ReturnOfId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StockMovementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ReturnOfId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "WorkOrderId");
+
+                    b.ToTable("WorkOrderPartIssue");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderPartReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("ConsumedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "ProductId", "WarehouseId", "Status");
+
+                    b.ToTable("WorkOrderPartReservation");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ChangedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("PauseReasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("StageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PauseReasonId");
+
+                    b.HasIndex("StageId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "WorkOrderId");
+
+                    b.ToTable("WorkOrderStatusHistory");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderTimeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Cost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CostPerHour")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid?>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Minutes")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("PauseReasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("PauseReasonId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "EmployeeId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_WorkOrderTimeLog_TenantId_EmployeeId_Open")
+                        .HasFilter("[EndedAt] IS NULL");
+
+                    b.HasIndex("TenantId", "WorkOrderId");
+
+                    b.ToTable("WorkOrderTimeLog");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopPauseReason", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("WorkshopPauseReason");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopReception", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReceptionNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "ReceptionNumber")
+                        .IsUnique();
+
+                    b.ToTable("WorkshopReception");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopServiceDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("Price")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("PricingMethod")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("StandardHours")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WarrantyKm")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WarrantyMonths")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("WorkshopServiceDefinition");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DefaultLaborRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("DefaultWarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefaultWarrantyKm")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DefaultWarrantyMonths")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RequireReceptionInspection")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ReservationHoldDays")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DefaultWarehouseId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("WorkshopSettings");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopStage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("WorkshopStage");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopWarranty", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ClaimWorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("KmLimit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimWorkOrderId");
+
+                    b.HasIndex("LineId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("TenantId", "VehicleId");
+
+                    b.ToTable("WorkshopWarranty");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.ZatcaComplianceTest", b =>
@@ -18930,6 +21143,17 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InspectionTemplateItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.InspectionTemplate", "Template")
+                        .WithMany("Items")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Template");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceBase", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
@@ -19079,6 +21303,11 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
                         .WithMany()
                         .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
@@ -19332,6 +21561,32 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Quotation");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBilling", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.RentalContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBillingLine", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.RentalBilling", "Billing")
+                        .WithMany("Lines")
+                        .HasForeignKey("BillingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.RentalContractLine", null)
+                        .WithMany()
+                        .HasForeignKey("ContractLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Billing");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBooking", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.Customer", null)
@@ -19372,6 +21627,31 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Accounting.RentalCategory", null)
                         .WithMany()
                         .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalCharge", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.RentalBilling", null)
+                        .WithMany()
+                        .HasForeignKey("BillingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.RentalChargeType", null)
+                        .WithMany()
+                        .HasForeignKey("ChargeTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.RentalContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.RentalContractLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
@@ -19435,6 +21715,17 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Contract");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalDepositSettlement", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.RentalDeposit", "Deposit")
+                        .WithMany("Settlements")
+                        .HasForeignKey("DepositId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Deposit");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.RentalHandover", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.RentalContract", null)
@@ -19487,6 +21778,72 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Accounting.Equipment", null)
                         .WithMany()
                         .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalTransportJob", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.RentalContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("DriverEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.RentalHandover", null)
+                        .WithMany()
+                        .HasForeignKey("HandoverId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("TransportEquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalTransportJobLine", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.RentalContractLine", null)
+                        .WithMany()
+                        .HasForeignKey("ContractLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.RentalTransportJob", "Job")
+                        .WithMany("Lines")
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Job");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.ServiceVehicle", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.CarShowroom.Vehicle", null)
+                        .WithMany()
+                        .HasForeignKey("ShowroomVehicleId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
@@ -19675,6 +22032,335 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("WorkItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrder", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopPauseReason", null)
+                        .WithMany()
+                        .HasForeignKey("PauseReasonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopReception", null)
+                        .WithMany()
+                        .HasForeignKey("ReceptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopStage", null)
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.ServiceVehicle", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopWarranty", null)
+                        .WithMany()
+                        .HasForeignKey("WarrantyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderDamageMark", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", "WorkOrder")
+                        .WithMany("DamageMarks")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderEstimate", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderEstimateLine", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderEstimate", "Estimate")
+                        .WithMany("Lines")
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Estimate");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderExecutionException", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderExternalService", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderInspection", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.InspectionTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderInspectionResult", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderInspection", "Inspection")
+                        .WithMany("Results")
+                        .HasForeignKey("InspectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Inspection");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderLine", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderEstimate", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedEstimateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopServiceDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderInspectionResult", null)
+                        .WithMany()
+                        .HasForeignKey("SourceResultId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderPartIssue", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderPartIssue", null)
+                        .WithMany()
+                        .HasForeignKey("ReturnOfId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderPartReservation", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderStatusHistory", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopPauseReason", null)
+                        .WithMany()
+                        .HasForeignKey("PauseReasonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopStage", null)
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderTimeLog", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkshopPauseReason", null)
+                        .WithMany()
+                        .HasForeignKey("PauseReasonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopReception", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopServiceDefinition", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopSettings", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkshopWarranty", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("ClaimWorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.ServiceVehicle", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.ZatcaComplianceTest", b =>
@@ -20759,6 +23445,11 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Parts");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.InspectionTemplate", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.InvoiceBase", b =>
                 {
                     b.Navigation("PaymentSplits");
@@ -20816,6 +23507,11 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Items");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBilling", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.RentalBooking", b =>
                 {
                     b.Navigation("Lines");
@@ -20826,7 +23522,17 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Lines");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalDeposit", b =>
+                {
+                    b.Navigation("Settlements");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.RentalHandover", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.RentalTransportJob", b =>
                 {
                     b.Navigation("Lines");
                 });
@@ -20852,6 +23558,21 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Components");
 
                     b.Navigation("SubItems");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrder", b =>
+                {
+                    b.Navigation("DamageMarks");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderEstimate", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.WorkOrderInspection", b =>
+                {
+                    b.Navigation("Results");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.CarShowroom.AdditionalChargeLine", b =>

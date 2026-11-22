@@ -1715,6 +1715,11 @@
   <data name="ProjectPhaseItemInvalid" xml:space="preserve"><value>المرحلة «{0}»: بند غير موجود في جدول كميات العقد أو بند رئيسي بفروع.</value></data>
   <data name="ProjectPhaseItemDuplicate" xml:space="preserve"><value>البند «{0}» في أكثر من مرحلة.</value></data>
   <data name="ProjectMemberRoleInvalid" xml:space="preserve"><value>دور العضو في المشروع غير معروف.</value></data>
+  <data name="ProjectMemberRoleNameRequired" xml:space="preserve"><value>اسم الدور بالعربية مطلوب.</value></data>
+  <data name="ProjectMemberRoleNameTooLong" xml:space="preserve"><value>اسم الدور يتجاوز 100 حرف.</value></data>
+  <data name="ProjectMemberRoleNameExists" xml:space="preserve"><value>يوجد دور بالاسم نفسه.</value></data>
+  <data name="ProjectMemberRoleInUse" xml:space="preserve"><value>الدور مسند لأعضاء في مشاريع؛ أوقفه بدل حذفه.</value></data>
+  <data name="ProjectMemberRoleSystem" xml:space="preserve"><value>أدوار النظام الأساسية لا تُعدّل ولا تُحذف.</value></data>
   <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>المستخدم غير موجود أو غير فعّال.</value></data>
   <data name="ProjectMemberExists" xml:space="preserve"><value>المستخدم عضو في المشروع مسبقاً.</value></data>
   <data name="ProjectMemberNotFound" xml:space="preserve"><value>العضو غير موجود في هذا المشروع.</value></data>
@@ -1992,4 +1997,206 @@
   <data name="RentalHandoverNotLatest" xml:space="preserve"><value>المحضر {0} ليس آخر حركة على معداته؛ ألغِ المحاضر اللاحقة أولاً.</value></data>
   <data name="RentalHandoverBilled" xml:space="preserve"><value>فُوترت فترة من معدات المحضر {0}؛ لا يُلغى.</value></data>
   <data name="RentalHandoverCannotRestore" xml:space="preserve"><value>لا يُلغى استلام المعدة {0}: لم تعد متاحة أو شُغلت فترتها بعد الاستلام.</value></data>
+  <data name="RentalLineWithoutOperator" xml:space="preserve"><value>السطر بلا مشغّل؛ لا يُعيَّن له مشغّل.</value></data>
+  <data name="RentalOperatorBusy" xml:space="preserve"><value>المشغّل مرتبط في الفترة نفسها بـ {0}.</value></data>
+  <data name="RentalOperatorLineClosed" xml:space="preserve"><value>يُعيَّن المشغّل لسطر بانتظار التسليم أو خارج فقط.</value></data>
+  <data name="RentalOperatorReasonRequired" xml:space="preserve"><value>سبب تغيير المشغّل مطلوب والمعدة عند العميل.</value></data>
+  <data name="RentalOperatorTwiceInContract" xml:space="preserve"><value>المشغّل نفسه معيَّن لسطرين متداخلين في هذا العقد.</value></data>
+  <data name="RentalTransportAmountNegative" xml:space="preserve"><value>تكلفة النقل والمبلغ على العميل لا يكونان سالبين.</value></data>
+  <data name="RentalTransportCompletedInFuture" xml:space="preserve"><value>لحظة تنفيذ النقل لا تكون في المستقبل.</value></data>
+  <data name="RentalTransportContractLocked" xml:space="preserve"><value>لا يتغير عقد مهمة النقل بعد إنشائها.</value></data>
+  <data name="RentalTransportDriverNotFound" xml:space="preserve"><value>السائق غير موجود في الموظفين أو غير نشط.</value></data>
+  <data name="RentalTransportHandoverInvalid" xml:space="preserve"><value>المحضر المرتبط ليس محضراً مرحّلاً لهذا العقد.</value></data>
+  <data name="RentalTransportKindInvalid" xml:space="preserve"><value>غرض النقل غير صالح (توصيل، إرجاع، نقل بين مواقع).</value></data>
+  <data name="RentalTransportLinesRequired" xml:space="preserve"><value>اختر معدة واحدة على الأقل من أسطر العقد.</value></data>
+  <data name="RentalTransportModeInvalid" xml:space="preserve"><value>طريقة النقل غير صالحة (داخلي أو مورد خارجي).</value></data>
+  <data name="RentalTransportNotFound" xml:space="preserve"><value>مهمة النقل غير موجودة.</value></data>
+  <data name="RentalTransportNotPlanned" xml:space="preserve"><value>مهمة النقل ليست مجدولة؛ لا تُعدَّل ولا تُنفَّذ ولا تُلغى ولا تُحذف.</value></data>
+  <data name="RentalTransportSupplierRequired" xml:space="preserve"><value>مورد النقل الخارجي مطلوب وموجود.</value></data>
+  <data name="RentalTransportVehicleIsCargo" xml:space="preserve"><value>مركبة النقل لا تكون من المعدات المنقولة.</value></data>
+  <data name="RentalTransportVehicleNotFound" xml:space="preserve"><value>مركبة النقل غير موجودة في سجل المعدات.</value></data>
+  <data name="InspectionItemTextRequired" xml:space="preserve"><value>نص بند الفحص مطلوب.</value></data>
+  <data name="InspectionItemsRequired" xml:space="preserve"><value>أضف بنداً واحداً على الأقل لقالب الفحص.</value></data>
+  <data name="InspectionResultTypeInvalid" xml:space="preserve"><value>نوع نتيجة البند غير صالح (حالة، رقم، نص).</value></data>
+  <data name="InspectionTemplateNotFound" xml:space="preserve"><value>قالب الفحص غير موجود.</value></data>
+  <data name="InspectionTooManyItems" xml:space="preserve"><value>بنود قالب الفحص أكثر من {0}.</value></data>
+  <data name="InspectionUsageInvalid" xml:space="preserve"><value>استخدام القالب غير صالح (استقبال، تشخيص، جودة).</value></data>
+  <data name="ServiceVehicleFuelInvalid" xml:space="preserve"><value>نوع الوقود غير صالح.</value></data>
+  <data name="ServiceVehicleIdentifierRequired" xml:space="preserve"><value>رقم الهيكل أو رقم اللوحة مطلوب.</value></data>
+  <data name="ServiceVehicleInUse" xml:space="preserve"><value>للمركبة أوامر عمل؛ لا تُحذف (عطّلها بدلاً من ذلك).</value></data>
+  <data name="ServiceVehicleInactive" xml:space="preserve"><value>المركبة معطّلة في السجل.</value></data>
+  <data name="ServiceVehicleMakeRequired" xml:space="preserve"><value>ماركة المركبة مطلوبة.</value></data>
+  <data name="ServiceVehicleNotFound" xml:space="preserve"><value>المركبة غير موجودة في سجل الورشة.</value></data>
+  <data name="ServiceVehicleShowroomNotFound" xml:space="preserve"><value>سيارة المعرض المرتبطة غير موجودة.</value></data>
+  <data name="ServiceVehicleVinTaken" xml:space="preserve"><value>رقم الهيكل {0} مسجل لمركبة أخرى.</value></data>
+  <data name="ServiceVehicleYearInvalid" xml:space="preserve"><value>سنة الصنع غير صالحة.</value></data>
+  <data name="WorkOrderBackReasonRequired" xml:space="preserve"><value>سبب الرجوع لحالة سابقة مطلوب.</value></data>
+  <data name="WorkOrderDamageAreaRequired" xml:space="preserve"><value>منطقة الضرر مطلوبة.</value></data>
+  <data name="WorkOrderDamageNotFound" xml:space="preserve"><value>علامة الضرر غير موجودة.</value></data>
+  <data name="WorkOrderDamageTypeInvalid" xml:space="preserve"><value>نوع الضرر أو شدته غير صالح.</value></data>
+  <data name="WorkOrderDeleteReceivedOnly" xml:space="preserve"><value>يُحذف أمر العمل وهو «مستلم» ولم يتحرك فقط؛ ألغه بسبب بدلاً من ذلك.</value></data>
+  <data name="WorkOrderFuelInvalid" xml:space="preserve"><value>مستوى الوقود بين 0 و100.</value></data>
+  <data name="WorkOrderInspectionRequired" xml:space="preserve"><value>إعداد الورشة يشترط فحص الاستقبال قبل طلب الموافقة.</value></data>
+  <data name="WorkOrderNotEditable" xml:space="preserve"><value>أمر العمل مفوتر أو مُسلَّم أو مغلق أو ملغى؛ لا يُعدَّل.</value></data>
+  <data name="WorkOrderNotFound" xml:space="preserve"><value>أمر العمل غير موجود.</value></data>
+  <data name="WorkOrderOdometerBackwards" xml:space="preserve"><value>قراءة العدّاد {0} أقل من آخر قراءة مسجلة للمركبة {1}.</value></data>
+  <data name="WorkOrderOdometerInvalid" xml:space="preserve"><value>قراءة العدّاد لا تكون سالبة.</value></data>
+  <data name="WorkOrderPauseReasonRequired" xml:space="preserve"><value>سبب التوقف مطلوب.</value></data>
+  <data name="WorkOrderPriorityInvalid" xml:space="preserve"><value>الأولوية غير صالحة (عادية أو عاجلة).</value></data>
+  <data name="WorkOrderPromisedBeforeReception" xml:space="preserve"><value>موعد التسليم الموعود لا يسبق الاستقبال.</value></data>
+  <data name="WorkOrderStageInvalid" xml:space="preserve"><value>المرحلة غير موجودة أو غير نشطة أو لا تتبع الحالة المختارة.</value></data>
+  <data name="WorkOrderStatusInvalid" xml:space="preserve"><value>حالة أمر العمل غير صالحة.</value></data>
+  <data name="WorkOrderTooManyDamages" xml:space="preserve"><value>علامات الضرر أكثر من {0}.</value></data>
+  <data name="WorkOrderTransitionNotAllowed" xml:space="preserve"><value>لا يُنقل أمر العمل من «{0}» إلى «{1}».</value></data>
+  <data name="WorkshopCancelReasonRequired" xml:space="preserve"><value>سبب الإلغاء مطلوب.</value></data>
+  <data name="WorkshopCustomerNotFound" xml:space="preserve"><value>العميل غير موجود.</value></data>
+  <data name="WorkshopFixedPriceRequired" xml:space="preserve"><value>الخدمة بسعر ثابت تتطلب سعراً أكبر من صفر.</value></data>
+  <data name="WorkshopNameRequired" xml:space="preserve"><value>الاسم بالعربية مطلوب.</value></data>
+  <data name="WorkshopPauseReasonInUse" xml:space="preserve"><value>سبب التوقف مستخدم في أوامر عمل؛ عطّله بدلاً من حذفه.</value></data>
+  <data name="WorkshopPauseReasonNotFound" xml:space="preserve"><value>سبب التوقف غير موجود أو غير نشط.</value></data>
+  <data name="WorkshopPricingMethodInvalid" xml:space="preserve"><value>طريقة التسعير غير صالحة (ثابت أو بالساعة).</value></data>
+  <data name="WorkshopReceptionDuplicateVehicle" xml:space="preserve"><value>المركبة مكررة في الاستقبال.</value></data>
+  <data name="WorkshopReceptionInFuture" xml:space="preserve"><value>لحظة الاستقبال لا تكون في المستقبل.</value></data>
+  <data name="WorkshopReceptionNotFound" xml:space="preserve"><value>الاستقبال غير موجود.</value></data>
+  <data name="WorkshopReceptionTooManyVehicles" xml:space="preserve"><value>مركبات الاستقبال الواحد أكثر من {0}.</value></data>
+  <data name="WorkshopReceptionVehicleRequired" xml:space="preserve"><value>اختر مركبة من السجل أو أدخل بيانات مركبة جديدة.</value></data>
+  <data name="WorkshopReceptionVehiclesRequired" xml:space="preserve"><value>أضف مركبة واحدة على الأقل للاستقبال.</value></data>
+  <data name="WorkshopServiceCodeTaken" xml:space="preserve"><value>رمز الخدمة {0} مستخدم.</value></data>
+  <data name="WorkshopServiceNotFound" xml:space="preserve"><value>الخدمة غير موجودة.</value></data>
+  <data name="WorkshopServiceProductInvalid" xml:space="preserve"><value>الخدمة تُعرَّف على صنف خدمي موجود.</value></data>
+  <data name="WorkshopSettingsNegative" xml:space="preserve"><value>الأسعار والساعات والمدد لا تكون سالبة.</value></data>
+  <data name="WorkshopStageInUse" xml:space="preserve"><value>المرحلة مستخدمة في أوامر عمل؛ عطّلها بدلاً من حذفها أو تغيير حالتها.</value></data>
+  <data name="WorkshopStageNotFound" xml:space="preserve"><value>المرحلة غير موجودة.</value></data>
+  <data name="WorkshopStageStatusInvalid" xml:space="preserve"><value>المرحلة تتبع حالة تشغيلية قبل الفوترة.</value></data>
+  <data name="WorkshopStandardHoursRequired" xml:space="preserve"><value>الخدمة بالساعة تتطلب ساعات معيارية أكبر من صفر.</value></data>
+  <data name="WorkshopVehicleHasOpenOrder" xml:space="preserve"><value>للمركبة أمر عمل قائم {0}.</value></data>
+  <data name="WorkshopVehicleOtherCustomer" xml:space="preserve"><value>المركبة مسجلة لعميل آخر؛ حدّث مالكها في سجل المركبات أولاً.</value></data>
+  <data name="WorkshopWarehouseNotFound" xml:space="preserve"><value>الموقع (المستودع) غير موجود.</value></data>
+  <data name="WorkOrderStatus_received" xml:space="preserve"><value>مستلم</value></data>
+  <data name="WorkOrderStatus_inspection" xml:space="preserve"><value>فحص</value></data>
+  <data name="WorkOrderStatus_awaiting_approval" xml:space="preserve"><value>بانتظار الموافقة</value></data>
+  <data name="WorkOrderStatus_approved" xml:space="preserve"><value>معتمد</value></data>
+  <data name="WorkOrderStatus_in_progress" xml:space="preserve"><value>قيد التنفيذ</value></data>
+  <data name="WorkOrderStatus_paused" xml:space="preserve"><value>متوقف</value></data>
+  <data name="WorkOrderStatus_quality" xml:space="preserve"><value>فحص الجودة</value></data>
+  <data name="WorkOrderStatus_ready" xml:space="preserve"><value>جاهز</value></data>
+  <data name="WorkOrderStatus_invoiced" xml:space="preserve"><value>مفوتر</value></data>
+  <data name="WorkOrderStatus_delivered" xml:space="preserve"><value>مُسلَّم</value></data>
+  <data name="WorkOrderStatus_closed" xml:space="preserve"><value>مغلق</value></data>
+  <data name="WorkOrderStatus_cancelled" xml:space="preserve"><value>ملغى</value></data>
+  <data name="EstimateChannelInvalid" xml:space="preserve"><value>قناة رد العميل غير صالحة (حضوري، هاتف، واتساب، بريد).</value></data>
+  <data name="EstimateDecisionInvalid" xml:space="preserve"><value>قرار السطر غير صالح (موافق، مرفوض، مؤجل).</value></data>
+  <data name="EstimateDecisionsIncomplete" xml:space="preserve"><value>سجّل قراراً لكل سطر في التقدير، ولأسطره وحدها.</value></data>
+  <data name="EstimateNoPendingLines" xml:space="preserve"><value>لا أسطر تنتظر قرار العميل لإصدار تقدير.</value></data>
+  <data name="EstimateNotDraft" xml:space="preserve"><value>التقدير ليس مسودة.</value></data>
+  <data name="EstimateNotFound" xml:space="preserve"><value>التقدير غير موجود.</value></data>
+  <data name="EstimateNotSent" xml:space="preserve"><value>يُسجَّل رد العميل على تقدير مُرسل لم يُستبدل.</value></data>
+  <data name="EstimateRespondentRequired" xml:space="preserve"><value>اسم من رد من جهة العميل مطلوب.</value></data>
+  <data name="EstimateResponseTimeInvalid" xml:space="preserve"><value>لحظة الرد لا تكون في المستقبل ولا قبل إرسال التقدير.</value></data>
+  <data name="ExecutionExceptionAttachmentInvalid" xml:space="preserve"><value>المرفق ليس من مرفقات أمر العمل.</value></data>
+  <data name="ExecutionExceptionExists" xml:space="preserve"><value>للسطر استثناء تنفيذ مسجل.</value></data>
+  <data name="ExecutionExceptionNotNeeded" xml:space="preserve"><value>السطر موافق عليه؛ لا يحتاج استثناءً.</value></data>
+  <data name="ExecutionExceptionReasonRequired" xml:space="preserve"><value>سبب الاستثناء مطلوب.</value></data>
+  <data name="InspectionCompleted" xml:space="preserve"><value>الفحص مكتمل؛ لا يُعدَّل ولا يُحذف.</value></data>
+  <data name="InspectionConditionInvalid" xml:space="preserve"><value>نتيجة البند غير صالحة (سليم، يحتاج انتباهاً، فشل).</value></data>
+  <data name="InspectionHasLines" xml:space="preserve"><value>اقتُرحت أسطر من هذا الفحص؛ احذفها أولاً.</value></data>
+  <data name="InspectionNotFound" xml:space="preserve"><value>الفحص غير موجود.</value></data>
+  <data name="InspectionPhotoRequired" xml:space="preserve"><value>أرفق صورة للبنود الفاشلة: {0}.</value></data>
+  <data name="InspectionResultNotFound" xml:space="preserve"><value>بند الفحص غير موجود في هذا الأمر.</value></data>
+  <data name="InspectionUnanswered" xml:space="preserve"><value>أكمل نتائج البنود: {0}.</value></data>
+  <data name="WorkOrderExecutionStatusInvalid" xml:space="preserve"><value>حالة التنفيذ غير صالحة.</value></data>
+  <data name="WorkOrderLineApprovedLocked" xml:space="preserve"><value>السطر موافق عليه أو عليه استثناء تنفيذ؛ لا يُعدَّل ولا يُحذف.</value></data>
+  <data name="WorkOrderLineBillingInvalid" xml:space="preserve"><value>نوع التحميل غير صالح (عميل، ضمان، داخلي، مجاملة).</value></data>
+  <data name="WorkOrderLineDescriptionRequired" xml:space="preserve"><value>وصف السطر مطلوب.</value></data>
+  <data name="WorkOrderLineDiscountTooLarge" xml:space="preserve"><value>الخصم أكبر من مبلغ السطر.</value></data>
+  <data name="WorkOrderLineInEstimate" xml:space="preserve"><value>السطر في تقدير صادر؛ لا يُحذف (عدّله ليُعاد عرضه).</value></data>
+  <data name="WorkOrderLineInSentEstimate" xml:space="preserve"><value>السطر في تقدير مُرسل ينتظر رد العميل؛ أصدر تقديراً جديداً أو سجّل الرد أولاً.</value></data>
+  <data name="WorkOrderLineKindInvalid" xml:space="preserve"><value>نوع السطر غير صالح (عمالة، قطعة، خدمة خارجية، رسوم).</value></data>
+  <data name="WorkOrderLineNotApproved" xml:space="preserve"><value>السطر لم يوافق عليه العميل ولا استثناء موثق له؛ لا يُنفَّذ.</value></data>
+  <data name="WorkOrderLineNotFound" xml:space="preserve"><value>سطر أمر العمل غير موجود.</value></data>
+  <data name="WorkOrderLinePartProductInvalid" xml:space="preserve"><value>القطعة صنف مخزني موجود.</value></data>
+  <data name="WorkOrderLinePriceForbidden" xml:space="preserve"><value>تغيير السعر أو الخصم يتطلب صلاحية «خصم يدوي» على أوامر العمل.</value></data>
+  <data name="WorkOrderLineQuantityInvalid" xml:space="preserve"><value>الكمية أكبر من صفر.</value></data>
+  <data name="WorkOrderNoApprovedLines" xml:space="preserve"><value>لا أسطر موافق عليها (أو باستثناء موثق) لهذا الانتقال.</value></data>
+  <data name="WorkOrderNotInExecution" xml:space="preserve"><value>حالة التنفيذ تُحدَّث والأمر معتمد أو قيد التنفيذ أو متوقف أو في الجودة.</value></data>
+  <data name="WorkOrderTooManyLines" xml:space="preserve"><value>أسطر أمر العمل أكثر من {0}.</value></data>
+  <data name="WorkshopServiceInUse" xml:space="preserve"><value>الخدمة مستخدمة في أسطر أوامر عمل؛ عطّلها بدلاً من حذفها.</value></data>
+  <data name="InspectionTemplateInUse" xml:space="preserve"><value>القالب مستخدم في فحوص مسجلة؛ عطّله بدلاً من حذفه.</value></data>
+  <data name="ExternalServiceInvoiceInvalid" xml:space="preserve"><value>فاتورة الشراء المرتبطة ليست فاتورة مرحّلة لمورد الخدمة نفسه.</value></data>
+  <data name="ExternalServiceLineInvalid" xml:space="preserve"><value>الخدمة الخارجية تُسجَّل على سطر من نوع «خدمة خارجية».</value></data>
+  <data name="ExternalServiceNotFound" xml:space="preserve"><value>الخدمة الخارجية غير موجودة.</value></data>
+  <data name="ExternalServiceNotRequested" xml:space="preserve"><value>الخدمة الخارجية منجزة أو ملغاة.</value></data>
+  <data name="PartExceedsLine" xml:space="preserve"><value>«{0}»: المحجوز والمصروف يتجاوز كمية السطر {1}.</value></data>
+  <data name="PartIssueNotFound" xml:space="preserve"><value>صرف القطعة غير موجود في هذا الأمر.</value></data>
+  <data name="PartLineInvalid" xml:space="preserve"><value>الحجز والصرف لسطر من نوع «قطعة».</value></data>
+  <data name="PartLineRejected" xml:space="preserve"><value>السطر مرفوض من العميل؛ لا تُحجز له قطع.</value></data>
+  <data name="PartNotAvailable" xml:space="preserve"><value>«{0}»: المتاح للورشة في المستودع {1} فقط (بعد حجوزات الأوامر الأخرى).</value></data>
+  <data name="PartReservationNotActive" xml:space="preserve"><value>الحجز مستهلك أو محرَّر.</value></data>
+  <data name="PartReservationNotFound" xml:space="preserve"><value>الحجز غير موجود.</value></data>
+  <data name="PartReturnDateInvalid" xml:space="preserve"><value>تاريخ الإرجاع لا يكون في المستقبل ولا قبل الصرف.</value></data>
+  <data name="PartReturnExceeds" xml:space="preserve"><value>الكمية أكبر من الباقي من الصرف ({0}).</value></data>
+  <data name="RequisitionWorkOrderLocked" xml:space="preserve"><value>أمر العمل في طلب الشراء يثبت بعد إنشائه.</value></data>
+  <data name="RequisitionWorkOrderWithProject" xml:space="preserve"><value>طلب الشراء لأمر عمل أو لمشروع، لا لكليهما.</value></data>
+  <data name="TimeLogAlreadyOpen" xml:space="preserve"><value>للفني سجل مفتوح؛ أغلقه أولاً.</value></data>
+  <data name="TimeLogBeforeReception" xml:space="preserve"><value>بداية السجل لا تسبق استقبال المركبة.</value></data>
+  <data name="TimeLogClosed" xml:space="preserve"><value>السجل مغلق من قبل.</value></data>
+  <data name="TimeLogEndBeforeStart" xml:space="preserve"><value>نهاية السجل بعد بدايته.</value></data>
+  <data name="TimeLogInFuture" xml:space="preserve"><value>الوقت أو التاريخ لا يكون في المستقبل.</value></data>
+  <data name="TimeLogKindInvalid" xml:space="preserve"><value>نوع السجل غير صالح (عمل أو توقف).</value></data>
+  <data name="TimeLogLaborOnly" xml:space="preserve"><value>ساعات العمل تُسجَّل على سطر عمالة.</value></data>
+  <data name="TimeLogLineRequired" xml:space="preserve"><value>اختر سطر العمالة من هذا الأمر.</value></data>
+  <data name="TimeLogNotFound" xml:space="preserve"><value>سجل الوقت غير موجود.</value></data>
+  <data name="TimeLogOverlap" xml:space="preserve"><value>السجل يتداخل مع سجل آخر للفني نفسه.</value></data>
+  <data name="TimeLogTechnicianNotFound" xml:space="preserve"><value>الفني غير موجود في الموظفين أو غير نشط.</value></data>
+  <data name="TimeLogTooLong" xml:space="preserve"><value>السجل الواحد لا يتجاوز 24 ساعة.</value></data>
+  <data name="WorkOrderCancelHasCosts" xml:space="preserve"><value>على الأمر قطع مصروفة أو ساعات مقيّدة أو سجل مفتوح؛ أرجع القطع واحذف الساعات قبل الإلغاء.</value></data>
+  <data name="WorkOrderLineHasExecution" xml:space="preserve"><value>على السطر حجز أو صرف أو ساعات أو خدمة خارجية؛ لا يُعدَّل ولا يُحذف.</value></data>
+  <data name="WorkshopAccountsMissing" xml:space="preserve"><value>حسابات الورشة (تحت التنفيذ والعمالة المحمّلة) غير محددة في إعدادات الحسابات.</value></data>
+  <data name="WarrantyExpired" xml:space="preserve"><value>انتهت مدة الضمان.</value></data>
+  <data name="WarrantyKmExceeded" xml:space="preserve"><value>العدّاد تجاوز حد الضمان ({0} كم).</value></data>
+  <data name="WarrantyNotActive" xml:space="preserve"><value>الضمان ليس نشطاً (مُطالب به أو مُبطل).</value></data>
+  <data name="WarrantyNotFound" xml:space="preserve"><value>الضمان غير موجود.</value></data>
+  <data name="WorkOrderDeliveredToRequired" xml:space="preserve"><value>اسم مستلم المركبة مطلوب.</value></data>
+  <data name="WorkOrderDeliveryTimeInvalid" xml:space="preserve"><value>لحظة التسليم لا تكون في المستقبل ولا قبل الاستقبال.</value></data>
+  <data name="WorkOrderExternalPending" xml:space="preserve"><value>على الأمر خدمة خارجية لم تُنجز ولم تُلغَ.</value></data>
+  <data name="WorkOrderHasOpenLogs" xml:space="preserve"><value>على الأمر سجل وقت مفتوح؛ أوقفه أولاً.</value></data>
+  <data name="WorkOrderInvoiceDateInvalid" xml:space="preserve"><value>تاريخ الفاتورة لا يكون في المستقبل ولا قبل الاستقبال.</value></data>
+  <data name="WorkOrderInvoiceHasPayments" xml:space="preserve"><value>على فاتورة الأمر تحصيل؛ ألغِ السند أولاً.</value></data>
+  <data name="WorkOrderInvoiceReadyOnly" xml:space="preserve"><value>يُفوتر أمر العمل وهو «جاهز».</value></data>
+  <data name="WorkOrderInvoiceReturnBlocked" xml:space="preserve"><value>فاتورة أمر العمل تُلغى من أمر العمل نفسه (إلغاء الفاتورة) لا بمرتجع مستقل.</value></data>
+  <data name="WorkOrderLinesNotDone" xml:space="preserve"><value>أسطر لم تُنجز بعد: {0}.</value></data>
+  <data name="WorkOrderNotDelivered" xml:space="preserve"><value>يُغلق أمر العمل بعد تسليمه.</value></data>
+  <data name="WorkOrderNotInvoiced" xml:space="preserve"><value>أمر العمل ليس مفوتراً.</value></data>
+  <data name="WorkOrderQualityFailed" xml:space="preserve"><value>آخر فحص جودة فيه بنود فاشلة؛ أعد العمل ثم افحص من جديد.</value></data>
+  <data name="WorkOrderQualityRequired" xml:space="preserve"><value>أكمل فحص الجودة قبل اعتبار الأمر جاهزاً.</value></data>
+  <data name="WorkshopReportRangeInvalid" xml:space="preserve"><value>نهاية الفترة لا تسبق بدايتها.</value></data>
+  <data name="WorkshopReportRangeTooLong" xml:space="preserve"><value>فترة التقرير لا تتجاوز 400 يوم.</value></data>
+  <data name="ExternalServiceExceedsInvoice" xml:space="preserve"><value>التكلفة أكبر من المتاح في فاتورة المورد قبل الضريبة ({0}).</value></data>
+  <data name="RentalAccountsMissing" xml:space="preserve"><value>حساب إيراد التأجير غير محدد في إعدادات الحسابات.</value></data>
+  <data name="RentalBillingCancelled" xml:space="preserve"><value>الفوترة ملغاة من قبل.</value></data>
+  <data name="RentalBillingFutureNotAllowed" xml:space="preserve"><value>الفوترة حتى لحظة مستقبلية للعقد الذي يُفوتر مقدماً فقط.</value></data>
+  <data name="RentalBillingNotFound" xml:space="preserve"><value>الفوترة غير موجودة.</value></data>
+  <data name="RentalBillingNotLatest" xml:space="preserve"><value>بعد هذه الفوترة فوترة لاحقة للعقد؛ ألغِ اللاحقة أولاً.</value></data>
+  <data name="RentalChargeAccountInvalid" xml:space="preserve"><value>الحساب {0} غير موجود في دليل الحسابات أو موقوف.</value></data>
+  <data name="RentalChargeDeleteManualPending" xml:space="preserve"><value>يُحذف الرسم اليدوي المعلّق فقط؛ المولّد أو المعتمد يُعفى منه بسبب.</value></data>
+  <data name="RentalChargeKindInvalid" xml:space="preserve"><value>طبيعة الرسم غير صالحة.</value></data>
+  <data name="RentalChargeNeedsClassification" xml:space="preserve"><value>صنّف الرسم ضريبياً (خاضع أو خارج النطاق) قبل اعتماده.</value></data>
+  <data name="RentalChargeNotFound" xml:space="preserve"><value>الرسم غير موجود.</value></data>
+  <data name="RentalChargeNotPending" xml:space="preserve"><value>الرسم ليس معلّقاً أو معتمداً غير مفوتر.</value></data>
+  <data name="RentalChargeTypeNotFound" xml:space="preserve"><value>نوع الرسم غير موجود أو غير نشط.</value></data>
+  <data name="RentalCloseChargesOpen" xml:space="preserve"><value>على العقد رسوم معلّقة أو معتمدة لم تُفوتر؛ اعتمدها وفوترها أو أعفِ منها قبل الإغلاق.</value></data>
+  <data name="RentalCloseLinesOpen" xml:space="preserve"><value>معدات العقد لم تُستلم كلها بعد.</value></data>
+  <data name="RentalCloseNotBilled" xml:space="preserve"><value>أسطر مستلمة لم تُفوتر حتى استلامها؛ فوتر العقد أولاً.</value></data>
+  <data name="RentalInvoiceReturnBlocked" xml:space="preserve"><value>فاتورة فوترة التأجير تُلغى من الفوترة نفسها لا بمرتجع مستقل.</value></data>
+  <data name="RentalNothingToBill" xml:space="preserve"><value>لا إيجار ولا رسوم معتمدة للفوترة حتى هذه اللحظة.</value></data>
+  <data name="RentalTaxTreatmentInvalid" xml:space="preserve"><value>التصنيف الضريبي غير صالح (خاضع أو خارج النطاق).</value></data>
+  <data name="RentalDepositNotFound" xml:space="preserve"><value>التأمين غير موجود.</value></data>
+  <data name="RentalDepositContractState" xml:space="preserve"><value>حالة عقد التأجير لا تسمح بهذه العملية على التأمين.</value></data>
+  <data name="RentalDepositAmountInvalid" xml:space="preserve"><value>مبلغ التأمين يجب أن يكون أكبر من صفر.</value></data>
+  <data name="RentalDepositInvoiceNotForContract" xml:space="preserve"><value>الفاتورة ليست فاتورة فوترة صادرة لهذا العقد.</value></data>
+  <data name="RentalDepositExceedsBalance" xml:space="preserve"><value>المبلغ يتجاوز رصيد التأمين المتبقي ({0}).</value></data>
+  <data name="RentalDepositSettlementNotFound" xml:space="preserve"><value>تسوية التأمين غير موجودة.</value></data>
+  <data name="RentalDepositNotHeld" xml:space="preserve"><value>لا يوجد رصيد قائم على هذا التأمين.</value></data>
+  <data name="RentalDepositHasSettlements" xml:space="preserve"><value>لا يمكن إلغاء التأمين وعليه تسويات؛ ألغِ التسويات أولاً.</value></data>
+  <data name="ReasonRequired" xml:space="preserve"><value>السبب مطلوب.</value></data>
 </root>

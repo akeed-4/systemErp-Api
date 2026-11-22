@@ -15,6 +15,9 @@ namespace ERP.Service.Data.Migrations
     public partial class WorkshopRentalAddOns : Migration
     {
         private static readonly string[] Columns = { "Key", "DescriptionAr", "DescriptionEn", "Icon", "IsActive", "NameAr", "NameEn", "Number", "SortOrder" };
+        // الهجرة بلا ملف Designer فلا نموذج هدف يستنتج منه EF أنواع الأعمدة: تُذكر صراحة
+        private static readonly string[] ColumnTypes = { "nvarchar(64)", "nvarchar(max)", "nvarchar(max)", "nvarchar(max)", "bit", "nvarchar(200)", "nvarchar(200)", "int", "int" };
+        private const string KeyType = "nvarchar(64)";
 
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -22,11 +25,13 @@ namespace ERP.Service.Data.Migrations
             migrationBuilder.InsertData(
                 table: "PlatformModuleDefinition",
                 columns: Columns,
+                columnTypes: ColumnTypes,
                 values: new object[] { "workshop", "مركبات العملاء والاستقبال وأوامر العمل والتقديرات والفنيين وقطع الغيار والجودة والضمان.", "Customer vehicles, reception, work orders, estimates, technicians, spare parts, quality and warranty.", "car_repair", true, "ورش السيارات", "Automotive Workshop", 7, 7 });
 
             migrationBuilder.InsertData(
                 table: "PlatformModuleDefinition",
                 columns: Columns,
+                columnTypes: ColumnTypes,
                 values: new object[] { "equipment_rental", "تسعير المعدات وتوفرها وحجوزاتها وعقود التأجير والتسليم والاستلام والفوترة الدورية والتأمينات.", "Equipment pricing, availability, bookings, rental contracts, handovers, periodic billing and deposits.", "front_loader", true, "تأجير المعدات", "Equipment Rental", 8, 8 });
         }
 
@@ -35,8 +40,8 @@ namespace ERP.Service.Data.Migrations
         {
             migrationBuilder.Sql("UPDATE [Subscription] SET ModuleKeys = REPLACE(REPLACE(ModuleKeys, ',workshop', ''), ',equipment_rental', '') WHERE ModuleKeys LIKE '%,workshop%' OR ModuleKeys LIKE '%,equipment_rental%';");
 
-            migrationBuilder.DeleteData(table: "PlatformModuleDefinition", keyColumn: "Key", keyValue: "workshop");
-            migrationBuilder.DeleteData(table: "PlatformModuleDefinition", keyColumn: "Key", keyValue: "equipment_rental");
+            migrationBuilder.DeleteData(table: "PlatformModuleDefinition", keyColumn: "Key", keyColumnType: KeyType, keyValue: "workshop");
+            migrationBuilder.DeleteData(table: "PlatformModuleDefinition", keyColumn: "Key", keyColumnType: KeyType, keyValue: "equipment_rental");
         }
     }
 }

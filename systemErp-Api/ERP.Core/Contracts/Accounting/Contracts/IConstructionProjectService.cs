@@ -21,6 +21,12 @@ public interface IConstructionProjectService
     Task<ConstructionProjectDto> UpdateMemberAsync(Guid contractId, Guid memberId, SaveProjectMemberDto request, CancellationToken ct = default);
     Task<ConstructionProjectDto> RemoveMemberAsync(Guid contractId, Guid memberId, CancellationToken ct = default);
     Task<List<ProjectMemberCandidateDto>> MemberCandidatesAsync(CancellationToken ct = default);
+    /// <summary>أدوار أعضاء المشاريع: أدوار النظام ثم أدوار المنشأة (الموقوفة معها).</summary>
+    Task<List<ProjectMemberRoleDto>> MemberRolesAsync(CancellationToken ct = default);
+    Task<List<ProjectMemberRoleDto>> CreateMemberRoleAsync(SaveProjectMemberRoleDto request, CancellationToken ct = default);
+    Task<List<ProjectMemberRoleDto>> UpdateMemberRoleAsync(string code, SaveProjectMemberRoleDto request, CancellationToken ct = default);
+    /// <summary>يحذف دور المنشأة إن لم يُسند لأحد؛ المستخدم يُوقف بدل الحذف.</summary>
+    Task<List<ProjectMemberRoleDto>> DeleteMemberRoleAsync(string code, CancellationToken ct = default);
     /// <summary>موارد المشروع بتكلفة ساعتها (الآليات المملوكة والمستأجرة، المهندسون، العمالة).</summary>
     Task<List<ProjectResourceDto>> ResourcesAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>إضافة (بلا معرّف) أو تعديل مورد؛ تكلفة الساعة يحسبها الخادم. يعيد القائمة.</summary>

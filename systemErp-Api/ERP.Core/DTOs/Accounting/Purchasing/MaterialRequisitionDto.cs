@@ -20,6 +20,8 @@ public partial class MaterialRequisitionDto
     public Guid? ContractId { get; set; }
     /// <summary>مرحلة التنفيذ (فارغة في الطلبات القديمة وفي مشروع بلا مراحل).</summary>
     public Guid? PhaseId { get; set; }
+    public Guid? WorkOrderId { get; set; }
+    public string? WorkOrderNumber { get; set; }
     /// <summary>warehouse | project_site</summary>
     public string? DeliveryLocation { get; set; }
     public string? DeliveryAddress { get; set; }

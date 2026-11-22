@@ -189,6 +189,43 @@ public class RentalContractService : IRentalContractService
             return await GetAsync(c.Id, token);
         }, ct);
 
+    public Task<RentalContractDto> AssignOperatorAsync(Guid id, Guid lineId, AssignRentalOperatorDto request, CancellationToken ct = default)
+        => _tx.RunAsync(async token =>
+        {
+            var c = await FindAsync(id, track: true, token);
+            if (c.Status is not (St.Draft or St.Active)) throw new ConflictException(Messages.RentalContractNotEditable);
+            var line = c.Lines.FirstOrDefault(l => l.Id == lineId) ?? throw new NotFoundException(Messages.RentalHandoverLineNotFound);
+            if (!line.WithOperator) throw new ValidationFailedException(Messages.RentalLineWithoutOperator);
+            if (line.Status is not (LSt.Pending or LSt.Out)) throw new ConflictException(Messages.RentalOperatorLineClosed);
+            if (line.OperatorEmployeeId == request.OperatorEmployeeId) return await GetAsync(id, token);
+            var reason = request.Reason?.Trim();
+            if (line.Status == LSt.Out && string.IsNullOrEmpty(reason)) throw new ValidationFailedException(Messages.RentalOperatorReasonRequired);
+
+            string? newName = null;
+            if (request.OperatorEmployeeId is Guid op)
+            {
+                newName = await _db.Set<Employee>().Where(e => e.Id == op && e.Status == EmployeeStatuses.Active).Select(e => e.NameAr).FirstOrDefaultAsync(token)
+                    ?? throw new ValidationFailedException(Messages.RentalOperatorNotFound);
+                // المشغّل يُقفل بقفل معدة السطر حتى لا يُعيَّن في سطرين متزامنين
+                await RentalAvailability.LockAsync(_db, new List<Guid> { line.EquipmentId }, token);
+                var from = line.Status == LSt.Out ? SaudiTime.Now : line.PlannedFrom;
+                if (line.PlannedTo > from && await RentalOperators.ConflictAsync(_db, op, from, line.PlannedTo, line.Id, null, token) is string busy)
+                    throw new ConflictException(string.Format(Messages.RentalOperatorBusy, busy));
+            }
+            var oldName = line.OperatorEmployeeId is Guid old
+                ? await _db.Set<Employee>().Where(e => e.Id == old).Select(e => e.NameAr).FirstOrDefaultAsync(token) : null;
+            line.OperatorEmployeeId = request.OperatorEmployeeId;
+            var note = $"{oldName ?? "—"} ← {newName ?? "—"}{(string.IsNullOrEmpty(reason) ? string.Empty : " • " + reason)}";
+            _db.Add(new RentalContractChange
+            {
+                ContractId = c.Id, Kind = RentalContractChangeKinds.Operator, LineId = line.Id, Reason = note.Length > 500 ? note[..500] : note,
+                CreatedBy = _user.Name ?? _user.Email,
+            });
+            await _db.SaveChangesAsync(token);
+            await LogAsync("RENTAL_OPERATOR_ASSIGNED", c, note, token);
+            return await GetAsync(id, token);
+        }, ct);
+
     public async Task<RentalContractDto> CancelAsync(Guid id, RentalReasonDto request, CancellationToken ct = default)
     {
         var c = await FindAsync(id, track: true, ct);
@@ -262,8 +299,16 @@ public class RentalContractService : IRentalContractService
             if (!RentalRateBases.IsValid(basis)) throw new ValidationFailedException(Messages.RentalBasisInvalid);
             if (to <= from) throw new ValidationFailedException(Messages.RentalPeriodInvalid);
             await EnsureRentableAsync(l.EquipmentId, ct);
-            if (l.OperatorEmployeeId is Guid op && !await _db.Set<Employee>().AnyAsync(e => e.Id == op && e.Status == EmployeeStatuses.Active, ct))
-                throw new ValidationFailedException(Messages.RentalOperatorNotFound);
+            if (l.WithOperator && l.OperatorEmployeeId is Guid op)
+            {
+                if (!await _db.Set<Employee>().AnyAsync(e => e.Id == op && e.Status == EmployeeStatuses.Active, ct))
+                    throw new ValidationFailedException(Messages.RentalOperatorNotFound);
+                // تعارض مع سطر آخر في هذا العقد، ثم مع العقود الأخرى وإسنادات المقاولات
+                if (lines.Any(x => x.OperatorEmployeeId == op && x.PlannedFrom < to && x.PlannedTo > from))
+                    throw new ConflictException(Messages.RentalOperatorTwiceInContract);
+                if (await RentalOperators.ConflictAsync(_db, op, from, to, null, c.Id == Guid.Empty ? null : c.Id, ct) is string busy)
+                    throw new ConflictException(string.Format(Messages.RentalOperatorBusy, busy));
+            }
 
             var rates = await RentalPricing.RatesAtAsync(_db, l.EquipmentId, null, from, ct);
             if (!rates.TryGetValue(basis, out var main))

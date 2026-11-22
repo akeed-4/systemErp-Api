@@ -10,10 +10,63 @@ namespace ERP.Service.Services.Accounting;
 public class ZatcaApiClient : IZatcaApiClient
 {
     public const string HttpClientName = "zatca";
+    /// <summary>
+    /// مهلة كل طلب للهيئة. يجب أن تبقى أقل من مهلة الطلب لدى الاستضافة (IIS/ANCM) حتى يعود الرد ويُحفظ مصير الطلب
+    /// قبل أن تقطع الاستضافة الاتصال.
+    /// </summary>
+    public static readonly TimeSpan ClientTimeout = TimeSpan.FromSeconds(45);
     private const string ApiVersion = "V2";
 
     private readonly IHttpClientFactory _http;
     public ZatcaApiClient(IHttpClientFactory http) => _http = http;
+
+    /// <summary>مهلة فحص الوصول: أقصر من مهلة العميل حتى يفشل الفحص سريعاً قبل أن يُلتزم بطلب حقيقي.</summary>
+    public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(15);
+    /// <summary>طلب شهادة غير صالح عمداً ("invalid" بترميز Base64): ترفضه الهيئة دائماً.</summary>
+    private const string ProbeCsr = "aW52YWxpZA==";
+
+    public async Task<ZatcaProbeResult> ProbeAsync(string baseUrl, CancellationToken ct = default)
+    {
+        // بلا ترويسة OTP وبطلب شهادة غير صالح: الهيئة ترد 400 (Missing-OTP / Invalid Request) ولا تصدر شيئاً
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/compliance") { Content = JsonContent.Create(new { csr = ProbeCsr }) };
+        Prepare(request);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(ProbeTimeout);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            using var response = await _http.CreateClient(HttpClientName).SendAsync(request, timeout.Token);
+            var body = await response.Content.ReadAsStringAsync(timeout.Token);
+            var status = (int)response.StatusCode;
+            // أي رد HTTP يثبت الوصول؛ 400 هو المتوقع. ما عداه يُعرض كما ورد لتشخيص الوسيط أو الجدار
+            var detail = $"{status} {response.ReasonPhrase}: {(body.Length > 300 ? body[..300] : body)}";
+            return new ZatcaProbeResult(true, status, watch.ElapsedMilliseconds, detail);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            var timedOut = ex is OperationCanceledException;
+            return new ZatcaProbeResult(false, null, watch.ElapsedMilliseconds,
+                timedOut ? $"No response within {ProbeTimeout.TotalSeconds:0}s (timeout)." : ex.Message,
+                ex.GetType().FullName, ExceptionChain(ex));
+        }
+    }
+
+    /// <summary>رسائل الاستثناء وأسبابه الداخلية بلا Stack Trace.</summary>
+    public static List<string> ExceptionChain(Exception ex)
+    {
+        var chain = new List<string>();
+        for (var e = ex; e != null && chain.Count < 8; e = e.InnerException)
+        {
+            var code = e switch
+            {
+                System.Net.Sockets.SocketException s => $" [SocketError={s.SocketErrorCode}]",
+                HttpRequestException h when h.HttpRequestError != HttpRequestError.Unknown => $" [HttpRequestError={h.HttpRequestError}]",
+                _ => $" [HResult=0x{e.HResult:X8}]",
+            };
+            chain.Add($"{e.GetType().FullName}: {e.Message}{code}");
+        }
+        return chain;
+    }
 
     public async Task<ZatcaCsidResult> RequestComplianceCsidAsync(string baseUrl, string csrBase64, string otp, CancellationToken ct = default)
     {

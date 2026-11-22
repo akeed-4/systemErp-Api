@@ -56,7 +56,7 @@ public static class ServiceCollectionExtensions
         services.Configure<WhatsAppOptions>(config.GetSection(WhatsAppOptions.Section));
         services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddHttpClient(MetaWhatsAppProvider.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(30));
-        services.AddHttpClient(ERP.Service.Services.Accounting.ZatcaApiClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(45));
+        services.AddHttpClient(ERP.Service.Services.Accounting.ZatcaApiClient.HttpClientName, c => c.Timeout = ERP.Service.Services.Accounting.ZatcaApiClient.ClientTimeout);
         // مفاتيح تشفير أسرار بوابات الدفع وسلاسل اتصال القواعد المستقلة، باسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب.
         // افتراضياً تُحفظ في جدول DataProtectionKeys بالقاعدة المشتركة فتبقى بعد إعادة النشر ونقل السرفر وتتشاركها كل
         // نسخ الخادم. DataProtection:Store=FileSystem (أو غياب القاعدة) يعيدها إلى مجلد DataProtection:KeysPath.

@@ -24,6 +24,18 @@ public class ZatcaService : IZatcaService
     /// <summary>أنواع الفواتير في الشهادة (TSCZ): ضريبية ومبسطة.</summary>
     private const string InvoiceTypes = "1100";
 
+    // حالات طلب الشهادة: «جارٍ» يُحفظ قبل الإرسال، و«مجهول» حين لم يُعرف رد الهيئة، و«مغلقة» بقرار المسؤول (لا تُحذف)
+    private const string ComplianceRequestingStatus = "compliance_csid_requesting";
+    private const string ComplianceUnknownStatus = "compliance_csid_unknown";
+    private const string ProductionRequestingStatus = "production_requesting";
+    private const string ProductionUnknownStatus = "production_unknown";
+    /// <summary>الهيئة أصدرت شهادة الامتثال لكن حفظها محلياً فشل (السبب في ErrorMessage).</summary>
+    private const string ComplianceUnsavedStatus = "compliance_csid_unsaved";
+    private const string AbandonedStatus = "compliance_csid_abandoned";
+    private static readonly string[] StuckStatuses = { ComplianceRequestingStatus, ComplianceUnknownStatus, ComplianceUnsavedStatus, ProductionRequestingStatus, ProductionUnknownStatus };
+    /// <summary>بعدها لا يمكن أن يكون الطلب جارياً: مهلة عميل الهيئة مع فحص الوصول وهامش أمان.</summary>
+    private static readonly TimeSpan RequestStaleAfter = ZatcaApiClient.ClientTimeout + ZatcaApiClient.ProbeTimeout + TimeSpan.FromMinutes(1);
+
     /// <summary>إرسال واحد في كل مرة للوحدة: العدّاد والتجزئة السابقة يؤخذان ويُحدَّثان بالتسلسل.</summary>
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Gates = new();
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> OnboardingGates = new();
@@ -66,39 +78,17 @@ public class ZatcaService : IZatcaService
         var target = await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == targetId, ct) ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
         if (!target.IsActive || target.Role == UserRole.Employee) throw new ValidationFailedException(Messages.ZatcaUserNotFound);
         var unit = await _db.Set<ZatcaUnit>().FirstOrDefaultAsync(u => u.UserId == targetId, ct);
+        // الجلسة المغلقة بقرار المسؤول تبقى للتدقيق ولا تُستأنف: المحاولة التالية تبدأ جلسة جديدة بمفتاح جديد
         var session = await _db.Set<ZatcaOnboardingSession>()
-            .Where(s => s.UserId == targetId && s.Environment == config.Environment && s.Status != "completed" && s.Status != "abandoned")
+            .Where(s => s.UserId == targetId && s.Environment == config.Environment && s.Status != "completed" && s.Status != AbandonedStatus && s.Status != "abandoned")
             .OrderByDescending(s => s.StartedAt).FirstOrDefaultAsync(ct);
 
-        // A Compliance CSID request with an unconfirmed outcome is safe to replace: ZATCA OTPs are single-use and
-        // an unused compliance certificate grants nothing. A new OTP abandons the stuck session and starts a fresh CSR.
-        // Production CSID uncertainty stays blocked below.
-        if (otp.Length > 0 && session?.ComplianceRequestId == null && session?.Status is "compliance_csid_requesting" or "compliance_csid_unknown")
-        {
-            session.Status = "abandoned";
-            session.ErrorMessage = "Replaced by a new onboarding attempt with a new OTP.";
-            await _db.SaveChangesAsync(ct);
-            session = null;
-        }
-
-        if (session?.Status == "compliance_csid_requesting")
-        {
-            session.Status = "compliance_csid_unknown";
-            session.ErrorMessage = "The previous Compliance CSID request was interrupted before its outcome was saved. Check its status with ZATCA; it will not be resubmitted automatically.";
-            await _db.SaveChangesAsync(ct);
-            throw new ConflictException(session.ErrorMessage);
-        }
-        if (session?.Status == "production_requesting")
-        {
-            session.Status = "production_unknown";
-            session.ErrorMessage = "The previous Production CSID request was interrupted before its outcome was saved. Check its status with ZATCA; it will not be resubmitted automatically.";
-            await _db.SaveChangesAsync(ct);
-            throw new ConflictException(session.ErrorMessage);
-        }
-        if (session?.Status == "compliance_csid_unknown")
-            throw new ConflictException("The previous Compliance CSID request has an unconfirmed outcome. Enter a new OTP from ZATCA to start a fresh onboarding attempt.");
-        if (session?.Status == "production_unknown")
-            throw new ConflictException("The previous ZATCA request has an unresolved outcome. Do not retry it automatically; review its status before starting a new onboarding attempt.");
+        if (session != null) await ExpireStaleRequestAsync(session);
+        if (session?.Status is ComplianceRequestingStatus or ProductionRequestingStatus)
+            throw new ConflictException("A ZATCA certificate request for this user is still in progress. Wait for it to finish, then refresh the status.");
+        if (session?.Status is ComplianceUnknownStatus or ProductionUnknownStatus)
+            throw new ConflictException((session.ErrorMessage is { Length: > 0 } reason ? reason + " " : string.Empty)
+                + "The previous ZATCA request has an unresolved outcome and will not be resent automatically. An owner or system admin must review it (company/ZatcaOnboard/stuck) before a new attempt.");
 
         var missing = new List<string>();
         if (otp.Length == 0 && session?.ComplianceRequestId == null) missing.Add(Messages.ZatcaFieldOtp);
@@ -127,42 +117,75 @@ public class ZatcaService : IZatcaService
 
         if (session.ComplianceRequestId == null)
         {
-            session.Status = "compliance_csid_requesting";
+            // فحص الوصول قبل الالتزام: انقطاع الاتصال الخارجي يُرفض هنا والجلسة قابلة لإعادة المحاولة، فلا تُعلَّق
+            await EnsureReachableAsync(baseUrl, ct);
+
+            session.Status = ComplianceRequestingStatus;
             session.ErrorMessage = null;
-            await _db.SaveChangesAsync(ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
+            // منذ هذه اللحظة لا يُلغى الطلب بانقطاع اتصال العميل أو إلغاء الطلب: مهلة عميل HTTP وحدها تحدّه، ومصيره
+            // (شهادة أو رفض أو مجهول) يُحفظ دائماً، فلا تبقى الجلسة «جارية» إلا إذا توقفت العملية نفسها
             ZatcaCsidResult compliance;
             try
             {
-                compliance = await _api.RequestComplianceCsidAsync(baseUrl, session.Csr, otp, ct);
+                compliance = await _api.RequestComplianceCsidAsync(baseUrl, session.Csr, otp, CancellationToken.None);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
-                session.Status = "compliance_csid_unknown";
-                session.ErrorMessage = ex.Message;
+                session.Status = ComplianceUnknownStatus;
+                session.ErrorMessage = $"Compliance CSID request failed without a confirmed ZATCA response: {ex.GetType().Name}: {ex.Message}";
                 await _db.SaveChangesAsync(CancellationToken.None);
                 throw;
             }
 
             if (!compliance.Success)
             {
-                session.Status = compliance.Reached ? "compliance_csid_rejected" : "compliance_csid_unknown";
+                session.Status = compliance.Reached ? "compliance_csid_rejected" : ComplianceUnknownStatus;
                 session.ErrorMessage = compliance.Message;
                 if (compliance.Reached && (unit == null || !unit.IsActive))
                     config.ComplianceStatus = ComplianceStatus.NotEnrolled;
-                await _db.SaveChangesAsync(ct);
+                await _db.SaveChangesAsync(CancellationToken.None);
                 throw new ValidationFailedException(string.Format(Messages.ZatcaComplianceCsidFailed, compliance.Message));
             }
 
-            session.ComplianceRequestId = compliance.RequestId;
-            session.ComplianceBinarySecurityToken = Protect(compliance.BinarySecurityToken!);
-            session.ComplianceSecret = Protect(compliance.Secret!);
-            session.CertificatePem = CertificateOf(compliance.BinarySecurityToken!);
-            session.Status = "compliance_tests";
-            await GenerateComplianceTestsAsync(session, seller, ct);
+            // الهيئة أصدرت الشهادة: الشهادة تُحفظ فوراً قبل أي عمل آخر. فشل معالجتها (تشفير، فك ترميز) يُسجَّل على
+            // الجلسة بسببه الكامل ورقم طلب الهيئة بدل أن يضيع في خطأ 500 لا أثر له
+            try
+            {
+                session.ComplianceRequestId = compliance.RequestId;
+                session.ComplianceBinarySecurityToken = Protect(compliance.BinarySecurityToken!);
+                session.ComplianceSecret = Protect(compliance.Secret!);
+                session.CertificatePem = CertificateOf(compliance.BinarySecurityToken!);
+                session.Status = "compliance_tests";
+                await _db.SaveChangesAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                session.ComplianceBinarySecurityToken = null;
+                session.ComplianceSecret = null;
+                session.CertificatePem = null;
+                session.Status = ComplianceUnsavedStatus;
+                session.ErrorMessage = "ZATCA issued the Compliance CSID but it could not be stored: " + Diagnose(ex);
+                await _db.SaveChangesAsync(CancellationToken.None);
+                throw;
+            }
         }
 
         if (!await _db.Set<ZatcaComplianceTest>().AnyAsync(t => t.SessionId == session.Id, ct))
-            await GenerateComplianceTestsAsync(session, seller, ct);
+        {
+            // توليد مستندات الامتثال وتوقيعها محلياً: فشله يُحفظ بسببه على الجلسة، والمحاولة التالية تعيد التوليد
+            // بالشهادة المحفوظة نفسها دون رمز تحقق جديد ودون طلب شهادة جديدة
+            try { await GenerateComplianceTestsAsync(session, seller, ct); }
+            catch (Exception ex) when (ex is not ErpException and not OperationCanceledException)
+            {
+                foreach (var entry in _db.ChangeTracker.Entries<ZatcaComplianceTest>().Where(e => e.State == EntityState.Added).ToList())
+                    entry.State = EntityState.Detached;
+                session.Status = "compliance_tests_failed";
+                session.ErrorMessage = "Generating/signing the compliance test documents failed: " + Diagnose(ex);
+                await _db.SaveChangesAsync(CancellationToken.None);
+                throw;
+            }
+        }
 
         // A persisted "submitted" state left by a process interruption has no confirmed ZATCA verdict.
         var interrupted = await _db.Set<ZatcaComplianceTest>()
@@ -198,9 +221,191 @@ public class ZatcaService : IZatcaService
         var me = _user.UserId ?? throw new UnauthorizedAppException();
         var targetId = userId ?? me;
         if (targetId != me && !IsAdmin) throw new ForbiddenException();
-        var session = await _db.Set<ZatcaOnboardingSession>().AsNoTracking()
+        var session = await _db.Set<ZatcaOnboardingSession>()
             .Where(s => s.UserId == targetId).OrderByDescending(s => s.StartedAt).FirstOrDefaultAsync(ct);
-        return session == null ? null : await ToStatusAsync(session, ct);
+        if (session == null) return null;
+        // طلب «جارٍ» تجاوز المهلة يعني أن العملية توقفت قبل حفظ مصيره: يظهر مجهولاً لا جارياً إلى الأبد
+        await ExpireStaleRequestAsync(session);
+        return await ToStatusAsync(session, ct);
+    }
+
+    // ---------------- تشخيص ومعالجة الجلسات العالقة (للمالك ومدير النظام) ----------------
+
+    public async Task<ZatcaConnectivityReportDto> CheckConnectivityAsync(ZatcaEnvironment? environment = null, CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new ForbiddenException();
+        var config = (await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct)).ZatcaConfig;
+        var env = environment ?? config.Environment;
+        var baseUrl = BaseUrl(config, env);
+        var uri = new Uri(baseUrl);
+
+        var report = new ZatcaConnectivityReportDto
+        {
+            Environment = env,
+            Host = uri.Host,
+            EndpointUrl = $"{baseUrl}/compliance",
+            HttpClientTimeoutSeconds = (int)ZatcaApiClient.ClientTimeout.TotalSeconds,
+            ProxyConfigured = new[] { "HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY" }
+                .Any(v => !string.IsNullOrWhiteSpace(System.Environment.GetEnvironmentVariable(v))),
+            CheckedAt = DateTime.UtcNow,
+        };
+        // كل خطوة مستقلة فيظهر موضع الانقطاع بدقة (اسم، منفذ، TLS، أو رد HTTP)
+        report.Steps.Add(await ZatcaConnectivityProbe.DnsAsync(uri.Host, ct));
+        report.Steps.Add(await ZatcaConnectivityProbe.TcpAsync(uri.Host, uri.Port, ct));
+        report.Steps.Add(await ZatcaConnectivityProbe.TlsAsync(uri.Host, uri.Port, ct));
+
+        var probe = await _api.ProbeAsync(baseUrl, ct);
+        report.Steps.Add(new ZatcaConnectivityStepDto
+        {
+            Name = "https",
+            Success = probe.Reached,
+            ElapsedMs = probe.ElapsedMs,
+            StatusCode = probe.HttpStatus,
+            Detail = probe.Detail,
+            ExceptionType = probe.ExceptionType,
+            ExceptionChain = probe.ExceptionChain?.ToList() ?? new List<string>(),
+        });
+        report.Reachable = probe.Reached;
+        return report;
+    }
+
+    public async Task<List<ZatcaStuckSessionDto>> ListStuckSessionsAsync(CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new ForbiddenException();
+        var sessions = await _db.Set<ZatcaOnboardingSession>()
+            .Where(s => StuckStatuses.Contains(s.Status)).OrderByDescending(s => s.StartedAt).ToListAsync(ct);
+        foreach (var s in sessions) await ExpireStaleRequestAsync(s);
+        return sessions.Select(s =>
+        {
+            var blocked = RecoveryBlockedReason(s);
+            return new ZatcaStuckSessionDto
+            {
+                Id = s.Id,
+                UserId = s.UserId,
+                UserName = s.UserName,
+                Environment = s.Environment,
+                Status = s.Status,
+                ErrorMessage = s.ErrorMessage,
+                StartedAt = s.StartedAt,
+                LastUpdatedAt = s.UpdatedAt,
+                HasStoredCsid = HasStoredCsid(s),
+                CanRecover = blocked == null,
+                RequiresPortalConfirmation = s.Environment != ZatcaEnvironment.Sandbox,
+                RecoveryBlockedReason = blocked,
+            };
+        }).ToList();
+    }
+
+    public async Task<ZatcaOnboardingStatusDto> RecoverStuckSessionAsync(Guid sessionId, ZatcaSessionRecoveryRequestDto request, CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new ForbiddenException();
+        var ownerId = await _db.Set<ZatcaOnboardingSession>().Where(s => s.Id == sessionId).Select(s => (Guid?)s.UserId).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
+        // البوابة نفسها التي يمر بها الربط: لا تُغلق جلسة بينما محاولة ربط لصاحبها جارية في هذه العملية
+        var gate = OnboardingGates.GetOrAdd(ownerId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try { return await RecoverStuckSessionCoreAsync(sessionId, request, ct); }
+        finally { gate.Release(); }
+    }
+
+    private async Task<ZatcaOnboardingStatusDto> RecoverStuckSessionCoreAsync(Guid sessionId, ZatcaSessionRecoveryRequestDto request, CancellationToken ct)
+    {
+        var session = await _db.Set<ZatcaOnboardingSession>().FirstOrDefaultAsync(s => s.Id == sessionId, ct)
+            ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
+        await ExpireStaleRequestAsync(session);
+
+        var blocked = RecoveryBlockedReason(session);
+        if (blocked != null) throw new ConflictException(blocked);
+
+        // واجهة «فاتورة» لا توفر استعلاماً عن مصير طلب شهادة. التحقق إذن: (1) النظام لا يحفظ أي شهادة أو رقم طلب لهذه
+        // الجلسة (فُحص أعلاه)، (2) في المحاكاة والإنتاج إقرار المسؤول بأنه راجع وحدات EGS في بوابة فاتورة ولم يجد شهادة
+        // لهذا الطلب؛ بوابة المطورين لا تسجل شهادات الامتثال على المكلف، فالشهادة اليتيمة فيها بلا أثر.
+        var sandbox = session.Environment == ZatcaEnvironment.Sandbox;
+        if (!sandbox && !request.ConfirmNoCsidIssued)
+            throw new ValidationFailedException(
+                "Confirm that no CSID was issued for this request: review the EGS units in the Fatoora portal for this environment, then resend with confirmNoCsidIssued = true.");
+
+        var note = request.Note?.Trim();
+        if (note is { Length: > 500 }) note = note[..500];
+        var previous = session.Status;
+        session.Status = AbandonedStatus;
+        session.CompletedAt = DateTime.UtcNow;
+        var cause = previous == ComplianceUnsavedStatus ? $" Cause: {session.ErrorMessage}" : string.Empty;
+        session.ErrorMessage = $"Closed by {_user.Name ?? "admin"} at {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC from '{previous}'. "
+            + (previous == ComplianceUnsavedStatus
+                ? $"ZATCA issued Compliance CSID request {session.ComplianceRequestId} but it was never stored; a compliance CSID only runs compliance checks and cannot report invoices"
+                : "No CSID was stored for this session")
+            + (sandbox ? " (developer portal: compliance CSIDs are not registered to the taxpayer)." : "; the admin reviewed the EGS units in the Fatoora portal.")
+            + (string.IsNullOrEmpty(note) ? string.Empty : $" Note: {note}") + cause;
+        if (session.ErrorMessage.Length > 4000) session.ErrorMessage = session.ErrorMessage[..4000];
+
+        // حالة الامتثال في المنشأة تعود «غير مسجلة» إن لم يبق ربط فعّال ولا محاولة أخرى مفتوحة
+        var tenant = await _db.Set<Tenant>().FirstAsync(ct);
+        if (tenant.ZatcaConfig.ComplianceStatus == ComplianceStatus.InProgress
+            && !await _db.Set<ZatcaUnit>().AnyAsync(u => u.IsActive, ct)
+            && !await _db.Set<ZatcaOnboardingSession>().AnyAsync(s => s.Id != session.Id && s.Status != "completed" && s.Status != AbandonedStatus
+                && s.Status != "compliance_csid_rejected" && s.Status != "production_rejected", ct))
+            tenant.ZatcaConfig.ComplianceStatus = ComplianceStatus.NotEnrolled;
+
+        await _db.SaveChangesAsync(CancellationToken.None);
+        await _audit.LogAsync("ZATCA_SESSION_RECOVERED", nameof(ZatcaOnboardingSession), session.Id.ToString(),
+            $"إغلاق جلسة ربط عالقة للمستخدم {session.UserName} ({session.Environment}) من الحالة {previous}"
+            + (sandbox ? "" : " بعد إقرار المسؤول بعدم إصدار شهادة") + (string.IsNullOrEmpty(note) ? "" : $" - {note}"), CancellationToken.None);
+        return await ToStatusAsync(session, ct);
+    }
+
+    /// <summary>سبب منع إغلاق الجلسة، أو null إن كان إغلاقها آمناً.</summary>
+    private static string? RecoveryBlockedReason(ZatcaOnboardingSession s) => s.Status switch
+    {
+        ComplianceRequestingStatus => $"The Compliance CSID request is still within its time limit ({RequestStaleAfter.TotalMinutes:0} min). Try again after it expires.",
+        ProductionRequestingStatus or ProductionUnknownStatus =>
+            "A Compliance CSID was already issued and a Production CSID may have been issued too. This stage is not closed automatically: check the EGS units in the Fatoora portal and revoke any orphan certificate there.",
+        ComplianceUnknownStatus when HasStoredCsid(s) =>
+            "The system holds a ZATCA certificate or request ID for this session, so it is not stuck at CSID issuance.",
+        ComplianceUnknownStatus => null,
+        // شهادة امتثال صدرت ولم تُحفظ: لا تصلح إلا لفحوص الامتثال ولا تُبلّغ بها فواتير، فإغلاق الجلسة آمن
+        ComplianceUnsavedStatus => null,
+        _ => $"Session status '{s.Status}' is not a stuck certificate request.",
+    };
+
+    /// <summary>
+    /// سبب فشل محلي قابل للتشخيص بلا سجلات الاستضافة: نوع الاستثناء ورسالته وأسبابه الداخلية وأول أسطر موضعه.
+    /// لا يحوي رموز تحقق ولا أسراراً ولا مفاتيح (رسائل .NET لا تضمّن قيم المدخلات).
+    /// </summary>
+    private static string Diagnose(Exception ex)
+    {
+        var root = ex;
+        while (root.InnerException != null) root = root.InnerException;
+        var frames = (root.StackTrace ?? string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(4);
+        var text = string.Join(" <- ", ZatcaApiClient.ExceptionChain(ex)) + " | at: " + string.Join(" / ", frames);
+        return text.Length > 3000 ? text[..3000] : text;
+    }
+
+    private static bool HasStoredCsid(ZatcaOnboardingSession s)
+        => s.ComplianceRequestId != null || s.ComplianceBinarySecurityToken != null || s.ProductionRequestId != null;
+
+    /// <summary>
+    /// طلب «جارٍ» أقدم من المهلة لم يعد جارياً حتماً (العميل يقطع بعد <see cref="ZatcaApiClient.ClientTimeout"/>، ومصيره
+    /// يُحفظ دائماً)، فتوقف العملية قبل الحفظ هو التفسير الوحيد: يُسجَّل مجهولاً ليظهر للمسؤول ويُعالج.
+    /// </summary>
+    private async Task<bool> ExpireStaleRequestAsync(ZatcaOnboardingSession session)
+    {
+        if (session.Status is not (ComplianceRequestingStatus or ProductionRequestingStatus)) return false;
+        if ((session.UpdatedAt ?? session.StartedAt) > DateTime.UtcNow - RequestStaleAfter) return false;
+        var compliance = session.Status == ComplianceRequestingStatus;
+        session.Status = compliance ? ComplianceUnknownStatus : ProductionUnknownStatus;
+        session.ErrorMessage = $"The {(compliance ? "Compliance" : "Production")} CSID request was interrupted (the server process stopped) before its outcome was saved.";
+        await _db.SaveChangesAsync(CancellationToken.None);
+        return true;
+    }
+
+    /// <summary>يرفض قبل إرسال طلب الشهادة إن تعذّر الوصول إلى الهيئة، فلا يُستهلك رمز التحقق ولا تُعلَّق الجلسة.</summary>
+    private async Task EnsureReachableAsync(string baseUrl, CancellationToken ct)
+    {
+        var probe = await _api.ProbeAsync(baseUrl, ct);
+        if (probe.Reached) return;
+        throw new ValidationFailedException(
+            $"The server cannot reach ZATCA ({new Uri(baseUrl).Host}): {probe.Detail}. Nothing was sent and the attempt can be retried once connectivity is restored (see company/ZatcaConnectivity).");
     }
 
     public async Task<ZatcaOnboardingStatusDto> RetryComplianceTestAsync(Guid sessionId, Guid testId, CancellationToken ct = default)
@@ -322,11 +527,9 @@ public class ZatcaService : IZatcaService
             try
             {
                 document = await DocumentAsync(invoice, tenant, chain.Counter + 1, chain.LastHash ?? ZatcaInvoiceXml.FirstPreviousHash, ct);
-                using (var key = ECDsa.Create())
-                {
-                    key.ImportFromPem(Reveal(chain.PrivateKeyPem));
+                // ZatcaKeys لا ImportFromPem: استيراد PKCS#8 في CNG يفشل تحت IIS بلا ملف تعريف مستخدم
+                using (var key = ZatcaKeys.ImportPrivateKey(Reveal(chain.PrivateKeyPem)))
                     signed = ZatcaSigner.Sign(document, chain.CertificatePem, key, DateTime.UtcNow);
-                }
 
                 var submission = new ZatcaSubmission(signed.Hash, signed.Uuid, signed.Xml);
                 var secret = Reveal(chain.SecretKey);
@@ -616,8 +819,8 @@ public class ZatcaService : IZatcaService
 
     private async Task GenerateComplianceTestsAsync(ZatcaOnboardingSession session, ZatcaParty seller, CancellationToken ct)
     {
-        using var key = ECDsa.Create();
-        key.ImportFromPem(Reveal(session.PrivateKeyPem!));
+        // ZatcaKeys لا ImportFromPem: استيراد PKCS#8 في CNG يفشل تحت IIS بلا ملف تعريف مستخدم (سبب فشل الربط على الاستضافة)
+        using var key = ZatcaKeys.ImportPrivateKey(Reveal(session.PrivateKeyPem!));
         var cases = RequiredComplianceDocuments(session.InvoiceTypes);
         if (cases.Count == 0) throw new ValidationFailedException("The CSR does not declare any supported invoice type for compliance testing.");
 
@@ -650,7 +853,7 @@ public class ZatcaService : IZatcaService
     /// The CSR's T/S flags declare standard and simplified invoice capabilities. Each enabled capability is tested
     /// against the three ZATCA compliance document families; disabling a capability removes its entire test group.
     /// </summary>
-    private static List<(string Key, bool IsSimplified, string DocumentType)> RequiredComplianceDocuments(string invoiceTypes)
+    internal static List<(string Key, bool IsSimplified, string DocumentType)> RequiredComplianceDocuments(string invoiceTypes)
     {
         if (invoiceTypes.Length != 4 || invoiceTypes.Any(c => c is not ('0' or '1')))
             throw new ValidationFailedException("The CSR invoice-type capability must contain four binary flags.");
@@ -720,38 +923,54 @@ public class ZatcaService : IZatcaService
 
     private async Task IssueProductionCsidAsync(ZatcaOnboardingSession session, ZatcaUnit? unit, User target, ZatcaConfig config, Tenant tenant, string baseUrl, CancellationToken ct)
     {
-        if (session.Status == "production_requesting")
-        {
-            session.Status = "production_unknown";
-            session.ErrorMessage = "The server restarted while requesting the Production CSID. The outcome could not be confirmed.";
-            await _db.SaveChangesAsync(ct);
-            throw new ConflictException(session.ErrorMessage);
-        }
-        if (session.Status == "production_unknown")
+        await ExpireStaleRequestAsync(session);
+        if (session.Status == ProductionRequestingStatus)
+            throw new ConflictException("A Production CSID request for this user is still in progress. Wait for it to finish, then refresh the status.");
+        if (session.Status == ProductionUnknownStatus)
             throw new ConflictException("The Production CSID request has an unresolved outcome and will not be sent again automatically.");
 
-        session.Status = "production_requesting";
+        await EnsureReachableAsync(baseUrl, ct);
+        session.Status = ProductionRequestingStatus;
         session.ErrorMessage = null;
-        await _db.SaveChangesAsync(ct);
+        await _db.SaveChangesAsync(CancellationToken.None);
+        // كما في شهادة الامتثال: الطلب لا يُلغى بانقطاع العميل، ومصيره يُحفظ دائماً
         ZatcaCsidResult production;
         try
         {
             production = await _api.RequestProductionCsidAsync(
-                baseUrl, session.ComplianceRequestId!, Reveal(session.ComplianceBinarySecurityToken!), Reveal(session.ComplianceSecret!), ct);
+                baseUrl, session.ComplianceRequestId!, Reveal(session.ComplianceBinarySecurityToken!), Reveal(session.ComplianceSecret!), CancellationToken.None);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            session.Status = "production_unknown";
-            session.ErrorMessage = ex.Message;
+            session.Status = ProductionUnknownStatus;
+            session.ErrorMessage = $"Production CSID request failed without a confirmed ZATCA response: {ex.GetType().Name}: {ex.Message}";
             await _db.SaveChangesAsync(CancellationToken.None);
             throw;
         }
         if (!production.Success)
         {
-            session.Status = production.Reached ? "production_rejected" : "production_unknown";
+            session.Status = production.Reached ? "production_rejected" : ProductionUnknownStatus;
             session.ErrorMessage = production.Message;
-            await _db.SaveChangesAsync(ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
             throw new ValidationFailedException(string.Format(Messages.ZatcaProductionCsidFailed, production.Message));
+        }
+
+        // الهيئة أصدرت شهادة الإنتاج: ما قد يفشل محلياً (تشفير، فك ترميز) يُحسب أولاً قبل تغيير أي شيء. فشله يُسجَّل
+        // على الجلسة بسببه الكامل ورقم طلب الهيئة للمراجعة في بوابة فاتورة، ولا يُعاد تلقائياً
+        string token, secret, certificatePem;
+        try
+        {
+            token = Protect(production.BinarySecurityToken!);
+            secret = Protect(production.Secret!);
+            certificatePem = CertificateOf(production.BinarySecurityToken!);
+        }
+        catch (Exception ex)
+        {
+            session.ProductionRequestId = production.RequestId;
+            session.Status = ProductionUnknownStatus;
+            session.ErrorMessage = "ZATCA issued the Production CSID but it could not be stored: " + Diagnose(ex);
+            await _db.SaveChangesAsync(CancellationToken.None);
+            throw;
         }
 
         if (unit == null)
@@ -760,9 +979,9 @@ public class ZatcaService : IZatcaService
         unit.Environment = session.Environment;
         unit.ComplianceRequestId = session.ComplianceRequestId;
         unit.Csid = production.RequestId;
-        unit.BinarySecurityToken = Protect(production.BinarySecurityToken!);
-        unit.CertificatePem = CertificateOf(production.BinarySecurityToken!);
-        unit.SecretKey = Protect(production.Secret!);
+        unit.BinarySecurityToken = token;
+        unit.CertificatePem = certificatePem;
+        unit.SecretKey = secret;
         unit.PrivateKeyPem = session.PrivateKeyPem!;
         unit.IsActive = true;
         unit.OnboardedAt = DateTime.UtcNow;
@@ -777,7 +996,8 @@ public class ZatcaService : IZatcaService
         config.IsEnabled = true;
         config.ComplianceStatus = ComplianceStatus.Compliant;
         config.OnboardedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        // شهادة الإنتاج صدرت: حفظها لا يُلغى بانقطاع العميل وإلا ضاعت شهادة سارية لدى الهيئة
+        await _db.SaveChangesAsync(CancellationToken.None);
         await _audit.LogAsync("ZATCA_ONBOARDED", nameof(ZatcaUnit), unit.Id.ToString(),
             $"ربط المستخدم {target.Name} مع هيئة الزكاة ({session.Environment}) - وحدة {session.DeviceSerial}", ct);
     }
@@ -815,7 +1035,7 @@ public class ZatcaService : IZatcaService
         };
     }
 
-    private static ZatcaDocument ComplianceSample(ZatcaParty seller, string type, bool simplified, long counter, string previousHash)
+    internal static ZatcaDocument ComplianceSample(ZatcaParty seller, string type, bool simplified, long counter, string previousHash)
     {
         var now = SaudiTime.Now;
         return new ZatcaDocument
@@ -830,7 +1050,7 @@ public class ZatcaService : IZatcaService
     }
 
     /// <summary>رمز الأمان هو الشهادة (Base64) مرمَّزة Base64 مرة أخرى.</summary>
-    private static string CertificateOf(string binarySecurityToken) => Encoding.UTF8.GetString(Convert.FromBase64String(binarySecurityToken)).Trim();
+    internal static string CertificateOf(string binarySecurityToken) => Encoding.UTF8.GetString(Convert.FromBase64String(binarySecurityToken)).Trim();
 
     private static string? QrOf(string xml)
     {

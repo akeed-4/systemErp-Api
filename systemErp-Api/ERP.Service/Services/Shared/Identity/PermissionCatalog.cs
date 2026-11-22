@@ -238,6 +238,8 @@ public static class PermissionCatalog
         new("approval-policies", "settings", "سياسات الموافقات والطلبات", "Approval Policies & Requests",
             new[] { A.View, A.Create, A.Edit, A.Delete, A.Approve, A.Reject }, Array.Empty<string>()),
         new("zatca", "settings", "الربط الإلكتروني والفوترة (ZATCA)", "ZATCA Integration", new[] { A.View, A.Edit }, new[] { "zatca-integration" }),
+        // تشخيص محلي مؤقت لمسار الربط (لا اتصال بالهيئة ولا كتابة)؛ حسّاس، ونقطته معطّلة افتراضياً بإعداد مستقل
+        new("zatca-diagnostics", "settings", "تشخيص ZATCA المحلي (مؤقت)", "ZATCA Local Diagnostics (temporary)", new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
         // تعديل = إدارة (المزامنة والقوالب)
         new(WhatsAppScreenId, "settings", "تكامل واتساب للأعمال", "WhatsApp Business Integration",
             new[] { A.View, A.Connect, A.Edit, A.Disconnect }, new[] { "whatsapp-integration" }, Restricted: true),

@@ -21,13 +21,26 @@ public sealed class FakeZatcaApiClient : IZatcaApiClient
 
     private readonly ECDsa _ca = ECDsa.Create(ECCurve.NamedCurves.nistP256);
     private long _requests;
+    private long _calls;
 
     /// <summary>true = الهيئة غير متاحة (انقطاع اتصال).</summary>
     public bool Down { get; set; }
     public System.Collections.Concurrent.ConcurrentQueue<ZatcaSubmission> Received { get; } = new();
+    /// <summary>عدد كل الطلبات التي وصلت «الهيئة» من أي نوع (لإثبات أن مساراً ما لا يتصل بها).</summary>
+    public long CallCount => Interlocked.Read(ref _calls);
+    private void Called() => Interlocked.Increment(ref _calls);
+
+    public Task<ZatcaProbeResult> ProbeAsync(string baseUrl, CancellationToken ct = default)
+    {
+        Called();
+        return Task.FromResult(Down
+            ? new ZatcaProbeResult(false, null, 0, "connection refused", "System.Net.Http.HttpRequestException", new[] { "connection refused" })
+            : new ZatcaProbeResult(true, 400, 0, "400 Bad Request: Missing-OTP"));
+    }
 
     public Task<ZatcaCsidResult> RequestComplianceCsidAsync(string baseUrl, string csrBase64, string otp, CancellationToken ct = default)
     {
+        Called();
         if (otp != Otp) return Task.FromResult(new ZatcaCsidResult(false, null, null, null, "400: Invalid OTP"));
         var request = CertificateRequest.LoadSigningRequestPem(Encoding.UTF8.GetString(Convert.FromBase64String(csrBase64)), HashAlgorithmName.SHA256,
             CertificateRequestLoadOptions.UnsafeLoadCertificateExtensions);
@@ -39,18 +52,30 @@ public sealed class FakeZatcaApiClient : IZatcaApiClient
 
     /// <summary>شهادة الإنتاج هي شهادة الامتثال نفسها (تحمل مفتاح الوحدة)، بسرّ جديد.</summary>
     public Task<ZatcaCsidResult> RequestProductionCsidAsync(string baseUrl, string complianceRequestId, string token, string secret, CancellationToken ct = default)
-        => Task.FromResult(secret == "compliance-secret"
+    {
+        Called();
+        return Task.FromResult(secret == "compliance-secret"
             ? new ZatcaCsidResult(true, "P" + complianceRequestId, token, "production-secret", "ISSUED")
             : new ZatcaCsidResult(false, null, null, null, "401: Unauthorized"));
+    }
 
     public Task<ZatcaApiResult> CheckComplianceAsync(string baseUrl, string token, string secret, ZatcaSubmission invoice, CancellationToken ct = default)
-        => Task.FromResult(Validate(token, invoice, cleared: false));
+    {
+        Called();
+        return Task.FromResult(Validate(token, invoice, cleared: false));
+    }
 
     public Task<ZatcaApiResult> ReportAsync(string baseUrl, string token, string secret, ZatcaSubmission invoice, CancellationToken ct = default)
-        => Task.FromResult(Submit(token, secret, invoice, cleared: false, expectedType: "0200000"));
+    {
+        Called();
+        return Task.FromResult(Submit(token, secret, invoice, cleared: false, expectedType: "0200000"));
+    }
 
     public Task<ZatcaApiResult> ClearAsync(string baseUrl, string token, string secret, ZatcaSubmission invoice, CancellationToken ct = default)
-        => Task.FromResult(Submit(token, secret, invoice, cleared: true, expectedType: "0100000"));
+    {
+        Called();
+        return Task.FromResult(Submit(token, secret, invoice, cleared: true, expectedType: "0100000"));
+    }
 
     private ZatcaApiResult Submit(string token, string secret, ZatcaSubmission invoice, bool cleared, string expectedType)
     {

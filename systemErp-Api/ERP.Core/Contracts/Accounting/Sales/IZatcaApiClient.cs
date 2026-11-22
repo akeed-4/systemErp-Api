@@ -3,6 +3,12 @@ namespace ERP.Core.Contracts.Accounting;
 /// <summary>شهادة أصدرتها الهيئة (امتثال أو إنتاج): رمز الأمان (الشهادة مرمَّزة) والسر، وبهما تُصادَق الطلبات التالية.</summary>
 public sealed record ZatcaCsidResult(bool Success, string? RequestId, string? BinarySecurityToken, string? Secret, string? Message, bool Reached = true);
 
+/// <summary>
+/// نتيجة فحص الوصول إلى بوابة الهيئة: <see cref="Reached"/> = وصل رد HTTP من الهيئة (أي رمز)، أي أن DNS وTCP وTLS
+/// والاتصال الخارجي سليمة. لا يحمل رمز تحقق ولا شهادة ولا أسراراً.
+/// </summary>
+public sealed record ZatcaProbeResult(bool Reached, int? HttpStatus, long ElapsedMs, string? Detail, string? ExceptionType = null, IReadOnlyList<string>? ExceptionChain = null);
+
 /// <summary>فاتورة موقّعة جاهزة للإرسال.</summary>
 public sealed record ZatcaSubmission(string InvoiceHash, Guid Uuid, string Xml);
 
@@ -29,6 +35,11 @@ public sealed class ZatcaApiResult
 /// </summary>
 public interface IZatcaApiClient
 {
+    /// <summary>
+    /// يطرق مسار إصدار شهادة الامتثال بطلب بلا رمز تحقق وبطلب شهادة غير صالح، فترد الهيئة 400 دون إصدار أي شهادة.
+    /// يثبت أن المسار الكامل (DNS، TCP، TLS، الوسيط/الجدار، الهيئة) يعمل قبل إرسال طلب حقيقي يستهلك رمز التحقق.
+    /// </summary>
+    Task<ZatcaProbeResult> ProbeAsync(string baseUrl, CancellationToken ct = default);
     Task<ZatcaCsidResult> RequestComplianceCsidAsync(string baseUrl, string csrBase64, string otp, CancellationToken ct = default);
     Task<ZatcaCsidResult> RequestProductionCsidAsync(string baseUrl, string complianceRequestId, string token, string secret, CancellationToken ct = default);
     Task<ZatcaApiResult> CheckComplianceAsync(string baseUrl, string token, string secret, ZatcaSubmission invoice, CancellationToken ct = default);

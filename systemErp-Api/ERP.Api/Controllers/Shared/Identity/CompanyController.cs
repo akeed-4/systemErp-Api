@@ -1,4 +1,5 @@
 using ERP.Api.Infrastructure;
+using ERP.Core.DTOs.Accounting.Sales;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -37,6 +38,20 @@ public class CompanyController : ErpControllerBase
     [HttpPost("ZatcaOnboard/{sessionId:guid}/tests/{testId:guid}/retry"), RequireScreen("zatca", ScreenAction.Edit)]
     public async Task<IActionResult> RetryZatcaComplianceTest(Guid sessionId, Guid testId, CancellationToken ct)
         => Success(await _zatca.RetryComplianceTestAsync(sessionId, testId, ct));
+
+    /// <summary>فحص اتصال الخادم ببوابة الهيئة: DNS وTCP وTLS وطلب HTTPS لا يصدر شهادة، مع الزمن وتفاصيل الخطأ. للمالك ومدير النظام.</summary>
+    [HttpGet("ZatcaConnectivity"), RequireScreen("zatca", ScreenAction.Edit)]
+    public async Task<IActionResult> ZatcaConnectivity([FromQuery] ZatcaEnvironment? environment, CancellationToken ct)
+        => Success(await _zatca.CheckConnectivityAsync(environment, ct));
+
+    /// <summary>جلسات الربط العالقة (طلب شهادة جارٍ أو مجهول المصير) وإمكانية معالجة كل منها. للمالك ومدير النظام.</summary>
+    [HttpGet("ZatcaOnboard/stuck"), RequireScreen("zatca", ScreenAction.Edit)]
+    public async Task<IActionResult> ZatcaStuckSessions(CancellationToken ct) => Success(await _zatca.ListStuckSessionsAsync(ct));
+
+    /// <summary>إغلاق جلسة امتثال عالقة لم تُحفظ لها شهادة (تبقى للتدقيق) للسماح بمحاولة جديدة آمنة. للمالك ومدير النظام.</summary>
+    [HttpPost("ZatcaOnboard/{sessionId:guid}/recover"), RequireScreen("zatca", ScreenAction.Edit)]
+    public async Task<IActionResult> RecoverZatcaSession(Guid sessionId, [FromBody] ZatcaSessionRecoveryRequestDto request, CancellationToken ct)
+        => Success(await _zatca.RecoverStuckSessionAsync(sessionId, request, ct));
 
     /// <summary>المستخدمون المربوطون مع الهيئة (كلهم للمالك ومدير النظام، والمستخدم نفسه لغيرهما).</summary>
     [HttpGet("ZatcaUnits")]

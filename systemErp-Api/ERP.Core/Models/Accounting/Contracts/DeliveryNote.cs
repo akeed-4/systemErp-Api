@@ -42,6 +42,8 @@ public class DeliveryNote : BaseEntity, IScopedRecord, IPartyDocument
     public Guid? RequisitionId { get; set; }
     /// <summary>عهدة المشروع المنشأة من السند (<c>ProjectMaterialIssue</c> بنوع purchase_receipt) وقيدها: لا تدخل المستودع العام.</summary>
     public Guid? CustodyIssueId { get; set; }
+    /// <summary>أمر الشراء الذي يُستلم عليه (استلام جزئي): الكمية ≤ المتبقي من الأمر والسعر والمورد من الأمر.</summary>
+    public Guid? PurchaseOrderId { get; set; }
 
     public virtual ICollection<DeliveryNoteItem> Items { get; set; } = new List<DeliveryNoteItem>();
 }

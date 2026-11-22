@@ -29,4 +29,6 @@ public partial class CreateDeliveryNoteDto
     public Guid? RequisitionId { get; set; }
     /// <summary>استلام مشتريات مرتبط بمشروع مقاولات إلى مستودع المشروع، دون تحويله إلى عهدة طلب شراء.</summary>
     public bool ConstructionWarehouseReceipt { get; set; }
+    /// <summary>أمر الشراء المستلم عليه (يُفحص المتبقي والمورد والسعر من الأمر).</summary>
+    public Guid? PurchaseOrderId { get; set; }
 }

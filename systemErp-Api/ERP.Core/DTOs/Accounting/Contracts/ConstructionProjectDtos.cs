@@ -71,7 +71,13 @@ public class ProjectPhaseDto
 public class ProjectMemberDto
 {
     public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? EmployeeId { get; set; }
+    public string? EmployeeCode { get; set; }
+    public Guid? DepartmentId { get; set; }
+    public string? DepartmentName { get; set; }
+    public string? JobTitle { get; set; }
+    public Guid? UserId { get; set; }
+    /// <summary>اسم الموظف الحالي من ملفه (أو المستخدم للعضوية القديمة بلا موظف).</summary>
     public string UserName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string Role { get; set; } = string.Empty;
@@ -99,7 +105,10 @@ public class SaveProjectPhasesDto
 
 public class SaveProjectMemberDto
 {
-    public Guid UserId { get; set; }
+    /// <summary>الموظف (المسار الحالي)؛ حسابه يُؤخذ من ملفه.</summary>
+    public Guid? EmployeeId { get; set; }
+    /// <summary>توافق مع العملاء القدامى: مستخدم بلا موظف، ويُربط بملف الموظف الذي يحمل حسابه إن وُجد.</summary>
+    public Guid? UserId { get; set; }
     public string Role { get; set; } = string.Empty;
     public string? Notes { get; set; }
 }
@@ -123,12 +132,22 @@ public class SaveProjectMemberRoleDto
     public bool IsActive { get; set; } = true;
 }
 
-/// <summary>مستخدم فعّال يمكن إسناده للمشروع.</summary>
+/// <summary>
+/// مرشّح عضوية: موظف فعّال بقسمه وحسابه المربوط (<c>employee</c>)، أو مستخدم فعّال بلا ملف موظف (<c>user</c>) فتبقى المنشأة
+/// بلا موارد بشرية قادرة على الإسناد كما كانت.
+/// </summary>
 public class ProjectMemberCandidateDto
 {
+    /// <summary>معرّف الموظف، أو المستخدم مع <see cref="Kind"/> = user.</summary>
     public Guid Id { get; set; }
+    public string Kind { get; set; } = "employee";
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? JobTitle { get; set; }
+    public Guid? DepartmentId { get; set; }
+    public string? DepartmentName { get; set; }
+    public Guid? UserId { get; set; }
 }
 
 /// <summary>نتيجة إنشاء أدوار المقاولات الجاهزة: المنشأة، والموجودة مسبقاً باسمها.</summary>
@@ -196,7 +215,8 @@ public class ConstructionProjectSummaryDto
 
 public class ProjectTeamMemberDto
 {
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? EmployeeId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
 }

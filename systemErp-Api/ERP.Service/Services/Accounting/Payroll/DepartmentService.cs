@@ -25,7 +25,10 @@ public class DepartmentService : CrudService<Department, DepartmentDto, CreateDe
 
     protected override async Task OnDeletingAsync(Department entity, CancellationToken ct)
     {
-        if (await Db.Set<Employee>().AnyAsync(e => e.DepartmentId == entity.Id, ct))
+        if (await Db.Set<Employee>().AnyAsync(e => e.DepartmentId == entity.Id, ct)
+            || await Db.Set<MaterialRequisition>().AnyAsync(r => r.DepartmentId == entity.Id, ct))
             throw new ConflictException(Messages.DepartmentHasEmployees);
     }
+
+    protected override Task OnUpdatedAsync(Department entity, CancellationToken ct) => HrLinks.SyncDepartmentAsync(Db, entity.Id, ct);
 }

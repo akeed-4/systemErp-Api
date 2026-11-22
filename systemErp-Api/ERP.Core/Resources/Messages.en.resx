@@ -1721,6 +1721,11 @@
   <data name="ProjectMemberRoleInUse" xml:space="preserve"><value>The role is assigned to project members; deactivate it instead of deleting it.</value></data>
   <data name="ProjectMemberRoleSystem" xml:space="preserve"><value>Built-in system roles cannot be edited or deleted.</value></data>
   <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>The user does not exist or is inactive.</value></data>
+  <data name="ProjectMemberEmployeeInvalid" xml:space="preserve"><value>The employee does not exist or is inactive.</value></data>
+  <data name="EmployeeLinkedToProjects" xml:space="preserve"><value>The employee is a project member or a purchase requester: deactivate instead of deleting.</value></data>
+  <data name="RequisitionDepartmentInvalid" xml:space="preserve"><value>The department does not exist.</value></data>
+  <data name="RequisitionEmployeeInvalid" xml:space="preserve"><value>The requester is not an active employee.</value></data>
+  <data name="RequisitionEmployeeDepartmentMismatch" xml:space="preserve"><value>The requester does not belong to the selected department.</value></data>
   <data name="ProjectMemberExists" xml:space="preserve"><value>The user is already a project member.</value></data>
   <data name="ProjectMemberNotFound" xml:space="preserve"><value>The member is not in this project.</value></data>
   <data name="ProjectSetupSaved" xml:space="preserve"><value>Project setup saved.</value></data>
@@ -2199,4 +2204,64 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="RentalDepositNotHeld" xml:space="preserve"><value>This deposit has no outstanding balance.</value></data>
   <data name="RentalDepositHasSettlements" xml:space="preserve"><value>The deposit cannot be cancelled while it has settlements; cancel them first.</value></data>
   <data name="ReasonRequired" xml:space="preserve"><value>A reason is required.</value></data>
+  <data name="RfqNotFound" xml:space="preserve"><value>The request for quotation was not found.</value></data>
+  <data name="RequisitionNotApproved" xml:space="preserve"><value>Approve the purchase requisition before requesting quotations.</value></data>
+  <data name="RequisitionHasActiveRfq" xml:space="preserve"><value>Purchase requisition {0} already has an active RFQ: cancel or complete it first.</value></data>
+  <data name="RequisitionHasRfq" xml:space="preserve"><value>Purchase requisition {0} is linked to an active RFQ; it is purchased through the awarded purchase orders.</value></data>
+  <data name="SuppliersRequired" xml:space="preserve"><value>Select at least one supplier.</value></data>
+  <data name="PurchaseCycleSupplierInactive" xml:space="preserve"><value>The supplier does not exist or is inactive.</value></data>
+  <data name="RfqItemInvalid" xml:space="preserve"><value>Line not in the purchase requisition or invalid quantity: {0}</value></data>
+  <data name="RfqNotOpen" xml:space="preserve"><value>The request for quotation is no longer open.</value></data>
+  <data name="SupplierNotInvited" xml:space="preserve"><value>The supplier is not invited to this RFQ.</value></data>
+  <data name="QuotationLinesRequired" xml:space="preserve"><value>Enter a price for at least one line.</value></data>
+  <data name="QuotationLineInvalid" xml:space="preserve"><value>Quotation line "{0}": quantity ≤ requested quantity, positive price, discount ≤ line value and VAT between 0 and 100.</value></data>
+  <data name="QuotationLineDuplicate" xml:space="preserve"><value>Line "{0}" is repeated in the quotation.</value></data>
+  <data name="ExtraCostsInvalid" xml:space="preserve"><value>Extra costs cannot be negative.</value></data>
+  <data name="ValidUntilInvalid" xml:space="preserve"><value>The quotation validity date is before the quotation date.</value></data>
+  <data name="NoQuotations" xml:space="preserve"><value>There are no supplier quotations to compare.</value></data>
+  <data name="AwardRequired" xml:space="preserve"><value>Select the awarded quotation or the supplier of each line.</value></data>
+  <data name="AwardQuotationInvalid" xml:space="preserve"><value>The selected quotation does not belong to this RFQ.</value></data>
+  <data name="AwardLineNotQuoted" xml:space="preserve"><value>The selected supplier did not quote line "{0}" for the full requested quantity.</value></data>
+  <data name="AwardLineMissing" xml:space="preserve"><value>Line "{0}" has no awarded supplier.</value></data>
+  <data name="AwardQuotationExpired" xml:space="preserve"><value>The quotation from supplier {0} expired on {1:yyyy-MM-dd}.</value></data>
+  <data name="RfqHasReceipts" xml:space="preserve"><value>An RFQ cannot be cancelled once goods were received on one of its purchase orders.</value></data>
+  <data name="RfqLinkedReadOnly" xml:space="preserve"><value>This document comes from an RFQ: manage it from the purchase cycle screen.</value></data>
+  <data name="PurchaseCycleOrderNotFound" xml:space="preserve"><value>The purchase order was not found.</value></data>
+  <data name="OrderInvoicedByReceipts" xml:space="preserve"><value>This purchase order is invoiced from its goods receipts (partial receipt and invoicing), not by full conversion.</value></data>
+  <data name="OrderInvoicedDirectly" xml:space="preserve"><value>The purchase order was converted to an invoice directly; no receipts can be recorded on it.</value></data>
+  <data name="OrderNotReceivable" xml:space="preserve"><value>Purchase order {0} is not confirmed or is already complete.</value></data>
+  <data name="OrderHasReceipts" xml:space="preserve"><value>A purchase order with goods receipts cannot be deleted.</value></data>
+  <data name="ReceiptOnlyPurchase" xml:space="preserve"><value>Receipts against a purchase order must be purchase goods receipts.</value></data>
+  <data name="ReceiptSupplierMismatch" xml:space="preserve"><value>The receipt supplier is not the purchase order supplier.</value></data>
+  <data name="ItemNotInOrder" xml:space="preserve"><value>Item "{0}" is not on purchase order {1}.</value></data>
+  <data name="ReceiptQtyPositive" xml:space="preserve"><value>Enter a positive received quantity.</value></data>
+  <data name="ReceiptExceedsOrder" xml:space="preserve"><value>"{0}": receipt {1} exceeds the remaining {2} on the purchase order (ordered {3}).</value></data>
+  <data name="ReceiptNotEditable" xml:space="preserve"><value>A receipt against a purchase order cannot be edited: delete it and create another, or return from it.</value></data>
+  <data name="ReceiptNotOfOrder" xml:space="preserve"><value>The goods receipt does not belong to this purchase order.</value></data>
+  <data name="PurchaseReceiptsToInvoiceRequired" xml:space="preserve"><value>Select at least one goods receipt to invoice.</value></data>
+  <data name="ReceiptAlreadyInvoiced" xml:space="preserve"><value>Goods receipt {0} is already invoiced by invoice {1}.</value></data>
+  <data name="ReceiptsNotCombinable" xml:space="preserve"><value>The selected receipts are in different warehouses or projects: invoice them separately.</value></data>
+  <data name="StockReservedForProjects" xml:space="preserve"><value>"{0}": quantity {1} exceeds the unreserved available {2} (stock {3} − reserved for projects {4}). Release the reservation or issue it to the project first.</value></data>
+  <data name="StockReservationQtyPositive" xml:space="preserve"><value>The reservation quantity must be greater than zero.</value></data>
+  <data name="StockReservationNothingToRelease" xml:space="preserve"><value>Nothing remains in the reservation to release.</value></data>
+  <data name="StockReservationReleaseExceeds" xml:space="preserve"><value>Release {0:0.####} exceeds the free remainder of the reservation {1:0.####} (excluding pending transfer requests).</value></data>
+  <data name="StockReservationTransferQtyPositive" xml:space="preserve"><value>The transfer quantity must be greater than zero.</value></data>
+  <data name="StockReservationTransferReasonRequired" xml:space="preserve"><value>A transfer reason is required.</value></data>
+  <data name="StockReservationTransferSameProject" xml:space="preserve"><value>Choose a different project for the transfer.</value></data>
+  <data name="StockReservationTransferExceeds" xml:space="preserve"><value>Transfer quantity {0:0.####} exceeds the free remainder of the reservation {1:0.####}.</value></data>
+  <data name="StockReservationTransferNotPending" xml:space="preserve"><value>The transfer request is no longer pending.</value></data>
+  <data name="StockReservationTransferSourceShort" xml:space="preserve"><value>The source reservation no longer covers the transfer (issued or released after the request).</value></data>
+  <data name="StockReservationRejectReasonRequired" xml:space="preserve"><value>A rejection reason is required.</value></data>
+  <data name="StockReservationProjectNotExecuting" xml:space="preserve"><value>Stock can only be reserved for a project in execution (active contract).</value></data>
+  <data name="StockReservationNotFound" xml:space="preserve"><value>The reservation was not found in this project.</value></data>
+  <data name="StockReservationTransferNotFound" xml:space="preserve"><value>The transfer request was not found.</value></data>
+  <data name="StockReservationTransferSelfDecision" xml:space="preserve"><value>The requester cannot decide their own transfer request: another manager must.</value></data>
+  <data name="StockReservationExceedsAvailable" xml:space="preserve"><value>"{0}": reservation {1:0.####} exceeds the available {2:0.####} (received stock {3:0.####} − reserved {4:0.####}).</value></data>
+  <data name="StockReservationPlanNotApproved" xml:space="preserve"><value>Approve the project's material requirements first: the reservable quantity is computed from them.</value></data>
+  <data name="StockReservationNotRequired" xml:space="preserve"><value>"{0}" is not in the project's approved material requirements: it cannot be reserved.</value></data>
+  <data name="StockReservationExceedsRequirement" xml:space="preserve"><value>"{0}": reservation {1:0.####} exceeds the project's remaining requirement {2:0.####} (required {3:0.####} − reserved {4:0.####} − delivered {5:0.####}).</value></data>
+  <data name="ProjectIssueExceedsWarehouseStock" xml:space="preserve"><value>"{0}": delivery {1:0.####} exceeds the stock actually received in the warehouse {2:0.####}. Receive the material into the warehouse first.</value></data>
+  <data name="ProjectIssueExceedsProjectAvailable" xml:space="preserve"><value>"{0}": delivery {1:0.####} exceeds what is available to this project {2:0.####} (stock {3:0.####} − reserved for other projects {4:0.####}). Transfer the allocation with approval or wait for the receipt.</value></data>
+  <data name="ProjectIssueReservedForOthers" xml:space="preserve"><value>"{0}": delivery {1:0.####} exceeds what is available to this project {2:0.####} (reserved for other projects {3:0.####}).</value></data>
+  <data name="RfqAwardPendingApproval" xml:space="preserve"><value>The award of this RFQ is awaiting approval: quotations and suppliers cannot change and it cannot be cancelled until the decision.</value></data>
 </root>

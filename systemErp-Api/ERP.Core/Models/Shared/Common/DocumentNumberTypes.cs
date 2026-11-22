@@ -19,6 +19,7 @@ public static class DocumentNumberTypes
         new("purchase_return", "مرتجعات المشتريات", "Purchase returns", "purchases", "PRET-", true),
         new("purchase_quotation", "عروض أسعار المشتريات", "Purchase quotations", "purchases", "PQT-", true),
         new("purchase_order", "أوامر الشراء", "Purchase orders", "purchases", "PO-", true),
+        new("purchase_rfq", "طلبات عروض الأسعار", "Requests for quotation", "purchases", "RFQ-", false),
         new("receipt_voucher", "سندات القبض", "Receipt vouchers", "accounting", "RV-", true),
         new("payment_voucher", "سندات الصرف", "Payment vouchers", "accounting", "PV-", true),
         new("journal_entry", "القيود اليومية", "Journal entries", "accounting", "JE-", true),

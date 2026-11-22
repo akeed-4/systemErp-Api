@@ -34,4 +34,5 @@ public partial class DeliveryNoteDto
     public Guid? RequisitionId { get; set; }
     /// <summary>عهدة المشروع المنشأة من السند (سند استلام مشروع).</summary>
     public Guid? CustodyIssueId { get; set; }
+    public Guid? PurchaseOrderId { get; set; }
 }

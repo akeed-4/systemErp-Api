@@ -137,7 +137,16 @@ public class ProjectPhaseItem : BaseEntity
 public class ProjectMember : BaseEntity
 {
     public Guid ContractId { get; set; }
-    public Guid UserId { get; set; }
+    /// <summary>
+    /// موظف شؤون الموظفين (<see cref="Employee"/>): مصدر الاسم والقسم والمسمى عند العرض، فيظهر تعديل ملفه في كل الشاشات.
+    /// فارغ في العضوية القديمة التي لم يُعثر لمستخدمها على ملف موظف.
+    /// </summary>
+    public Guid? EmployeeId { get; set; }
+    /// <summary>
+    /// حساب دخول العضو لنطاق «المسندة إليه»: يُنسخ من <see cref="Employee.UserId"/> عند الإسناد، ونطاق الوصول يقرأ ربط الموظف الحالي أيضاً
+    /// فدعوة الموظف لاحقاً تمنحه المشروع دون تعديل العضوية. فارغ لموظف بلا حساب.
+    /// </summary>
+    public Guid? UserId { get; set; }
     public string Role { get; set; } = ProjectMemberRoles.SiteSupervisor;
     public string? Notes { get; set; }
 }

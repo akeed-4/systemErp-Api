@@ -37,5 +37,14 @@ public class CommercialOrder : BaseEntity, IScopedRecord, IPartyDocument
     public Guid? AgreementId { get; set; }
     public string? AgreementNumber { get; set; }
 
+    // ---------- أمر شراء من ترسية طلب عرض أسعار ----------
+    public Guid? RfqId { get; set; }
+    /// <summary>عرض المورد المرسّى.</summary>
+    public Guid? QuotationId { get; set; }
+    /// <summary>طلب الشراء الأصلي.</summary>
+    public Guid? RequisitionId { get; set; }
+    /// <summary>التكاليف الإضافية المرسّاة من العرض (قبل الضريبة)؛ موزعة في سعر الاستلام لكل سطر.</summary>
+    public decimal ExtraCosts { get; set; }
+
     public virtual ICollection<CommercialOrderItem> Items { get; set; } = new List<CommercialOrderItem>();
 }

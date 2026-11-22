@@ -12,7 +12,7 @@ public static class ApprovalSnapshotBuilder
 {
     private static readonly string[] NumberProps =
     {
-        "VoucherNumber", "EntryNumber", "QuotationNumber", "OrderNumber", "DeliveryNumber", "ReturnNumber", "RequisitionNumber",
+        "RfqNumber", "VoucherNumber", "EntryNumber", "QuotationNumber", "OrderNumber", "DeliveryNumber", "ReturnNumber", "RequisitionNumber",
         "TransferNumber", "ContractNumber", "RunNumber", "LoanNumber", "SettlementNumber", "Number", "InvoiceNumber",
     };
     private static readonly string[] DateProps = { "Date", "OrderDate", "RequestDate", "StartDate", "LastWorkingDay" };

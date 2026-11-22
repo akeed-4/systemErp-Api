@@ -1721,6 +1721,11 @@
   <data name="ProjectMemberRoleInUse" xml:space="preserve"><value>الدور مسند لأعضاء في مشاريع؛ أوقفه بدل حذفه.</value></data>
   <data name="ProjectMemberRoleSystem" xml:space="preserve"><value>أدوار النظام الأساسية لا تُعدّل ولا تُحذف.</value></data>
   <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>المستخدم غير موجود أو غير فعّال.</value></data>
+  <data name="ProjectMemberEmployeeInvalid" xml:space="preserve"><value>الموظف غير موجود أو غير فعّال.</value></data>
+  <data name="EmployeeLinkedToProjects" xml:space="preserve"><value>الموظف عضو في مشروع أو مقدّم طلب شراء: أوقفه بدل حذفه.</value></data>
+  <data name="RequisitionDepartmentInvalid" xml:space="preserve"><value>القسم غير موجود.</value></data>
+  <data name="RequisitionEmployeeInvalid" xml:space="preserve"><value>مقدّم الطلب ليس موظفاً فعّالاً.</value></data>
+  <data name="RequisitionEmployeeDepartmentMismatch" xml:space="preserve"><value>مقدّم الطلب ليس من القسم المختار.</value></data>
   <data name="ProjectMemberExists" xml:space="preserve"><value>المستخدم عضو في المشروع مسبقاً.</value></data>
   <data name="ProjectMemberNotFound" xml:space="preserve"><value>العضو غير موجود في هذا المشروع.</value></data>
   <data name="ProjectSetupSaved" xml:space="preserve"><value>حُفظ إعداد المشروع.</value></data>
@@ -2199,4 +2204,64 @@
   <data name="RentalDepositNotHeld" xml:space="preserve"><value>لا يوجد رصيد قائم على هذا التأمين.</value></data>
   <data name="RentalDepositHasSettlements" xml:space="preserve"><value>لا يمكن إلغاء التأمين وعليه تسويات؛ ألغِ التسويات أولاً.</value></data>
   <data name="ReasonRequired" xml:space="preserve"><value>السبب مطلوب.</value></data>
+  <data name="RfqNotFound" xml:space="preserve"><value>طلب عرض الأسعار غير موجود.</value></data>
+  <data name="RequisitionNotApproved" xml:space="preserve"><value>اعتمد طلب الشراء قبل طلب عروض الأسعار.</value></data>
+  <data name="RequisitionHasActiveRfq" xml:space="preserve"><value>يوجد طلب عروض أسعار قائم لطلب الشراء {0}: ألغه أولاً أو أكمله.</value></data>
+  <data name="RequisitionHasRfq" xml:space="preserve"><value>طلب الشراء {0} مرتبط بطلب عروض أسعار قائم؛ يُشترى بأوامر الشراء الناتجة عن الترسية.</value></data>
+  <data name="SuppliersRequired" xml:space="preserve"><value>اختر مورداً واحداً على الأقل.</value></data>
+  <data name="PurchaseCycleSupplierInactive" xml:space="preserve"><value>المورد غير موجود أو غير نشط.</value></data>
+  <data name="RfqItemInvalid" xml:space="preserve"><value>سطر غير موجود في طلب الشراء أو كميته غير صحيحة: {0}</value></data>
+  <data name="RfqNotOpen" xml:space="preserve"><value>طلب عرض الأسعار لم يعد مفتوحاً.</value></data>
+  <data name="SupplierNotInvited" xml:space="preserve"><value>المورد غير مدعو في طلب عرض الأسعار هذا.</value></data>
+  <data name="QuotationLinesRequired" xml:space="preserve"><value>أدخل سعراً لسطر واحد على الأقل.</value></data>
+  <data name="QuotationLineInvalid" xml:space="preserve"><value>سطر العرض «{0}»: الكمية ≤ كمية الطلب، والسعر موجب، والخصم ≤ القيمة، والضريبة بين 0 و100.</value></data>
+  <data name="QuotationLineDuplicate" xml:space="preserve"><value>السطر «{0}» مكرر في العرض.</value></data>
+  <data name="ExtraCostsInvalid" xml:space="preserve"><value>التكاليف الإضافية لا تكون سالبة.</value></data>
+  <data name="ValidUntilInvalid" xml:space="preserve"><value>تاريخ صلاحية العرض قبل تاريخه.</value></data>
+  <data name="NoQuotations" xml:space="preserve"><value>لا توجد عروض موردين للمقارنة.</value></data>
+  <data name="AwardRequired" xml:space="preserve"><value>اختر العرض المرسّى أو مورد كل سطر.</value></data>
+  <data name="AwardQuotationInvalid" xml:space="preserve"><value>العرض المختار ليس من عروض هذا الطلب.</value></data>
+  <data name="AwardLineNotQuoted" xml:space="preserve"><value>المورد المختار لم يسعّر السطر «{0}» بكامل الكمية المطلوبة.</value></data>
+  <data name="AwardLineMissing" xml:space="preserve"><value>السطر «{0}» بلا مورد مرسّى.</value></data>
+  <data name="AwardQuotationExpired" xml:space="preserve"><value>عرض المورد {0} انتهت صلاحيته في {1:yyyy-MM-dd}.</value></data>
+  <data name="RfqHasReceipts" xml:space="preserve"><value>لا يُلغى طلب عرض أسعار استُلم على أحد أوامر شرائه.</value></data>
+  <data name="RfqLinkedReadOnly" xml:space="preserve"><value>المستند ناتج عن طلب عروض أسعار: يُدار من شاشة دورة الشراء.</value></data>
+  <data name="PurchaseCycleOrderNotFound" xml:space="preserve"><value>أمر الشراء غير موجود.</value></data>
+  <data name="OrderInvoicedByReceipts" xml:space="preserve"><value>أمر الشراء يُفوتر من سندات استلامه (استلام وفوترة جزئية)، لا بتحويل كامل.</value></data>
+  <data name="OrderInvoicedDirectly" xml:space="preserve"><value>أمر الشراء حُوّل إلى فاتورة مباشرة؛ لا استلام عليه.</value></data>
+  <data name="OrderNotReceivable" xml:space="preserve"><value>أمر الشراء {0} ليس مؤكداً أو اكتمل.</value></data>
+  <data name="OrderHasReceipts" xml:space="preserve"><value>لا يُحذف أمر شراء له سندات استلام.</value></data>
+  <data name="ReceiptOnlyPurchase" xml:space="preserve"><value>الاستلام على أمر الشراء بسند استلام مشتريات فقط.</value></data>
+  <data name="ReceiptSupplierMismatch" xml:space="preserve"><value>مورد السند غير مورد أمر الشراء.</value></data>
+  <data name="ItemNotInOrder" xml:space="preserve"><value>الصنف «{0}» ليس في أمر الشراء {1}.</value></data>
+  <data name="ReceiptQtyPositive" xml:space="preserve"><value>أدخل كمية مستلمة موجبة.</value></data>
+  <data name="ReceiptExceedsOrder" xml:space="preserve"><value>«{0}»: الاستلام {1} يتجاوز المتبقي من أمر الشراء {2} (المطلوب {3}).</value></data>
+  <data name="ReceiptNotEditable" xml:space="preserve"><value>سند الاستلام على أمر شراء لا يُعدَّل: احذفه وأنشئ غيره أو أرجع منه.</value></data>
+  <data name="ReceiptNotOfOrder" xml:space="preserve"><value>سند الاستلام ليس من هذا الأمر.</value></data>
+  <data name="PurchaseReceiptsToInvoiceRequired" xml:space="preserve"><value>اختر سند استلام واحداً على الأقل للفوترة.</value></data>
+  <data name="ReceiptAlreadyInvoiced" xml:space="preserve"><value>سند الاستلام {0} مفوتر بالفاتورة {1}.</value></data>
+  <data name="ReceiptsNotCombinable" xml:space="preserve"><value>السندات المختارة في مستودعات أو مشاريع مختلفة: فوترها بفواتير منفصلة.</value></data>
+  <data name="StockReservedForProjects" xml:space="preserve"><value>«{0}»: الكمية {1} تتجاوز المتاح غير المحجوز {2} (الرصيد {3} − محجوز للمشاريع {4}). حرّر الحجز أو اصرفه للمشروع أولاً.</value></data>
+  <data name="StockReservationQtyPositive" xml:space="preserve"><value>كمية الحجز يجب أن تكون أكبر من صفر.</value></data>
+  <data name="StockReservationNothingToRelease" xml:space="preserve"><value>لا متبقٍ في الحجز لتحريره.</value></data>
+  <data name="StockReservationReleaseExceeds" xml:space="preserve"><value>التحرير {0:0.####} يتجاوز المتبقي الحر في الحجز {1:0.####} (عدا طلبات التحويل المعلّقة).</value></data>
+  <data name="StockReservationTransferQtyPositive" xml:space="preserve"><value>كمية التحويل يجب أن تكون أكبر من صفر.</value></data>
+  <data name="StockReservationTransferReasonRequired" xml:space="preserve"><value>سبب التحويل مطلوب.</value></data>
+  <data name="StockReservationTransferSameProject" xml:space="preserve"><value>اختر مشروعاً آخر للتحويل.</value></data>
+  <data name="StockReservationTransferExceeds" xml:space="preserve"><value>كمية التحويل {0:0.####} تتجاوز المتبقي الحر في الحجز {1:0.####}.</value></data>
+  <data name="StockReservationTransferNotPending" xml:space="preserve"><value>طلب التحويل لم يعد معلّقاً.</value></data>
+  <data name="StockReservationTransferSourceShort" xml:space="preserve"><value>متبقي الحجز المصدر لم يعد يكفي للتحويل (صُرف منه أو حُرِّر بعد الطلب).</value></data>
+  <data name="StockReservationRejectReasonRequired" xml:space="preserve"><value>سبب الرفض مطلوب.</value></data>
+  <data name="StockReservationProjectNotExecuting" xml:space="preserve"><value>الحجز لمشروع قيد التنفيذ (عقد ساري) فقط.</value></data>
+  <data name="StockReservationNotFound" xml:space="preserve"><value>الحجز غير موجود في هذا المشروع.</value></data>
+  <data name="StockReservationTransferNotFound" xml:space="preserve"><value>طلب التحويل غير موجود.</value></data>
+  <data name="StockReservationTransferSelfDecision" xml:space="preserve"><value>لا يعتمد مقدّم طلب التحويل طلبه: يعتمده مسؤول آخر.</value></data>
+  <data name="StockReservationExceedsAvailable" xml:space="preserve"><value>«{0}»: الحجز {1:0.####} يتجاوز المتاح {2:0.####} (الرصيد المستلم {3:0.####} − المحجوز {4:0.####}).</value></data>
+  <data name="StockReservationPlanNotApproved" xml:space="preserve"><value>اعتمد احتياجات مواد المشروع أولاً: منها تُحسب الكمية المسموح حجزها.</value></data>
+  <data name="StockReservationNotRequired" xml:space="preserve"><value>«{0}» ليس ضمن احتياجات المشروع المعتمدة: لا يُحجز له.</value></data>
+  <data name="StockReservationExceedsRequirement" xml:space="preserve"><value>«{0}»: الحجز {1:0.####} يتجاوز الباقي من احتياج المشروع {2:0.####} (المطلوب {3:0.####} − المحجوز {4:0.####} − المسلَّم {5:0.####}).</value></data>
+  <data name="ProjectIssueExceedsWarehouseStock" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز رصيد المستودع المستلَم فعلاً {2:0.####}. استلم المادة في المستودع أولاً.</value></data>
+  <data name="ProjectIssueExceedsProjectAvailable" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (الرصيد {3:0.####} − محجوز لمشاريع أخرى {4:0.####}). حوّل التخصيص باعتماد أو انتظر الاستلام.</value></data>
+  <data name="ProjectIssueReservedForOthers" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (محجوز لمشاريع أخرى {3:0.####}).</value></data>
+  <data name="RfqAwardPendingApproval" xml:space="preserve"><value>ترسية هذا الطلب بانتظار الاعتماد: لا تُعدَّل العروض ولا الموردون ولا يُلغى حتى القرار.</value></data>
 </root>

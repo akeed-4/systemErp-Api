@@ -36,6 +36,9 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         if (d.ExpectedDeliveryDate < d.OrderDate) errors.Add(Messages.ExpectedDeliveryBeforeOrderDate);
         if (d.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
         if (existing?.ConvertedInvoiceId != null) errors.Add(Messages.CannotEditInvoicedOrder);
+        // أمر من ترسية طلب عروض أو عليه سندات استلام: أسعاره وكمياته أساس الاستلام والفوترة الجزئية
+        if (existing != null && (existing.RfqId != null || await Db.Set<DeliveryNote>().AnyAsync(n => n.PurchaseOrderId == existing.Id, ct)))
+            errors.Add(Messages.RfqLinkedReadOnly);
         if (errors.Count == 0 && d.AgreementId.HasValue) await ValidateAgainstAgreementAsync(d, existing?.Id, errors, ct);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
     }
@@ -93,11 +96,12 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         if (e.AgreementId is { } id) _touchedAgreements.Add(id);
     }
 
-    protected override Task OnDeletingAsync(CommercialOrder e, CancellationToken ct)
+    protected override async Task OnDeletingAsync(CommercialOrder e, CancellationToken ct)
     {
         if (e.ConvertedInvoiceId != null) throw new ConflictException(Messages.CannotDeleteInvoicedOrder);
+        if (await Db.Set<DeliveryNote>().AnyAsync(n => n.PurchaseOrderId == e.Id, ct)) throw new ConflictException(Messages.OrderHasReceipts);
+        if (e.RfqId != null) throw new ConflictException(Messages.RfqLinkedReadOnly);
         if (e.AgreementId is { } id) _touchedAgreements.Add(id);
-        return Task.CompletedTask;
     }
 
     protected override Task OnCreatedAsync(CommercialOrder e, CancellationToken ct) => RefreshTouchedAgreementsAsync(ct);
@@ -128,6 +132,9 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
                 ?? throw new NotFoundException(Messages.OrderNotFound);
             if (o.ConvertedInvoiceId != null) throw new ConflictException(Messages.OrderAlreadyConverted);
             if (o.Status is "cancelled" or "draft") throw new ConflictException(Messages.ConfirmOrderFirst);
+            // أمر دورة الشراء أو المستلم عليه: يُفوتر من سندات استلامه (جزئياً) لا بتحويل كامل يكرر الكمية
+            if (o.RfqId != null || await Db.Set<DeliveryNote>().AnyAsync(n => n.PurchaseOrderId == o.Id, token))
+                throw new ConflictException(Messages.OrderInvoicedByReceipts);
 
             var sales = o.Type == "sales_order";
             var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto

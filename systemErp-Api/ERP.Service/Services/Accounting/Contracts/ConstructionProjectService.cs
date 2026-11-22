@@ -79,12 +79,11 @@ public class ConstructionProjectService : IConstructionProjectService
             : null;
         var phases = await _db.Set<ProjectPhase>().AsNoTracking().Include(p => p.Items).Where(p => p.ContractId == contractId)
             .OrderBy(p => p.SortOrder).ToListAsync(ct);
-        var members = await (from m in _db.Set<ProjectMember>().AsNoTracking()
-                             join u in _db.Set<User>().AsNoTracking() on m.UserId equals u.Id
-                             where m.ContractId == contractId
-                             orderby m.CreatedAt
-                             select new ProjectMemberDto { Id = m.Id, UserId = m.UserId, UserName = u.Name, Email = u.Email, Role = m.Role, Notes = m.Notes })
-            .ToListAsync(ct);
+        var members = (await MemberRowsAsync(new[] { contractId }, ct)).Select(m => new ProjectMemberDto
+        {
+            Id = m.Id, EmployeeId = m.EmployeeId, EmployeeCode = m.EmployeeCode, DepartmentId = m.DepartmentId, DepartmentName = m.DepartmentName,
+            JobTitle = m.JobTitle, UserId = m.UserId, UserName = m.Name, Email = m.Email, Role = m.Role, Notes = m.Notes,
+        }).ToList();
 
         var today = SaudiTime.Today;
         var lineIds = contract.Items.Select(i => i.Id).ToHashSet();
@@ -161,10 +160,7 @@ public class ConstructionProjectService : IConstructionProjectService
             .ToDictionaryAsync(p => p.ContractId, p => p.EstimatedBudget, ct);
         var phases = (await _db.Set<ProjectPhase>().AsNoTracking().Where(p => ids.Contains(p.ContractId))
             .Select(p => new { p.ContractId, p.PlannedStart, p.PlannedEnd, p.WeightPercent }).ToListAsync(ct)).ToLookup(p => p.ContractId);
-        var team = (await (from m in _db.Set<ProjectMember>().AsNoTracking()
-                           join u in _db.Set<User>().AsNoTracking() on m.UserId equals u.Id
-                           where ids.Contains(m.ContractId)
-                           select new { m.ContractId, m.UserId, u.Name, m.Role, m.CreatedAt }).ToListAsync(ct)).ToLookup(m => m.ContractId);
+        var team = (await MemberRowsAsync(ids, ct)).ToLookup(m => m.ContractId);
         var certificates = (await _db.Set<ContractCertificate>().AsNoTracking()
             .Where(c => ids.Contains(c.ContractId) && c.Status != ContractCertificateStatuses.Cancelled && c.Status != ContractCertificateStatuses.Rejected)
             .Select(c => new { c.ContractId, c.Status, c.SequenceNo, c.CumulativeWorkValue, c.TotalWithVat }).ToListAsync(ct)).ToLookup(c => c.ContractId);
@@ -233,7 +229,7 @@ public class ConstructionProjectService : IConstructionProjectService
                 ReportCount = reps.Count, PendingReports = reps.Count(r => r.Status == SiteDailyReportStatuses.Submitted),
                 LastReportDate = reps.Count == 0 ? null : reps.Max(r => r.ReportDate),
                 OperatingCost = cost, BudgetUsedPercent = budget > 0 ? Math.Round(cost / budget * 100m, 2) : null,
-                Team = team[c.Id].OrderBy(m => m.CreatedAt).Select(m => new ProjectTeamMemberDto { UserId = m.UserId, Name = m.Name, Role = m.Role }).ToList(),
+                Team = team[c.Id].OrderBy(m => m.CreatedAt).Select(m => new ProjectTeamMemberDto { UserId = m.UserId, EmployeeId = m.EmployeeId, Name = m.Name, Role = m.Role }).ToList(),
             };
             var finished = c.Stage is ContractStageDefinition.Closed or ContractStageDefinition.Cancelled or ContractStageDefinition.InitialAcceptance;
             if (dto.PhaseCount == 0) dto.Alerts.Add(ConstructionProjectAlerts.NoPhases);
@@ -384,10 +380,12 @@ public class ConstructionProjectService : IConstructionProjectService
     {
         var contract = await LoadContractAsync(contractId, ct);
         EnsureEditable(contract);
-        await ValidateMemberAsync(request, ct);
-        if (await _db.Set<ProjectMember>().AnyAsync(m => m.ContractId == contractId && m.UserId == request.UserId, ct))
+        var (employeeId, userId) = await ValidateMemberAsync(request, ct);
+        // التكرار بالموظف أو بالحساب (عضوية قديمة بالمستخدم نفسه قبل ربطها بموظف)
+        if (await _db.Set<ProjectMember>().AnyAsync(m => m.ContractId == contractId
+                && ((employeeId != null && m.EmployeeId == employeeId) || (userId != null && m.UserId == userId)), ct))
             throw new ConflictException(Messages.ProjectMemberExists);
-        _db.Add(new ProjectMember { ContractId = contractId, UserId = request.UserId, Role = request.Role, Notes = Trim(request.Notes, 300) });
+        _db.Add(new ProjectMember { ContractId = contractId, EmployeeId = employeeId, UserId = userId, Role = request.Role, Notes = Trim(request.Notes, 300) });
         await _db.SaveChangesAsync(ct);
         return await GetAsync(contractId, ct);
     }
@@ -398,9 +396,8 @@ public class ConstructionProjectService : IConstructionProjectService
         EnsureEditable(contract);
         var member = await _db.Set<ProjectMember>().FirstOrDefaultAsync(m => m.Id == memberId && m.ContractId == contractId, ct)
             ?? throw new NotFoundException(Messages.ProjectMemberNotFound);
-        request.UserId = member.UserId; // تغيير المستخدم = حذف وإضافة
-        // دور مضاف أُوقف لاحقاً يبقى لمن أُسند إليه (تعديل الملاحظات لا يُلزم بتغييره)
-        await ValidateMemberAsync(request, ct, keepRole: member.Role);
+        // تغيير الشخص = حذف وإضافة؛ التعديل للدور والملاحظات. دور مضاف أُوقف لاحقاً يبقى لمن أُسند إليه
+        await ValidateRoleAsync(request.Role, member.Role, ct);
         member.Role = request.Role;
         member.Notes = Trim(request.Notes, 300);
         await _db.SaveChangesAsync(ct);
@@ -418,9 +415,50 @@ public class ConstructionProjectService : IConstructionProjectService
         return await GetAsync(contractId, ct);
     }
 
-    public Task<List<ProjectMemberCandidateDto>> MemberCandidatesAsync(CancellationToken ct = default)
-        => _db.Set<User>().AsNoTracking().Where(u => u.IsActive).OrderBy(u => u.Name)
-            .Select(u => new ProjectMemberCandidateDto { Id = u.Id, Name = u.Name, Email = u.Email }).ToListAsync(ct);
+    /// <summary>
+    /// الموظفون الفعّالون بأقسامهم من شؤون الموظفين (الواجهة تختار القسم ثم موظفيه، أو الموظف فيظهر قسمه)، ثم المستخدمون الفعّالون
+    /// الذين لا ملف موظف لهم (منشأة بلا موارد بشرية، أو حساب لم يُربط بعد).
+    /// </summary>
+    public async Task<List<ProjectMemberCandidateDto>> MemberCandidatesAsync(CancellationToken ct = default)
+    {
+        var employees = await (from e in _db.Set<Employee>().AsNoTracking()
+                               join d in _db.Set<Department>().AsNoTracking() on e.DepartmentId equals d.Id into ds
+                               from d in ds.DefaultIfEmpty()
+                               where e.Status == EmployeeStatuses.Active
+                               orderby e.NameAr
+                               select new ProjectMemberCandidateDto
+                               {
+                                   Id = e.Id, Code = e.Code, Name = e.NameAr, Email = e.Email, JobTitle = e.JobTitle,
+                                   DepartmentId = e.DepartmentId, DepartmentName = d != null ? d.NameAr : null, UserId = e.UserId,
+                               }).ToListAsync(ct);
+        var linked = _db.Set<Employee>().Where(e => e.UserId != null).Select(e => e.UserId);
+        var users = await _db.Set<User>().AsNoTracking().Where(u => u.IsActive && !linked.Contains(u.Id)).OrderBy(u => u.Name)
+            .Select(u => new ProjectMemberCandidateDto { Id = u.Id, Kind = "user", Name = u.Name, Email = u.Email, JobTitle = u.JobTitle, UserId = u.Id })
+            .ToListAsync(ct);
+        return users.Concat(employees).ToList();
+    }
+
+    private sealed record MemberRow(Guid Id, Guid ContractId, Guid? EmployeeId, string? EmployeeCode, Guid? DepartmentId, string? DepartmentName,
+        string? JobTitle, Guid? UserId, string Name, string? Email, string Role, string? Notes, DateTime CreatedAt);
+
+    /// <summary>
+    /// الأعضاء ببياناتهم الحالية: الاسم والقسم والمسمى من ملف الموظف (فيظهر تعديله فوراً)، والحساب من ربط الموظف الحالي
+    /// قبل المنسوخ على العضوية. العضوية القديمة بلا موظف تعرض المستخدم كما كانت.
+    /// </summary>
+    private async Task<List<MemberRow>> MemberRowsAsync(ICollection<Guid> contractIds, CancellationToken ct)
+        => (await (from m in _db.Set<ProjectMember>().AsNoTracking()
+                   join e in _db.Set<Employee>().AsNoTracking() on m.EmployeeId equals (Guid?)e.Id into es
+                   from e in es.DefaultIfEmpty()
+                   join d in _db.Set<Department>().AsNoTracking() on e.DepartmentId equals (Guid?)d.Id into ds
+                   from d in ds.DefaultIfEmpty()
+                   join u in _db.Set<User>().AsNoTracking() on (e != null && e.UserId != null ? e.UserId : m.UserId) equals (Guid?)u.Id into us
+                   from u in us.DefaultIfEmpty()
+                   where contractIds.Contains(m.ContractId)
+                   orderby m.CreatedAt
+                   select new MemberRow(m.Id, m.ContractId, m.EmployeeId, e != null ? e.Code : null, e != null ? e.DepartmentId : null,
+                       d != null ? d.NameAr : null, e != null ? e.JobTitle : null, e != null && e.UserId != null ? e.UserId : m.UserId,
+                       e != null ? e.NameAr : u != null ? u.Name : "", e != null && e.Email != null ? e.Email : u != null ? u.Email : null,
+                       m.Role, m.Notes, m.CreatedAt)).ToListAsync(ct));
 
     // ---------- أدوار أعضاء المشاريع ----------
 
@@ -491,14 +529,33 @@ public class ConstructionProjectService : IConstructionProjectService
         return (nameAr, nameEn);
     }
 
-    private async Task ValidateMemberAsync(SaveProjectMemberDto request, CancellationToken ct, string? keepRole = null)
+    private async Task ValidateRoleAsync(string role, string? keepRole, CancellationToken ct)
     {
-        var roleOk = ProjectMemberRoles.IsSystem(request.Role)
-            || (request.Role == keepRole && await _db.Set<ProjectMemberRoleDefinition>().AnyAsync(r => r.Code == request.Role, ct))
-            || await _db.Set<ProjectMemberRoleDefinition>().AnyAsync(r => r.Code == request.Role && r.IsActive, ct);
+        var roleOk = ProjectMemberRoles.IsSystem(role)
+            || (role == keepRole && await _db.Set<ProjectMemberRoleDefinition>().AnyAsync(r => r.Code == role, ct))
+            || await _db.Set<ProjectMemberRoleDefinition>().AnyAsync(r => r.Code == role && r.IsActive, ct);
         if (!roleOk) throw new ValidationFailedException(Messages.ProjectMemberRoleInvalid);
-        if (!await _db.Set<User>().AnyAsync(u => u.Id == request.UserId && u.IsActive, ct))
+    }
+
+    /// <summary>
+    /// العضو بالموظف (فعّال، وحسابه من ملفه إن كان فعّالاً)، أو بالمستخدم لعميل قديم (فعّال، ويُربط بالموظف الذي يحمل حسابه إن وُجد).
+    /// العلاقة بالمعرّفات وحدها، لا بالأسماء.
+    /// </summary>
+    private async Task<(Guid? EmployeeId, Guid? UserId)> ValidateMemberAsync(SaveProjectMemberDto request, CancellationToken ct)
+    {
+        await ValidateRoleAsync(request.Role, null, ct);
+        if (request.EmployeeId is Guid employeeId)
+        {
+            var employee = await _db.Set<Employee>().AsNoTracking().Where(e => e.Id == employeeId && e.Status == EmployeeStatuses.Active)
+                .Select(e => new { e.Id, e.UserId }).FirstOrDefaultAsync(ct)
+                ?? throw new ValidationFailedException(Messages.ProjectMemberEmployeeInvalid);
+            var userId = employee.UserId is Guid u && await _db.Set<User>().AnyAsync(x => x.Id == u && x.IsActive, ct) ? u : (Guid?)null;
+            return (employee.Id, userId);
+        }
+        if (request.UserId is not Guid legacyUser || !await _db.Set<User>().AnyAsync(u => u.Id == legacyUser && u.IsActive, ct))
             throw new ValidationFailedException(Messages.ProjectMemberUserInvalid);
+        var linked = await _db.Set<Employee>().AsNoTracking().Where(e => e.UserId == legacyUser).Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
+        return (linked, legacyUser);
     }
 
     // ---------- موارد المشروع وتكلفة الساعة ----------

@@ -43,8 +43,39 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             throw new ValidationFailedException(Messages.SupplierNotFound);
         if (d.WarehouseId.HasValue && !await Db.Set<Warehouse>().AnyAsync(w => w.Id == d.WarehouseId, ct))
             throw new ValidationFailedException(Messages.WarehouseNotFound);
+        await ValidateRequesterAsync(d, ct);
         await ValidateProjectAsync(d, existing, ct);
         await ValidateWorkOrderAsync(d, existing, ct);
+    }
+
+    public async Task<RequisitionRequestersDto> RequestersAsync(CancellationToken ct = default) => new()
+    {
+        Departments = await Db.Set<Department>().AsNoTracking().Where(d => d.IsActive).OrderBy(d => d.NameAr)
+            .Select(d => new RequisitionDepartmentOptionDto { Id = d.Id, Code = d.Code, Name = d.NameAr }).ToListAsync(ct),
+        Employees = await Db.Set<Employee>().AsNoTracking().Where(e => e.Status == EmployeeStatuses.Active).OrderBy(e => e.NameAr)
+            .Select(e => new RequisitionEmployeeOptionDto { Id = e.Id, Code = e.Code, Name = e.NameAr, JobTitle = e.JobTitle, DepartmentId = e.DepartmentId, UserId = e.UserId })
+            .ToListAsync(ct),
+    };
+
+    /// <summary>
+    /// القسم ومقدّم الطلب من شؤون الموظفين بالمعرّف: الموظف فعّال ومن القسم المختار، والقسم يُملأ من الموظف إن لم يُرسل.
+    /// النصان يُكتبان من السجلين (والعميل القديم بلا معرّفات يبقى على النص الحر).
+    /// </summary>
+    private async Task ValidateRequesterAsync(CreateMaterialRequisitionDto d, CancellationToken ct)
+    {
+        if (d.RequestedByEmployeeId is Guid employeeId)
+        {
+            var employee = await Db.Set<Employee>().AsNoTracking().Where(e => e.Id == employeeId && e.Status == EmployeeStatuses.Active)
+                .Select(e => new { e.NameAr, e.DepartmentId }).FirstOrDefaultAsync(ct)
+                ?? throw new ValidationFailedException(Messages.RequisitionEmployeeInvalid);
+            if (d.DepartmentId != null && employee.DepartmentId != d.DepartmentId)
+                throw new ValidationFailedException(Messages.RequisitionEmployeeDepartmentMismatch);
+            d.DepartmentId ??= employee.DepartmentId;
+            d.RequestedBy = employee.NameAr;
+        }
+        if (d.DepartmentId is Guid departmentId)
+            d.Department = await Db.Set<Department>().AsNoTracking().Where(x => x.Id == departmentId).Select(x => x.NameAr).FirstOrDefaultAsync(ct)
+                ?? throw new ValidationFailedException(Messages.RequisitionDepartmentInvalid);
     }
 
     /// <summary>
@@ -168,6 +199,8 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     {
         if (e.Status is "converted_to_po" or "converted_to_invoice") throw new ConflictException(Messages.CannotDeleteConvertedRequisition);
         if (await Db.Set<DeliveryNote>().AnyAsync(n => n.RequisitionId == e.Id, ct)) throw new ConflictException(Messages.ProjectRequisitionHasReceipts);
+        if (await Db.Set<PurchaseRfq>().AnyAsync(r => r.RequisitionId == e.Id, ct))
+            throw new ConflictException(string.Format(Messages.RequisitionHasRfq, e.RequisitionNumber));
     }
 
     /// <summary>
@@ -198,6 +231,8 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             // عزل مشتريات المشروع: طلبه لا يدخل المستودع العام بفاتورة مباشرة؛ يُستلم بسند استلام ثم يُفوتر منه
             if (r.ContractId != null) throw new ConflictException(Messages.ProjectRequisitionReceivedByGrn);
             if (r.SupplierId == null) throw new ValidationFailedException(Messages.SetSupplierBeforeConversion);
+            if (await PurchaseCycleService.HasActiveRfqAsync(Db, r.Id, token))
+                throw new ConflictException(string.Format(Messages.RequisitionHasRfq, r.RequisitionNumber));
 
             var ids = r.Items.Select(i => i.ItemId).ToList();
             var products = await Db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);

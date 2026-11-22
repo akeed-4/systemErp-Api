@@ -1015,6 +1015,9 @@ public class TradeInvoiceEngine
         if (m.Status != "approved") throw new ConflictException(Messages.ApproveRequisitionBeforeConversion);
         // طلب المشروع يُستلم بسند استلام (عهدة للمشروع) ثم يُفوتر منه، لا بفاتورة شراء للمستودع العام
         if (m.ContractId != null) throw new ConflictException(Messages.ProjectRequisitionReceivedByGrn);
+        // طلب عليه طلب عروض أسعار قائم يُشترى بأوامر الترسية فلا تتكرر الكمية بفاتورة مباشرة
+        if (await PurchaseCycleService.HasActiveRfqAsync(_db, m.Id, ct))
+            throw new ConflictException(string.Format(Messages.RequisitionHasRfq, m.RequisitionNumber));
         m.ConvertedInvoiceId = invoice.Id;
         m.Status = "converted_to_invoice";
     }
@@ -1045,6 +1048,15 @@ public class TradeInvoiceEngine
                 {
                     n.InvoiceId = null; n.InvoiceNumber = null;
                     n.Status = n.Items.Any(i => i.ReturnedQty > 0) ? DeliveryNoteStatus.PartiallyReturned : DeliveryNoteStatus.Delivered;
+                }
+                break;
+            case PurchaseOrderReceipts.InvoiceReferenceType:
+                // فاتورة مجمّعة لسندات استلام أمر شراء: حذفها يعيد كل سنداتها قابلة للفوترة
+                foreach (var billed in await _db.Set<DeliveryNote>().Include(x => x.Items)
+                             .Where(x => x.PurchaseOrderId == sourceId && x.InvoiceId == invoice.Id).ToListAsync(ct))
+                {
+                    billed.InvoiceId = null; billed.InvoiceNumber = null;
+                    billed.Status = billed.Items.Any(i => i.ReturnedQty > 0) ? DeliveryNoteStatus.PartiallyReturned : DeliveryNoteStatus.Delivered;
                 }
                 break;
         }

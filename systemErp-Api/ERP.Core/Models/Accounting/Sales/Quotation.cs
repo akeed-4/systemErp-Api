@@ -37,6 +37,11 @@ public class Quotation : BaseEntity, IScopedRecord, IPartyDocument
     public Guid? ConvertedInvoiceId { get; set; }
     public string? Notes { get; set; }
     public string? TermsAndConditions { get; set; }
+    /// <summary>طلب عرض الأسعار (RFQ) الذي قُدّم عليه هذا العرض من المورد؛ فارغ = عرض عادي.</summary>
+    public Guid? RfqId { get; set; }
+    /// <summary>تكاليف إضافية على العرض قبل الضريبة (شحن، تركيب…)؛ توزَّع على أسطره بنسبة صافي قيمتها في المقارنة والترسية.</summary>
+    public decimal ExtraCosts { get; set; }
+    public int? DeliveryDays { get; set; }
 
     public virtual ICollection<QuotationItem> Items { get; set; } = new List<QuotationItem>();
 }

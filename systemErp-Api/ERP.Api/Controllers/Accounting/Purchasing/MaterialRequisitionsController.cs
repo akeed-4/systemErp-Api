@@ -22,6 +22,18 @@ public class MaterialRequisitionsController : CrudController<MaterialRequisition
     protected override string? ApprovalHandler => "material-requisitions";
 
     /// <summary>
+    /// أرقام أصناف الطلب: الرصيد، والمحجوز للمشاريع، والمصروف، والمتاح فعلاً، وقيد التوريد (في مستودع الطلب أو كل المستودعات)،
+    /// ومع المشروع المحجوز له والمتاح له.
+    /// </summary>
+    [HttpGet("requesters")]
+    public async Task<IActionResult> Requesters(CancellationToken ct) => Success(await _requisitions.RequestersAsync(ct));
+
+    [HttpGet("stock-availability")]
+    public async Task<IActionResult> StockAvailability([FromQuery] Guid[] productIds, [FromQuery] Guid? warehouseId, [FromQuery] Guid? contractId,
+        [FromServices] IStockReservationService reservations, CancellationToken ct)
+        => Success(await reservations.AvailabilityAsync(productIds, warehouseId, contractId, ct));
+
+    /// <summary>
     /// الاعتماد: صلاحية «اعتماد» على المشتريات بنطاقها وحد اعتماد المستخدم مقابل التكلفة التقديرية، ثم سياسة الاعتماد إن وُجدت
     /// (يُحجز الطلب بمسار مستوياتها ولا يُعتمد إلا عند الاعتماد النهائي).
     /// </summary>

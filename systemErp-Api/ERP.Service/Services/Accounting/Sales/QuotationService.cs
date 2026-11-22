@@ -35,6 +35,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
         if (d.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
         if (d.Status.StartsWith("converted")) errors.Add(Messages.ConvertedStatusSetByConversionOnly);
         if (existing != null && existing.Status.StartsWith("converted")) errors.Add(Messages.CannotEditConvertedQuotation);
+        if (existing?.RfqId != null) errors.Add(Messages.RfqLinkedReadOnly);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         return Task.CompletedTask;
     }
@@ -60,7 +61,8 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
     }
 
     protected override Task OnDeletingAsync(Quotation e, CancellationToken ct)
-        => e.Status.StartsWith("converted") ? throw new ConflictException(Messages.CannotDeleteConvertedQuotation) : Task.CompletedTask;
+        => e.Status.StartsWith("converted") ? throw new ConflictException(Messages.CannotDeleteConvertedQuotation)
+            : e.RfqId != null ? throw new ConflictException(Messages.RfqLinkedReadOnly) : Task.CompletedTask;
 
     private static void Recalculate(Quotation q)
     {
@@ -81,6 +83,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
                 ?? throw new NotFoundException(Messages.QuotationNotFound);
             if (q.Status.StartsWith("converted")) throw new ConflictException(Messages.QuotationAlreadyConverted);
             if (q.Status == "rejected") throw new ConflictException(Messages.CannotConvertRejectedQuotation);
+            if (q.RfqId != null) throw new ConflictException(Messages.RfqLinkedReadOnly);
 
             var sales = q.Type == "sales_quotation";
             var invoice = await (sales ? (ITradeDocumentService)_sales : _purchases).CreateAsync(new CreateInvoiceDto
@@ -112,6 +115,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
                 ?? throw new NotFoundException(Messages.QuotationNotFound);
             if (q.Status.StartsWith("converted")) throw new ConflictException(Messages.QuotationAlreadyConverted);
             if (q.Status == "rejected") throw new ConflictException(Messages.CannotConvertRejectedQuotation);
+            if (q.RfqId != null) throw new ConflictException(Messages.RfqLinkedReadOnly);
 
             var order = await _orders.CreateAsync(new CreateCommercialOrderDto
             {

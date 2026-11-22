@@ -11,6 +11,8 @@ public partial class MaterialRequisitionDto
     public DateTime RequiredDate { get; set; }
     public string Department { get; set; } = string.Empty;
     public string RequestedBy { get; set; } = string.Empty;
+    public Guid? DepartmentId { get; set; }
+    public Guid? RequestedByEmployeeId { get; set; }
     public string Priority { get; set; } = "medium";
     public Guid? SupplierId { get; set; }
     public string? SupplierName { get; set; }
@@ -38,4 +40,29 @@ public partial class MaterialRequisitionDto
     /// <summary>للقراءة: اسم مرحلة التنفيذ.</summary>
     public string? PhaseName { get; set; }
     public List<MaterialRequisitionItemDto> Items { get; set; } = new();
+}
+
+/// <summary>خيارات القسم ومقدّم الطلب من شؤون الموظفين (فارغة بلا وحدة الموارد البشرية: يبقى النص الحر).</summary>
+public class RequisitionRequestersDto
+{
+    public List<RequisitionDepartmentOptionDto> Departments { get; set; } = new();
+    public List<RequisitionEmployeeOptionDto> Employees { get; set; } = new();
+}
+
+public class RequisitionDepartmentOptionDto
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
+public class RequisitionEmployeeOptionDto
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? JobTitle { get; set; }
+    public Guid? DepartmentId { get; set; }
+    /// <summary>حساب الموظف: يُختار به مقدّم الطلب افتراضياً للمستخدم الحالي.</summary>
+    public Guid? UserId { get; set; }
 }

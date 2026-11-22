@@ -27,5 +27,8 @@ public partial class QuotationDto
     public Guid? ConvertedInvoiceId { get; set; }
     public string? Notes { get; set; }
     public string? TermsAndConditions { get; set; }
+    public Guid? RfqId { get; set; }
+    public decimal ExtraCosts { get; set; }
+    public int? DeliveryDays { get; set; }
     public List<QuotationItemDto> Items { get; set; } = new();
 }

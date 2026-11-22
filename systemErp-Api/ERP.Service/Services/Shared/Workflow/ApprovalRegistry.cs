@@ -1,6 +1,7 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.Contracts.CarShowroom;
 using ERP.Core.DTOs.Accounting.Contracts;
+using ERP.Core.DTOs.Accounting.Purchasing;
 using Microsoft.Extensions.DependencyInjection;
 using static ERP.Core.Models.Shared.ApprovalDocumentCatalog;
 
@@ -149,6 +150,11 @@ public static class ApprovalRegistry
             .Act(Approve, (s, id, ct) => s.ApproveAsync(id, ct))
             .Act(Cancel, (s, id, ct) => s.CancelAsync(id, ct))
             .Delete(Delete, (s, id, ct) => s.DeleteAsync(id, ct)).Handler;
+
+        // ترسية عروض الموردين: المعرّف طلب عروض الأسعار، والمبلغ إجمالي أوامر الشراء الناتجة (من التجربة)؛ يُنفَّذ بالترسية نفسها عند الاعتماد النهائي
+        yield return For<IPurchaseCycleService, PurchaseRfqDto>("purchase-rfq-award", "purchase_quotation_award")
+            .Get((s, id, ct) => s.GetRfqAsync(id, ct)).Amount(r => r.Orders.Where(o => o.Status != "cancelled").Sum(o => o.GrandTotal))
+            .Update<AwardRfqDto>(Approve, (s, id, d, ct) => s.AwardAsync(id, d, ct)).Handler;
 
         // ---------------- المخزون ----------------
         yield return For<IStockTransferService, StockTransferDto>("stock-transfers", "stock_transfer")

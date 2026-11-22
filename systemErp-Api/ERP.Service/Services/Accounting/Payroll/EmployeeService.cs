@@ -78,6 +78,10 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
             throw new ConflictException(Messages.EmployeeHasLeaves);
         if (await Db.Set<EmployeeLoan>().AnyAsync(l => l.EmployeeId == e.Id, ct) || await Db.Set<EndOfServiceSettlement>().AnyAsync(s => s.EmployeeId == e.Id, ct))
             throw new ConflictException(Messages.EmployeeHasLoansOrSettlement);
+        // عضو مشروع أو مقدّم طلب شراء: العلاقة بالمعرّف، فلا يُحذف ملفه ويبقى السجل (يُوقف بدل الحذف)
+        if (await Db.Set<ProjectMember>().AnyAsync(m => m.EmployeeId == e.Id, ct)
+            || await Db.Set<MaterialRequisition>().AnyAsync(r => r.RequestedByEmployeeId == e.Id, ct))
+            throw new ConflictException(Messages.EmployeeLinkedToProjects);
         // سجلات الحضور تُحذف مع الموظف: لا أثر مالي لها ما دام بلا مسيرات
         Db.RemoveRange(await Db.Set<AttendanceRecord>().Where(a => a.EmployeeId == e.Id).ToListAsync(ct));
         // حساب بوابة الموظف يُعطَّل مع حذف ملفه (حساب مستخدم النظام المرتبط به يبقى)
@@ -87,6 +91,9 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
         foreach (var department in await Db.Set<Department>().Where(x => x.ManagerEmployeeId == e.Id).ToListAsync(ct))
             department.ManagerEmployeeId = null;
     }
+
+    protected override Task OnCreatedAsync(Employee entity, CancellationToken ct) => HrLinks.SyncEmployeeAsync(Db, entity.Id, ct);
+    protected override Task OnUpdatedAsync(Employee entity, CancellationToken ct) => HrLinks.SyncEmployeeAsync(Db, entity.Id, ct);
 
     public async Task<List<EmployeeAlertDto>> GetExpiringAsync(int days, CancellationToken ct = default)
     {

@@ -69,6 +69,68 @@ public class ProjectSupplyController : ErpControllerBase
 }
 
 /// <summary>
+/// حجز مخزون المستودع للمشروع وتحويل التخصيص لمشروع آخر (تحت سجل العقد ونطاق الوصول إليه)، وأرقام المتاح والمحجوز لأصنافه.
+/// </summary>
+[Route("api/v1/commercialcontracts/{id:guid}")]
+[RequireModule(PlatformModules.Construction)]
+[ScopedRecord(ScopedRecordTypes.CommercialContractKey)]
+[RequireFeature(PlanFeatures.CommercialCycle)]
+public class ProjectStockReservationsController : ErpControllerBase
+{
+    private const string Screen = PermissionCatalog.ProjectStockReservationsScreenId;
+    private readonly IStockReservationService _reservations;
+
+    public ProjectStockReservationsController(IStockReservationService reservations) => _reservations = reservations;
+
+    /// <summary>الرصيد والمحجوز والمصروف والمتاح وقيد التوريد لأصناف المشروع (والمحجوز له والمتاح له).</summary>
+    [HttpGet("stock-availability"), RequireScreen(PermissionCatalog.ConstructionProjectsScreenId, ScreenAction.View)]
+    public async Task<IActionResult> Availability(Guid id, [FromQuery] Guid[] productIds, [FromQuery] Guid? warehouseId, CancellationToken ct)
+        => Success(await _reservations.AvailabilityAsync(productIds, warehouseId, id, ct));
+
+    [HttpGet("stock-reservations"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> List(Guid id, CancellationToken ct) => Success(await _reservations.ListAsync(id, ct));
+
+    [HttpPost("stock-reservations"), RequireScreen(Screen, ScreenAction.Create)]
+    public async Task<IActionResult> Reserve(Guid id, [FromBody] SaveStockReservationDto request, CancellationToken ct)
+        => Success(await _reservations.ReserveAsync(id, request, ct), "تم حجز الكمية للمشروع.");
+
+    [HttpPost("stock-reservations/{reservationId:guid}/release"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> Release(Guid id, Guid reservationId, [FromBody] ReleaseStockReservationDto request, CancellationToken ct)
+        => Success(await _reservations.ReleaseAsync(id, reservationId, request, ct), "تم تحرير الكمية من الحجز.");
+
+    [HttpPost("stock-reservations/{reservationId:guid}/transfer"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> RequestTransfer(Guid id, Guid reservationId, [FromBody] RequestReservationTransferDto request, CancellationToken ct)
+        => Success(await _reservations.RequestTransferAsync(id, reservationId, request, ct), "أُرسل طلب تحويل التخصيص للاعتماد.");
+
+    [HttpGet("stock-reservation-transfers"), RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> Transfers(Guid id, [FromQuery] string? status, CancellationToken ct)
+        => Success(await _reservations.TransfersAsync(status, id, ct));
+}
+
+/// <summary>طلبات تحويل التخصيص لكل المشاريع: قائمة المعلّق للمعتمِد، والاعتماد أو الرفض (لا يعتمد مقدّم الطلب طلبه).</summary>
+[Route("api/v1/stock-reservation-transfers")]
+[RequireModule(PlatformModules.Construction)]
+[RequireFeature(PlanFeatures.CommercialCycle)]
+public class StockReservationTransfersController : ErpControllerBase
+{
+    private const string Screen = PermissionCatalog.ProjectStockReservationsScreenId;
+    private readonly IStockReservationService _reservations;
+
+    public StockReservationTransfersController(IStockReservationService reservations) => _reservations = reservations;
+
+    [HttpGet, RequireScreen(Screen, ScreenAction.View)]
+    public async Task<IActionResult> List([FromQuery] string? status, CancellationToken ct) => Success(await _reservations.TransfersAsync(status, null, ct));
+
+    [HttpPost("{transferId:guid}/approve"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> Approve(Guid transferId, [FromBody] ReservationTransferDecisionDto request, CancellationToken ct)
+        => Success(await _reservations.ApproveTransferAsync(transferId, request, ct), "تم اعتماد تحويل التخصيص.");
+
+    [HttpPost("{transferId:guid}/reject"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> Reject(Guid transferId, [FromBody] ReservationTransferDecisionDto request, CancellationToken ct)
+        => Success(await _reservations.RejectTransferAsync(transferId, request, ct), "تم رفض طلب التحويل.");
+}
+
+/// <summary>
 /// أذونات تسليم المواد لكل المشاريع (شاشة المستندات المستقلة في قائمة المقاولات): القائمة بترقيم وفلترة من السرفر، في نطاق وصول
 /// المستخدم إلى العقود. فتح الإذن وحفظه وترحيله وإلغاؤه تبقى على مسار سجل العقد (`commercialcontracts/{id}/material-issues`).
 /// </summary>

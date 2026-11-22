@@ -84,6 +84,9 @@ public class InventoryService : IInventoryService
             if (product.CurrentStock < r.Quantity && _db.PermitNegativeStock) _db.NegativeStockOccurred = true;
             if (product.CurrentStock < r.Quantity && prohibit)
                 throw new ConflictException(string.Format(Messages.InsufficientStock, product.NameAr, product.CurrentStock, r.Quantity));
+            // البيع لا يستهلك المحجوز للمشاريع (مزامنة البيع أوف لاين تُسجَّل كما حدثت)
+            if (r.Type == StockMovementType.OutSales && !_db.PermitNegativeStock)
+                await StockReservations.EnsureUnreservedAsync(_db, product.Id, product.NameAr, warehouse.Id, r.Quantity, ct);
             // الصرف من مستودع بعينه: رصيده هو المتاح، لا رصيد المستودعات الأخرى
             var warehouseLeft = await WarehouseStocks.ApplyAsync(_db, product.Id, warehouse.Id, -r.Quantity, ct);
             if (warehouseLeft < 0 && _db.PermitNegativeStock) _db.NegativeStockOccurred = true;
@@ -304,6 +307,8 @@ public class InventoryService : IInventoryService
         var available = await WarehouseStocks.QuantityAsync(_db, product.Id, from.Id, ct);
         if (available < r.Quantity && policy.NegativeInventoryPolicy == "prohibit")
             throw new ConflictException(string.Format(Messages.InsufficientStockInWarehouse, product.NameAr, from.NameAr, available, r.Quantity));
+        // المحجوز لمشروع في المستودع المحوَّل منه لا يُنقل بتحويل عام (يُصرف للمشروع أو يُحرَّر أولاً)
+        await StockReservations.EnsureUnreservedAsync(_db, product.Id, product.NameAr, from.Id, r.Quantity, ct);
 
         // التشغيلات: تُخصَّص من المستودع المحوَّل منه (المختارة أو الأقرب انتهاءً) وتنتقل بأرقامها نفسها للمستلم
         var parts = product.TracksLots

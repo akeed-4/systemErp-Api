@@ -15,7 +15,7 @@ public class WorkshopWorkTests : TestBase
 
     private static void Ok(Res r, string step) => Assert.True(r.Status is 200 or 201, $"{step}: {r.Status} {r.Body?.ToJsonString()}");
 
-    private static async Task<(Client Api, string OrderId, string ServiceId)> SetupAsync()
+    private async Task<(Client Api, string OrderId, string ServiceId)> SetupAsync()
     {
         var api = await NewTenantWithModulesAsync("accounting", "workshop");
         var serviceId = await WorkshopReceptionTests.SeedServiceAsync(api);

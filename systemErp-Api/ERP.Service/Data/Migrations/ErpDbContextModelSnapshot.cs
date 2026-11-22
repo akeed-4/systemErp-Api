@@ -1162,6 +1162,10 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("ExpectedDeliveryDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("ExtraCosts")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<decimal>("GrandTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -1194,6 +1198,15 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("PaymentTerms")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("QuotationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RequisitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RfqId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1229,12 +1242,22 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("QuotationId");
+
+                    b.HasIndex("RequisitionId");
+
+                    b.HasIndex("RfqId");
+
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "OrderNumber")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "RequisitionId");
+
+                    b.HasIndex("TenantId", "RfqId");
 
                     b.ToTable("CommercialOrder");
                 });
@@ -1259,12 +1282,25 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal?>("LandedUnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("QuotationItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RequisitionItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RfqItemId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Sku")
                         .IsRequired()
@@ -3411,6 +3447,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("PartyType")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("RequisitionId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3454,12 +3493,16 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("PurchaseOrderId");
+
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "DeliveryNumber")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "PurchaseOrderId");
 
                     b.HasIndex("TenantId", "RequisitionId");
 
@@ -6227,6 +6270,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
@@ -6243,6 +6289,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("RequestedBy")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("RequestedByEmployeeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("RequiredDate")
                         .HasColumnType("datetime2");
@@ -6283,6 +6332,10 @@ namespace ERP.Service.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ContractId");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("RequestedByEmployeeId");
 
                     b.HasIndex("SupplierId");
 
@@ -7179,6 +7232,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
@@ -7194,19 +7250,26 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ContractId");
 
+                    b.HasIndex("EmployeeId");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "UserId");
 
+                    b.HasIndex("TenantId", "ContractId", "EmployeeId")
+                        .IsUnique()
+                        .HasFilter("[EmployeeId] IS NOT NULL");
+
                     b.HasIndex("TenantId", "ContractId", "UserId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
 
                     b.ToTable("ProjectMember");
                 });
@@ -8108,6 +8171,168 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("PurchaseLandedCostLine");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseRfq", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AwardedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AwardedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("RequisitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RfqNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequisitionId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "RfqNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "RequisitionId", "Status");
+
+                    b.ToTable("PurchaseRfq");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseRfqItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("RequisitionItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RfqId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("RfqId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("PurchaseRfqItem");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseRfqSupplier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RfqId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SupplierName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RfqId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "RfqId", "SupplierId")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseRfqSupplier");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8132,7 +8357,14 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("DeliveryDays")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("DiscountTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExtraCosts")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
@@ -8168,6 +8400,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("QuotationNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid?>("RfqId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -8207,12 +8442,16 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("RfqId");
+
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "QuotationNumber")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "RfqId");
 
                     b.ToTable("Quotation");
                 });
@@ -8242,6 +8481,9 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("QuotationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RfqItemId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Sku")
@@ -8283,6 +8525,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("ItemId");
 
                     b.HasIndex("QuotationId");
+
+                    b.HasIndex("RfqItemId");
 
                     b.HasIndex("TenantId");
 
@@ -10186,6 +10430,218 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("SiteResourceUsage");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.StockReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("IssuedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ReleasedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid?>("SourceTransferId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "ContractId");
+
+                    b.HasIndex("TenantId", "ProductId", "WarehouseId", "Status");
+
+                    b.ToTable("StockReservation");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.StockReservationConsumption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsReversed")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("IssueId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("IssueLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IssueId");
+
+                    b.HasIndex("ReservationId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "IssueId");
+
+                    b.HasIndex("TenantId", "ReservationId");
+
+                    b.ToTable("StockReservationConsumption");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.StockReservationTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DecidedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RequestedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SourceContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SourceReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TargetContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TargetReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceReservationId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "SourceContractId");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.HasIndex("TenantId", "TargetContractId");
+
+                    b.ToTable("StockReservationTransfer");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.Voucher", b =>
@@ -20569,6 +21025,21 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("ERP.Core.Models.Accounting.Quotation", null)
+                        .WithMany()
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.MaterialRequisition", null)
+                        .WithMany()
+                        .HasForeignKey("RequisitionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseRfq", null)
+                        .WithMany()
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Shared.Supplier", null)
                         .WithMany()
                         .HasForeignKey("SupplierId")
@@ -20847,6 +21318,11 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Shared.Customer", null)
                         .WithMany()
                         .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ERP.Core.Models.Shared.Supplier", null)
@@ -21295,6 +21771,16 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("ContractId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("ERP.Core.Models.Accounting.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERP.Core.Models.Shared.Supplier", null)
                         .WithMany()
                         .HasForeignKey("SupplierId")
@@ -21447,6 +21933,11 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("ContractId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.ProjectPhase", b =>
@@ -21531,11 +22022,59 @@ namespace ERP.Service.Data.Migrations
                     b.Navigation("Voucher");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseRfq", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.MaterialRequisition", null)
+                        .WithMany()
+                        .HasForeignKey("RequisitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseRfqItem", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseRfq", "Rfq")
+                        .WithMany("Items")
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Rfq");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseRfqSupplier", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseRfq", "Rfq")
+                        .WithMany("Suppliers")
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Rfq");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.Customer", null)
                         .WithMany()
                         .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseRfq", null)
+                        .WithMany()
+                        .HasForeignKey("RfqId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ERP.Core.Models.Shared.Supplier", null)
@@ -21557,6 +22096,11 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("QuotationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseRfqItem", null)
+                        .WithMany()
+                        .HasForeignKey("RfqItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Quotation");
                 });
@@ -21966,6 +22510,51 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Report");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.StockReservation", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.CommercialContract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.StockReservationConsumption", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.ProjectMaterialIssue", null)
+                        .WithMany()
+                        .HasForeignKey("IssueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.StockReservation", null)
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.StockReservationTransfer", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.StockReservation", null)
+                        .WithMany()
+                        .HasForeignKey("SourceReservationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.Voucher", b =>
@@ -23500,6 +24089,13 @@ namespace ERP.Service.Data.Migrations
             modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseLandedCostLine", b =>
                 {
                     b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseRfq", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Suppliers");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>

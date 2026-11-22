@@ -73,7 +73,13 @@ public static class ScopedRecordTypes
         var facts = Facts(type, entity);
         // العقد هو مشروع المقاولات: أعضاؤه ضمن نطاق «المسندة إليه»
         if (entity is CommercialContract)
-            facts.MemberUserIds = await db.Set<ProjectMember>().AsNoTracking().Where(m => m.ContractId == id).Select(m => m.UserId).ToListAsync(ct);
+            // الحساب المنسوخ على العضوية، وربط الموظف الحالي (موظف دُعي للبوابة بعد إسناده)
+            facts.MemberUserIds = (await (from m in db.Set<ProjectMember>().AsNoTracking()
+                                          join e in db.Set<Employee>().AsNoTracking() on m.EmployeeId equals (Guid?)e.Id into es
+                                          from e in es.DefaultIfEmpty()
+                                          where m.ContractId == id
+                                          select new { m.UserId, EmployeeUserId = e != null ? e.UserId : null }).ToListAsync(ct))
+                .SelectMany(x => new[] { x.UserId, x.EmployeeUserId }).Where(u => u.HasValue).Select(u => u!.Value).Distinct().ToList();
         return facts;
     }
 

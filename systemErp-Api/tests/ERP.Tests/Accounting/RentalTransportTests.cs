@@ -15,7 +15,7 @@ public class RentalTransportTests : TestBase
 
     private static void Ok(Res r, string step) => Assert.True(r.Status is 200 or 201, $"{step}: {r.Status} {r.Body?.ToJsonString()}");
 
-    private static async Task<(Client Api, string A, string B, Guid Customer)> SetupAsync()
+    private async Task<(Client Api, string A, string B, Guid Customer)> SetupAsync()
     {
         var api = await NewTenantWithModulesAsync("accounting", "equipment_rental");
         var category = await api.Post("/rental/categories", new { nameAr = "معدات ثقيلة", isActive = true });

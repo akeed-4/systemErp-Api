@@ -26,5 +26,9 @@ public partial class CommercialOrderDto
     public string? Notes { get; set; }
     public Guid? AgreementId { get; set; }
     public string? AgreementNumber { get; set; }
+    public Guid? RfqId { get; set; }
+    public Guid? QuotationId { get; set; }
+    public Guid? RequisitionId { get; set; }
+    public decimal ExtraCosts { get; set; }
     public List<CommercialOrderItemDto> Items { get; set; } = new();
 }

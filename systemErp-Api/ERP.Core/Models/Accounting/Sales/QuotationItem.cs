@@ -15,6 +15,8 @@ public class QuotationItem : BaseEntity
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
+    /// <summary>سطر طلب عرض الأسعار المقابل (عرض RFQ).</summary>
+    public Guid? RfqItemId { get; set; }
 
     public virtual Quotation Quotation { get; set; } = null!;
 }

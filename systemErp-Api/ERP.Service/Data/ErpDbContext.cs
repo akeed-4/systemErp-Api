@@ -870,9 +870,12 @@ public class ErpDbContext : DbContext
         {
             e.Property(m => m.Role).HasMaxLength(32).IsRequired();
             e.Property(m => m.Notes).HasMaxLength(300);
-            e.HasIndex(m => new { m.TenantId, m.ContractId, m.UserId }).IsUnique();
+            e.HasIndex(m => new { m.TenantId, m.ContractId, m.UserId }).IsUnique().HasFilter("[UserId] IS NOT NULL");
+            e.HasIndex(m => new { m.TenantId, m.ContractId, m.EmployeeId }).IsUnique().HasFilter("[EmployeeId] IS NOT NULL");
             // استعلام نطاق «المسندة إليه» يبحث بالمستخدم
             e.HasIndex(m => new { m.TenantId, m.UserId });
+            // الموظف بقيد (منشأة واحدة): لا يُحذف ملف موظف عضو في مشروع
+            e.HasOne<Employee>().WithMany().HasForeignKey(m => m.EmployeeId).OnDelete(DeleteBehavior.Restrict);
             // المستخدم بلا قيد (دليل المستخدمين يُنسخ بين قواعد المنشآت)؛ الخدمة تتحقق أنه فعّال عند الإسناد
             e.HasOne<CommercialContract>().WithMany().HasForeignKey(m => m.ContractId);
         });
@@ -1840,6 +1843,11 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.ContractId });
         // مرحلة الطلب: مرجع بلا قيد (كاحتياجات المواد)، والفهرس لحساب ما طُلب لكل مرحلة ولمنع حذف مرحلة لها طلبات
         modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.PhaseId });
+        // القسم ومقدّم الطلب من شؤون الموظفين بقيد (لا يُحذف قسم أو موظف عليه طلبات)؛ النصان المنسوخان للقديم والبحث
+        modelBuilder.Entity<MaterialRequisition>().HasOne<Department>().WithMany().HasForeignKey(r => r.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<MaterialRequisition>().HasOne<Employee>().WithMany().HasForeignKey(r => r.RequestedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        StockReservationModel.Configure(modelBuilder);
+        PurchaseCycleModel.Configure(modelBuilder);
         modelBuilder.Entity<ProductionOrderLine>(e =>
         {
             e.Property(l => l.Kind).HasMaxLength(16).IsRequired();
@@ -1997,7 +2005,8 @@ public class ErpDbContext : DbContext
             || (ScopeMode == 2 && e.CreatedByUserId != null && ScopeUserIds.Contains(e.CreatedByUserId.Value))
             || (ScopeMode == 3 && e.CreatedByUserId == ScopeUserId)
             || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId
-                || Set<ProjectMember>().Any(m => m.ContractId == e.Id && m.UserId == ScopeUserId))))
+                || Set<ProjectMember>().Any(m => m.ContractId == e.Id && (m.UserId == ScopeUserId
+                    || Set<Employee>().Any(emp => emp.Id == m.EmployeeId && emp.UserId == ScopeUserId))))))
             && (!WarehouseFilterOn || e.WarehouseId == null || WarehouseFilterIds.Contains(e.WarehouseId.Value))
             && (!WarehouseOwnerOnly || e.CreatedByUserId == WarehouseOwnerId));
 

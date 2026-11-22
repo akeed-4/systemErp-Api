@@ -637,6 +637,8 @@ public class ProjectSupplyService : IProjectSupplyService
             residual += back.ValueChange - line.TotalCost;
         }
         await ItemBatches.MarkReversedAsync(_db, SourceType, issue.Id, token);
+        // التسليم المعكوس يعيد الكمية للمستودع فيعود ما استهلكه من حجز المشروع
+        if (issue.Kind == K.Issue) await StockReservations.ReverseIssueAsync(_db, issue.Id, token);
         await _db.SaveChangesAsync(token);
         if (issue.JournalEntryId != null)
         {
@@ -960,6 +962,10 @@ public class ProjectSupplyService : IProjectSupplyService
             var stock = await WarehouseStocks.QuantityAsync(_db, g.Key, warehouseId, ct);
             if (qty > stock + 0.0001m)
                 throw new ValidationFailedException($"«{g.First().ItemName}»: التسليم {qty:0.####} يتجاوز رصيد المستودع {Math.Max(0, stock):0.####}. اطلب المادة واشترِها واستلمها في المستودع أولاً.");
+            // المحجوز لمشاريع أخرى لا يُصرف لهذا المشروع (يُعاد الفحص تحت القفل عند الترحيل)
+            var reserved = await StockReservations.ReservedAsync(_db, g.Key, warehouseId, issue.ContractId, ct);
+            if (qty > stock - reserved + 0.0001m)
+                throw new ValidationFailedException(string.Format(Messages.ProjectIssueReservedForOthers, g.First().ItemName, qty, Math.Max(0, stock - reserved), reserved));
         }
     }
 
@@ -971,8 +977,10 @@ public class ProjectSupplyService : IProjectSupplyService
             return;
         }
         await EnsureWithinPlanAsync(contract.Id, issue, ct); // صرف آخر رُحِّل بعد حفظ المسودة
-        await EnsureInStockAsync(issue, ct); // رصيد صرفه مستند آخر بعد حفظ المسودة
-        var note = $"صرف مواد {issue.IssueNumber} لمشروع {contract.ContractNumber} - {issue.ReceiverName}";
+        // رصيد صرفه أو حجزه مستند آخر بعد حفظ المسودة: الفحص تحت قفل الصنف، ثم يستهلك حجز المشروع نفسه
+        var issueWarehouse = (await WarehouseStocks.ResolveAsync(_db, issue.WarehouseId, ct)).Id;
+        await StockReservations.ConsumeForIssueAsync(_db, issue, issueWarehouse, ct);
+        var note =$"صرف مواد {issue.IssueNumber} لمشروع {contract.ContractNumber} - {issue.ReceiverName}";
         decimal total = 0;
         foreach (var line in issue.Lines.OrderBy(l => l.SortOrder))
         {

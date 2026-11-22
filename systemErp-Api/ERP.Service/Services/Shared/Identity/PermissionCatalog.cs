@@ -101,6 +101,9 @@ public static class PermissionCatalog
         // صرف مواد المستودع للمشاريع: أمين المستودع يُنشئ ويرحّل، والإلغاء يعكس الأثر؛ يرث صلاحية مشاريع المقاولات حتى تُحفظ له صلاحية
         new(ProjectMaterialIssuesScreenId, "contracts", "صرف مواد المستودع للمشاريع", "Project Material Issues",
             Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: ConstructionProjectsScreenId),
+        // حجز مخزون المستودع للمشاريع: الإضافة حجز، والتعديل تحرير وطلب تحويل لمشروع آخر، والاعتماد لتحويل التخصيص (لا يعتمده مقدّمه)
+        new(ProjectStockReservationsScreenId, "contracts", "حجز مخزون المشاريع وتحويل التخصيص", "Project Stock Reservations",
+            new[] { A.View, A.Create, A.Edit, A.Approve }, Array.Empty<string>(), InheritsFrom: ProjectMaterialIssuesScreenId),
         // طلب شراء (أو تعديله أو اعتماده) لمرحلة تنفيذ لم تبدأ بعد: تفويض حسّاس لا يُمنح افتراضياً إلا للأدوار الإدارية
         new(ProjectFuturePhasePurchaseScreenId, "contracts", "مشاريع المقاولات: الشراء لمرحلة مستقبلية", "Construction Projects: Purchase for a Future Phase",
             new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
@@ -143,6 +146,9 @@ public static class PermissionCatalog
         // اعتماد طلب الشراء منفصلاً عن اعتماد فواتير المشتريات: مدير يعتمد الطلبات (بحد اعتماده) دون صلاحية على الفواتير؛
         // يرث «اعتماد» المشتريات حتى تُحفظ له صلاحية مستقلة
         new(PurchaseRequisitionApprovalScreenId, "purchases", "طلبات الشراء: اعتماد الطلب", "Purchase Requisitions: Approve",
+            new[] { A.Approve }, Array.Empty<string>(), InheritsFrom: "purchases"),
+        // ترسية عروض الموردين (اعتماد العرض) وإلغاء طلب العروض منفصلة عن إدخال العروض؛ ترث «اعتماد» المشتريات حتى تُحفظ
+        new(PurchaseQuotationAwardScreenId, "purchases", "دورة الشراء: ترسية عروض الموردين", "Purchase Cycle: Award Supplier Quotations",
             new[] { A.Approve }, Array.Empty<string>(), InheritsFrom: "purchases"),
 
         new("accounts", "accounting", "دليل الحسابات والقيود اليومية", "Chart of Accounts",
@@ -257,6 +263,7 @@ public static class PermissionCatalog
     public const string SiteDailyReportsScreenId = "site-daily-reports";
     public const string ProjectAttendanceScreenId = "project-attendance";
     public const string ProjectMaterialIssuesScreenId = "project-material-issues";
+    public const string ProjectStockReservationsScreenId = "project-stock-reservations";
     public const string ProjectFuturePhasePurchaseScreenId = "project-future-phase-purchase";
     public const string EquipmentScreenId = "equipment";
     public const string EquipmentMaintenanceScreenId = "equipment-maintenance";
@@ -264,6 +271,7 @@ public static class PermissionCatalog
     public const string WhatsAppSendScreenId = "whatsapp-send";
     public const string PurchaseLandedCostsScreenId = "purchase-landed-costs";
     public const string PurchaseRequisitionApprovalScreenId = "purchase-requisition-approval";
+    public const string PurchaseQuotationAwardScreenId = "purchase-quotation-award";
     public const string ContractCertificateApprovalScreenId = "contract-certificate-approval";
     public const string ProductionOrdersScreenId = "production-orders";
 

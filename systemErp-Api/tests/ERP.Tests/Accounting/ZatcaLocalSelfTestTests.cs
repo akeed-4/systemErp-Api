@@ -21,7 +21,7 @@ public class ZatcaLocalSelfTestTests
 {
     private static readonly string[] ExpectedStages =
     {
-        ZatcaLocalSelfTest.StagePrivateKey, ZatcaLocalSelfTest.StageLocalCertificate, ZatcaLocalSelfTest.StageCertificateParsing,
+        ZatcaLocalSelfTest.StagePrivateKey, ZatcaLocalSelfTest.StageKeyImport, ZatcaLocalSelfTest.StageLegacyPkcs8Import, ZatcaLocalSelfTest.StageLocalCertificate, ZatcaLocalSelfTest.StageCertificateParsing,
         ZatcaLocalSelfTest.StageEncryption, ZatcaLocalSelfTest.StageComplianceXml, ZatcaLocalSelfTest.StageXmlSignature,
         ZatcaLocalSelfTest.StageSignatureVerification, ZatcaLocalSelfTest.StageEnvironmentCrypto,
     };
@@ -29,14 +29,17 @@ public class ZatcaLocalSelfTestTests
     private static ISecretProtector RealProtector() => new SecretProtector(new EphemeralDataProtectionProvider());
 
     [Fact]
-    public async Task All_eight_stages_pass_using_only_local_test_data()
+    public async Task All_stages_pass_using_only_local_test_data()
     {
         var report = await new ZatcaLocalSelfTest(RealProtector(), NullLogger<ZatcaLocalSelfTest>.Instance).RunAsync();
 
         Assert.True(report.AllPassed, Describe(report));
         Assert.Null(report.FirstFailedStage);
         Assert.Equal(ExpectedStages, report.Stages.Select(s => s.Name));
+        // محلياً (ملف تعريف المستخدم محمّل) تنجح الطريقتان كلتاهما؛ القديمة وحدها معلوماتية
         Assert.All(report.Stages, s => Assert.Equal("passed", s.Result));
+        Assert.Equal(new[] { ZatcaLocalSelfTest.StageLegacyPkcs8Import }, report.Stages.Where(s => s.Informational).Select(s => s.Name));
+        Assert.Contains("ZatcaKeys", report.Stages.Single(s => s.Name == ZatcaLocalSelfTest.StageKeyImport).Detail);
 
         // الشهادة محلية تجريبية بوضوح، والبائع والرقم الضريبي تجريبيان (لا بيانات منشأة)
         var parsing = report.Stages.Single(s => s.Name == ZatcaLocalSelfTest.StageCertificateParsing).Detail!;

@@ -32,6 +32,10 @@ public sealed class ZatcaLocalSelfTest : IZatcaLocalSelfTest
     public const string TestVat = "399999999900003";
 
     public const string StagePrivateKey = "private_key";
+    /// <summary>الإصلاح: تحميل المفتاح بـ <see cref="ZatcaKeys"/> (فك مُدار + ImportParameters) كما يفعل مسار الربط الآن.</summary>
+    public const string StageKeyImport = "key_import";
+    /// <summary>معلوماتية: الطريقة القديمة (ImportFromPem → استيراد PKCS#8 في CNG) لإثبات سبب الفشل على الاستضافة.</summary>
+    public const string StageLegacyPkcs8Import = "legacy_pkcs8_import";
     public const string StageLocalCertificate = "local_certificate";
     public const string StageCertificateParsing = "certificate_parsing";
     public const string StageEncryption = "encryption";
@@ -87,16 +91,35 @@ public sealed class ZatcaLocalSelfTest : IZatcaLocalSelfTest
 
         try
         {
-            // 1) مفتاح الوحدة: secp256k1 كما في ZatcaCsr.NewKey، ثم تصديره PKCS#8 واستيراده كما يفعل توليد مستندات الامتثال
+            // 1) مفتاح الوحدة: secp256k1 كما في ZatcaCsr.NewKey، ثم تصديره PKCS#8 كما يُحفظ في الجلسة
             Stage(report, passed, StagePrivateKey, Array.Empty<string>(), ct, () =>
             {
                 key = ZatcaCsr.NewKey();
                 keyPem = key.ExportPkcs8PrivateKeyPem();
-                signingKey = ECDsa.Create();
-                signingKey.ImportFromPem(keyPem);
-                var curve = signingKey.ExportParameters(false).Curve;
-                return $"{key.GetType().Name}, curve {curve.Oid?.FriendlyName ?? curve.Oid?.Value}, {signingKey.KeySize} bits; PKCS#8 PEM export + import OK";
+                var curve = key.ExportParameters(false).Curve;
+                return $"{key.GetType().Name}, curve {curve.Oid?.FriendlyName ?? curve.Oid?.Value}, {key.KeySize} bits; PKCS#8 PEM export OK";
             });
+
+            // 1-أ) الإصلاح: تحميله بـ ZatcaKeys (المستخدم الآن في توليد مستندات الامتثال وإرسال الفواتير)، ثم إثبات أنه المفتاح نفسه
+            Stage(report, passed, StageKeyImport, new[] { StagePrivateKey }, ct, () =>
+            {
+                signingKey = ZatcaKeys.ImportPrivateKey(keyPem!);
+                if (!signingKey.ExportSubjectPublicKeyInfo().AsSpan().SequenceEqual(key!.ExportSubjectPublicKeyInfo()))
+                    throw new CryptographicException("The imported key's public key differs from the generated key.");
+                var probe = RandomNumberGenerator.GetBytes(32);
+                var signature = signingKey.SignData(probe, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+                if (!key.VerifyData(probe, signature, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence))
+                    throw new CryptographicException("A signature made with the imported key does not verify with the generated key.");
+                return $"ZatcaKeys (managed PKCS#8 decode + ImportParameters) → {signingKey.GetType().Name}; same public key; sign/verify OK";
+            });
+
+            // 1-ب) معلوماتية: الطريقة القديمة. فشلها هنا بـ «temporary profile» يثبت سبب فشل الربط، ولا يعني فشل المسار الحالي
+            Stage(report, passed, StageLegacyPkcs8Import, new[] { StagePrivateKey }, ct, () =>
+            {
+                using var legacy = ECDsa.Create();
+                legacy.ImportFromPem(keyPem!);
+                return "ECDsa.ImportFromPem (PKCS#8 into CNG) works in this environment";
+            }, informational: true);
 
             // 2) طلب الشهادة بـ ZatcaCsr.Create نفسه، وشهادة محلية من جهة إصدار تجريبية بصيغة رمز الهيئة (Base64 مزدوج)
             Stage(report, passed, StageLocalCertificate, new[] { StagePrivateKey }, ct, () =>
@@ -140,8 +163,7 @@ public sealed class ZatcaLocalSelfTest : IZatcaLocalSelfTest
                 var protectedPem = _secrets.Protect(keyPem!);
                 var revealed = _secrets.Unprotect(protectedPem);
                 if (revealed != keyPem) throw new CryptographicException("Protect/Unprotect round-trip mismatch for the private key PEM.");
-                using var reimported = ECDsa.Create();
-                reimported.ImportFromPem(revealed);
+                using var reimported = ZatcaKeys.ImportPrivateKey(revealed);
                 return $"Round-trip OK ({probe.Length}-char secret → {protectedProbe.Length} chars; key PEM → {protectedPem.Length} chars); key re-imported from the decrypted PEM";
             });
 
@@ -161,7 +183,7 @@ public sealed class ZatcaLocalSelfTest : IZatcaLocalSelfTest
             });
 
             // 6) التوقيع: الحلقة نفسها في GenerateComplianceTestsAsync (سلسلة التجزئة السابقة، ZatcaSigner.Sign)
-            Stage(report, passed, StageXmlSignature, new[] { StagePrivateKey, StageCertificateParsing, StageComplianceXml }, ct, () =>
+            Stage(report, passed, StageXmlSignature, new[] { StageKeyImport, StageCertificateParsing, StageComplianceXml }, ct, () =>
             {
                 var previous = ZatcaInvoiceXml.FirstPreviousHash;
                 long counter = 0;
@@ -205,8 +227,8 @@ public sealed class ZatcaLocalSelfTest : IZatcaLocalSelfTest
         }
 
         report.TotalMs = total.ElapsedMilliseconds;
-        report.FirstFailedStage = report.Stages.FirstOrDefault(s => s.Result == "failed")?.Name;
-        report.AllPassed = report.Stages.All(s => s.Result == "passed");
+        report.FirstFailedStage = report.Stages.FirstOrDefault(s => !s.Informational && s.Result == "failed")?.Name;
+        report.AllPassed = report.Stages.Where(s => !s.Informational).All(s => s.Result == "passed");
         _log.LogInformation("ZATCA local self-test {RunId} finished in {Ms} ms. AllPassed={AllPassed} FirstFailedStage={Stage}",
             report.RunId, report.TotalMs, report.AllPassed, report.FirstFailedStage ?? "-");
         return report;
@@ -216,9 +238,10 @@ public sealed class ZatcaLocalSelfTest : IZatcaLocalSelfTest
     /// مرحلة مستقلة: تُتخطّى إن فشلت مرحلة تعتمد عليها. الفشل يُسجَّل في ILogger مع Stack Trace ومعلومات البيئة، والاستجابة
     /// تحمل النوع والرسالة والأسباب الداخلية فقط.
     /// </summary>
-    private void Stage(ZatcaSelfTestReportDto report, HashSet<string> passed, string name, string[] dependsOn, CancellationToken ct, Func<string> body)
+    private void Stage(ZatcaSelfTestReportDto report, HashSet<string> passed, string name, string[] dependsOn, CancellationToken ct, Func<string> body,
+        bool informational = false)
     {
-        var stage = new ZatcaSelfTestStageDto { Name = name };
+        var stage = new ZatcaSelfTestStageDto { Name = name, Informational = informational };
         report.Stages.Add(stage);
         var missing = dependsOn.FirstOrDefault(d => !passed.Contains(d));
         if (ct.IsCancellationRequested || missing != null)
@@ -246,6 +269,13 @@ public sealed class ZatcaLocalSelfTest : IZatcaLocalSelfTest
             stage.ExceptionMessage = ex.Message;
             for (var inner = ex.InnerException; inner != null && stage.InnerExceptions.Count < 8; inner = inner.InnerException)
                 stage.InnerExceptions.Add($"{inner.GetType().FullName}: {inner.Message}");
+            if (informational)
+            {
+                stage.Detail = "Informational comparison stage: this failure is not counted in AllPassed.";
+                _log.LogWarning(ex, "ZATCA self-test {RunId} informational stage {Stage} failed after {Ms} ms (expected under IIS without a loaded user profile). UserProfileLoaded={Profile}",
+                    report.RunId, name, stage.ElapsedMs, report.Environment.GetValueOrDefault("userProfileLoaded"));
+                return;
+            }
             _log.LogError(ex, "ZATCA self-test {RunId} stage {Stage} FAILED after {Ms} ms. Runtime={Runtime} OS={Os} Arch={Arch} EcdsaImpl={Ecdsa} Culture={Culture} UserProfileLoaded={Profile}",
                 report.RunId, name, stage.ElapsedMs, report.Environment.GetValueOrDefault("dotnet.runtime"), report.Environment.GetValueOrDefault("os"),
                 report.Environment.GetValueOrDefault("process.architecture"), report.Environment.GetValueOrDefault("crypto.ecdsaImplementation"),

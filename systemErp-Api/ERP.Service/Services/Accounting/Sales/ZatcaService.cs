@@ -527,11 +527,9 @@ public class ZatcaService : IZatcaService
             try
             {
                 document = await DocumentAsync(invoice, tenant, chain.Counter + 1, chain.LastHash ?? ZatcaInvoiceXml.FirstPreviousHash, ct);
-                using (var key = ECDsa.Create())
-                {
-                    key.ImportFromPem(Reveal(chain.PrivateKeyPem));
+                // ZatcaKeys لا ImportFromPem: استيراد PKCS#8 في CNG يفشل تحت IIS بلا ملف تعريف مستخدم
+                using (var key = ZatcaKeys.ImportPrivateKey(Reveal(chain.PrivateKeyPem)))
                     signed = ZatcaSigner.Sign(document, chain.CertificatePem, key, DateTime.UtcNow);
-                }
 
                 var submission = new ZatcaSubmission(signed.Hash, signed.Uuid, signed.Xml);
                 var secret = Reveal(chain.SecretKey);
@@ -821,8 +819,8 @@ public class ZatcaService : IZatcaService
 
     private async Task GenerateComplianceTestsAsync(ZatcaOnboardingSession session, ZatcaParty seller, CancellationToken ct)
     {
-        using var key = ECDsa.Create();
-        key.ImportFromPem(Reveal(session.PrivateKeyPem!));
+        // ZatcaKeys لا ImportFromPem: استيراد PKCS#8 في CNG يفشل تحت IIS بلا ملف تعريف مستخدم (سبب فشل الربط على الاستضافة)
+        using var key = ZatcaKeys.ImportPrivateKey(Reveal(session.PrivateKeyPem!));
         var cases = RequiredComplianceDocuments(session.InvoiceTypes);
         if (cases.Count == 0) throw new ValidationFailedException("The CSR does not declare any supported invoice type for compliance testing.");
 

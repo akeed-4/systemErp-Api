@@ -46,7 +46,7 @@ public class ZatcaDiagnosticsEndpointTests : TestBase
 
         Assert.Equal(200, res.Status);
         Assert.True(res.Data!["allPassed"]!.GetValue<bool>(), res.Body!.ToJsonString());
-        Assert.Equal(8, res.Data["stages"]!.AsArray().Count);
+        Assert.Equal(10, res.Data["stages"]!.AsArray().Count);
         Assert.Equal(zatcaCalls, FakeZatcaApiClient.Instance.CallCount);
         Assert.Equal(writes, await WriteCountersAsync());
         Assert.Equal(sessionsBefore, await ScalarAsync("SELECT COUNT(*) FROM ZatcaOnboardingSession"));

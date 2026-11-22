@@ -270,10 +270,10 @@ public class CostCenterTests : TestBase
         // قيد يدوي بلا مركز، ثم يصبح حسابه إلزامياً: عكسه يبقى ممكناً ومرآة لأصله
         var manual = await Manual(api, L("521", 70, 0), L("1111", 0, 70));
         Assert.Equal(200, (await SetPolicyAsync(api, "521", "required")).Status);
-        var reversal = await api.Post($"/journalentries/{manual.Data!["id"].S()}/reverse");
+        var reversal = await api.Post($"/journalentries/{manual.Data!["id"].S()}/reverse", new { reason = "تصحيح" });
         Assert.Equal(200, reversal.Status);
         Assert.Equal(70, Amount(await EntryLinesAsync(api, reversal.Data!["id"].S()), "521", null, "credit"));
-        Assert.Equal(409, (await api.Post($"/journalentries/{manual.Data["id"].S()}/reverse")).Status); // لا عكس مكرر
+        Assert.Equal(409, (await api.Post($"/journalentries/{manual.Data["id"].S()}/reverse", new { reason = "تصحيح" })).Status); // لا عكس مكرر
         await AssertBalancedAsync(api);
     }
 

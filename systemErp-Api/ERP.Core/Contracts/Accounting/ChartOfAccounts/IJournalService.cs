@@ -15,5 +15,6 @@ public interface IJournalService
     /// <summary>تعديل قيد (اليدوي أو الآلي؛ الآلي يُعلَّم في وصفه). قيد العكس والمعكوس لا يُعدَّلان.</summary>
     Task<JournalEntryDto> UpdateManualAsync(Guid id, UpdateJournalEntryDto request, CancellationToken ct = default);
     Task DeleteManualAsync(Guid id, CancellationToken ct = default);
-    Task<JournalEntryDto> ReverseAsync(Guid id, CancellationToken ct = default);
+    /// <summary>عكس قيد يدوي بقيد جديد بتاريخه (السبب إلزامي)، أو إعادة فتح السنة لقيد الإقفال.</summary>
+    Task<JournalEntryDto> ReverseAsync(Guid id, string? reason, CancellationToken ct = default);
 }

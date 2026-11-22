@@ -24,6 +24,7 @@ public class TenantProvisioningService : ITenantProvisioningService
                 ParentCode = parent, Level = level,
                 IsDebitNature = DefaultAccounts.IsDebitNature(code, type),
                 IsSystem = true,
+                IsGroup = DefaultAccounts.IsGroup(code),
                 Currency = baseCurrencyCode,
             });
         }
@@ -59,6 +60,22 @@ public class TenantProvisioningService : ITenantProvisioningService
         };
         _db.Add(siteAccount);
         warehouse.InventoryAccountCode = siteAccount.Code;
+
+        // تكلفة إيراد الموقع الرئيسي وعجز مخزونه تحت مجموعة تكلفة المبيعات (أب 511 و513)، وزيادة مخزونه إيراد تحت الإيرادات الأخرى (42)
+        var costGroup = DefaultAccounts.Chart.First(a => a.Code == DefaultAccounts.Cogs).Parent!;
+        Account SiteAccount(string code, SiteAccounts.Role role, string parent, AccountCategory type) => new()
+        {
+            TenantId = tenantId, Code = code,
+            NameAr = SiteAccounts.Name(role, warehouse.NameAr), NameEn = SiteAccounts.Name(role, warehouse.NameEn, english: true),
+            Type = type, ParentCode = parent, Level = levelByCode[parent] + 1,
+            IsDebitNature = DefaultAccounts.IsDebitNature(code, type), Currency = baseCurrencyCode,
+            LinkedEntityType = LinkedEntityType.Warehouse, LinkedEntityId = warehouse.Id,
+        };
+        var cogs = SiteAccount(costGroup + "001", SiteAccounts.Role.Cogs, costGroup, AccountCategory.Expense);
+        var shortage = SiteAccount(costGroup + "002", SiteAccounts.Role.Shortage, costGroup, AccountCategory.Expense);
+        var surplus = SiteAccount(DefaultAccounts.OtherRevenue + "001", SiteAccounts.Role.Surplus, DefaultAccounts.OtherRevenue, AccountCategory.Revenue);
+        _db.AddRange(cogs, shortage, surplus);
+        (warehouse.CogsAccountCode, warehouse.ShortageAccountCode, warehouse.SurplusAccountCode) = (cogs.Code, shortage.Code, surplus.Code);
         _db.Add(warehouse);
 
         _db.Add(new CostingPolicy

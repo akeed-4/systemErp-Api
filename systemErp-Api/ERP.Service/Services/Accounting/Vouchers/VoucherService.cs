@@ -253,7 +253,7 @@ public class VoucherService : IVoucherService
     private async Task PostAsync(Voucher voucher, CreateVoucherDto r, CancellationToken token)
     {
         var treasury = r.IsSplitPayment && r.PaymentSplits.Count > 0
-            ? await SplitsToTreasuryAsync(r.PaymentSplits, token)
+            ? await SplitsToTreasuryAsync(r.PaymentSplits, voucher.WarehouseId, token)
             : new List<PaymentPosting> { new(r.TreasuryAccountCode, r.Amount) };
 
         var posted = await _posting.PostVoucherAsync(new VoucherPostingRequest
@@ -268,10 +268,12 @@ public class VoucherService : IVoucherService
         await _db.SaveChangesAsync(token);
     }
 
-    private async Task<List<PaymentPosting>> SplitsToTreasuryAsync(List<VoucherPaymentSplitDto> splits, CancellationToken ct)
+    /// <summary>الدفعات بطرقها؛ النقد بلا صندوق محدد على صندوق موقع السند.</summary>
+    private async Task<List<PaymentPosting>> SplitsToTreasuryAsync(List<VoucherPaymentSplitDto> splits, Guid? warehouseId, CancellationToken ct)
     {
         var methods = await _db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct);
-        return splits.Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, code: s.PaymentMethodCode), s.Amount)).ToList();
+        var siteCash = (await PostingAccounts.SiteAsync(_db, warehouseId, ct)).Cash;
+        return splits.Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, code: s.PaymentMethodCode, siteCash: siteCash), s.Amount)).ToList();
     }
 
     public Task DeleteAsync(Guid id, CancellationToken ct = default)

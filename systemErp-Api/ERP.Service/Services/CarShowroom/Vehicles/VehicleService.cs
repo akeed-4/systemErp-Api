@@ -176,7 +176,7 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
         };
     }
 
-    /// <summary>تحويل بين المعارض: للسيارات داخل المخزون (متاحة أو محجوزة) فقط، بلا أثر محاسبي (حساب مخزون السيارات واحد).</summary>
+    /// <summary>تحويل بين المعارض: للسيارات داخل المخزون (متاحة أو محجوزة) فقط. المعرضان بحسابي مخزون مختلفين: تنتقل التكلفة بينهما بقيد (VehicleSiteLedger).</summary>
     public Task<int> TransferAsync(TransferVehiclesDto r, CancellationToken ct = default)
         => new TransactionRunner(Db).RunAsync(async token =>
         {
@@ -199,7 +199,18 @@ public class VehicleService : CrudService<Vehicle, VehicleDto, CreateVehicleDto,
                     $"تحويل {v.ChassisNumber} من {from} إلى {warehouse.NameAr}{(string.IsNullOrWhiteSpace(r.Notes) ? "" : " — " + r.Notes.Trim())}", token);
             }
             await Db.SaveChangesAsync(token);
+            // التحويل بين معرضين بحسابين مختلفين ينقل التكلفة بينهما (والمعرض بلا حسابات خاصة على مخزون السيارات العام)
+            await VehicleSiteLedger.SyncAsync(Db, _posting, moved.Select(v => v.Id), $"تحويل سيارات إلى {warehouse.NameAr}", token);
             return moved.Count;
+        }, ct);
+
+    public Task<int> SyncSiteInventoryAsync(CancellationToken ct = default)
+        => new TransactionRunner(Db).RunAsync(async token =>
+        {
+            var ids = await Db.Set<Vehicle>().Where(v => InventoryCountLines.InStock.Contains(v.Status) || v.SiteInventoryAccountCode != null)
+                .Select(v => v.Id).ToListAsync(token);
+            await VehicleSiteLedger.SyncAsync(Db, _posting, ids, "مزامنة مخزون السيارات مع حسابات مخزون معارضها", token);
+            return ids.Count;
         }, ct);
 
     protected override IQueryable<Vehicle> ApplySearch(IQueryable<Vehicle> q, string t)

@@ -19,6 +19,9 @@ public interface IAccountingPostingService
     Task<PostingResult> ReverseAsync(Guid journalEntryId, string? reason = null, CancellationToken ct = default);
     /// <summary>يستبدل أسطر قيد يدوي (يعكس أثره القديم ويطبّق الجديد على نفس رقم القيد).</summary>
     Task ReplaceManualAsync(Guid journalEntryId, GenericPostingRequest request, CancellationToken ct = default);
-    /// <summary>يلغي القيد بقيد عكسي ويبقي الاثنين في السجل (لا حذف فعلي)، ويُرجع القيد العكسي.</summary>
-    Task<PostingResult> DeleteManualAsync(Guid journalEntryId, CancellationToken ct = default);
+    /// <summary>
+    /// يحذف قيداً يدوياً نهائياً (لا قيد عكسي): يسحب أثره من الأرصدة ثم يمسحه وأسطره. للمرحّل غير المعكوس وغير المطابَق مع البنك
+    /// في فترة مفتوحة فقط، ولا يُحذف قيد له قيد عكسي. الإلغاء المحاسبي يبقى بـ <see cref="ReverseAsync"/>.
+    /// </summary>
+    Task PurgeManualAsync(Guid journalEntryId, CancellationToken ct = default);
 }

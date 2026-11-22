@@ -45,6 +45,12 @@ public class Vehicle : BaseEntity
     public decimal? AdditionalCosts { get; set; }
     public decimal? PreparationCost { get; set; }
     public decimal TotalCost { get; set; }
+    /// <summary>
+    /// حساب مخزون الموقع المحجوزة فيه تكلفة السيارة والمبلغ المحجوز (VehicleSiteLedger). فارغ/صفر = تكلفتها في مخزون السيارات العام (1142).
+    /// السيارة في مخزون موقع له حساباته الخاصة تُنقل تكلفتها إليه، وتعود للعام إن خرجت من المخزون بغير البيع.
+    /// </summary>
+    public string? SiteInventoryAccountCode { get; set; }
+    public decimal SiteBookedCost { get; set; }
     public decimal SellingPrice { get; set; }
     public decimal? VatAmount { get; set; }
     public decimal? PriceWithVat { get; set; }

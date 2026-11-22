@@ -96,12 +96,14 @@ public class StockAdjustmentService : IStockAdjustmentService
     private async Task<StockMovementDto> PostAsync(Guid movementId, string? counterAccountCode, decimal signedValue, CancellationToken ct)
     {
         var movement = await _db.Set<StockMovement>().FirstAsync(m => m.Id == movementId, ct);
-        var counter = string.IsNullOrWhiteSpace(counterAccountCode) ? DefaultAccounts.InventoryAdjustment : counterAccountCode.Trim();
         var isIn = movement.Type == StockMovementType.AdjustmentIn;
+        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
+        // المقابل بلا حساب صريح: زيادة مخزون المستودع للإضافة وعجزه للخصم (حسابا الإعدادات لمستودع بلا حسابيه)
+        var (shortage, surplus) = await accounts.VarianceAsync(_db, movement.WarehouseId, ct);
+        var counter = string.IsNullOrWhiteSpace(counterAccountCode) ? (isIn ? surplus : shortage) : counterAccountCode.Trim();
         var own = isIn ? DocumentPricing.Round(movement.Quantity * movement.UnitCost) : signedValue;
         var note = $"تسوية مخزون {(isIn ? "بالإضافة" : "بالخصم")} - {movement.ItemName}";
         movement.CounterAccountCode = counter;
-        var accounts = await PostingAccounts.SettingsAsync(_db, ct);
         if (accounts.IsPeriodic(movement.Date))
         {
             movement.JournalEntryId = own == 0 || string.IsNullOrWhiteSpace(counterAccountCode) ? null

@@ -129,3 +129,22 @@ public interface IRentalDepositService
     Task<RentalDepositDto> CancelSettlementAsync(Guid id, Guid settlementId, RentalReasonDto request, CancellationToken ct = default);
     Task<RentalDepositDto> CancelAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
 }
+
+/// <summary>
+/// كشوف ساعات التأجير (T1): كشف لكل سطر وفترة بأيامه، يُقدَّم ويعتمده ممثل العميل (صورة الكشف الموقّع بالإعداد، والتوقيع اختياري)
+/// فتُجمَّد مبالغه بشروط السطر، ويُفوتر منه عقد «فوترة بكشف الساعات». الرفض يعيده للتعديل، والمعتمد غير المفوتر يُعاد فتحه بسبب.
+/// </summary>
+public interface IRentalTimesheetService
+{
+    Task<List<RentalTimesheetDto>> ListAsync(Guid? contractId, Guid? lineId, string? status, CancellationToken ct = default);
+    Task<RentalTimesheetDto> GetAsync(Guid id, CancellationToken ct = default);
+    /// <summary>معاينة كشف جديد: أيام الفترة معبّأة مبدئياً ومبالغها بشروط السطر (لا يُحفظ شيء).</summary>
+    Task<RentalTimesheetDto> DraftAsync(Guid contractId, Guid lineId, DateTime from, DateTime to, CancellationToken ct = default);
+    Task<RentalTimesheetDto> CreateAsync(SaveRentalTimesheetDto request, CancellationToken ct = default);
+    Task<RentalTimesheetDto> UpdateAsync(Guid id, SaveRentalTimesheetDto request, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task<RentalTimesheetDto> SubmitAsync(Guid id, CancellationToken ct = default);
+    Task<RentalTimesheetDto> ApproveAsync(Guid id, ApproveRentalTimesheetDto request, CancellationToken ct = default);
+    Task<RentalTimesheetDto> RejectAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
+    Task<RentalTimesheetDto> ReopenAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
+}

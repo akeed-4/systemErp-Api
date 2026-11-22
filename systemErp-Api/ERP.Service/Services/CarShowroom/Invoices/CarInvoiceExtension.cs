@@ -56,8 +56,10 @@ public class CarInvoiceExtension : IInvoiceExtension
         var isSales = invoice.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn;
         var car = await SalesCharges.SettingsAsync(_db, ct);
         if (string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)) invoice.InventoryAccountCode = car.VehicleInventoryAccount;
-        if (isSales && string.IsNullOrWhiteSpace(invoice.RevenueAccountCode)) invoice.RevenueAccountCode = car.CarSalesRevenueAccount;
-        if (isSales && string.IsNullOrWhiteSpace(invoice.CogsAccountCode)) invoice.CogsAccountCode = car.CarCogsAccount;
+        // مبيعات السيارة وتكلفتها على حسابي موقعها (المعرض) إن كان له حساباته، وإلا حسابا السيارات في الإعدادات
+        var site = isSales ? await PostingAccounts.SiteAsync(_db, invoice.WarehouseId, ct) : null;
+        if (isSales && string.IsNullOrWhiteSpace(invoice.RevenueAccountCode)) invoice.RevenueAccountCode = site?.Sales ?? car.CarSalesRevenueAccount;
+        if (isSales && string.IsNullOrWhiteSpace(invoice.CogsAccountCode)) invoice.CogsAccountCode = site?.Cogs ?? car.CarCogsAccount;
     }
 
     public async Task<bool> OwnsReferenceAsync(string? referenceType, Guid referenceId, CancellationToken ct) => referenceType switch
@@ -73,8 +75,20 @@ public class CarInvoiceExtension : IInvoiceExtension
 
     public async Task OnPostingAsync(Invoice invoice, CancellationToken ct)
     {
+        // بيع: السيارات تُخصم من مخزون معرضها (حساب الموقع إن كان له حساباته الخاصة) — قبل تحويلها «مباعة»
+        if (invoice.Kind == InvoiceKind.Sales && !invoice.IsReturn && !invoice.OriginalInvoiceId.HasValue)
+        {
+            var sold = invoice.VehicleLines.Where(l => l.VehicleId.HasValue).Select(l => l.VehicleId!.Value).Distinct().ToList();
+            if (sold.Count > 0) invoice.InventoryAccountCode = await VehicleSiteLedger.TakeForSaleAsync(_db, _posting, sold, invoice.InventoryAccountCode, ct);
+        }
         await VehicleInvoiceLines.OnPostingAsync(_db, _vehicles, invoice, ct); // شراء: إنشاء المركبات، بيع: تحويلها Sold
-        if (invoice.Kind == InvoiceKind.Purchase) await VehicleBatchLines.OnPostingAsync(_db, _posting, invoice, ct); // دفعات: البطاقات من مسودة إلى المخزون
+        if (invoice.Kind == InvoiceKind.Purchase)
+        {
+            await VehicleBatchLines.OnPostingAsync(_db, _posting, invoice, ct); // دفعات: البطاقات من مسودة إلى المخزون
+            // الشراء يُقيَّد على مخزون السيارات العام، ثم تنتقل تكلفة الداخلة لمعرض له حساباته إلى مخزونه
+            var bought = await _db.Set<Vehicle>().Where(v => v.PurchaseInvoiceId == invoice.Id).Select(v => v.Id).ToListAsync(ct);
+            await VehicleSiteLedger.SyncAsync(_db, _posting, bought, $"نقل سيارات فاتورة الشراء {invoice.InvoiceNumber} لمخزون معرضها", ct);
+        }
     }
 
     public Task OnUnpostingAsync(Invoice invoice, CancellationToken ct)
@@ -194,7 +208,14 @@ public class CarInvoiceExtension : IInvoiceExtension
         if (isSales)
         {
             await VehicleCostLedger.RecomputeAsync(_db, vehicleIds, ct);
+            // المرتجع يعيدها لحساب مخزون فاتورة البيع (حساب موقعها إن كان)، فيُسجَّل حجزها فيه بلا قيد إضافي
+            await VehicleSiteLedger.RestoreAsync(_db, vehicleIds.Select(id => vehicles[id]), ret.InventoryAccountCode, ct);
             await _db.SaveChangesAsync(ct);
+        }
+        else
+        {
+            // مرتجع الشراء يخصم من مخزون السيارات العام: ما حُجز في الموقع يعود إليه
+            await VehicleSiteLedger.SyncAsync(_db, _posting, vehicleIds, $"إعادة سيارات مرتجع الشراء {ret.InvoiceNumber} لمخزون السيارات العام", ct);
         }
     }
 
@@ -292,12 +313,16 @@ public class CarInvoiceExtension : IInvoiceExtension
         if (changed != null) throw new ConflictException(string.Format(Messages.ReturnVehicleChangedAfterReturn, changed.ChassisNumber));
 
         foreach (var v in vehicles) v.Status = isSales ? VehicleStatus.Sold : VehicleStatus.Available;
+        // إلغاء مرتجع البيع: قيد المرتجع المعكوس يخصمها من حسابها ثانية فيُصفَّر حجزها
+        if (isSales) VehicleSiteLedger.Release(vehicles);
         await _db.SaveChangesAsync(ct);
         if (isSales)
         {
             await VehicleCostLedger.RecomputeAsync(_db, ids, ct);
             await _db.SaveChangesAsync(ct);
         }
+        // إلغاء مرتجع الشراء: تعود متاحة في معرضها فتُحجز تكلفتها فيه
+        else await VehicleSiteLedger.SyncAsync(_db, _posting, ids, $"إعادة سيارات لمخزون معرضها بإلغاء المرتجع {ret.InvoiceNumber}", ct);
     }
 
     /// <summary>
@@ -318,10 +343,15 @@ public class CarInvoiceExtension : IInvoiceExtension
                 .Where(a => ids.Contains(a.VehicleId) && a.PostedToCogs && a.Line.Status == ChargeStatus.Actual && a.Line.Treatment == ChargeTreatment.Capitalize)
                 .Select(a => (Guid?)a.VehicleId).FirstOrDefaultAsync(ct);
             if (late.HasValue) throw new ConflictException(string.Format(Messages.PostedSaleVehicleHasLateCharges, vehicles.First(v => v.Id == late).ChassisNumber));
-            foreach (var v in vehicles.Where(v => v.Status == VehicleStatus.Sold)) v.Status = VehicleStatus.Available;
+            var restored = vehicles.Where(v => v.Status == VehicleStatus.Sold).ToList();
+            foreach (var v in restored) v.Status = VehicleStatus.Available;
+            // قيد البيع المعكوس يعيدها لحساب مخزونه (حساب الموقع إن كان): يُسجَّل حجزها فيه بلا قيد إضافي
+            await VehicleSiteLedger.RestoreAsync(_db, restored, invoice.InventoryAccountCode, ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
+        // إلغاء الشراء: قيده المعكوس يخصم من مخزون السيارات العام، فما حُجز في المعرض يعود إليه أولاً
+        await VehicleSiteLedger.UnbookAsync(_db, _posting, vehicles, $"إعادة سيارات فاتورة الشراء {invoice.InvoiceNumber} لمخزون السيارات العام", ct);
 
         var busy = vehicles.FirstOrDefault(v => v.Status != VehicleStatus.Available);
         if (busy == null)

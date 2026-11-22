@@ -6,6 +6,8 @@ public class AccountLedgerEntryDto
 {
     /// <summary>معرّف سطر القيد.</summary>
     public Guid Id { get; set; }
+    /// <summary>معرّف القيد: تفتح منه الواجهة المستند المصدر (نوعه ومعرّفه على القيد).</summary>
+    public Guid EntryId { get; set; }
     public DateTime Date { get; set; }
     public string EntryNumber { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

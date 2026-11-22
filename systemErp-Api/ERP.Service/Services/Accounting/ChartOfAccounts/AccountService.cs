@@ -33,6 +33,22 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
                 ?? throw new ValidationFailedException(Messages.ParentAccountNotFound);
             if (parent.Type != dto.Type) throw new ValidationFailedException(Messages.AccountTypeMustMatchParent);
             if (existing != null && dto.ParentCode == existing.Code) throw new ValidationFailedException(Messages.AccountCannotBeOwnParent);
+            // الحساب يُعرَّف تحت حساب رئيسي فقط (ومن له أبناء قائمون رئيسي فعلاً)
+            if (!parent.IsGroup && !await Db.Set<Account>().AnyAsync(a => a.ParentCode == parent.Code, ct))
+                throw new ValidationFailedException(Messages.ParentAccountMustBeGroup);
+        }
+
+        // رئيسي أو فرعي: الرئيسي تجميعي لا يُرحَّل عليه، والفرعي حساب حركة بلا أبناء
+        var isGroup = dto.IsGroup ?? existing?.IsGroup ?? false;
+        var linked = existing != null ? existing.LinkedEntityType : dto.LinkedEntityType;
+        if (isGroup && linked is not null and not LinkedEntityType.General)
+            throw new ValidationFailedException(Messages.LinkedAccountCannotBeGroup);
+        if (existing != null)
+        {
+            if (!isGroup && await Db.Set<Account>().AnyAsync(a => a.ParentCode == existing.Code, ct))
+                throw new ConflictException(Messages.AccountWithChildrenMustBeGroup);
+            if (isGroup && !existing.IsGroup && await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == existing.Code, ct))
+                throw new ConflictException(Messages.AccountWithEntriesCannotBeGroup);
         }
 
         if (existing != null && existing.Code != dto.Code
@@ -78,6 +94,16 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             throw new ConflictException(Messages.CannotDeleteAccountWithChildren);
         if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == entity.Code, ct))
             throw new ConflictException(Messages.CannotDeleteAccountWithEntries);
+        // حساب العميل بلا حركات مالية (لا قيود — فُحصت أعلاه — ولا فواتير): يُحذف مع سجل العميل، فلا يبقى عميل بلا حساب
+        var customer = await Db.Set<Customer>().FirstOrDefaultAsync(c =>
+            (entity.LinkedEntityType == LinkedEntityType.Customer && c.Id == entity.LinkedEntityId) || c.AccountCode == entity.Code, ct);
+        if (customer != null)
+        {
+            if (await Db.Set<InvoiceBase>().AnyAsync(i => i.PartyId == customer.Id, ct))
+                throw new ConflictException(Messages.CannotDeleteCustomerWithInvoices);
+            Db.Remove(customer);
+            return;
+        }
         if (entity.LinkedEntityType is not null and not LinkedEntityType.General)
             throw new ConflictException(Messages.AccountLinkedToEntity);
     }
@@ -157,6 +183,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             IsDebitNature = parent.IsDebitNature, Currency = parent.Currency,
             LinkedEntityType = type, LinkedEntityId = entityId,
         };
+        parent.IsGroup = true;
         Db.Add(account);
         await Db.SaveChangesAsync(ct);
         return account.Code;

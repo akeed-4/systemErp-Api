@@ -14,10 +14,11 @@ public sealed record PermissionModuleDefinition(string Id, string NameAr, string
 /// <paramref name="InheritsFrom"/>: شاشة فُصلت من شاشة أقدم، فإن لم تُحفظ لها صلاحيات بعد ورثت صلاحيات الأصل.
 /// <paramref name="Restricted"/>: صلاحية حسّاسة لا تُمنح افتراضياً إلا للأدوار الإدارية.
 /// <paramref name="Legacy"/>: مصدر الإجراء في الأعمدة الخمسة القديمة إن خالف الافتراضي في <see cref="PermissionCatalog.Actions"/>.
+/// <paramref name="OptIn"/>: لا تُمنح افتراضياً لأي دور (ولا الإدارية)؛ تُمنح بتحديدها صراحةً في شاشة الصلاحيات.
 /// </summary>
 public sealed record PermissionScreenDefinition(
     string Id, string ModuleId, string NameAr, string NameEn, A[] Actions, string[] Routes,
-    bool Restricted = false, string? InheritsFrom = null, IReadOnlyDictionary<A, A>? Legacy = null);
+    bool Restricted = false, string? InheritsFrom = null, IReadOnlyDictionary<A, A>? Legacy = null, bool OptIn = false);
 
 /// <summary>
 /// كتالوج الصلاحيات: المصدر الوحيد للوحدات والشاشات والإجراءات. يقرأ منه السرفر (التحقق) والواجهة (المحرر، الحارس، الأزرار)
@@ -136,8 +137,9 @@ public static class PermissionCatalog
         // طريقة تسعير فواتير المبيعات والمشتريات: من يملك الاثنتين يبدّل بينهما، ومن يملك واحدة تُفرض عليه
         new(PermissionService.InvoiceVatExclusivePricingScreenId, "sales", "الفواتير: التسعير غير الشامل للضريبة", "Invoices: VAT-Exclusive Pricing",
             new[] { A.Edit }, Array.Empty<string>()),
+        // الشامل: غير ممنوح افتراضياً لأي دور، وفي المبيعات يحتاج أيضاً تفعيله للمنشأة (AccountingSettings.AllowSalesVatInclusivePricing)
         new(PermissionService.InvoiceVatInclusivePricingScreenId, "sales", "الفواتير: التسعير الشامل للضريبة", "Invoices: VAT-Inclusive Pricing",
-            new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
+            new[] { A.Edit }, Array.Empty<string>(), Restricted: true, OptIn: true),
 
         new("purchases", "purchases", "فواتير المشتريات وتكلفة المخزون", "Purchase Invoices",
             Crud(A.Approve, A.Post), new[] { "purchases", "stock-transfers", "costing", "purchases/delivery-notes" }),
@@ -225,6 +227,9 @@ public static class PermissionCatalog
         // محاضر التسليم والاستلام والنقل: «ترحيل» = اعتماد المحضر فيتغير حال المعدة
         new(RentalHandoversScreenId, EquipmentRentalModuleId, "التأجير: محاضر التسليم والاستلام والنقل", "Rental: Handover, Return & Transport Records",
             Crud(A.Post, A.Cancel), new[] { "rental/handovers" }, InheritsFrom: RentalContractsScreenId),
+        // كشوف الساعات (T1): «تقديم» للعميل، و«اعتماد» = تسجيل اعتماد ممثل العميل (أو رفضه)، و«إعادة فتح» = إرجاع المعتمد غير المفوتر للتعديل
+        new(RentalTimesheetsScreenId, EquipmentRentalModuleId, "التأجير: كشوف ساعات المعدات واعتماد العميل", "Rental: Equipment Timesheets & Client Approval",
+            Crud(A.Submit, A.Approve, A.Reopen), new[] { "rental/timesheets" }, InheritsFrom: RentalContractsScreenId),
         // الرسوم والفوترة الدورية: «ترحيل» = إصدار فاتورة الفترة عبر محرك الفواتير
         new(RentalBillingScreenId, EquipmentRentalModuleId, "التأجير: الرسوم والفوترة الدورية", "Rental: Charges & Periodic Billing",
             Crud(A.Approve, A.Post, A.Cancel), new[] { "rental/billing" }, InheritsFrom: RentalContractsScreenId),
@@ -291,6 +296,7 @@ public static class PermissionCatalog
     public const string RentalContractsScreenId = "rental-contracts";
     public const string RentalHandoversScreenId = "rental-handovers";
     public const string RentalBillingScreenId = "rental-billing";
+    public const string RentalTimesheetsScreenId = "rental-timesheets";
     public const string RentalDepositsScreenId = "rental-deposits";
     public const string RentalChargeWaiverScreenId = "rental-charge-waiver";
 

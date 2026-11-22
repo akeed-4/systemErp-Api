@@ -10,7 +10,9 @@ public static class TreasuryResolver
 {
     /// <param name="depositsAccount">حساب عربونات العملاء من إعدادات المعرض؛ فارغ = الافتراضي.</param>
     /// <param name="code">رمز طريقة دفع مختارة من جدول طرق الدفع: حسابها المرتبط يُقدَّم على الاختيار بالنوع.</param>
-    public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured, string? depositsAccount = null, string? code = null)
+    /// <param name="siteCash">صندوق الموقع: النقد بلا طريقة دفع مختارة صراحةً يُقيَّد عليه بدل الصندوق العام.</param>
+    public static string Resolve(PaymentMethod method, IReadOnlyList<PaymentMethodItem> configured, string? depositsAccount = null, string? code = null,
+        string? siteCash = null)
     {
         // استقطاع عقد: الرمز هو حساب الاستقطاع نفسه (محتجزات/غرامات/خصومات) يحدده النظام عند إنشاء فاتورة المستخلص
         if (method == PaymentMethod.ContractSettlement)
@@ -18,8 +20,12 @@ public static class TreasuryResolver
         if (method != PaymentMethod.CustomerDeposit && !string.IsNullOrWhiteSpace(code))
         {
             var chosen = configured.FirstOrDefault(m => m.Code == code && m.Status == "active" && !string.IsNullOrEmpty(m.LinkedAccountCode));
-            if (chosen != null) return chosen.LinkedAccountCode;
+            // طريقة نقدية على الصندوق العام في موقع له صندوقه: صندوق الموقع. طريقة على صندوق/بنك آخر محدد تبقى كما اختيرت
+            if (chosen != null && !(method == PaymentMethod.Cash && !string.IsNullOrWhiteSpace(siteCash)
+                    && chosen.LinkedAccountCode == Resolve(PaymentMethod.Cash, configured)))
+                return chosen.LinkedAccountCode;
         }
+        if (method == PaymentMethod.Cash && !string.IsNullOrWhiteSpace(siteCash)) return siteCash;
         if (method == PaymentMethod.CustomerDeposit) return string.IsNullOrWhiteSpace(depositsAccount) ? DefaultAccounts.CustomerDeposits : depositsAccount;
         var type = method switch
         {

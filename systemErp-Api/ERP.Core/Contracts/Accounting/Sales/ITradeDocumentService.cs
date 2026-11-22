@@ -22,6 +22,11 @@ public interface ITradeDocumentService
     Task<InvoiceJournalDto> PreviewJournalAsync(CreateInvoiceDto request, CancellationToken ct = default);
     Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default);
     Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default);
+    /// <summary>
+    /// إرسال مستند أنشأته وحدة داخل معاملتها (فوترة العقود) بعد اكتمال تلك المعاملة، بقواعد الإرسال التلقائي: المطلوب إرساله ولم
+    /// يُرسل فقط، والرفض أو تعذّر الاتصال يُحفظ على المستند ولا يُفشل العملية. يعيد المستند بحالته في الهيئة.
+    /// </summary>
+    Task<InvoiceDto> SubmitToZatcaIfRequestedAsync(Guid id, CancellationToken ct = default);
 }
 
 /// <summary>فواتير المبيعات (جدول SalesInvoice)، ومنها فواتير نقاط البيع.</summary>

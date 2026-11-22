@@ -24,4 +24,6 @@ public interface IVehicleService : ICrudService<VehicleDto, CreateVehicleDto, Up
     Task<PagedResult<VehicleDto>> ListByProcurementOrderAsync(Guid orderId, PaginationParams p, CancellationToken ct = default);
     /// <summary>تحويل سيارات متاحة أو محجوزة إلى معرض آخر. يُرجع عدد ما حُوِّل.</summary>
     Task<int> TransferAsync(TransferVehiclesDto request, CancellationToken ct = default);
+    /// <summary>ينقل تكلفة كل سيارة في المخزون إلى مخزون معرضها إن كان له حساباته الخاصة (بعد إنشاء حسابات المواقع). يُرجع عدد السيارات المفحوصة.</summary>
+    Task<int> SyncSiteInventoryAsync(CancellationToken ct = default);
 }

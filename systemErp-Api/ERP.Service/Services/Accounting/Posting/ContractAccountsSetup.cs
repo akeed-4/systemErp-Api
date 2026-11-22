@@ -298,6 +298,10 @@ internal static class ContractAccountsSetup
         {
             var currency = await db.Set<Currency>().Where(c => c.IsBaseCurrency).Select(c => c.Code).FirstOrDefaultAsync(ct) ?? "SAR";
             foreach (var node in created) db.Add(ToAccount(node, currency, tenantId: null));
+            // آباء الحسابات المنشأة رئيسية (يُنشأ الحساب تحت مجموعة لا تحت حساب حركة)
+            var parentCodes = created.Select(n => n.ParentCode).OfType<string>().Distinct().ToList();
+            foreach (var parent in await db.Set<Account>().Where(a => parentCodes.Contains(a.Code) && !a.IsGroup).ToListAsync(ct))
+                parent.IsGroup = true;
         }
         return report;
     }

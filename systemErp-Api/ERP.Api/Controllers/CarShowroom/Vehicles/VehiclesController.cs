@@ -79,6 +79,11 @@ public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, U
         return Success(new { moved }, string.Format(Messages.VehiclesTransferred, moved));
     }
 
+    /// <summary>مزامنة مخزون السيارات مع حسابات مخزون معارضها (بعد إنشاء حسابات المواقع).</summary>
+    [HttpPost("site-inventory/sync")]
+    [RequireScreen("car-showroom", ScreenAction.Edit)]
+    public async Task<IActionResult> SyncSiteInventory(CancellationToken ct) => Success(new { checkedCount = await _vehicles.SyncSiteInventoryAsync(ct) });
+
     [HttpPost("CheckVins")]
     [RequireScreen("car-showroom", ScreenAction.View)]
     public async Task<IActionResult> CheckVins([FromBody] List<string> vins, CancellationToken ct)

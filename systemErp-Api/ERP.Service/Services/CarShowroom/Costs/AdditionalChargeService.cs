@@ -155,6 +155,8 @@ public class AdditionalChargeService : IAdditionalChargeService
     {
         await VehicleCostLedger.RecomputeAsync(_db, vehicleIds, ct);
         await _db.SaveChangesAsync(ct);
+        // تغيّرت تكلفة السيارات: يُحدَّث ما في مخزون معارضها الخاصة بالفرق
+        await VehicleSiteLedger.SyncAsync(_db, _posting, vehicleIds, "تحديث مخزون معارض السيارات بتغيّر تكاليفها", ct);
     }
 
     private sealed record Resolved(CreateAdditionalChargeLineDto Dto, ExpenseType Type, string DocumentType, Guid? DocumentId, string? DocumentNumber,

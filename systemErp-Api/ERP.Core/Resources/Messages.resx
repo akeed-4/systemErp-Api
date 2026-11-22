@@ -434,7 +434,7 @@
   <data name="ItemNotInTransaction" xml:space="preserve"><value>صنف غير موجود في المعاملة.</value></data>
   <data name="ItemsNotFoundInInvoice" xml:space="preserve"><value>أصناف غير موجودة في الفاتورة.</value></data>
   <data name="JournalEntryAlreadyReversed" xml:space="preserve"><value>القيد معكوس مسبقاً.</value></data>
-  <data name="JournalEntryDeleted" xml:space="preserve"><value>أُلغي القيد بقيد عكسي، ويبقى القيدان في السجل</value></data>
+  <data name="JournalEntryDeleted" xml:space="preserve"><value>حُذف القيد نهائياً</value></data>
   <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>القيد يحتاج سطرين على الأقل.</value></data>
   <data name="JournalEntryNotFound" xml:space="preserve"><value>القيد غير موجود</value></data>
   <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>هذا القيد آلي يُدار من مستنده (فاتورة، سند، جرد، أصل ثابت، مسير رواتب...)؛ يُصحَّح أو يُلغى من المستند نفسه ليبقى أثره متطابقاً في الدفاتر والمخزون والذمم.</value></data>
@@ -2264,4 +2264,34 @@
   <data name="ProjectIssueExceedsProjectAvailable" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (الرصيد {3:0.####} − محجوز لمشاريع أخرى {4:0.####}). حوّل التخصيص باعتماد أو انتظر الاستلام.</value></data>
   <data name="ProjectIssueReservedForOthers" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (محجوز لمشاريع أخرى {3:0.####}).</value></data>
   <data name="RfqAwardPendingApproval" xml:space="preserve"><value>ترسية هذا الطلب بانتظار الاعتماد: لا تُعدَّل العروض ولا الموردون ولا يُلغى حتى القرار.</value></data>
+  <data name="RentalTimesheetNotFound" xml:space="preserve"><value>كشف الساعات غير موجود.</value></data>
+  <data name="RentalTimesheetNotEditable" xml:space="preserve"><value>لا يُعدَّل ولا يُحذف إلا كشف مسودة أو مرفوض.</value></data>
+  <data name="RentalTimesheetStatusInvalid" xml:space="preserve"><value>الإجراء غير متاح لكشف بحالة «{0}».</value></data>
+  <data name="RentalTimesheetPeriodInvalid" xml:space="preserve"><value>فترة الكشف غير صحيحة: البداية قبل النهاية، ولا تتجاوز 62 يوماً.</value></data>
+  <data name="RentalTimesheetModeRequired" xml:space="preserve"><value>العقد يُفوتر بالمدة لا بكشوف الساعات: غيّر طريقة فوترته في العقد أولاً.</value></data>
+  <data name="RentalTimesheetLineNotRented" xml:space="preserve"><value>المعدة لم تُسلَّم للعميل بعد: الكشف يبدأ من تاريخ التسليم.</value></data>
+  <data name="RentalTimesheetOutsideRental" xml:space="preserve"><value>أيام الكشف يجب أن تقع بين التسليم ({0:yyyy-MM-dd}) والاستلام أو اليوم ({1:yyyy-MM-dd}).</value></data>
+  <data name="RentalTimesheetOverlap" xml:space="preserve"><value>فترة الكشف تتداخل مع الكشف {0} لنفس المعدة.</value></data>
+  <data name="RentalTimesheetDayInvalid" xml:space="preserve"><value>يوم {0:yyyy-MM-dd}: نوع اليوم أو ساعاته غير صحيحة (مجموع التشغيل والانتظار والعطل لا يتجاوز 24 ساعة).</value></data>
+  <data name="RentalTimesheetApproverRequired" xml:space="preserve"><value>اسم ممثل العميل المعتمِد للكشف مطلوب.</value></data>
+  <data name="RentalTimesheetPhotoRequired" xml:space="preserve"><value>أرفق صورة كشف الساعات الموقّع من العميل قبل الاعتماد.</value></data>
+  <data name="RentalTimesheetSignatureInvalid" xml:space="preserve"><value>التوقيع الإلكتروني يجب أن يكون صورة PNG أو JPEG لا تتجاوز 300 كيلوبايت.</value></data>
+  <data name="RentalTimesheetBilled" xml:space="preserve"><value>الكشف مفوتر: ألغِ الفوترة أولاً لإعادة فتحه.</value></data>
+  <data name="RentalCloseTimesheetsOpen" xml:space="preserve"><value>على العقد كشوف ساعات لم تُعتمد أو لم تُفوتر: اعتمدها وفوترها أو احذفها قبل الإغلاق.</value></data>
+  <data name="RentalBillingModeInvalid" xml:space="preserve"><value>طريقة الفوترة غير صحيحة: كشف الساعات أو المدة.</value></data>
+  <data name="RentalTimesheetTermsInvalid" xml:space="preserve"><value>شروط كشف الساعات غير صحيحة: الحد الأدنى اليومي 0-24 ساعة، وأيام العمل في الفترة 0-31، ونسبة الانتظار 0-100.</value></data>
+  <data name="SiteAccountParentMissing" xml:space="preserve"><value>لا مجموعة في الدليل لإنشاء حساب الموقع تحتها (الحساب {0} بلا أب أو غير موجود): راجع إعدادات الحسابات.</value></data>
+  <data name="SiteAccountsFull" xml:space="preserve"><value>امتلأت الأرقام المتاحة لحسابات المواقع تحت المجموعة {0}.</value></data>
+  <data name="ParentAccountMustBeGroup" xml:space="preserve"><value>الحساب الأب يجب أن يكون حساباً رئيسياً؛ لا يُعرَّف حساب تحت حساب فرعي.</value></data>
+  <data name="AccountWithChildrenMustBeGroup" xml:space="preserve"><value>الحساب له حسابات فرعية فيبقى رئيسياً؛ انقل فروعه أو احذفها أولاً.</value></data>
+  <data name="AccountWithEntriesCannotBeGroup" xml:space="preserve"><value>الحساب عليه قيود فلا يتحول إلى رئيسي؛ الحساب الرئيسي لا يُرحَّل عليه.</value></data>
+  <data name="LinkedAccountCannotBeGroup" xml:space="preserve"><value>حساب العميل/المورد/البنك/الموقع حساب فرعي ولا يكون رئيسياً.</value></data>
+  <data name="JournalEntryHasReversal" xml:space="preserve"><value>لا يمكن حذف قيد له قيد عكسي؛ القيدان يبقيان في السجل.</value></data>
+  <data name="ClosingEntryCannotBeDeleted" xml:space="preserve"><value>قيد إقفال السنة لا يُحذف؛ اعكسه لإعادة فتح السنة.</value></data>
+  <data name="ReversalReasonRequired" xml:space="preserve"><value>سبب عكس القيد مطلوب.</value></data>
+  <data name="SalesVatInclusivePricingDisabled" xml:space="preserve"><value>التسعير الشامل للضريبة في المبيعات غير مفعّل للمنشأة؛ فعّله من إعدادات الحسابات أولاً.</value></data>
+  <data name="WarehouseHasFinancialMovements" xml:space="preserve"><value>لا يمكن حذف المستودع: على حساباته الخاصة (المخزون، تكلفة الإيراد، المبيعات، الصندوق...) قيود مالية.</value></data>
+  <data name="WarehouseInUse" xml:space="preserve"><value>لا يمكن حذف المستودع: مستخدم في {0}.</value></data>
+  <data name="WarehouseOnlySiteOfUsers" xml:space="preserve"><value>لا يمكن حذف المستودع: هو الموقع الوحيد المسموح للمستخدمين ({0})؛ عدّل مواقعهم أولاً.</value></data>
+  <data name="WarehouseOnlySiteOfRoleScope" xml:space="preserve"><value>لا يمكن حذف المستودع: هو الموقع الوحيد في نطاق صلاحيات دور أو مستخدم؛ عدّل النطاق أولاً.</value></data>
 </root>

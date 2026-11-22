@@ -53,6 +53,7 @@ public class AccountingReportService : IAccountingReportService
     private sealed class LedgerLine
     {
         public Guid Id { get; set; }
+        public Guid EntryId { get; set; }
         public decimal Debit { get; set; }
         public decimal Credit { get; set; }
         public DateTime Date { get; set; }
@@ -77,7 +78,7 @@ public class AccountingReportService : IAccountingReportService
                      && (costCenters == null || (l.CostCenterId != null && costCenters.Contains(l.CostCenterId.Value)))
                select new LedgerLine
                {
-                   Id = l.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, EntryNumber = e.EntryNumber,
+                   Id = l.Id, EntryId = e.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, EntryNumber = e.EntryNumber,
                    Description = e.Description, ReferenceNumber = e.ReferenceNumber, ReferenceType = e.ReferenceType, Notes = l.Notes, CostCenterId = l.CostCenterId,
                    CostCenterCode = CostCenters.Where(c => c.Id == l.CostCenterId).Select(c => c.Code).FirstOrDefault(),
                };
@@ -105,7 +106,7 @@ public class AccountingReportService : IAccountingReportService
                join w in RunningBalances(account, module, costCenters) on x.Id equals w.LineId
                select new AccountLedgerEntryDto
                {
-                   Id = x.Id, Date = x.Date, EntryNumber = x.EntryNumber, Description = string.IsNullOrWhiteSpace(x.Notes) ? x.Description : x.Notes!,
+                   Id = x.Id, EntryId = x.EntryId, Date = x.Date, EntryNumber = x.EntryNumber, Description = string.IsNullOrWhiteSpace(x.Notes) ? x.Description : x.Notes!,
                    Debit = x.Debit, Credit = x.Credit, ReferenceNumber = x.ReferenceNumber, CostCenterId = x.CostCenterId, CostCenterCode = x.CostCenterCode,
                    ReferenceType = x.ReferenceType ?? "manual", DocumentNumber = x.ReferenceNumber ?? x.EntryNumber,
                    RunningBalance = w.Running, RunningBalanceInAccountCurrency = w.Running / rate,
@@ -489,13 +490,25 @@ public class AccountingReportService : IAccountingReportService
         return EntityLoader.LoadRowsAsync(rows, options, nameof(AccountBalanceRowDto.Id), ct, EntityLoader.Asc(nameof(AccountBalanceRowDto.Code)));
     }
 
-    public async Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, string? module = null, Guid? costCenterId = null, CancellationToken ct = default)
+    /// <summary>
+    /// دفتر اليومية بسطور القيود: قيود الوحدات المطلوبة والقيود اليدوية دائماً. <paramref name="source"/>: all (الافتراضي) | auto | manual.
+    /// </summary>
+    public async Task<LoadResult> LoadJournalLedgerAsync(DataSourceLoadOptions options, string? module = null, Guid? costCenterId = null,
+        string? source = null, CancellationToken ct = default)
     {
         var moduleScope = ReportModuleScope.Normalize(module);
         var centers = await CostCenterRules.ScopeAsync(_db, costCenterId, ct);
+        var entries = ReportModuleScope.LedgerEntries(Entries, moduleScope);
+        var manual = ReportModuleScope.Manual(Entries).Select(e => e.Id);
+        entries = source?.Trim().ToLowerInvariant() switch
+        {
+            "manual" => entries.Where(e => manual.Contains(e.Id)),
+            "auto" => entries.Where(e => !manual.Contains(e.Id)),
+            _ => entries,
+        };
         return await EntityLoader.LoadRowsAsync(
             from l in _db.Set<JournalEntryLine>().AsNoTracking()
-            join e in ReportModuleScope.Entries(Entries, moduleScope) on l.JournalEntryId equals e.Id
+            join e in entries on l.JournalEntryId equals e.Id
             join c in CostCenters on l.CostCenterId equals (Guid?)c.Id into center
             from c in center.DefaultIfEmpty()
             where (centers == null || (l.CostCenterId != null && centers.Contains(l.CostCenterId.Value)))

@@ -343,6 +343,12 @@ public class ErpDbContext : DbContext
         (typeof(RentalCharge), nameof(RentalCharge.ChargeTypeId), typeof(RentalChargeType)),
         (typeof(RentalCharge), nameof(RentalCharge.BillingId), typeof(RentalBilling)),
         (typeof(RentalBilling), nameof(RentalBilling.ContractId), typeof(RentalContract)),
+        // T1: كشوف الساعات على العقد وسطره ومعدته، والمشغّل، والفوترة التي فوترتها
+        (typeof(RentalTimesheet), nameof(RentalTimesheet.ContractId), typeof(RentalContract)),
+        (typeof(RentalTimesheet), nameof(RentalTimesheet.LineId), typeof(RentalContractLine)),
+        (typeof(RentalTimesheet), nameof(RentalTimesheet.EquipmentId), typeof(Equipment)),
+        (typeof(RentalTimesheet), nameof(RentalTimesheet.OperatorEmployeeId), typeof(Employee)),
+        (typeof(RentalTimesheet), nameof(RentalTimesheet.BillingId), typeof(RentalBilling)),
         (typeof(RentalBillingLine), nameof(RentalBillingLine.ContractLineId), typeof(RentalContractLine)),
         (typeof(RentalTransportJob), nameof(RentalTransportJob.ContractId), typeof(RentalContract)),
         (typeof(RentalTransportJob), nameof(RentalTransportJob.HandoverId), typeof(RentalHandover)),
@@ -1362,6 +1368,32 @@ public class ErpDbContext : DbContext
             e.HasIndex(x => new { x.TenantId, x.ContractId, x.Status });
             e.HasMany(x => x.Settlements).WithOne(s => s.Deposit).HasForeignKey(s => s.DepositId).OnDelete(DeleteBehavior.Cascade);
         });
+        // T1: كشوف الساعات، والكشف فريد برقمه، ويُستعلم بالسطر وفترته
+        modelBuilder.Entity<RentalContract>().Property(x => x.BillingMode).HasMaxLength(16).IsRequired().HasDefaultValue(RentalBillingModes.Time);
+        modelBuilder.Entity<RentalContractLine>().Property(x => x.StandbyPercent).HasDefaultValue(100m);
+        modelBuilder.Entity<RentalSettings>().Property(x => x.DefaultBillingMode).HasMaxLength(16).IsRequired().HasDefaultValue(RentalBillingModes.Timesheet);
+        modelBuilder.Entity<RentalSettings>().Property(x => x.RequireTimesheetPhoto).HasDefaultValue(true);
+        modelBuilder.Entity<RentalTimesheet>(e =>
+        {
+            e.Property(x => x.TimesheetNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ClientApproverName).HasMaxLength(200);
+            e.Property(x => x.ClientApproverTitle).HasMaxLength(150);
+            e.Property(x => x.RejectReason).HasMaxLength(500);
+            e.Property(x => x.SubmittedBy).HasMaxLength(200);
+            e.Property(x => x.ApprovedBy).HasMaxLength(200);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.TimesheetNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ContractId, x.Status });
+            e.HasIndex(x => new { x.TenantId, x.LineId, x.PeriodFrom, x.PeriodTo });
+            e.HasMany(x => x.Days).WithOne(d => d.Timesheet).HasForeignKey(d => d.TimesheetId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<RentalTimesheetDay>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(300);
+        });
         modelBuilder.Entity<RentalDepositSettlement>(e =>
         {
             e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
@@ -1720,6 +1752,10 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<JournalEntry>()
             .HasIndex(e => new { e.TenantId, e.SourceType, e.SourceReferenceId }).IsUnique()
             .HasFilter("[Status] = N'Posted' AND [SourceReferenceId] IS NOT NULL AND [SourceType] IN (" + string.Join(", ", SingleEntrySources.Select(s => $"N'{s}'")) + ")");
+        // قيد عكسي واحد لكل قيد أصلي: طلبا عكس متزامنان لا ينشئان قيدين (الثاني تعارض فريد ← 409)
+        modelBuilder.Entity<JournalEntry>()
+            .HasIndex(e => new { e.TenantId, e.SourceReferenceId }).IsUnique()
+            .HasFilter("[SourceType] = N'reversal' AND [SourceReferenceId] IS NOT NULL");
 
         // المصروف المدفوع مقدماً لا يُطفأ مرتين للشهر نفسه (ضمان على مستوى قاعدة البيانات).
         modelBuilder.Entity<PrepaidExpenseAmortization>()

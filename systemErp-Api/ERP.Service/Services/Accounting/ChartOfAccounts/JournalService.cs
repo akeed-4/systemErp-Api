@@ -44,12 +44,29 @@ public class JournalService : IJournalService
 
     /// <summary>القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL.</summary>
     public Task<LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => EntityLoader.LoadAsync(_db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines), options, Mapper.Map<JournalEntryDto>, ct,
+        => EntityLoader.LoadAsync(_db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines), options, ToDtosAsync, ct,
             EntityLoader.Desc(nameof(JournalEntry.Date)), EntityLoader.Desc(nameof(JournalEntry.EntryNumber)));
 
     public async Task<JournalEntryDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Mapper.Map<JournalEntryDto>(await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, ct)
-            ?? throw new NotFoundException(Messages.JournalEntryNotFound));
+        => (await ToDtosAsync(new List<JournalEntry> { await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, ct)
+            ?? throw new NotFoundException(Messages.JournalEntryNotFound) }, ct))[0];
+
+    /// <summary>القيود مع رقم قيدها العكسي (للمعكوس منها) باستعلام واحد للصفحة.</summary>
+    private async Task<List<JournalEntryDto>> ToDtosAsync(List<JournalEntry> page, CancellationToken ct)
+    {
+        var reversedIds = page.Where(e => e.Status == JournalEntryStatus.Reversed).Select(e => (Guid?)e.Id).ToList();
+        var byOriginal = reversedIds.Count == 0 ? new Dictionary<Guid, string>()
+            : (await _db.Set<JournalEntry>().AsNoTracking()
+                .Where(e => e.SourceType == "reversal" && reversedIds.Contains(e.SourceReferenceId))
+                .Select(e => new { Original = e.SourceReferenceId!.Value, e.EntryNumber }).ToListAsync(ct))
+                .GroupBy(x => x.Original).ToDictionary(g => g.Key, g => g.First().EntryNumber);
+        return page.Select(e =>
+        {
+            var dto = Mapper.Map<JournalEntryDto>(e);
+            dto.ReversedByEntryNumber = byOriginal.GetValueOrDefault(e.Id);
+            return dto;
+        }).ToList();
+    }
 
     public Task<JournalEntryDto> CreateManualAsync(CreateJournalEntryDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
@@ -70,16 +87,23 @@ public class JournalService : IJournalService
             return updated;
         }, ct);
 
+    /// <summary>
+    /// حذف نهائي للقيد اليدوي (لا قيد عكسي ولا أرشفة). قيد الإقفال لا يُحذف: يُعكس فتُعاد السنة. سجل التدقيق يحفظ صورة القيد المحذوف
+    /// (رقمه وتاريخه وأسطره) لأن القيد نفسه يختفي، ولا تُمس سجلات التدقيق السابقة.
+    /// </summary>
     public Task DeleteManualAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
-            var entry = await SourceOfAsync(id, token);
-            if (entry.SourceType == FiscalPeriodService.ClosingSource) { await _periods.ReopenYearAsync(id, token); return; }
-            var reversal = await _posting.DeleteManualAsync(id, token);
-            await _audit.LogAsync("JOURNAL_ENTRY_CANCELLED", nameof(JournalEntry), id.ToString(), $"إلغاء القيد {entry.EntryNumber} بالقيد العكسي {reversal.EntryNumber}", token);
+            var entry = await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, token)
+                ?? throw new NotFoundException(Messages.JournalEntryNotFound);
+            if (entry.SourceType == FiscalPeriodService.ClosingSource) throw new ConflictException(Messages.ClosingEntryCannotBeDeleted);
+            await _posting.PurgeManualAsync(id, token);
+            var lines = string.Join("؛ ", entry.Lines.Select(l => $"{l.AccountCode} م{l.Debit:0.##} د{l.Credit:0.##}"));
+            await _audit.LogAsync("JOURNAL_ENTRY_DELETED", nameof(JournalEntry), id.ToString(),
+                $"حذف نهائي للقيد {entry.EntryNumber} بتاريخ {entry.Date:yyyy-MM-dd} ({entry.Description}) بإجمالي {entry.TotalDebit:0.##}: {lines}", token);
         }, ct);
 
-    public Task<JournalEntryDto> ReverseAsync(Guid id, CancellationToken ct = default)
+    public Task<JournalEntryDto> ReverseAsync(Guid id, string? reason, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
             var entry = await SourceOfAsync(id, token);
@@ -87,8 +111,11 @@ public class JournalService : IJournalService
                 return await GetAsync((await _periods.ReopenYearAsync(id, token)).JournalEntryId, token);
             // القيد الآلي يُعكس من مستنده (مرتجع الفاتورة، حذف السند...) ليعود أثره كاملاً في المخزون والذمم
             if (!AccountingPostingService.IsManual(entry.SourceType)) throw new ConflictException(Messages.JournalEntryOwnedByDocument);
-            var result = await _posting.ReverseAsync(id, null, token);
-            await _audit.LogAsync("JOURNAL_ENTRY_REVERSED", nameof(JournalEntry), id.ToString(), $"عكس القيد بقيد {result.EntryNumber}", token);
+            var why = reason?.Trim();
+            if (string.IsNullOrEmpty(why)) throw new ValidationFailedException(Messages.ReversalReasonRequired);
+            var result = await _posting.ReverseAsync(id, why, token);
+            await _audit.LogAsync("JOURNAL_ENTRY_REVERSED", nameof(JournalEntry), id.ToString(),
+                $"عكس القيد {entry.EntryNumber} بالقيد {result.EntryNumber}؛ السبب: {why}", token);
             return await GetAsync(result.JournalEntryId, token);
         }, ct);
 

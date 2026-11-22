@@ -195,6 +195,7 @@ public class LandedCostVoucherService : ILandedCostVoucherService
             await _db.SaveChangesAsync(token);
             voucher.JournalEntryId = await ChargePosting.PostVoucherAsync(_db, _posting, voucher, charges, replacedPosted, token, fromAdvances);
             await _db.SaveChangesAsync(token);
+            await VehicleSiteLedger.SyncAsync(_db, _posting, affected, $"تحميل سند التكاليف {voucher.VoucherNumber} على مخزون معارض السيارات", token);
             await ImportCostAdvances.RefreshAsync(_db, advanceIds, token);
             await _db.SaveChangesAsync(token);
             await SoldVehicleAdjustments.RecordAsync(_db, _numbers, _user.Name, SoldVehicleAdjustments.Deltas(costBefore, costAfter, sold),
@@ -243,6 +244,7 @@ public class LandedCostVoucherService : ILandedCostVoucherService
                 voucher.Status = LandedCostVoucherStatus.Cancelled;
                 await _db.SaveChangesAsync(token);
                 await VehicleCostLedger.RecomputeAsync(_db, affected, token);
+                await VehicleSiteLedger.SyncAsync(_db, _posting, affected, $"إلغاء سند التكاليف {voucher.VoucherNumber} من مخزون معارض السيارات", token);
                 await SoldVehicleAdjustments.RecordAsync(_db, _numbers, _user.Name, SoldVehicleAdjustments.Deltas(costBefore, costAfter, sold),
                     reason, "landed_cost_voucher", null, null, token);
             }

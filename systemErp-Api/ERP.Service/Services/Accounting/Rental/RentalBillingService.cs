@@ -53,15 +53,22 @@ public class RentalBillingService : IRentalBillingService
     public async Task<RentalSettingsDto> SettingsAsync(CancellationToken ct = default)
     {
         var s = await _db.Set<RentalSettings>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new RentalSettings();
-        return new RentalSettingsDto { LateFeeFactor = s.LateFeeFactor, LateGraceHours = s.LateGraceHours, RequireDepositBeforeDelivery = s.RequireDepositBeforeDelivery };
+        return new RentalSettingsDto
+        {
+            LateFeeFactor = s.LateFeeFactor, LateGraceHours = s.LateGraceHours, RequireDepositBeforeDelivery = s.RequireDepositBeforeDelivery,
+            DefaultBillingMode = s.DefaultBillingMode, RequireTimesheetPhoto = s.RequireTimesheetPhoto,
+        };
     }
 
     public async Task<RentalSettingsDto> SaveSettingsAsync(RentalSettingsDto r, CancellationToken ct = default)
     {
         if (r.LateFeeFactor < 0 || r.LateGraceHours < 0) throw new ValidationFailedException(Messages.WorkshopSettingsNegative);
+        var mode = string.IsNullOrWhiteSpace(r.DefaultBillingMode) ? RentalBillingModes.Timesheet : r.DefaultBillingMode.Trim().ToLowerInvariant();
+        if (!RentalBillingModes.IsValid(mode)) throw new ValidationFailedException(Messages.RentalBillingModeInvalid);
         var s = await _db.Set<RentalSettings>().FirstOrDefaultAsync(ct);
         if (s == null) { s = new RentalSettings(); _db.Add(s); }
         s.LateFeeFactor = decimal.Round(r.LateFeeFactor, 4); s.LateGraceHours = decimal.Round(r.LateGraceHours, 2); s.RequireDepositBeforeDelivery = r.RequireDepositBeforeDelivery;
+        s.DefaultBillingMode = mode; s.RequireTimesheetPhoto = r.RequireTimesheetPhoto;
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("RENTAL_SETTINGS_SAVED", nameof(RentalSettings), s.Id.ToString(), $"{s.LateFeeFactor} • {s.LateGraceHours}", ct);
         return await SettingsAsync(ct);
@@ -209,8 +216,8 @@ public class RentalBillingService : IRentalBillingService
         foreach (var l in c.Lines.Where(l => l.Status == LSt.Returned && l.ActualOut != null && l.ActualIn != null))
         {
             var code = codes.GetValueOrDefault(l.EquipmentId);
-            // الإضافي: ساعات العدّاد فوق المشمول لكل فترة من الأساس المختار
-            if (!Has("overtime", l.Id) && l.IncludedHours > 0 && l.OvertimeRate > 0 && l.MeterOut is decimal mo && l.MeterIn is decimal mi)
+            // الإضافي: ساعات العدّاد فوق المشمول لكل فترة من الأساس المختار (عقد كشوف الساعات: الإضافي من الكشوف نفسها)
+            if (c.BillingMode != RentalBillingModes.Timesheet && !Has("overtime", l.Id) && l.IncludedHours > 0 && l.OvertimeRate > 0 && l.MeterOut is decimal mo && l.MeterIn is decimal mi)
             {
                 var whole = RentalPricing.WholePeriods(l.ActualOut.Value, l.ActualIn.Value, l.Basis);
                 var periods = Math.Max(1, RentalPricing.Advance(l.ActualOut.Value, l.Basis, whole) < l.ActualIn.Value ? whole + 1 : whole);
@@ -271,17 +278,40 @@ public class RentalBillingService : IRentalBillingService
 
     // ---------- الفوترة ----------
 
-    private sealed record RentPart(RentalContractLine Line, DateTime From, DateTime To, decimal Amount, decimal Cumulative, string? Code, Guid? CostCenterId);
+    /// <summary>
+    /// إيجار سطر في الفوترة. بالمدة: الفترة من آخر فوترة حتى نهايتها. بكشوف الساعات: الكشوف المعتمدة غير المفوترة (<see cref="Sheets"/>)،
+    /// والفترة من أول يوم فيها حتى نهاية آخر يوم.
+    /// </summary>
+    private sealed record RentPart(RentalContractLine Line, DateTime From, DateTime To, decimal Amount, decimal Cumulative, string? Code, Guid? CostCenterId,
+        List<RentalTimesheet>? Sheets = null);
 
     private async Task<(List<RentPart> Rent, List<RentalCharge> Charges, DateTime Until)> PlanAsync(RentalContract c, DateTime? requested, CancellationToken ct)
     {
         var now = SaudiTime.Now;
         var until = requested is DateTime u ? (u.Kind == DateTimeKind.Utc ? SaudiTime.FromUtc(u) : DateTime.SpecifyKind(u, DateTimeKind.Unspecified)) : now;
-        if (until > now.AddMinutes(15) && !c.BillInAdvance) throw new ValidationFailedException(Messages.RentalBillingFutureNotAllowed);
+        var bySheets = c.BillingMode == RentalBillingModes.Timesheet;
+        // الكشف لا يُعتمد لأيام مستقبلية فلا فوترة مقدمة بكشوف الساعات
+        if (until > now.AddMinutes(15) && (!c.BillInAdvance || bySheets)) throw new ValidationFailedException(Messages.RentalBillingFutureNotAllowed);
         var equipment = await _db.Set<Equipment>().AsNoTracking().Where(e => c.Lines.Select(l => l.EquipmentId).Contains(e.Id))
             .ToDictionaryAsync(e => e.Id, e => new { e.Code, e.CostCenterId }, ct);
         var rent = new List<RentPart>();
-        foreach (var l in c.Lines.Where(l => l.ActualOut != null && l.Status is LSt.Out or LSt.Returned).OrderBy(l => l.SortOrder))
+        if (bySheets)
+        {
+            // كل كشف معتمد غير مفوتر انتهى آخر يوم فيه قبل لحظة الفوترة
+            var lastDay = until.Date.AddDays(until.TimeOfDay == TimeSpan.Zero ? -1 : 0);
+            var sheets = await _db.Set<RentalTimesheet>().Where(t => t.ContractId == c.Id && t.Status == RentalTimesheetStatuses.Approved
+                && t.BillingId == null && t.PeriodTo <= lastDay).OrderBy(t => t.PeriodFrom).ToListAsync(ct);
+            foreach (var g in sheets.GroupBy(t => t.LineId))
+            {
+                var l = c.Lines.FirstOrDefault(x => x.Id == g.Key);
+                if (l == null) continue;
+                var list = g.ToList();
+                var amount = list.Sum(t => t.Amount);
+                var e = equipment.GetValueOrDefault(l.EquipmentId);
+                rent.Add(new RentPart(l, list.Min(t => t.PeriodFrom), list.Max(t => t.PeriodTo).AddDays(1), amount, l.BilledAmount + amount, e?.Code, e?.CostCenterId, list));
+            }
+        }
+        foreach (var l in c.Lines.Where(l => !bySheets && l.ActualOut != null && l.Status is LSt.Out or LSt.Returned).OrderBy(l => l.SortOrder))
         {
             // المستلم حتى استلامه؛ الخارج حتى لحظة الفوترة (أو مقدماً حتى نهايته المخططة)
             var cap = l.ActualIn ?? (c.BillInAdvance ? (l.PlannedTo > now ? l.PlannedTo : now) : now);
@@ -300,9 +330,13 @@ public class RentalBillingService : IRentalBillingService
     {
         var c = await ContractAsync(contractId, track: false, ct);
         var (rent, charges, at) = await PlanAsync(c, until, ct);
-        var lines = rent.Where(r => r.Amount > 0).Select(r => new RentalBillingPreviewLineDto
+        // بكشوف الساعات: سطر لكل كشف (وسطر لإضافيه) كما في الفاتورة
+        var rentLines = rent.SelectMany(r => r.Sheets == null
+            ? new[] { (Text: RentText(r), From: r.From, To: r.To, Amount: r.Amount, Line: r.Line.Id) }
+            : r.Sheets.SelectMany(s => SheetItems(r, s).Select(i => (Text: i.Text, From: s.PeriodFrom, To: s.PeriodTo.AddDays(1), Amount: i.Amount, Line: r.Line.Id))).ToArray());
+        var lines = rentLines.Where(r => r.Amount > 0).Select(r => new RentalBillingPreviewLineDto
         {
-            ContractLineId = r.Line.Id, Description = RentText(r), PeriodFrom = r.From, PeriodTo = r.To, Amount = r.Amount, TaxTreatment = T.Standard,
+            ContractLineId = r.Line, Description = r.Text, PeriodFrom = r.From, PeriodTo = r.To, Amount = r.Amount, TaxTreatment = T.Standard,
             Vat = DocumentPricing.Round(r.Amount * StandardVat / 100m),
         }).Concat(charges.Select(x => new RentalBillingPreviewLineDto
         {
@@ -347,9 +381,22 @@ public class RentalBillingService : IRentalBillingService
                     ContractLineId = p.Line.Id, PeriodFrom = p.From, PeriodTo = p.To, Amount = p.Amount, PreviousBilledThrough = p.Line.BilledThrough,
                     PreviousBilledAmount = p.Line.BilledAmount,
                 });
-                p.Line.BilledThrough = p.To;
+                p.Line.BilledThrough = p.Line.BilledThrough is DateTime prev && prev > p.To ? prev : p.To;
                 p.Line.BilledAmount = Math.Max(p.Line.BilledAmount, p.Cumulative);
-                if (p.Amount > 0)
+                if (p.Sheets != null)
+                {
+                    foreach (var sheet in p.Sheets)
+                    {
+                        foreach (var (text, amount) in SheetItems(p, sheet).Where(i => i.Amount > 0))
+                            items.Add(new InvoiceItemDto
+                            {
+                                ItemId = Guid.Empty, ItemName = text, Unit = "خدمة", Quantity = 1, UnitPrice = amount, VatRate = StandardVat,
+                                RevenueAccountCode = revenue, CostCenterId = p.CostCenterId,
+                            });
+                        sheet.Status = RentalTimesheetStatuses.Billed; sheet.BillingId = billing.Id;
+                    }
+                }
+                else if (p.Amount > 0)
                     items.Add(new InvoiceItemDto
                     {
                         ItemId = Guid.Empty, ItemName = RentText(p), Unit = "خدمة", Quantity = 1, UnitPrice = p.Amount, VatRate = StandardVat,
@@ -425,6 +472,11 @@ public class RentalBillingService : IRentalBillingService
             {
                 x.Status = CSt.Approved; x.BillingId = null;
             }
+            // كشوف الساعات المفوترة بها تعود معتمدة جاهزة لفوترة لاحقة
+            foreach (var s in await _db.Set<RentalTimesheet>().Where(s => s.BillingId == b.Id).ToListAsync(token))
+            {
+                s.Status = RentalTimesheetStatuses.Approved; s.BillingId = null;
+            }
             b.Status = RentalBillingStatuses.Cancelled; b.CancelReason = reason;
             await _db.SaveChangesAsync(token);
             await LogAsync("RENTAL_BILLING_CANCELLED", c, text, token);
@@ -438,6 +490,8 @@ public class RentalBillingService : IRentalBillingService
             var c = await ContractAsync(contractId, track: true, token);
             if (c.Status != RentalContractStatuses.Active) throw new ConflictException(Messages.RentalContractNotEditable);
             if (c.Lines.Any(l => l.Status is LSt.Pending or LSt.Out)) throw new ConflictException(Messages.RentalCloseLinesOpen);
+            if (await _db.Set<RentalTimesheet>().AnyAsync(s => s.ContractId == c.Id && s.Status != RentalTimesheetStatuses.Billed, token))
+                throw new ConflictException(Messages.RentalCloseTimesheetsOpen);
             if (c.Lines.Any(l => l.Status == LSt.Returned && (l.BilledThrough == null || l.BilledThrough < l.ActualIn))) throw new ConflictException(Messages.RentalCloseNotBilled);
             // ما لم يُولَّد بعد من الإضافي والتأخير والنقل يُولَّد الآن فيظهر قبل الإغلاق
             await GenerateAsync(c, token);
@@ -462,6 +516,21 @@ public class RentalBillingService : IRentalBillingService
     }
 
     private static string RentText(RentPart p) => $"إيجار {p.Code} من {p.From:yyyy-MM-dd HH:mm} إلى {p.To:yyyy-MM-dd HH:mm}";
+
+    /// <summary>
+    /// بنود الفاتورة من كشف ساعات: الإيجار (التشغيل والانتظار والمشغّل) بتفصيل الأيام والساعات، والإضافي بنداً مستقلاً بساعاته.
+    /// </summary>
+    private static IEnumerable<(string Text, decimal Amount)> SheetItems(RentPart p, RentalTimesheet s)
+    {
+        var detail = p.Line.Basis == RentalRateBases.Hour
+            ? $"{s.BilledQuantity:0.##} ساعة"
+            : $"{s.WorkDays:0} يوم تشغيل{(s.StandbyDays > 0 ? $" و{s.StandbyDays:0} انتظار" : string.Empty)}";
+        var breakdown = s.BreakdownDays > 0 ? $"، عطل غير محتسب {s.BreakdownDays:0} يوم" : string.Empty;
+        yield return ($"إيجار {p.Code} - كشف {s.TimesheetNumber} ({s.PeriodFrom:yyyy-MM-dd} إلى {s.PeriodTo:yyyy-MM-dd}): {detail}{breakdown}",
+            s.RentAmount + s.StandbyAmount + s.OperatorAmount);
+        if (s.OvertimeAmount > 0)
+            yield return ($"ساعات إضافية {p.Code} - كشف {s.TimesheetNumber}: {s.OvertimeHours:0.##} ساعة", s.OvertimeAmount);
+    }
 
     private Task LockContractAsync(Guid id, CancellationToken ct)
         => _db.Set<RentalContract>().Where(x => x.Id == id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, x => x.Status), ct);

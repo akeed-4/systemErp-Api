@@ -19,7 +19,7 @@ public class BooksIntegrityTests : TestBase
         => new { description = "قيد اختبار", lines = lines.Select(l => new { accountCode = l.Code, debit = l.Debit, credit = l.Credit }).ToArray() };
 
     private static async Task EquityAccountAsync(Client api, string code)
-        => Assert.Equal(201, (await api.Post("/accounts", new { code, nameAr = "رأس مال " + code, nameEn = "Capital " + code, type = "equity", parentCode = "31", isDebitNature = false })).Status);
+        => Assert.Equal(201, (await api.Post("/accounts", new { code, nameAr = "رأس مال " + code, nameEn = "Capital " + code, type = "equity", parentCode = "3", isDebitNature = false })).Status);
 
     private static async Task<decimal> BalanceAsync(Client api, string code) => (await api.Get($"/accounts/ByCode/{code}")).Data!["balance"].D();
 
@@ -125,16 +125,16 @@ public class BooksIntegrityTests : TestBase
         }
     }
 
-    // ---------- 4: الإلغاء بقيد عكسي بدل الحذف ----------
+    // ---------- 4: العكس يبقي القيدين، والترقيم متصل ----------
     [Fact]
-    public async Task Deleting_a_manual_entry_cancels_it_with_a_reversal_and_keeps_both_on_record()
+    public async Task Reversing_a_manual_entry_keeps_both_on_record_with_continuous_numbering()
     {
         var api = await NewTenantAsync();
         await EquityAccountAsync(api, "311");
         var first = await api.Post("/journalentries", Entry(("1111", 1000m, 0), ("311", 0, 1000m)));
         var id = first.Data!["id"].S();
 
-        Assert.Equal(200, (await api.Delete($"/journalentries/{id}")).Status);
+        Assert.Equal(200, (await api.Post($"/journalentries/{id}/reverse", new { reason = "إدخال خاطئ" })).Status);
 
         var original = await api.Get($"/journalentries/{id}");
         Assert.Equal(200, original.Status); // لم يُمسح
@@ -151,7 +151,7 @@ public class BooksIntegrityTests : TestBase
             .Select(n => int.Parse(new string(n.Where(char.IsDigit).ToArray()), CultureInfo.InvariantCulture)).ToList();
         Assert.Equal(new[] { numbers[0], numbers[0] + 1, numbers[0] + 2 }, numbers);
 
-        Assert.Equal(409, (await api.Delete($"/journalentries/{id}")).Status); // الملغى لا يُلغى مرتين
+        Assert.Equal(409, (await api.Delete($"/journalentries/{id}")).Status); // المعكوس لا يُحذف
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 

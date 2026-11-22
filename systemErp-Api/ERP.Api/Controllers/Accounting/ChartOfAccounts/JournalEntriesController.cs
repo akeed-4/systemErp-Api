@@ -42,9 +42,10 @@ public class JournalEntriesController : ErpControllerBase
     }
 
     [HttpPost("{id:guid}/reverse"), RequireScreen("accounts", ScreenAction.Cancel, Legacy = ScreenAction.Create)]
-    public async Task<IActionResult> Reverse(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Reverse(Guid id, [FromBody] ReverseJournalEntryDto? dto, CancellationToken ct)
     {
-        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Reverse, id, null, ct) is { } held) return held;
-        return Success(await _journal.ReverseAsync(id, ct), Messages.JournalEntryReversed);
+        dto ??= new ReverseJournalEntryDto();
+        if (await HoldForApprovalAsync(Approval, ApprovalDocumentCatalog.Reverse, id, dto, ct) is { } held) return held;
+        return Success(await _journal.ReverseAsync(id, dto.Reason, ct), Messages.JournalEntryReversed);
     }
 }

@@ -137,8 +137,9 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(50, (await api.Get($"/financialstatements/IncomeStatement?from={from}&to={to}")).Data!["revenue"]!["total"].D());
         Assert.Contains("FISCAL_YEAR_REOPENED", (await api.Get("/auditlogs?entityName=Tenant")).Data!["items"]!.AsArray().Select(x => x!["action"].S()));
 
-        // زر «إلغاء القيد» في شاشة القيود يعيد فتح السنة بالطريقة نفسها
-        Assert.Equal(200, (await api.Delete($"/journalentries/{olderClosing}")).Status);
+        // قيد الإقفال لا يُحذف نهائياً؛ عكسه من شاشة القيود يعيد فتح السنة بالطريقة نفسها
+        Assert.Equal(409, (await api.Delete($"/journalentries/{olderClosing}")).Status);
+        Assert.Equal(200, (await api.Post($"/journalentries/{olderClosing}/reverse")).Status);
         status = (await api.Get("/fiscalperiods")).Data!;
         Assert.Empty(status["closedYears"]!.AsArray());
         Assert.Null(status["booksLockedThrough"]);
@@ -272,7 +273,7 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(200, (await api.Post("/journalentries", Entry("1131", "31", 10))).Status);   // تسوية تزيد ضريبة المدخلات
         Assert.Equal(200, (await api.Post("/journalentries", Entry("213", "1111", 25))).Status);  // سداد للهيئة: ليس تسوية
         var undone = (await api.Post("/journalentries", Entry("522", "213", 7))).Data!["id"].S();
-        Assert.Equal(200, (await api.Post($"/journalentries/{undone}/reverse")).Status);          // تسوية معكوسة: أثرها صفر
+        Assert.Equal(200, (await api.Post($"/journalentries/{undone}/reverse", new { reason = "تصحيح" })).Status);          // تسوية معكوسة: أثرها صفر
 
         var from = DateTime.UtcNow.Date.AddDays(-1).ToString("yyyy-MM-dd"); var to = DateTime.UtcNow.Date.AddDays(1).ToString("yyyy-MM-dd");
         var vat = (await api.Get($"/reports/VatReturn?from={from}&to={to}")).Data!;

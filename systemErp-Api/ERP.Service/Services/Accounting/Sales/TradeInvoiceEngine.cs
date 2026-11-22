@@ -1601,6 +1601,10 @@ public class TradeInvoiceEngine
         if (r.OriginalInvoiceId.HasValue || (r.SystemGenerated && exclusive)) return;
         if (r.ExistingInvoiceId is Guid id
             && await _db.Set<T>().AsNoTracking().AnyAsync(i => i.Id == id && i.PricingMethod == r.PricingMethod, ct)) return;
+        // الشامل في المبيعات معطّل للمنشأة افتراضياً: لا يتيحه حتى المالك والمدير حتى يُفعَّل في إعدادات الحسابات
+        if (!exclusive && r.Kind == InvoiceKind.Sales
+            && !await _db.Set<AccountingSettings>().AsNoTracking().Select(s => s.AllowSalesVatInclusivePricing).FirstOrDefaultAsync(ct))
+            throw new ForbiddenException(Messages.SalesVatInclusivePricingDisabled);
         var screen = exclusive ? PermissionService.InvoiceVatExclusivePricingScreenId : PermissionService.InvoiceVatInclusivePricingScreenId;
         if (!await _permissions.HasPermissionAsync(screen, ScreenAction.Edit, ct))
             throw new ForbiddenException(exclusive ? Messages.VatExclusivePricingForbidden : Messages.VatInclusivePricingForbidden);
@@ -1956,11 +1960,13 @@ public class TradeInvoiceEngine
         // الدفع بعربون سيارة يقفل حساب عربونات العملاء المحدَّد في إعدادات المعرض
         var byDeposit = invoice.PaymentMethod == PaymentMethod.CustomerDeposit || invoice.PaymentSplits.Any(s => s.Method == PaymentMethod.CustomerDeposit);
         var deposits = byDeposit ? (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).CustomerDepositsAccount : null;
+        // صندوق الموقع للنقد (الموقع الرئيسي بلا صندوق خاص = الصندوق العام)
+        var siteCash = (await PostingAccounts.SiteAsync(_db, invoice.WarehouseId, ct)).Cash;
         if (invoice.PaymentSplits.Count > 0)
             return invoice.PaymentSplits.Where(s => s.Method != PaymentMethod.Credit)
-                .Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, deposits, s.PaymentMethodCode), s.Amount)).ToList();
+                .Select(s => new PaymentPosting(TreasuryResolver.Resolve(s.Method, methods, deposits, s.PaymentMethodCode, siteCash), s.Amount)).ToList();
         if (invoice.PaymentMethod == PaymentMethod.Credit || invoice.GrandTotal <= 0) return new();
-        return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods, deposits, invoice.PaymentMethodCode), invoice.GrandTotal) };
+        return new() { new PaymentPosting(TreasuryResolver.Resolve(invoice.PaymentMethod, methods, deposits, invoice.PaymentMethodCode, siteCash), invoice.GrandTotal) };
     }
 
     /// <summary>صافي كل سطر بالعملة الأساسية؛ كسر التقريب على آخر سطر ليطابق صافي المستند.</summary>

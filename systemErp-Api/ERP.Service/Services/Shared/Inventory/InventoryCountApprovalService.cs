@@ -184,7 +184,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         var target = await WarehouseStocks.ResolveAsync(_db,
             count.WarehouseId ?? (all ? await InventoryCountLines.DefaultWarehouseIdAsync(_db, ct) : null), ct);
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
-        var values = new List<(string Account, decimal Value)>();
+        var values = new List<Variance>();
 
         foreach (var line in count.Lines.Where(l => l.VarianceQuantity != 0))
         {
@@ -215,7 +215,9 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
                 }, ct);
                 value += movement.ValueChange; // تغيّر القيمة الدفترية بإشارته: يطابق حساب المخزون بلا هللات تقريب
                 cost += movement.UnitCost * qty;
-                values.Add((warehouse.InventoryAccountCode ?? accounts.Inventory(), movement.ValueChange));
+                // المقابل: عجز/زيادة مخزون المستودع نفسه، وإلا حسابا الإعدادات
+                values.Add(new(warehouse.InventoryAccountCode ?? accounts.Inventory(), movement.ValueChange,
+                    warehouse.ShortageAccountCode ?? accounts.InventoryShortage(), warehouse.SurplusAccountCode ?? accounts.InventorySurplus()));
             }
             line.UnitCost = Math.Round(cost / quantity, 4);
             line.VarianceValue = value;
@@ -226,7 +228,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             return periodEnd ? await PeriodicInventory.PostPeriodEndAsync(_db, _posting, accounts, count, date, ct) : null;
         }
         // كل فرق على حساب مخزون المستودع الذي سُجّلت فيه حركته
-        return await PostVarianceAsync(count, values, accounts.InventoryShortage(), accounts.InventorySurplus(), ct);
+        return await PostVarianceAsync(count, values, ct);
     }
 
     /// <summary>
@@ -296,16 +298,22 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         await _db.SaveChangesAsync(ct);
         // فروق السيارات على فروقات الجرد كما كانت (الشطب وإعادة القيد متقابلان)، لا على حسابي عجز وزيادة البضاعة
         var vehicleAccount = (await ERP.Service.Services.CarShowroom.SalesCharges.SettingsAsync(_db, ct)).VehicleInventoryAccount;
-        return await PostVarianceAsync(count, count.Lines.Select(l => (vehicleAccount, l.VarianceValue)).ToList(),
-            DefaultAccounts.InventoryAdjustment, DefaultAccounts.InventoryAdjustment, ct);
+        var posted = await PostVarianceAsync(count, count.Lines
+            .Select(l => new Variance(vehicleAccount, l.VarianceValue, DefaultAccounts.InventoryAdjustment, DefaultAccounts.InventoryAdjustment)).ToList(), ct);
+        // الفروق على مخزون السيارات العام؛ ثم تُزامَن سيارات الجرد مع مخزون معارضها (المشطوبة تخرج منه، والمنقولة تنتقل إليه)
+        await ERP.Service.Services.CarShowroom.VehicleSiteLedger.SyncAsync(_db, _posting,
+            count.Lines.Where(l => l.VehicleId.HasValue).Select(l => l.VehicleId!.Value), $"تحديث مخزون معارض السيارات بجرد {count.CountNumber}", ct);
+        return posted;
     }
 
     /// <summary>
     /// زيادة الجرد: مدين المخزون / دائن حساب الزيادة، والعجز: مدين حساب العجز / دائن المخزون، كل فرق على حساب مخزونه.
     /// لا قيد إن لم يكن للفروق قيمة.
     /// </summary>
-    private async Task<PostingResult?> PostVarianceAsync(InventoryCount count, IReadOnlyCollection<(string Account, decimal Value)> values,
-        string shortageAccount, string surplusAccount, CancellationToken ct)
+    /// <summary>فرق جرد بقيمته على حساب المخزون، مع حسابي العجز والزيادة المقابلين (حسابا المستودع أو الإعدادات).</summary>
+    private sealed record Variance(string Account, decimal Value, string ShortageAccount, string SurplusAccount);
+
+    private async Task<PostingResult?> PostVarianceAsync(InventoryCount count, IReadOnlyCollection<Variance> values, CancellationToken ct)
     {
         var lines = new List<PostingLine>();
         foreach (var g in values.GroupBy(v => v.Account))
@@ -315,13 +323,15 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             if (accountSurplus > 0) lines.Add(new(g.Key, accountSurplus, 0, "زيادة جرد"));
             if (accountShortage > 0) lines.Add(new(g.Key, 0, accountShortage, "عجز جرد"));
         }
-        var surplus = values.Where(v => v.Value > 0).Sum(v => v.Value);
-        var shortage = -values.Where(v => v.Value < 0).Sum(v => v.Value);
-        if (surplus > 0) lines.Add(new(surplusAccount, 0, surplus, "زيادة جرد"));
-        if (shortage > 0) lines.Add(new(shortageAccount, shortage, 0, "عجز جرد"));
+        // المقابل لكل مستودع على حسابه (يُجمع ما اشترك في الحساب)
+        foreach (var g in values.Where(v => v.Value > 0).GroupBy(v => v.SurplusAccount))
+            lines.Add(new(g.Key, 0, g.Sum(v => v.Value), "زيادة جرد"));
+        foreach (var g in values.Where(v => v.Value < 0).GroupBy(v => v.ShortageAccount))
+            lines.Add(new(g.Key, -g.Sum(v => v.Value), 0, "عجز جرد"));
         if (lines.Count == 0) return null;
 
-        await DefaultAccounts.EnsureAsync(_db, ct, values.Select(v => v.Account).Distinct().Append(surplusAccount).Append(shortageAccount).Distinct().ToArray());
+        await DefaultAccounts.EnsureAsync(_db, ct, values.Select(v => v.Account)
+            .Concat(values.Select(v => v.SurplusAccount)).Concat(values.Select(v => v.ShortageAccount)).Distinct().ToArray());
         return await _posting.PostAsync(new GenericPostingRequest
         {
             Date = SaudiTime.Today, Description = $"تسوية فروق الجرد {count.CountNumber}",

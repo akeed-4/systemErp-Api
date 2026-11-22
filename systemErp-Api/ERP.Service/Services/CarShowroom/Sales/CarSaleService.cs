@@ -292,6 +292,8 @@ public class CarSaleService : ICarSaleService
             var vehicle = await _db.Set<Vehicle>().FirstAsync(v => v.Id == c.VehicleId, token);
             vehicle.Status = VehicleStatus.Available;
             if (original.WarehouseId.HasValue) VehicleSites.Place(vehicle, original.WarehouseId.Value, original.WarehouseName);
+            // المرتجع أعادها لحساب مخزون فاتورة البيع (حساب موقعها إن كان): يُسجَّل حجزها فيه بلا قيد إضافي
+            await VehicleSiteLedger.RestoreAsync(_db, new[] { vehicle }, original.InventoryAccountCode, token);
 
             // مصاريف ما بعد البيع: بقيت على تكلفة المبيعات، فتخرج من تكلفة السيارة وتصير مصروفاً
             await SoldVehicleAdjustments.ExpenseLateChargesAsync(_db, new[] { vehicle.Id }, token);
@@ -451,6 +453,10 @@ public class CarSaleService : ICarSaleService
         Voucher? deposit = c.DepositVoucherId.HasValue ? await _db.Set<Voucher>().FirstOrDefaultAsync(v => v.Id == c.DepositVoucherId, ct) : null;
         var depositAmount = deposit == null ? 0m : Math.Min(deposit.Amount, Total(c));
         var (method, splits) = PaymentPlan(c, depositAmount, deposit?.VoucherNumber);
+        // مبيعات السيارة وتكلفتها على حسابي معرضها (موقعها) إن كان له حساباته، وإلا حسابا السيارات في الإعدادات
+        var site = await PostingAccounts.SiteAsync(_db, vehicle.WarehouseId, ct);
+        // السيارة تُخصم من مخزون معرضها (حساب الموقع إن كان له حساباته الخاصة)، وإلا من مخزون السيارات العام
+        var inventory = await VehicleSiteLedger.TakeForSaleAsync(_db, _posting, new[] { vehicle.Id }, settings.VehicleInventoryAccount, ct);
         var invoice = await _invoices.CreateAsync(new CreateInvoiceDto
         {
             SystemGenerated = true, // مستند ينشئه النظام: ترقيمه تلقائي دائماً
@@ -462,7 +468,8 @@ public class CarSaleService : ICarSaleService
             Status = "posted",
             Notes = $"فاتورة مبيعات سيارة - عقد {c.ContractNumber} - VIN {c.Vin}",
             ReferenceType = "car_sales_contract", ReferenceId = c.Id, ReferenceNumber = c.ContractNumber,
-            RevenueAccountCode = settings.CarSalesRevenueAccount, CogsAccountCode = settings.CarCogsAccount, InventoryAccountCode = settings.VehicleInventoryAccount,
+            RevenueAccountCode = site.Sales ?? settings.CarSalesRevenueAccount, CogsAccountCode = site.Cogs ?? settings.CarCogsAccount,
+            InventoryAccountCode = inventory ?? settings.VehicleInventoryAccount,
             CostCenterId = c.CostCenterId, CostCenterFromSource = true, // مركز العقد افتراضي كل أسطر الفاتورة وقيدها
             WarehouseId = vehicle.WarehouseId, // تُباع من معرض السيارة
             Items = new List<InvoiceItemDto>

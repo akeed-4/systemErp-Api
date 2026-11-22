@@ -104,15 +104,20 @@ public class AccountingPostingService : IAccountingPostingService
     }
 
     /// <summary>
-    /// «حذف» القيد إلغاءٌ لا مسح: يُعكس بقيد عكسي في فترته (يجب أن تكون مفتوحة) ويبقى القيدان في السجل،
-    /// فلا فجوة في الترقيم ولا يضيع أثر ما حدث. يُرجع القيد العكسي.
+    /// حذف نهائي لقيد يدوي (إعدام لا إلغاء): بلا قيد عكسي، يُسحب أثره من أرصدة الحسابات والكيانات المرتبطة ثم يُمسح مع أسطره.
+    /// القيد العكسي والمعكوس والآلي والمطابق مع البنك وما له قيد عكسي لا يُحذف، ولا ما في فترة مقفلة. يعمل داخل معاملة المتصل.
     /// </summary>
-    public async Task<PostingResult> DeleteManualAsync(Guid journalEntryId, CancellationToken ct = default)
+    public async Task PurgeManualAsync(Guid journalEntryId, CancellationToken ct = default)
     {
         var entry = await LoadManualAsync(journalEntryId, ct);
         EnsureNotReconciled(entry);
         await _periods.EnsureOpenAsync(entry.Date, ct);
-        return await ReverseAsync(entry.Id, "إلغاء القيد", ct);
+        if (await _db.Set<JournalEntry>().AnyAsync(e => e.SourceType == ReversalSource && e.SourceReferenceId == entry.Id, ct))
+            throw new ConflictException(Messages.JournalEntryHasReversal);
+        await UnapplyAsync(entry, ct);
+        _db.RemoveRange(entry.Lines);
+        _db.Remove(entry);
+        await _db.SaveChangesAsync(ct);
     }
 
     /// <summary>القيد اليدوي فقط. القيد الآلي يتبع مستنده (فاتورة، سند، جرد...)، وتعديله أو إلغاؤه وحده يفصل الدفاتر عن المستند والمخزون.</summary>
@@ -160,6 +165,7 @@ public class AccountingPostingService : IAccountingPostingService
 
         var parents = await _db.Set<Account>().Where(a => a.ParentCode != null && codes.Contains(a.ParentCode))
             .Select(a => a.ParentCode!).Distinct().ToListAsync(ct);
+        parents = parents.Union(accounts.Where(a => a.IsGroup).Select(a => a.Code)).ToList(); // الرئيسي لا يُرحَّل عليه ولو بلا فروع بعد
         if (parents.Count > 0)
             throw new ValidationFailedException(Messages.CannotPostToParentAccountPrefix + string.Join(", ", parents));
 
@@ -267,7 +273,12 @@ public class AccountingPostingService : IAccountingPostingService
             if (receivable > Tolerance)
                 lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
         }
-        lines.AddRange(RevenueLines(r, r.RevenueAccountCode ?? accounts.SalesRevenue(r.IsReturn)));
+        // حسابات الموقع: مبيعاته وتكلفة إيراده (الحساب المحدد في المستند أو سطره يتقدم). المرتجع على حساب المرتجعات إن ضُبط، وإلا مبيعات الموقع
+        var site = await PostingAccounts.SiteAsync(_db, r.WarehouseId, ct);
+        var revenue = r.RevenueAccountCode
+            ?? (site.Sales != null && !(r.IsReturn && accounts.SalesReturnsAccountCode != null) ? site.Sales : accounts.SalesRevenue(r.IsReturn));
+        var cogs = r.CogsAccountCode ?? site.Cogs ?? accounts.Cogs();
+        lines.AddRange(RevenueLines(r, revenue));
         if (r.ExciseTaxAmount > 0) lines.Add(new(accounts.OutputExcise(), 0, r.ExciseTaxAmount));
         if (r.VatAmount > 0) lines.Add(new(accounts.OutputVat(), 0, r.VatAmount));
         var inventoryAccount = r.InventoryAccountCode ?? await accounts.InventoryAsync(_db, r.WarehouseId, ct);
@@ -275,13 +286,13 @@ public class AccountingPostingService : IAccountingPostingService
         {
             if (cost.Amount > 0)
             {
-                lines.Add(new(r.CogsAccountCode ?? accounts.Cogs(), cost.Amount, 0, null, cost.CostCenterId));
+                lines.Add(new(cogs, cost.Amount, 0, null, cost.CostCenterId));
                 lines.Add(new(inventoryAccount, 0, cost.Amount, null, cost.CostCenterId));
             }
             else if (cost.Amount < 0) // تغيّر قيمة المخزون عكس الاتجاه المعتاد (إعادة تسعير الرصيد)
             {
                 lines.Add(new(inventoryAccount, -cost.Amount, 0, null, cost.CostCenterId));
-                lines.Add(new(r.CogsAccountCode ?? accounts.Cogs(), 0, -cost.Amount, null, cost.CostCenterId));
+                lines.Add(new(cogs, 0, -cost.Amount, null, cost.CostCenterId));
             }
         }
         var request = Build(r.Date, r.Description, r.SourceType, r.SourceId, r.SourceNumber, lines, r.IsReturn);

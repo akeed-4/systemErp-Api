@@ -98,16 +98,18 @@ public class AccountingIntegrityService : IAccountingIntegrityService
             .Except(vehicleAccounts)
             .ToList();
 
+        // تكلفة السيارات المحجوزة في مخزون مواقعها (VehicleSiteLedger) تقع في حسابات مخزون المواقع: تُضاف لجانب البضاعة وتُطرح من السيارات
+        var siteBooked = await _db.Set<Vehicle>().AsNoTracking().Where(v => v.SiteInventoryAccountCode != null).SumAsync(v => v.SiteBookedCost, ct);
         var rows = new List<InventoryReconciliationRowDto>
         {
             Row("items", "مخزون البضاعة", "Merchandise inventory",
-                await _db.Set<Product>().AsNoTracking().SumAsync(p => p.CurrentStock * p.AverageCost, ct), itemAccounts, accounts, netDebits),
+                await _db.Set<Product>().AsNoTracking().SumAsync(p => p.CurrentStock * p.AverageCost, ct) + siteBooked, itemAccounts, accounts, netDebits),
         };
 
         // السيارات في المخزون (المتاحة والمحجوزة) بتكلفتها الكاملة، مقابل حساب مخزون السيارات
         var vehiclesValue = await _db.Set<Vehicle>().AsNoTracking()
             .Where(v => v.Status == VehicleStatus.Available || v.Status == VehicleStatus.Reserved)
-            .SumAsync(v => v.TotalCost, ct);
+            .SumAsync(v => v.TotalCost, ct) - siteBooked;
         var vehicleRow = Row("vehicles", "مخزون السيارات", "Vehicle inventory", vehiclesValue, vehicleAccounts, accounts, netDebits);
         if (vehicleRow.SubledgerValue != 0 || vehicleRow.LedgerValue != 0) rows.Add(vehicleRow);
 

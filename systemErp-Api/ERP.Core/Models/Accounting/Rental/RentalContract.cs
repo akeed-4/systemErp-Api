@@ -64,6 +64,8 @@ public class RentalContract : BaseEntity
     public string Status { get; set; } = RentalContractStatuses.Draft;
     public string Term { get; set; } = RentalTerms.Short;
     public string BillingCycle { get; set; } = RentalBillingCycles.EndOfContract;
+    /// <summary>فوترة الإيجار من كشوف الساعات المعتمدة أو بالمدة (T1). القائمة قبل T1 بالمدة.</summary>
+    public string BillingMode { get; set; } = RentalBillingModes.Time;
     /// <summary>الفوترة مقدماً لكل دورة (وإلا مؤخراً).</summary>
     public bool BillInAdvance { get; set; }
     /// <summary>التأمين النقدي المطلوب قبل التسليم (يُستلم بسند قبض في الفوترة).</summary>
@@ -107,6 +109,13 @@ public class RentalContractLine : BaseEntity
     public decimal IncludedHours { get; set; }
     public decimal OvertimeRate { get; set; }
     public decimal MinimumPeriods { get; set; }
+    /// <summary>
+    /// شروط كشف الساعات (T1): الحد الأدنى اليومي للساعات (أساس الساعة، 0 = بلا حد)، وأيام العمل في الفترة لحساب سعر اليوم من سعر
+    /// الأسبوع أو الشهر (0 = 6 للأسبوع و26 للشهر)، ونسبة محاسبة الانتظار من السعر (100 = كالتشغيل).
+    /// </summary>
+    public decimal DailyMinimumHours { get; set; }
+    public decimal WorkingDaysPerPeriod { get; set; }
+    public decimal StandbyPercent { get; set; } = 100m;
     public decimal EstimatedAmount { get; set; }
     /// <summary>آخر لحظة فُوترت حتى نهايتها (الفوترة الدورية).</summary>
     public DateTime? BilledThrough { get; set; }

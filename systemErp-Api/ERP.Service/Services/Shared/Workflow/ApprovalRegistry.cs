@@ -107,7 +107,7 @@ public static class ApprovalRegistry
             .Create<CreateJournalEntryDto>(Create, (s, d, ct) => s.CreateManualAsync(d, ct))
             .Update<UpdateJournalEntryDto>(Edit, (s, id, d, ct) => s.UpdateManualAsync(id, d, ct))
             .Delete(Delete, (s, id, ct) => s.DeleteManualAsync(id, ct))
-            .Act(Reverse, (s, id, ct) => s.ReverseAsync(id, ct)).Handler;
+            .Update<ReverseJournalEntryDto>(Reverse, (s, id, d, ct) => s.ReverseAsync(id, d?.Reason, ct)).Handler;
 
         // ---------------- المبيعات ----------------
         yield return For<IQuotationService, QuotationDto>("quotations", "quotation")

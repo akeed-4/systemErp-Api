@@ -269,6 +269,7 @@ public class CarProcurementService : ICarProcurementService
             if (!string.IsNullOrWhiteSpace(r.Notes)) order.Notes = string.IsNullOrWhiteSpace(order.Notes) ? r.Notes : $"{order.Notes}\n{r.Notes}";
             await _db.SaveChangesAsync(token);
             await VehicleCostLedger.RecomputeAsync(_db, vehicleIds, token);
+            await VehicleSiteLedger.SyncAsync(_db, _posting, vehicleIds, $"تسوية مصاريف شراء ملغى - أمر {order.OrderNumber}", token);
             await _audit.LogAsync("CANCELLED_PURCHASE_CHARGES_SETTLED", nameof(CarProcurementOrder), order.Id.ToString(), $"{treatment}: {amount:0.00}", token);
             await _db.SaveChangesAsync(token);
             return await GetAsync(id, token);
@@ -623,6 +624,10 @@ public class CarProcurementService : ICarProcurementService
             }, ct);
             foreach (var line in unposted) line.JournalEntryId = posted.JournalEntryId;
         }
+
+        // فاتورة الأمر ورسومه على مخزون السيارات العام، ثم تنتقل تكلفة سياراته المستلمة في معرض له حساباته إلى مخزونه
+        var orderVehicles = order.ReceivedVins.Where(v => v.VehicleId.HasValue).Select(v => v.VehicleId!.Value).ToList();
+        await VehicleSiteLedger.SyncAsync(_db, _posting, orderVehicles, $"نقل سيارات أمر الشراء {order.OrderNumber} لمخزون معرضها", ct);
 
         order.PurchaseInvoiceId = invoice.Id;
         order.MatchedInvoiceNumber = string.IsNullOrWhiteSpace(r.SupplierInvoiceNumber) ? invoice.InvoiceNumber : r.SupplierInvoiceNumber;

@@ -19,14 +19,30 @@ public class AccountingTests : TestBase
         var (_, sAcc) = await SeedSupplierAsync(api);
         var bank = await api.Post("/banks", new { nameAr = "بنك", accountNumber = "1", iban = "SA0380000000608010167519", status = "active" });
         Assert.StartsWith("112", cAcc); Assert.StartsWith("211", sAcc); Assert.StartsWith("111", bank.Data!["accountCode"].S());
-        Assert.Equal(409, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{cAcc}")).Data!["id"].S()}")).Status); // مرتبط بعميل
+        Assert.Equal(409, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{sAcc}")).Data!["id"].S()}")).Status); // مرتبط بمورد
+        // حساب العميل بلا حركات مالية يُحذف مع سجل العميل
+        var customers = (await api.Get("/customers")).Data!["totalCount"].D();
+        Assert.Equal(200, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{cAcc}")).Data!["id"].S()}")).Status);
+        Assert.Equal(404, (await api.Get($"/accounts/ByCode/{cAcc}")).Status);
+        Assert.Equal(customers - 1, (await api.Get("/customers")).Data!["totalCount"].D());
+    }
+
+    [Fact]
+    public async Task Customer_account_with_financial_movements_cannot_be_deleted()
+    {
+        var api = await NewTenantAsync();
+        var (customer, cAcc) = await SeedCustomerAsync(api);
+        var product = await SeedProductAsync(api);
+        Assert.Equal(201, (await api.PostInvoice(Sale(product, 1, "credit", customer))).Status);
+        Assert.Equal(409, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{cAcc}")).Data!["id"].S()}")).Status);
+        Assert.Equal(200, (await api.Get($"/customers/{customer}")).Status);
     }
 
     [Fact]
     public async Task Manual_journal_must_balance_and_can_only_post_to_leaf_accounts()
     {
         var api = await NewTenantAsync();
-        await api.Post("/accounts", new { code = "311", nameAr = "رأس المال المدفوع", nameEn = "Paid Capital", type = "equity", parentCode = "31", isDebitNature = false });
+        await api.Post("/accounts", new { code = "311", nameAr = "رأس المال المدفوع", nameEn = "Paid Capital", type = "equity", parentCode = "3", isDebitNature = false });
 
         var unbalanced = await api.Post("/journalentries", new { description = "x", lines = new[] { new { accountCode = "1111", debit = 10, credit = 0 }, new { accountCode = "311", debit = 0, credit = 5 } } });
         Assert.Equal(400, unbalanced.Status);
@@ -41,7 +57,7 @@ public class AccountingTests : TestBase
     public async Task Journal_entries_can_be_edited_reversed_and_reversed_ones_are_locked()
     {
         var api = await NewTenantAsync();
-        await api.Post("/accounts", new { code = "311", nameAr = "رأس المال", nameEn = "Cap", type = "equity", parentCode = "31", isDebitNature = false });
+        await api.Post("/accounts", new { code = "311", nameAr = "رأس المال", nameEn = "Cap", type = "equity", parentCode = "3", isDebitNature = false });
         object Lines(decimal amount) => new { description = "قيد", lines = new[] { new { accountCode = "1111", debit = amount, credit = 0m }, new { accountCode = "311", debit = 0m, credit = amount } } };
         var je = await api.Post("/journalentries", Lines(1000));
         var id = je.Data!["id"].S();
@@ -51,9 +67,9 @@ public class AccountingTests : TestBase
         Assert.Equal(je.Data["entryNumber"].S(), edited.Data!["entryNumber"].S()); // نفس الرقم
         Assert.Equal(700, (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D());
 
-        Assert.Equal(200, (await api.Post($"/journalentries/{id}/reverse")).Status);
+        Assert.Equal(200, (await api.Post($"/journalentries/{id}/reverse", new { reason = "تصحيح" })).Status);
         Assert.Equal(0, (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D());
-        Assert.Equal(409, (await api.Post($"/journalentries/{id}/reverse")).Status);   // لا يُعكس مرتين
+        Assert.Equal(409, (await api.Post($"/journalentries/{id}/reverse", new { reason = "تصحيح" })).Status);   // لا يُعكس مرتين
         Assert.Equal(409, (await api.Delete($"/journalentries/{id}")).Status);          // المعكوس مقفل
     }
 

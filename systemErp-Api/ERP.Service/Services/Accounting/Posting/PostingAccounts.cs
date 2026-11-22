@@ -115,6 +115,8 @@ internal static class PostingAccounts
     /// </summary>
     public static async Task<string> InventoryAsync(this AccountingSettings s, ErpDbContext db, Guid? warehouseId, CancellationToken ct)
     {
+        // مستند لم يُختم بموقعه بعد (يُختم عند الحفظ): موقع الجلسة الذي دخل عليه المستخدم قبل الافتراضي
+        warehouseId ??= db.SessionWarehouseId;
         var warehouses = db.Set<Warehouse>().AsNoTracking();
         var own = warehouseId.HasValue
             ? await warehouses.Where(w => w.Id == warehouseId).Select(w => w.InventoryAccountCode).FirstOrDefaultAsync(ct)
@@ -122,7 +124,30 @@ internal static class PostingAccounts
         return own ?? s.Inventory();
     }
 
+    /// <summary>حسابات الموقع الخاصة (مبيعاته، تكلفة إيراده، صندوقه)؛ فارغ = حساب الإعدادات. بلا موقع: الافتراضي (الرئيسي، على الإعدادات عادةً).</summary>
+    public sealed record SiteAccountCodes(string? Sales, string? Cogs, string? Cash);
+
+    public static async Task<SiteAccountCodes> SiteAsync(ErpDbContext db, Guid? warehouseId, CancellationToken ct)
+    {
+        // مستند لم يُختم بموقعه بعد (يُختم عند الحفظ): موقع الجلسة الذي دخل عليه المستخدم قبل الافتراضي
+        warehouseId ??= db.SessionWarehouseId;
+        var warehouses = db.Set<Warehouse>().AsNoTracking();
+        var q = warehouseId.HasValue ? warehouses.Where(w => w.Id == warehouseId) : warehouses.OrderByDescending(w => w.IsDefault).ThenBy(w => w.CreatedAt);
+        return await q.Select(w => new SiteAccountCodes(w.SalesAccountCode, w.CogsAccountCode, w.CashAccountCode)).FirstOrDefaultAsync(ct)
+            ?? new SiteAccountCodes(null, null, null);
+    }
+
     /// <summary>حسابات مخزون المستودعات المحددة صراحةً.</summary>
+    /// <summary>عجز وزيادة مخزون المستودع (موقع الجلسة إن لم يُحدَّد)، وإلا حسابا الإعدادات.</summary>
+    public static async Task<(string Shortage, string Surplus)> VarianceAsync(this AccountingSettings s, ErpDbContext db, Guid? warehouseId, CancellationToken ct)
+    {
+        warehouseId ??= db.SessionWarehouseId;
+        var warehouses = db.Set<Warehouse>().AsNoTracking();
+        var own = await (warehouseId.HasValue ? warehouses.Where(w => w.Id == warehouseId) : warehouses.OrderByDescending(w => w.IsDefault).ThenBy(w => w.CreatedAt))
+            .Select(w => new { w.ShortageAccountCode, w.SurplusAccountCode }).FirstOrDefaultAsync(ct);
+        return (own?.ShortageAccountCode ?? s.InventoryShortage(), own?.SurplusAccountCode ?? s.InventorySurplus());
+    }
+
     public static async Task<HashSet<string>> WarehouseInventoryAccountsAsync(ErpDbContext db, CancellationToken ct)
         => (await db.Set<Warehouse>().AsNoTracking().Where(w => w.InventoryAccountCode != null).Select(w => w.InventoryAccountCode!).Distinct().ToListAsync(ct))
             .ToHashSet();

@@ -12,6 +12,8 @@ public class Account : BaseEntity
     public decimal Balance { get; set; }
     public bool IsDebitNature { get; set; }
     public bool IsSystem { get; set; }
+    /// <summary>حساب رئيسي (تجميعي): يقبل حسابات فرعية تحته ولا يُرحَّل عليه قيد. الفرعي (false) حساب حركة بلا أبناء.</summary>
+    public bool IsGroup { get; set; }
     public string? Currency { get; set; }
     public LinkedEntityType? LinkedEntityType { get; set; }
     public Guid? LinkedEntityId { get; set; }

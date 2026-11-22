@@ -49,8 +49,8 @@ public class ContractBillingService : IContractBillingService
 
     // ---------- الدفعة المقدمة ----------
 
-    public Task<InvoiceDto> BillAdvanceAsync(Guid contractId, DateTime? date = null, CancellationToken ct = default)
-        => new TransactionRunner(_db).RunAsync(async token =>
+    public async Task<InvoiceDto> BillAdvanceAsync(Guid contractId, DateTime? date = null, CancellationToken ct = default)
+        => await SubmitToZatcaAsync(await new TransactionRunner(_db).RunAsync(async token =>
         {
             var c = await LoadBoqContractAsync(contractId, token);
             RequireActive(c);
@@ -92,12 +92,12 @@ public class ContractBillingService : IContractBillingService
             AddInvoiced(c, invoice.GrandTotal);
             await _db.SaveChangesAsync(token);
             return invoice;
-        }, ct);
+        }, ct), ct);
 
     // ---------- المستخلص ----------
 
-    public Task<InvoiceDto> BillCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default)
-        => new TransactionRunner(_db).RunAsync(async token =>
+    public async Task<InvoiceDto> BillCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default)
+        => await SubmitToZatcaAsync(await new TransactionRunner(_db).RunAsync(async token =>
         {
             var c = await LoadBoqContractAsync(contractId, token);
             RequireActive(c);
@@ -191,7 +191,7 @@ public class ContractBillingService : IContractBillingService
             AddInvoiced(c, invoice.GrandTotal);
             await _db.SaveChangesAsync(token);
             return invoice;
-        }, ct);
+        }, ct), ct);
 
     /// <summary>
     /// تسوية مستخلص صافيه الخاضع صفر (قيمة أعماله = استرداد الدفعة المقدمة): الضريبة حُصّلت في فاتورة الدفعة، فلا فاتورة ضريبية
@@ -247,8 +247,8 @@ public class ContractBillingService : IContractBillingService
     /// العقد المبسط: المستخلص يُفوتر مباشرة بعد إعداده — تقديم واعتماد وفوترة في معاملة واحدة (كلها أو لا شيء)،
     /// بالقواعد نفسها (إعادة القياس، تجاوز الكميات، الحسابات). العقد الكامل يبقى بدورة الاعتماد المنفصلة.
     /// </summary>
-    public Task<InvoiceDto> IssueCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default)
-        => new TransactionRunner(_db).RunAsync(async token =>
+    public async Task<InvoiceDto> IssueCertificateAsync(Guid contractId, Guid certificateId, DateTime? date = null, CancellationToken ct = default)
+        => await SubmitToZatcaAsync(await new TransactionRunner(_db).RunAsync(async token =>
         {
             var simplified = await _db.Set<CommercialContract>().AsNoTracking().Where(x => x.Id == contractId).Select(x => (bool?)x.IsSimplified)
                 .FirstOrDefaultAsync(token) ?? throw new NotFoundException(Messages.ContractNotFound);
@@ -258,7 +258,7 @@ public class ContractBillingService : IContractBillingService
             if (status == St.Draft) await _certificates.SubmitAsync(contractId, certificateId, token);
             if (status is St.Draft or St.Submitted) await _certificates.ApproveAsync(contractId, certificateId, token);
             return await BillCertificateAsync(contractId, certificateId, date, token);
-        }, ct);
+        }, ct), ct);
 
     /// <summary>
     /// تكلفة المواد المختارة في المستخلص مجمّعة بحساب «تحت التنفيذ» الذي حُمِّل عليه تسليمها. يتحقق أن أذوناتها ما زالت مرحّلة
@@ -288,7 +288,17 @@ public class ContractBillingService : IContractBillingService
     /// فواتير العقد (فهرس فريد يمنع الإلغاء المزدوج). شروطه: المستخلص الأخير غير الملغى، ولا تحصيل على فاتورته، ولا إفراج عن الضمان،
     /// والختامي لا يُلغى بعد الاستلام الأولي. القيود الأصلية تبقى في السجل وتُعكس بقيود مؤرخة، فلا يُعاد كتابة التاريخ.
     /// </summary>
-    public Task<ContractCertificateDto> CancelCertificateInvoiceAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct = default)
+    public async Task<ContractCertificateDto> CancelCertificateInvoiceAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct = default)
+    {
+        var cancelled = await CancelCertificateInvoiceCoreAsync(contractId, certificateId, request, ct);
+        // الإشعار الدائن يتبع فاتورته للهيئة (أُنشئ داخل المعاملة فيُرسل بعد اكتمالها)؛ إشعار المورد داخلي فلا يُطلب إرساله
+        if (cancelled.CreditNoteInvoiceId is { } creditId && _db.Database.CurrentTransaction == null
+            && await _db.Set<SalesReturn>().AnyAsync(r => r.Id == creditId, ct))
+            await _salesReturns.SubmitToZatcaIfRequestedAsync(creditId, ct);
+        return cancelled;
+    }
+
+    private Task<ContractCertificateDto> CancelCertificateInvoiceCoreAsync(Guid contractId, Guid certificateId, ContractCertificateActionDto request, CancellationToken ct)
         => new TransactionRunner(_db).RunAsync(async token =>
         {
             var reason = string.IsNullOrWhiteSpace(request.Note) ? throw new ValidationFailedException(Messages.CertificateNoteRequired) : request.Note.Trim();
@@ -513,11 +523,33 @@ public class ContractBillingService : IContractBillingService
             request.PartyName = s.NameAr; request.PartyVatNumber = s.VatNumber; request.PartyPhone = s.Phone; request.PartyEmail = s.Email;
             request.SendToZatca = false; // فاتورة مقاول الباطن: قيد داخلي فقط
         }
+        else if (await ZatcaLinkedAsync(ct))
+        {
+            // المنشأة مرتبطة بالهيئة (مفعّلة ومكتملة الربط): فاتورة العميل تُرسل مباشرة بعد اكتمال الفوترة، دون انتظار خيار
+            // «الإرسال التلقائي عند الحفظ». غير المرتبطة تبقى على إعدادها (null).
+            request.SendToZatca = true;
+        }
         return request;
     }
 
+    /// <summary>المنشأة مرتبطة بالهيئة: الربط مفعّل ولها وحدة إرسال فعّالة واحدة على الأقل (الإرسال يتم بوحدة المستخدم).</summary>
+    private async Task<bool> ZatcaLinkedAsync(CancellationToken ct)
+        => await _db.Set<Tenant>().AsNoTracking().Select(t => t.ZatcaConfig.IsEnabled).FirstOrDefaultAsync(ct)
+            && await _db.Set<ZatcaUnit>().AsNoTracking().AnyAsync(u => u.IsActive, ct);
+
     private Task<InvoiceDto> CreateInvoiceAsync(CreateInvoiceDto request, bool supplier, CancellationToken ct)
         => supplier ? _purchases.CreateAsync(request, ct) : _sales.CreateAsync(request, ct);
+
+    /// <summary>
+    /// فاتورة العميل أُنشئت داخل معاملة الفوترة فتخطّاها الإرسال التلقائي: تُرسل للهيئة بعد اكتمال المعاملة (المطلوب إرسالها
+    /// ولم تُرسل فقط). داخل معاملة أوسع (الإصدار المباشر) تُترك لنهايتها. الرفض أو تعذّر الاتصال يُحفظ على الفاتورة ولا يُفشل
+    /// الفوترة، ويُعاد الإرسال من شاشة الفواتير. فواتير المورد والتسوية بلا فاتورة لا تُرسل.
+    /// </summary>
+    private async Task<InvoiceDto> SubmitToZatcaAsync(InvoiceDto invoice, CancellationToken ct)
+    {
+        if (invoice.Id == Guid.Empty || invoice.Kind != InvoiceKind.Sales || _db.Database.CurrentTransaction != null) return invoice;
+        return await _sales.SubmitToZatcaIfRequestedAsync(invoice.Id, ct);
+    }
 
     private Task<PostingResult> PostAsync(CommercialContract c, DateTime day, string description, string sourceNumber, string sourceType, Guid sourceId,
         PostingLine debit, PostingLine credit, CancellationToken ct)

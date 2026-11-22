@@ -167,11 +167,12 @@ public class RentalContractService : IRentalContractService
             {
                 CustomerId = parent.CustomerId, WarehouseId = parent.WarehouseId, Term = term,
                 BillingCycle = sameTerm ? parent.BillingCycle : null, BillInAdvance = sameTerm ? parent.BillInAdvance : null,
-                Terms = parent.Terms, Notes = parent.Notes,
+                BillingMode = parent.BillingMode, Terms = parent.Terms, Notes = parent.Notes,
                 Lines = lines.Select(l => new SaveRentalContractLineDto
                 {
                     EquipmentId = l.EquipmentId, From = l.PlannedTo, To = newEnd, Basis = l.Basis, WithOperator = l.WithOperator,
                     OperatorEmployeeId = l.OperatorEmployeeId, Rate = request.KeepRates ? l.Rate : null, Notes = l.Notes,
+                    DailyMinimumHours = l.DailyMinimumHours, WorkingDaysPerPeriod = l.WorkingDaysPerPeriod, StandbyPercent = l.StandbyPercent,
                 }).ToList(),
             };
             var c = await NewAsync(save, trustRates: false, excludeBookingId: null, token, parentContractId: parent.Id);
@@ -286,6 +287,11 @@ public class RentalContractService : IRentalContractService
             : r.BillingCycle.Trim().ToLowerInvariant();
         if (!RentalBillingCycles.IsValid(cycle)) throw new ValidationFailedException(Messages.RentalBillingCycleInvalid);
         if (r.DepositRequired < 0) throw new ValidationFailedException(Messages.RentalDepositNegative);
+        // T1: فارغ = يبقى كما هو للعقد القائم، وللجديد افتراضي الإعداد
+        var mode = !string.IsNullOrWhiteSpace(r.BillingMode) ? r.BillingMode.Trim().ToLowerInvariant()
+            : c.Id != Guid.Empty && !string.IsNullOrEmpty(c.BillingMode) ? c.BillingMode
+            : (await _db.Set<RentalSettings>().AsNoTracking().Select(s => s.DefaultBillingMode).FirstOrDefaultAsync(ct)) ?? RentalBillingModes.Timesheet;
+        if (!RentalBillingModes.IsValid(mode)) throw new ValidationFailedException(Messages.RentalBillingModeInvalid);
         if (r.Lines.Count == 0) throw new ValidationFailedException(Messages.RentalBookingLinesRequired);
         if (r.Lines.Count > MaxLines) throw new ValidationFailedException(string.Format(Messages.RentalBookingTooManyLines, MaxLines));
 
@@ -319,13 +325,18 @@ public class RentalContractService : IRentalContractService
             var rate = l.Rate ?? main.Rate;
             if (l.WithOperator && main.OperatorRate == null)
                 throw new ValidationFailedException(string.Format(Messages.RentalOperatorRateMissing, RentalPricing.BasisLabel(basis)));
+            // شروط كشف الساعات: حد أدنى يومي حتى 24 ساعة، وأيام عمل للفترة حتى 31، ونسبة انتظار 0-100
+            var dailyMin = l.DailyMinimumHours ?? 0m; var workingDays = l.WorkingDaysPerPeriod ?? 0m; var standby = l.StandbyPercent ?? 100m;
+            if (dailyMin is < 0 or > 24 || workingDays is < 0 or > 31 || standby is < 0 or > 100)
+                throw new ValidationFailedException(Messages.RentalTimesheetTermsInvalid);
 
             var line = new RentalContractLine
             {
                 EquipmentId = l.EquipmentId, Status = LSt.Pending, PlannedFrom = from, PlannedTo = to, Basis = basis, Rate = decimal.Round(rate, 4),
                 RateOverridden = overridden, WithOperator = l.WithOperator, OperatorRate = l.WithOperator ? main.OperatorRate ?? 0 : 0,
                 OperatorEmployeeId = l.WithOperator ? l.OperatorEmployeeId : null, IncludedHours = main.IncludedHours, OvertimeRate = main.OvertimeRate,
-                MinimumPeriods = main.MinimumPeriods, SortOrder = ++order, Notes = Trim(l.Notes, 500),
+                MinimumPeriods = main.MinimumPeriods, DailyMinimumHours = decimal.Round(dailyMin, 2), WorkingDaysPerPeriod = decimal.Round(workingDays, 2),
+                StandbyPercent = decimal.Round(standby, 2), SortOrder = ++order, Notes = Trim(l.Notes, 500),
             };
             line.EstimatedAmount = Estimate(line, rates);
             lines.Add(line);
@@ -333,6 +344,7 @@ public class RentalContractService : IRentalContractService
 
         c.CustomerId = r.CustomerId; c.WarehouseId = r.WarehouseId; c.Term = term; c.BillingCycle = cycle;
         c.BillInAdvance = r.BillInAdvance ?? term == RentalTerms.Long;
+        c.BillingMode = mode;
         c.DepositRequired = decimal.Round(r.DepositRequired, 2); c.Terms = Trim(r.Terms, 4000); c.Notes = Trim(r.Notes, 1000);
         if (c.Lines.Count > 0) _db.RemoveRange(c.Lines.ToList());
         c.Lines.Clear();
@@ -426,7 +438,7 @@ public class RentalContractService : IRentalContractService
             Id = c.Id, ContractNumber = c.ContractNumber, CustomerId = c.CustomerId, CustomerName = customers.GetValueOrDefault(c.CustomerId),
             WarehouseId = c.WarehouseId, WarehouseName = c.WarehouseId is Guid w ? warehouses.GetValueOrDefault(w) : null,
             BookingId = c.BookingId, BookingNumber = c.BookingId is Guid b ? bookings.GetValueOrDefault(b) : null, ParentContractId = c.ParentContractId,
-            Status = c.Status, Term = c.Term, BillingCycle = c.BillingCycle, BillInAdvance = c.BillInAdvance, DepositRequired = c.DepositRequired,
+            Status = c.Status, Term = c.Term, BillingCycle = c.BillingCycle, BillInAdvance = c.BillInAdvance, BillingMode = c.BillingMode, DepositRequired = c.DepositRequired,
             StartDate = c.StartDate, EndDate = c.EndDate, Terms = c.Terms, Notes = c.Notes, CancelReason = c.CancelReason, ActivatedAt = c.ActivatedAt,
             ActivatedBy = c.ActivatedBy, ClosedAt = c.ClosedAt, CreatedBy = c.CreatedBy, CreatedAt = c.CreatedAt,
             EstimatedTotal = c.Lines.Where(l => l.Status != LSt.Cancelled).Sum(l => l.EstimatedAmount),
@@ -437,7 +449,8 @@ public class RentalContractService : IRentalContractService
                 ActualOut = l.ActualOut, ActualIn = l.ActualIn, MeterOut = l.MeterOut, MeterIn = l.MeterIn, Basis = l.Basis, Rate = l.Rate,
                 RateOverridden = l.RateOverridden, WithOperator = l.WithOperator, OperatorRate = l.OperatorRate, OperatorEmployeeId = l.OperatorEmployeeId,
                 OperatorName = l.OperatorEmployeeId is Guid op ? operators.GetValueOrDefault(op) : null, IncludedHours = l.IncludedHours,
-                OvertimeRate = l.OvertimeRate, MinimumPeriods = l.MinimumPeriods, EstimatedAmount = l.EstimatedAmount, BilledThrough = l.BilledThrough,
+                OvertimeRate = l.OvertimeRate, MinimumPeriods = l.MinimumPeriods, DailyMinimumHours = l.DailyMinimumHours,
+                WorkingDaysPerPeriod = l.WorkingDaysPerPeriod, StandbyPercent = l.StandbyPercent, EstimatedAmount = l.EstimatedAmount, BilledThrough = l.BilledThrough,
                 Notes = l.Notes, IsOverdue = l.Status == LSt.Out && l.PlannedTo < now,
             }).ToList(),
             Changes = changes == null ? new() : changes[c.Id].Select(x => new RentalContractChangeDto

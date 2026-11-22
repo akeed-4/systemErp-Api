@@ -104,4 +104,9 @@ public class AccountingSettings : BaseEntity
     /// فيها شخص واحد)، ويُفعَّل من الإعدادات.
     /// </summary>
     public bool ConstructionSeparateApprover { get; set; }
+    /// <summary>
+    /// السماح بالتسعير الشامل للضريبة في فواتير المبيعات (معطّل افتراضياً). المعطّل يمنعه حتى المالك والمدير؛ والمفعّل يتيحه لهما،
+    /// ولغيرهما بصلاحية «الفواتير: التسعير الشامل للضريبة» (غير ممنوحة افتراضياً لأي دور).
+    /// </summary>
+    public bool AllowSalesVatInclusivePricing { get; set; }
 }

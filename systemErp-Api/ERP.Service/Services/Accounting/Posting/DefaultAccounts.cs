@@ -40,6 +40,7 @@ public static class DefaultAccounts
     public const string PurchasePriceVariance = "514"; // فرق سعر مرتجع المشتريات عن تكلفة المخزون وقت خروجه
     public const string AssetDisposalGain = "422";  // أرباح بيع/استبعاد الأصول الثابتة
     public const string AssetDisposalLoss = "525";  // خسائر بيع/استبعاد الأصول الثابتة
+    public const string OtherRevenue = "42";        // الإيرادات الأخرى: مجموعة حساب زيادة مخزون كل مستودع
     public const string CashOverage = "421";        // زيادة نقدية الصندوق عند إغلاق الوردية
     public const string PettyCashExpenses = "521";  // المصروفات النثرية المصروفة من درج الكاشير
     public const string CashShortage = "522";       // عجز نقدية الصندوق عند إغلاق الوردية
@@ -131,6 +132,15 @@ public static class DefaultAccounts
         ("531",  "مصاريف شحن ونقل المشتريات",       "Purchase Freight and Transport Expenses", AccountCategory.Expense, "52"),
     };
 
+    /// <summary>مجموعات الكيانات: تُنشأ تحتها حسابات العملاء والموردين والبنوك والمواقع آلياً فهي رئيسية ولو كانت فارغة.</summary>
+    public static readonly string[] EntityGroups = { Banks, Receivables, InventoryGroup, Payables };
+
+    private static readonly HashSet<string> GroupCodes =
+        Chart.Select(a => a.Parent).OfType<string>().Concat(EntityGroups).ToHashSet();
+
+    /// <summary>هل حساب الشجرة الافتراضية رئيسي (أب في الشجرة أو مجموعة كيانات).</summary>
+    public static bool IsGroup(string code) => GroupCodes.Contains(code);
+
     /// <summary>طبيعة الحساب: الأصول والمصروفات مدينة، عدا مجمع الإهلاك (حساب مقابل للأصل) فطبيعته دائنة.</summary>
     public static bool IsDebitNature(string code, AccountCategory type)
         => code != AccumulatedDepreciation && type is AccountCategory.Asset or AccountCategory.Expense;
@@ -157,7 +167,7 @@ public static class DefaultAccounts
             var account = new Account
             {
                 Code = code, NameAr = ar, NameEn = en, Type = type, ParentCode = parent, Level = level,
-                IsDebitNature = IsDebitNature(code, type), IsSystem = true, Currency = currency,
+                IsDebitNature = IsDebitNature(code, type), IsSystem = true, IsGroup = IsGroup(code), Currency = currency,
             };
             db.Add(account);
             existing[code] = account;

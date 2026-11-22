@@ -314,3 +314,56 @@ public class RentalBillingController : ErpControllerBase
     [HttpPost("contracts/{id:guid}/close"), RequireScreen(PermissionCatalog.RentalContractsScreenId, ScreenAction.Close)]
     public async Task<IActionResult> Close(Guid id, CancellationToken ct) => Success(await _billing.CloseContractAsync(id, ct));
 }
+
+/// <summary>
+/// كشوف ساعات المعدات (T1): الإنشاء والتعديل للمسودة والمرفوض، والتقديم، واعتماد ممثل العميل أو رفضه، وإعادة فتح المعتمد غير المفوتر.
+/// صورة الكشف الموقّع عبر المرفقات المشتركة (`api/v1/attachments/rental_timesheet/{id}`).
+/// </summary>
+[Route("api/v1/rental/timesheets"), RequireScreen(Screen), RequireModule(PlatformModules.EquipmentRental)]
+public class RentalTimesheetsController : ErpControllerBase
+{
+    private const string Screen = PermissionCatalog.RentalTimesheetsScreenId;
+    private readonly IRentalTimesheetService _timesheets;
+    public RentalTimesheetsController(IRentalTimesheetService timesheets) => _timesheets = timesheets;
+
+    [HttpGet]
+    public async Task<IActionResult> List([FromQuery] Guid? contractId, [FromQuery] Guid? lineId, [FromQuery] string? status, CancellationToken ct)
+        => Success(await _timesheets.ListAsync(contractId, lineId, status, ct));
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _timesheets.GetAsync(id, ct));
+
+    [HttpGet("draft")]
+    public async Task<IActionResult> Draft([FromQuery] Guid contractId, [FromQuery] Guid lineId, [FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
+        => Success(await _timesheets.DraftAsync(contractId, lineId, from, to, ct));
+
+    [HttpPost, RequireScreen(Screen, ScreenAction.Create)]
+    public async Task<IActionResult> Create([FromBody] SaveRentalTimesheetDto request, CancellationToken ct)
+        => Success(await _timesheets.CreateAsync(request, ct), Messages.CreatedSuccessfully);
+
+    [HttpPut("{id:guid}"), RequireScreen(Screen, ScreenAction.Edit)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] SaveRentalTimesheetDto request, CancellationToken ct)
+        => Success(await _timesheets.UpdateAsync(id, request, ct));
+
+    [HttpDelete("{id:guid}"), RequireScreen(Screen, ScreenAction.Delete)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await _timesheets.DeleteAsync(id, ct);
+        return Success(Messages.DeletedSuccessfully);
+    }
+
+    [HttpPost("{id:guid}/submit"), RequireScreen(Screen, ScreenAction.Submit)]
+    public async Task<IActionResult> Submit(Guid id, CancellationToken ct) => Success(await _timesheets.SubmitAsync(id, ct));
+
+    [HttpPost("{id:guid}/approve"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveRentalTimesheetDto request, CancellationToken ct)
+        => Success(await _timesheets.ApproveAsync(id, request, ct));
+
+    [HttpPost("{id:guid}/reject"), RequireScreen(Screen, ScreenAction.Approve)]
+    public async Task<IActionResult> Reject(Guid id, [FromBody] RentalReasonDto request, CancellationToken ct)
+        => Success(await _timesheets.RejectAsync(id, request, ct));
+
+    [HttpPost("{id:guid}/reopen"), RequireScreen(Screen, ScreenAction.Reopen)]
+    public async Task<IActionResult> Reopen(Guid id, [FromBody] RentalReasonDto request, CancellationToken ct)
+        => Success(await _timesheets.ReopenAsync(id, request, ct));
+}

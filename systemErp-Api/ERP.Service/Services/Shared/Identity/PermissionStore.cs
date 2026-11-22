@@ -257,6 +257,7 @@ public sealed class PermissionStore
             // مركز الاعتماد يتيح الاعتماد عن المستوى لغير معتمِده المعيَّن: افتراضياً للمالك والمدير وحدهما، فلا يتغير
             // ترتيب مستويات السياسات القائمة لدور آخر إلا بمنح صريح
             else if (s.Id == PermissionCatalog.ApprovalCenterScreenId) view = create = edit = delete = approve = IsFullAccess(role);
+            else if (s.OptIn) view = create = edit = delete = approve = false;
             else if (s.Restricted) view = create = edit = delete = approve = PermissionService.PermissionAdminRoles.Contains(role);
             else if (role == "sales_rep")
             {

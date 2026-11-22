@@ -15,4 +15,10 @@ public partial class WarehouseDto
     public bool IsDefault { get; set; }
     public string Status { get; set; } = "active";
     public string? InventoryAccountCode { get; set; }
+    /// <summary>حسابات الموقع الخاصة (للعرض؛ تُنشأ تلقائياً ولا تُرسَل في الحفظ).</summary>
+    public string? SalesAccountCode { get; set; }
+    public string? CogsAccountCode { get; set; }
+    public string? CashAccountCode { get; set; }
+    public string? ShortageAccountCode { get; set; }
+    public string? SurplusAccountCode { get; set; }
 }

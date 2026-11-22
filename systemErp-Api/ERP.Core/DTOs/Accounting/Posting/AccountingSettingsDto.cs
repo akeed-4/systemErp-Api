@@ -50,6 +50,8 @@ public class SaveAccountingSettingsDto
     public int? PurchaseReturnPeriodDays { get; set; }
     /// <summary>فصل المُعِد عن المعتمِد في المقاولات (خطة التنفيذ والتقارير اليومية): null = بلا تغيير.</summary>
     public bool? ConstructionSeparateApprover { get; set; }
+    /// <summary>السماح بالتسعير الشامل للضريبة في المبيعات؛ فارغ = بلا تغيير.</summary>
+    public bool? AllowSalesVatInclusivePricing { get; set; }
 }
 
 public class AccountingSettingsDto : SaveAccountingSettingsDto

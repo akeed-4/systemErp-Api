@@ -40,6 +40,7 @@ public abstract class TradeDocumentService<T> : ITradeDocumentService where T : 
 
     public Task<InvoiceJournalDto> GetJournalAsync(Guid id, CancellationToken ct = default) => Engine.GetJournalAsync<T>(id, ct);
     public Task<ZatcaSubmitResultDto> SubmitToZatcaAsync(Guid id, CancellationToken ct = default) => Engine.SubmitToZatcaAsync<T>(id, ct);
+    public Task<InvoiceDto> SubmitToZatcaIfRequestedAsync(Guid id, CancellationToken ct = default) => Engine.SubmitIfRequestedAsync<T>(id, ct);
 }
 
 /// <summary>مرتجع على جدول <typeparamref name="T"/> لأصل من جدول <typeparamref name="TOriginal"/>.</summary>

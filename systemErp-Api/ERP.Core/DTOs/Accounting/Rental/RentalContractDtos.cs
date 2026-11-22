@@ -10,6 +10,10 @@ public class SaveRentalContractLineDto
     public Guid? OperatorEmployeeId { get; set; }
     /// <summary>سعر يدوي للأساس بدل سعر القائمة (يتطلب «خصم يدوي»)؛ فارغ = سعر القائمة.</summary>
     public decimal? Rate { get; set; }
+    /// <summary>شروط كشف الساعات (T1): الحد الأدنى اليومي (أساس الساعة)، وأيام العمل في الفترة (فارغ = 6 للأسبوع و26 للشهر)، ونسبة الانتظار (فارغ = 100).</summary>
+    public decimal? DailyMinimumHours { get; set; }
+    public decimal? WorkingDaysPerPeriod { get; set; }
+    public decimal? StandbyPercent { get; set; }
     public string? Notes { get; set; }
 }
 
@@ -22,6 +26,8 @@ public class SaveRentalContractDto
     public string? BillingCycle { get; set; }
     /// <summary>فارغ = الافتراضي للمدة (الطويل مقدماً، القصير مؤخراً).</summary>
     public bool? BillInAdvance { get; set; }
+    /// <summary>timesheet | time؛ فارغ = افتراضي الإعداد (T1).</summary>
+    public string? BillingMode { get; set; }
     public decimal DepositRequired { get; set; }
     public string? Terms { get; set; }
     public string? Notes { get; set; }
@@ -51,6 +57,9 @@ public class RentalContractLineDto
     public decimal IncludedHours { get; set; }
     public decimal OvertimeRate { get; set; }
     public decimal MinimumPeriods { get; set; }
+    public decimal DailyMinimumHours { get; set; }
+    public decimal WorkingDaysPerPeriod { get; set; }
+    public decimal StandbyPercent { get; set; }
     public decimal EstimatedAmount { get; set; }
     public DateTime? BilledThrough { get; set; }
     public string? Notes { get; set; }
@@ -86,6 +95,7 @@ public class RentalContractDto
     public string Term { get; set; } = string.Empty;
     public string BillingCycle { get; set; } = string.Empty;
     public bool BillInAdvance { get; set; }
+    public string BillingMode { get; set; } = string.Empty;
     public decimal DepositRequired { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }

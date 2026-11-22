@@ -116,7 +116,7 @@ public class PosShiftService : IPosShiftService
                 ? (r.Type == PosCashMovementType.PaidOut ? DefaultAccounts.PettyCashExpenses : DefaultAccounts.DefaultBank)
                 : r.CounterAccountCode.Trim();
             if (counter == DefaultAccounts.PettyCashExpenses) await DefaultAccounts.EnsureAsync(_db, token, counter);
-            var cash = string.IsNullOrWhiteSpace(r.CashAccountCode) ? await PosCashDrawer.CashAccountAsync(_db, token) : r.CashAccountCode.Trim();
+            var cash = string.IsNullOrWhiteSpace(r.CashAccountCode) ? await PosCashDrawer.CashAccountAsync(_db, token, shift.WarehouseId) : r.CashAccountCode.Trim();
             if (counter == cash) throw new ValidationFailedException(Messages.CounterAccountCannotBeCash);
 
             var movement = new PosCashMovement
@@ -151,7 +151,11 @@ public class PosShiftService : IPosShiftService
             .OrderBy(a => a.Code)
             .Select(a => new PosAccountOptionDto { Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn })
             .ToListAsync(ct);
-        return new PosCashAccountsDto { DefaultCashAccountCode = await PosCashDrawer.CashAccountAsync(_db, ct), Accounts = accounts };
+        // الافتراضي صندوق موقع الوردية المفتوحة للكاشير (إن كان للموقع صندوقه)
+        var me = Me;
+        var warehouseId = await _db.Set<PosShift>().AsNoTracking().Where(s => s.CashierId == me && s.Status == PosShiftStatus.Open)
+            .Select(s => s.WarehouseId).FirstOrDefaultAsync(ct);
+        return new PosCashAccountsDto { DefaultCashAccountCode = await PosCashDrawer.CashAccountAsync(_db, ct, warehouseId), Accounts = accounts };
     }
 
     public async Task<List<PosCashMovementDto>> ListCashMovementsAsync(Guid shiftId, CancellationToken ct = default)

@@ -91,8 +91,8 @@ public class ReportsController : ErpControllerBase
 
     /// <summary>دفتر اليومية: سطر لكل طرف مدين/دائن.</summary>
     [HttpGet("JournalLedger"), RequireScreen("reports")]
-    public async Task<IActionResult> JournalLedger([FromQuery] string? module, [FromQuery] Guid? costCenterId, DataSourceLoadOptions loadOptions, CancellationToken ct)
-        => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, module, costCenterId, ct));
+    public async Task<IActionResult> JournalLedger([FromQuery] string? module, [FromQuery] Guid? costCenterId, [FromQuery] string? source, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _accounting.LoadJournalLedgerAsync(loadOptions, module, costCenterId, source, ct));
 
     /// <summary>توزيع مدفوعات المبيعات (dateFrom/dateTo + خيارات DevExtreme).</summary>
     [HttpGet("SalesPaymentBreakdown"), RequireScreen("reports")]

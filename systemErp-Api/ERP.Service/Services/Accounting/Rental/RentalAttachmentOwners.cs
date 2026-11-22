@@ -67,3 +67,35 @@ public sealed class RentalContractAttachmentOwner : IAttachmentOwner
             open && await _permissions.HasPermissionAsync(ScreenId, ScreenAction.Delete, ct));
     }
 }
+
+/// <summary>
+/// صورة كشف الساعات الموقّع من العميل (Q2: شرط الاعتماد بالإعداد) وتوقيعه، على شاشة كشوف الساعات. تُضاف وتُحذف قبل الاعتماد فقط:
+/// المعتمد والمفوتر يبقى بمرفقاته دليلاً للفاتورة.
+/// </summary>
+public sealed class RentalTimesheetAttachmentOwner : IAttachmentOwner
+{
+    private readonly ErpDbContext _db;
+    private readonly IPermissionService _permissions;
+
+    public RentalTimesheetAttachmentOwner(ErpDbContext db, IPermissionService permissions) { _db = db; _permissions = permissions; }
+
+    public string OwnerType => RentalAttachmentOwnerTypes.Timesheet;
+    public string Module => PlatformModules.EquipmentRental;
+    public string ScreenId => PermissionCatalog.RentalTimesheetsScreenId;
+    public IReadOnlyCollection<string> Categories { get; } = new[]
+    {
+        DocumentAttachmentCategories.Document, DocumentAttachmentCategories.Signature, DocumentAttachmentCategories.Photo, DocumentAttachmentCategories.Other,
+    };
+    public int MaxPerOwner => 20;
+    public long MaxBytes => DocumentAttachmentService.MaxUploadBytes;
+
+    public async Task<AttachmentOwnerAccess> ResolveAsync(Guid ownerId, CancellationToken ct = default)
+    {
+        var t = await _db.Set<RentalTimesheet>().AsNoTracking().Where(x => x.Id == ownerId).Select(x => new { x.TimesheetNumber, x.Status }).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.RentalTimesheetNotFound);
+        var open = t.Status is RentalTimesheetStatuses.Draft or RentalTimesheetStatuses.Submitted or RentalTimesheetStatuses.Rejected;
+        return new AttachmentOwnerAccess(nameof(RentalTimesheet), t.TimesheetNumber,
+            open && await _permissions.HasPermissionAsync(ScreenId, ScreenAction.Edit, ct),
+            open && await _permissions.HasPermissionAsync(ScreenId, ScreenAction.Delete, ct));
+    }
+}

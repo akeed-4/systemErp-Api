@@ -393,7 +393,7 @@ public class AccountingGapsTests : TestBase
         Assert.Equal(200, (await api.Delete($"/vouchers/{voucher}")).Status);
         var entry = (await api.Post("/journalentries", new { date = DateTime.UtcNow, description = "x",
             lines = new[] { new { accountCode = "1111", debit = 10m, credit = 0m }, new { accountCode = "31", debit = 0m, credit = 10m } } })).Data!["id"].S();
-        Assert.Equal(200, (await api.Post($"/journalentries/{entry}/reverse")).Status);
+        Assert.Equal(200, (await api.Post($"/journalentries/{entry}/reverse", new { reason = "تصحيح" })).Status);
 
         async Task<List<string>> Actions(string entity, string id) => (await api.Get($"/auditlogs?entityName={entity}&entityId={id}")).Data!["items"]!.AsArray().Select(x => x!["action"].S()).ToList();
         Assert.Contains("INVOICE_POSTED", await Actions("SalesInvoice", invoice)); // يُسجَّل باسم جدول المستند

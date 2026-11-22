@@ -5,6 +5,10 @@ public class RentalSettingsDto
     public decimal LateFeeFactor { get; set; }
     public decimal LateGraceHours { get; set; }
     public bool RequireDepositBeforeDelivery { get; set; }
+    /// <summary>طريقة فوترة العقود الجديدة: timesheet | time (T1).</summary>
+    public string DefaultBillingMode { get; set; } = "timesheet";
+    /// <summary>اعتماد كشف الساعات يتطلب صورة الكشف الموقّع (Q2).</summary>
+    public bool RequireTimesheetPhoto { get; set; } = true;
 }
 
 public class RentalChargeTypeDto

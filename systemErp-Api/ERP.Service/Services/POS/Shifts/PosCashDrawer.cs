@@ -13,8 +13,9 @@ internal static class PosCashDrawer
         => s.OpeningCash + s.TotalCashSales - s.TotalCashRefunds + s.TotalCashIn - s.TotalCashOut;
 
     /// <summary>حساب الصندوق المرتبط بطريقة الدفع النقدية (نفس حساب قيود البيع النقدي).</summary>
-    public static async Task<string> CashAccountAsync(ErpDbContext db, CancellationToken ct)
-        => TreasuryResolver.Resolve(PaymentMethod.Cash, await db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct));
+    public static async Task<string> CashAccountAsync(ErpDbContext db, CancellationToken ct, Guid? warehouseId = null)
+        => TreasuryResolver.Resolve(PaymentMethod.Cash, await db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct),
+            siteCash: warehouseId.HasValue ? (await PostingAccounts.SiteAsync(db, warehouseId, ct)).Cash : null);
 
     /// <summary>
     /// يعيد حساب فرق الصندوق لوردية مغلقة ويزامن قيده: عند تغيّر الفرق يُعكس القيد القديم ويُرحَّل قيد جديد
@@ -36,7 +37,7 @@ internal static class PosCashDrawer
         if (variance == 0) return;
 
         await DefaultAccounts.EnsureAsync(db, ct, DefaultAccounts.CashOverage, DefaultAccounts.CashShortage);
-        var cash = await CashAccountAsync(db, ct);
+        var cash = await CashAccountAsync(db, ct, shift.WarehouseId);
         var amount = Math.Abs(variance);
         var lines = variance > 0
             ? new List<PostingLine> { new(cash, amount, 0), new(DefaultAccounts.CashOverage, 0, amount) }

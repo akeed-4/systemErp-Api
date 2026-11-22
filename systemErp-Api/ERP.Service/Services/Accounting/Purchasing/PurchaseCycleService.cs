@@ -417,8 +417,15 @@ public class PurchaseCycleService : IPurchaseCycleService
         var order = await PurchaseOrderAsync(orderId, ct);
         var lines = request.Lines.Where(l => l.Quantity > 0).ToList();
         if (lines.Count == 0) throw new ValidationFailedException(Messages.ReceiptQtyPositive);
+        // أمر شراء لطلب مشروع مقاولات: الاستلام في مستودع المشروع كبيان استلام الطلب المباشر (موقع التوريد في الطلب)،
+        // والطلب القديم «موقع المشروع» عهدة مباشرة للمشروع
+        var project = order.RequisitionId is not { } requisitionId ? null
+            : await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.Id == requisitionId && r.ContractId != null)
+                .Select(r => new { r.Id, r.DeliveryLocation }).FirstOrDefaultAsync(ct);
         return await _notes.CreateAsync(new CreateDeliveryNoteDto
         {
+            RequisitionId = project?.Id,
+            ConstructionWarehouseReceipt = project != null && project.DeliveryLocation != RequisitionDeliveryLocations.ProjectSite,
             Type = ProjectReceipts.NoteType, PurchaseOrderId = order.Id, PartyId = order.PartyId, PartyName = order.PartyName,
             DeliveryNumber = request.DeliveryNumber ?? string.Empty, Date = request.Date?.Date ?? default,
             WarehouseId = request.WarehouseId ?? order.WarehouseId, Notes = Trim(request.Notes) ?? $"استلام على أمر الشراء {order.OrderNumber}",

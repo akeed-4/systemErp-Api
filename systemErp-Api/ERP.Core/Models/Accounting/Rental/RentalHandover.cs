@@ -13,6 +13,8 @@ public static class RentalAttachmentOwnerTypes
 {
     public const string Handover = "rental_handover";
     public const string Contract = "rental_contract";
+    /// <summary>صورة كشف الساعات الموقّع من العميل (T1).</summary>
+    public const string Timesheet = "rental_timesheet";
 }
 
 public static class RentalHandoverStatuses

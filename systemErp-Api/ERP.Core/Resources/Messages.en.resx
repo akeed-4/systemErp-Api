@@ -434,7 +434,7 @@
   <data name="ItemNotInTransaction" xml:space="preserve"><value>Item not found in the transaction.</value></data>
   <data name="ItemsNotFoundInInvoice" xml:space="preserve"><value>Some invoice items were not found.</value></data>
   <data name="JournalEntryAlreadyReversed" xml:space="preserve"><value>The journal entry is already reversed.</value></data>
-  <data name="JournalEntryDeleted" xml:space="preserve"><value>Journal entry cancelled by a reversing entry; both remain on record</value></data>
+  <data name="JournalEntryDeleted" xml:space="preserve"><value>Journal entry permanently deleted</value></data>
   <data name="JournalEntryNeedsTwoLines" xml:space="preserve"><value>A journal entry needs at least two lines.</value></data>
   <data name="JournalEntryNotFound" xml:space="preserve"><value>Journal entry not found</value></data>
   <data name="JournalEntryOwnedByDocument" xml:space="preserve"><value>This is an automatic entry managed by its document (invoice, voucher, stock count, fixed asset, payroll...); correct or cancel it from that document so the books, stock and balances stay in step.</value></data>
@@ -2264,4 +2264,34 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="ProjectIssueExceedsProjectAvailable" xml:space="preserve"><value>"{0}": delivery {1:0.####} exceeds what is available to this project {2:0.####} (stock {3:0.####} − reserved for other projects {4:0.####}). Transfer the allocation with approval or wait for the receipt.</value></data>
   <data name="ProjectIssueReservedForOthers" xml:space="preserve"><value>"{0}": delivery {1:0.####} exceeds what is available to this project {2:0.####} (reserved for other projects {3:0.####}).</value></data>
   <data name="RfqAwardPendingApproval" xml:space="preserve"><value>The award of this RFQ is awaiting approval: quotations and suppliers cannot change and it cannot be cancelled until the decision.</value></data>
+  <data name="RentalTimesheetNotFound" xml:space="preserve"><value>Timesheet not found.</value></data>
+  <data name="RentalTimesheetNotEditable" xml:space="preserve"><value>Only a draft or rejected timesheet can be edited or deleted.</value></data>
+  <data name="RentalTimesheetStatusInvalid" xml:space="preserve"><value>This action is not available for a timesheet in status "{0}".</value></data>
+  <data name="RentalTimesheetPeriodInvalid" xml:space="preserve"><value>Invalid timesheet period: the start must be before the end, and it cannot exceed 62 days.</value></data>
+  <data name="RentalTimesheetModeRequired" xml:space="preserve"><value>This contract is billed by time, not by timesheets: change its billing method first.</value></data>
+  <data name="RentalTimesheetLineNotRented" xml:space="preserve"><value>The equipment has not been delivered yet: a timesheet starts from the delivery date.</value></data>
+  <data name="RentalTimesheetOutsideRental" xml:space="preserve"><value>Timesheet days must fall between delivery ({0:yyyy-MM-dd}) and return or today ({1:yyyy-MM-dd}).</value></data>
+  <data name="RentalTimesheetOverlap" xml:space="preserve"><value>The timesheet period overlaps timesheet {0} for the same equipment.</value></data>
+  <data name="RentalTimesheetDayInvalid" xml:space="preserve"><value>Day {0:yyyy-MM-dd}: invalid day type or hours (worked, standby and breakdown hours cannot exceed 24).</value></data>
+  <data name="RentalTimesheetApproverRequired" xml:space="preserve"><value>The name of the client representative approving the timesheet is required.</value></data>
+  <data name="RentalTimesheetPhotoRequired" xml:space="preserve"><value>Attach a photo of the timesheet signed by the client before approving.</value></data>
+  <data name="RentalTimesheetSignatureInvalid" xml:space="preserve"><value>The e-signature must be a PNG or JPEG image no larger than 300 KB.</value></data>
+  <data name="RentalTimesheetBilled" xml:space="preserve"><value>The timesheet is billed: cancel the billing first to reopen it.</value></data>
+  <data name="RentalCloseTimesheetsOpen" xml:space="preserve"><value>The contract has timesheets that are not approved or not billed: approve and bill or delete them before closing.</value></data>
+  <data name="RentalBillingModeInvalid" xml:space="preserve"><value>Invalid billing method: timesheet or time.</value></data>
+  <data name="RentalTimesheetTermsInvalid" xml:space="preserve"><value>Invalid timesheet terms: daily minimum 0-24 hours, working days per period 0-31, standby percentage 0-100.</value></data>
+  <data name="SiteAccountParentMissing" xml:space="preserve"><value>No chart group to create the site account under (account {0} has no parent or does not exist): review the accounting settings.</value></data>
+  <data name="SiteAccountsFull" xml:space="preserve"><value>No more site account numbers are available under group {0}.</value></data>
+  <data name="ParentAccountMustBeGroup" xml:space="preserve"><value>The parent account must be a main account; an account cannot be defined under a sub-account.</value></data>
+  <data name="AccountWithChildrenMustBeGroup" xml:space="preserve"><value>The account has sub-accounts and must stay a main account; move or delete them first.</value></data>
+  <data name="AccountWithEntriesCannotBeGroup" xml:space="preserve"><value>The account has journal entries and cannot become a main account; main accounts are not posted to.</value></data>
+  <data name="LinkedAccountCannotBeGroup" xml:space="preserve"><value>A customer/supplier/bank/site account is a sub-account and cannot be a main account.</value></data>
+  <data name="JournalEntryHasReversal" xml:space="preserve"><value>A journal entry that has a reversing entry cannot be deleted; both stay on record.</value></data>
+  <data name="ClosingEntryCannotBeDeleted" xml:space="preserve"><value>A year-closing entry cannot be deleted; reverse it to reopen the year.</value></data>
+  <data name="ReversalReasonRequired" xml:space="preserve"><value>A reason is required to reverse the journal entry.</value></data>
+  <data name="SalesVatInclusivePricingDisabled" xml:space="preserve"><value>VAT-inclusive pricing in sales is not enabled for the company; enable it in the accounting settings first.</value></data>
+  <data name="WarehouseHasFinancialMovements" xml:space="preserve"><value>The warehouse cannot be deleted: its own accounts (inventory, cost of revenue, sales, cash box...) have journal entries.</value></data>
+  <data name="WarehouseInUse" xml:space="preserve"><value>The warehouse cannot be deleted: it is used in {0}.</value></data>
+  <data name="WarehouseOnlySiteOfUsers" xml:space="preserve"><value>The warehouse cannot be deleted: it is the only site allowed for users ({0}); change their sites first.</value></data>
+  <data name="WarehouseOnlySiteOfRoleScope" xml:space="preserve"><value>The warehouse cannot be deleted: it is the only site in a role or user permission scope; change the scope first.</value></data>
 </root>

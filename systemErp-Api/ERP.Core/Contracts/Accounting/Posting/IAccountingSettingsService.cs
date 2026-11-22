@@ -5,6 +5,8 @@ namespace ERP.Core.Contracts.Accounting;
 public interface IAccountingSettingsService
 {
     Task<AccountingSettingsDto> GetAsync(CancellationToken ct = default);
+    /// <summary>هل التسعير الشامل للضريبة مفعّل للمبيعات في المنشأة (يقرؤه كل مستخدم لعرض طرق التسعير).</summary>
+    Task<bool> SalesVatInclusiveAllowedAsync(CancellationToken ct = default);
     Task<AccountingSettingsDto> SaveAsync(SaveAccountingSettingsDto settings, CancellationToken ct = default);
     /// <summary>ينشئ حسابات العقود الناقصة (أو يربط القائم المناسب) ويربطها بالإعدادات غير المحددة؛ لا يغيّر اختيار المستخدم.</summary>
     Task<ContractAccountsSetupDto> InitializeContractAccountsAsync(CancellationToken ct = default);

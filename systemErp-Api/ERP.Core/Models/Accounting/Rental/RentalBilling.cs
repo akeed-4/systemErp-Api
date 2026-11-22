@@ -9,6 +9,10 @@ public class RentalSettings : BaseEntity
     public decimal LateGraceHours { get; set; } = 2m;
     /// <summary>يُشترط استلام التأمين المطلوب قبل أول تسليم (R3b).</summary>
     public bool RequireDepositBeforeDelivery { get; set; }
+    /// <summary>طريقة الفوترة الافتراضية للعقود الجديدة (T1/Q1).</summary>
+    public string DefaultBillingMode { get; set; } = RentalBillingModes.Timesheet;
+    /// <summary>اعتماد كشف الساعات يتطلب صورة الكشف الموقّع مرفقة (Q2).</summary>
+    public bool RequireTimesheetPhoto { get; set; } = true;
 }
 
 /// <summary>طبيعة الرسم: إضافي، نقل، وقود، تلف، تأخير، تنظيف، أخرى.</summary>

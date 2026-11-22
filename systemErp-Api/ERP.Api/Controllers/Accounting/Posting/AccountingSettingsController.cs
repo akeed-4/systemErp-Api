@@ -14,6 +14,11 @@ public class AccountingSettingsController : ErpControllerBase
 
     [HttpGet] public async Task<IActionResult> Get(CancellationToken ct) => Success(await _settings.GetAsync(ct));
 
+    /// <summary>خيارات التسعير لكل مستخدم (بلا صلاحية الشاشة): هل الشامل للضريبة مفعّل للمبيعات.</summary>
+    [HttpGet("pricing-options"), AuthenticatedOnly]
+    public async Task<IActionResult> PricingOptions(CancellationToken ct)
+        => Success(new { allowSalesVatInclusivePricing = await _settings.SalesVatInclusiveAllowedAsync(ct) });
+
     [HttpPut]
     public async Task<IActionResult> Save([FromBody] SaveAccountingSettingsDto dto, CancellationToken ct)
         => Success(await _settings.SaveAsync(dto, ct), Messages.AccountingSettingsSaved);

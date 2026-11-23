@@ -2311,4 +2311,5 @@
   <data name="CannotDeleteDefaultBranch" xml:space="preserve"><value>لا يمكن حذف الفرع الافتراضي.</value></data>
   <data name="BranchHasLocations" xml:space="preserve"><value>لا يمكن حذف فرع له مواقع؛ انقل مواقعه إلى فرع آخر أولاً.</value></data>
   <data name="LocationBranchRequired" xml:space="preserve"><value>حدّد الفرع الذي يتبعه الموقع.</value></data>
+  <data name="UserNameManagedByHr" xml:space="preserve"><value>اسم المستخدم المرتبط بموظف يُدار من ملف الموظف في شؤون الموظفين.</value></data>
 </root>

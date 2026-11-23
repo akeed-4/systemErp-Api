@@ -41,15 +41,16 @@ public class ReportQueryTests : TestBase
     public async Task Account_statement_running_balance_survives_paging_sorting_and_period()
     {
         var (api, _, account) = await SeededAsync();
-        // سند القبض مؤرَّخ بأول اليوم فيسبق فاتورة اليوم نفسه
+        // سند القبض مؤرَّخ بأول اليوم والفاتورة بوقتها، لكن حركات اليوم بترتيب تسجيلها: الفاتورة (345) ثم السند (245)،
+        // لا رصيد وسيط دائن (−100) لم يحدث
         var entries = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries");
-        Assert.Equal(new[] { -100m, 245m }, entries.Select(e => e!["runningBalance"].D()));
+        Assert.Equal(new[] { 345m, 245m }, entries.Select(e => e!["runningBalance"].D()));
 
         // الصفحة الثانية وحدها: رصيدها الجاري يشمل ما قبلها
         var second = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries?" + Q(("skip", "1"), ("take", "1")));
         Assert.Equal(245, Assert.Single(second)!["runningBalance"].D());
         var credits = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries?" + Q(("filter", "[\"credit\",\">\",0]")));
-        Assert.Equal(-100, Assert.Single(credits)!["runningBalance"].D());
+        Assert.Equal(245, Assert.Single(credits)!["runningBalance"].D());
         var last = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries?" + Q(("sort", "[{\"selector\":\"runningBalance\",\"desc\":false}]"), ("take", "1")));
         Assert.Equal(100, last[0]!["credit"].D());
 
@@ -58,7 +59,7 @@ public class ReportQueryTests : TestBase
         Assert.Equal(245, later["openingBalance"].D()); Assert.Equal(245, later["closingBalance"].D()); Assert.Empty(later["entries"]!.AsArray());
         var whole = (await api.Get($"/reports/AccountStatement/{account}")).Data!;
         Assert.Equal(0, whole["openingBalance"].D()); Assert.Equal(245, whole["closingBalance"].D());
-        Assert.Equal(new[] { -100m, 245m }, whole["entries"]!.AsArray().Select(e => e!["runningBalance"].D()));
+        Assert.Equal(new[] { 345m, 245m }, whole["entries"]!.AsArray().Select(e => e!["runningBalance"].D()));
     }
 
     [Fact]
@@ -103,10 +104,10 @@ public class ReportQueryTests : TestBase
     {
         var (api, _, account) = await SeededAsync();
         var entries = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries");
-        Assert.Equal(new[] { "receipt_voucher", "sales" }, entries.Select(e => (string)e!["referenceType"]!));
+        Assert.Equal(new[] { "sales", "receipt_voucher" }, entries.Select(e => (string)e!["referenceType"]!));
         Assert.All(entries, e => Assert.False(string.IsNullOrEmpty((string?)e!["documentNumber"])));
         // حساب بالعملة الأساسية: الرصيد بعملة الحساب هو الرصيد نفسه
-        Assert.Equal(new[] { -100m, 245m }, entries.Select(e => e!["runningBalanceInAccountCurrency"].D()));
+        Assert.Equal(new[] { 345m, 245m }, entries.Select(e => e!["runningBalanceInAccountCurrency"].D()));
         var receipts = await RowsAsync(api, $"/reports/AccountStatement/{account}/Entries?" + Q(("filter", "[\"referenceType\",\"=\",\"receipt_voucher\"]")));
         Assert.Equal(100, Assert.Single(receipts)!["credit"].D());
 

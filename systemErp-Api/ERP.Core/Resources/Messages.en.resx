@@ -2311,4 +2311,5 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="CannotDeleteDefaultBranch" xml:space="preserve"><value>The default branch cannot be deleted.</value></data>
   <data name="BranchHasLocations" xml:space="preserve"><value>A branch with locations cannot be deleted; move its locations to another branch first.</value></data>
   <data name="LocationBranchRequired" xml:space="preserve"><value>Select the branch this location belongs to.</value></data>
+  <data name="UserNameManagedByHr" xml:space="preserve"><value>The name of a user linked to an employee is managed from the employee record in HR.</value></data>
 </root>

@@ -42,10 +42,17 @@ public class JournalService : IJournalService
         };
     }
 
-    /// <summary>القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL.</summary>
-    public Task<LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default)
-        => EntityLoader.LoadAsync(_db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines), options, ToDtosAsync, ct,
+    /// <summary>
+    /// القائمة بخيارات DevExtreme: الفلترة والفرز والترقيم في SQL. <paramref name="manualOnly"/>: القيود اليدوية وعكسها فقط
+    /// (<see cref="ReportModuleScope.Manual"/>)، قبل الترقيم فيصح العدد والصفحات.
+    /// </summary>
+    public Task<LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default, bool manualOnly = false)
+    {
+        var entries = _db.Set<JournalEntry>().AsNoTracking();
+        if (manualOnly) entries = ReportModuleScope.Manual(entries);
+        return EntityLoader.LoadAsync(entries.Include(e => e.Lines), options, ToDtosAsync, ct,
             EntityLoader.Desc(nameof(JournalEntry.Date)), EntityLoader.Desc(nameof(JournalEntry.EntryNumber)));
+    }
 
     public async Task<JournalEntryDto> GetAsync(Guid id, CancellationToken ct = default)
         => (await ToDtosAsync(new List<JournalEntry> { await _db.Set<JournalEntry>().AsNoTracking().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id, ct)

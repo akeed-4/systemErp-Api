@@ -74,6 +74,29 @@ public class DevExtremeListLoadTests : TestBase
         Assert.Equal(3, dated.Body!["totalCount"]!.GetValue<int>());
     }
 
+    /// <summary>شاشة القيود اليومية (`manual=true`): اليدوي وعكسه فقط، والعدد والترقيم بعد الفلترة؛ بلا المعامل يبقى الكل كما في تقرير دفتر اليومية.</summary>
+    [Fact]
+    public async Task Journal_screen_lists_only_manual_entries_and_their_reversals()
+    {
+        var api = await SeededAsync(); // فواتير بقيود تلقائية
+        object Manual(decimal amount) => new { date = DateTime.UtcNow.ToString("yyyy-MM-dd"), description = "يدوي", module = "accounting",
+            lines = new[] { new { accountCode = "1111", debit = amount, credit = 0m }, new { accountCode = "31", debit = 0m, credit = amount } } };
+        var first = await api.Post("/journalentries", Manual(100));
+        Assert.Equal(200, first.Status);
+        Assert.Equal(200, (await api.Post("/journalentries", Manual(50))).Status);
+        Assert.Equal(200, (await api.Post($"/journalentries/{first.Data!["id"].S()}/reverse", new { reason = "خطأ" })).Status);
+
+        var manual = await api.Get("/journalentries/load" + Q(("requireTotalCount", "true"), ("take", "2")) + "&manual=true");
+        Assert.Equal(200, manual.Status);
+        Assert.Equal(3, manual.Body!["totalCount"]!.GetValue<int>()); // قيدان يدويان وعكس أحدهما
+        Assert.Equal(2, manual.Body["data"]!.AsArray().Count);
+        var page2 = await api.Get("/journalentries/load" + Q(("skip", "2"), ("take", "2")) + "&manual=true");
+        Assert.Single(page2.Body!["data"]!.AsArray());
+
+        var all = await api.Get("/journalentries/load" + Q(("requireTotalCount", "true"), ("take", "1")));
+        Assert.True(all.Body!["totalCount"]!.GetValue<int>() > 3); // التلقائية من الفواتير ضمن الكل
+    }
+
     [Fact]
     public async Task Journal_and_ledger_rows_load_with_summaries()
     {

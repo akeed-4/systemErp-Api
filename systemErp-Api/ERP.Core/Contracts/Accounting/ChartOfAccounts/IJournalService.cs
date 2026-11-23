@@ -8,7 +8,8 @@ public interface IJournalService
 {
     Task<PagedResult<JournalEntryDto>> ListAsync(PaginationParams query, CancellationToken ct = default);
     /// <summary>نفس القائمة بخيارات DevExtreme (filter/sort/skip/take/totalSummary) منفَّذة في قاعدة البيانات.</summary>
-    Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default);
+    /// <param name="manualOnly">القيود اليدوية وعكسها فقط (شاشة القيود اليومية)؛ تقرير دفتر اليومية يعرض الكل.</param>
+    Task<DevExtreme.AspNet.Data.ResponseModel.LoadResult> LoadAsync(DataSourceLoadOptions options, CancellationToken ct = default, bool manualOnly = false);
     Task<JournalEntryDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>قيد يدوي مرحَّل مباشرة. يجب أن يتوازن المدين والدائن.</summary>
     Task<JournalEntryDto> CreateManualAsync(CreateJournalEntryDto request, CancellationToken ct = default);

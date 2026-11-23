@@ -6,6 +6,7 @@ using System.Text.Json;
 using ERP.Core.Contracts.Shared;
 using ERP.Core.DTOs.Shared;
 using ERP.Service.Data;
+using ERP.Service.Services.Accounting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -26,14 +27,30 @@ public class UserService : IUserService
     }
 
     public async Task<List<UserDto>> ListAsync(CancellationToken ct = default)
-        => (await _db.Set<User>().AsNoTracking().OrderBy(u => u.Name).ToListAsync(ct)).Select(ToDto).ToList();
+    {
+        var users = await _db.Set<User>().AsNoTracking().OrderBy(u => u.Name).ToListAsync(ct);
+        var employees = await HrLinks.EmployeesOfUsersAsync(_db, users.Select(u => u.Id), ct);
+        return users.Select(u => ToDto(u, employees.TryGetValue(u.Id, out var e) ? e : null)).ToList();
+    }
 
     public async Task<UserDto> GetCurrentAsync(CancellationToken ct = default)
         => await GetAsync(_current.UserId ?? throw new UnauthorizedAppException(), ct);
 
     public async Task<UserDto> GetAsync(Guid id, CancellationToken ct = default)
-        => ToDto(await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct)
-            ?? throw new NotFoundException(Messages.UserNotFound));
+    {
+        var user = await _db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException(Messages.UserNotFound);
+        return ToDto(user, await EmployeeOfAsync(user.Id, ct));
+    }
+
+    private async Task<Guid?> EmployeeOfAsync(Guid userId, CancellationToken ct)
+        => (await HrLinks.EmployeesOfUsersAsync(_db, new[] { userId }, ct)).TryGetValue(userId, out var e) ? e : null;
+
+    /// <summary>اسم المستخدم المربوط بموظف يُدار من ملف الموظف: تغييره هنا مرفوض (إرسال الاسم نفسه مقبول).</summary>
+    private static void EnsureNameNotManagedByHr(User user, Guid? employeeId, string? name)
+    {
+        if (employeeId != null && !string.IsNullOrWhiteSpace(name) && name.Trim() != user.Name)
+            throw new ValidationFailedException(Messages.UserNameManagedByHr);
+    }
 
     public async Task<UserDto> CreateAsync(CreateUserRequestDto r, CancellationToken ct = default)
     {
@@ -74,6 +91,8 @@ public class UserService : IUserService
         if (r.Role == UserRole.Owner && user.Role != UserRole.Owner)
             throw new ConflictException(Messages.CannotAssignOwnerRole);
         if (string.IsNullOrWhiteSpace(r.Name)) throw new ValidationFailedException(Messages.NameRequired);
+        var employeeId = await EmployeeOfAsync(user.Id, ct);
+        EnsureNameNotManagedByHr(user, employeeId, r.Name);
         // المالك يبقى مالكاً بلا دور مخصّص؛ والدور المخصّص المعطّل يبقى لمن عليه أصلاً ولا يُسند لغيره
         var role = user.Role == UserRole.Owner ? null : await ResolveCustomRoleAsync(r.CustomRoleId, ct, keepFor: user.CustomRoleId);
 
@@ -83,13 +102,14 @@ public class UserService : IUserService
         user.AllowedWarehouseIds = user.Role == UserRole.Owner ? null : await SitesCsvAsync(r.AllowedWarehouseIds, ct);
         user.AvatarInitials = AuthService.Initials(user.Name);
         await _db.SaveChangesAsync(ct);
-        return ToDto(user);
+        return ToDto(user, employeeId);
     }
 
-    private static UserDto ToDto(User user)
+    private static UserDto ToDto(User user, Guid? employeeId = null)
     {
         var dto = Mapper.Map<UserDto>(user);
         dto.AllowedWarehouseIds = WarehouseSessionService.ParseIds(user.AllowedWarehouseIds) ?? new List<Guid>();
+        dto.EmployeeId = employeeId;
         return dto;
     }
 
@@ -117,13 +137,15 @@ public class UserService : IUserService
     {
         var id = _current.UserId ?? throw new UnauthorizedAppException();
         var user = await _db.Set<User>().FirstAsync(u => u.Id == id, ct);
+        var employeeId = await EmployeeOfAsync(user.Id, ct);
+        EnsureNameNotManagedByHr(user, employeeId, r.Name);
         if (!string.IsNullOrWhiteSpace(r.Name)) { user.Name = r.Name.Trim(); user.AvatarInitials = AuthService.Initials(user.Name); }
         if (r.Phone != null) user.Phone = r.Phone;
         if (r.AvatarUrl != null) user.AvatarUrl = r.AvatarUrl;
         if (r.JobTitle != null) user.JobTitle = r.JobTitle;
         if (r.Department != null) user.Department = r.Department;
         await _db.SaveChangesAsync(ct);
-        return ToDto(user);
+        return ToDto(user, employeeId);
     }
 
     public async Task<OperationResultDto> ChangePasswordAsync(ChangePasswordRequestDto r, CancellationToken ct = default)

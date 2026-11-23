@@ -57,6 +57,10 @@ public class AccountingReportService : IAccountingReportService
         public decimal Debit { get; set; }
         public decimal Credit { get; set; }
         public DateTime Date { get; set; }
+        /// <summary>يوم القيد بلا وقت: مستندات تحمل وقتها وأخرى (السندات) تُؤرَّخ بأول اليوم، فلا يصلح الوقت لترتيب حركات اليوم.</summary>
+        public DateTime Day { get; set; }
+        /// <summary>وقت تسجيل القيد: ترتيب حركات اليوم الواحد كما سُجّلت فعلاً.</summary>
+        public DateTime RecordedAt { get; set; }
         public string EntryNumber { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string? ReferenceNumber { get; set; }
@@ -68,17 +72,20 @@ public class AccountingReportService : IAccountingReportService
 
     private IQueryable<CostCenter> CostCenters => _db.Set<CostCenter>().AsNoTracking();
 
-    /// <summary>حركات الحساب؛ مرشّح المراكز (المركز وفروعه) يجعل الكشف كشفَ الحساب في المركز، برصيده الافتتاحي والجاري فيه.</summary>
+    /// <summary>
+    /// حركات الحساب؛ مرشّح المراكز (المركز وفروعه) يجعل الكشف كشفَ الحساب في المركز، برصيده الافتتاحي والجاري فيه.
+    /// المسودة لا تدخل الكشف، والقيد المعكوس يبقى مع قيد عكسه (صافيهما صفر) كما في الأرصدة المرحّلة.
+    /// </summary>
     private IQueryable<LedgerLine> AccountLines(string accountCode, string? module, List<Guid>? costCenters)
     {
         var moduleScope = ReportModuleScope.Normalize(module);
         return from l in Lines
                join e in ReportModuleScope.Entries(Entries, moduleScope) on l.JournalEntryId equals e.Id
-               where l.AccountCode == accountCode
+               where l.AccountCode == accountCode && e.Status != JournalEntryStatus.Draft
                      && (costCenters == null || (l.CostCenterId != null && costCenters.Contains(l.CostCenterId.Value)))
                select new LedgerLine
                {
-                   Id = l.Id, EntryId = e.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, EntryNumber = e.EntryNumber,
+                   Id = l.Id, EntryId = e.Id, Debit = l.Debit, Credit = l.Credit, Date = e.Date, Day = e.Date.Date, RecordedAt = e.CreatedAt, EntryNumber = e.EntryNumber,
                    Description = e.Description, ReferenceNumber = e.ReferenceNumber, ReferenceType = e.ReferenceType, Notes = l.Notes, CostCenterId = l.CostCenterId,
                    CostCenterCode = CostCenters.Where(c => c.Id == l.CostCenterId).Select(c => c.Code).FirstOrDefault(),
                };
@@ -97,7 +104,7 @@ public class AccountingReportService : IAccountingReportService
 
     /// <summary>
     /// حركات الحساب في الفترة، والرصيد الجاري لكل حركة يُحسب في قاعدة البيانات: مجموع كل ما سبقها (ومنه ما قبل الفترة)
-    /// بترتيب التاريخ ثم رقم القيد ثم السطر.
+    /// بترتيب الكشف الموحّد (<see cref="RunningBalances"/>)، و<see cref="AccountLedgerEntryDto.Sequence"/> موضعها فيه.
     /// </summary>
     private IQueryable<AccountLedgerEntryDto> StatementEntries(Account account, DateTime? from, DateTime? to, string? module, List<Guid>? costCenters, decimal rate)
     {
@@ -109,7 +116,7 @@ public class AccountingReportService : IAccountingReportService
                    Id = x.Id, EntryId = x.EntryId, Date = x.Date, EntryNumber = x.EntryNumber, Description = string.IsNullOrWhiteSpace(x.Notes) ? x.Description : x.Notes!,
                    Debit = x.Debit, Credit = x.Credit, ReferenceNumber = x.ReferenceNumber, CostCenterId = x.CostCenterId, CostCenterCode = x.CostCenterCode,
                    ReferenceType = x.ReferenceType ?? "manual", DocumentNumber = x.ReferenceNumber ?? x.EntryNumber,
-                   RunningBalance = w.Running, RunningBalanceInAccountCurrency = w.Running / rate,
+                   RunningBalance = w.Running, RunningBalanceInAccountCurrency = w.Running / rate, Sequence = w.Sequence,
                };
     }
 
@@ -117,13 +124,16 @@ public class AccountingReportService : IAccountingReportService
     {
         public Guid LineId { get; set; }
         public decimal Running { get; set; }
+        public long Sequence { get; set; }
     }
 
     /// <summary>
-    /// الرصيد الجاري لكل سطر من أسطر الحساب بدالة نافذة (SUM() OVER) تمرّ على الأسطر مرة واحدة، بترتيب التاريخ ثم رقم القيد ثم السطر،
-    /// بدل جمع كل ما سبق السطر لكل سطر على حدة. تُحسب على أسطر <see cref="AccountLines"/> نفسها (المنشأة والوحدة ومراكز التكلفة)
-    /// فتشمل ما قبل الفترة، ثم تُربط بأسطر الفترة: يبقى الرصيد صحيحاً مع الترقيم والفرز والفلترة.
-    /// EF.Functions.Sum/Over من Zomp.EFCore.WindowFunctions (مسجّلة بـ UseWindowFunctions في إعداد SQL Server). الإطار ROWS لا RANGE
+    /// الرصيد الجاري لكل سطر من أسطر الحساب بدالة نافذة (SUM() OVER) تمرّ على الأسطر مرة واحدة، بدل جمع كل ما سبق السطر لكل سطر على حدة.
+    /// ترتيب الكشف الموحّد (هنا فقط، والفرز الافتراضي يتبعه عبر Sequence): يوم القيد ← وقت تسجيله ← رقمه ← السطر. لا يُرتَّب بوقت التاريخ:
+    /// الفاتورة تحمل وقتها والسند يُؤرَّخ بأول اليوم، فكان سند مسجَّل بعد فاتورة يسبقها ويُظهر رصيداً وسيطاً لم يحدث.
+    /// تُحسب على أسطر <see cref="AccountLines"/> نفسها (المنشأة والوحدة ومراكز التكلفة) فتشمل ما قبل الفترة، ثم تُربط بأسطر الفترة:
+    /// يبقى الرصيد صحيحاً مع الترقيم والفرز والفلترة والبحث.
+    /// EF.Functions.Sum/RowNumber/Over من Zomp.EFCore.WindowFunctions (مسجّلة بـ UseWindowFunctions في إعداد SQL Server). الإطار ROWS لا RANGE
     /// الافتراضي: RANGE يرفض مفتاح ترتيب يتجاوز 900 بايت (رقم القيد نص طويل)، والترتيب فريد بالسطر فالنتيجة واحدة.
     /// </summary>
     private IQueryable<RunningRow> RunningBalances(Account account, string? module, List<Guid>? costCenters)
@@ -132,8 +142,22 @@ public class AccountingReportService : IAccountingReportService
         return AccountLines(account.Code, module, costCenters).Select(x => new RunningRow
         {
             LineId = x.Id,
-            Running = EF.Functions.Sum(sign * (x.Debit - x.Credit), EF.Functions.Over().OrderBy(x.Date).ThenBy(x.EntryNumber).ThenBy(x.Id).Rows().FromUnbounded().ToCurrentRow()) ?? 0m,
+            Running = EF.Functions.Sum(sign * (x.Debit - x.Credit),
+                EF.Functions.Over().OrderBy(x.Day).ThenBy(x.RecordedAt).ThenBy(x.EntryNumber).ThenBy(x.Id).Rows().FromUnbounded().ToCurrentRow()) ?? 0m,
+            Sequence = EF.Functions.RowNumber(EF.Functions.Over().OrderBy(x.Day).ThenBy(x.RecordedAt).ThenBy(x.EntryNumber).ThenBy(x.Id)),
         });
+    }
+
+    /// <summary>
+    /// فرز الكشف: الافتراضي ترتيب الكشف (Sequence)، والفرز بالتاريخ يعني اليوم ثم ترتيب التسجيل، وهو Sequence نفسه لأنه يبدأ باليوم؛
+    /// فلا يسبق سندٌ مؤرَّخ بأول اليوم فاتورةً سُجّلت قبله. الفلترة بالتاريخ تبقى على التاريخ نفسه.
+    /// </summary>
+    private static void StatementSort(DataSourceLoadOptions options)
+    {
+        if (options.Sort == null) return;
+        foreach (var s in options.Sort)
+            if (string.Equals(s.Selector, nameof(AccountLedgerEntryDto.Date), StringComparison.OrdinalIgnoreCase))
+                s.Selector = nameof(AccountLedgerEntryDto.Sequence);
     }
 
     /// <summary>عملة الحساب وسعر صرفها الحالي (العملة الأساسية بسعر 1 إن لم تُحدَّد للحساب أو لم توجد).</summary>
@@ -167,7 +191,7 @@ public class AccountingReportService : IAccountingReportService
             Currency = currency, ExchangeRate = rate, OpeningBalance = opening, PeriodDebit = debit, PeriodCredit = credit,
             ClosingBalance = closing, ClosingBalanceInAccountCurrency = closing / rate, CostCenterId = costCenterId,
             Entries = includeEntries
-                ? await StatementEntries(account, from, to, module, centers, rate).OrderBy(x => x.Date).ThenBy(x => x.EntryNumber).ThenBy(x => x.Id).ToListAsync(ct)
+                ? await StatementEntries(account, from, to, module, centers, rate).OrderBy(x => x.Sequence).ToListAsync(ct)
                 : new(),
         };
     }
@@ -451,8 +475,10 @@ public class AccountingReportService : IAccountingReportService
     {
         var account = await AccountAsync(accountCode, ct);
         var (_, rate) = await AccountCurrencyAsync(account, ct);
-        return await ReportLoader.LoadAsync(StatementEntries(account, from, to, module, await CostCenterRules.ScopeAsync(_db, costCenterId, ct), rate), options, nameof(AccountLedgerEntryDto.Id), ct,
-            EntityLoader.Asc(nameof(AccountLedgerEntryDto.Date)), EntityLoader.Asc(nameof(AccountLedgerEntryDto.EntryNumber)));
+        if (options != null) StatementSort(options);
+        // Sequence فريد في الكشف: هو الفرز الافتراضي والفرز الثانوي الثابت لأي فرز يختاره المستخدم
+        return await ReportLoader.LoadAsync(StatementEntries(account, from, to, module, await CostCenterRules.ScopeAsync(_db, costCenterId, ct), rate), options, nameof(AccountLedgerEntryDto.Sequence), ct,
+            EntityLoader.Asc(nameof(AccountLedgerEntryDto.Sequence)));
     }
 
     public Task<LoadResult> LoadAccountBalancesAsync(DataSourceLoadOptions options, string? module = null, CancellationToken ct = default)

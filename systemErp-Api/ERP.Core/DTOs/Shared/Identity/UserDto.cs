@@ -17,6 +17,8 @@ public partial class UserDto
     public string? Department { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime? LastLoginAt { get; set; }
+    /// <summary>الموظف المربوط بالمستخدم في شؤون الموظفين: اسمه يُدار من ملف الموظف فلا يُعدَّل من شاشة المستخدمين.</summary>
+    public Guid? EmployeeId { get; set; }
     /// <summary>المواقع المسموحة؛ فارغة = كل المواقع.</summary>
     public List<Guid> AllowedWarehouseIds { get; set; } = new();
 }

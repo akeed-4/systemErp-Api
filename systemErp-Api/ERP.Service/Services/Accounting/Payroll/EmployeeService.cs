@@ -84,16 +84,25 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
             throw new ConflictException(Messages.EmployeeLinkedToProjects);
         // سجلات الحضور تُحذف مع الموظف: لا أثر مالي لها ما دام بلا مسيرات
         Db.RemoveRange(await Db.Set<AttendanceRecord>().Where(a => a.EmployeeId == e.Id).ToListAsync(ct));
-        // حساب بوابة الموظف يُعطَّل مع حذف ملفه (حساب مستخدم النظام المرتبط به يبقى)
-        if (e.UserId.HasValue && await Db.Set<User>().FirstOrDefaultAsync(u => u.Id == e.UserId && u.Role == UserRole.Employee, ct) is { } portalUser)
-            portalUser.IsActive = false;
+        // المستخدم المربوط (حساب البوابة أو مستخدم النظام) يُعطَّل مع حذف ملفه، ويزول الربط بزوال الملف
+        await HrLinks.DeactivateLinkedUserAsync(Db, e, ct);
         // مدير قسم يُحذف: يبقى القسم بلا مدير
         foreach (var department in await Db.Set<Department>().Where(x => x.ManagerEmployeeId == e.Id).ToListAsync(ct))
             department.ManagerEmployeeId = null;
     }
 
+    /// <summary>انتقل الموظف إلى «منتهي الخدمة» في هذا التعديل (لا كل حفظ لموظف منتهٍ: من أعاد تنشيط مستخدمه يدوياً لا يُعطَّل ثانية).</summary>
+    private bool _terminatedNow;
+
+    protected override Task OnUpdatingAsync(Employee entity, UpdateEmployeeDto dto, CancellationToken ct)
+    {
+        _terminatedNow = entity.Status == EmployeeStatuses.Terminated
+            && Db.Entry(entity).Property(x => x.Status).OriginalValue != EmployeeStatuses.Terminated;
+        return Task.CompletedTask;
+    }
+
     protected override Task OnCreatedAsync(Employee entity, CancellationToken ct) => HrLinks.SyncEmployeeAsync(Db, entity.Id, ct);
-    protected override Task OnUpdatedAsync(Employee entity, CancellationToken ct) => HrLinks.SyncEmployeeAsync(Db, entity.Id, ct);
+    protected override Task OnUpdatedAsync(Employee entity, CancellationToken ct) => HrLinks.SyncEmployeeAsync(Db, entity.Id, ct, _terminatedNow);
 
     public async Task<List<EmployeeAlertDto>> GetExpiringAsync(int days, CancellationToken ct = default)
     {

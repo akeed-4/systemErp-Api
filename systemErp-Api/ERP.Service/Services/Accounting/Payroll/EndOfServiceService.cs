@@ -87,6 +87,8 @@ public class EndOfServiceService : IEndOfServiceService
             employee.TerminationDate = settlement.LastWorkingDay;
             employee.TerminationReason = settlement.Reason;
             await _db.SaveChangesAsync(token);
+            // انتهت الخدمة: المستخدم المربوط بالموظف يُعطَّل
+            await HrLinks.SyncEmployeeAsync(_db, employee.Id, token, terminated: true);
             await _audit.LogAsync("post", nameof(EndOfServiceSettlement), settlement.Id.ToString(),
                 $"{settlement.SettlementNumber} {settlement.EmployeeName}: مكافأة {settlement.Award:0.00}، صافي {settlement.Net:0.00}", token);
             return Map(settlement, settlement.Status);

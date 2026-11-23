@@ -1,14 +1,21 @@
 using ERP.Service.Data;
+using ERP.Service.Services.Shared;
 
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
 /// انعكاس ملف الموظف وقسمه على السجلات المرتبطة بهما بالمعرّف. أعضاء المشاريع يقرؤون الموظف والقسم مباشرة عند العرض؛
-/// وهنا تُحدَّث النصوص المنسوخة للبحث والطباعة والقوائم القديمة: قسم المستخدم المربوط ومسماه، واسم مقدّم طلب الشراء وقسمه.
+/// وهنا تُحدَّث النصوص المنسوخة للبحث والطباعة والقوائم القديمة: المستخدم المربوط (اسمه وحروفه وقسمه ومسماه)، واسم مقدّم طلب الشراء وقسمه.
+/// المستخدم المربوط (حساب البوابة أو مستخدم النظام) يُعدَّل متتبَّعاً لا بـ ExecuteUpdate: المستخدمون من سجلات الدليل، وناسخ الدليل
+/// (<see cref="TenantDirectoryMirror"/>) يلتقط الحفظ وحده، فيصل التعديل للقاعدة المشتركة في المنشأة المستقلة.
 /// </summary>
 public static class HrLinks
 {
-    public static async Task SyncEmployeeAsync(ErpDbContext db, Guid employeeId, CancellationToken ct)
+    /// <summary>
+    /// ملف الموظف هو مصدر اسم المستخدم المربوط به. <paramref name="terminated"/>: انتهت خدمته الآن، فيُعطَّل المستخدم
+    /// (المالك لا يُعطَّل). إعادة تنشيط الموظف لا تعيد تنشيط المستخدم: تمرّ بشاشة المستخدمين وحد المقاعد.
+    /// </summary>
+    public static async Task SyncEmployeeAsync(ErpDbContext db, Guid employeeId, CancellationToken ct, bool terminated = false)
     {
         var e = await (from x in db.Set<Employee>().AsNoTracking()
                        join d in db.Set<Department>().AsNoTracking() on x.DepartmentId equals (Guid?)d.Id into ds
@@ -16,11 +23,31 @@ public static class HrLinks
                        where x.Id == employeeId
                        select new { x.UserId, x.NameAr, x.JobTitle, x.DepartmentId, Department = d != null ? d.NameAr : null }).FirstOrDefaultAsync(ct);
         if (e == null) return;
-        if (e.UserId is Guid userId)
-            await db.Set<User>().Where(u => u.Id == userId)
-                .ExecuteUpdateAsync(s => s.SetProperty(u => u.Department, e.Department).SetProperty(u => u.JobTitle, e.JobTitle), ct);
+        if (e.UserId is Guid userId && await db.Set<User>().FirstOrDefaultAsync(u => u.Id == userId, ct) is { } user)
+        {
+            var name = e.NameAr.Trim();
+            user.Name = name;
+            user.AvatarInitials = AuthService.Initials(name);
+            user.Department = e.Department;
+            user.JobTitle = e.JobTitle;
+            if (terminated) Deactivate(user);
+            await db.SaveChangesAsync(ct);
+        }
         await db.Set<MaterialRequisition>().Where(r => r.RequestedByEmployeeId == employeeId)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.RequestedBy, e.NameAr), ct);
+    }
+
+    /// <summary>حذف ملف الموظف: المستخدم المربوط (بوابة أو نظام) يُعطَّل ولا يُحذف، فيبقى سجله في المستندات والتدقيق. يُحفظ مع الحذف.</summary>
+    public static async Task DeactivateLinkedUserAsync(ErpDbContext db, Employee employee, CancellationToken ct)
+    {
+        if (employee.UserId is Guid userId && await db.Set<User>().FirstOrDefaultAsync(u => u.Id == userId, ct) is { } user)
+            Deactivate(user);
+    }
+
+    /// <summary>المالك لا يُعطَّل أبداً (كما في شاشة المستخدمين).</summary>
+    private static void Deactivate(User user)
+    {
+        if (user.Role != UserRole.Owner) user.IsActive = false;
     }
 
     public static async Task SyncDepartmentAsync(ErpDbContext db, Guid departmentId, CancellationToken ct)
@@ -30,6 +57,19 @@ public static class HrLinks
         await db.Set<MaterialRequisition>().Where(r => r.DepartmentId == departmentId)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Department, name), ct);
         var users = db.Set<Employee>().Where(e => e.DepartmentId == departmentId && e.UserId != null).Select(e => e.UserId);
-        await db.Set<User>().Where(u => users.Contains(u.Id)).ExecuteUpdateAsync(s => s.SetProperty(u => u.Department, name), ct);
+        var linked = await db.Set<User>().Where(u => users.Contains(u.Id)).ToListAsync(ct);
+        if (linked.Count == 0) return;
+        foreach (var user in linked) user.Department = name;
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>الموظف المربوط بكل مستخدم (اسمه يُدار من ملفه، فلا يُعدَّل من شاشة المستخدمين أو الملف الشخصي).</summary>
+    public static async Task<Dictionary<Guid, Guid>> EmployeesOfUsersAsync(ErpDbContext db, IEnumerable<Guid> userIds, CancellationToken ct)
+    {
+        var ids = userIds.Distinct().ToList();
+        if (ids.Count == 0) return new();
+        var pairs = await db.Set<Employee>().AsNoTracking().Where(e => e.UserId != null && ids.Contains(e.UserId.Value))
+            .Select(e => new { UserId = e.UserId!.Value, e.Id }).ToListAsync(ct);
+        return pairs.GroupBy(p => p.UserId).ToDictionary(g => g.Key, g => g.First().Id);
     }
 }

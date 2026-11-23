@@ -13,7 +13,9 @@ public class JournalEntriesController : ErpControllerBase
 
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _journal.ListAsync(q, ct));
     /// <summary>القائمة بخيارات DevExtreme وتُعيد <c>LoadResult</c> مباشرة دون مغلّف ApiResponse.</summary>
-    [HttpGet("load")] public async Task<IActionResult> Load(DataSourceLoadOptions loadOptions, CancellationToken ct) => Ok(await _journal.LoadAsync(loadOptions, ct));
+    /// <param name="manual">true: القيود اليدوية وعكسها فقط (شاشة القيود اليومية).</param>
+    [HttpGet("load")] public async Task<IActionResult> Load(DataSourceLoadOptions loadOptions, [FromQuery] bool manual, CancellationToken ct)
+        => Ok(await _journal.LoadAsync(loadOptions, ct, manual));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _journal.GetAsync(id, ct));
 
     // القيود اليدوية تخضع لسياسات الاعتماد: العملية المنطبقة تُحجز ولا تمس الدفاتر إلا عند اعتمادها

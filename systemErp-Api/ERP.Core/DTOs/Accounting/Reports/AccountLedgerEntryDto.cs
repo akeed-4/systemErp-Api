@@ -14,6 +14,8 @@ public class AccountLedgerEntryDto
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
     public decimal RunningBalance { get; set; }
+    /// <summary>موضع الحركة في ترتيب الكشف (اليوم ← وقت التسجيل ← رقم القيد ← السطر) الذي يُحسب عليه الرصيد الجاري.</summary>
+    public long Sequence { get; set; }
     public string? ReferenceNumber { get; set; }
     /// <summary>نوع المستند المصدر للقيد (sales، receipt_voucher، manual...)؛ الواجهة تترجمه إلى اسم السند.</summary>
     public string? ReferenceType { get; set; }

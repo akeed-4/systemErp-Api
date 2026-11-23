@@ -95,6 +95,8 @@ public class EmployeePortalService : IEmployeePortalService
                 _db.Add(new UserInvite { UserId = linked.Id, TokenHash = hash, ExpiresAt = expires.Value });
             }
             await _db.SaveChangesAsync(tk);
+            // من لحظة الربط يتبع المستخدم ملف الموظف (الاسم والقسم والمسمى)، ولو كان مستخدماً للنظام قبله
+            await HrLinks.SyncEmployeeAsync(_db, employee.Id, tk);
 
             var result = Access(linked);
             result.InviteToken = issued;

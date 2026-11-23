@@ -150,7 +150,7 @@ public class FixedAssetDepreciationTests : TestBase
 
         var inA = (await api.Post("/fixedassets", Asset("FA-1", center, warehouseId: showroomA))).Data!["id"].G();
         var inB = (await api.Post("/fixedassets", Asset("FA-2", center, warehouseId: showroomB))).Data!["id"].G();
-        Assert.Equal(201, (await api.Post("/fixedassets", Asset("FA-3", center))).Status); // المستودع اختياري
+        Assert.Equal(201, (await api.Post("/fixedassets", Asset("FA-3", center))).Status); // الموقع اختياري
         Assert.Equal("FA-1", Assert.Single((await api.Get($"/fixedassets?warehouseId={showroomA}")).Data!["items"]!.AsArray())!["assetCode"].S());
 
         // إهلاك معرض واحد: أصوله فقط

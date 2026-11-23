@@ -2,7 +2,7 @@ using ERP.Core.DTOs.Accounting.Contracts;
 
 namespace ERP.Core.Contracts.Accounting;
 
-/// <summary>حجز مخزون المستودع لمشاريع المقاولات، وتحويل التخصيص بين المشاريع باعتماد، وأرقام المتاح والمحجوز وقيد التوريد.</summary>
+/// <summary>حجز مخزون الموقع لمشاريع المقاولات، وتحويل التخصيص بين المشاريع باعتماد، وأرقام المتاح والمحجوز وقيد التوريد.</summary>
 public interface IStockReservationService
 {
     Task<List<StockReservationDto>> ListAsync(Guid contractId, CancellationToken ct = default);

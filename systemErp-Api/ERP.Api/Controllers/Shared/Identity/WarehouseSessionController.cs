@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Shared;
 
 /// <summary>
-/// مواقع المستخدم (المعارض/المستودعات) وموقع الجلسة: تختار الواجهة الموقع عند الدخول وترسله في ترويسة X-Warehouse-Id؛
+/// مواقع المستخدم (المعارض/المواقع) وموقع الجلسة: تختار الواجهة الموقع عند الدخول وترسله في ترويسة X-Warehouse-Id؛
 /// وإعداد المنشأة «المستندات حسب المعرض / حسب المستخدم».
 /// </summary>
 [Route("api/v1/warehouse-session")]

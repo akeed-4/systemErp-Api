@@ -4,8 +4,8 @@ using static ERP.Tests.AccountingSettingsTests;
 namespace ERP.Tests;
 
 /// <summary>
-/// حساب مخزون لكل مستودع: المستند على حساب مستودعه بعد الحساب اليدوي وقبل حساب الإعدادات، والتحويل بين حسابين مختلفين بقيد
-/// بمتوسط التكلفة الموحّد، وإعادة التقييم وبضاعة آخر المدة موزّعتان على المستودعات بكمياتها، والمطابقة تشمل حسابات المستودعات.
+/// حساب مخزون لكل موقع: المستند على حساب موقعه بعد الحساب اليدوي وقبل حساب الإعدادات، والتحويل بين حسابين مختلفين بقيد
+/// بمتوسط التكلفة الموحّد، وإعادة التقييم وبضاعة آخر المدة موزّعتان على المواقع بكمياتها، والمطابقة تشمل حسابات المواقع.
 /// </summary>
 [Collection("api")]
 public class WarehouseInventoryAccountTests : TestBase
@@ -14,12 +14,12 @@ public class WarehouseInventoryAccountTests : TestBase
 
     private static async Task<Guid> WarehouseAsync(Client api, string code, string? inventoryAccountCode)
     {
-        var w = await api.Post("/warehouses", new { code, nameAr = "مستودع " + code, nameEn = code, location = "الرياض", status = "active", inventoryAccountCode });
+        var w = await api.Post("/warehouses", new { code, nameAr = "موقع " + code, nameEn = code, location = "الرياض", status = "active", inventoryAccountCode });
         Assert.Equal(201, w.Status);
         var id = w.Data!["id"].G();
         // بلا حساب: يُنشأ للموقع حسابه تلقائياً، ثم يُعاد إلى حساب الإعدادات كموقع قائم قبل حسابات المواقع
         if (inventoryAccountCode == null)
-            Assert.Equal(200, (await api.Put($"/warehouses/{id}", new { code, nameAr = "مستودع " + code, nameEn = code, location = "الرياض", status = "active",
+            Assert.Equal(200, (await api.Put($"/warehouses/{id}", new { code, nameAr = "موقع " + code, nameEn = code, location = "الرياض", status = "active",
                 inventoryAccountCode = "" })).Status);
         return id;
     }
@@ -47,7 +47,7 @@ public class WarehouseInventoryAccountTests : TestBase
         Assert.True(items["difference"].D() == 0, items.ToJsonString());
     }
 
-    /// <summary>منشأة بمستودع افتراضي بلا حساب (حساب الإعدادات 1141، كالمنشآت القائمة قبل حسابات المواقع) ومستودع فرعي بحساب 1145.</summary>
+    /// <summary>منشأة بموقع افتراضي بلا حساب (حساب الإعدادات 1141، كالمنشآت القائمة قبل حسابات المواقع) وموقع فرعي بحساب 1145.</summary>
     private async Task<(Client Api, Guid Main, Guid Branch, Guid Item)> SetupAsync()
     {
         var api = await NewTenantAsync();
@@ -157,7 +157,7 @@ public class WarehouseInventoryAccountTests : TestBase
         Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 4, 40, branch))).Status);
 
         var created = await api.Post("/inventorycounts", new { scope = "items", countType = "periodic", countDate = ERP.Core.Models.Shared.SaudiTime.Today, // جرد آخر المدة يمثل تاريخه: يوم المنشأة لا UTC
-            lines = new[] { new { itemId = item, countedQuantity = 6m } } }); // الجرد بلا مستودع يعدّ المستودع الافتراضي: بلا فرق
+            lines = new[] { new { itemId = item, countedQuantity = 6m } } }); // الجرد بلا موقع يعدّ الموقع الافتراضي: بلا فرق
         var approval = await api.Post($"/inventorycounts/{created.Data!["id"].S()}/submit");
         var approved = await api.Post($"/inventorycountapprovals/{approval.Data!["id"].S()}/approve", new { });
         Assert.Equal(200, approved.Status);
@@ -176,9 +176,9 @@ public class WarehouseInventoryAccountTests : TestBase
         Assert.Equal(400, (await api.Post("/warehouses", new { code = "C1", nameAr = "ص", nameEn = "C1", location = "x", status = "active", inventoryAccountCode = "1111" })).Status);
         Assert.Equal(400, (await api.Post("/warehouses", new { code = "C2", nameAr = "ص", nameEn = "C2", location = "x", status = "active", inventoryAccountCode = "1131" })).Status);
         Assert.Equal(400, (await api.Post("/warehouses", new { code = "C3", nameAr = "ص", nameEn = "C3", location = "x", status = "active", inventoryAccountCode = "1142" })).Status);
-        Assert.Equal(400, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1145" })).Status); // حساب مستودع
+        Assert.Equal(400, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1145" })).Status); // حساب موقع
 
-        // تعديل المستودع دون الحقل لا يمسح حسابه
+        // تعديل الموقع دون الحقل لا يمسح حسابه
         var renamed = await api.Put($"/warehouses/{branch}", new { code = "BR", nameAr = "الفرع", nameEn = "Branch", location = "جدة", status = "active" });
         Assert.Equal(200, renamed.Status);
         Assert.Equal("1145", renamed.Data!["inventoryAccountCode"].S());

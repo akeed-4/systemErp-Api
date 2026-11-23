@@ -25,7 +25,7 @@ public partial class CommercialContractDto
     public string? PartyEmail { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
-    /// <summary>موقع العقد (المعرض/المستودع) المختوم من موقع الجلسة عند الإنشاء.</summary>
+    /// <summary>موقع العقد (المعرض/الموقع) المختوم من موقع الجلسة عند الإنشاء.</summary>
     public Guid? WarehouseId { get; set; }
     public decimal ContractValue { get; set; }
     /// <summary>للقراءة: التكلفة التقديرية للمشروع من أسطر جدول الكميات.</summary>

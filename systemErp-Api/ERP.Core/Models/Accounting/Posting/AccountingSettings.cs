@@ -49,7 +49,7 @@ public class AccountingSettings : BaseEntity
     /// <summary>الخصومات الأخرى على المستخلصات (مصروف في عقود العملاء، إيراد/استرداد في عقود الموردين).</summary>
     public string? ContractOtherDeductionsAccountCode { get; set; }
     /// <summary>
-    /// مواد مشاريع تحت التنفيذ (أصل): يُحمَّل عليها صرف مواد المشروع من المستودع (بدل المصروف)، وتُخفَّض بتكلفة المواد
+    /// مواد مشاريع تحت التنفيذ (أصل): يُحمَّل عليها صرف مواد المشروع من الموقع (بدل المصروف)، وتُخفَّض بتكلفة المواد
     /// المختارة في المستخلص عند فوترته (إلى تكلفة الإيرادات).
     /// </summary>
     public string? ProjectMaterialsWipAccountCode { get; set; }
@@ -73,7 +73,7 @@ public class AccountingSettings : BaseEntity
     public string? ProjectAccruedRentalAccountCode { get; set; }
     /// <summary>
     /// بضاعة مستلمة لم تُفوتر (التزام): سند استلام مشتريات المشروع يقيّد مدين المواد تحت التنفيذ / دائن هذا الحساب بسعره، وفاتورة
-    /// المورد من السند تسوّيه (مدين هذا الحساب / دائن المورد). مواد المشروع لا تدخل المستودع العام ولا متوسط تكلفة الصنف.
+    /// المورد من السند تسوّيه (مدين هذا الحساب / دائن المورد). مواد المشروع لا تدخل الموقع العام ولا متوسط تكلفة الصنف.
     /// </summary>
     public string? ProjectGoodsReceivedNotInvoicedAccountCode { get; set; }
 

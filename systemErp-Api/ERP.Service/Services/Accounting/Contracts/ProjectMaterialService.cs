@@ -510,7 +510,7 @@ public class ProjectMaterialService : IProjectMaterialService
 
     /// <summary>
     /// أسطر العرض: بيانات البند ومادة المكتبة، والصنف المربوط بالمادة حالياً (أو المحفوظ للسطر القديم) بالكمية المحوّلة لوحدته
-    /// ورصيده (الكلي وفي مستودع المشروع)، والتكلفة التقديرية من تكلفة المادة الحالية في المكتبة.
+    /// ورصيده (الكلي وفي موقع المشروع)، والتكلفة التقديرية من تكلفة المادة الحالية في المكتبة.
     /// </summary>
     private async Task<List<ProjectMaterialRequirementDto>> ToLinesAsync(CommercialContract contract, List<LineSource> sources, CancellationToken ct,
         IReadOnlyDictionary<Guid, ConstructionResource>? known = null)
@@ -556,7 +556,7 @@ public class ProjectMaterialService : IProjectMaterialService
         }).ToList();
     }
 
-    /// <summary>الأصناف المخزنية المربوطة بالمواد ووحداتها ورصيدها (الكلي وفي مستودع محدد).</summary>
+    /// <summary>الأصناف المخزنية المربوطة بالمواد ووحداتها ورصيدها (الكلي وفي موقع محدد).</summary>
     private sealed class StockView
     {
         public required BoqProducts Products { get; init; }

@@ -5,7 +5,7 @@ namespace ERP.Tests;
 
 /// <summary>
 /// تغطية مواد المشروع (المرحلة 1): صافي الشراء بعد الرصيد وما في الطريق، بلا عدّ مزدوج عبر دورة الشراء القائمة
-/// (طلب لمرحلة ← اعتماد ← سند استلام = عهدة مسلَّمة للمشروع، أو إذن تسليم من رصيد المستودع للموقع).
+/// (طلب لمرحلة ← اعتماد ← سند استلام = عهدة مسلَّمة للمشروع، أو إذن تسليم من رصيد الموقع للموقع).
 /// الأسمنت مادة بالكيس (50 كجم) مربوطة بصنف بالكيلو: قواعد 50 × 7 أكياس + بلاطات 100 × 2 × 1.05 = 560 كيساً = 28,000 كجم.
 /// الرمل بلا صنف مخزني: لا يُحكم عليه (لا اكتمال ولا نقص).
 /// </summary>
@@ -104,7 +104,7 @@ public class ProjectMaterialCoverageTests : TestBase
         return id;
     }
 
-    /// <summary>سند استلام من المورد على الطلب: عهدة للمشروع مباشرة (مسلَّمة له)، لا رصيد في المستودع العام.</summary>
+    /// <summary>سند استلام من المورد على الطلب: عهدة للمشروع مباشرة (مسلَّمة له)، لا رصيد في الموقع العام.</summary>
     private static async Task ReceiveAsync(Project p, string requisitionId, decimal kg)
         => Ok(await p.Api.Post("/deliverynotes", new
         {
@@ -147,7 +147,7 @@ public class ProjectMaterialCoverageTests : TestBase
         Assert.Equal(5_000m, c["approvedRequestQuantity"].D());
         Assert.Equal(13_000m, c["netToPurchase"].D());
 
-        // طلب ثانٍ للبلاطات استُلم كاملاً بسند: عهدة مسلَّمة للمشروع، لا رصيد في المستودع ولا معلّق —
+        // طلب ثانٍ للبلاطات استُلم كاملاً بسند: عهدة مسلَّمة للمشروع، لا رصيد في الموقع ولا معلّق —
         // المتبقي للتسليم 26,000 − رصيد 10,000 − معلّق 5,000 = 11,000 (المستلم لا يُطرح مرتين)
         var r2 = await RequestAsync(p, 2_000, p.SlabPhase, approve: true);
         await ReceiveAsync(p, r2, 2_000);
@@ -168,7 +168,7 @@ public class ProjectMaterialCoverageTests : TestBase
         Assert.Equal(5_000m, c["deliveredQuantity"].D());
         Assert.Equal(11_000m, c["netToPurchase"].D());
 
-        // التسليم من المستودع للموقع: يخرج من الرصيد ومن المتبقي معاً — 13,000 − 0 − 2,000 = 11,000
+        // التسليم من الموقع للموقع: يخرج من الرصيد ومن المتبقي معاً — 13,000 − 0 − 2,000 = 11,000
         var issue = await p.Api.Post($"/commercialcontracts/{p.Id}/material-issues", new
         {
             receiverType = "site_engineer", receiverName = "م. خالد", post = true,

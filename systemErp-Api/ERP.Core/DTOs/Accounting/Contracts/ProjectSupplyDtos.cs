@@ -66,7 +66,7 @@ public class ProjectMaterialTrackingLineDto
     public decimal PurchasedQuantity { get; set; }
     /// <summary>سُلِّم للمشروع بمستندات صرف مرحّلة.</summary>
     public decimal DeliveredQuantity { get; set; }
-    /// <summary>أُعيد من الموقع للمستودع (يُطرح من المسلَّم أعلاه)، وهُدر أو تلف في الموقع.</summary>
+    /// <summary>أُعيد من الموقع للموقع (يُطرح من المسلَّم أعلاه)، وهُدر أو تلف في الموقع.</summary>
     public decimal ReturnedQuantity { get; set; }
     public decimal WastedQuantity { get; set; }
     /// <summary>المستهلك في التقارير اليومية المعتمدة (محوّلاً لوحدة الصنف).</summary>
@@ -75,7 +75,7 @@ public class ProjectMaterialTrackingLineDto
     public decimal CustodyQuantity { get; set; }
     public decimal RemainingToRequest { get; set; }
     public decimal RemainingToDeliver { get; set; }
-    /// <summary>الرصيد في مستودع المشروع (أو مستودع الطلب).</summary>
+    /// <summary>الرصيد في موقع المشروع (أو موقع الطلب).</summary>
     public decimal WarehouseStock { get; set; }
     public decimal UnitCost { get; set; }
     /// <summary>صنف خارج الاحتياجات المعتمدة (طُلب أو صُرف دون أن يكون مطلوباً).</summary>
@@ -91,9 +91,9 @@ public class ProjectMaterialTrackingLineDto
     /// الطلب المحوَّل لا يُعدّ في <see cref="PendingRequestQuantity"/>.
     /// </summary>
     public decimal OrderedQuantity { get; set; }
-    /// <summary>استُلم بفواتير شراء مرحّلة من طلبات المشروع (= <see cref="PurchasedQuantity"/>): داخل رصيد المستودع أو سُلِّم، فلا يُطرح مرة أخرى.</summary>
+    /// <summary>استُلم بفواتير شراء مرحّلة من طلبات المشروع (= <see cref="PurchasedQuantity"/>): داخل رصيد الموقع أو سُلِّم، فلا يُطرح مرة أخرى.</summary>
     public decimal ReceivedQuantity { get; set; }
-    /// <summary>صافي ما يُشترى = max(0, المتبقي للتسليم − رصيد المستودع − المعلّق في الطلبات − المطلوب غير المستلم).</summary>
+    /// <summary>صافي ما يُشترى = max(0, المتبقي للتسليم − رصيد الموقع − المعلّق في الطلبات − المطلوب غير المستلم).</summary>
     public decimal NetToPurchase { get; set; }
     /// <summary>الكمية المقترحة لطلب شراء جديد = min(صافي الشراء، المتبقي للطلب) — حد السرفر للطلب.</summary>
     public decimal SuggestedRequestQuantity { get; set; }
@@ -103,13 +103,13 @@ public class ProjectMaterialTrackingLineDto
     public string CoverageStatus { get; set; } = MaterialCoverageStatuses.Unverifiable;
     public List<ProjectSupplyAlertDto> Alerts { get; set; } = new();
     /// <summary>
-    /// سطر مرحلة: ما يغطيه مخزون المشروع (المسلَّم للموقع من المستودع العام) وطلباته السابقة غير المرتبطة بمرحلة، موزّعاً على المراحل
+    /// سطر مرحلة: ما يغطيه مخزون المشروع (المسلَّم للموقع من الموقع العام) وطلباته السابقة غير المرتبطة بمرحلة، موزّعاً على المراحل
     /// بترتيبها. يُطرح من مطلوب المرحلة قبل المتبقي للطلب.
     /// </summary>
     public decimal ProjectInventoryQuantity { get; set; }
 }
 
-/// <summary>حالة تغطية المادة من رصيد المستودع.</summary>
+/// <summary>حالة تغطية المادة من رصيد الموقع.</summary>
 public static class MaterialCoverageStatuses
 {
     public const string Full = "full";
@@ -155,7 +155,7 @@ public class ProjectMaterialIssueDocDto
 {
     public Guid Id { get; set; }
     public Guid ContractId { get; set; }
-    /// <summary>للعرض والطباعة: رقم العقد واسم المشروع وموقعه والعميل واسم المستودع.</summary>
+    /// <summary>للعرض والطباعة: رقم العقد واسم المشروع وموقعه والعميل واسم الموقع.</summary>
     public string? ContractNumber { get; set; }
     public string? ProjectName { get; set; }
     /// <summary>اسم المشروع بالإنجليزية (للطباعة بالإنجليزية؛ فارغ = العربي).</summary>

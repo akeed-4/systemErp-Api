@@ -110,7 +110,7 @@ internal static class PostingAccounts
     public static Role InventoryRole => Roles.First(r => r.Key == nameof(AccountingSettings.InventoryAccountCode));
 
     /// <summary>
-    /// حساب مخزون المستودع، وإلا حساب المخزون في الإعدادات. بلا مستودع: الافتراضي، كما تُحسب الحركات القديمة بلا مستودع.
+    /// حساب مخزون الموقع، وإلا حساب المخزون في الإعدادات. بلا موقع: الافتراضي، كما تُحسب الحركات القديمة بلا موقع.
     /// (الحساب اليدوي في المستند يتقدم على الناتج عند المستدعي.)
     /// </summary>
     public static async Task<string> InventoryAsync(this AccountingSettings s, ErpDbContext db, Guid? warehouseId, CancellationToken ct)
@@ -137,8 +137,8 @@ internal static class PostingAccounts
             ?? new SiteAccountCodes(null, null, null);
     }
 
-    /// <summary>حسابات مخزون المستودعات المحددة صراحةً.</summary>
-    /// <summary>عجز وزيادة مخزون المستودع (موقع الجلسة إن لم يُحدَّد)، وإلا حسابا الإعدادات.</summary>
+    /// <summary>حسابات مخزون المواقع المحددة صراحةً.</summary>
+    /// <summary>عجز وزيادة مخزون الموقع (موقع الجلسة إن لم يُحدَّد)، وإلا حسابا الإعدادات.</summary>
     public static async Task<(string Shortage, string Surplus)> VarianceAsync(this AccountingSettings s, ErpDbContext db, Guid? warehouseId, CancellationToken ct)
     {
         warehouseId ??= db.SessionWarehouseId;

@@ -41,7 +41,7 @@ public sealed class DataProtectionKeysDbContext : DbContext, IDataProtectionKeyC
         var added = 0;
         foreach (var file in Directory.GetFiles(folder, "key-*.xml"))
         {
-            // اسم المستودع للمفتاح كما يحفظه FileSystemXmlRepository وEntityFrameworkCoreXmlRepository: key-<المعرّف>
+            // اسم الموقع للمفتاح كما يحفظه FileSystemXmlRepository وEntityFrameworkCoreXmlRepository: key-<المعرّف>
             var name = Path.GetFileNameWithoutExtension(file);
             if (existing.Contains(name)) continue;
             var xml = XElement.Load(file).ToString(SaveOptions.DisableFormatting);

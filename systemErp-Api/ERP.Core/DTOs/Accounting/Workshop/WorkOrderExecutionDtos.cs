@@ -110,7 +110,7 @@ public class PartIssueDto
     public string? CreatedBy { get; set; }
 }
 
-/// <summary>موقف قطعة سطر: الكمية المطلوبة والمحجوز الساري والمصروف الصافي ورصيد المستودع والمتاح للورشة.</summary>
+/// <summary>موقف قطعة سطر: الكمية المطلوبة والمحجوز الساري والمصروف الصافي ورصيد الموقع والمتاح للورشة.</summary>
 public class PartLineStockDto
 {
     public Guid LineId { get; set; }
@@ -121,7 +121,7 @@ public class PartLineStockDto
     public decimal Reserved { get; set; }
     public decimal IssuedNet { get; set; }
     public decimal WarehouseStock { get; set; }
-    /// <summary>رصيد المستودع ناقص حجوزات الأوامر الأخرى السارية.</summary>
+    /// <summary>رصيد الموقع ناقص حجوزات الأوامر الأخرى السارية.</summary>
     public decimal Available { get; set; }
     public bool CanExecute { get; set; }
 }

@@ -4,7 +4,7 @@ using ERP.Service.Services.CarShowroom;
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
-/// صلاحية حساب لدور ترحيل (من إعدادات الحسابات أو حساب مخزون مستودع): موجود، فرعي، ليس حساب طرف ولا نقدية/بنك ولا حساباً
+/// صلاحية حساب لدور ترحيل (من إعدادات الحسابات أو حساب مخزون موقع): موجود، فرعي، ليس حساب طرف ولا نقدية/بنك ولا حساباً
 /// من إعدادات معرض السيارات، ونوعه يناسب الدور.
 /// </summary>
 internal static class AccountRoleRules

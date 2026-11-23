@@ -4,8 +4,8 @@ namespace ERP.Service.Services.Shared;
 
 /// <summary>
 /// قواعد حجز المخزون للمشاريع المشتركة بين الحجز وتحويله وصرف المشروع (مصدر واحد للأرقام):
-/// المتاح = الرصيد الفعلي في المستودع − المتبقي من الحجوزات النشطة (للمشاريع الأخرى عند صرف مشروع أو حجزه).
-/// كل عملية تغيّر الالتزام تقفل الصنف في المستودع بقفل تطبيقي على المعاملة (<c>sp_getapplock</c>) قبل القراءة،
+/// المتاح = الرصيد الفعلي في الموقع − المتبقي من الحجوزات النشطة (للمشاريع الأخرى عند صرف مشروع أو حجزه).
+/// كل عملية تغيّر الالتزام تقفل الصنف في الموقع بقفل تطبيقي على المعاملة (<c>sp_getapplock</c>) قبل القراءة،
 /// فحجزان أو حجز وصرف متزامنان على الرصيد نفسه يتسلسلان ولا يتجاوزان المتاح.
 /// </summary>
 public static class StockReservations
@@ -14,7 +14,7 @@ public static class StockReservations
 
     public static decimal Remaining(StockReservation r) => r.Quantity - r.IssuedQuantity - r.ReleasedQuantity;
 
-    /// <summary>يقفل الصنف في المستودع حتى نهاية المعاملة الحالية (إلزامية).</summary>
+    /// <summary>يقفل الصنف في الموقع حتى نهاية المعاملة الحالية (إلزامية).</summary>
     public static async Task LockAsync(ErpDbContext db, Guid productId, Guid warehouseId, CancellationToken ct)
     {
         if (db.Database.CurrentTransaction == null)
@@ -25,7 +25,7 @@ public static class StockReservations
             ct);
     }
 
-    /// <summary>المتبقي من الحجوزات النشطة للصنف في المستودع، عدا مشروع بعينه (أو كلها).</summary>
+    /// <summary>المتبقي من الحجوزات النشطة للصنف في الموقع، عدا مشروع بعينه (أو كلها).</summary>
     public static async Task<decimal> ReservedAsync(ErpDbContext db, Guid productId, Guid warehouseId, Guid? exceptContractId, CancellationToken ct)
         => await db.Set<StockReservation>().AsNoTracking()
             .Where(r => r.ProductId == productId && r.WarehouseId == warehouseId && r.Status == StockReservationStatuses.Active
@@ -33,9 +33,9 @@ public static class StockReservations
             .SumAsync(r => (decimal?)(r.Quantity - r.IssuedQuantity - r.ReleasedQuantity), ct) ?? 0m;
 
     /// <summary>
-    /// خروج غير مخصص لمشروع (بيع أو تحويل عام بين المستودعات): يقفل الصنف في المستودع (إن كانت هناك معاملة) ويرفض ما يتجاوز
+    /// خروج غير مخصص لمشروع (بيع أو تحويل عام بين المواقع): يقفل الصنف في الموقع (إن كانت هناك معاملة) ويرفض ما يتجاوز
     /// الرصيد الفعلي ناقص كل الحجوزات النشطة فيه، فلا يستهلك البيع أو التحويل كميات مخصصة للمشاريع. بلا حجوزات: لا أثر.
-    /// يُستدعى قبل إنقاص رصيد المستودع.
+    /// يُستدعى قبل إنقاص رصيد الموقع.
     /// </summary>
     public static async Task EnsureUnreservedAsync(ErpDbContext db, Guid productId, string name, Guid warehouseId, decimal qty, CancellationToken ct)
     {
@@ -50,8 +50,8 @@ public static class StockReservations
     }
 
     /// <summary>
-    /// قبل ترحيل تسليم مشروع: يقفل كل صنف، ويرفض ما يتجاوز الرصيد الفعلي ناقص المحجوز لمشاريع أخرى (المادة لم تُستلم في المستودع،
-    /// أو محجوزة لغيره)، ثم يستهلك حجوزات المشروع نفسه في المستودع نفسه بالأقدم أولاً ويسجّل الاستهلاك لكل سطر لعكسه بالإلغاء.
+    /// قبل ترحيل تسليم مشروع: يقفل كل صنف، ويرفض ما يتجاوز الرصيد الفعلي ناقص المحجوز لمشاريع أخرى (المادة لم تُستلم في الموقع،
+    /// أو محجوزة لغيره)، ثم يستهلك حجوزات المشروع نفسه في الموقع نفسه بالأقدم أولاً ويسجّل الاستهلاك لكل سطر لعكسه بالإلغاء.
     /// </summary>
     public static async Task ConsumeForIssueAsync(ErpDbContext db, ProjectMaterialIssue issue, Guid warehouseId, CancellationToken ct)
     {
@@ -88,7 +88,7 @@ public static class StockReservations
         }
     }
 
-    /// <summary>إلغاء تسليم مرحّل: يعيد ما استهلكه من الحجوزات (تعود الكمية للمستودع فيعود حجزها).</summary>
+    /// <summary>إلغاء تسليم مرحّل: يعيد ما استهلكه من الحجوزات (تعود الكمية للموقع فيعود حجزها).</summary>
     public static async Task ReverseIssueAsync(ErpDbContext db, Guid issueId, CancellationToken ct)
     {
         var rows = await db.Set<StockReservationConsumption>().Where(c => c.IssueId == issueId && !c.IsReversed).ToListAsync(ct);

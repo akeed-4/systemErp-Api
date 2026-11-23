@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ERP.Tests;
 
 /// <summary>
-/// مواقع المستخدم (المعارض/المستودعات) وموقع الجلسة: الختم بموقع الجلسة، رفض الموقع غير المسموح، قوائم المستندات
+/// مواقع المستخدم (المعارض/المواقع) وموقع الجلسة: الختم بموقع الجلسة، رفض الموقع غير المسموح، قوائم المستندات
 /// حسب المعرض أو حسب المستخدم (إعداد المنشأة)، وفتح مستند من موقع غير مسموح.
 /// </summary>
 [Collection("api")]
@@ -58,7 +58,7 @@ public class WarehouseSessionTests : TestBase
     public async Task Session_lists_allowed_warehouses_and_new_documents_take_the_session_warehouse()
     {
         var owner = await NewTenantAsync();
-        var c = (await owner.Get("/warehouses")).Data!["items"]!.AsArray().Select(w => w!["id"].G()).First(); // المستودع الافتراضي
+        var c = (await owner.Get("/warehouses")).Data!["items"]!.AsArray().Select(w => w!["id"].G()).First(); // الموقع الافتراضي
         var a = await WarehouseAsync(owner, "SA"); var b = await WarehouseAsync(owner, "SB");
         var (user, userId) = await UserAsync(owner, a, b);
         Assert.Equal(new[] { a, b }.OrderBy(x => x), (await owner.Get($"/users/{userId}")).Data!["allowedWarehouseIds"]!.AsArray().Select(x => x!.G()).OrderBy(x => x));

@@ -46,7 +46,7 @@ public class RentalHandover : BaseEntity
     public string Status { get; set; } = RentalHandoverStatuses.Posted;
     /// <summary>لحظة التسليم أو الاستلام الفعلية (توقيت المنشأة).</summary>
     public DateTime HandoverAt { get; set; }
-    /// <summary>الموقع (المستودع) الذي خرجت منه أو عادت إليه.</summary>
+    /// <summary>الموقع (الموقع) الذي خرجت منه أو عادت إليه.</summary>
     public Guid? WarehouseId { get; set; }
     /// <summary>مكان التسليم لدى العميل (الموقع أو العنوان).</summary>
     public string? SiteLocation { get; set; }

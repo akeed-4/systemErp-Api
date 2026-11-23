@@ -27,7 +27,7 @@ public class ContractAccountSetupItemDto
     public string Status { get; set; } = string.Empty;
     public string? AccountCode { get; set; }
     public string? AccountName { get; set; }
-    /// <summary>سبب المشكلة (حساب الإعداد غير صالح، أكثر من حساب مرشّح، لا أب مناسب) أو إيضاح (الحساب الاختياري، حسابات المستودعات).</summary>
+    /// <summary>سبب المشكلة (حساب الإعداد غير صالح، أكثر من حساب مرشّح، لا أب مناسب) أو إيضاح (الحساب الاختياري، حسابات المواقع).</summary>
     public string? Message { get; set; }
 }
 

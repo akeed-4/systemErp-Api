@@ -37,9 +37,9 @@ internal static class InventoryValuation
         => products.Sum(p => Value(p) - before.GetValueOrDefault(p.Id));
 
     /// <summary>
-    /// قيم أصناف (أو تغيّر قيمها) موزّعة على حسابات مخزون مستودعاتها بنسبة كمياتها الموجبة فيها؛ الصنف بلا رصيد في أي مستودع
-    /// على حساب المستودع الافتراضي. بلا حسابات للمستودعات: كلها على حساب المخزون في الإعدادات.
-    /// <paramref name="excluded"/>: كمية حركة لا يشملها التغيّر (إعادة تسعير الرصيد السابق لها) تُطرح من وزن مستودعها.
+    /// قيم أصناف (أو تغيّر قيمها) موزّعة على حسابات مخزون مواقعها بنسبة كمياتها الموجبة فيها؛ الصنف بلا رصيد في أي موقع
+    /// على حساب الموقع الافتراضي. بلا حسابات للمواقع: كلها على حساب المخزون في الإعدادات.
+    /// <paramref name="excluded"/>: كمية حركة لا يشملها التغيّر (إعادة تسعير الرصيد السابق لها) تُطرح من وزن موقعها.
     /// </summary>
     public static async Task<Dictionary<string, decimal>> ByAccountAsync(ErpDbContext db, AccountingSettings s,
         IEnumerable<(Guid ItemId, decimal Amount)> amounts, CancellationToken ct, (Guid WarehouseId, decimal Quantity)? excluded = null)
@@ -80,7 +80,7 @@ internal static class InventoryValuation
 
     /// <summary>
     /// قيد إعادة تقييم المخزون: الزيادة مدين المخزون / دائن حساب فروق التكلفة (من سياسة التكلفة، أو فروقات الجرد)، والنقص عكسه.
-    /// تغيّر قيمة كل صنف يُوزَّع على حسابات مخزون مستودعاته بنسبة كمياته. في الجرد الدوري لا قيد: الأثر في بضاعة آخر المدة.
+    /// تغيّر قيمة كل صنف يُوزَّع على حسابات مخزون مواقعه بنسبة كمياته. في الجرد الدوري لا قيد: الأثر في بضاعة آخر المدة.
     /// </summary>
     public static async Task<PostingResult?> PostRevaluationAsync(ErpDbContext db, IAccountingPostingService posting,
         IEnumerable<(Guid ItemId, decimal Amount)> changes, string description, Guid? sourceId, CancellationToken ct,
@@ -91,7 +91,7 @@ internal static class InventoryValuation
         return await PostAsync(db, posting, await ByAccountAsync(db, accounts, changes, ct, excluded), description, sourceId, ct);
     }
 
-    /// <summary>إعادة تقييم على حساب مخزون بعينه (أثر مستند على حساب مستودعه أو حسابه اليدوي).</summary>
+    /// <summary>إعادة تقييم على حساب مخزون بعينه (أثر مستند على حساب موقعه أو حسابه اليدوي).</summary>
     public static async Task<PostingResult?> PostRevaluationAsync(ErpDbContext db, IAccountingPostingService posting, decimal amount,
         string inventoryAccount, string description, Guid? sourceId, CancellationToken ct)
     {

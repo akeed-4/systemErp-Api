@@ -6,8 +6,8 @@ using ERP.Service.Services.Accounting;
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
-/// مستند تحويل المخزون: يتحقق من المستودعين والأصناف ثم ينقل كل سطر عبر محرك المخزون في معاملة واحدة.
-/// التكلفة موحّدة على مستوى المنشأة فالتحويل لا يغيّر قيمة المخزون؛ ولا قيد له إلا بين مستودعين بحسابي مخزون مختلفين.
+/// مستند تحويل المخزون: يتحقق من الموقعين والأصناف ثم ينقل كل سطر عبر محرك المخزون في معاملة واحدة.
+/// التكلفة موحّدة على مستوى المنشأة فالتحويل لا يغيّر قيمة المخزون؛ ولا قيد له إلا بين موقعين بحسابي مخزون مختلفين.
 /// </summary>
 public class StockTransferService : IStockTransferService
 {
@@ -41,7 +41,7 @@ public class StockTransferService : IStockTransferService
             {
                 TransferNumber = await _numbers.AssignAsync(new DocumentNumberRequest
                 {
-                    Key = "stock_transfer", DefaultPrefix = "TRF-", WarehouseId = from.Id, Date = r.Date, // المستودع المحوَّل منه
+                    Key = "stock_transfer", DefaultPrefix = "TRF-", WarehouseId = from.Id, Date = r.Date, // الموقع المحوَّل منه
                     ManualNumber = r.TransferNumber, UserEntered = true,
                     Exists = (n, c) => _db.Set<StockTransfer>().AnyAsync(x => x.TransferNumber == n, c),
                 }, token),
@@ -86,8 +86,8 @@ public class StockTransferService : IStockTransferService
     public const string SourceType = "stock_transfer";
 
     /// <summary>
-    /// مستودعان بحسابي مخزون مختلفين: القيمة تنتقل بقيد (الكمية × متوسط التكلفة الموحّد) مدين حساب المستلم / دائن حساب المرسل.
-    /// الجرد الدوري لا يحرّك حساب المخزون داخل الفترة: بضاعة آخر المدة تُوزَّع على حسابات المستودعات.
+    /// موقعان بحسابي مخزون مختلفين: القيمة تنتقل بقيد (الكمية × متوسط التكلفة الموحّد) مدين حساب المستلم / دائن حساب المرسل.
+    /// الجرد الدوري لا يحرّك حساب المخزون داخل الفترة: بضاعة آخر المدة تُوزَّع على حسابات المواقع.
     /// </summary>
     private async Task PostValueAsync(StockTransfer transfer, Warehouse from, Warehouse to, CancellationToken ct)
     {

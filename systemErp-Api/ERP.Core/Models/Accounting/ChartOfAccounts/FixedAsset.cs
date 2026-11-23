@@ -25,6 +25,6 @@ public class FixedAsset : BaseEntity
     public Guid? DepreciationExpenseAccountId { get; set; }
     /// <summary>مركز التكلفة (النشاط) المسؤول عن الأصل ويتحمّل مصروف إهلاكه. إلزامي للأصول الجديدة، وفارغ للقديمة حتى يُحدَّد يدوياً.</summary>
     public Guid? CostCenterId { get; set; }
-    /// <summary>المستودع/المعرض الذي يوجد فيه الأصل (اختياري). يُحفظ مع كل إهلاك مرحَّل ويُرشَّح به ترحيل الإهلاك.</summary>
+    /// <summary>الموقع/المعرض الذي يوجد فيه الأصل (اختياري). يُحفظ مع كل إهلاك مرحَّل ويُرشَّح به ترحيل الإهلاك.</summary>
     public Guid? WarehouseId { get; set; }
 }

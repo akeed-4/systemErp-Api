@@ -417,7 +417,7 @@ public class PurchaseCycleService : IPurchaseCycleService
         var order = await PurchaseOrderAsync(orderId, ct);
         var lines = request.Lines.Where(l => l.Quantity > 0).ToList();
         if (lines.Count == 0) throw new ValidationFailedException(Messages.ReceiptQtyPositive);
-        // أمر شراء لطلب مشروع مقاولات: الاستلام في مستودع المشروع كبيان استلام الطلب المباشر (موقع التوريد في الطلب)،
+        // أمر شراء لطلب مشروع مقاولات: الاستلام في موقع المشروع كبيان استلام الطلب المباشر (موقع التوريد في الطلب)،
         // والطلب القديم «موقع المشروع» عهدة مباشرة للمشروع
         var project = order.RequisitionId is not { } requisitionId ? null
             : await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.Id == requisitionId && r.ContractId != null)

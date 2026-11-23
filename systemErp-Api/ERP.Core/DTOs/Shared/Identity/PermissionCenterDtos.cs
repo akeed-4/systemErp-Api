@@ -4,7 +4,7 @@ namespace ERP.Core.DTOs.Shared;
 public class PermissionSettingsDto
 {
     public DataScope Scope { get; set; } = DataScope.All;
-    /// <summary>المستودعات (الفروع) عند نطاق «فروع محددة».</summary>
+    /// <summary>المواقع (الفروع) عند نطاق «فروع محددة».</summary>
     public List<Guid> WarehouseIds { get; set; } = new();
     /// <summary>null = بلا حد.</summary>
     public decimal? ApprovalLimit { get; set; }

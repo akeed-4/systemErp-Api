@@ -22,7 +22,7 @@ public class PosCashDrawerTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api); // سعر 100 + ضريبة 15%، مخزون 10
 
-        // التسعير يتبع سياسات الوردية المفتوحة (الخصم والتصنيفات المسموحة والمستودع): بلا وردية لا تسعير
+        // التسعير يتبع سياسات الوردية المفتوحة (الخصم والتصنيفات المسموحة والموقع): بلا وردية لا تسعير
         Assert.Equal(409, (await api.Post("/pos/transactions/quote", Cart(product, 2))).Status);
         await OpenShiftAsync(api);
 

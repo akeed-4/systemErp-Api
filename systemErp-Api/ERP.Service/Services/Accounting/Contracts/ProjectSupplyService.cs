@@ -139,8 +139,8 @@ public class ProjectSupplyService : IProjectSupplyService
 
     /// <summary>
     /// أرقام المراحل من الاحتياجات المعتمدة (مرحلة كل سطر من سطره المحفوظ) وطلبات الشراء المرتبطة بكل مرحلة، ومخزون المشروع المشترك:
-    /// المسلَّم للموقع من المستودع العام (التسليم − الإرجاع، دون ما اشتُري عبر المستودع بطلبات المشروع القديمة؛ محسوب في طلباتها)
-    /// + طلبات المشروع بلا مرحلة. <paramref name="warehouseStock"/> رصيد مستودع المشروع لصافي الشراء (فارغ عند التحقق فقط).
+    /// المسلَّم للموقع من الموقع العام (التسليم − الإرجاع، دون ما اشتُري عبر الموقع بطلبات المشروع القديمة؛ محسوب في طلباتها)
+    /// + طلبات المشروع بلا مرحلة. <paramref name="warehouseStock"/> رصيد موقع المشروع لصافي الشراء (فارغ عند التحقق فقط).
     /// </summary>
     private async Task<Phasing> PhasingAsync(Guid contractId, ProjectMaterialPlanDto plan, Guid? exceptRequisitionId,
         IReadOnlyDictionary<Guid, decimal>? warehouseStock, CancellationToken ct)
@@ -221,7 +221,7 @@ public class ProjectSupplyService : IProjectSupplyService
             var fromWarehouse = issued.GetValueOrDefault(item);
             var viaRequisitions = postedViaWarehouse.GetValueOrDefault(item);
             inventory[item] = inventory.GetValueOrDefault(item) + Math.Max(0, fromWarehouse - viaRequisitions);
-            // المشترى بطلبات قديمة ولم يُسلَّم بعد ما زال في رصيد المستودع وقد حُسب في طلباته: لا يُطرح مرتين
+            // المشترى بطلبات قديمة ولم يُسلَّم بعد ما زال في رصيد الموقع وقد حُسب في طلباته: لا يُطرح مرتين
             if (warehouseStock != null)
                 freeStock[item] = Math.Max(0, warehouseStock.GetValueOrDefault(item) - Math.Max(0, viaRequisitions - fromWarehouse));
         }
@@ -288,7 +288,7 @@ public class ProjectSupplyService : IProjectSupplyService
             .GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.Q));
 
     /// <summary>
-    /// المشترى لكل صنف: فواتير الشراء المرحّلة المحوّلة من طلبات المشروع (الدورة السابقة عبر المستودع)، والمستلم الصافي بسندات استلام
+    /// المشترى لكل صنف: فواتير الشراء المرحّلة المحوّلة من طلبات المشروع (الدورة السابقة عبر الموقع)، والمستلم الصافي بسندات استلام
     /// المشروع (الدورة المعزولة: الاستلام من المورد هو الشراء، وفاتورته تسوية مالية لا تضيف كمية).
     /// </summary>
     private async Task<Dictionary<Guid, decimal>> PurchasedAsync(Guid contractId, CancellationToken ct)
@@ -372,12 +372,12 @@ public class ProjectSupplyService : IProjectSupplyService
                 },
             }).OrderBy(u => u.Name).ToList());
 
-    /// <summary>المسلَّم الصافي لكل صنف = التسليم (من المستودع أو استلام المورد) − الإرجاع (للمستودع أو للمورد)؛ الهدر يبقى مسلَّماً.</summary>
+    /// <summary>المسلَّم الصافي لكل صنف = التسليم (من الموقع أو استلام المورد) − الإرجاع (للموقع أو للمورد)؛ الهدر يبقى مسلَّماً.</summary>
     private async Task<Dictionary<Guid, decimal>> DeliveredAsync(Guid contractId, Guid? exceptIssueId, CancellationToken ct)
         => (await MovementsAsync(contractId, exceptIssueId, ct))
             .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.Sum(x => Net(x.Kind, x.Quantity)));
 
-    /// <summary>أثر سطر على العهدة الصافية: التسليم والاستلام يزيدانها، والإرجاع للمستودع أو المورد ينقصها، والهدر لا يغيّرها.</summary>
+    /// <summary>أثر سطر على العهدة الصافية: التسليم والاستلام يزيدانها، والإرجاع للموقع أو المورد ينقصها، والهدر لا يغيّرها.</summary>
     private static decimal Net(string kind, decimal value)
         => K.IsDelivery(kind) ? value : kind is K.Return or K.ReceiptReturn ? -value : 0;
 
@@ -613,7 +613,7 @@ public class ProjectSupplyService : IProjectSupplyService
         var note = $"إلغاء مستند مواد {issue.IssueNumber}: {reason}";
         if (issue.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, note, token);
         decimal residual = 0;
-        // الإرجاع يُعكس بحركة صادر من المستودع (والفرق عن تكلفة الإرجاع إعادة تقييم)، والهدر بلا حركة مخزون
+        // الإرجاع يُعكس بحركة صادر من الموقع (والفرق عن تكلفة الإرجاع إعادة تقييم)، والهدر بلا حركة مخزون
         if (issue.Kind == K.Return)
             foreach (var line in issue.Lines.Where(l => l.Quantity > 0))
             {
@@ -637,7 +637,7 @@ public class ProjectSupplyService : IProjectSupplyService
             residual += back.ValueChange - line.TotalCost;
         }
         await ItemBatches.MarkReversedAsync(_db, SourceType, issue.Id, token);
-        // التسليم المعكوس يعيد الكمية للمستودع فيعود ما استهلكه من حجز المشروع
+        // التسليم المعكوس يعيد الكمية للموقع فيعود ما استهلكه من حجز المشروع
         if (issue.Kind == K.Issue) await StockReservations.ReverseIssueAsync(_db, issue.Id, token);
         await _db.SaveChangesAsync(token);
         if (issue.JournalEntryId != null)
@@ -784,7 +784,7 @@ public class ProjectSupplyService : IProjectSupplyService
         foreach (var l in lines)
         {
             if (!products.TryGetValue(l.ProductId, out var p)) throw new ValidationFailedException(Messages.ProductNotFound);
-            if (!ProductItemTypes.TracksStock(p.ItemType)) throw new ValidationFailedException($"«{p.NameAr}» صنف بلا رصيد مخزني: لا يُصرف من المستودع.");
+            if (!ProductItemTypes.TracksStock(p.ItemType)) throw new ValidationFailedException($"«{p.NameAr}» صنف بلا رصيد مخزني: لا يُصرف من الموقع.");
             if (l.BoqItemId is not { } boqItemId) throw new ValidationFailedException($"«{p.NameAr}»: اختر بند جدول الكميات الذي تُسلَّم له المادة.");
             if (!boq.TryGetValue(boqItemId, out var isGroup)) throw new ValidationFailedException($"«{p.NameAr}»: البند المختار ليس من جدول كميات هذا المشروع.");
             if (isGroup) throw new ValidationFailedException($"«{p.NameAr}»: البند الرئيسي ذو الفروع لا تُسلَّم له مواد؛ اختر أحد فروعه.");
@@ -802,8 +802,8 @@ public class ProjectSupplyService : IProjectSupplyService
     }
 
     /// <summary>
-    /// الإرجاع والهدر: كل سطر يسحب كمية من سطر تسليم مرحّل لهذا المشروع، فيأخذ صنفه وبنده وتكلفته الفعلية. المستودع للإرجاع هو المستودع
-    /// المستلِم (المختار، وإلا مستودع العقد). جهة «الاستلام» هنا من أعاد المواد أو أثبت الهدر.
+    /// الإرجاع والهدر: كل سطر يسحب كمية من سطر تسليم مرحّل لهذا المشروع، فيأخذ صنفه وبنده وتكلفته الفعلية. الموقع للإرجاع هو الموقع
+    /// المستلِم (المختار، وإلا موقع العقد). جهة «الاستلام» هنا من أعاد المواد أو أثبت الهدر.
     /// </summary>
     private async Task ApplyWithdrawalAsync(CommercialContract contract, ProjectMaterialIssue issue, SaveProjectMaterialIssueDto r, CancellationToken ct)
     {
@@ -831,7 +831,7 @@ public class ProjectSupplyService : IProjectSupplyService
         {
             if (!sources.TryGetValue(l.SourceLineId!.Value, out var src) || src.Issue.ContractId != contract.Id || !K.IsDelivery(src.Issue.Kind))
                 throw new ValidationFailedException("السطر المختار ليس من أذونات تسليم هذا المشروع.");
-            // عزل المشروع: ما استُلم من المورد للمشروع لا يدخل المستودع العام؛ يُرجع للمورد بمرتجع سند الاستلام (أو يُهدر)
+            // عزل المشروع: ما استُلم من المورد للمشروع لا يدخل الموقع العام؛ يُرجع للمورد بمرتجع سند الاستلام (أو يُهدر)
             if (issue.Kind == K.Return && src.Issue.Kind == K.PurchaseReceipt)
                 throw new ValidationFailedException(string.Format(Messages.ProjectReceiptNotReturnableToWarehouse, src.ItemName, src.Issue.IssueNumber));
             if (issue.Kind == K.ReceiptReturn && src.Issue.Kind != K.PurchaseReceipt)
@@ -873,7 +873,7 @@ public class ProjectSupplyService : IProjectSupplyService
     }
 
     /// <summary>
-    /// ترحيل الإرجاع والهدر. الإرجاع: حركة وارد للمستودع بتكلفة التسليم، وقيد مدين المخزون / دائن المواد تحت التنفيذ. الهدر: بلا حركة،
+    /// ترحيل الإرجاع والهدر. الإرجاع: حركة وارد للموقع بتكلفة التسليم، وقيد مدين المخزون / دائن المواد تحت التنفيذ. الهدر: بلا حركة،
     /// وقيد مدين تكلفة إيرادات العقود بمركز المشروع / دائن المواد تحت التنفيذ. الحساب الدائن هو حساب الإذن المصدر نفسه. الجرد الدوري بلا قيد.
     /// </summary>
     private async Task PostWithdrawalAsync(CommercialContract contract, ProjectMaterialIssue doc, CancellationToken ct)
@@ -949,19 +949,19 @@ public class ProjectSupplyService : IProjectSupplyService
     }
 
     /// <summary>
-    /// التسليم للمشروع خروج فعلي من المستودع: لا يتجاوز رصيد الصنف في مستودع الإذن أياً كانت سياسة المخزون السالب
-    /// (السالب مقبول لمزامنة البيع غير المتصل فقط). المادة تُطلب وتُشترى وتُستلم في المستودع أولاً.
+    /// التسليم للمشروع خروج فعلي من الموقع: لا يتجاوز رصيد الصنف في موقع الإذن أياً كانت سياسة المخزون السالب
+    /// (السالب مقبول لمزامنة البيع غير المتصل فقط). المادة تُطلب وتُشترى وتُستلم في الموقع أولاً.
     /// </summary>
     private async Task EnsureInStockAsync(ProjectMaterialIssue issue, CancellationToken ct)
     {
-        // المستودع نفسه الذي تُسجَّل منه حركة الصرف عند الترحيل (المحدد، وإلا الافتراضي)
+        // الموقع نفسه الذي تُسجَّل منه حركة الصرف عند الترحيل (المحدد، وإلا الافتراضي)
         var warehouseId = (await WarehouseStocks.ResolveAsync(_db, issue.WarehouseId, ct)).Id;
         foreach (var g in issue.Lines.GroupBy(l => l.ProductId))
         {
             var qty = g.Sum(l => l.Quantity);
             var stock = await WarehouseStocks.QuantityAsync(_db, g.Key, warehouseId, ct);
             if (qty > stock + 0.0001m)
-                throw new ValidationFailedException($"«{g.First().ItemName}»: التسليم {qty:0.####} يتجاوز رصيد المستودع {Math.Max(0, stock):0.####}. اطلب المادة واشترِها واستلمها في المستودع أولاً.");
+                throw new ValidationFailedException($"«{g.First().ItemName}»: التسليم {qty:0.####} يتجاوز رصيد الموقع {Math.Max(0, stock):0.####}. اطلب المادة واشترِها واستلمها في الموقع أولاً.");
             // المحجوز لمشاريع أخرى لا يُصرف لهذا المشروع (يُعاد الفحص تحت القفل عند الترحيل)
             var reserved = await StockReservations.ReservedAsync(_db, g.Key, warehouseId, issue.ContractId, ct);
             if (qty > stock - reserved + 0.0001m)

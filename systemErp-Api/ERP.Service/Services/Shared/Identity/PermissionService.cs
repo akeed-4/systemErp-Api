@@ -38,7 +38,7 @@ public class PermissionService : IPermissionService
     /// تلقائياً، وتُمنح لمستخدم محدد بالاسم ولا يمنحها أو يراها إلا مدير منصة. العرض = فتح اللوحة، التعديل = إدارتها.
     /// </summary>
     public const string PlatformScreenId = "platform-admin";
-    private const string PlatformNameAr = "إدارة المنصة (اشتراكات كل الشركات والباقات)";
+    private const string PlatformNameAr = "إدارة المنصة (اشتراكات كل الأنشطة والباقات)";
     private const string PlatformNameEn = "Platform Administration (all companies & plans)";
 
     /// <summary>إجراءات القراءة: لا تتقيّد بمرحلة السجل.</summary>

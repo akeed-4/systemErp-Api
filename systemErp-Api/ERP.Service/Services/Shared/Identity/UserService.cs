@@ -93,7 +93,7 @@ public class UserService : IUserService
         return dto;
     }
 
-    /// <summary>قائمة المواقع المسموحة للحفظ (فارغة = كل المواقع)؛ كل موقع يجب أن يكون مستودعاً في المنشأة.</summary>
+    /// <summary>قائمة المواقع المسموحة للحفظ (فارغة = كل المواقع)؛ كل موقع يجب أن يكون موقعاً في المنشأة.</summary>
     private async Task<string?> SitesCsvAsync(List<Guid>? ids, CancellationToken ct)
     {
         var list = (ids ?? new List<Guid>()).Where(g => g != Guid.Empty).Distinct().ToList();

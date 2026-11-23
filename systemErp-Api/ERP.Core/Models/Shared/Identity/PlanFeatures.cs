@@ -22,7 +22,7 @@ public static class PlanFeatures
     public const string BankReconciliation = "bank_reconciliation";
     /// <summary>سياسات الموافقات وطلباتها.</summary>
     public const string ApprovalPolicies = "approval_policies";
-    /// <summary>التحويل بين المستودعات.</summary>
+    /// <summary>التحويل بين المواقع.</summary>
     public const string StockTransfers = "stock_transfers";
 
     public static readonly PlanFeatureDefinition[] Catalog =
@@ -34,7 +34,7 @@ public static class PlanFeatures
         new(MultiCurrency, "تعدد العملات", "Multi-currency", "عملات أجنبية وأسعار صرف ومستندات بغير العملة الأساسية"),
         new(BankReconciliation, "التسوية البنكية", "Bank reconciliation", "مطابقة حركات البنوك مع كشوفها"),
         new(ApprovalPolicies, "سياسات الموافقات", "Approval policies", "مسارات اعتماد المستندات وطلباتها"),
-        new(StockTransfers, "التحويل بين المستودعات", "Stock transfers", "نقل الأصناف بين المستودعات"),
+        new(StockTransfers, "التحويل بين المواقع", "Stock transfers", "نقل الأصناف بين المواقع"),
     };
 
     public static readonly string[] All = Catalog.Select(f => f.Key).ToArray();

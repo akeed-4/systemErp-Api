@@ -188,7 +188,7 @@ public class EquipmentManagementTests : TestBase
         var account = await EquipmentCostAccountAsync(api);
         var before = await BalanceAsync(api, account);
 
-        // قطعة غيار بلا مستودع أو بكمية صفر مرفوضة
+        // قطعة غيار بلا موقع أو بكمية صفر مرفوضة
         Assert.Equal(400, (await api.Post("/equipment-maintenance", new { equipmentId = eqId, type = "preventive", description = "تغيير فلاتر", parts = new[] { new { productId = part, quantity = 3 } } })).Status);
         Assert.Equal(400, (await api.Post("/equipment-maintenance", new { equipmentId = eqId, type = "preventive", description = "تغيير فلاتر", warehouseId = warehouse, parts = new[] { new { productId = part, quantity = 0 } } })).Status);
 

@@ -22,7 +22,7 @@ public class DocumentNumberingPhase2Tests : TestBase
 
     private static async Task<Guid> NewWarehouseAsync(Client api, string code)
     {
-        var w = await api.Post("/warehouses", new { code, nameAr = "مستودع " + code, nameEn = code, location = "الرياض", status = "active" });
+        var w = await api.Post("/warehouses", new { code, nameAr = "موقع " + code, nameEn = code, location = "الرياض", status = "active" });
         Assert.Equal(201, w.Status);
         return w.Data!["id"].G();
     }

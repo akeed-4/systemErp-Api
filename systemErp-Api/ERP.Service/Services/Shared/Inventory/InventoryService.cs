@@ -87,7 +87,7 @@ public class InventoryService : IInventoryService
             // البيع لا يستهلك المحجوز للمشاريع (مزامنة البيع أوف لاين تُسجَّل كما حدثت)
             if (r.Type == StockMovementType.OutSales && !_db.PermitNegativeStock)
                 await StockReservations.EnsureUnreservedAsync(_db, product.Id, product.NameAr, warehouse.Id, r.Quantity, ct);
-            // الصرف من مستودع بعينه: رصيده هو المتاح، لا رصيد المستودعات الأخرى
+            // الصرف من موقع بعينه: رصيده هو المتاح، لا رصيد المواقع الأخرى
             var warehouseLeft = await WarehouseStocks.ApplyAsync(_db, product.Id, warehouse.Id, -r.Quantity, ct);
             if (warehouseLeft < 0 && _db.PermitNegativeStock) _db.NegativeStockOccurred = true;
             if (warehouseLeft < 0 && prohibit)
@@ -219,7 +219,7 @@ public class InventoryService : IInventoryService
         await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, new[] { m.Date, r.Date ?? m.Date }.Min(), ct);
         if (r.ItemId != m.ItemId) throw new ValidationFailedException(Messages.CannotChangeMovementItem);
 
-        // رصيد المستودع: يُسحب أثر الحركة القديمة ثم يُطبَّق الجديد (قد يتغيّر المستودع نفسه)
+        // رصيد الموقع: يُسحب أثر الحركة القديمة ثم يُطبَّق الجديد (قد يتغيّر الموقع نفسه)
         await UndoWarehouseEffectAsync(m, ct);
         await ItemBatches.UndoAsync(_db, m, ct);
         var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId ?? m.WarehouseId, ct);
@@ -281,25 +281,25 @@ public class InventoryService : IInventoryService
     private static int Sign(StockMovementType type)
         => type is StockMovementType.InPurchase or StockMovementType.AdjustmentIn or StockMovementType.TransferIn ? 1 : -1;
 
-    /// <summary>يسحب أثر حركة من رصيد مستودعها (الحركات القديمة بلا مستودع تُحسب على الافتراضي).</summary>
+    /// <summary>يسحب أثر حركة من رصيد موقعها (الحركات القديمة بلا موقع تُحسب على الافتراضي).</summary>
     private async Task UndoWarehouseEffectAsync(StockMovement m, CancellationToken ct)
     {
         var warehouse = await WarehouseStocks.ResolveAsync(_db, m.WarehouseId, ct);
         await WarehouseStocks.ApplyAsync(_db, m.ItemId, warehouse.Id, -Sign(m.Type) * m.Quantity, ct);
     }
 
-    // ---------------- المستودعات: التحويل والأرصدة ----------------
+    // ---------------- المواقع: التحويل والأرصدة ----------------
     public async Task<List<BatchAllocationDto>> TransferAsync(TransferStockDto r, CancellationToken ct = default)
     {
         if (r.Quantity <= 0) throw new ValidationFailedException(Messages.QuantityMustBePositive);
         if (r.FromWarehouseId == r.ToWarehouseId) throw new ValidationFailedException(Messages.TransferWarehousesMustDiffer);
         await _periods.EnsureOpenAsync(r.Date, ct);
-        await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, r.Date, ct); // توزيع القيمة المثبتة على المستودعات
+        await Accounting.PeriodicInventory.EnsureMovementDateAllowedAsync(_db, r.Date, ct); // توزيع القيمة المثبتة على المواقع
 
         var product = await _db.Set<Product>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == r.ItemId, ct)
             ?? throw new NotFoundException(Messages.ProductNotFound);
         if (!ProductItemTypes.TracksStock(product.ItemType))
-            throw new ValidationFailedException($"«{product.NameAr}» صنف بلا رصيد مخزني: لا يُحوَّل بين المستودعات.");
+            throw new ValidationFailedException($"«{product.NameAr}» صنف بلا رصيد مخزني: لا يُحوَّل بين المواقع.");
         var from = await WarehouseStocks.ResolveAsync(_db, r.FromWarehouseId, ct);
         var to = await WarehouseStocks.ResolveAsync(_db, r.ToWarehouseId, ct);
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
@@ -307,10 +307,10 @@ public class InventoryService : IInventoryService
         var available = await WarehouseStocks.QuantityAsync(_db, product.Id, from.Id, ct);
         if (available < r.Quantity && policy.NegativeInventoryPolicy == "prohibit")
             throw new ConflictException(string.Format(Messages.InsufficientStockInWarehouse, product.NameAr, from.NameAr, available, r.Quantity));
-        // المحجوز لمشروع في المستودع المحوَّل منه لا يُنقل بتحويل عام (يُصرف للمشروع أو يُحرَّر أولاً)
+        // المحجوز لمشروع في الموقع المحوَّل منه لا يُنقل بتحويل عام (يُصرف للمشروع أو يُحرَّر أولاً)
         await StockReservations.EnsureUnreservedAsync(_db, product.Id, product.NameAr, from.Id, r.Quantity, ct);
 
-        // التشغيلات: تُخصَّص من المستودع المحوَّل منه (المختارة أو الأقرب انتهاءً) وتنتقل بأرقامها نفسها للمستلم
+        // التشغيلات: تُخصَّص من الموقع المحوَّل منه (المختارة أو الأقرب انتهاءً) وتنتقل بأرقامها نفسها للمستلم
         var parts = product.TracksLots
             ? await ItemBatches.AllocateOutAsync(_db, product, from.Id, r.Quantity, r.ItemBatchId, r.Date, isSale: false,
                 allowShortage: policy.NegativeInventoryPolicy != "prohibit", ct)

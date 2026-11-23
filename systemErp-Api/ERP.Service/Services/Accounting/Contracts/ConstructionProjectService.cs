@@ -191,11 +191,11 @@ public class ConstructionProjectService : IConstructionProjectService
         var requisitionCounts = await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.ContractId != null && ids.Contains(r.ContractId.Value) && r.Status != "rejected")
             .GroupBy(r => r.ContractId!.Value).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var issuedCost = await _db.Set<ProjectMaterialIssue>().AsNoTracking().Where(i => ids.Contains(i.ContractId) && i.Status == ProjectMaterialIssueStatuses.Posted)
-            // الصافي: التسليم − الإرجاع للمستودع (الهدر تكلفة مستهلكة تبقى)
+            // الصافي: التسليم − الإرجاع للموقع (الهدر تكلفة مستهلكة تبقى)
             .GroupBy(i => i.ContractId).Select(g => new
             {
                 g.Key,
-                // إرجاع المورد من عهدة الاستلام يُنقصها كالإرجاع للمستودع
+                // إرجاع المورد من عهدة الاستلام يُنقصها كالإرجاع للموقع
                 Cost = g.Sum(i => i.Kind == ProjectMaterialIssueKinds.Return || i.Kind == ProjectMaterialIssueKinds.ReceiptReturn ? -i.TotalCost : i.TotalCost),
             }).ToDictionaryAsync(x => x.Key, x => x.Cost, ct);
 
@@ -980,7 +980,7 @@ public class ConstructionProjectService : IConstructionProjectService
         {
             [Contracts] = With("view"), [Projects] = With("view"), ["purchases"] = With("view", "create", "edit"),
         }),
-        new("مسؤول المستودع", "Storekeeper", "مقاولات: مخزون المشاريع وصرف المواد.", DataScope.All, new()
+        new("مسؤول الموقع", "Storekeeper", "مقاولات: مخزون المشاريع وصرف المواد.", DataScope.All, new()
         {
             [Contracts] = With("view"), [Projects] = With("view"), ["warehouses"] = With("view"), ["inventory-counts"] = With("view", "create"),
             [SiteReports] = With("view"),

@@ -14,7 +14,7 @@ public partial class CreateDeliveryNoteDto
     public Guid? InvoiceId { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? PartyTaxNumber { get; set; }
-    /// <summary>المستودع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
+    /// <summary>الموقع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
     public Guid? WarehouseId { get; set; }
     public string? PartyPhone { get; set; }
     public string? WarehouseLocation { get; set; }
@@ -27,7 +27,7 @@ public partial class CreateDeliveryNoteDto
     public List<DeliveryNoteItemDto> Items { get; set; } = new();
     /// <summary>طلب شراء المشروع المعتمد (سند استلام مشروع: purchase_delivery على عقد مقاولات).</summary>
     public Guid? RequisitionId { get; set; }
-    /// <summary>استلام مشتريات مرتبط بمشروع مقاولات إلى مستودع المشروع، دون تحويله إلى عهدة طلب شراء.</summary>
+    /// <summary>استلام مشتريات مرتبط بمشروع مقاولات إلى موقع المشروع، دون تحويله إلى عهدة طلب شراء.</summary>
     public bool ConstructionWarehouseReceipt { get; set; }
     /// <summary>أمر الشراء المستلم عليه (يُفحص المتبقي والمورد والسعر من الأمر).</summary>
     public Guid? PurchaseOrderId { get; set; }

@@ -35,7 +35,7 @@ public partial class SubscriptionDto
     public bool TrialEnded { get; set; }
 }
 
-/// <summary>استخدام الاشتراك مقابل حدوده: المستخدمون الفعّالون (بلا حسابات بوابة الموظف) والمستودعات الفعّالة مقابل الفروع.</summary>
+/// <summary>استخدام الاشتراك مقابل حدوده: المستخدمون الفعّالون (بلا حسابات بوابة الموظف) والمواقع الفعّالة مقابل الفروع.</summary>
 public class SubscriptionUsageDto
 {
     public int Users { get; set; }

@@ -19,7 +19,7 @@ public class JwtOptions
     public const string Section = "Jwt";
     public string Issuer { get; set; } = "erp-api";
     public string Audience { get; set; } = "erp-web";
-    /// <summary>مفتاح التوقيع (32 حرفاً على الأقل). يُضبط عبر user-secrets أو متغير بيئة ولا يوضع في المستودع.</summary>
+    /// <summary>مفتاح التوقيع (32 حرفاً على الأقل). يُضبط عبر user-secrets أو متغير بيئة ولا يوضع في الموقع.</summary>
     public string Key { get; set; } = string.Empty;
     public int ExpiryMinutes { get; set; } = 480;
 }

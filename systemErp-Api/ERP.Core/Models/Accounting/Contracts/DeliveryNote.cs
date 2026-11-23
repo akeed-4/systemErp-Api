@@ -26,7 +26,7 @@ public class DeliveryNote : BaseEntity, IScopedRecord, IPartyDocument
     public Guid? InvoiceId { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? PartyTaxNumber { get; set; }
-    /// <summary>المستودع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
+    /// <summary>الموقع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
     public Guid? WarehouseId { get; set; }
     public string? PartyPhone { get; set; }
     public string? WarehouseLocation { get; set; }
@@ -38,9 +38,9 @@ public class DeliveryNote : BaseEntity, IScopedRecord, IPartyDocument
     public decimal GrandTotal { get; set; }
 
     // ---------- سند استلام مشتريات مشروع (purchase_delivery على عقد مقاولات) ----------
-    /// <summary>طلب شراء المشروع المعتمد الذي يُستلم عليه؛ فارغ = سند عادي (المستودع والفوترة كما كانا).</summary>
+    /// <summary>طلب شراء المشروع المعتمد الذي يُستلم عليه؛ فارغ = سند عادي (الموقع والفوترة كما كانا).</summary>
     public Guid? RequisitionId { get; set; }
-    /// <summary>عهدة المشروع المنشأة من السند (<c>ProjectMaterialIssue</c> بنوع purchase_receipt) وقيدها: لا تدخل المستودع العام.</summary>
+    /// <summary>عهدة المشروع المنشأة من السند (<c>ProjectMaterialIssue</c> بنوع purchase_receipt) وقيدها: لا تدخل الموقع العام.</summary>
     public Guid? CustodyIssueId { get; set; }
     /// <summary>أمر الشراء الذي يُستلم عليه (استلام جزئي): الكمية ≤ المتبقي من الأمر والسعر والمورد من الأمر.</summary>
     public Guid? PurchaseOrderId { get; set; }

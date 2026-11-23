@@ -7,7 +7,7 @@ using ERP.Service.Data;
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
-/// ترقيم المستندات بنطاق المنشأة: tenant = تسلسل واحد، warehouse = تسلسل لكل مستودع (معرض/مخزن) برمزه (SINV-RUH-000001)،
+/// ترقيم المستندات بنطاق المنشأة: tenant = تسلسل واحد، warehouse = تسلسل لكل موقع (معرض/مخزن) برمزه (SINV-RUH-000001)،
 /// user = تسلسل لكل مستخدم برمزه (SINV-U03-000001). رموز العملاء والموردين والبنوك وتذاكر الدعم للمنشأة دائماً.
 /// إعداد نوع المستند (على صف مفتاحه العام): يدوي/تلقائي، البادئة ({YYYY}/{YY})، الطول، النطاق، والتصفير لكل سنة مالية.
 /// الصرف بقفل تزامن متفائل على صف العدّاد (لا MAX()+1)، والفهارس الفريدة على أرقام المستندات هي الضمان الأخير.
@@ -27,7 +27,7 @@ public class NumberSequenceService : INumberSequenceService
 
     public Task<string> NextAsync(string key, string defaultPrefix, CancellationToken ct = default) => NextAsync(key, defaultPrefix, (Guid?)null, ct);
 
-    /// <summary>الرقم التالي بنطاق المنشأة؛ <paramref name="warehouseId"/> مستودع المستند نفسه (فارغ = مستودع الجلسة). تلقائي دائماً.</summary>
+    /// <summary>الرقم التالي بنطاق المنشأة؛ <paramref name="warehouseId"/> موقع المستند نفسه (فارغ = موقع الجلسة). تلقائي دائماً.</summary>
     public Task<string> NextAsync(string key, string defaultPrefix, Guid? warehouseId, CancellationToken ct = default)
         => AssignAsync(new DocumentNumberRequest { Key = key, DefaultPrefix = defaultPrefix, WarehouseId = warehouseId }, ct);
 
@@ -75,8 +75,8 @@ public class NumberSequenceService : INumberSequenceService
     }
 
     /// <summary>
-    /// العدّاد الذي يُصرف منه: المفتاح العام، أو مفتاح نطاقه (المستودع/المستخدم) وسنته المالية عند التصفير السنوي.
-    /// النطاق من بيانات المستند نفسه (مستودعه)، وما لا مستودع له (جلسة «كل المواقع») يبقى على تسلسل المنشأة.
+    /// العدّاد الذي يُصرف منه: المفتاح العام، أو مفتاح نطاقه (الموقع/المستخدم) وسنته المالية عند التصفير السنوي.
+    /// النطاق من بيانات المستند نفسه (موقعه)، وما لا موقع له (جلسة «كل المواقع») يبقى على تسلسل المنشأة.
     /// </summary>
     private async Task<Counter> ResolveAsync(string key, Config config, Guid? warehouseId, DateTime? date, CancellationToken ct)
     {

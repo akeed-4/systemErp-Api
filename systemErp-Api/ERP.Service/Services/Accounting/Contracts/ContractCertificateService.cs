@@ -598,7 +598,7 @@ public class ContractCertificateService : IContractCertificateService
                 continue;
             }
             var (otherQty, otherCost) = others.GetValueOrDefault(line.Id);
-            // المُرجَع للمستودع والمهدر في الموقع سُحبا من السطر (الهدر اعتُرفت تكلفته عند ترحيله): كالمختار في مستخلص آخر
+            // المُرجَع للموقع والمهدر في الموقع سُحبا من السطر (الهدر اعتُرفت تكلفته عند ترحيله): كالمختار في مستخلص آخر
             var (wQty, wCost) = withdrawn.GetValueOrDefault(line.Id);
             otherQty += wQty; otherCost += wCost;
             var available = line.Quantity - otherQty;

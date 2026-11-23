@@ -40,7 +40,7 @@ public static class DefaultAccounts
     public const string PurchasePriceVariance = "514"; // فرق سعر مرتجع المشتريات عن تكلفة المخزون وقت خروجه
     public const string AssetDisposalGain = "422";  // أرباح بيع/استبعاد الأصول الثابتة
     public const string AssetDisposalLoss = "525";  // خسائر بيع/استبعاد الأصول الثابتة
-    public const string OtherRevenue = "42";        // الإيرادات الأخرى: مجموعة حساب زيادة مخزون كل مستودع
+    public const string OtherRevenue = "42";        // الإيرادات الأخرى: مجموعة حساب زيادة مخزون كل موقع
     public const string CashOverage = "421";        // زيادة نقدية الصندوق عند إغلاق الوردية
     public const string PettyCashExpenses = "521";  // المصروفات النثرية المصروفة من درج الكاشير
     public const string CashShortage = "522";       // عجز نقدية الصندوق عند إغلاق الوردية
@@ -60,7 +60,7 @@ public static class DefaultAccounts
     public const string VehicleExpenses = "529";
     public const string PurchaseCancellationLoss = "530";
     public const string PurchaseFreightExpense = "531"; // التكاليف الإضافية للمشتريات التي لا تدخل تكلفة الأصناف (شحن، نقل، تأمين)
-    public const string ProjectMaterialsCost = "517"; // تكلفة مواد المشاريع المصروفة من المستودعات (بمركز تكلفة المشروع)
+    public const string ProjectMaterialsCost = "517"; // تكلفة مواد المشاريع المصروفة من المواقع (بمركز تكلفة المشروع)
     public const string AppliedManufacturingCosts = "516"; // تكاليف تصنيع محمّلة على المنتجات (شغل اليد والمصاريف غير المباشرة): دائن عند التصنيع
 
     public static readonly (string Code, string Ar, string En, AccountCategory Type, string? Parent)[] Chart =

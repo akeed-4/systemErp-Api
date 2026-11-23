@@ -67,7 +67,7 @@ public static class RentalBookingStatuses
     public static readonly string[] Blocking = { Held, Confirmed };
 }
 
-/// <summary>حجز (أو عرض سعر) تأجير لعميل بفرعه التشغيلي (المستودع/الموقع، D1). يُحوَّل لعقد تأجير في المرحلة التالية.</summary>
+/// <summary>حجز (أو عرض سعر) تأجير لعميل بفرعه التشغيلي (الموقع/الموقع، D1). يُحوَّل لعقد تأجير في المرحلة التالية.</summary>
 public class RentalBooking : BaseEntity
 {
     public string BookingNumber { get; set; } = string.Empty;

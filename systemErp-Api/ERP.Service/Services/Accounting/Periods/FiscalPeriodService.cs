@@ -31,7 +31,7 @@ public class FiscalPeriodService : IFiscalPeriodService
     private Task<bool> CanOverrideMissingPeriodEndAsync(CancellationToken ct) => _permissions.HasPermissionAsync("accounts", ScreenAction.Approve, ct);
 
     /// <summary>
-    /// الجرد الدوري: السنة «مغطاة بالجرد» إن اعتُمد فيها جرد دوري شامل (معتمد، لكل المستودعات، بتاريخ داخلها) ولا حركة مخزون بعد تاريخه
+    /// الجرد الدوري: السنة «مغطاة بالجرد» إن اعتُمد فيها جرد دوري شامل (معتمد، لكل المواقع، بتاريخ داخلها) ولا حركة مخزون بعد تاريخه
     /// حتى نهايتها، فتمثل بضاعة آخر المدة نهاية السنة. يُعتمد الجرد لا قيده (المخزون الصفري لا قيد له).
     /// </summary>
     public async Task<CloseYearCheckDto> CheckCloseYearAsync(int year, CancellationToken ct = default)

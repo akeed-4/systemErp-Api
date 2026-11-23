@@ -35,7 +35,7 @@ public class PosShiftService : IPosShiftService
         {
             var me = Me;
             if (r.OpeningCash < 0) throw new ValidationFailedException(Messages.OpeningCashCannotBeNegative);
-            // الوردية تُفتح على نقطة بيع معرّفة ومفعّلة فقط (لا اسم حر): منها تُنسخ سياسات الوردية ومستودعها
+            // الوردية تُفتح على نقطة بيع معرّفة ومفعّلة فقط (لا اسم حر): منها تُنسخ سياسات الوردية وموقعها
             if (!r.PosTerminalId.HasValue)
                 throw new ValidationFailedException(await _db.Set<PosTerminal>().AnyAsync(t => t.IsActive, token)
                     ? Messages.PosTerminalRequired : Messages.PosTerminalSetupRequired);

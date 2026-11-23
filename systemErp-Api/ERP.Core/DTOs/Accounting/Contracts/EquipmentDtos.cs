@@ -209,7 +209,7 @@ public class EquipmentMaintenancePartDto
     public decimal Quantity { get; set; }
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
-    /// <summary>للقراءة: رصيد مستودع الأمر (قبل الإكمال).</summary>
+    /// <summary>للقراءة: رصيد موقع الأمر (قبل الإكمال).</summary>
     public decimal? Stock { get; set; }
 }
 

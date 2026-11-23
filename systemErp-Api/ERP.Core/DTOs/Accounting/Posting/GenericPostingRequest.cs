@@ -14,7 +14,7 @@ public class GenericPostingRequest
     public string? SourceType { get; set; }
     public Guid? SourceId { get; set; }
     public string? SourceNumber { get; set; }
-    /// <summary>مستودع المستند المصدر: لترقيم القيد بنطاق الترقيم لكل مستودع فقط (لا يغيّر نطاق ظهور القيد).</summary>
+    /// <summary>موقع المستند المصدر: لترقيم القيد بنطاق الترقيم لكل موقع فقط (لا يغيّر نطاق ظهور القيد).</summary>
     public Guid? WarehouseId { get; set; }
     /// <summary>قيد يدوي من شاشة المستخدم: يخضع للترقيم اليدوي إن ضُبط (القيود المولدة آلياً تبقى تلقائية).</summary>
     public bool UserEntered { get; set; }

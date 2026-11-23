@@ -91,14 +91,14 @@ public class StockAdjustmentService : IStockAdjustmentService
     /// على حسابها المقابل، وما زاد أو نقص عنها (إعادة تسعير بقية الرصيد أو صرف سابق) قيد إعادة تقييم على حساب فروق التكلفة؛
     /// والخصم قيده بتغيّر القيمة كله. التغيّر الصفري لا قيد له.
     /// في الجرد الدوري لا قيد للتسوية العادية (أثرها في بضاعة آخر المدة)، والتسوية مقابل حساب صريح (أرصدة افتتاحية مثلاً)
-    /// تُرحَّل على حساب مخزون المستودع أصلاً (لا على بضاعة أول المدة)، بلا إعادة تقييم: يحمّلها الجرد التالي إلى أول المدة ضمن رصيده الدفتري.
+    /// تُرحَّل على حساب مخزون الموقع أصلاً (لا على بضاعة أول المدة)، بلا إعادة تقييم: يحمّلها الجرد التالي إلى أول المدة ضمن رصيده الدفتري.
     /// </summary>
     private async Task<StockMovementDto> PostAsync(Guid movementId, string? counterAccountCode, decimal signedValue, CancellationToken ct)
     {
         var movement = await _db.Set<StockMovement>().FirstAsync(m => m.Id == movementId, ct);
         var isIn = movement.Type == StockMovementType.AdjustmentIn;
         var accounts = await PostingAccounts.SettingsAsync(_db, ct);
-        // المقابل بلا حساب صريح: زيادة مخزون المستودع للإضافة وعجزه للخصم (حسابا الإعدادات لمستودع بلا حسابيه)
+        // المقابل بلا حساب صريح: زيادة مخزون الموقع للإضافة وعجزه للخصم (حسابا الإعدادات لموقع بلا حسابيه)
         var (shortage, surplus) = await accounts.VarianceAsync(_db, movement.WarehouseId, ct);
         var counter = string.IsNullOrWhiteSpace(counterAccountCode) ? (isIn ? surplus : shortage) : counterAccountCode.Trim();
         var own = isIn ? DocumentPricing.Round(movement.Quantity * movement.UnitCost) : signedValue;
@@ -115,7 +115,7 @@ public class StockAdjustmentService : IStockAdjustmentService
             movement.JournalEntryId = own == 0 ? null
                 : (await PostEntryAsync(movement.Id, movement.ReferenceNumber, movement.Date, await accounts.InventoryAsync(_db, movement.WarehouseId, ct),
                     counter, own, note, ct)).JournalEntryId;
-            // ما زاد عن قيمة الإضافة إعادة تسعير للرصيد السابق لها: يُوزَّع على المستودعات بكمياتها قبل الإضافة
+            // ما زاد عن قيمة الإضافة إعادة تسعير للرصيد السابق لها: يُوزَّع على المواقع بكمياتها قبل الإضافة
             await InventoryValuation.PostRevaluationAsync(_db, _posting, new[] { (movement.ItemId, signedValue - own) },
                 $"إعادة تقييم المخزون بأثر التسوية {movement.ReferenceNumber} - {movement.ItemName}", movement.Id, ct,
                 isIn && movement.WarehouseId is { } warehouseId ? (warehouseId, movement.Quantity) : null);

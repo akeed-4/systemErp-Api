@@ -9,6 +9,8 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
 {
     public WarehouseService(ErpDbContext db) : base(db) { }
     protected override string Label => Messages.LabelWarehouse;
+    /// <summary>الموقع وحساباته الخاصة يُحفظان معاً أو لا يُحفظ شيء (إنشاء مجموعة الحساب الأب قد يحفظ قبل الموقع).</summary>
+    protected override bool Transactional => true;
 
     protected override IQueryable<Warehouse> ApplySearch(IQueryable<Warehouse> q, string t)
         => q.Where(w => w.Code.Contains(t) || w.NameAr.Contains(t) || w.NameEn.Contains(t));
@@ -21,7 +23,12 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
             throw new ConflictException(Messages.WarehouseCodeInUse);
         if (existing is { IsDefault: true } && !d.IsDefault)
             throw new ConflictException(Messages.SetAnotherDefaultWarehouse);
-        // حد الاشتراك: المستودعات الفعّالة لا تتجاوز عدد الفروع (عند الإضافة أو إعادة تفعيل مستودع موقوف)
+        // الفرع: من النشاط نفسه (مرشّح المنشأة)، والموقع الفعّال لا يكون تحت فرع موقوف
+        d.BranchId = await Branches.ResolveForLocationAsync(Db, d.BranchId, existing, ct);
+        if (d.Status == "active" && (existing == null || existing.Status != "active" || existing.BranchId != d.BranchId)
+            && await Db.Set<Branch>().AnyAsync(b => b.Id == d.BranchId && b.Status != "active", ct))
+            throw new ValidationFailedException(Messages.BranchInactive);
+        // حد الاشتراك: المواقع الفعّالة لا تتجاوز عدد الفروع (عند الإضافة أو إعادة تفعيل موقع موقوف)
         if (d.Status == "active" && existing?.Status != "active")
         {
             var sub = await Db.Set<Subscription>().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync(ct);
@@ -32,12 +39,12 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
     }
 
     /// <summary>
-    /// حساب مخزون المستودع (تحديث جزئي: غير المرسَل يبقى، و"" يعيده لحساب الإعدادات): يصلح لدور المخزون ولا يقع على حساب ضريبة،
-    /// ولا يتغيّر بعد أول حركة مخزون في المستودع، فتعديل مستند سابق يُرحَّل على الحساب الذي رُحِّل عليه أول مرة.
+    /// حساب مخزون الموقع (تحديث جزئي: غير المرسَل يبقى، و"" يعيده لحساب الإعدادات): يصلح لدور المخزون ولا يقع على حساب ضريبة،
+    /// ولا يتغيّر بعد أول حركة مخزون في الموقع، فتعديل مستند سابق يُرحَّل على الحساب الذي رُحِّل عليه أول مرة.
     /// </summary>
     private async Task ValidateInventoryAccountAsync(CreateWarehouseDto d, Warehouse? existing, CancellationToken ct)
     {
-        // المستودع الجديد: حساب مخزونه يُنشأ دائماً باسمه (SiteAccounts.EnsureAsync)، فلا يأخذ حساب مستودع آخر ولا حساب الإعدادات
+        // الموقع الجديد: حساب مخزونه يُنشأ دائماً باسمه (SiteAccounts.EnsureAsync)، فلا يأخذ حساب موقع آخر ولا حساب الإعدادات
         if (existing == null) { d.InventoryAccountCode = null; return; }
 
         // التعديل: الحساب إلزامي (غير المرسَل يبقى كما هو)
@@ -51,7 +58,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
             var settings = await PostingAccounts.SettingsAsync(Db, ct);
             if (code == settings.InputVat() || code == settings.OutputVat())
                 errors.Add(string.Format(Messages.AccountSettingSharedByRoles, code, role.Label));
-            // لكل مستودع حسابه: لا حساب مستودع آخر (كالرئيسي) ولا حساب المخزون العام في الإعدادات
+            // لكل موقع حسابه: لا حساب موقع آخر (كالرئيسي) ولا حساب المخزون العام في الإعدادات
             if (code == settings.Inventory()
                 || await Db.Set<Account>().AnyAsync(a => a.Code == code && a.LinkedEntityType == LinkedEntityType.Warehouse && a.LinkedEntityId != existing.Id, ct)
                 || await Db.Set<Warehouse>().AnyAsync(w => w.Id != existing.Id && w.InventoryAccountCode == code, ct))
@@ -66,7 +73,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
     protected override async Task OnCreatingAsync(Warehouse e, CreateWarehouseDto d, CancellationToken ct)
     {
         var any = await Db.Set<Warehouse>().AnyAsync(ct);
-        if (!any) e.IsDefault = true; // أول مستودع هو الافتراضي
+        if (!any) e.IsDefault = true; // أول موقع هو الافتراضي
         if (e.IsDefault) await ClearOtherDefaultsAsync(e.Id, ct);
         // كل موقع: مخزونه وتكلفة إيراده وعجز وزيادة مخزونه باسمه؛ والإضافي مبيعاته وصندوقه أيضاً (حساب مخزون اختاره المستخدم يبقى)
         await SiteAccounts.EnsureAsync(Db, e, isNew: true, ct);
@@ -102,7 +109,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
     }
 
     /// <summary>
-    /// حذف المستودع بلا أي أثر: لا حركة مخزون، ولا قيد على حساباته الخاصة، ولا مستند أو إعداد يشير إليه (فحص عام لكل عمود
+    /// حذف الموقع بلا أي أثر: لا حركة مخزون، ولا قيد على حساباته الخاصة، ولا مستند أو إعداد يشير إليه (فحص عام لكل عمود
     /// «...WarehouseId» في قاعدة البيانات، فيشمل أي مستند يُضاف لاحقاً)، ولا مستخدم أو دور هو موقعه الوحيد (وإلا صار وصوله لكل المواقع).
     /// المستوفي يُحذف مع حساباته الخاصة وأرصدته الصفرية وتسلسلات ترقيمه، ويُزال من مواقع المستخدمين ونطاقات الصلاحيات.
     /// </summary>
@@ -112,7 +119,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
         if (await Db.Set<StockMovement>().AnyAsync(m => m.WarehouseId == e.Id, ct))
             throw new ConflictException(Messages.WarehouseHasMovements);
 
-        // الحركات المالية: قيود على حسابات المستودع الخاصة (المخزون، تكلفة الإيراد، المبيعات، الصندوق...)
+        // الحركات المالية: قيود على حسابات الموقع الخاصة (المخزون، تكلفة الإيراد، المبيعات، الصندوق...)
         var accounts = await Db.Set<Account>().Where(a => a.LinkedEntityType == LinkedEntityType.Warehouse && a.LinkedEntityId == e.Id).ToListAsync(ct);
         var codes = accounts.Select(a => a.Code).ToList();
         if (codes.Count > 0 && await Db.Set<JournalEntryLine>().AnyAsync(l => codes.Contains(l.AccountCode), ct))
@@ -132,7 +139,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
         foreach (var u in users) u.AllowedWarehouseIds = WithoutSite(u.AllowedWarehouseIds, e.Id);
         foreach (var p in scopes) p.ScopeWarehouseIds = WithoutSite(p.ScopeWarehouseIds, e.Id);
 
-        // ما يخص المستودع وحده: حساباته (بلا قيود)، أرصدته الصفرية، وتسلسلات ترقيمه
+        // ما يخص الموقع وحده: حساباته (بلا قيود)، أرصدته الصفرية، وتسلسلات ترقيمه
         Db.RemoveRange(accounts);
         Db.RemoveRange(await Db.Set<WarehouseStock>().Where(s => s.WarehouseId == e.Id).ToListAsync(ct));
         Db.RemoveRange(await Db.Set<BatchStock>().Where(s => s.WarehouseId == e.Id).ToListAsync(ct));
@@ -147,7 +154,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
         return rest.Count == 0 ? null : string.Join(",", rest);
     }
 
-    /// <summary>تسمية الجداول المشيرة للمستودع في رسالة المنع (الاسم التقني لما لا تسمية له).</summary>
+    /// <summary>تسمية الجداول المشيرة للموقع في رسالة المنع (الاسم التقني لما لا تسمية له).</summary>
     private static readonly Dictionary<string, string> UsageLabels = new()
     {
         [nameof(InvoiceBase)] = "فواتير ومرتجعات", [nameof(JournalEntry)] = "قيود يومية", [nameof(Voucher)] = "سندات قبض وصرف",
@@ -161,7 +168,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
     };
 
     /// <summary>
-    /// كل جدول فيه عمود ينتهي بـ WarehouseId (عدا المستودع وأرصدته المؤقتة) ويشير لهذا المستودع، باستعلام واحد.
+    /// كل جدول فيه عمود ينتهي بـ WarehouseId (عدا الموقع وأرصدته المؤقتة) ويشير لهذا الموقع، باستعلام واحد.
     /// الفحص من نموذج قاعدة البيانات نفسه فلا يُنسى مستند جديد. المعرّفات فريدة فلا حاجة لفلتر المنشأة.
     /// </summary>
     private async Task<List<string>> UsageAsync(Guid warehouseId, CancellationToken ct)

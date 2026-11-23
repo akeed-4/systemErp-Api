@@ -1,6 +1,6 @@
 namespace ERP.Core.DTOs.Shared;
 
-/// <summary>رصيد صنف في مستودع وقيمته بالتكلفة الموحّدة للصنف.</summary>
+/// <summary>رصيد صنف في موقع وقيمته بالتكلفة الموحّدة للصنف.</summary>
 public class WarehouseStockDto
 {
     public Guid ItemId { get; set; }
@@ -14,7 +14,7 @@ public class WarehouseStockDto
     public decimal Value { get; set; }
 }
 
-/// <summary>نقل كمية صنف بين مستودعين (يُستدعى من مستند التحويل).</summary>
+/// <summary>نقل كمية صنف بين موقعين (يُستدعى من مستند التحويل).</summary>
 public class TransferStockDto
 {
     public Guid ItemId { get; set; }
@@ -25,7 +25,7 @@ public class TransferStockDto
     public string ReferenceNumber { get; set; } = string.Empty;
     public Guid? SourceId { get; set; }
     public string? Notes { get; set; }
-    /// <summary>تشغيلة محددة للنقل (الصنف المتتبَّع)؛ فارغ = الأقرب انتهاءً من المستودع المحوَّل منه.</summary>
+    /// <summary>تشغيلة محددة للنقل (الصنف المتتبَّع)؛ فارغ = الأقرب انتهاءً من الموقع المحوَّل منه.</summary>
     public Guid? ItemBatchId { get; set; }
     /// <summary>داخلي: سطر مستند التحويل.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

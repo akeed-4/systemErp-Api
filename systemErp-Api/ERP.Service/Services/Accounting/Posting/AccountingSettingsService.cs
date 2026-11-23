@@ -166,7 +166,7 @@ public class AccountingSettingsService : IAccountingSettingsService
         // حسابات الميزانية لكل منها حساب مستقل: ضريبتا المخرجات والمدخلات في حساب واحد تُفسدان الإقرار، والمخزون مع الضريبة يخلط الأرصدة
         foreach (var shared in PostingAccounts.Roles.Where(r => r.LockedAfterUse).GroupBy(r => r.Effective(s)).Where(g => g.Key != null && g.Count() > 1))
             errors.Add(string.Format(Messages.AccountSettingSharedByRoles, shared.Key, string.Join("، ", shared.Select(r => r.Label))));
-        // ولا تقع ضريبة على حساب مخزون مستودع
+        // ولا تقع ضريبة على حساب مخزون موقع
         var warehouseAccounts = await PostingAccounts.WarehouseInventoryAccountsAsync(_db, ct);
         foreach (var vat in PostingAccounts.Roles.Where(r => r.LockedAfterUse && r.Key != PostingAccounts.InventoryRole.Key))
             if (vat.Effective(s) is { } code && warehouseAccounts.Contains(code))

@@ -2,7 +2,7 @@ using ERP.Core.DTOs.Shared;
 
 namespace ERP.Core.Contracts.Shared;
 
-/// <summary>مستند تحويل المخزون بين المستودعات: ينقل الكميات دون أثر على التكلفة أو الدفاتر.</summary>
+/// <summary>مستند تحويل المخزون بين المواقع: ينقل الكميات دون أثر على التكلفة أو الدفاتر.</summary>
 public interface IStockTransferService
 {
     Task<StockTransferDto> CreateAsync(CreateStockTransferDto request, CancellationToken ct = default);

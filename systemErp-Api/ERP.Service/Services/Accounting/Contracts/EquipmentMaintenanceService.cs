@@ -11,10 +11,10 @@ namespace ERP.Service.Services.Accounting;
 /// أوامر عمل صيانة المعدات. القواعد:
 /// <list type="bullet">
 /// <item>«بدء التنفيذ» يضع المعدة في الصيانة (لا تُسند ولا تُحوَّل)، والإكمال أو الإلغاء يعيدها لحالتها السابقة.</item>
-/// <item>الإكمال يصرف قطع الغيار من مستودع الأمر بتكلفتها الفعلية (حركة مخزون) ويقيد مدين مصروف الصيانة / دائن المخزون. تكلفة العمالة
+/// <item>الإكمال يصرف قطع الغيار من موقع الأمر بتكلفتها الفعلية (حركة مخزون) ويقيد مدين مصروف الصيانة / دائن المخزون. تكلفة العمالة
 /// والورشة الخارجية تُقيَّد فقط إن حُدِّد حسابها الدائن؛ وإلا تبقى للمتابعة (مقيَّدة من فاتورة الورشة أو الرواتب) فلا تتكرر.</item>
 /// <item>الصيانة الوقائية المكتملة تحدّث تاريخ آخر صيانة فتُحسب المستحقة التالية منه.</item>
-/// <item>إلغاء أمر مكتمل (بسبب) يعيد القطع للمستودع بتكلفة صرفها ويعكس القيد.</item>
+/// <item>إلغاء أمر مكتمل (بسبب) يعيد القطع للموقع بتكلفة صرفها ويعكس القيد.</item>
 /// </list>
 /// </summary>
 public class EquipmentMaintenanceService : IEquipmentMaintenanceService
@@ -112,17 +112,17 @@ public class EquipmentMaintenanceService : IEquipmentMaintenanceService
             if (request.DowntimeHours is decimal downtime) o.DowntimeHours = downtime;
             var note = $"صيانة {(o.Type == EquipmentMaintenanceTypes.Preventive ? "وقائية" : "تصحيحية")} {o.OrderNumber} - المعدة {e.Code} {e.NameAr}";
 
-            // قطع الغيار: صادر من مستودع الأمر بتكلفته الفعلية
+            // قطع الغيار: صادر من موقع الأمر بتكلفته الفعلية
             decimal parts = 0;
             if (o.Parts.Count > 0)
             {
-                var warehouseId = o.WarehouseId ?? throw new ValidationFailedException("حدّد مستودع قطع الغيار قبل الإكمال.");
+                var warehouseId = o.WarehouseId ?? throw new ValidationFailedException("حدّد موقع قطع الغيار قبل الإكمال.");
                 foreach (var g in o.Parts.GroupBy(p => p.ProductId))
                 {
                     var stock = await WarehouseStocks.QuantityAsync(_db, g.Key, warehouseId, token);
                     var needed = g.Sum(p => p.Quantity);
                     if (needed > stock + 0.0001m)
-                        throw new ValidationFailedException($"«{g.First().ItemName}»: المطلوب {needed:0.####} يتجاوز رصيد المستودع {Math.Max(0, stock):0.####}.");
+                        throw new ValidationFailedException($"«{g.First().ItemName}»: المطلوب {needed:0.####} يتجاوز رصيد الموقع {Math.Max(0, stock):0.####}.");
                 }
                 foreach (var p in o.Parts.OrderBy(p => p.SortOrder))
                 {
@@ -236,7 +236,7 @@ public class EquipmentMaintenanceService : IEquipmentMaintenanceService
         if (r.SupplierId is Guid supplier && !await _db.Set<Supplier>().AnyAsync(x => x.Id == supplier, ct)) errors.Add("الورشة (المورد) غير موجودة.");
         var parts = (r.Parts ?? new()).Where(p => p.ProductId != Guid.Empty).ToList();
         if (parts.Count > 0 && (r.WarehouseId is not Guid wh || !await _db.Set<Warehouse>().AnyAsync(w => w.Id == wh, ct)))
-            errors.Add("مستودع قطع الغيار مطلوب.");
+            errors.Add("موقع قطع الغيار مطلوب.");
         var productIds = parts.Select(p => p.ProductId).Distinct().ToList();
         var products = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         for (var k = 0; k < parts.Count; k++)

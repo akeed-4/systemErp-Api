@@ -59,7 +59,7 @@ public class Vehicle : BaseEntity
 
     public VehicleStatus Status { get; set; } = VehicleStatus.Available;
     public string Location { get; set; } = string.Empty;
-    /// <summary>المعرض/المستودع الذي توجد فيه السيارة: يُضبط من الشراء والاستلام، ويتغير بالتحويل ومرتجع البيع واعتماد الجرد.</summary>
+    /// <summary>المعرض/الموقع الذي توجد فيه السيارة: يُضبط من الشراء والاستلام، ويتغير بالتحويل ومرتجع البيع واعتماد الجرد.</summary>
     public Guid? WarehouseId { get; set; }
     public string? WarehouseName { get; set; }
     public string? QrCodeUrl { get; set; }

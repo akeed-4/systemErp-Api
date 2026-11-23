@@ -7,10 +7,10 @@ using K = ERP.Core.Models.Accounting.ProjectMaterialIssueKinds;
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
-/// حجز مخزون المستودع للمشاريع (<see cref="StockReservation"/>). القواعد:
+/// حجز مخزون الموقع للمشاريع (<see cref="StockReservation"/>). القواعد:
 /// الحجز لمشروع ساري لصنف في احتياجاته المعتمدة، ولا يتجاوز المتاح (الرصيد الفعلي − حجوزات المشاريع الأخرى − حجزه القائم)،
 /// ولا يتجاوز مع المسلَّم للمشروع المطلوبَ المعتمد (منع الحجز المكرر). التحويل لمشروع آخر طلب يعتمده غير مقدّمه.
-/// كل تغيير يقفل الصنف في المستودع (<see cref="StockReservations.LockAsync"/>) فلا يتجاوز حجزان أو حجز وصرف متزامنان الرصيد.
+/// كل تغيير يقفل الصنف في الموقع (<see cref="StockReservations.LockAsync"/>) فلا يتجاوز حجزان أو حجز وصرف متزامنان الرصيد.
 /// </summary>
 public class StockReservationService : IStockReservationService
 {
@@ -191,7 +191,7 @@ public class StockReservationService : IStockReservationService
             .Where(r => ids.Contains(r.ProductId) && r.Status == StockReservationStatuses.Active && (warehouseId == null || r.WarehouseId == warehouseId))
             .Select(r => new { r.ProductId, r.ContractId, Q = r.Quantity - r.IssuedQuantity - r.ReleasedQuantity }).ToListAsync(ct);
 
-        // المصروف للمشاريع من المستودع: تسليم − إرجاع للمستودع في الأذونات المرحّلة (عهدة سند الاستلام لا تمر بالمستودع)
+        // المصروف للمشاريع من الموقع: تسليم − إرجاع للموقع في الأذونات المرحّلة (عهدة سند الاستلام لا تمر بالموقع)
         var issued = (await _db.Set<ProjectMaterialIssueLine>().AsNoTracking()
                 .Where(l => ids.Contains(l.ProductId) && l.Issue.Status == ProjectMaterialIssueStatuses.Posted
                     && (l.Issue.Kind == K.Issue || l.Issue.Kind == K.Return)
@@ -313,7 +313,7 @@ public class StockReservationService : IStockReservationService
     private async Task<string> ProductNameAsync(Guid productId, CancellationToken ct)
         => await _db.Set<Product>().AsNoTracking().Where(p => p.Id == productId).Select(p => p.NameAr).FirstOrDefaultAsync(ct) ?? "?";
 
-    /// <summary>المتاح الحر في المستودع (الرصيد − كل الحجوزات النشطة) يغطي الحجز الجديد. يُستدعى تحت القفل.</summary>
+    /// <summary>المتاح الحر في الموقع (الرصيد − كل الحجوزات النشطة) يغطي الحجز الجديد. يُستدعى تحت القفل.</summary>
     private async Task EnsureFreeAsync(Guid productId, string name, Guid warehouseId, decimal qty, CancellationToken ct)
     {
         var onHand = await WarehouseStocks.QuantityAsync(_db, productId, warehouseId, ct);
@@ -323,7 +323,7 @@ public class StockReservationService : IStockReservationService
     }
 
     /// <summary>
-    /// منع الحجز المكرر: المتبقي من حجوزات المشروع للصنف (كل المستودعات) + المسلَّم الصافي له + الجديد ≤ المطلوب في الاحتياجات المعتمدة.
+    /// منع الحجز المكرر: المتبقي من حجوزات المشروع للصنف (كل المواقع) + المسلَّم الصافي له + الجديد ≤ المطلوب في الاحتياجات المعتمدة.
     /// </summary>
     private async Task EnsureWithinRequirementAsync(Guid contractId, Guid productId, string name, decimal qty, CancellationToken ct)
     {

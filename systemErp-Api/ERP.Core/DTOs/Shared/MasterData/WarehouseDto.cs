@@ -6,6 +6,8 @@ public partial class WarehouseDto
     public Guid TenantId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    /// <summary>الفرع الذي يتبعه الموقع.</summary>
+    public Guid BranchId { get; set; }
     public string Code { get; set; } = string.Empty;
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;

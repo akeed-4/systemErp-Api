@@ -45,7 +45,7 @@ public class ProductionOrderLineDto
     public decimal TotalCost { get; set; }
     public string? AccountCode { get; set; }
     public int SortOrder { get; set; }
-    /// <summary>للقراءة: رصيد المادة الحالي في مستودع الصرف (للمسودة).</summary>
+    /// <summary>للقراءة: رصيد المادة الحالي في موقع الصرف (للمسودة).</summary>
     public decimal? Available { get; set; }
 }
 

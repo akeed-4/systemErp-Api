@@ -5,7 +5,7 @@ public sealed class DocumentNumberRequest
 {
     public required string Key { get; init; }
     public required string DefaultPrefix { get; init; }
-    /// <summary>مستودع المستند نفسه (لنطاق الترقيم لكل مستودع)؛ فارغ = مستودع الجلسة.</summary>
+    /// <summary>موقع المستند نفسه (لنطاق الترقيم لكل موقع)؛ فارغ = موقع الجلسة.</summary>
     public Guid? WarehouseId { get; init; }
     /// <summary>تاريخ المستند (لتحديد السنة المالية)؛ فارغ = اليوم.</summary>
     public DateTime? Date { get; init; }

@@ -150,7 +150,7 @@
   <data name="CostCenterUsageInvoices" xml:space="preserve"><value>بنود الفواتير</value></data>
   <data name="CannotDeleteCustomerWithEntries" xml:space="preserve"><value>لا يمكن حذف عميل عليه حركات محاسبية.</value></data>
   <data name="CannotDeleteCustomerWithInvoices" xml:space="preserve"><value>لا يمكن حذف عميل له فواتير.</value></data>
-  <data name="CannotDeleteDefaultWarehouse" xml:space="preserve"><value>لا يمكن حذف المستودع الافتراضي.</value></data>
+  <data name="CannotDeleteDefaultWarehouse" xml:space="preserve"><value>لا يمكن حذف الموقع الافتراضي.</value></data>
   <data name="CannotDeleteInvoicedOrder" xml:space="preserve"><value>لا يمكن حذف أمر تم تحويله لفاتورة.</value></data>
   <data name="CannotDeleteModelWithTrims" xml:space="preserve"><value>لا يمكن حذف موديل له فئات.</value></data>
   <data name="CannotDeleteModelWithVehicles" xml:space="preserve"><value>لا يمكن حذف موديل عليه مركبات.</value></data>
@@ -475,7 +475,7 @@
   <data name="LabelTrim" xml:space="preserve"><value>الفئة</value></data>
   <data name="LabelUnit" xml:space="preserve"><value>الوحدة</value></data>
   <data name="LabelVehicle" xml:space="preserve"><value>المركبة</value></data>
-  <data name="LabelWarehouse" xml:space="preserve"><value>المستودع</value></data>
+  <data name="LabelWarehouse" xml:space="preserve"><value>الموقع</value></data>
   <data name="LevelNeedsApprover" xml:space="preserve"><value>كل مستوى يحتاج دور معتمد أو مستخدماً معتمداً.</value></data>
   <data name="LimitsCannotBeNegative" xml:space="preserve"><value>الحدود لا تكون سالبة.</value></data>
   <data name="LineBrandAndModelRequired" xml:space="preserve"><value>السطر {0}: الماركة والموديل مطلوبان.</value></data>
@@ -735,7 +735,7 @@
   <data name="PaymentLinkCreated" xml:space="preserve"><value>تم إنشاء رابط الدفع</value></data>
   <data name="PaymentLinkPostedSalesOnly" xml:space="preserve"><value>رابط الدفع لفاتورة مبيعات مرحّلة فقط.</value></data>
   <data name="PaymentMethodCodeInUse" xml:space="preserve"><value>كود طريقة الدفع مستخدم مسبقاً.</value></data>
-  <data name="WarehouseLimitReached" xml:space="preserve"><value>بلغت حد المستودعات في اشتراكك.</value></data>
+  <data name="WarehouseLimitReached" xml:space="preserve"><value>بلغت حد المواقع في اشتراكك.</value></data>
   <data name="PosCreditNotMixed" xml:space="preserve"><value>البيع الآجل في نقطة البيع يكون بكامل المبلغ ولا يُخلط بطرق دفع أخرى.</value></data>
   <data name="PaymentMethodNotAvailable" xml:space="preserve"><value>طريقة الدفع {0} غير موجودة أو موقوفة.</value></data>
   <data name="PaymentMethodNotImmediate" xml:space="preserve"><value>طريقة الدفع {0} آجلة ولا تصلح هنا؛ اختر طريقة نقدية أو بنكية.</value></data>
@@ -841,7 +841,7 @@
   <data name="SelectItemForItemCard" xml:space="preserve"><value>حدّد الصنف لعرض كارت الصنف.</value></data>
   <data name="SellingPriceBelowMinimum" xml:space="preserve"><value>سعر البيع بعد الخصم ({0:0.00}) أقل من الحد الأدنى للمركبة ({1:0.00}).</value></data>
   <data name="ServiceLineNeedsDescription" xml:space="preserve"><value>بند الخدمة (بدون صنف) يحتاج وصفاً.</value></data>
-  <data name="SetAnotherDefaultWarehouse" xml:space="preserve"><value>عيّن مستودعاً آخر كافتراضي بدلاً من إلغاء الافتراضي.</value></data>
+  <data name="SetAnotherDefaultWarehouse" xml:space="preserve"><value>عيّن موقعاً آخر كافتراضي بدلاً من إلغاء الافتراضي.</value></data>
   <data name="SetSupplierBeforeConversion" xml:space="preserve"><value>حدّد المورد في الطلب قبل التحويل.</value></data>
   <data name="ShiftAlreadyOpen" xml:space="preserve"><value>لديك وردية مفتوحة بالفعل؛ أغلقها أولاً.</value></data>
   <data name="ShiftClosed" xml:space="preserve"><value>تم إغلاق الوردية</value></data>
@@ -889,7 +889,7 @@
   <data name="TransactionVoided" xml:space="preserve"><value>تم إلغاء المعاملة</value></data>
   <data name="TransactionVoidedState" xml:space="preserve"><value>المعاملة ملغاة.</value></data>
   <data name="TransferRequiresItems" xml:space="preserve"><value>أضف صنفاً واحداً على الأقل بكمية أكبر من صفر.</value></data>
-  <data name="TransferWarehousesMustDiffer" xml:space="preserve"><value>مستودع المصدر ومستودع الوجهة يجب أن يختلفا.</value></data>
+  <data name="TransferWarehousesMustDiffer" xml:space="preserve"><value>موقع المصدر وموقع الوجهة يجب أن يختلفا.</value></data>
   <data name="TreasuryAccountAndPositiveAmountRequired" xml:space="preserve"><value>حدّد حساب الخزينة/البنك ومبلغاً موجباً.</value></data>
   <data name="TreasuryAccountRequired" xml:space="preserve"><value>حساب الخزينة/البنك مطلوب.</value></data>
   <data name="TrialEndedPayToContinue" xml:space="preserve"><value>انتهت الفترة التجريبية المجانية. سدّد قيمة الاشتراك لمتابعة استخدام النظام.</value></data>
@@ -957,10 +957,10 @@
   <data name="VoucherUpdatedAndReposted" xml:space="preserve"><value>تم تعديل السند وإعادة ترحيله</value></data>
   <data name="VoucherVatInvalid" xml:space="preserve"><value>ضريبة السند يجب أن تكون صفراً أو أقل من مبلغه.</value></data>
   <data name="VoucherVatNotForPartySettlement" xml:space="preserve"><value>الضريبة المتضمَّنة لمصروف أو إيراد مباشر؛ لا تُسجَّل على سداد عميل أو مورد (ضريبته في فاتورته).</value></data>
-  <data name="WarehouseCodeInUse" xml:space="preserve"><value>كود المستودع مستخدم مسبقاً.</value></data>
-  <data name="WarehouseHasMovements" xml:space="preserve"><value>المستودع عليه حركات مخزون.</value></data>
-  <data name="WarehouseInactive" xml:space="preserve"><value>المستودع غير نشط.</value></data>
-  <data name="WarehouseNotFound" xml:space="preserve"><value>المستودع غير موجود.</value></data>
+  <data name="WarehouseCodeInUse" xml:space="preserve"><value>كود الموقع مستخدم مسبقاً.</value></data>
+  <data name="WarehouseHasMovements" xml:space="preserve"><value>الموقع عليه حركات مخزون.</value></data>
+  <data name="WarehouseInactive" xml:space="preserve"><value>الموقع غير نشط.</value></data>
+  <data name="WarehouseNotFound" xml:space="preserve"><value>الموقع غير موجود.</value></data>
   <data name="YearAlreadyExistsForTrim" xml:space="preserve"><value>السنة مسجّلة مسبقاً لهذه الفئة.</value></data>
   <data name="ZatcaNotEnabled" xml:space="preserve"><value>الربط مع هيئة الزكاة غير مُفعَّل في إعدادات المنشأة.</value></data>
   <data name="ZatcaSubmissionNotImplemented" xml:space="preserve"><value>الإرسال الفعلي لهيئة الزكاة غير مُنفَّذ في هذه النسخة (يتطلب شهادة CSID حقيقية).</value></data>
@@ -1422,10 +1422,10 @@
   <data name="ContractUnknownCondition" xml:space="preserve"><value>شرط الانتقال «{0}» غير معروف للنظام</value></data>
   <data name="ContractStatusOutsideWorkflow" xml:space="preserve"><value>لا تتغير حالة العقد إلا عبر انتقال معرّف من دورة العقد، والعقد الجديد يبدأ «مسودة».</value></data>
   <data name="ContractStatusLogImmutable" xml:space="preserve"><value>سجل انتقالات العقد لا يُعدَّل.</value></data>
-  <data name="WarehouseNotAllowed" xml:space="preserve"><value>هذا الموقع (المعرض/المستودع) غير مسموح لك.</value></data>
-  <data name="WarehouseRequired" xml:space="preserve"><value>اختر موقع العمل (المعرض/المستودع) أولاً.</value></data>
+  <data name="WarehouseNotAllowed" xml:space="preserve"><value>هذا الموقع (المعرض/الموقع) غير مسموح لك.</value></data>
+  <data name="WarehouseRequired" xml:space="preserve"><value>اختر موقع العمل (المعرض/الموقع) أولاً.</value></data>
   <data name="DocumentVisibilityInvalid" xml:space="preserve"><value>طريقة عرض المستندات غير صحيحة: حسب المعرض أو حسب المستخدم.</value></data>
-  <data name="NumberingScopeInvalid" xml:space="preserve"><value>نطاق الترقيم: tenant (المنشأة) أو warehouse (لكل مستودع) أو user (لكل مستخدم).</value></data>
+  <data name="NumberingScopeInvalid" xml:space="preserve"><value>نطاق الترقيم: tenant (المنشأة) أو warehouse (لكل موقع) أو user (لكل مستخدم).</value></data>
   <data name="PromoCodeNotFound" xml:space="preserve"><value>رمز الخصم غير موجود.</value></data>
   <data name="PromoCodeUsedCannotDelete" xml:space="preserve"><value>رمز الخصم مستخدم في اشتراكات فلا يُحذف؛ عطّله لإيقافه.</value></data>
   <data name="PromoCodeFormat" xml:space="preserve"><value>الرمز من 3 إلى 32 حرفاً إنجليزياً أو رقماً أو - أو _.</value></data>
@@ -1458,9 +1458,9 @@
   <data name="InventoryMethodPriorPeriodOpen" xml:space="preserve"><value>لا يمكن تغيير طريقة الجرد مرة أخرى قبل إقفال الدفاتر حتى بداية الطريقة الحالية، ويجب أن يلي تاريخ السريان الجديد تاريخها.</value></data>
   <data name="InventoryValuedThrough" xml:space="preserve"><value>أُثبتت قيمة المخزون في الجرد الدوري حتى {0:yyyy-MM-dd}: لا تُسجَّل حركة مخزون بهذا التاريخ أو قبله.</value></data>
   <data name="PeriodEndInventoryAlreadyPosted" xml:space="preserve"><value>أُثبتت بضاعة آخر المدة بتاريخ {0:yyyy-MM-dd} من قبل.</value></data>
-  <data name="PeriodicCountMustCoverAllWarehouses" xml:space="preserve"><value>جرد آخر المدة في الجرد الدوري يشمل كل المستودعات؛ لا تحدد مستودعاً.</value></data>
+  <data name="PeriodicCountMustCoverAllWarehouses" xml:space="preserve"><value>جرد آخر المدة في الجرد الدوري يشمل كل المواقع؛ لا تحدد موقعاً.</value></data>
   <data name="PeriodicManualInventoryAccount" xml:space="preserve"><value>في الجرد الدوري لا يُحدد حساب مخزون يدوي لمستند أصناف مخزنية؛ تُرحَّل على حساب المشتريات وتُقيَّم في بضاعة آخر المدة.</value></data>
-  <data name="WarehouseInventoryAccountLocked" xml:space="preserve"><value>لا يمكن تغيير حساب مخزون المستودع {0} بعد تسجيل حركات مخزون فيه.</value></data>
+  <data name="WarehouseInventoryAccountLocked" xml:space="preserve"><value>لا يمكن تغيير حساب مخزون الموقع {0} بعد تسجيل حركات مخزون فيه.</value></data>
   <data name="AccountRole_InventoryAccountCode" xml:space="preserve"><value>حساب المخزون</value></data>
   <data name="AccountRole_CogsAccountCode" xml:space="preserve"><value>حساب تكلفة البضاعة المباعة</value></data>
   <data name="AccountRole_InventoryShortageAccountCode" xml:space="preserve"><value>حساب عجز المخزون</value></data>
@@ -1847,7 +1847,7 @@
   <data name="ProjectReceiptNotEditable" xml:space="preserve"><value>سند استلام المشروع رُحّلت عهدته: احذفه وأنشئ غيره، أو أرجع منه للمورد.</value></data>
   <data name="ProjectReceiptDeletedReason" xml:space="preserve"><value>حذف سند الاستلام {0}</value></data>
   <data name="ProjectReceiptCustodyManagedByNote" xml:space="preserve"><value>عهدة سند الاستلام تتبع السند: تُلغى بحذفه أو بحذف مرتجعه.</value></data>
-  <data name="ProjectReceiptNotReturnableToWarehouse" xml:space="preserve"><value>«{0}» من سند الاستلام {1} عهدة للمشروع: لا تُرجع للمستودع العام؛ أرجعها للمورد بمرتجع السند.</value></data>
+  <data name="ProjectReceiptNotReturnableToWarehouse" xml:space="preserve"><value>«{0}» من سند الاستلام {1} عهدة للمشروع: لا تُرجع للموقع العام؛ أرجعها للمورد بمرتجع السند.</value></data>
   <data name="ProjectReceiptReturnExceedsCustody" xml:space="preserve"><value>«{0}»: الكمية المرتجعة تتجاوز المتاح في عهدة السند {1} (مختار في مستخلص أو مهدر).</value></data>
   <data name="ProjectRequisitionBoqItemInvalid" xml:space="preserve"><value>بند جدول الكميات في سطر الطلب ليس سطر قياس من هذا المشروع.</value></data>
   <data name="ProjectRequisitionPhaseRequired" xml:space="preserve"><value>اختر مرحلة التنفيذ: مواد هذا المشروع مسندة لمراحل، وطلب الشراء يُقاس على مواد المرحلة المختارة.</value></data>
@@ -1861,9 +1861,9 @@
   <data name="ProjectRequisitionHasReceipts" xml:space="preserve"><value>للطلب سندات استلام: احذفها أولاً.</value></data>
   <data name="ProjectRequisitionRejectAfterReceipt" xml:space="preserve"><value>للطلب سندات استلام: لا يُرفض. لإقفاله على ما وصل أنقص كمياته إلى المستلم.</value></data>
   <data name="ProjectRequisitionBelowReceived" xml:space="preserve"><value>«{0}»: استُلم منه {1} على هذا الطلب؛ لا تنزل كميته عن المستلم (إنقاصها إلى المستلم يقفل الطلب على ما وصل).</value></data>
-  <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>طلب شراء المشروع لا يُحوَّل لفاتورة للمستودع العام: استلمه بسند استلام للمشروع ثم أنشئ الفاتورة من السند.</value></data>
+  <data name="ProjectRequisitionReceivedByGrn" xml:space="preserve"><value>طلب شراء المشروع لا يُحوَّل لفاتورة للموقع العام: استلمه بسند استلام للمشروع ثم أنشئ الفاتورة من السند.</value></data>
   <data name="ProjectReceiptRequiresRequisition" xml:space="preserve"><value>اختر طلب شراء المشروع المعتمد: استلام مواد المشروع يُربط بطلبه دائماً حتى لا تُستلم الكمية مرتين وتظهر في متابعة المشروع.</value></data>
-  <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>لا مستودع لطلب الشراء ولا لمشروع المقاولات: حدّد مستودع المشروع قبل الاستلام.</value></data>
+  <data name="ProjectReceiptNoProjectWarehouse" xml:space="preserve"><value>لا موقع لطلب الشراء ولا لمشروع المقاولات: حدّد موقع المشروع قبل الاستلام.</value></data>
   <data name="DeliveryInvoiceSupplierOnSales" xml:space="preserve"><value>لا يُحدَّد مورد لفاتورة بيان تسليم مبيعات.</value></data>
   <data name="DeliveryInvoiceSupplierMismatch" xml:space="preserve"><value>المورد المختار غير مورد سند الاستلام: الفاتورة تصدر لمن سلّم البضاعة.</value></data>
   <data name="ProjectPerformanceRangeInvalid" xml:space="preserve"><value>فترة التحليل غير صحيحة: البداية قبل النهاية، وبحد أقصى 366 يوماً، والمرحلة تتطلب اختيار مشروعها.</value></data>
@@ -1884,7 +1884,7 @@
   <data name="ProjectPlanChanged" xml:space="preserve"><value>عدّل مستخدم آخر خطة الإنجاز بعد تحميلك لها. أعد تحميل الخطة ثم أعد التعديل.</value></data>
   <data name="ProjectPlanTargetExceedsItem" xml:space="preserve"><value>خطة الإنجاز «{0}»: المستهدف بالساعة {1} أكبر من كمية البند كلها {2}.</value></data>
   <data name="ProjectPlanDateOutsideContract" xml:space="preserve"><value>خطة الإنجاز «{0}»: تاريخ السريان {1} خارج مدة العقد ({2} – {3}).</value></data>
-  <data name="PeriodicWarehouseInventoryAccounts" xml:space="preserve"><value>حسابات مخزون المستودعات: {0}.</value></data>
+  <data name="PeriodicWarehouseInventoryAccounts" xml:space="preserve"><value>حسابات مخزون المواقع: {0}.</value></data>
   <data name="AccountSettingNotCostOfSales" xml:space="preserve"><value>{0}: الحساب {1} يجب أن يكون مصروفاً ضمن مجموعة تكلفة المبيعات في قائمة الدخل.</value></data>
   <data name="PurchaseReturnsReducePurchases" xml:space="preserve"><value>لا يوجد حساب مردودات مشتريات مناسب: لم يُنشأ، وتُخفَّض المشتريات نفسها بالمردودات.</value></data>
   <data name="PurchaseReturnsSameAsPurchases" xml:space="preserve"><value>حساب مردودات المشتريات ({0}) هو حساب المشتريات نفسه: اتركه فارغاً لتُخفَّض المشتريات نفسها بالمردودات.</value></data>
@@ -1948,7 +1948,7 @@
   <data name="RentalRateEffectiveRangeInvalid" xml:space="preserve"><value>نهاية السريان قبل بدايته.</value></data>
   <data name="RentalRateOverlap" xml:space="preserve"><value>يوجد سعر بالأساس نفسه للهدف نفسه في فترة سريان متداخلة؛ أنهِ السعر السابق أولاً.</value></data>
   <data name="RentalEquipmentNotFound" xml:space="preserve"><value>المعدة غير موجودة.</value></data>
-  <data name="RentalWarehouseNotFound" xml:space="preserve"><value>الموقع (المستودع) غير موجود.</value></data>
+  <data name="RentalWarehouseNotFound" xml:space="preserve"><value>الموقع (الموقع) غير موجود.</value></data>
   <data name="RentalCalendarRangeInvalid" xml:space="preserve"><value>فترة التقويم غير صحيحة (النهاية بعد البداية وبحد {0} يوماً).</value></data>
   <data name="RentalLineTargetRequired" xml:space="preserve"><value>حدّد معدة أو فئة للسطر (واحداً منهما).</value></data>
   <data name="RentalLineQuantityInvalid" xml:space="preserve"><value>عدد المعدات في سطر الفئة بين 1 و1000.</value></data>
@@ -2076,7 +2076,7 @@
   <data name="WorkshopStandardHoursRequired" xml:space="preserve"><value>الخدمة بالساعة تتطلب ساعات معيارية أكبر من صفر.</value></data>
   <data name="WorkshopVehicleHasOpenOrder" xml:space="preserve"><value>للمركبة أمر عمل قائم {0}.</value></data>
   <data name="WorkshopVehicleOtherCustomer" xml:space="preserve"><value>المركبة مسجلة لعميل آخر؛ حدّث مالكها في سجل المركبات أولاً.</value></data>
-  <data name="WorkshopWarehouseNotFound" xml:space="preserve"><value>الموقع (المستودع) غير موجود.</value></data>
+  <data name="WorkshopWarehouseNotFound" xml:space="preserve"><value>الموقع (الموقع) غير موجود.</value></data>
   <data name="WorkOrderStatus_received" xml:space="preserve"><value>مستلم</value></data>
   <data name="WorkOrderStatus_inspection" xml:space="preserve"><value>فحص</value></data>
   <data name="WorkOrderStatus_awaiting_approval" xml:space="preserve"><value>بانتظار الموافقة</value></data>
@@ -2135,7 +2135,7 @@
   <data name="PartIssueNotFound" xml:space="preserve"><value>صرف القطعة غير موجود في هذا الأمر.</value></data>
   <data name="PartLineInvalid" xml:space="preserve"><value>الحجز والصرف لسطر من نوع «قطعة».</value></data>
   <data name="PartLineRejected" xml:space="preserve"><value>السطر مرفوض من العميل؛ لا تُحجز له قطع.</value></data>
-  <data name="PartNotAvailable" xml:space="preserve"><value>«{0}»: المتاح للورشة في المستودع {1} فقط (بعد حجوزات الأوامر الأخرى).</value></data>
+  <data name="PartNotAvailable" xml:space="preserve"><value>«{0}»: المتاح للورشة في الموقع {1} فقط (بعد حجوزات الأوامر الأخرى).</value></data>
   <data name="PartReservationNotActive" xml:space="preserve"><value>الحجز مستهلك أو محرَّر.</value></data>
   <data name="PartReservationNotFound" xml:space="preserve"><value>الحجز غير موجود.</value></data>
   <data name="PartReturnDateInvalid" xml:space="preserve"><value>تاريخ الإرجاع لا يكون في المستقبل ولا قبل الصرف.</value></data>
@@ -2240,7 +2240,7 @@
   <data name="ReceiptNotOfOrder" xml:space="preserve"><value>سند الاستلام ليس من هذا الأمر.</value></data>
   <data name="PurchaseReceiptsToInvoiceRequired" xml:space="preserve"><value>اختر سند استلام واحداً على الأقل للفوترة.</value></data>
   <data name="ReceiptAlreadyInvoiced" xml:space="preserve"><value>سند الاستلام {0} مفوتر بالفاتورة {1}.</value></data>
-  <data name="ReceiptsNotCombinable" xml:space="preserve"><value>السندات المختارة في مستودعات أو مشاريع مختلفة: فوترها بفواتير منفصلة.</value></data>
+  <data name="ReceiptsNotCombinable" xml:space="preserve"><value>السندات المختارة في مواقع أو مشاريع مختلفة: فوترها بفواتير منفصلة.</value></data>
   <data name="StockReservedForProjects" xml:space="preserve"><value>«{0}»: الكمية {1} تتجاوز المتاح غير المحجوز {2} (الرصيد {3} − محجوز للمشاريع {4}). حرّر الحجز أو اصرفه للمشروع أولاً.</value></data>
   <data name="StockReservationQtyPositive" xml:space="preserve"><value>كمية الحجز يجب أن تكون أكبر من صفر.</value></data>
   <data name="StockReservationNothingToRelease" xml:space="preserve"><value>لا متبقٍ في الحجز لتحريره.</value></data>
@@ -2260,7 +2260,7 @@
   <data name="StockReservationPlanNotApproved" xml:space="preserve"><value>اعتمد احتياجات مواد المشروع أولاً: منها تُحسب الكمية المسموح حجزها.</value></data>
   <data name="StockReservationNotRequired" xml:space="preserve"><value>«{0}» ليس ضمن احتياجات المشروع المعتمدة: لا يُحجز له.</value></data>
   <data name="StockReservationExceedsRequirement" xml:space="preserve"><value>«{0}»: الحجز {1:0.####} يتجاوز الباقي من احتياج المشروع {2:0.####} (المطلوب {3:0.####} − المحجوز {4:0.####} − المسلَّم {5:0.####}).</value></data>
-  <data name="ProjectIssueExceedsWarehouseStock" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز رصيد المستودع المستلَم فعلاً {2:0.####}. استلم المادة في المستودع أولاً.</value></data>
+  <data name="ProjectIssueExceedsWarehouseStock" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز رصيد الموقع المستلَم فعلاً {2:0.####}. استلم المادة في الموقع أولاً.</value></data>
   <data name="ProjectIssueExceedsProjectAvailable" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (الرصيد {3:0.####} − محجوز لمشاريع أخرى {4:0.####}). حوّل التخصيص باعتماد أو انتظر الاستلام.</value></data>
   <data name="ProjectIssueReservedForOthers" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (محجوز لمشاريع أخرى {3:0.####}).</value></data>
   <data name="RfqAwardPendingApproval" xml:space="preserve"><value>ترسية هذا الطلب بانتظار الاعتماد: لا تُعدَّل العروض ولا الموردون ولا يُلغى حتى القرار.</value></data>
@@ -2289,15 +2289,26 @@
   <data name="JournalEntryHasReversal" xml:space="preserve"><value>لا يمكن حذف قيد له قيد عكسي؛ القيدان يبقيان في السجل.</value></data>
   <data name="ClosingEntryCannotBeDeleted" xml:space="preserve"><value>قيد إقفال السنة لا يُحذف؛ اعكسه لإعادة فتح السنة.</value></data>
   <data name="ReversalReasonRequired" xml:space="preserve"><value>سبب عكس القيد مطلوب.</value></data>
-  <data name="WarehouseInventoryAccountRequired" xml:space="preserve"><value>حساب مخزون المستودع إلزامي؛ لكل مستودع حسابه الخاص.</value></data>
-  <data name="WarehouseInventoryAccountNotOwn" xml:space="preserve"><value>حساب مخزون المستودع يجب أن يكون حسابه الخاص: لا حساب مستودع آخر (كالرئيسي) ولا حساب المخزون العام في إعدادات الحسابات.</value></data>
+  <data name="WarehouseInventoryAccountRequired" xml:space="preserve"><value>حساب مخزون الموقع إلزامي؛ لكل موقع حسابه الخاص.</value></data>
+  <data name="WarehouseInventoryAccountNotOwn" xml:space="preserve"><value>حساب مخزون الموقع يجب أن يكون حسابه الخاص: لا حساب موقع آخر (كالرئيسي) ولا حساب المخزون العام في إعدادات الحسابات.</value></data>
   <data name="SalesVatInclusivePricingDisabled" xml:space="preserve"><value>التسعير الشامل للضريبة في المبيعات غير مفعّل للمنشأة؛ فعّله من إعدادات الحسابات أولاً.</value></data>
-  <data name="WarehouseHasFinancialMovements" xml:space="preserve"><value>لا يمكن حذف المستودع: على حساباته الخاصة (المخزون، تكلفة الإيراد، المبيعات، الصندوق...) قيود مالية.</value></data>
-  <data name="WarehouseInUse" xml:space="preserve"><value>لا يمكن حذف المستودع: مستخدم في {0}.</value></data>
-  <data name="WarehouseOnlySiteOfUsers" xml:space="preserve"><value>لا يمكن حذف المستودع: هو الموقع الوحيد المسموح للمستخدمين ({0})؛ عدّل مواقعهم أولاً.</value></data>
-  <data name="WarehouseOnlySiteOfRoleScope" xml:space="preserve"><value>لا يمكن حذف المستودع: هو الموقع الوحيد في نطاق صلاحيات دور أو مستخدم؛ عدّل النطاق أولاً.</value></data>
+  <data name="WarehouseHasFinancialMovements" xml:space="preserve"><value>لا يمكن حذف الموقع: على حساباته الخاصة (المخزون، تكلفة الإيراد، المبيعات، الصندوق...) قيود مالية.</value></data>
+  <data name="WarehouseInUse" xml:space="preserve"><value>لا يمكن حذف الموقع: مستخدم في {0}.</value></data>
+  <data name="WarehouseOnlySiteOfUsers" xml:space="preserve"><value>لا يمكن حذف الموقع: هو الموقع الوحيد المسموح للمستخدمين ({0})؛ عدّل مواقعهم أولاً.</value></data>
+  <data name="WarehouseOnlySiteOfRoleScope" xml:space="preserve"><value>لا يمكن حذف الموقع: هو الموقع الوحيد في نطاق صلاحيات دور أو مستخدم؛ عدّل النطاق أولاً.</value></data>
   <data name="LinkedAccountCodeOutsideGroup" xml:space="preserve"><value>رمز الحساب {0} يجب أن يبدأ برمز حساب قائم داخل مجموعة {1} (غير مرتبط بعميل/مورد/بنك آخر).</value></data>
   <data name="CostCenterCodesExhausted" xml:space="preserve"><value>امتلأت أرقام المراكز المتاحة تحت المركز ({0}).</value></data>
   <data name="AccountLinkedToFixedAsset" xml:space="preserve"><value>الحساب مخصص لأصل ثابت؛ يُحذف مع الأصل من شاشة الأصول الثابتة.</value></data>
   <data name="CannotDeleteFixedAssetWithEntries" xml:space="preserve"><value>لا يمكن حذف الأصل لأن له أثراً في الدفاتر (قيد اقتناء أو إهلاك أو استبعاد أو قيود على حساباته). استبعد الأصل بدلاً من حذفه.</value></data>
+  <data name="LabelBranch" xml:space="preserve"><value>الفرع</value></data>
+  <data name="BranchCodeInUse" xml:space="preserve"><value>كود الفرع مستخدم مسبقاً.</value></data>
+  <data name="BranchNotFound" xml:space="preserve"><value>الفرع غير موجود.</value></data>
+  <data name="BranchInactive" xml:space="preserve"><value>الفرع موقوف؛ لا يمكن إلحاق موقع فعّال به.</value></data>
+  <data name="BranchStatusInvalid" xml:space="preserve"><value>حالة الفرع غير صحيحة (فعّال أو موقوف).</value></data>
+  <data name="SetAnotherDefaultBranch" xml:space="preserve"><value>عيّن فرعاً آخر افتراضياً أولاً.</value></data>
+  <data name="DefaultBranchMustBeActive" xml:space="preserve"><value>الفرع الافتراضي يجب أن يكون فعّالاً.</value></data>
+  <data name="BranchHasActiveLocations" xml:space="preserve"><value>لا يمكن إيقاف فرع له مواقع فعّالة؛ انقل مواقعه إلى فرع آخر أو أوقفها أولاً.</value></data>
+  <data name="CannotDeleteDefaultBranch" xml:space="preserve"><value>لا يمكن حذف الفرع الافتراضي.</value></data>
+  <data name="BranchHasLocations" xml:space="preserve"><value>لا يمكن حذف فرع له مواقع؛ انقل مواقعه إلى فرع آخر أولاً.</value></data>
+  <data name="LocationBranchRequired" xml:space="preserve"><value>حدّد الفرع الذي يتبعه الموقع.</value></data>
 </root>

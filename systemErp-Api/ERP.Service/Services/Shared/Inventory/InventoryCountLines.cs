@@ -25,7 +25,7 @@ internal static class InventoryCountLines
         => countWarehouseId.HasValue ? (v.WarehouseId ?? defaultWarehouseId) == countWarehouseId : SameLocation(countLocation, v.Location);
 
     /// <summary>
-    /// جرد آخر المدة للأصناف بلا مستودع يشمل كل المستودعات (رصيد النظام مجموعها)؛ وأي جرد أصناف آخر على مستودع واحد
+    /// جرد آخر المدة للأصناف بلا موقع يشمل كل المواقع (رصيد النظام مجموعها)؛ وأي جرد أصناف آخر على موقع واحد
     /// يُثبَّت على المستند عند الحفظ، فلا يتغير بين الإرسال والاعتماد بتغيّر موقع جلسة المستخدم.
     /// </summary>
     public static bool CoversAllWarehouses(InventoryCountScope scope, InventoryCountType type, Guid? warehouseId)
@@ -38,7 +38,7 @@ internal static class InventoryCountLines
         => policy.Method == CostingMethod.Standard && p.StandardCost.HasValue ? p.StandardCost.Value : p.AverageCost;
 
     /// <summary>
-    /// شروط لا تُفحص إلا عند الإرسال (العدّ قد يكون جارياً عند الحفظ): جرد آخر المدة في الدوري بلا مستودع، والزيادة على صنف متتبَّع
+    /// شروط لا تُفحص إلا عند الإرسال (العدّ قد يكون جارياً عند الحفظ): جرد آخر المدة في الدوري بلا موقع، والزيادة على صنف متتبَّع
     /// برقم تشغيلة، والزيادة بتكلفة غير صفرية (وإلا دخلت الكمية بلا قيمة ولا قيد).
     /// </summary>
     public static async Task EnsureSubmittableAsync(ErpDbContext db, InventoryCount count, CancellationToken ct)
@@ -178,8 +178,8 @@ internal static class InventoryCountLines
     }
 
     /// <summary>
-    /// أرصدة الأصناف في المستودع المجرود (الافتراضي عند عدم التحديد): الجرد يقارن بما في مستودعه لا بإجمالي المنشأة،
-    /// إلا جرد كل المستودعات فيقارن بمجموعها.
+    /// أرصدة الأصناف في الموقع المجرود (الافتراضي عند عدم التحديد): الجرد يقارن بما في موقعه لا بإجمالي المنشأة،
+    /// إلا جرد كل المواقع فيقارن بمجموعها.
     /// </summary>
     private static async Task<Dictionary<Guid, decimal>> WarehouseQuantitiesAsync(ErpDbContext db, Guid? warehouseId, bool allWarehouses, CancellationToken ct)
     {
@@ -192,7 +192,7 @@ internal static class InventoryCountLines
         return await q.GroupBy(s => s.ItemId).Select(g => new { g.Key, Qty = g.Sum(s => s.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
     }
 
-    /// <summary>أرصدة التشغيلات في المستودع المجرود (أو كل المستودعات).</summary>
+    /// <summary>أرصدة التشغيلات في الموقع المجرود (أو كل المواقع).</summary>
     private static async Task<Dictionary<Guid, decimal>> BatchQuantitiesAsync(ErpDbContext db, Guid? warehouseId, bool allWarehouses, CancellationToken ct)
     {
         var q = db.Set<BatchStock>().AsNoTracking();

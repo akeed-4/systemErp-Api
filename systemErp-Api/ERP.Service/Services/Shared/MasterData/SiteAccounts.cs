@@ -4,7 +4,7 @@ using ERP.Service.Services.Accounting;
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
-/// حسابات الموقع (المستودع/المعرض) الخاصة: لكل موقع إضافي أربعة حسابات باسمه مرتبطة به، تحت أب حساب الدور المقابل في الإعدادات:
+/// حسابات الموقع (الموقع/المعرض) الخاصة: لكل موقع إضافي أربعة حسابات باسمه مرتبطة به، تحت أب حساب الدور المقابل في الإعدادات:
 /// <list type="bullet">
 /// <item>مخزون الموقع تحت المخزون (114)، ويُربط فقط إن لم يُحدَّد له حساب ولا حركة مخزون عليه (فلا ينقسم رصيده).</item>
 /// <item>تكلفة إيراد الموقع تحت تكلفة المبيعات (51)، ومبيعاته تحت إيرادات المبيعات (41)، وصندوقه تحت النقدية والبنوك (111).</item>
@@ -47,7 +47,7 @@ public static class SiteAccounts
         var cash = TreasuryResolver.Resolve(PaymentMethod.Cash, await db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct));
         var created = 0;
 
-        // المخزون: حساب خاص باسمه؛ والمستودع القائم على حساب غيره (الرئيسي أو حساب الإعدادات) يُنشأ له حسابه ما دام بلا حركات
+        // المخزون: حساب خاص باسمه؛ والموقع القائم على حساب غيره (الرئيسي أو حساب الإعدادات) يُنشأ له حسابه ما دام بلا حركات
         if ((w.InventoryAccountCode == null || await SharesInventoryAsync(db, w, settings, ct)) && (isNew || !await HasStockAsync(db, w, ct)))
         {
             w.InventoryAccountCode = await CreateAsync(db, w, Role.Inventory,
@@ -74,7 +74,7 @@ public static class SiteAccounts
     /// <summary>للمواقع القائمة (والرئيسي لحساباته الخاصة): ينشئ الناقص لكلٍ منها. يُرجع عدد المواقع التي أُنشئ لها حساب.</summary>
     public static async Task<int> EnsureAllAsync(ErpDbContext db, CancellationToken ct)
     {
-        // كل المواقع (الأقدم أولاً): الناقص حسابه، أو القائم على حساب مستودع آخر فيُنشأ له حسابه (بلا حركات مخزون)
+        // كل المواقع (الأقدم أولاً): الناقص حسابه، أو القائم على حساب موقع آخر فيُنشأ له حسابه (بلا حركات مخزون)
         var sites = await db.Set<Warehouse>().OrderBy(w => w.CreatedAt).ToListAsync(ct);
         var touched = 0;
         foreach (var w in sites)
@@ -82,7 +82,7 @@ public static class SiteAccounts
         return touched;
     }
 
-    /// <summary>حساب مخزون المستودع ليس له: حساب المخزون العام، أو حساب مستودع آخر (مرتبط به أو مستخدم له).</summary>
+    /// <summary>حساب مخزون الموقع ليس له: حساب المخزون العام، أو حساب موقع آخر (مرتبط به أو مستخدم له).</summary>
     private static async Task<bool> SharesInventoryAsync(ErpDbContext db, Warehouse w, AccountingSettings settings, CancellationToken ct)
     {
         if (w.InventoryAccountCode is not { } code) return false;

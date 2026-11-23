@@ -14,7 +14,7 @@ internal static class CertifiedMaterials
                 && (exceptCertificateId == null || m.CertificateId != exceptCertificateId));
 
     /// <summary>
-    /// المسحوب من كل سطر تسليم بالإرجاع للمستودع والهدر في الموقع (مستندات مرحّلة، عدا مستند بعينه عند تعديله): يُطرح من المتاح
+    /// المسحوب من كل سطر تسليم بالإرجاع للموقع والهدر في الموقع (مستندات مرحّلة، عدا مستند بعينه عند تعديله): يُطرح من المتاح
     /// للمستخلص وللإرجاع، فلا تُعترف تكلفة الكمية نفسها مرتين.
     /// </summary>
     public static async Task<Dictionary<Guid, (decimal Quantity, decimal Cost)>> WithdrawnByLineAsync(ErpDbContext db, Guid contractId,

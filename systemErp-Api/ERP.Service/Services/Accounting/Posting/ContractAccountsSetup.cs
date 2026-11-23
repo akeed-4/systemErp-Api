@@ -18,7 +18,7 @@ namespace ERP.Service.Services.Accounting;
 /// <para>
 /// الآلية نفسها تهيّئ حسابات الجرد الدوري (<see cref="EnsurePeriodicAsync(ErpDbContext, CancellationToken)"/>): المشتريات وبضاعة أول المدة
 /// وآخرها مصروفات داخل مجموعة تكلفة المبيعات، ومردودات المشتريات اختيارية (يُعاد استخدام القائم فقط، وإلا تُخفَّض المشتريات نفسها)،
-/// وحساب المخزون لا يُنشأ أبداً (يُعرض الحساب الفعّال وحسابات المستودعات).
+/// وحساب المخزون لا يُنشأ أبداً (يُعرض الحساب الفعّال وحسابات المواقع).
 /// </para>
 /// </summary>
 internal static class ContractAccountsSetup
@@ -307,7 +307,7 @@ internal static class ContractAccountsSetup
     }
 
     /// <summary>
-    /// حساب المخزون في الدوري لا يُنشأ: يُعرض الحساب الفعّال (الإعداد أو الافتراضي) وحسابات مخزون المستودعات؛ غيابه من الشجرة مشكلة.
+    /// حساب المخزون في الدوري لا يُنشأ: يُعرض الحساب الفعّال (الإعداد أو الافتراضي) وحسابات مخزون المواقع؛ غيابه من الشجرة مشكلة.
     /// </summary>
     private static async Task<ContractAccountSetupItemDto> InventoryItemAsync(ErpDbContext db, AccountingSettings settings, List<Node> chart, CancellationToken ct)
     {

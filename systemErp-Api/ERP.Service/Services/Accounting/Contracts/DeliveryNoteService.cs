@@ -120,7 +120,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             await AuthorizeAsync(r.Type, ScreenAction.Create, r.ContractId, token);
             if (projectReceipt)
             {
-                // سند استلام مشتريات مشروع: عهدة للمشروع بسعر شرائها، لا مستودع عام (العقد والمورد من الطلب)
+                // سند استلام مشتريات مشروع: عهدة للمشروع بسعر شرائها، لا موقع عام (العقد والمورد من الطلب)
                 await ProjectReceipts.PrepareAsync(_db, note, token, r.ConstructionWarehouseReceipt);
                 // العقد يُعرف من الطلب: نطاق المشروع بعد معرفته
                 if (note.ContractId != r.ContractId) await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
@@ -337,7 +337,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             ret.Date = r.Date == default ? SaudiTime.Today : r.Date;
             ret.ReturnNumber = await _numbers.AssignAsync(new DocumentNumberRequest
             {
-                Key = "delivery_return", DefaultPrefix = "DR-", WarehouseId = note.WarehouseId, Date = ret.Date, // مستودع بيان التسليم
+                Key = "delivery_return", DefaultPrefix = "DR-", WarehouseId = note.WarehouseId, Date = ret.Date, // موقع بيان التسليم
                 ManualNumber = r.ReturnNumber, UserEntered = true,
                 Exists = (n, c) => _db.Set<DeliveryReturnNote>().AnyAsync(x => x.ReturnNumber == n, c),
             }, token);
@@ -358,7 +358,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             await _db.SaveChangesAsync(token);
             if (ProjectReceipts.IsProjectReceipt(note) && note.WarehouseId is null)
             {
-                // إرجاع للمورد من عهدة المشروع (لا للمستودع العام): يسحب من أسطر العهدة ويعكس استحقاقها
+                // إرجاع للمورد من عهدة المشروع (لا للموقع العام): يسحب من أسطر العهدة ويعكس استحقاقها
                 ret.CustodyIssueId = await _supply.PostReceiptReturnAsync(note, ret, token);
                 await _db.SaveChangesAsync(token);
             }
@@ -382,7 +382,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         }, ct);
 
     /// <summary>
-    /// فاتورة مورد واحدة لعدة سندات استلام من أمر شراء واحد (بقفل الأمر): كل سند غير مفوتر ومن الأمر نفسه وبالمستودع والمشروع نفسيهما،
+    /// فاتورة مورد واحدة لعدة سندات استلام من أمر شراء واحد (بقفل الأمر): كل سند غير مفوتر ومن الأمر نفسه وبالموقع والمشروع نفسيهما،
     /// والفاتورة بصافي كمياتها (المستلم − المرتجع)، ثم تُربط كل السندات بها فلا تُفوتر كمية مرتين. حذف الفاتورة يعيدها كلها قابلة للفوترة.
     /// </summary>
     public Task<InvoiceDto> CreatePurchaseOrderInvoiceAsync(Guid purchaseOrderId, IReadOnlyCollection<Guid> deliveryNoteIds, DateTime? date = null,
@@ -408,7 +408,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         }, ct);
 
     /// <summary>
-    /// فاتورة من سند أو أكثر (الأول يحدد الطرف والمستودع والعقد): أسطرها صافي كميات السندات، وتُعلَّم السندات مفوترة بها.
+    /// فاتورة من سند أو أكثر (الأول يحدد الطرف والموقع والعقد): أسطرها صافي كميات السندات، وتُعلَّم السندات مفوترة بها.
     /// </summary>
     private async Task<InvoiceDto> BillAsync(List<DeliveryNote> notes, DateTime? date, Guid? supplierId,
         (string Type, Guid Id, string Number) reference, CancellationToken token)
@@ -435,7 +435,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             ? await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == contractId).Select(c => c.CostCenterId).FirstOrDefaultAsync(token)
             : null;
         // سند استلام مشروع: المواد عهدة للمشروع منذ استلامها، ففاتورة المورد تسوّي استحقاق الاستلام فقط — أسطرها بلا حركة مخزون
-        // (بنود وصفية بأسماء الأصناف) على حساب «بضاعة مستلمة لم تُفوتر»، فلا يتغير المستودع العام ولا متوسط تكلفة الصنف
+        // (بنود وصفية بأسماء الأصناف) على حساب «بضاعة مستلمة لم تُفوتر»، فلا يتغير الموقع العام ولا متوسط تكلفة الصنف
         var projectReceipt = ProjectReceipts.IsProjectReceipt(note) && note.WarehouseId is null;
         var constructionWarehouseReceipt = !sales && !projectReceipt && note.ContractId is Guid constructionContractId
             && await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == constructionContractId)

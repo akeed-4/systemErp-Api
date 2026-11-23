@@ -5,7 +5,7 @@ namespace ERP.Service.Services.Accounting;
 
 /// <summary>
 /// سند استلام مشتريات المشروع: سند الاستلام نفسه (<see cref="DeliveryNote"/> بنوع purchase_delivery) على طلب شراء معتمد لمشروع مقاولات.
-/// المواد لا تدخل المستودع العام ولا متوسط تكلفة الصنف: تصير عهدة للمشروع بسعر شرائها (<see cref="ProjectSupplyService.PostPurchaseReceiptAsync"/>)،
+/// المواد لا تدخل الموقع العام ولا متوسط تكلفة الصنف: تصير عهدة للمشروع بسعر شرائها (<see cref="ProjectSupplyService.PostPurchaseReceiptAsync"/>)،
 /// وفاتورة المورد من السند تسوّي استحقاق الاستلام. هنا قواعد السند: الطلب والمورد وبنود جدول الكميات والكمية والسعر.
 /// </summary>
 internal static class ProjectReceipts
@@ -53,7 +53,7 @@ internal static class ProjectReceipts
         note.PartyType = "supplier";
         if (string.IsNullOrWhiteSpace(note.PartyName)) note.PartyName = supplier.NameAr;
         if (string.IsNullOrWhiteSpace(note.PartyTaxNumber)) note.PartyTaxNumber = supplier.VatNumber;
-        // الاستلام في مستودع المشروع (من شاشة استلام المقاولات)، وإلا عهدة مباشرة للمشروع بلا مستودع
+        // الاستلام في موقع المشروع (من شاشة استلام المقاولات)، وإلا عهدة مباشرة للمشروع بلا موقع
         if (warehouseReceipt)
         {
             var warehouseId = requisition.WarehouseId ?? contract.WarehouseId;

@@ -14,7 +14,7 @@ public class StockMovementsController : ErpControllerBase
     public async Task<IActionResult> List([FromQuery] Guid? itemId, [FromQuery] Guid? warehouseId, [FromQuery] PaginationParams query, CancellationToken ct)
         => Success(await _inventory.ListMovementsAsync(itemId, warehouseId, query, ct));
 
-    /// <summary>أرصدة الأصناف في المستودعات: لصنف (توزيعه على المستودعات) أو لمستودع (محتواه) أو للكل.</summary>
+    /// <summary>أرصدة الأصناف في المواقع: لصنف (توزيعه على المواقع) أو لموقع (محتواه) أو للكل.</summary>
     [HttpGet("WarehouseStock")]
     public async Task<IActionResult> WarehouseStock([FromQuery] Guid? itemId, [FromQuery] Guid? warehouseId, CancellationToken ct)
         => Success(await _inventory.GetWarehouseStockAsync(itemId, warehouseId, ct));

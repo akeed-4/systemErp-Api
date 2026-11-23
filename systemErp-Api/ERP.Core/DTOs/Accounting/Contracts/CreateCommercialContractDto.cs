@@ -6,7 +6,7 @@ public partial class CreateCommercialContractDto
     public string Title { get; set; } = string.Empty;
     public string ContractType { get; set; } = "supply_materials";
     /// <summary>
-    /// موقع العقد (المعرض/المستودع): الفارغ = موقع الجلسة المختار عند تسجيل الدخول (يختمه الخادم). مع «كل المواقع» يُختار هنا.
+    /// موقع العقد (المعرض/الموقع): الفارغ = موقع الجلسة المختار عند تسجيل الدخول (يختمه الخادم). مع «كل المواقع» يُختار هنا.
     /// بالتعديل: الفارغ يُبقي موقعه، ونقل الموقع لمسموح للمستخدم فقط.
     /// </summary>
     public Guid? WarehouseId { get; set; }

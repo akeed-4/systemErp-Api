@@ -19,7 +19,7 @@ public class PurchasePostingRequest
     public string? PartyAccountCode { get; set; }
     /// <summary>حساب المخزون/المشتريات المدين. فارغ = مخزون البضاعة 1141.</summary>
     public string? InventoryAccountCode { get; set; }
-    /// <summary>مستودع المستند: حساب مخزونه (إن حُدِّد) بعد الحساب اليدوي أعلاه وقبل حساب الإعدادات. فارغ = الافتراضي.</summary>
+    /// <summary>موقع المستند: حساب مخزونه (إن حُدِّد) بعد الحساب اليدوي أعلاه وقبل حساب الإعدادات. فارغ = الافتراضي.</summary>
     public Guid? WarehouseId { get; set; }
 
     /// <summary>صافي المستند قبل الضريبة (مخزون + خدمات)؛ عليه تُحسب ذمة المورد.</summary>

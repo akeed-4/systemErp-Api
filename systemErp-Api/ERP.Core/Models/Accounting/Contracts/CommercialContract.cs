@@ -11,7 +11,7 @@ public class CommercialContract : BaseEntity, IScopedRecord, IPartyDocument
     public Guid? CreatedByUserId { get; set; }
     /// <summary>المستخدم المسند إليه المستند لنطاق «السجلات المسندة إليه».</summary>
     public Guid? AssignedToUserId { get; set; }
-    /// <summary>موقع (معرض/مستودع) المستند: يُختم من موقع الجلسة عند الإنشاء؛ فارغ = مستند قديم يظهر لكل المواقع.</summary>
+    /// <summary>موقع (معرض/موقع) المستند: يُختم من موقع الجلسة عند الإنشاء؛ فارغ = مستند قديم يظهر لكل المواقع.</summary>
     public Guid? WarehouseId { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;

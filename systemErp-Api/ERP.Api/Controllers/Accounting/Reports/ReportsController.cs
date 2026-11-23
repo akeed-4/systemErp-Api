@@ -26,7 +26,7 @@ public class ReportsController : ErpControllerBase
         _accounting = accounting; _inventory = inventory;
     }
 
-    /// <summary>تقرير صلاحية التشغيلات: الأرصدة القائمة بحالتها (منتهية / قريبة الانتهاء / صالحة) لمستودع أو للكل.</summary>
+    /// <summary>تقرير صلاحية التشغيلات: الأرصدة القائمة بحالتها (منتهية / قريبة الانتهاء / صالحة) لموقع أو للكل.</summary>
     [HttpGet("BatchExpiry"), RequireScreen("reports")]
     public async Task<IActionResult> BatchExpiry([FromServices] ERP.Core.Contracts.Shared.IInventoryService inventory, [FromQuery] Guid? warehouseId,
         [FromQuery] string? status, [FromQuery] int? withinDays, CancellationToken ct)

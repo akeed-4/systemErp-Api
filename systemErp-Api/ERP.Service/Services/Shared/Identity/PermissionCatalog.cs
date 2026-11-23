@@ -44,7 +44,7 @@ public static class PermissionCatalog
         new(A.Post, "post", PermissionActionGroup.Workflow, "ترحيل", "Post", A.Edit),
         new(A.Import, "import", PermissionActionGroup.Workflow, "استيراد", "Import", A.Create),
         new(A.Discount, "discount", PermissionActionGroup.Workflow, "خصم يدوي", "Manual Discount", A.Approve),
-        // أدوار دورة العقد: مُعد العقد، المراجع القانوني، المراجع المالي، لجنة الفحص، أمين المستودع (صاحب الصلاحية = اعتماد، المحاسب = ترحيل)
+        // أدوار دورة العقد: مُعد العقد، المراجع القانوني، المراجع المالي، لجنة الفحص، أمين الموقع (صاحب الصلاحية = اعتماد، المحاسب = ترحيل)
         new(A.Submit, "submit", PermissionActionGroup.Workflow, "إرسال للمراجعة", "Submit for Review", A.Edit),
         new(A.LegalReview, "legal_review", PermissionActionGroup.Workflow, "مراجعة قانونية", "Legal Review", A.Approve),
         new(A.FinancialReview, "financial_review", PermissionActionGroup.Workflow, "مراجعة مالية", "Financial Review", A.Approve),
@@ -99,10 +99,10 @@ public static class PermissionCatalog
         new(ConstructionProjectsScreenId, "contracts", "مشاريع المقاولات (الإعداد والمتابعة)", "Construction Projects (Setup & Monitoring)",
             new[] { A.View, A.Edit }.Concat(Docs).ToArray(), new[] { "construction/projects", "construction/performance" }, InheritsFrom: CommercialContractsScreenId),
         // التقرير اليومي للموقع: المشرف يسجّل ويقدّم، والمهندس المسؤول يعتمد أو يعيد (الاعتماد)؛ يرث صلاحية العقود حتى تُحفظ له صلاحية
-        // صرف مواد المستودع للمشاريع: أمين المستودع يُنشئ ويرحّل، والإلغاء يعكس الأثر؛ يرث صلاحية مشاريع المقاولات حتى تُحفظ له صلاحية
-        new(ProjectMaterialIssuesScreenId, "contracts", "صرف مواد المستودع للمشاريع", "Project Material Issues",
+        // صرف مواد الموقع للمشاريع: أمين الموقع يُنشئ ويرحّل، والإلغاء يعكس الأثر؛ يرث صلاحية مشاريع المقاولات حتى تُحفظ له صلاحية
+        new(ProjectMaterialIssuesScreenId, "contracts", "صرف مواد الموقع للمشاريع", "Project Material Issues",
             Crud(A.Post, A.Cancel), Array.Empty<string>(), InheritsFrom: ConstructionProjectsScreenId),
-        // حجز مخزون المستودع للمشاريع: الإضافة حجز، والتعديل تحرير وطلب تحويل لمشروع آخر، والاعتماد لتحويل التخصيص (لا يعتمده مقدّمه)
+        // حجز مخزون الموقع للمشاريع: الإضافة حجز، والتعديل تحرير وطلب تحويل لمشروع آخر، والاعتماد لتحويل التخصيص (لا يعتمده مقدّمه)
         new(ProjectStockReservationsScreenId, "contracts", "حجز مخزون المشاريع وتحويل التخصيص", "Project Stock Reservations",
             new[] { A.View, A.Create, A.Edit, A.Approve }, Array.Empty<string>(), InheritsFrom: ProjectMaterialIssuesScreenId),
         // طلب شراء (أو تعديله أو اعتماده) لمرحلة تنفيذ لم تبدأ بعد: تفويض حسّاس لا يُمنح افتراضياً إلا للأدوار الإدارية
@@ -166,7 +166,9 @@ public static class PermissionCatalog
         new("vouchers", "accounting", "سندات القبض والصرف", "Receipt & Payment Vouchers",
             Crud(A.Approve, A.Post, A.Cancel), new[] { "vouchers" }),
 
-        new("warehouses", "inventory", "المستودعات", "Warehouses", Crud(), new[] { "master-data/warehouses" }),
+        new("warehouses", "inventory", "المواقع", "Warehouses", Crud(), new[] { "master-data/warehouses" }),
+        // الفروع فُصلت من المواقع: ترث صلاحيات المواقع حتى تُحفظ لها صلاحيات مستقلة
+        new("branches", "inventory", "الفروع", "Branches", Crud(), new[] { "master-data/branches" }, InheritsFrom: "warehouses"),
         new(ProductionOrdersScreenId, "inventory", "مستندات التصنيع (تحويل المواد إلى منتج)", "Production Orders",
             Crud(A.Post, A.Cancel), new[] { "production-orders" }, InheritsFrom: "inventory-counts"),
         new("inventory-counts", "inventory", "جرد المخزون والمركبات واعتماده", "Inventory Counts & Approvals",

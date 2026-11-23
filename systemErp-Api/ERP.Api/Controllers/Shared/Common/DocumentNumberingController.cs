@@ -12,7 +12,7 @@ public class DocumentNumberingController : ErpControllerBase
     private readonly IDocumentNumberingService _numbering;
     public DocumentNumberingController(IDocumentNumberingService numbering) => _numbering = numbering;
 
-    /// <summary>كل الأنواع بإعدادها والرقم التالي (للمستودع المحدد عند الترقيم لكل مستودع).</summary>
+    /// <summary>كل الأنواع بإعدادها والرقم التالي (للموقع المحدد عند الترقيم لكل موقع).</summary>
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] Guid? warehouseId, CancellationToken ct) => Success(await _numbering.ListAsync(warehouseId, ct));
 

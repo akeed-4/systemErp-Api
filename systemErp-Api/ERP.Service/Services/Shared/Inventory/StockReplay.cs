@@ -14,7 +14,7 @@ public static class StockReplay
 
         foreach (var m in ordered)
         {
-            // التحويل بين المستودعات لا يغيّر رصيد الصنف ولا تكلفته ولا طبقاته، وإعادة التقييم نتيجة إعادة بناء لا مُدخل لها
+            // التحويل بين المواقع لا يغيّر رصيد الصنف ولا تكلفته ولا طبقاته، وإعادة التقييم نتيجة إعادة بناء لا مُدخل لها
             if (m.Type is StockMovementType.TransferIn or StockMovementType.TransferOut or StockMovementType.Revaluation) { m.RemainingStock = stock; continue; }
             if (m.Type is StockMovementType.InPurchase or StockMovementType.AdjustmentIn)
             {

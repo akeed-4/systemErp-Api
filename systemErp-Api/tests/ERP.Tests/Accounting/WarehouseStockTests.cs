@@ -3,7 +3,7 @@ using ERP.Tests.Infrastructure;
 
 namespace ERP.Tests;
 
-/// <summary>المخزون لكل مستودع: رصيد لكل مستودع بتكلفة موحّدة للصنف، والمستودع الافتراضي عند عدم التحديد.</summary>
+/// <summary>المخزون لكل موقع: رصيد لكل موقع بتكلفة موحّدة للصنف، والموقع الافتراضي عند عدم التحديد.</summary>
 [Collection("api")]
 public class WarehouseStockTests : TestBase
 {
@@ -11,7 +11,7 @@ public class WarehouseStockTests : TestBase
 
     private static async Task<Guid> NewWarehouseAsync(Client api, string code)
     {
-        var w = await api.Post("/warehouses", new { code, nameAr = "مستودع " + code, nameEn = code, location = "الرياض", status = "active" });
+        var w = await api.Post("/warehouses", new { code, nameAr = "موقع " + code, nameEn = code, location = "الرياض", status = "active" });
         Assert.Equal(201, w.Status);
         return w.Data!["id"].G();
     }
@@ -53,12 +53,12 @@ public class WarehouseStockTests : TestBase
         Assert.Equal(before + 10, await OnHandAsync(api, item, main));
         Assert.Equal(4, await OnHandAsync(api, item, branch));
 
-        // البيع من مستودع لا يصرف من رصيد مستودع آخر
+        // البيع من موقع لا يصرف من رصيد موقع آخر
         Assert.Equal(409, (await api.PostInvoice(Sale(item, 5, branch))).Status);
         Assert.Equal(201, (await api.PostInvoice(Sale(item, 3, branch))).Status);
         Assert.Equal(1, await OnHandAsync(api, item, branch));
 
-        // مجموع المستودعات = رصيد الصنف
+        // مجموع المواقع = رصيد الصنف
         var product = (await api.Get($"/products/{item}")).Data!;
         Assert.Equal(product["currentStock"].D(), await OnHandAsync(api, item, main) + await OnHandAsync(api, item, branch));
     }
@@ -73,7 +73,7 @@ public class WarehouseStockTests : TestBase
         var main = await DefaultWarehouseAsync(api);
         // الموقع المضاف يختار حساب مخزونه من الدليل (لا يُنشأ له حساب)
         await AccountingSettingsTests.AccountAsync(api, "1148", "asset", "114");
-        var branchCreated = await api.Post("/warehouses", new { code = "WH-T", nameAr = "مستودع WH-T", nameEn = "WH-T", location = "الرياض", status = "active", inventoryAccountCode = "1148" });
+        var branchCreated = await api.Post("/warehouses", new { code = "WH-T", nameAr = "موقع WH-T", nameEn = "WH-T", location = "الرياض", status = "active", inventoryAccountCode = "1148" });
         Assert.Equal(201, branchCreated.Status);
         var branch = branchCreated.Data!["id"].G();
         Assert.Equal(201, (await api.PostInvoice(Purchase(supplier, item, 10, 20))).Status);
@@ -99,7 +99,7 @@ public class WarehouseStockTests : TestBase
         Assert.NotEqual(MainSiteInventory, branchAccount);
         Assert.Equal(6 * after["averageCost"].D(), (await api.Get($"/accounts/ByCode/{branchAccount}")).Data!["balance"].D());
 
-        // المرتجع يعود إلى مستودع فاتورته
+        // المرتجع يعود إلى موقع فاتورته
         var sale = await api.PostInvoice(Sale(item, 2, branch));
         Assert.Equal(201, sale.Status);
         Assert.Equal(200, (await api.PostReturn(new { originalInvoiceId = sale.Data!["id"].S(), returnReason = "x" })).Status);
@@ -131,7 +131,7 @@ public class WarehouseStockTests : TestBase
         var branch = await NewWarehouseAsync(api, "WH-R");
         Assert.Equal(200, (await api.Post("/stocktransfers", new { fromWarehouseId = main, toWarehouseId = branch, items = new[] { new { itemId = item, quantity = 4 } } })).Status);
 
-        // على مستوى المنشأة لا يظهر التحويل، وفي مستودعه يظهر وارداً
+        // على مستوى المنشأة لا يظهر التحويل، وفي موقعه يظهر وارداً
         var all = (await api.Get($"/reports/ItemLedger?itemId={item}")).Data!.AsArray();
         var inBranch = (await api.Get($"/reports/ItemLedger?itemId={item}&warehouseId={branch}")).Data!.AsArray();
         Assert.DoesNotContain(all, r => r!["docNumber"].S().StartsWith("TRF-"));
@@ -155,7 +155,7 @@ public class WarehouseStockTests : TestBase
         Assert.Equal(200, adjustment.Status);
         Assert.Equal(5, await OnHandAsync(api, item, branch));
 
-        // نقل التسوية إلى المستودع الرئيسي بكمية أخرى
+        // نقل التسوية إلى الموقع الرئيسي بكمية أخرى
         Assert.Equal(200, (await api.Put($"/stockmovements/{adjustment.Data!["id"].S()}", Adjust(3, main))).Status);
         Assert.Equal(0, await OnHandAsync(api, item, branch));
         Assert.Equal(mainBefore + 3, await OnHandAsync(api, item, main));

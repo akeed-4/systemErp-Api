@@ -506,7 +506,7 @@ public class TradeInvoiceEngine
         await ItemBatches.MarkReversedAsync(_db, "invoice", invoice.Id, ct);
         await _db.SaveChangesAsync(ct);
         // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف
-        // الفرق تسوية لأثر هذا المستند على حساب مخزون مستودعه؛ المستند بحساب يدوي (السيارات) يبقى على حساب المخزون العام كما كان
+        // الفرق تسوية لأثر هذا المستند على حساب مخزون موقعه؛ المستند بحساب يدوي (السيارات) يبقى على حساب المخزون العام كما كان
         var postingAccounts = await PostingAccounts.SettingsAsync(_db, ct);
         var inventoryAccount = string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)
             ? await postingAccounts.InventoryAsync(_db, invoice.WarehouseId, ct) : postingAccounts.Inventory();
@@ -862,7 +862,7 @@ public class TradeInvoiceEngine
             InvoiceNumber = r.ManualNumber ?? string.Empty, SystemGenerated = r.SystemGenerated, // رقم المرتجع اليدوي إن ضُبط نوعه يدوياً
             PartyId = original.PartyId, PartyName = original.PartyName, PartyVatNumber = original.PartyVatNumber, PartyCrNumber = original.PartyCrNumber, PartyIdType = original.PartyIdType, PartyIdNumber = original.PartyIdNumber,
             PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
-            WarehouseId = original.WarehouseId, // المرتجع يعود إلى مستودع فاتورته
+            WarehouseId = original.WarehouseId, // المرتجع يعود إلى موقع فاتورته
             CostCenterId = original.CostCenterId,
             JournalCostCenters = JournalCostCenterMap.Unpack(original.JournalCostCentersJson), // المرتجع يعكس قيد أصله على مراكزه
             // الحسابات المحددة يدوياً على الأصل تتقدم في مرتجعه كما تقدمت فيه: المخزون يعود لحسابه والإيراد يُعكس من حسابه
@@ -1013,7 +1013,7 @@ public class TradeInvoiceEngine
         if (m.ConvertedInvoiceId != null || m.Status is "converted_to_invoice" or "converted_to_po")
             throw new ConflictException(string.Format(Messages.RequisitionAlreadyConverted, m.RequisitionNumber));
         if (m.Status != "approved") throw new ConflictException(Messages.ApproveRequisitionBeforeConversion);
-        // طلب المشروع يُستلم بسند استلام (عهدة للمشروع) ثم يُفوتر منه، لا بفاتورة شراء للمستودع العام
+        // طلب المشروع يُستلم بسند استلام (عهدة للمشروع) ثم يُفوتر منه، لا بفاتورة شراء للموقع العام
         if (m.ContractId != null) throw new ConflictException(Messages.ProjectRequisitionReceivedByGrn);
         // طلب عليه طلب عروض أسعار قائم يُشترى بأوامر الترسية فلا تتكرر الكمية بفاتورة مباشرة
         if (await PurchaseCycleService.HasActiveRfqAsync(_db, m.Id, ct))
@@ -1431,7 +1431,7 @@ public class TradeInvoiceEngine
             }
         }
         if (string.IsNullOrWhiteSpace(invoice.PartyName)) invoice.PartyName = isSales ? DefaultCashCustomer : "مورد نقدي";
-        // المستودع: المحدَّد في الفاتورة أو الافتراضي للمنشأة
+        // الموقع: المحدَّد في الفاتورة أو الافتراضي للمنشأة
         var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId, ct);
         if (r.WarehouseId.HasValue && warehouse.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
         invoice.WarehouseId = warehouse.Id; invoice.WarehouseName = warehouse.NameAr;

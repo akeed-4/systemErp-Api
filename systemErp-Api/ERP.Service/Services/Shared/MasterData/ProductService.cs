@@ -338,7 +338,7 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
     protected override Task OnUpdatedAsync(Product e, CancellationToken ct) => WritePendingComponentsAsync(e.Id, ct);
 
     /// <summary>
-    /// تفعيل تتبّع التشغيلات لصنف برصيد قائم: رصيد كل مستودع يدخل تشغيلة «رصيد افتتاحي» بلا صلاحية (فيبقى مجموع التشغيلات = الرصيد)،
+    /// تفعيل تتبّع التشغيلات لصنف برصيد قائم: رصيد كل موقع يدخل تشغيلة «رصيد افتتاحي» بلا صلاحية (فيبقى مجموع التشغيلات = الرصيد)،
     /// ثم تُستهلك أولاً بعد التشغيلات المؤرخة. الإيقاف ممنوع وفي التشغيلات رصيد (تبقى الأرصدة بلا تتبّع ثم تنفصل عن الرصيد).
     /// </summary>
     private async Task ApplyBatchTrackingChangeAsync(Product e, bool wasTracking, CancellationToken ct)

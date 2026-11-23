@@ -94,11 +94,11 @@ public class InventoryCountSnapshotRequestDto
     public InventoryCountScope Scope { get; set; } = InventoryCountScope.Items;
     /// <summary>للأصناف: كود التصنيف (جرد دوري لجزء من الأصناف).</summary>
     public string? Category { get; set; }
-    /// <summary>للأصناف: المستودع المجرود (فارغ = الافتراضي).</summary>
+    /// <summary>للأصناف: الموقع المجرود (فارغ = الافتراضي).</summary>
     public Guid? WarehouseId { get; set; }
     /// <summary>للأصناف: تضمين الأصناف ذات الرصيد الصفري.</summary>
     public bool IncludeZeroStock { get; set; }
-    /// <summary>للأصناف: نوع الجرد؛ جرد آخر المدة بلا مستودع يقرأ رصيد كل المستودعات.</summary>
+    /// <summary>للأصناف: نوع الجرد؛ جرد آخر المدة بلا موقع يقرأ رصيد كل المواقع.</summary>
     public InventoryCountType? CountType { get; set; }
     /// <summary>للمركبات: موقع المعرض.</summary>
     public string? Location { get; set; }

@@ -29,7 +29,7 @@ public static class ApprovalSnapshotBuilder
     private static readonly (string Prop, string Label)[] FieldProps =
     {
         ("Title", "العنوان"), ("ContractType", "نوع العقد"), ("Period", "الفترة"), ("Department", "القسم"), ("Priority", "الأولوية"),
-        ("WarehouseName", "المستودع"), ("FromWarehouseName", "من مستودع"), ("ToWarehouseName", "إلى مستودع"),
+        ("WarehouseName", "الموقع"), ("FromWarehouseName", "من موقع"), ("ToWarehouseName", "إلى موقع"),
         ("PaymentMethod", "طريقة الدفع"), ("ReferenceNumber", "المرجع"), ("SupplierInvoiceNumber", "فاتورة المورد"),
         ("ProcurementOrderNumber", "أمر الشراء"), ("ExpenseTypeNameAr", "نوع المصروف"), ("DeliveryNumber", "سند التسليم"),
         ("ContractNumber", "العقد"), ("VehicleDescription", "المركبة"), ("Vin", "رقم الهيكل"), ("EmployeeCode", "رقم الموظف"),

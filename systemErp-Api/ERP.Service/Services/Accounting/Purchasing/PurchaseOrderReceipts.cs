@@ -66,7 +66,7 @@ internal static class PurchaseOrderReceipts
         if (note.RequisitionId.HasValue && note.RequisitionId != order.RequisitionId)
             throw new ValidationFailedException(Messages.ReceiptNotOfOrder);
         note.RequisitionId = null;
-        // طلب شراء لمشروع: السند استلام مشروع (عهدة أو مستودع المشروع) بقواعد ProjectReceipts
+        // طلب شراء لمشروع: السند استلام مشروع (عهدة أو موقع المشروع) بقواعد ProjectReceipts
         if (order.RequisitionId is { } requisitionId
             && await db.Set<MaterialRequisition>().AsNoTracking().AnyAsync(r => r.Id == requisitionId && r.ContractId != null, ct))
             note.RequisitionId = requisitionId;

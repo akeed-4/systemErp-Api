@@ -12,7 +12,7 @@ public class InventoryCount : BaseEntity
     public InventoryCountStatus Status { get; set; } = InventoryCountStatus.Draft;
     public DateTime CountDate { get; set; }
 
-    /// <summary>مستودع الجرد (للأصناف): يُسجَّل على حركات التسوية. الرصيد نفسه على مستوى الصنف.</summary>
+    /// <summary>موقع الجرد (للأصناف): يُسجَّل على حركات التسوية. الرصيد نفسه على مستوى الصنف.</summary>
     public Guid? WarehouseId { get; set; }
     public string? WarehouseName { get; set; }
     /// <summary>موقع المعرض (للمركبات): يحدّد المركبات المتوقعة في هذا الجرد.</summary>

@@ -8,7 +8,7 @@ public class ProjectMaterialPlanDto
     public Guid ContractId { get; set; }
     public string ContractNumber { get; set; } = string.Empty;
     public string? ProjectName { get; set; }
-    /// <summary>مستودع المشروع (مستودع العقد) لعرض رصيده بجانب الرصيد الكلي.</summary>
+    /// <summary>موقع المشروع (موقع العقد) لعرض رصيده بجانب الرصيد الكلي.</summary>
     public Guid? WarehouseId { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? Notes { get; set; }
@@ -57,7 +57,7 @@ public class ProjectMaterialRequirementDto
     public string? ProductUnit { get; set; }
     /// <summary>الكمية بوحدة الصنف؛ فارغة إن لم تُربط المادة أو لم تتحول وحدتها.</summary>
     public decimal? ProductQuantity { get; set; }
-    /// <summary>رصيد الصنف (بوحدته) في كل المستودعات وفي مستودع المشروع؛ للعرض، لا حجز.</summary>
+    /// <summary>رصيد الصنف (بوحدته) في كل المواقع وفي موقع المشروع؛ للعرض، لا حجز.</summary>
     public decimal? OnHandQuantity { get; set; }
     public decimal? ProjectWarehouseQuantity { get; set; }
     public string? Notes { get; set; }

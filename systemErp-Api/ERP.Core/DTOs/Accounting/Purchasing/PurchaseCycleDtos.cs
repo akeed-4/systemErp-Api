@@ -199,7 +199,7 @@ public class ReceivePurchaseOrderDto
 {
     public DateTime? Date { get; set; }
     public string? DeliveryNumber { get; set; }
-    /// <summary>مستودع الاستلام؛ فارغ = مستودع الأمر.</summary>
+    /// <summary>موقع الاستلام؛ فارغ = موقع الأمر.</summary>
     public Guid? WarehouseId { get; set; }
     public string? Notes { get; set; }
     public List<ReceivePurchaseOrderLineDto> Lines { get; set; } = new();

@@ -4,8 +4,8 @@ using ERP.Tests.Infrastructure;
 namespace ERP.Tests;
 
 /// <summary>
-/// عزل مشتريات المشروع: طلب شراء المشروع ← سند استلام (عهدة للمشروع بسعر شرائها، بلا مستودع عام ولا متوسط تكلفة) ← فاتورة المورد
-/// من السند تسوّي استحقاق الاستلام. منع الاستلام المكرر والتحويل المباشر للمستودع، والإرجاع للمورد، والحذف والعكس، واستخدام العهدة
+/// عزل مشتريات المشروع: طلب شراء المشروع ← سند استلام (عهدة للمشروع بسعر شرائها، بلا موقع عام ولا متوسط تكلفة) ← فاتورة المورد
+/// من السند تسوّي استحقاق الاستلام. منع الاستلام المكرر والتحويل المباشر للموقع، والإرجاع للمورد، والحذف والعكس، واستخدام العهدة
 /// في المستخلص والهدر.
 /// </summary>
 [Collection("api")]
@@ -21,7 +21,7 @@ public class ProjectPurchaseIsolationTests : TestBase
     // ---------- الإعداد ----------
 
     /// <summary>
-    /// صنف أسمنت في المستودع العام 50 قطعة بتكلفة 10 (متوسطه 10)، مربوط بمادة مكتبة، وعقد مقاولات ساري ببند «صب» ومجموعة بفرعي،
+    /// صنف أسمنت في الموقع العام 50 قطعة بتكلفة 10 (متوسطه 10)، مربوط بمادة مكتبة، وعقد مقاولات ساري ببند «صب» ومجموعة بفرعي،
     /// واحتياج معتمد للأسمنت على «صب» 100 قطعة.
     /// </summary>
     private async Task<(Client Api, Project P)> SetupAsync(bool withProjectWarehouse = false)
@@ -161,7 +161,7 @@ public class ProjectPurchaseIsolationTests : TestBase
         var (api, p) = await SetupAsync();
         var req = await RequisitionAsync(api, p, qty: 100, price: 12);
 
-        // لا تحويل مباشر لفاتورة شراء للمستودع العام
+        // لا تحويل مباشر لفاتورة شراء للموقع العام
         Status(409, await api.Post($"/materialrequisitions/{req}/ConvertToInvoice"), "direct conversion");
 
         var grn = await ReceiveAsync(api, p, req, 40);
@@ -189,7 +189,7 @@ public class ProjectPurchaseIsolationTests : TestBase
         Ok(await ReceiveAsync(api, p, req, 60), "receive the rest");
         Status(400, await ReceiveAsync(api, p, req, 1), "request fully received");
 
-        // العهدة تُختار في المستخلص كأي تسليم، ولا تُرجع للمستودع العام
+        // العهدة تُختار في المستخلص كأي تسليم، ولا تُرجع للموقع العام
         var options = (await api.Get($"/commercialcontracts/{p.Id}/certificates/material-options")).Data!.AsArray();
         var receiptLine = custody["lines"]![0]!["id"].G();
         Assert.Contains(options, o => o!["issueLineId"].G() == receiptLine);
@@ -224,7 +224,7 @@ public class ProjectPurchaseIsolationTests : TestBase
         var line = await TrackingAsync(api, p);
         Assert.Equal(30m, line["deliveredQuantity"].D()); Assert.Equal(10m, line["returnedQuantity"].D());
 
-        // فاتورة المورد من السند: الصافي 30 × 12 = 360 + ضريبة، تسوّي الاستحقاق ولا تمسّ المستودع ولا فوترة العميل
+        // فاتورة المورد من السند: الصافي 30 × 12 = 360 + ضريبة، تسوّي الاستحقاق ولا تمسّ الموقع ولا فوترة العميل
         var invoice = await api.Post($"/deliverynotes/{noteId}/Invoice");
         Ok(invoice, "supplier invoice");
         Assert.Equal(414m, invoice.Data!["grandTotal"].D());
@@ -315,7 +315,7 @@ public class ProjectPurchaseIsolationTests : TestBase
     public async Task Receipts_cannot_push_delivered_material_past_the_approved_requirement()
     {
         var (api, p) = await SetupAsync();
-        // احتياج 100: طلب 100 معتمد، ثم صرف 50 من رصيد المستودع للموقع — المتبقي للتسليم 50 أياً كان مصدره
+        // احتياج 100: طلب 100 معتمد، ثم صرف 50 من رصيد الموقع للموقع — المتبقي للتسليم 50 أياً كان مصدره
         var req = await RequisitionAsync(api, p, qty: 100, price: 12);
         Ok(await api.Post($"/commercialcontracts/{p.Id}/material-issues", new
         {

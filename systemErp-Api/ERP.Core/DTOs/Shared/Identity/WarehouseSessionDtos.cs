@@ -1,6 +1,6 @@
 namespace ERP.Core.DTOs.Shared;
 
-/// <summary>موقع (معرض/مستودع) يستطيع المستخدم العمل فيه.</summary>
+/// <summary>موقع (معرض/موقع) يستطيع المستخدم العمل فيه.</summary>
 public class WarehouseOptionDto
 {
     public Guid Id { get; set; }

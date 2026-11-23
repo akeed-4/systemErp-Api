@@ -183,7 +183,7 @@ public partial class FieldGpsAttendanceTests : TestBase
         Assert.Empty((await stranger.Get("/me/attendance")).Data!["projects"]!.AsArray());
 
         // مشروع آخر ساري لم يُسند إليه: لا يُقبل بمعرّفه
-        var second = await ProjectAsync(s.Hr, "مستودع");
+        var second = await ProjectAsync(s.Hr, "موقع");
         Ok(await GeofenceAsync(s.Hr, second), "second geofence");
         Status(403, await CheckInAsync(s.Me, contractId: second), "foreign project id");
 

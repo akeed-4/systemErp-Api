@@ -101,7 +101,7 @@ public class Equipment : BaseEntity
     /// <summary>تظهر في تقويم التوفر وتُحجز وتُؤجَّر للعملاء.</summary>
     public bool IsRentable { get; set; }
     public Guid? RentalCategoryId { get; set; }
-    /// <summary>الموقع التشغيلي (المستودع) الذي تُسلَّم منه وتعود إليه.</summary>
+    /// <summary>الموقع التشغيلي (الموقع) الذي تُسلَّم منه وتعود إليه.</summary>
     public Guid? HomeWarehouseId { get; set; }
 }
 
@@ -216,7 +216,7 @@ public static class EquipmentMaintenanceStatuses
 }
 
 /// <summary>
-/// أمر عمل صيانة (وقائية أو تصحيحية) بقطع غياره من المخزون. الإكمال يصرف القطع من المستودع بتكلفتها الفعلية ويقيد مدين مصروف
+/// أمر عمل صيانة (وقائية أو تصحيحية) بقطع غياره من المخزون. الإكمال يصرف القطع من الموقع بتكلفتها الفعلية ويقيد مدين مصروف
 /// الصيانة / دائن المخزون؛ وتكلفة العمالة والورشة الخارجية تُقيَّد فقط إن حُدِّد حسابها الدائن (وإلا فهي من فاتورتها).
 /// </summary>
 public class EquipmentMaintenanceOrder : BaseEntity
@@ -234,7 +234,7 @@ public class EquipmentMaintenanceOrder : BaseEntity
     public Guid? TechnicianEmployeeId { get; set; }
     /// <summary>الورشة الخارجية (مورد).</summary>
     public Guid? SupplierId { get; set; }
-    /// <summary>مستودع قطع الغيار.</summary>
+    /// <summary>موقع قطع الغيار.</summary>
     public Guid? WarehouseId { get; set; }
     public decimal LaborCost { get; set; }
     public decimal ExternalCost { get; set; }

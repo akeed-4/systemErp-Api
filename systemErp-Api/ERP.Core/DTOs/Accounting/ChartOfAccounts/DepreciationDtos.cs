@@ -1,6 +1,6 @@
 namespace ERP.Core.DTOs.Accounting;
 
-/// <summary>طلب معاينة/ترحيل إهلاك فترة شهرية (yyyy-MM). بلا أصول محددة يشمل كل الأصول، أو أصول مركز تكلفة و/أو مستودع (معرض) محدد.</summary>
+/// <summary>طلب معاينة/ترحيل إهلاك فترة شهرية (yyyy-MM). بلا أصول محددة يشمل كل الأصول، أو أصول مركز تكلفة و/أو موقع (معرض) محدد.</summary>
 public class DepreciationRunRequestDto
 {
     public string Period { get; set; } = string.Empty;

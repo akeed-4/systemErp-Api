@@ -56,7 +56,7 @@ public class DocumentNumberingService : IDocumentNumberingService
             row.Version = Guid.NewGuid();
             await _db.SaveChangesAsync(token);
 
-            // الرقم التالي على العدّاد الذي ستُصرف منه المستندات الجديدة (المستودع المحدد والسنة المالية الحالية)
+            // الرقم التالي على العدّاد الذي ستُصرف منه المستندات الجديدة (الموقع المحدد والسنة المالية الحالية)
             if (d.NextNumber is long next)
             {
                 var counter = await _numbers.CounterAsync(key, type.DefaultPrefix, d.WarehouseId, null, token);

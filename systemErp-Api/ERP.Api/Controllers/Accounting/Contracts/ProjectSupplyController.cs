@@ -8,7 +8,7 @@ namespace ERP.Api.Controllers.Accounting;
 
 /// <summary>
 /// توريد مواد المشروع تحت سجل العقد (يخضع لنطاق الوصول على العقد): متابعة المطلوب/المطلوب شراؤه/المشترى/المسلَّم/المتبقي،
-/// ومستندات صرف مواد المستودع للمشروع.
+/// ومستندات صرف مواد الموقع للمشروع.
 /// </summary>
 [Route("api/v1/commercialcontracts/{id:guid}")]
 [RequireModule(PlatformModules.Construction)]
@@ -22,7 +22,7 @@ public class ProjectSupplyController : ErpControllerBase
 
     public ProjectSupplyController(IProjectSupplyService supply) => _supply = supply;
 
-    /// <summary>متابعة مواد المشروع لكل صنف (الرصيد في مستودع محدد أو مستودع المشروع)، أو مواد مرحلة تنفيذ واحدة بـ <c>phaseId</c>.</summary>
+    /// <summary>متابعة مواد المشروع لكل صنف (الرصيد في موقع محدد أو موقع المشروع)، أو مواد مرحلة تنفيذ واحدة بـ <c>phaseId</c>.</summary>
     [HttpGet("material-tracking"), RequireScreen(Projects, ScreenAction.View)]
     public async Task<IActionResult> Tracking(Guid id, [FromQuery] Guid? warehouseId, [FromQuery] Guid? exceptRequisitionId, [FromQuery] Guid? phaseId,
         CancellationToken ct)
@@ -69,7 +69,7 @@ public class ProjectSupplyController : ErpControllerBase
 }
 
 /// <summary>
-/// حجز مخزون المستودع للمشروع وتحويل التخصيص لمشروع آخر (تحت سجل العقد ونطاق الوصول إليه)، وأرقام المتاح والمحجوز لأصنافه.
+/// حجز مخزون الموقع للمشروع وتحويل التخصيص لمشروع آخر (تحت سجل العقد ونطاق الوصول إليه)، وأرقام المتاح والمحجوز لأصنافه.
 /// </summary>
 [Route("api/v1/commercialcontracts/{id:guid}")]
 [RequireModule(PlatformModules.Construction)]

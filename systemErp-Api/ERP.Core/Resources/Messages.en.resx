@@ -2300,4 +2300,15 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="CostCenterCodesExhausted" xml:space="preserve"><value>All available codes under cost center ({0}) have been used.</value></data>
   <data name="AccountLinkedToFixedAsset" xml:space="preserve"><value>The account belongs to a fixed asset; it is deleted together with the asset from the Fixed Assets screen.</value></data>
   <data name="CannotDeleteFixedAssetWithEntries" xml:space="preserve"><value>Cannot delete the asset because it has accounting history (acquisition, depreciation, disposal or entries on its accounts). Dispose of the asset instead.</value></data>
+  <data name="LabelBranch" xml:space="preserve"><value>Branch</value></data>
+  <data name="BranchCodeInUse" xml:space="preserve"><value>The branch code is already in use.</value></data>
+  <data name="BranchNotFound" xml:space="preserve"><value>Branch not found.</value></data>
+  <data name="BranchInactive" xml:space="preserve"><value>The branch is inactive; an active location cannot be assigned to it.</value></data>
+  <data name="BranchStatusInvalid" xml:space="preserve"><value>Invalid branch status (active or inactive).</value></data>
+  <data name="SetAnotherDefaultBranch" xml:space="preserve"><value>Set another branch as default first.</value></data>
+  <data name="DefaultBranchMustBeActive" xml:space="preserve"><value>The default branch must be active.</value></data>
+  <data name="BranchHasActiveLocations" xml:space="preserve"><value>A branch with active locations cannot be deactivated; move or deactivate its locations first.</value></data>
+  <data name="CannotDeleteDefaultBranch" xml:space="preserve"><value>The default branch cannot be deleted.</value></data>
+  <data name="BranchHasLocations" xml:space="preserve"><value>A branch with locations cannot be deleted; move its locations to another branch first.</value></data>
+  <data name="LocationBranchRequired" xml:space="preserve"><value>Select the branch this location belongs to.</value></data>
 </root>

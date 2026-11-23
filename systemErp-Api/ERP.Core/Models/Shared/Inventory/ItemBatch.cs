@@ -13,7 +13,7 @@ public class ItemBatch : BaseEntity
     public string? Notes { get; set; }
 }
 
-/// <summary>رصيد تشغيلة في مستودع. مجموع تشغيلات الصنف في مستودع = رصيده فيه (WarehouseStock) للصنف المتتبَّع.</summary>
+/// <summary>رصيد تشغيلة في موقع. مجموع تشغيلات الصنف في موقع = رصيده فيه (WarehouseStock) للصنف المتتبَّع.</summary>
 public class BatchStock : BaseEntity
 {
     public Guid ItemId { get; set; }

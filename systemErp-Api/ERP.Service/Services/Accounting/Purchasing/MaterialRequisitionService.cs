@@ -79,7 +79,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     }
 
     /// <summary>
-    /// طلب لأمر عمل الورشة (D7): الأمر موجود وقبل الفوترة، ولا يجتمع مع المشروع، ويثبت بعد الإنشاء؛ المستودع الافتراضي مستودع الأمر.
+    /// طلب لأمر عمل الورشة (D7): الأمر موجود وقبل الفوترة، ولا يجتمع مع المشروع، ويثبت بعد الإنشاء؛ الموقع الافتراضي موقع الأمر.
     /// الطلب بلا أمر لا يتأثر.
     /// </summary>
     private async Task ValidateWorkOrderAsync(CreateMaterialRequisitionDto d, MaterialRequisition? existing, CancellationToken ct)
@@ -99,7 +99,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
 
     /// <summary>
     /// طلب شراء لمشروع: العقد موجود، والكميات ضمن احتياجات المشروع المعتمدة ناقص ما طُلب في طلباته الأخرى، وبند جدول الكميات لكل سطر
-    /// (إن حُدد) سطر قياس من العقد نفسه. يُستلم بسندات استلام المشروع (عهدة بسعر الشراء لا مستودع عام) ثم يُفوتر منها.
+    /// (إن حُدد) سطر قياس من العقد نفسه. يُستلم بسندات استلام المشروع (عهدة بسعر الشراء لا موقع عام) ثم يُفوتر منها.
     /// خيار «موقع المشروع» كان وصفياً بلا أثر مخزني أو محاسبي فأُلغي؛ الطلبات القديمة تحتفظ بقيمتها للعرض فقط.
     /// </summary>
     private async Task ValidateProjectAsync(CreateMaterialRequisitionDto d, MaterialRequisition? existing, CancellationToken ct)
@@ -228,7 +228,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
             var r = await Db.Set<MaterialRequisition>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NotFoundException(Messages.PurchaseRequisitionNotFound);
             if (r.Status != "approved") throw new ConflictException(Messages.ApproveRequisitionBeforeConversion);
-            // عزل مشتريات المشروع: طلبه لا يدخل المستودع العام بفاتورة مباشرة؛ يُستلم بسند استلام ثم يُفوتر منه
+            // عزل مشتريات المشروع: طلبه لا يدخل الموقع العام بفاتورة مباشرة؛ يُستلم بسند استلام ثم يُفوتر منه
             if (r.ContractId != null) throw new ConflictException(Messages.ProjectRequisitionReceivedByGrn);
             if (r.SupplierId == null) throw new ValidationFailedException(Messages.SetSupplierBeforeConversion);
             if (await PurchaseCycleService.HasActiveRfqAsync(Db, r.Id, token))
@@ -244,7 +244,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
                 Kind = InvoiceKind.Purchase, InvoiceType = InvoiceType.TaxInvoice, PartyId = r.SupplierId, PartyName = r.SupplierName ?? string.Empty,
                 PartyVatNumber = string.IsNullOrWhiteSpace(supplierVat) ? null : supplierVat,
                 PaymentMethod = PaymentMethod.Credit, Status = "draft",
-                // مستودع الطلب (مستودع المشروع في المقاولات): الترحيل يُدخل المواد إليه لا إلى المستودع الافتراضي
+                // موقع الطلب (موقع المشروع في المقاولات): الترحيل يُدخل المواد إليه لا إلى الموقع الافتراضي
                 WarehouseId = r.WarehouseId,
                 Notes = $"فاتورة شراء محوّلة من طلب {r.RequisitionNumber}",
                 ReferenceType = "material_requisition", ReferenceId = r.Id, ReferenceNumber = r.RequisitionNumber,

@@ -76,7 +76,7 @@ public class FixedAssetService : CrudService<FixedAsset, FixedAssetDto, CreateFi
         }
         _previousCostCenterId = existing?.CostCenterId;
 
-        // المستودع (المعرض) اختياري؛ عند تحديده أو تغييره يجب أن يكون مستودعاً نشطاً للمنشأة.
+        // الموقع (المعرض) اختياري؛ عند تحديده أو تغييره يجب أن يكون موقعاً نشطاً للمنشأة.
         if (dto.WarehouseId != null && dto.WarehouseId != existing?.WarehouseId)
         {
             var status = await Db.Set<Warehouse>().Where(w => w.Id == dto.WarehouseId).Select(w => w.Status).FirstOrDefaultAsync(ct)

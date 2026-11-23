@@ -15,9 +15,9 @@ namespace ERP.Service.Services.Accounting;
 /// معتمد أو قيد التنفيذ أو متوقف أو في الجودة. التوقف بسبب نشط ولا يحتاج سطراً.</item>
 /// <item>الفني موظف نشط بسجل مفتوح واحد؛ الإغلاق يحسب الدقائق والتكلفة بلقطة تكلفته المعيارية في يوم البداية، ويقيّد العمل: مدين
 /// تحت التنفيذ / دائن العمالة المحمّلة. الحذف يعكس القيد ما دام الأمر قبل الفوترة.</item>
-/// <item>الحجز لسطر قطعة ضمن كميته الباقية ومتاح الورشة (رصيد المستودع − حجوزات الأوامر الأخرى السارية)؛ ينتهي بمدة الإعداد.</item>
+/// <item>الحجز لسطر قطعة ضمن كميته الباقية ومتاح الورشة (رصيد الموقع − حجوزات الأوامر الأخرى السارية)؛ ينتهي بمدة الإعداد.</item>
 /// <item>الصرف لسطر قطعة ضمن كميته الباقية ومتاح الورشة (حجز السطر نفسه متاح له): حركة `AdjustmentOut` بمصدر
-/// <see cref="SourceType"/> بتكلفتها الفعلية، وقيد مدين تحت التنفيذ / دائن مخزون المستودع (لا قيد في المخزون الدوري)، ويستهلك حجوزات
+/// <see cref="SourceType"/> بتكلفتها الفعلية، وقيد مدين تحت التنفيذ / دائن مخزون الموقع (لا قيد في المخزون الدوري)، ويستهلك حجوزات
 /// السطر. الإرجاع على صرف بعينه ضمن الباقي منه، بتكلفته وتشغيلاته، وقيده عكس الصرف.</item>
 /// <item>الخدمة الخارجية لسطر خدمة خارجية بمورد؛ الإنجاز بتكلفته الفعلية وفاتورة الشراء المرتبطة (المرحّلة لنفس المورد). لا قيد هنا:
 /// التكلفة من فاتورة المورد.</item>
@@ -391,7 +391,7 @@ public class WorkOrderExecutionService : IWorkOrderExecutionService
             return await GetAsync(o.Id, token);
         }, ct);
 
-    /// <summary>قيد القطعة: الصرف مدين تحت التنفيذ / دائن مخزون المستودع، والإرجاع عكسه. لا قيد في المخزون الدوري أو للمبلغ الصفري.</summary>
+    /// <summary>قيد القطعة: الصرف مدين تحت التنفيذ / دائن مخزون الموقع، والإرجاع عكسه. لا قيد في المخزون الدوري أو للمبلغ الصفري.</summary>
     private async Task<Guid?> PostPartsAsync(WorkOrder o, Guid warehouse, decimal amount, DateTime date, string note, Guid sourceId, bool toWip, CancellationToken ct)
     {
         if (amount <= 0) return null;
@@ -504,7 +504,7 @@ public class WorkOrderExecutionService : IWorkOrderExecutionService
     private Task LockProductAsync(Guid productId, CancellationToken ct)
         => _db.Set<Product>().Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.MinStockLevel, p => p.MinStockLevel), ct);
 
-    /// <summary>حجوزات الصنف النشطة السارية في المستودع لأوامر أخرى (غير المستهلك منها).</summary>
+    /// <summary>حجوزات الصنف النشطة السارية في الموقع لأوامر أخرى (غير المستهلك منها).</summary>
     private async Task<decimal> ActiveReservedAsync(Guid productId, Guid warehouse, Guid excludeOrderId, DateTime now, CancellationToken ct)
         => (await _db.Set<WorkOrderPartReservation>().AsNoTracking()
                 .Where(r => r.ProductId == productId && r.WarehouseId == warehouse && r.WorkOrderId != excludeOrderId && r.Status == RSt.Active

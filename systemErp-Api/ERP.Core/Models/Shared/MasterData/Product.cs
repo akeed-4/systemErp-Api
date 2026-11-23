@@ -31,7 +31,7 @@ public class Product : BaseEntity
     public VatCategory VatCategory { get; set; } = VatCategory.Standard;
     /// <summary>سبب الصفرية/الإعفاء برمز الهيئة (VATEX-SA-…)؛ إلزامي لغير الخاضع.</summary>
     public string? VatExemptionReasonCode { get; set; }
-    /// <summary>تتبّع التشغيلات (Lot/Batch): كل وارد برقم تشغيلة، وكل صادر يُخصَّص من تشغيلات المستودع (FEFO افتراضياً).</summary>
+    /// <summary>تتبّع التشغيلات (Lot/Batch): كل وارد برقم تشغيلة، وكل صادر يُخصَّص من تشغيلات الموقع (FEFO افتراضياً).</summary>
     public bool TrackBatches { get; set; }
     /// <summary>
     /// تاريخ صلاحية إلزامي لكل وارد، ويُمنع بيع المنتهي. بلا تتبّع التشغيلات: «صلاحية فقط»، فتُجمَّع الكميات بتاريخ الصلاحية

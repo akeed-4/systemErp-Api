@@ -3,7 +3,7 @@ using ERP.Tests.Infrastructure;
 namespace ERP.Tests;
 
 /// <summary>
-/// نطاق ترقيم المستندات من إعداد المنشأة: تسلسل واحد للمنشأة (الافتراضي)، أو لكل مستودع برمزه، أو لكل مستخدم برمزه.
+/// نطاق ترقيم المستندات من إعداد المنشأة: تسلسل واحد للمنشأة (الافتراضي)، أو لكل موقع برمزه، أو لكل مستخدم برمزه.
 /// رموز العملاء والموردين تبقى للمنشأة في كل الأحوال.
 /// </summary>
 [Collection("api")]
@@ -32,13 +32,13 @@ public class DocumentNumberingScopeTests : TestBase
         var first = await api.PostInvoice(Sale(null));
         Assert.Equal("SINV-000001", first.Data!["invoiceNumber"].S());
 
-        // لكل مستودع: كل معرض بتسلسله ورمزه، بحسب مستودع الفاتورة
+        // لكل موقع: كل معرض بتسلسله ورمزه، بحسب موقع الفاتورة
         Assert.Equal(200, (await api.Put("/warehouse-session/numbering-scope", new { documentNumberingScope = "warehouse" })).Status);
         Assert.Equal("SINV-RUH-000001", (await api.PostInvoice(Sale(riyadh))).Data!["invoiceNumber"].S());
         Assert.Equal("SINV-JED-000001", (await api.PostInvoice(Sale(jeddah))).Data!["invoiceNumber"].S());
         var ruhSale = await api.PostInvoice(Sale(riyadh));
         Assert.Equal("SINV-RUH-000002", ruhSale.Data!["invoiceNumber"].S());
-        // قيد الفاتورة بتسلسل مستودعها، والجرد بمستودعه ولو كانت الجلسة على «كل المواقع»
+        // قيد الفاتورة بتسلسل موقعها، والجرد بموقعه ولو كانت الجلسة على «كل المواقع»
         var journal = await api.Get($"/journalentries/{ruhSale.Data["journalEntryId"].S()}");
         Assert.StartsWith("JE-RUH-", journal.Data!["entryNumber"].S());
         var product = await SeedProductAsync(api, stock: 0);

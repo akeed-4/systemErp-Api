@@ -3,7 +3,7 @@ namespace ERP.Core.DTOs.POS;
 public partial class CreatePosInvoiceSettingsDto
 {
     public string DefaultInvoiceType { get; set; } = "simplified";
-    /// <summary>مستودع نقاط البيع الذي تُصرف منه المبيعات (فارغ = المستودع الافتراضي).</summary>
+    /// <summary>موقع نقاط البيع الذي تُصرف منه المبيعات (فارغ = الموقع الافتراضي).</summary>
     public Guid? WarehouseId { get; set; }
     public bool ShowCompanyLogo { get; set; } = true;
     public string HeaderTextAr { get; set; } = string.Empty;

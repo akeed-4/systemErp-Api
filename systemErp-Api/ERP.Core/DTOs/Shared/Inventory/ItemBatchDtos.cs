@@ -1,6 +1,6 @@
 namespace ERP.Core.DTOs.Shared;
 
-/// <summary>تشغيلة صنف برصيدها (في مستودع محدد أو في كل المستودعات) وحالة صلاحيتها.</summary>
+/// <summary>تشغيلة صنف برصيدها (في موقع محدد أو في كل المواقع) وحالة صلاحيتها.</summary>
 public class ItemBatchDto
 {
     public Guid Id { get; set; }
@@ -16,7 +16,7 @@ public class ItemBatchDto
     public string? Notes { get; set; }
 }
 
-/// <summary>سطر تقرير الصلاحية: رصيد تشغيلة في مستودع.</summary>
+/// <summary>سطر تقرير الصلاحية: رصيد تشغيلة في موقع.</summary>
 public class BatchExpiryRowDto
 {
     public Guid ItemId { get; set; }

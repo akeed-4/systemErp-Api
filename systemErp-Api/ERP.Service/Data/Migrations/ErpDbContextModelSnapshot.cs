@@ -5989,13 +5989,13 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId", "EntryNumber")
                         .IsUnique();
 
-                    b.HasIndex("TenantId", "SourceType", "SourceReferenceId")
-                        .IsUnique()
-                        .HasFilter("[Status] = N'Posted' AND [SourceReferenceId] IS NOT NULL AND [SourceType] IN (N'sales', N'purchase', N'sales_return', N'purchase_return', N'inventory_count', N'stock_adjustment', N'inventory_period_end', N'inventory_period_opening')");
-
                     b.HasIndex("TenantId", "SourceReferenceId")
                         .IsUnique()
                         .HasFilter("[SourceType] = N'reversal' AND [SourceReferenceId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "SourceType", "SourceReferenceId")
+                        .IsUnique()
+                        .HasFilter("[Status] = N'Posted' AND [SourceReferenceId] IS NOT NULL AND [SourceType] IN (N'sales', N'purchase', N'sales_return', N'purchase_return', N'inventory_count', N'stock_adjustment', N'inventory_period_end', N'inventory_period_opening')");
 
                     b.ToTable("JournalEntry");
                 });
@@ -9235,22 +9235,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("EquipmentId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<decimal>("DailyMinimumHours")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<decimal>("StandbyPercent")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)")
-                        .HasDefaultValue(100m);
-
-                    b.Property<decimal>("WorkingDaysPerPeriod")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("EstimatedAmount")
                         .HasPrecision(18, 4)
@@ -9303,6 +9293,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("StandbyPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(100m);
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -9316,6 +9312,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<bool>("WithOperator")
                         .HasColumnType("bit");
+
+                    b.Property<decimal>("WorkingDaysPerPeriod")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.HasKey("Id");
 
@@ -9695,6 +9695,13 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DefaultBillingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("timesheet");
+
                     b.Property<decimal>("LateFeeFactor")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -9703,20 +9710,13 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<string>("DefaultBillingMode")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)")
-                        .HasDefaultValue("timesheet");
+                    b.Property<bool>("RequireDepositBeforeDelivery")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("RequireTimesheetPhoto")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
-
-                    b.Property<bool>("RequireDepositBeforeDelivery")
-                        .HasColumnType("bit");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -9748,12 +9748,12 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid?>("BillingId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<decimal>("BilledQuantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("BillingId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("BreakdownDays")
                         .HasPrecision(18, 4)
@@ -9797,12 +9797,12 @@ namespace ERP.Service.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<Guid?>("OperatorEmployeeId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<decimal>("OperatorAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("OperatorEmployeeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("OvertimeAmount")
                         .HasPrecision(18, 4)
@@ -9883,12 +9883,12 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("TenantId", "TimesheetNumber")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "ContractId", "Status");
 
                     b.HasIndex("TenantId", "LineId", "PeriodFrom", "PeriodTo");
-
-                    b.HasIndex("TenantId", "TimesheetNumber")
-                        .IsUnique();
 
                     b.ToTable("RentalTimesheet");
                 });
@@ -14224,7 +14224,7 @@ namespace ERP.Service.Data.Migrations
                             WorkflowType = "sales_contract",
                             Id = "allocation",
                             Color = "blue",
-                            DescAr = "ربط العقد المعتمد برقم شاسي VIN محدد من المستودع، وبدء فحص الجودة والتجهيز الفني PDI.",
+                            DescAr = "ربط العقد المعتمد برقم شاسي VIN محدد من الموقع، وبدء فحص الجودة والتجهيز الفني PDI.",
                             DescEn = "Linking the approved contract to a specific VIN from the warehouse and starting the PDI inspection.",
                             Icon = "pin",
                             IsActive = true,
@@ -15144,6 +15144,13 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal>("SiteBookedCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("SiteInventoryAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -15154,13 +15161,6 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("TotalCost")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("SiteBookedCost")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<string>("SiteInventoryAccountCode")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Transmission")
                         .IsRequired()
@@ -17227,6 +17227,62 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("BatchStock");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.Branch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("City")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ManagerName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Branch");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.ContractStageDefinition", b =>
                 {
                     b.Property<string>("Id")
@@ -18704,7 +18760,7 @@ namespace ERP.Service.Data.Migrations
                             DescriptionAr = "كل ما تحتاجه المنشأة الصغيرة: المبيعات والمشتريات والمخزون والمحاسبة والتقارير الأساسية، بلا تعقيد.",
                             DescriptionEn = "Everything a small business needs: sales, purchases, inventory, accounting and core reports, without the complexity.",
                             FeatureKeys = "",
-                            FeaturesAr = "مستخدمان وفرع ومستودع واحد\nفواتير المبيعات والمشتريات ومرتجعاتها (حتى 500 فاتورة شهرياً)\nالعملاء والموردون والأصناف والبنوك وطرق الدفع\nدليل الحسابات والقيود وسندات القبض والصرف\nجرد المخزون وحركة الصنف\nالفوترة الإلكترونية (ZATCA)\nالتقارير الأساسية: ميزان المراجعة وقائمة الدخل والميزانية والإقرار الضريبي وكشف الحساب وأعمار الديون",
+                            FeaturesAr = "مستخدمان وفرع وموقع واحد\nفواتير المبيعات والمشتريات ومرتجعاتها (حتى 500 فاتورة شهرياً)\nالعملاء والموردون والأصناف والبنوك وطرق الدفع\nدليل الحسابات والقيود وسندات القبض والصرف\nجرد المخزون وحركة الصنف\nالفوترة الإلكترونية (ZATCA)\nالتقارير الأساسية: ميزان المراجعة وقائمة الدخل والميزانية والإقرار الضريبي وكشف الحساب وأعمار الديون",
                             FeaturesEn = "2 users, 1 branch & warehouse\nSales & purchase invoices and returns (up to 500/month)\nCustomers, suppliers, items, banks & payment methods\nChart of accounts, journals, receipt & payment vouchers\nStock counts & item movement\nE-invoicing (ZATCA)\nCore reports: trial balance, income statement, balance sheet, VAT return, account statement, aging",
                             IsActive = true,
                             IsPopular = false,
@@ -18727,7 +18783,7 @@ namespace ERP.Service.Data.Migrations
                             DescriptionAr = "مثالية للمنشآت والمتاجر الناشئة ورواد الأعمال لتلبية متطلبات الفوترة الضريبية وإدارة المعاملات الأساسية.",
                             DescriptionEn = "Ideal for startups, sole proprietors, and small shops to meet basic invoicing and tax compliance.",
                             FeatureKeys = "commercial_cycle,landed_costs,cost_centers,fixed_assets,multi_currency,bank_reconciliation,approval_policies,stock_transfers",
-                            FeaturesAr = "مستخدمين 2 مع صلاحيات أساسية\nحتى 500 فاتورة مبيعات ومشتريات شهرياً\nفرع ومستودع رئيسي واحد\nإصدار فواتير ضريبية مبسطة (B2C) مع QR كود TLV\nسندات القبض والصرف الأساسية\nشجرة حسابات مبسطة (4 مستويات)\nدعم فني عبر البريد وتحديثات دورية",
+                            FeaturesAr = "مستخدمين 2 مع صلاحيات أساسية\nحتى 500 فاتورة مبيعات ومشتريات شهرياً\nفرع وموقع رئيسي واحد\nإصدار فواتير ضريبية مبسطة (B2C) مع QR كود TLV\nسندات القبض والصرف الأساسية\nشجرة حسابات مبسطة (4 مستويات)\nدعم فني عبر البريد وتحديثات دورية",
                             FeaturesEn = "Up to 2 users with basic roles\nUp to 500 invoices/month\n1 branch & single warehouse\nSimplified Tax Invoices (B2C) with TLV QR Code\nBasic receipt & payment vouchers\nStandard chart of accounts (4 levels)\nEmail support & regular updates",
                             IsActive = true,
                             IsPopular = false,
@@ -18750,7 +18806,7 @@ namespace ERP.Service.Data.Migrations
                             DescriptionAr = "الخيار الأكثر طلباً للشركات والمؤسسات المتوسطة مع فواتير ضريبية برمز QR (المرحلة الأولى من ZATCA) ومحاسبة التكاليف.",
                             DescriptionEn = "Most popular choice for growing businesses with QR tax invoices (ZATCA Phase 1) and a costing engine.",
                             FeatureKeys = "commercial_cycle,landed_costs,cost_centers,fixed_assets,multi_currency,bank_reconciliation,approval_policies,stock_transfers",
-                            FeaturesAr = "حتى 10 مستخدمين مع إدارة أدوار متقدمة (RBAC)\nفواتير مبيعات ومشتريات غير محدودة شهرياً\nإدارة حتى 3 فروع ومستودعات متعددة\nفواتير ضريبية (B2B) ومبسطة (B2C) برمز QR وفق المرحلة الأولى من ZATCA\nمحرك حساب متوسط التكلفة المرجح المتحرك (Moving Average Costing)\nشجرة حسابات احترافية مرنة والقيود اليومية الآلية\nتقارير مالية تفصيلية (قائمة الدخل، الميزانية العمومية، إقرار الضريبة)\nدعم فني سريع عبر الواتساب والهاتف",
+                            FeaturesAr = "حتى 10 مستخدمين مع إدارة أدوار متقدمة (RBAC)\nفواتير مبيعات ومشتريات غير محدودة شهرياً\nإدارة حتى 3 فروع ومواقع متعددة\nفواتير ضريبية (B2B) ومبسطة (B2C) برمز QR وفق المرحلة الأولى من ZATCA\nمحرك حساب متوسط التكلفة المرجح المتحرك (Moving Average Costing)\nشجرة حسابات احترافية مرنة والقيود اليومية الآلية\nتقارير مالية تفصيلية (قائمة الدخل، الميزانية العمومية، إقرار الضريبة)\nدعم فني سريع عبر الواتساب والهاتف",
                             FeaturesEn = "Up to 10 users with advanced RBAC permissions\nUnlimited invoices per month\nUp to 3 branches & multi-warehouse inventory\nTax (B2B) and simplified (B2C) invoices with QR code (ZATCA Phase 1)\nWeighted Moving Average costing engine\nEnterprise chart of accounts with auto journal entries\nFinancial reports (P&L, Balance Sheet, VAT Return)\nPriority phone & WhatsApp support",
                             IsActive = true,
                             IsPopular = true,
@@ -18771,7 +18827,7 @@ namespace ERP.Service.Data.Migrations
                             DescriptionAr = "حل متكامل ومخصص للمجموعات التجارية والشركات الكبرى وفروعها مع بنية تحتية مخصصة وربط API مفتوح.",
                             DescriptionEn = "Custom corporate solution for large holdings and chains with dedicated infrastructure and API webhooks.",
                             FeatureKeys = "commercial_cycle,landed_costs,cost_centers,fixed_assets,multi_currency,bank_reconciliation,approval_policies,stock_transfers",
-                            FeaturesAr = "عدد غير محدود من المستخدمين والمشرفين\nفروع ومستودعات ومراكز تكلفة غير محدودة\nربط برمجي كامل (RESTful API Webhooks) مع المتاجر ونقاط البيع\nفواتير ضريبية برمز QR وفق المرحلة الأولى من ZATCA\nتعدد العملات وسعر الصرف التلقائي\nتقارير تحليلية ومؤشرات أداء مالية متقدمة وتصدير مخصص\nخادم وقاعدة بيانات مستقلة عالية الأداء ونسخ احتياطي فوري\nمدير حساب محاسبي معتمد مخصص ودعم على مدار الساعة 24/7",
+                            FeaturesAr = "عدد غير محدود من المستخدمين والمشرفين\nفروع ومواقع ومراكز تكلفة غير محدودة\nربط برمجي كامل (RESTful API Webhooks) مع المتاجر ونقاط البيع\nفواتير ضريبية برمز QR وفق المرحلة الأولى من ZATCA\nتعدد العملات وسعر الصرف التلقائي\nتقارير تحليلية ومؤشرات أداء مالية متقدمة وتصدير مخصص\nخادم وقاعدة بيانات مستقلة عالية الأداء ونسخ احتياطي فوري\nمدير حساب محاسبي معتمد مخصص ودعم على مدار الساعة 24/7",
                             FeaturesEn = "Unlimited users and branch supervisors\nUnlimited branches, warehouses & cost centers\nFull RESTful API & POS webhooks integration\nQR tax invoices compliant with ZATCA Phase 1\nMulti-currency support with auto FX rates\nAdvanced financial BI dashboards & custom export\nDedicated high-performance tenant database & real-time backup\nDedicated account manager & 24/7 priority SLA",
                             IsActive = true,
                             IsPopular = false,
@@ -20771,29 +20827,23 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CashAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("CogsAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("InventoryAccountCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SalesAccountCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ShortageAccountCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SurplusAccountCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsDefault")
@@ -20817,8 +20867,17 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("SalesAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ShortageAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Status")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SurplusAccountCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("TenantId")
@@ -20828,6 +20887,8 @@ namespace ERP.Service.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("TenantId");
 
@@ -24228,6 +24289,15 @@ namespace ERP.Service.Data.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.Warehouse", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Branch", null)
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.WarehouseStock", b =>

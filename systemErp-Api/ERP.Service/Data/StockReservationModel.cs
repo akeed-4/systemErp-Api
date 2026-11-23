@@ -17,7 +17,7 @@ internal static class StockReservationModel
             e.Property(r => r.CreatedBy).HasMaxLength(256);
             e.Property(r => r.Notes).HasMaxLength(500);
             e.Property(r => r.RowVersion).IsRowVersion();
-            // المحجوز النشط لكل صنف في مستودع (فحص المتاح) ولكل مشروع
+            // المحجوز النشط لكل صنف في موقع (فحص المتاح) ولكل مشروع
             e.HasIndex(r => new { r.TenantId, r.ProductId, r.WarehouseId, r.Status });
             e.HasIndex(r => new { r.TenantId, r.ContractId });
             e.HasOne<CommercialContract>().WithMany().HasForeignKey(r => r.ContractId).OnDelete(DeleteBehavior.Restrict);

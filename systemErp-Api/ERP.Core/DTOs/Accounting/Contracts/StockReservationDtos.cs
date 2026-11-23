@@ -28,7 +28,7 @@ public class StockReservationDto
 public class SaveStockReservationDto
 {
     public Guid ProductId { get; set; }
-    /// <summary>بلا قيمة: مستودع المشروع، وإلا الافتراضي.</summary>
+    /// <summary>بلا قيمة: موقع المشروع، وإلا الافتراضي.</summary>
     public Guid? WarehouseId { get; set; }
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }
@@ -77,7 +77,7 @@ public class StockReservationTransferDto
 }
 
 /// <summary>
-/// أرقام صنف في مستودع (أو كل المستودعات): الرصيد الفعلي، والمحجوز للمشاريع (المتبقي من الحجوزات النشطة)، والمصروف للمشاريع
+/// أرقام صنف في موقع (أو كل المواقع): الرصيد الفعلي، والمحجوز للمشاريع (المتبقي من الحجوزات النشطة)، والمصروف للمشاريع
 /// (صافي أذونات التسليم المرحّلة)، والمتاح فعلاً = الرصيد − المحجوز، وقيد التوريد (طلبات شراء معتمدة لم تُستلم بعد + فواتير شراء
 /// محوّلة منها لم تُرحَّل). مع المشروع: المحجوز له والمتاح له (المتاح العام + حجزه).
 /// </summary>

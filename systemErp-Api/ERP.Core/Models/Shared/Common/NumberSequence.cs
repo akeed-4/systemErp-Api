@@ -20,7 +20,7 @@ public class NumberSequence : BaseEntity
     // ---- إعداد نوع المستند (على صف المفتاح العام فقط) ----
     /// <summary>auto = يصدره النظام | manual = يدخله المستخدم (لأنواع تدعمه فقط).</summary>
     public string Mode { get; set; } = "auto";
-    /// <summary>نطاق الترقيم التلقائي لهذا النوع: فارغ = إعداد المنشأة العام | tenant | warehouse (المستودع/المعرض).</summary>
+    /// <summary>نطاق الترقيم التلقائي لهذا النوع: فارغ = إعداد المنشأة العام | tenant | warehouse (الموقع/المعرض).</summary>
     public string? Scope { get; set; }
     /// <summary>تسلسل جديد لكل سنة مالية (بتاريخ المستند وبداية السنة المالية للمنشأة).</summary>
     public bool ResetYearly { get; set; }

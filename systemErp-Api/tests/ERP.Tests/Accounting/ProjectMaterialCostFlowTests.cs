@@ -5,7 +5,7 @@ namespace ERP.Tests;
 
 /// <summary>
 /// دورة مواد المشروع من الشراء حتى تكلفة الإيرادات:
-/// طلب شراء للمشروع ← اعتماد ← فاتورة شراء (مخزون المستودع بالوارد أولاً) ← إذن تسليم على بند جدول الكميات
+/// طلب شراء للمشروع ← اعتماد ← فاتورة شراء (مخزون الموقع بالوارد أولاً) ← إذن تسليم على بند جدول الكميات
 /// (مدين مواد مشاريع تحت التنفيذ / دائن المخزون) ← مستخلص يختار كميات الإذن ← فاتورته (العميل/الإيراد/الضريبة)
 /// مع قيد التكلفة الفعلية (مدين تكلفة إيرادات العقود / دائن تحت التنفيذ). المخزون يُخفَّض مرة واحدة عند التسليم.
 /// المثال: شراء 8 × 60 ثم 10 × 70، تسليم 11 = 480 + 3 × 70 = 690؛ مستخلص 10 × 100 = 1,000 + ضريبة 150.
@@ -86,8 +86,8 @@ public class ProjectMaterialCostFlowTests : TestBase
     }
 
     /// <summary>
-    /// شراء للمستودع العام (طلب عام ← اعتماد ← تحويل لفاتورة شراء ← ترحيلها)، ثم يُسلَّم للمشروع بإذن صرف صريح. طلب المشروع نفسه
-    /// لا يدخل المستودع العام: يُستلم بسند استلام للمشروع (ProjectPurchaseIsolationTests).
+    /// شراء للموقع العام (طلب عام ← اعتماد ← تحويل لفاتورة شراء ← ترحيلها)، ثم يُسلَّم للمشروع بإذن صرف صريح. طلب المشروع نفسه
+    /// لا يدخل الموقع العام: يُستلم بسند استلام للمشروع (ProjectPurchaseIsolationTests).
     /// </summary>
     private static async Task BuyViaRequisitionAsync(Client api, Project p, decimal qty, decimal cost)
     {
@@ -98,7 +98,7 @@ public class ProjectMaterialCostFlowTests : TestBase
             items = new[] { new { itemId = p.Product, itemName = "أسمنت", sku = "CEM", unit = "PCS", requestedQuantity = qty, estimatedCost = cost } },
         });
         Ok(req, "requisition");
-        // «موقع المشروع» وصفي بلا أثر فأُلغي: الطلب للمستودع دائماً، والتسليم للمشروع بإذن
+        // «موقع المشروع» وصفي بلا أثر فأُلغي: الطلب للموقع دائماً، والتسليم للمشروع بإذن
         Assert.Equal("warehouse", req.Data!["deliveryLocation"].S());
         var reqId = req.Data["id"].S();
         Ok(await api.Post($"/materialrequisitions/{reqId}/approve"), "requisition approve");
@@ -270,7 +270,7 @@ public class ProjectMaterialCostFlowTests : TestBase
         Assert.Equal(0m, await BalanceAsync(api, Revenue));
         Assert.Equal(0m, await BalanceAsync(api, OutputVat));
         Assert.Equal(0m, await BalanceAsync(api, p.CustomerAccount));
-        Ok(await api.Post($"/commercialcontracts/{p.Id}/material-issues/{issue["id"].S()}/cancel", new { reason = "إرجاع للمستودع" }), "cancel delivery");
+        Ok(await api.Post($"/commercialcontracts/{p.Id}/material-issues/{issue["id"].S()}/cancel", new { reason = "إرجاع للموقع" }), "cancel delivery");
         Assert.Equal(0m, await BalanceAsync(api, wip));
         await AssertInventoryReconciledAsync(api, 1180m);
     }
@@ -346,7 +346,7 @@ public class ProjectMaterialCostFlowTests : TestBase
         });
         Ok(draft, "draft");
 
-        // المستند للطباعة يحمل المشروع والمستودع والعميل
+        // المستند للطباعة يحمل المشروع والموقع والعميل
         var doc = (await api.Get($"/commercialcontracts/{p.Id}/material-issues/{posted["id"].S()}")).Data!;
         Assert.False(string.IsNullOrEmpty(doc["contractNumber"].S()));
         Assert.Equal("مشروع صب", doc["projectName"].S());

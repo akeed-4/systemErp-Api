@@ -206,8 +206,8 @@ public class LightingPolesProjectJourneyTests : TestBase
         var craneRes = await ProjectResource(new { kind = "owned_equipment", name = "رافعة سلة 01", rate = 200, fuelPerHour = 40, maintenancePerHour = 10, operatorPerHour = 10, libraryResourceId = crane }, "رافعة سلة 01");
         Log("إعداد المشروع: ساعات العمل 07:00–15:00، وموارد فعلية: فريق الكهرباء 45/س، فريق مدني 28/س، رافعة سلة 260/س.");
 
-        // ================= المرحلة 8: الشراء للمستودع (فاتورة شراء مرحّلة) =================
-        // شراء الشركة لمستودعها ثم الصرف للموقع بأذونات. (طلب شراء المشروع يُستلم عهدةً للمشروع بسند استلام: مسار آخر تغطيه اختباراته.)
+        // ================= المرحلة 8: الشراء للموقع (فاتورة شراء مرحّلة) =================
+        // شراء الشركة لموقعها ثم الصرف للموقع بأذونات. (طلب شراء المشروع يُستلم عهدةً للمشروع بسند استلام: مسار آخر تغطيه اختباراته.)
         var purchase = await api.Post("/purchase-invoices", new
         {
             kind = "purchase", invoiceType = "simplified", paymentMethod = "credit", partyId = supplier,
@@ -221,7 +221,7 @@ public class LightingPolesProjectJourneyTests : TestBase
         Ok(purchase, "purchase");
         const decimal purchaseCost = 50 * 1850 + 50 * 880 + 2000 * 33; // 202,500
         Assert.Equal(purchaseCost, await BalanceAsync(api, MainSiteInventory));
-        Log($"الشراء: فاتورة {purchase.Data!["invoiceNumber"]?.ToString()} مرحّلة للمستودع؛ المخزون {purchaseCost:N0}.");
+        Log($"الشراء: فاتورة {purchase.Data!["invoiceNumber"]?.ToString()} مرحّلة للموقع؛ المخزون {purchaseCost:N0}.");
 
         // ================= المرحلة 9: إذن تسليم أول للموقع (نصف المشروع) =================
         async Task<JsonNode> Deliver(decimal polesQty, decimal cableQty, string step)

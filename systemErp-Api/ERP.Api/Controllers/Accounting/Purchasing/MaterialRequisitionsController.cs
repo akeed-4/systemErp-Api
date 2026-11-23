@@ -22,7 +22,7 @@ public class MaterialRequisitionsController : CrudController<MaterialRequisition
     protected override string? ApprovalHandler => "material-requisitions";
 
     /// <summary>
-    /// أرقام أصناف الطلب: الرصيد، والمحجوز للمشاريع، والمصروف، والمتاح فعلاً، وقيد التوريد (في مستودع الطلب أو كل المستودعات)،
+    /// أرقام أصناف الطلب: الرصيد، والمحجوز للمشاريع، والمصروف، والمتاح فعلاً، وقيد التوريد (في موقع الطلب أو كل المواقع)،
     /// ومع المشروع المحجوز له والمتاح له.
     /// </summary>
     [HttpGet("requesters")]

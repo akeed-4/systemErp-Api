@@ -419,7 +419,7 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
     private sealed record Posted(Guid? EntryId, decimal Inventory, decimal Expensed, string ExpensedAccount);
 
     /// <summary>
-    /// قيد السند (sign = 1) أو إلغائه (sign = -1): المخزون بتغيّر قيمة أصنافه موزّعاً على حسابات مستودعاتها، والباقي من التكلفة
+    /// قيد السند (sign = 1) أو إلغائه (sign = -1): المخزون بتغيّر قيمة أصنافه موزّعاً على حسابات مواقعها، والباقي من التكلفة
     /// على تكلفة المبيعات (أو فرق السعر)، وضريبة المدخلات المستردة، ودائن الجهة المستحقة. الجرد الدوري: التكلفة كلها على المشتريات.
     /// </summary>
     private async Task<Posted> PostAsync(PurchaseLandedCost v, (Dictionary<Guid, decimal> ValueChange, CostingMethod Method) effect, int sign,

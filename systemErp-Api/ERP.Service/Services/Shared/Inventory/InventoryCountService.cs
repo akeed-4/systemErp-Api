@@ -96,7 +96,7 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
 
         if (d.WarehouseId.HasValue && !await Db.Set<Warehouse>().AnyAsync(w => w.Id == d.WarehouseId, ct))
             throw new ValidationFailedException(Messages.WarehouseNotFound);
-        // جرد كل المستودعات لمن لا تُقيَّد مواقعه فقط
+        // جرد كل المواقع لمن لا تُقيَّد مواقعه فقط
         if (InventoryCountLines.CoversAllWarehouses(d.Scope, d.CountType, d.WarehouseId) && Db.SessionAllowedWarehouseIds != null)
             throw new ValidationFailedException(Messages.WarehouseRequired);
     }
@@ -135,8 +135,8 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
     }
 
     /// <summary>
-    /// جرد أصناف بلا مستودع يُثبَّت على المستودع الذي قُرئ منه رصيده (موقع الجلسة أو الافتراضي)، فتُسجَّل التسوية فيه نفسه
-    /// أياً كان موقع جلسة المعتمِد. جرد كل المستودعات يبقى بلا مستودع.
+    /// جرد أصناف بلا موقع يُثبَّت على الموقع الذي قُرئ منه رصيده (موقع الجلسة أو الافتراضي)، فتُسجَّل التسوية فيه نفسه
+    /// أياً كان موقع جلسة المعتمِد. جرد كل المواقع يبقى بلا موقع.
     /// </summary>
     private async Task PinWarehouseAsync(InventoryCount e, CancellationToken ct)
     {
@@ -178,7 +178,7 @@ public class InventoryCountService : CrudService<InventoryCount, InventoryCountD
             var uncounted = count.Lines.Count(l => !l.CountedQuantity.HasValue);
             if (uncounted > 0) throw new ValidationFailedException(string.Format(Messages.UncountedLinesRemain, uncounted));
 
-            await PinWarehouseAsync(count, token); // مسودة قديمة بلا مستودع
+            await PinWarehouseAsync(count, token); // مسودة قديمة بلا موقع
             if (count.WarehouseId.HasValue && count.WarehouseName == null)
                 count.WarehouseName = await Db.Set<Warehouse>().Where(w => w.Id == count.WarehouseId).Select(w => w.NameAr).FirstOrDefaultAsync(token);
             await InventoryCountLines.RefreshAsync(Db, count, token); // تجميد رصيد النظام لحظة الإرسال

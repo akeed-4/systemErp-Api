@@ -10,7 +10,7 @@ public class ProductsController : CrudController<ProductDto, CreateProductDto, U
     private readonly IInventoryService _inventory;
     public ProductsController(IProductService s, IInventoryService inventory) : base(s) { _products = s; _inventory = inventory; }
 
-    /// <summary>تشغيلات الصنف بأرصدتها (في مستودع أو الكل) مرتبة بالأقرب انتهاءً: اختيار التشغيلة في البيع والتحويل والجرد.</summary>
+    /// <summary>تشغيلات الصنف بأرصدتها (في موقع أو الكل) مرتبة بالأقرب انتهاءً: اختيار التشغيلة في البيع والتحويل والجرد.</summary>
     [HttpGet("{id:guid}/batches")]
     public async Task<IActionResult> Batches(Guid id, [FromQuery] Guid? warehouseId, [FromQuery] bool includeEmpty, CancellationToken ct)
         => Success(await _inventory.GetBatchesAsync(id, warehouseId, includeEmpty, ct));

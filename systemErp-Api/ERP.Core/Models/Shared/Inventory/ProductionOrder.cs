@@ -1,8 +1,8 @@
 namespace ERP.Core.Models.Shared;
 
 /// <summary>
-/// مستند تحويل وتصنيع منتج (يومي): يصرف المواد الأولية من مستودعها بتكلفتها الفعلية، ويحمّل الخدمات (شغل اليد) والمصاريف غير المباشرة
-/// (إهلاك الآلة، رواتب وأجور) على المنتج، ويدخل المنتج التام لمستودعه بمجموع التكلفة. القيد: مدين مخزون المنتج / دائن مخزون المواد
+/// مستند تحويل وتصنيع منتج (يومي): يصرف المواد الأولية من موقعها بتكلفتها الفعلية، ويحمّل الخدمات (شغل اليد) والمصاريف غير المباشرة
+/// (إهلاك الآلة، رواتب وأجور) على المنتج، ويدخل المنتج التام لموقعه بمجموع التكلفة. القيد: مدين مخزون المنتج / دائن مخزون المواد
 /// وحسابات التكاليف المحمّلة. الأسطر لقطة من مكونات المنتج قابلة للتعديل في المسودة (الكمية الفعلية والمبالغ).
 /// </summary>
 public class ProductionOrder : BaseEntity
@@ -16,9 +16,9 @@ public class ProductionOrder : BaseEntity
     public string Unit { get; set; } = string.Empty;
     /// <summary>الكمية المنتجة بوحدة المنتج.</summary>
     public decimal Quantity { get; set; }
-    /// <summary>مستودع صرف المواد (فارغ = مستودع الجلسة/الافتراضي).</summary>
+    /// <summary>موقع صرف المواد (فارغ = موقع الجلسة/الافتراضي).</summary>
     public Guid? MaterialsWarehouseId { get; set; }
-    /// <summary>مستودع استلام المنتج التام (فارغ = مستودع المواد).</summary>
+    /// <summary>موقع استلام المنتج التام (فارغ = موقع المواد).</summary>
     public Guid? WarehouseId { get; set; }
     /// <summary><see cref="ProductionOrderStatuses"/>.</summary>
     public string Status { get; set; } = ProductionOrderStatuses.Draft;

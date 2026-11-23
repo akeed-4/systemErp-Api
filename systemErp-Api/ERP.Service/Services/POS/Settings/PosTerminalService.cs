@@ -49,7 +49,7 @@ public class PosTerminalService : IPosTerminalService
         if (users.Count > 0 && await _db.Set<User>().CountAsync(u => users.Contains(u.Id) && u.IsActive, ct) != users.Count)
             throw new ValidationFailedException("يجب اختيار مستخدمين فعالين فقط.");
         if (r.WarehouseId.HasValue && !await _db.Set<Warehouse>().AnyAsync(w => w.Id == r.WarehouseId, ct))
-            throw new ValidationFailedException("المستودع المحدد غير موجود.");
+            throw new ValidationFailedException("الموقع المحدد غير موجود.");
         if (await _db.Set<PosTerminal>().AnyAsync(t => t.Id != id && (t.Code == code || t.DeviceIdentifier == device), ct))
             throw new ConflictException("رمز نقطة البيع أو معرّف الجهاز مستخدم مسبقًا.");
 

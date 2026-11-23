@@ -70,7 +70,7 @@ public class VehiclesController : CrudController<VehicleDto, CreateVehicleDto, U
         return Success(new { replaced }, string.Format(Messages.ChassisReplaced, replaced));
     }
 
-    /// <summary>تحويل سيارات إلى معرض/مستودع آخر.</summary>
+    /// <summary>تحويل سيارات إلى معرض/موقع آخر.</summary>
     [HttpPost("transfer")]
     [RequireScreen("car-showroom", ScreenAction.Edit)]
     public async Task<IActionResult> Transfer([FromBody] TransferVehiclesDto request, CancellationToken ct)

@@ -1,8 +1,8 @@
 namespace ERP.Core.Models.Shared;
 
 /// <summary>
-/// رصيد صنف في مستودع. مجموع أرصدة الصنف في المستودعات = Product.CurrentStock،
-/// والتكلفة موحّدة على مستوى الصنف (لا تكلفة لكل مستودع).
+/// رصيد صنف في موقع. مجموع أرصدة الصنف في المواقع = Product.CurrentStock،
+/// والتكلفة موحّدة على مستوى الصنف (لا تكلفة لكل موقع).
 /// </summary>
 public class WarehouseStock : BaseEntity
 {

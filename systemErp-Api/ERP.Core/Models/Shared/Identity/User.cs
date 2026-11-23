@@ -16,7 +16,7 @@ public class User : BaseEntity
     public string? Department { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime? LastLoginAt { get; set; }
-    /// <summary>المواقع (المستودعات/المعارض) المسموح له العمل فيها مفصولة بفواصل؛ فارغ = كل المواقع. المالك يرى كل المواقع دائماً.</summary>
+    /// <summary>المواقع (المواقع/المعارض) المسموح له العمل فيها مفصولة بفواصل؛ فارغ = كل المواقع. المالك يرى كل المواقع دائماً.</summary>
     public string? AllowedWarehouseIds { get; set; }
     /// <summary>رمز المستخدم في أرقام المستندات عند الترقيم لكل مستخدم (U01، U02...): يُمنح تلقائياً عند أول مستند.</summary>
     public string? DocumentCode { get; set; }

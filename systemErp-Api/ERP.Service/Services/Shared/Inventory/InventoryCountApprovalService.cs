@@ -175,12 +175,12 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
         var periodEnd = count.CountType == InventoryCountType.Periodic && accounts.IsPeriodic(count.CountDate.Date);
         var date = periodEnd ? count.CountDate.Date : SaudiTime.Today;
         var periodic = accounts.IsPeriodic(date);
-        // بضاعة آخر المدة قيمة المخزون كله: الجرد الدوري يشمل كل المستودعات
+        // بضاعة آخر المدة قيمة المخزون كله: الجرد الدوري يشمل كل المواقع
         if (periodEnd && count.WarehouseId != null)
             throw new ValidationFailedException(Messages.PeriodicCountMustCoverAllWarehouses);
         if (periodEnd) await PeriodicInventory.EnsureCountRepresentsDateAsync(_db, count, date, ct);
         var all = InventoryCountLines.CoversAllWarehouses(count);
-        // المستودع المسجّل على المستند؛ وجرد كل المستودعات: الزيادة للمستودع الافتراضي (لا لموقع جلسة المعتمِد)
+        // الموقع المسجّل على المستند؛ وجرد كل المواقع: الزيادة للموقع الافتراضي (لا لموقع جلسة المعتمِد)
         var target = await WarehouseStocks.ResolveAsync(_db,
             count.WarehouseId ?? (all ? await InventoryCountLines.DefaultWarehouseIdAsync(_db, ct) : null), ct);
         var policy = await _db.Set<CostingPolicy>().AsNoTracking().FirstOrDefaultAsync(ct) ?? new CostingPolicy();
@@ -215,7 +215,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
                 }, ct);
                 value += movement.ValueChange; // تغيّر القيمة الدفترية بإشارته: يطابق حساب المخزون بلا هللات تقريب
                 cost += movement.UnitCost * qty;
-                // المقابل: عجز/زيادة مخزون المستودع نفسه، وإلا حسابا الإعدادات
+                // المقابل: عجز/زيادة مخزون الموقع نفسه، وإلا حسابا الإعدادات
                 values.Add(new(warehouse.InventoryAccountCode ?? accounts.Inventory(), movement.ValueChange,
                     warehouse.ShortageAccountCode ?? accounts.InventoryShortage(), warehouse.SurplusAccountCode ?? accounts.InventorySurplus()));
             }
@@ -227,12 +227,12 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             // الدوري: الفروق بلا قيد (أثرها في القيمة)، والجرد الدوري يرحّل القيد الموحد بتاريخ الجرد
             return periodEnd ? await PeriodicInventory.PostPeriodEndAsync(_db, _posting, accounts, count, date, ct) : null;
         }
-        // كل فرق على حساب مخزون المستودع الذي سُجّلت فيه حركته
+        // كل فرق على حساب مخزون الموقع الذي سُجّلت فيه حركته
         return await PostVarianceAsync(count, values, ct);
     }
 
     /// <summary>
-    /// عجز جرد كل المستودعات يُصرف من المستودعات التي فيها الصنف (أو التشغيلة): المستودع الافتراضي أولاً ثم الأكبر رصيداً،
+    /// عجز جرد كل المواقع يُصرف من المواقع التي فيها الصنف (أو التشغيلة): الموقع الافتراضي أولاً ثم الأكبر رصيداً،
     /// وما زاد عن أرصدتها من الافتراضي.
     /// </summary>
     private async Task<List<(Warehouse Warehouse, decimal Quantity)>> ShortagePortionsAsync(InventoryCountLine line, decimal quantity, Warehouse fallback,
@@ -310,7 +310,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
     /// زيادة الجرد: مدين المخزون / دائن حساب الزيادة، والعجز: مدين حساب العجز / دائن المخزون، كل فرق على حساب مخزونه.
     /// لا قيد إن لم يكن للفروق قيمة.
     /// </summary>
-    /// <summary>فرق جرد بقيمته على حساب المخزون، مع حسابي العجز والزيادة المقابلين (حسابا المستودع أو الإعدادات).</summary>
+    /// <summary>فرق جرد بقيمته على حساب المخزون، مع حسابي العجز والزيادة المقابلين (حسابا الموقع أو الإعدادات).</summary>
     private sealed record Variance(string Account, decimal Value, string ShortageAccount, string SurplusAccount);
 
     private async Task<PostingResult?> PostVarianceAsync(InventoryCount count, IReadOnlyCollection<Variance> values, CancellationToken ct)
@@ -323,7 +323,7 @@ public class InventoryCountApprovalService : IInventoryCountApprovalService
             if (accountSurplus > 0) lines.Add(new(g.Key, accountSurplus, 0, "زيادة جرد"));
             if (accountShortage > 0) lines.Add(new(g.Key, 0, accountShortage, "عجز جرد"));
         }
-        // المقابل لكل مستودع على حسابه (يُجمع ما اشترك في الحساب)
+        // المقابل لكل موقع على حسابه (يُجمع ما اشترك في الحساب)
         foreach (var g in values.Where(v => v.Value > 0).GroupBy(v => v.SurplusAccount))
             lines.Add(new(g.Key, 0, g.Sum(v => v.Value), "زيادة جرد"));
         foreach (var g in values.Where(v => v.Value < 0).GroupBy(v => v.ShortageAccount))

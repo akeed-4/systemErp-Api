@@ -5,7 +5,7 @@ public enum DataScope
 {
     /// <summary>جميع الفروع.</summary>
     All = 0,
-    /// <summary>فروع (مستودعات) محددة.</summary>
+    /// <summary>فروع (مواقع) محددة.</summary>
     Branches = 1,
     /// <summary>سجلات أنشأها مستخدمو قسم المستخدم.</summary>
     Department = 2,

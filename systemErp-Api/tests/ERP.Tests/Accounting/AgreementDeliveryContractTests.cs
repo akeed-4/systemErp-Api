@@ -98,13 +98,13 @@ public class AgreementDeliveryContractTests : TestBase
     {
         var api = await NewTenantAsync();
         var note = await api.Post("/deliverynotes", new { type = "sales_delivery", partyName = "عميل", date = DateTime.UtcNow,
-            driverName = "سائق", vehiclePlate = "أ ب ج 123", warehouseLocation = "المستودع الرئيسي", notes = "تسليم جزئي",
+            driverName = "سائق", vehiclePlate = "أ ب ج 123", warehouseLocation = "الموقع الرئيسي", notes = "تسليم جزئي",
             subtotal = 1, grandTotal = 1, // تتجاهلها السرفر
             items = new[] { new { itemId = Guid.NewGuid(), itemName = "بند", unit = "PCS", contractQty = 10, deliveredQty = 4, unitPrice = 50, vatRate = 15 } } });
         Assert.Equal(200, note.Status);
         Assert.Equal(200, note.Data!["subtotal"].D()); Assert.Equal(30, note.Data["vatTotal"].D()); Assert.Equal(230, note.Data["grandTotal"].D());
         Assert.Equal(230, note.Data["items"]![0]!["totalAfterVat"].D());
-        Assert.Equal("سائق", note.Data["driverName"].S()); Assert.Equal("المستودع الرئيسي", note.Data["warehouseLocation"].S());
+        Assert.Equal("سائق", note.Data["driverName"].S()); Assert.Equal("الموقع الرئيسي", note.Data["warehouseLocation"].S());
 
         var item = note.Data["items"]![0]!["itemId"].S();
         var ret = await api.Post("/deliverynotes/returns", new { type = "sales_delivery_return", deliveryNoteId = note.Data["id"].S(), returnReason = "تالف",

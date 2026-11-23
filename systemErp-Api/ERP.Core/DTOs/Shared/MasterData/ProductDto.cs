@@ -28,7 +28,7 @@ public partial class ProductDto
     /// <summary>التصنيف الضريبي للصنف: Standard | ZeroRated | Exempt | OutOfScope.</summary>
     public VatCategory VatCategory { get; set; } = VatCategory.Standard;
     public string? VatExemptionReasonCode { get; set; }
-    /// <summary>تتبّع التشغيلات (Lot/Batch): كل وارد برقم تشغيلة، وكل صادر يُخصَّص من تشغيلات المستودع (FEFO افتراضياً).</summary>
+    /// <summary>تتبّع التشغيلات (Lot/Batch): كل وارد برقم تشغيلة، وكل صادر يُخصَّص من تشغيلات الموقع (FEFO افتراضياً).</summary>
     public bool TrackBatches { get; set; }
     /// <summary>تاريخ صلاحية إلزامي لكل تشغيلة واردة، ويُمنع بيع المنتهي (يتطلب تتبّع التشغيلات).</summary>
     public bool TrackExpiry { get; set; }

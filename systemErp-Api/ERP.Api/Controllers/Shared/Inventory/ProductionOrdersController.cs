@@ -16,7 +16,7 @@ public class ProductionOrdersController : ErpControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _orders.GetAsync(id, ct));
 
-    /// <summary>أسطر مقترحة من مكونات المنتج بالكمية المنتجة، مع أرصدة المواد في مستودع الصرف.</summary>
+    /// <summary>أسطر مقترحة من مكونات المنتج بالكمية المنتجة، مع أرصدة المواد في موقع الصرف.</summary>
     [HttpGet("template")]
     public async Task<IActionResult> Template([FromQuery] Guid productId, [FromQuery] decimal quantity, [FromQuery] Guid? warehouseId, CancellationToken ct)
         => Success(await _orders.TemplateAsync(productId, quantity, warehouseId, ct));

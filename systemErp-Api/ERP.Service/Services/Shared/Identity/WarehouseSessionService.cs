@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 namespace ERP.Service.Services.Shared;
 
 /// <summary>
-/// موقع الجلسة (المعرض/المستودع): المالك وكل من لا قائمة مواقع له يعمل في كل المواقع، وغيره في قائمته فقط.
+/// موقع الجلسة (المعرض/الموقع): المالك وكل من لا قائمة مواقع له يعمل في كل المواقع، وغيره في قائمته فقط.
 /// الموقع المختار عند الدخول يصل في ترويسة X-Warehouse-Id؛ يُقبل إن كان مسموحاً، ومن له موقع واحد يُضبط عليه تلقائياً.
 /// </summary>
 public class WarehouseSessionService : IWarehouseSessionService

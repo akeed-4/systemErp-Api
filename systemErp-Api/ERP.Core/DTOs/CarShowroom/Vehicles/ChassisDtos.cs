@@ -24,7 +24,7 @@ public class ReplaceChassisDto
     public string ChassisNumber { get; set; } = string.Empty;
 }
 
-/// <summary>تحويل سيارات إلى معرض/مستودع آخر.</summary>
+/// <summary>تحويل سيارات إلى معرض/موقع آخر.</summary>
 public class TransferVehiclesDto
 {
     public List<Guid> VehicleIds { get; set; } = new();

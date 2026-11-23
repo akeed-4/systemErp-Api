@@ -108,6 +108,8 @@ public class ErpDbContext : DbContext
         (typeof(EmployeeLoanRepayment), nameof(EmployeeLoanRepayment.EmployeeLoanId), typeof(EmployeeLoan)),
         (typeof(EndOfServiceSettlement), nameof(EndOfServiceSettlement.EmployeeId), typeof(Employee)),
         (typeof(WarehouseStock), nameof(WarehouseStock.ItemId), typeof(Product)),
+        // الموقع يتبع فرعاً من نشاطه: الفرع الذي له مواقع لا يُحذف
+        (typeof(Warehouse), nameof(Warehouse.BranchId), typeof(Branch)),
         (typeof(WarehouseStock), nameof(WarehouseStock.WarehouseId), typeof(Warehouse)),
         (typeof(ItemBatch), nameof(ItemBatch.ItemId), typeof(Product)),
         (typeof(BatchStock), nameof(BatchStock.ItemId), typeof(Product)),
@@ -436,6 +438,7 @@ public class ErpDbContext : DbContext
         (typeof(PaymentMethodItem), nameof(PaymentMethodItem.Code)),
         (typeof(Currency), nameof(Currency.Code)),
         (typeof(Warehouse), nameof(Warehouse.Code)),
+        (typeof(Branch), nameof(Branch.Code)),
         (typeof(Account), nameof(Account.Code)),
         (typeof(CostCenter), nameof(CostCenter.Code)),
         (typeof(InvoiceBase), nameof(InvoiceBase.InvoiceNumber)), // فريد في كل جدول فواتير
@@ -1807,10 +1810,10 @@ public class ErpDbContext : DbContext
         // الفرز الافتراضي لشبكات الأصناف والعملاء (الأحدث أولاً)
         modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.CreatedAt, p.Id }).IsDescending(false, true, true);
         modelBuilder.Entity<Customer>().HasIndex(c => new { c.TenantId, c.CreatedAt, c.Id }).IsDescending(false, true, true);
-        // رصيد واحد لكل صنف في كل مستودع
+        // رصيد واحد لكل صنف في كل موقع
         modelBuilder.Entity<WarehouseStock>().Property(s => s.RowVersion).IsRowVersion();
         modelBuilder.Entity<WarehouseStock>().HasIndex(s => new { s.TenantId, s.ItemId, s.WarehouseId }).IsUnique();
-        // التشغيلات: رقم فريد لكل صنف، ورصيد واحد لكل تشغيلة في كل مستودع (بتزامن كأرصدة المستودعات)
+        // التشغيلات: رقم فريد لكل صنف، ورصيد واحد لكل تشغيلة في كل موقع (بتزامن كأرصدة المواقع)
         modelBuilder.Entity<ItemBatch>().Property(b => b.BatchNumber).HasMaxLength(64);
         modelBuilder.Entity<ItemBatch>().HasIndex(b => new { b.TenantId, b.ItemId, b.BatchNumber }).IsUnique();
         modelBuilder.Entity<ItemBatch>().HasIndex(b => new { b.TenantId, b.ExpiryDate });
@@ -1971,7 +1974,7 @@ public class ErpDbContext : DbContext
         return new ScopeRestorer(() => { ApplyDataScope(saved); (WarehouseFilterOn, WarehouseOwnerOnly) = site; });
     }
 
-    // ---------- موقع الجلسة (المعرض/المستودع) ----------
+    // ---------- موقع الجلسة (المعرض/الموقع) ----------
     // يضبطه وسيط الجلسة لكل طلب: المواقع المسموحة للمستخدم والموقع المختار عند الدخول وإعداد عرض المستندات.
     // الكتابة: المستند الجديد بلا موقع يُختم بموقع الجلسة، والموقع غير المسموح يُرفض. القراءة: يفعّله مرشّح ScopedRecord.
 
@@ -2046,7 +2049,7 @@ public class ErpDbContext : DbContext
             && (!WarehouseFilterOn || e.WarehouseId == null || WarehouseFilterIds.Contains(e.WarehouseId.Value))
             && (!WarehouseOwnerOnly || e.CreatedByUserId == WarehouseOwnerId));
 
-    /// <summary>مستند بلا مستودع: نطاق «فروع محددة» لا يقيّده.</summary>
+    /// <summary>مستند بلا موقع: نطاق «فروع محددة» لا يقيّده.</summary>
     private void ApplyScopedFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity, IScopedRecord
         => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId && (ScopeMode == 0 || ScopeMode == 1
             || (ScopeMode == 2 && e.CreatedByUserId != null && ScopeUserIds.Contains(e.CreatedByUserId.Value))
@@ -2054,7 +2057,7 @@ public class ErpDbContext : DbContext
             || (ScopeMode == 4 && (e.AssignedToUserId == ScopeUserId || e.CreatedByUserId == ScopeUserId)))
             && (!WarehouseOwnerOnly || e.CreatedByUserId == WarehouseOwnerId));
 
-    /// <summary>مستند بمستودع (فرع): المستند بلا مستودع لا يتبع فرعاً فيظهر لكل الفروع (ولكل المواقع).</summary>
+    /// <summary>مستند بموقع (فرع): المستند بلا موقع لا يتبع فرعاً فيظهر لكل الفروع (ولكل المواقع).</summary>
     private void ApplyBranchScopedFilter<T>(ModelBuilder modelBuilder) where T : BaseEntity, IScopedRecord
         => modelBuilder.Entity<T>().HasQueryFilter(e => e.TenantId == CurrentTenantId && (ScopeMode == 0
             || (ScopeMode == 1 && (EF.Property<Guid?>(e, "WarehouseId") == null || ScopeWarehouseIds.Contains(EF.Property<Guid?>(e, "WarehouseId")!.Value)))

@@ -42,7 +42,7 @@ public class InventoryReportService : IInventoryReportService
         return q.WarehouseId.HasValue ? m.Where(x => x.WarehouseId == q.WarehouseId) : m;
     }
 
-    // على مستوى المنشأة التحويل بين المستودعات أثره صفر؛ وعلى مستوى مستودع بعينه هو وارد أو صادر
+    // على مستوى المنشأة التحويل بين المواقع أثره صفر؛ وعلى مستوى موقع بعينه هو وارد أو صادر
     private IQueryable<SignedMovement> SignedMovements(ReportQueryDto q)
     {
         var transfer = q.WarehouseId.HasValue ? 1 : 0;
@@ -68,7 +68,7 @@ public class InventoryReportService : IInventoryReportService
 
     private IQueryable<InventoryAuditRowDto> InventoryAuditQuery(ReportQueryDto q)
     {
-        // لمستودع بعينه: الكمية رصيده فيه، بالتكلفة الموحّدة للصنف.
+        // لموقع بعينه: الكمية رصيده فيه، بالتكلفة الموحّدة للصنف.
         var stocks = _db.Set<WarehouseStock>().AsNoTracking().Where(s => s.WarehouseId == q.WarehouseId);
         var rows = q.WarehouseId.HasValue
             ? ProductsQuery(q).Select(p => new { p, Quantity = stocks.Where(s => s.ItemId == p.Id).Sum(s => s.Quantity), UnitCost = p.AverageCost })
@@ -155,7 +155,7 @@ public class InventoryReportService : IInventoryReportService
         if (!q.ItemId.HasValue) throw new ValidationFailedException(Messages.SelectItemForItemCard);
         // إعادة التقييم بلا كمية لكنها تغيّر القيمة: تظهر في البطاقة
         var all = SignedMovements(q).Where(m => m.ItemId == q.ItemId && (m.Sign != 0 || m.Type == StockMovementType.Revaluation));
-        // قيمة الصنف دفترية على مستوى المنشأة: مجموع ما غيّرته كل حركة (ومنه إعادة تسعير الرصيد). ولمستودع بعينه لا قيمة دفترية مستقلة:
+        // قيمة الصنف دفترية على مستوى المنشأة: مجموع ما غيّرته كل حركة (ومنه إعادة تسعير الرصيد). ولموقع بعينه لا قيمة دفترية مستقلة:
         // الكمية × تكلفة الحركة كما كانت
         var byWarehouse = q.WarehouseId.HasValue;
         var period = all;

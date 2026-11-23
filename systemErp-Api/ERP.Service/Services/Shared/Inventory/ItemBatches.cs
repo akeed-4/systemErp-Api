@@ -5,8 +5,8 @@ namespace ERP.Service.Services.Shared;
 
 /// <summary>
 /// تشغيلات الأصناف (Lot/Batch) وصلاحيتها: تحديد تشغيلة الوارد، وتخصيص الصادر بالأقرب انتهاءً (FEFO) مع منع بيع المنتهي،
-/// وأرصدة كل تشغيلة في كل مستودع. التكلفة لا تُمس: الحركة سطر واحد بتكلفة الصنف، وتوزيعها على التشغيلات في StockMovementBatch.
-/// كل تغيير في رصيد تشغيلة يمر من هنا ليبقى مجموع تشغيلات الصنف في المستودع مساوياً لرصيده فيه.
+/// وأرصدة كل تشغيلة في كل موقع. التكلفة لا تُمس: الحركة سطر واحد بتكلفة الصنف، وتوزيعها على التشغيلات في StockMovementBatch.
+/// كل تغيير في رصيد تشغيلة يمر من هنا ليبقى مجموع تشغيلات الصنف في الموقع مساوياً لرصيده فيه.
 /// </summary>
 public static class ItemBatches
 {
@@ -113,7 +113,7 @@ public static class ItemBatches
 
     // ---------------- الصادر ----------------
     /// <summary>
-    /// تخصيص صادر من مستودع: التشغيلة المختارة، وإلا الأقرب انتهاءً فالأقدم (FEFO) من غير المنتهية. البيع من منتهية ممنوع دائماً؛
+    /// تخصيص صادر من موقع: التشغيلة المختارة، وإلا الأقرب انتهاءً فالأقدم (FEFO) من غير المنتهية. البيع من منتهية ممنوع دائماً؛
     /// والصادر لغير البيع (مرتجع شراء، تسوية، تحويل) يجوز من منتهية إن اختيرت صراحةً. النقص يُرفض، إلا إن سُمح بالسالب
     /// (سياسة تسمح، أو مزامنة أوف لاين) فيُحمَّل على آخر تشغيلة صالحة (أو الافتتاحية إن لم توجد).
     /// </summary>
@@ -163,7 +163,7 @@ public static class ItemBatches
     }
 
     // ---------------- الأرصدة وتسجيل التوزيع ----------------
-    /// <summary>يزيد/ينقص رصيد تشغيلة في مستودع ويُرجع الرصيد بعده (يُحفظ مع حفظ المستدعي). معرّف الكيان يُولَّد عند إضافته.</summary>
+    /// <summary>يزيد/ينقص رصيد تشغيلة في موقع ويُرجع الرصيد بعده (يُحفظ مع حفظ المستدعي). معرّف الكيان يُولَّد عند إضافته.</summary>
     public static async Task<decimal> ApplyAsync(ErpDbContext db, ItemBatch batch, Guid warehouseId, decimal delta, CancellationToken ct)
     {
         await db.Set<BatchStock>().Where(s => s.ItemBatchId == batch.Id && s.WarehouseId == warehouseId).LoadAsync(ct);
@@ -247,7 +247,7 @@ public static class ItemBatches
         return list.Count == 1 ? One(list[0]) : string.Join("، ", list.Select(p => $"{One(p)} × {Qty(p.Quantity)}"));
     }
 
-    /// <summary>أرصدة تشغيلات صنف في مستودع (المحفوظة مع تغييرات المعاملة الجارية).</summary>
+    /// <summary>أرصدة تشغيلات صنف في موقع (المحفوظة مع تغييرات المعاملة الجارية).</summary>
     public static async Task<Dictionary<Guid, decimal>> BalancesAsync(ErpDbContext db, Guid itemId, Guid warehouseId, CancellationToken ct)
     {
         await db.Set<BatchStock>().Where(s => s.ItemId == itemId && s.WarehouseId == warehouseId).LoadAsync(ct);

@@ -42,11 +42,19 @@ public class TenantProvisioningService : ITenantProvisioningService
             IsBaseCurrency = true,
         });
 
+        // الفرع الرئيسي (الافتراضي): كل موقع يتبع فرعاً من النشاط نفسه
+        var branch = new Branch
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            Code = Branches.DefaultCode, NameAr = Branches.DefaultNameAr, NameEn = Branches.DefaultNameEn, IsDefault = true,
+        };
+        _db.Add(branch);
+
         // الموقع الرئيسي بحساب مخزونه الخاص تحت 114 (كل موقع يُضاف لاحقاً يُنشأ له حسابه بالترقيم نفسه)
         var warehouse = new Warehouse
         {
-            Id = Guid.NewGuid(), TenantId = tenantId,
-            Code = "WH-001", NameAr = "المستودع الرئيسي", NameEn = "Main Warehouse", IsDefault = true,
+            Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id,
+            Code = "WH-001", NameAr = "الموقع الرئيسي", NameEn = "Main Warehouse", IsDefault = true,
         };
         var inventoryGroup = DefaultAccounts.Chart.First(a => a.Code == DefaultAccounts.InventoryGroup);
         var siteAccount = new Account

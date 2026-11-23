@@ -204,7 +204,7 @@ public class DocumentNumberingSettingsTests : TestBase
     {
         var api = await NewTenantAsync();
         var riyadh = (await api.Post("/warehouses", new { code = "RUH", nameAr = "معرض RUH", nameEn = "RUH", location = "الرياض", status = "active" })).Data!["id"].S();
-        // نطاق المستودع لنوع واحد مع بقاء المنشأة على تسلسلها العام
+        // نطاق الموقع لنوع واحد مع بقاء المنشأة على تسلسلها العام
         Assert.Equal(200, (await api.Put("/document-numbering/sales_invoice", Setting(scope: "warehouse"))).Status);
         Assert.Equal("SINV-RUH-000001", (await api.PostInvoice(Sale(warehouseId: riyadh))).Data!["invoiceNumber"].S());
         Assert.Equal("PINV-000001", (await api.PostInvoice(new { kind = "purchase", invoiceType = "simplified", paymentMethod = "cash", status = "posted",

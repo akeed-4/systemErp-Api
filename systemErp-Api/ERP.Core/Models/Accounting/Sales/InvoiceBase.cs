@@ -36,7 +36,7 @@ public abstract class InvoiceBase : BaseEntity, IScopedRecord, IPartyDocument
     public string? PartyIdType { get; set; }
     public string? PartyIdNumber { get; set; }
     public string? PartyAddress { get; set; }
-    /// <summary>المستودع الذي تدخل إليه/تخرج منه أصناف الفاتورة (الافتراضي عند عدم التحديد).</summary>
+    /// <summary>الموقع الذي تدخل إليه/تخرج منه أصناف الفاتورة (الافتراضي عند عدم التحديد).</summary>
     public Guid? WarehouseId { get; set; }
     /// <summary>مركز التكلفة الافتراضي للأسطر: يُنسخ لكل سطر بلا مركز عند الحفظ، فالمركز الفعلي محفوظ على السطر وقيده.</summary>
     public Guid? CostCenterId { get; set; }

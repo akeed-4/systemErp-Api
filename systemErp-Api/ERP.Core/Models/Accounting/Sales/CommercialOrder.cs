@@ -21,7 +21,7 @@ public class CommercialOrder : BaseEntity, IScopedRecord, IPartyDocument
     public string PartyName { get; set; } = string.Empty;
     public string? PartyPhone { get; set; }
     public string? PartyVatNumber { get; set; }
-    /// <summary>المستودع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
+    /// <summary>الموقع الذي ستُصرف منه/تُستلم فيه الأصناف؛ ينتقل إلى الفاتورة (فارغ = الافتراضي).</summary>
     public Guid? WarehouseId { get; set; }
     public DateTime OrderDate { get; set; }
     public DateTime ExpectedDeliveryDate { get; set; }

@@ -204,7 +204,7 @@ public class AccountingGapsTests : TestBase
         var after = (await api.Get($"/fixedassets/{asset}")).Data!;
         Assert.Equal(11900, after["currentBookValue"].D()); Assert.Equal(100, after["accumulatedDepreciation"].D());
         Assert.Equal("2026-01", Assert.Single((await api.Get($"/fixedassets/depreciation?fixedAssetId={asset}")).Data!["items"]!.AsArray())!["period"].S());
-        Assert.Equal(100, await BalanceAsync(api, "122"));
+        Assert.Equal(100, await BalanceAsync(api, (await AssetAccountsAsync(api, asset)).Accumulated));
         Assert.Equal(200, (await Depreciate(api, "2026-02", asset)).Status); // تُرحَّل الفترة من جديد
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
@@ -249,7 +249,7 @@ public class AccountingGapsTests : TestBase
         var lines = (await api.Get($"/journalentries/{disposed.Data["disposalJournalEntryId"].S()}")).Data!["lines"]!.AsArray();
         decimal Debit(string code) => lines.Where(l => l!["accountCode"].S() == code).Sum(l => l!["debit"].D());
         decimal Credit(string code) => lines.Where(l => l!["accountCode"].S() == code).Sum(l => l!["credit"].D());
-        Assert.Equal(100, Debit("122")); Assert.Equal(9000, Debit("1111")); Assert.Equal(2900, Debit("525")); // خسارة = 11900 − 9000
+        Assert.Equal(100, Debit((await AssetAccountsAsync(api, asset)).Accumulated)); Assert.Equal(9000, Debit("1111")); Assert.Equal(2900, Debit("525")); // خسارة = 11900 − 9000
         Assert.Equal(12000, Credit("121"));
         Assert.Equal(center, lines.Single(l => l!["accountCode"].S() == "525")!["costCenterId"].G());
 
@@ -363,8 +363,10 @@ public class AccountingGapsTests : TestBase
         Assert.Equal(12000, await BalanceAsync(api, "121")); Assert.Equal(-12000, await BalanceAsync(api, "1111"));
 
         // أصل قائم يُدخَل بتكلفته ومجمع إهلاكه مقابل الأرصدة الافتتاحية بقيمته الدفترية
-        Assert.Equal(201, (await api.Post("/fixedassets", Funded("FA-2", 5000, 3000, "33"))).Status);
-        Assert.Equal(17000, await BalanceAsync(api, "121")); Assert.Equal(2000, await BalanceAsync(api, "122")); Assert.Equal(3000, await BalanceAsync(api, "33"));
+        var existing = await api.Post("/fixedassets", Funded("FA-2", 5000, 3000, "33"));
+        Assert.Equal(201, existing.Status);
+        var accumulated = (await AssetAccountsAsync(api, existing.Data!["id"].G())).Accumulated; // مجمع إهلاك الأصل المخصص له
+        Assert.Equal(17000, await BalanceAsync(api, "121")); Assert.Equal(2000, await BalanceAsync(api, accumulated)); Assert.Equal(3000, await BalanceAsync(api, "33"));
 
         // بلا حساب تمويل: لا قيد (الاقتناء مقيَّد خارج شاشة الأصول)
         var manual = await api.Post("/fixedassets", Funded("FA-3", 900, 900, null));

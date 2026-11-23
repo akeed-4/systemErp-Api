@@ -2296,4 +2296,8 @@
   <data name="WarehouseInUse" xml:space="preserve"><value>لا يمكن حذف المستودع: مستخدم في {0}.</value></data>
   <data name="WarehouseOnlySiteOfUsers" xml:space="preserve"><value>لا يمكن حذف المستودع: هو الموقع الوحيد المسموح للمستخدمين ({0})؛ عدّل مواقعهم أولاً.</value></data>
   <data name="WarehouseOnlySiteOfRoleScope" xml:space="preserve"><value>لا يمكن حذف المستودع: هو الموقع الوحيد في نطاق صلاحيات دور أو مستخدم؛ عدّل النطاق أولاً.</value></data>
+  <data name="LinkedAccountCodeOutsideGroup" xml:space="preserve"><value>رمز الحساب {0} يجب أن يبدأ برمز حساب قائم داخل مجموعة {1} (غير مرتبط بعميل/مورد/بنك آخر).</value></data>
+  <data name="CostCenterCodesExhausted" xml:space="preserve"><value>امتلأت أرقام المراكز المتاحة تحت المركز ({0}).</value></data>
+  <data name="AccountLinkedToFixedAsset" xml:space="preserve"><value>الحساب مخصص لأصل ثابت؛ يُحذف مع الأصل من شاشة الأصول الثابتة.</value></data>
+  <data name="CannotDeleteFixedAssetWithEntries" xml:space="preserve"><value>لا يمكن حذف الأصل لأن له أثراً في الدفاتر (قيد اقتناء أو إهلاك أو استبعاد أو قيود على حساباته). استبعد الأصل بدلاً من حذفه.</value></data>
 </root>

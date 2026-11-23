@@ -146,9 +146,12 @@ public class AgreementDeliveryContractTests : TestBase
         var center = (await api.Post("/costcenters", new { code = "CC-1", nameAr = "الإدارة" })).Data!["id"].S();
         var fa = await api.Post("/fixedassets", new { assetCode = "FA-1", nameAr = "خادم", nameEn = "Server", purchaseDate = DateTime.UtcNow, purchaseCost = 1000, currentBookValue = 1000, depreciationRate = 20, costCenterId = center });
         Assert.Equal(201, fa.Status);
-        var asset = (await api.Get("/accounts/ByCode/121")).Data!; var dep = (await api.Get("/accounts/ByCode/122")).Data!;
-        Assert.Equal(asset["id"].S(), fa.Data!["assetAccountId"].S()); Assert.Equal(dep["id"].S(), fa.Data["accumulatedDepreciationAccountId"].S());
-        Assert.False(dep["isDebitNature"]!.GetValue<bool>()); // حساب مقابل للأصل
+        var asset = (await api.Get("/accounts/ByCode/121")).Data!;
+        Assert.Equal(asset["id"].S(), fa.Data!["assetAccountId"].S());
+        // مجمع الإهلاك: حساب مخصص للأصل تحت 122 يرث طبيعته الدائنة (حساب مقابل للأصل)
+        var dep = (await api.Get($"/accounts/{fa.Data["accumulatedDepreciationAccountId"].S()}")).Data!;
+        Assert.Equal("122", dep["parentCode"].S());
+        Assert.False(dep["isDebitNature"]!.GetValue<bool>());
     }
 
     [Fact]

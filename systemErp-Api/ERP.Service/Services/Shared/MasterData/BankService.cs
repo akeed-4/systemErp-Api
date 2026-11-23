@@ -52,7 +52,7 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         e.Currency = await CurrencyCodeAsync(e.Currency, ct);
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("bank", "BNK-");
         e.CurrentBalance = e.OpeningBalance;
-        e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Bank, e.Id, e.NameAr, e.NameEn, ct);
+        e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Bank, e.Id, e.NameAr, e.NameEn, d.AccountCode, ct);
         // حساب البنك بعملته (كشف الحساب يعرض الرصيد بها)
         var account = Db.Set<Account>().Local.FirstOrDefault(a => a.Code == e.AccountCode)
             ?? await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);

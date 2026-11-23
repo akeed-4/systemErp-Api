@@ -8,7 +8,13 @@ namespace ERP.Service.Services.Accounting;
 
 public class AccountService : CrudService<Account, AccountDto, CreateAccountDto, UpdateAccountDto>, IAccountService
 {
-    public AccountService(ErpDbContext db) : base(db) { }
+    /// <summary>عرض تسلسل الحساب المرتبط بكيان تحت أبيه (122 ← 122001)، كحسابات العملاء والموردين؛ يمتد خانة إذا امتلأ.</summary>
+    private const int LinkedChildWidth = 3;
+    private const int LinkedChildMaxWidth = 6;
+
+    private readonly INumberSequenceService _numbers;
+
+    public AccountService(ErpDbContext db, INumberSequenceService numbers) : base(db) { _numbers = numbers; }
 
     protected override string Label => Messages.LabelAccount;
 
@@ -94,6 +100,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             throw new ConflictException(Messages.CannotDeleteAccountWithChildren);
         if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == entity.Code, ct))
             throw new ConflictException(Messages.CannotDeleteAccountWithEntries);
+        if (entity.LinkedEntityType is LinkedEntityType.FixedAsset)
+            throw new ConflictException(Messages.AccountLinkedToFixedAsset);
         // حساب العميل بلا حركات مالية (لا قيود — فُحصت أعلاه — ولا فواتير): يُحذف مع سجل العميل، فلا يبقى عميل بلا حساب
         var customer = await Db.Set<Customer>().FirstOrDefaultAsync(c =>
             (entity.LinkedEntityType == LinkedEntityType.Customer && c.Id == entity.LinkedEntityId) || c.AccountCode == entity.Code, ct);
@@ -152,12 +160,15 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         return roots;
     }
 
-    public async Task<string> EnsureLinkedAccountAsync(LinkedEntityType type, Guid entityId, string nameAr, string nameEn, CancellationToken ct = default)
+    public Task<string> EnsureLinkedAccountAsync(LinkedEntityType type, Guid entityId, string nameAr, string nameEn, CancellationToken ct = default)
+        => EnsureLinkedAccountAsync(type, entityId, nameAr, nameEn, null, ct);
+
+    public async Task<string> EnsureLinkedAccountAsync(LinkedEntityType type, Guid entityId, string nameAr, string nameEn, string? requestedCode, CancellationToken ct = default)
     {
         var existing = await Db.Set<Account>().FirstOrDefaultAsync(a => a.LinkedEntityType == type && a.LinkedEntityId == entityId, ct);
         if (existing != null) return existing.Code;
 
-        var parentCode = type switch
+        var groupCode = type switch
         {
             LinkedEntityType.Customer => DefaultAccounts.Receivables,
             LinkedEntityType.Supplier => DefaultAccounts.Payables,
@@ -165,21 +176,34 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             LinkedEntityType.Warehouse => DefaultAccounts.InventoryGroup,
             _ => throw new ValidationFailedException(Messages.EntityTypeNotSupportedForAutoAccount),
         };
-        var parent = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == parentCode, ct)
-            ?? throw new ConflictException(string.Format(Messages.ParentAccountMissingInChart, parentCode));
+        var group = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == groupCode, ct)
+            ?? throw new ConflictException(string.Format(Messages.ParentAccountMissingInChart, groupCode));
 
-        // أكبر كود فرعي حالي تحت الأب (خانات الأبناء: 3 أرقام بعد كود الأب)
-        var existingCodes = await Db.Set<Account>().AsNoTracking()
-            .Where(a => a.ParentCode == parentCode && a.Code.Length == parentCode.Length + 3)
-            .Select(a => a.Code).ToListAsync(ct);
-        var next = existingCodes.Select(c => int.Parse(c[parentCode.Length..])).DefaultIfEmpty(0).Max() + 1;
-        if (next > 999) throw new ConflictException(Messages.SubAccountCodesExhausted);
+        Account parent;
+        string code;
+        if (!string.IsNullOrWhiteSpace(requestedCode))
+        {
+            // رمز اختاره المستخدم في شجرة الحسابات: يُحفظ كما عُرض له بعد التحقق، فلا يظهر في الشجرة برقم آخر
+            code = requestedCode.Trim();
+            parent = await RequestedLinkedParentAsync(code, group, ct);
+        }
+        else
+        {
+            // أكبر كود فرعي حالي تحت الأب (خانات الأبناء: 3 أرقام بعد كود الأب)
+            parent = group;
+            var existingCodes = await Db.Set<Account>().AsNoTracking()
+                .Where(a => a.ParentCode == groupCode && a.Code.Length == groupCode.Length + 3)
+                .Select(a => a.Code).ToListAsync(ct);
+            var next = existingCodes.Select(c => HierarchicalCodes.SequenceOf(c, groupCode, 3) ?? 0).DefaultIfEmpty(0).Max() + 1;
+            if (next > 999) throw new ConflictException(Messages.SubAccountCodesExhausted);
+            code = $"{groupCode}{next:D3}";
+        }
 
         var account = new Account
         {
-            Code = $"{parentCode}{next:D3}",
+            Code = code,
             NameAr = nameAr, NameEn = string.IsNullOrWhiteSpace(nameEn) ? nameAr : nameEn,
-            Type = parent.Type, ParentCode = parentCode, Level = parent.Level + 1,
+            Type = parent.Type, ParentCode = parent.Code, Level = parent.Level + 1,
             IsDebitNature = parent.IsDebitNature, Currency = parent.Currency,
             LinkedEntityType = type, LinkedEntityId = entityId,
         };
@@ -187,5 +211,75 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         Db.Add(account);
         await Db.SaveChangesAsync(ct);
         return account.Code;
+    }
+
+    /// <summary>
+    /// أب الرمز المطلوب لحساب كيان: أطول حساب قائم رمزه بادئة له، ويجب أن يكون مجموعة الكيان (112/211/111) أو أحد فروعها
+    /// غير المرتبطة بكيان آخر؛ والرمز أرقام فقط وغير مستخدم.
+    /// </summary>
+    private async Task<Account> RequestedLinkedParentAsync(string code, Account group, CancellationToken ct)
+    {
+        if (!code.All(char.IsDigit)) throw new ValidationFailedException(Messages.AccountCodeDigitsOnly);
+        if (await Db.Set<Account>().AnyAsync(a => a.Code == code, ct)) throw new ConflictException(Messages.AccountCodeInUse);
+
+        var prefixes = Enumerable.Range(1, Math.Max(0, code.Length - 1)).Select(n => code[..n]).ToList();
+        var parent = await Db.Set<Account>().Where(a => prefixes.Contains(a.Code)).OrderByDescending(a => a.Code.Length).FirstOrDefaultAsync(ct);
+        var outside = string.Format(Messages.LinkedAccountCodeOutsideGroup, code, group.Code);
+        if (parent == null || parent.LinkedEntityType is not (null or LinkedEntityType.General)) throw new ValidationFailedException(outside);
+
+        var parents = await Db.Set<Account>().AsNoTracking().Select(a => new { a.Code, a.ParentCode }).ToDictionaryAsync(a => a.Code, a => a.ParentCode, ct);
+        var seen = new HashSet<string>();
+        for (string? c = parent.Code; c != null && seen.Add(c); c = parents.GetValueOrDefault(c))
+            if (c == group.Code) return parent;
+        throw new ValidationFailedException(outside);
+    }
+
+    public async Task<bool> CanHoldSubAccountsAsync(string code, CancellationToken ct = default)
+    {
+        var id = await Db.Set<Account>().Where(a => a.Code == code).Select(a => (Guid?)a.Id).FirstOrDefaultAsync(ct);
+        if (id == null) return false;
+        if (await Db.Set<Account>().AnyAsync(a => a.ParentCode == code, ct)) return true; // تجميعي أصلاً
+        if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == code, ct)) return false;
+        if (await Db.Set<FixedAsset>().AnyAsync(a => a.AssetAccountId == id || a.AccumulatedDepreciationAccountId == id || a.DepreciationExpenseAccountId == id, ct))
+            return false;
+        if (await Db.Set<PaymentMethodItem>().AnyAsync(p => p.LinkedAccountCode == code, ct)) return false;
+        // أدوار إعدادات الحسابات (كل خصائص *AccountCode النصية)
+        var settings = await Db.Set<AccountingSettings>().AsNoTracking().FirstOrDefaultAsync(ct);
+        return settings == null || !typeof(AccountingSettings).GetProperties()
+            .Where(p => p.PropertyType == typeof(string) && p.Name.EndsWith("AccountCode", StringComparison.Ordinal))
+            .Any(p => (string?)p.GetValue(settings) == code);
+    }
+
+    public async Task<(Guid Id, string Code)> CreateLinkedChildAccountAsync(string parentCode, LinkedEntityType type, Guid entityId,
+        string nameAr, string nameEn, CancellationToken ct = default)
+    {
+        var parent = await Db.Set<Account>().AsNoTracking().FirstOrDefaultAsync(a => a.Code == parentCode, ct)
+            ?? throw new ConflictException(string.Format(Messages.ParentAccountMissingInChart, parentCode));
+
+        // 3 خانات بعد رمز الأب كبقية الحسابات المرتبطة؛ إن امتلأت (999) تمتد خانة بعدّاد مستقل لكل عرض.
+        string? code = null;
+        for (var width = LinkedChildWidth; code == null; width++)
+        {
+            try
+            {
+                code = await HierarchicalCodes.NextAsync(Db, _numbers, $"account_child_code:{parentCode}:{width}", parentCode, width,
+                    Db.Set<Account>().Select(a => a.Code), Messages.SubAccountCodesExhausted, ct);
+            }
+            catch (ConflictException) when (width < LinkedChildMaxWidth) { }
+        }
+
+        var account = new Account
+        {
+            Code = code,
+            NameAr = nameAr, NameEn = string.IsNullOrWhiteSpace(nameEn) ? nameAr : nameEn,
+            Type = parent.Type, ParentCode = parent.Code, Level = parent.Level + 1,
+            IsDebitNature = parent.IsDebitNature, Currency = parent.Currency,
+            CostCenterPolicy = parent.CostCenterPolicy,
+            DefaultCostCenterId = parent.CostCenterPolicy == CostCenterPolicy.None ? null : parent.DefaultCostCenterId,
+            LinkedEntityType = type, LinkedEntityId = entityId,
+        };
+        Db.Add(account);
+        await Db.SaveChangesAsync(ct);
+        return (account.Id, account.Code);
     }
 }

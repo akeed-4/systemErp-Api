@@ -57,7 +57,9 @@ public class FixedAssetDepreciationTests : TestBase
         var created = await api.Post("/fixedassets", Asset("FA-1", active));
         Assert.Equal(201, created.Status);
         Assert.Equal(active, created.Data!["costCenterId"].G());
-        Assert.Equal((await api.Get("/accounts/ByCode/523")).Data!["id"].S(), created.Data["depreciationExpenseAccountId"].S());
+        // مصروف إهلاك مخصص للأصل تحت مصروف الإهلاك 523
+        var expense = (await api.Get($"/accounts/{created.Data["depreciationExpenseAccountId"].S()}")).Data!;
+        Assert.Equal("523", expense["parentCode"].S());
 
         await api.Post("/fixedassets", Asset("FA-2", await SeedCostCenterAsync(api, "SLS")));
         var filtered = (await api.Get($"/fixedassets?costCenterId={active}")).Data!["items"]!.AsArray();
@@ -89,12 +91,13 @@ public class FixedAssetDepreciationTests : TestBase
         var lines = entry["lines"]!.AsArray();
         Assert.Equal(2, lines.Count);
         var debit = lines.Single(l => l!["debit"].D() > 0)!; var credit = lines.Single(l => l!["credit"].D() > 0)!;
-        Assert.Equal("523", debit["accountCode"].S()); Assert.Equal(1666.67m, debit["debit"].D()); Assert.Equal(center, debit["costCenterId"].G());
-        Assert.Equal("122", credit["accountCode"].S()); Assert.Equal(1666.67m, credit["credit"].D()); Assert.Equal(center, credit["costCenterId"].G());
+        var (accumulatedCode, expenseCode) = await AssetAccountsAsync(api, asset);
+        Assert.Equal(expenseCode, debit["accountCode"].S()); Assert.Equal(1666.67m, debit["debit"].D()); Assert.Equal(center, debit["costCenterId"].G());
+        Assert.Equal(accumulatedCode, credit["accountCode"].S()); Assert.Equal(1666.67m, credit["credit"].D()); Assert.Equal(center, credit["costCenterId"].G());
 
         var after = (await api.Get($"/fixedassets/{asset}")).Data!;
         Assert.Equal(1666.67m, after["accumulatedDepreciation"].D()); Assert.Equal(98333.33m, after["currentBookValue"].D());
-        Assert.Equal(1666.67m, (await api.Get("/accounts/ByCode/122")).Data!["balance"].D());
+        Assert.Equal(1666.67m, (await api.Get($"/accounts/ByCode/{accumulatedCode}")).Data!["balance"].D());
 
         // نفس الفترة لا تُرحَّل مرتين: لا للأصل المحدد ولا ضمن ترحيل الكل، ولا يتغيّر رصيد.
         Assert.Equal(409, (await Post(api, "2026-01", asset)).Status);

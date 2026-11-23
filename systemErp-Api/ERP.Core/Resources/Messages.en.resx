@@ -2289,6 +2289,8 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="JournalEntryHasReversal" xml:space="preserve"><value>A journal entry that has a reversing entry cannot be deleted; both stay on record.</value></data>
   <data name="ClosingEntryCannotBeDeleted" xml:space="preserve"><value>A year-closing entry cannot be deleted; reverse it to reopen the year.</value></data>
   <data name="ReversalReasonRequired" xml:space="preserve"><value>A reason is required to reverse the journal entry.</value></data>
+  <data name="WarehouseInventoryAccountRequired" xml:space="preserve"><value>The warehouse inventory account is required; each warehouse has its own account.</value></data>
+  <data name="WarehouseInventoryAccountNotOwn" xml:space="preserve"><value>The warehouse inventory account must be its own: not another warehouse's account (such as the main one) nor the general inventory account in the accounting settings.</value></data>
   <data name="SalesVatInclusivePricingDisabled" xml:space="preserve"><value>VAT-inclusive pricing in sales is not enabled for the company; enable it in the accounting settings first.</value></data>
   <data name="WarehouseHasFinancialMovements" xml:space="preserve"><value>The warehouse cannot be deleted: its own accounts (inventory, cost of revenue, sales, cash box...) have journal entries.</value></data>
   <data name="WarehouseInUse" xml:space="preserve"><value>The warehouse cannot be deleted: it is used in {0}.</value></data>

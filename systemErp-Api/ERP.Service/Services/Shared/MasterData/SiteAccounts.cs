@@ -47,7 +47,8 @@ public static class SiteAccounts
         var cash = TreasuryResolver.Resolve(PaymentMethod.Cash, await db.Set<PaymentMethodItem>().AsNoTracking().ToListAsync(ct));
         var created = 0;
 
-        if (w.InventoryAccountCode == null && (isNew || !await HasStockAsync(db, w, ct)))
+        // المخزون: حساب خاص باسمه؛ والمستودع القائم على حساب غيره (الرئيسي أو حساب الإعدادات) يُنشأ له حسابه ما دام بلا حركات
+        if ((w.InventoryAccountCode == null || await SharesInventoryAsync(db, w, settings, ct)) && (isNew || !await HasStockAsync(db, w, ct)))
         {
             w.InventoryAccountCode = await CreateAsync(db, w, Role.Inventory,
                 await db.Set<Account>().AnyAsync(a => a.Code == DefaultAccounts.InventoryGroup, ct) ? DefaultAccounts.InventoryGroup : await ParentOfAsync(db, settings.Inventory(), ct), ct);
@@ -73,11 +74,21 @@ public static class SiteAccounts
     /// <summary>للمواقع القائمة (والرئيسي لحساباته الخاصة): ينشئ الناقص لكلٍ منها. يُرجع عدد المواقع التي أُنشئ لها حساب.</summary>
     public static async Task<int> EnsureAllAsync(ErpDbContext db, CancellationToken ct)
     {
-        var sites = (await db.Set<Warehouse>().ToListAsync(ct)).Where(IsMissing).ToList();
+        // كل المواقع (الأقدم أولاً): الناقص حسابه، أو القائم على حساب مستودع آخر فيُنشأ له حسابه (بلا حركات مخزون)
+        var sites = await db.Set<Warehouse>().OrderBy(w => w.CreatedAt).ToListAsync(ct);
         var touched = 0;
         foreach (var w in sites)
             if (await EnsureAsync(db, w, isNew: false, ct) > 0) touched++;
         return touched;
+    }
+
+    /// <summary>حساب مخزون المستودع ليس له: حساب المخزون العام، أو حساب مستودع آخر (مرتبط به أو مستخدم له).</summary>
+    private static async Task<bool> SharesInventoryAsync(ErpDbContext db, Warehouse w, AccountingSettings settings, CancellationToken ct)
+    {
+        if (w.InventoryAccountCode is not { } code) return false;
+        if (code == settings.Inventory()) return true;
+        return await db.Set<Account>().AnyAsync(a => a.Code == code && a.LinkedEntityType == LinkedEntityType.Warehouse && a.LinkedEntityId != w.Id, ct)
+            || await db.Set<Warehouse>().AnyAsync(x => x.Id != w.Id && x.InventoryAccountCode == code && x.CreatedAt < w.CreatedAt, ct);
     }
 
     private static Task<bool> HasStockAsync(ErpDbContext db, Warehouse w, CancellationToken ct)

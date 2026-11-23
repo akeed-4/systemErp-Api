@@ -37,15 +37,25 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
     /// </summary>
     private async Task ValidateInventoryAccountAsync(CreateWarehouseDto d, Warehouse? existing, CancellationToken ct)
     {
-        d.InventoryAccountCode = d.InventoryAccountCode == null ? existing?.InventoryAccountCode
-            : string.IsNullOrWhiteSpace(d.InventoryAccountCode) ? null : d.InventoryAccountCode.Trim();
+        // المستودع الجديد: حساب مخزونه يُنشأ دائماً باسمه (SiteAccounts.EnsureAsync)، فلا يأخذ حساب مستودع آخر ولا حساب الإعدادات
+        if (existing == null) { d.InventoryAccountCode = null; return; }
+
+        // التعديل: الحساب إلزامي (غير المرسَل يبقى كما هو)
+        d.InventoryAccountCode = d.InventoryAccountCode == null ? existing.InventoryAccountCode
+            : string.IsNullOrWhiteSpace(d.InventoryAccountCode) ? throw new ValidationFailedException(Messages.WarehouseInventoryAccountRequired)
+            : d.InventoryAccountCode.Trim();
         var role = PostingAccounts.InventoryRole;
-        if (d.InventoryAccountCode is { } code)
+        if (d.InventoryAccountCode is { } code && code != existing.InventoryAccountCode)
         {
             var errors = await AccountRoleRules.ProblemsAsync(Db, new[] { (role, code) }, ct);
             var settings = await PostingAccounts.SettingsAsync(Db, ct);
             if (code == settings.InputVat() || code == settings.OutputVat())
                 errors.Add(string.Format(Messages.AccountSettingSharedByRoles, code, role.Label));
+            // لكل مستودع حسابه: لا حساب مستودع آخر (كالرئيسي) ولا حساب المخزون العام في الإعدادات
+            if (code == settings.Inventory()
+                || await Db.Set<Account>().AnyAsync(a => a.Code == code && a.LinkedEntityType == LinkedEntityType.Warehouse && a.LinkedEntityId != existing.Id, ct)
+                || await Db.Set<Warehouse>().AnyAsync(w => w.Id != existing.Id && w.InventoryAccountCode == code, ct))
+                errors.Add(Messages.WarehouseInventoryAccountNotOwn);
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
         }
         if (existing != null && d.InventoryAccountCode != existing.InventoryAccountCode

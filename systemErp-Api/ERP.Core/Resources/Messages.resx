@@ -2289,6 +2289,8 @@
   <data name="JournalEntryHasReversal" xml:space="preserve"><value>لا يمكن حذف قيد له قيد عكسي؛ القيدان يبقيان في السجل.</value></data>
   <data name="ClosingEntryCannotBeDeleted" xml:space="preserve"><value>قيد إقفال السنة لا يُحذف؛ اعكسه لإعادة فتح السنة.</value></data>
   <data name="ReversalReasonRequired" xml:space="preserve"><value>سبب عكس القيد مطلوب.</value></data>
+  <data name="WarehouseInventoryAccountRequired" xml:space="preserve"><value>حساب مخزون المستودع إلزامي؛ لكل مستودع حسابه الخاص.</value></data>
+  <data name="WarehouseInventoryAccountNotOwn" xml:space="preserve"><value>حساب مخزون المستودع يجب أن يكون حسابه الخاص: لا حساب مستودع آخر (كالرئيسي) ولا حساب المخزون العام في إعدادات الحسابات.</value></data>
   <data name="SalesVatInclusivePricingDisabled" xml:space="preserve"><value>التسعير الشامل للضريبة في المبيعات غير مفعّل للمنشأة؛ فعّله من إعدادات الحسابات أولاً.</value></data>
   <data name="WarehouseHasFinancialMovements" xml:space="preserve"><value>لا يمكن حذف المستودع: على حساباته الخاصة (المخزون، تكلفة الإيراد، المبيعات، الصندوق...) قيود مالية.</value></data>
   <data name="WarehouseInUse" xml:space="preserve"><value>لا يمكن حذف المستودع: مستخدم في {0}.</value></data>

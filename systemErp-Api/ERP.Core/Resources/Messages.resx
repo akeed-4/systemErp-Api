@@ -2264,4 +2264,8 @@
   <data name="ProjectIssueExceedsProjectAvailable" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (الرصيد {3:0.####} − محجوز لمشاريع أخرى {4:0.####}). حوّل التخصيص باعتماد أو انتظر الاستلام.</value></data>
   <data name="ProjectIssueReservedForOthers" xml:space="preserve"><value>«{0}»: التسليم {1:0.####} يتجاوز المتاح لهذا المشروع {2:0.####} (محجوز لمشاريع أخرى {3:0.####}).</value></data>
   <data name="RfqAwardPendingApproval" xml:space="preserve"><value>ترسية هذا الطلب بانتظار الاعتماد: لا تُعدَّل العروض ولا الموردون ولا يُلغى حتى القرار.</value></data>
+  <data name="LinkedAccountCodeOutsideGroup" xml:space="preserve"><value>رمز الحساب {0} يجب أن يبدأ برمز حساب قائم داخل مجموعة {1} (غير مرتبط بعميل/مورد/بنك آخر).</value></data>
+  <data name="CostCenterCodesExhausted" xml:space="preserve"><value>امتلأت أرقام المراكز المتاحة تحت المركز ({0}).</value></data>
+  <data name="AccountLinkedToFixedAsset" xml:space="preserve"><value>الحساب مخصص لأصل ثابت؛ يُحذف مع الأصل من شاشة الأصول الثابتة.</value></data>
+  <data name="CannotDeleteFixedAssetWithEntries" xml:space="preserve"><value>لا يمكن حذف الأصل لأن له أثراً في الدفاتر (قيد اقتناء أو إهلاك أو استبعاد أو قيود على حساباته). استبعد الأصل بدلاً من حذفه.</value></data>
 </root>

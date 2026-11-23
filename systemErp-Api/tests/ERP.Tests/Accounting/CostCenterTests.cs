@@ -239,16 +239,17 @@ public class CostCenterTests : TestBase
 
         // المركز الافتراضي للأصل يتغيّر، ومجمع الإهلاك يصبح «غير مستخدم» ومصروفه «إلزامي»
         Assert.Equal(200, (await api.Put($"/fixedassets/{asset}", Asset(b))).Status);
-        Assert.Equal(200, (await SetPolicyAsync(api, "122", "none")).Status);
-        Assert.Equal(200, (await SetPolicyAsync(api, "523", "required")).Status);
+        var (accumulated, expense) = await AssetAccountsAsync(api, asset); // حسابا الأصل المخصصان تحت 122 و523
+        Assert.Equal(200, (await SetPolicyAsync(api, accumulated, "none")).Status);
+        Assert.Equal(200, (await SetPolicyAsync(api, expense, "required")).Status);
 
         var old = await EntryLinesAsync(api, firstEntry); // القيد المرحّل كما هو
-        Assert.Equal(100, Amount(old, "523", a, "debit")); Assert.Equal(100, Amount(old, "122", a, "credit"));
+        Assert.Equal(100, Amount(old, expense, a, "debit")); Assert.Equal(100, Amount(old, accumulated, a, "credit"));
 
         var second = await api.Post("/fixedassets/depreciation/post", new { period = "2026-02", assetIds = new[] { asset } });
         Assert.Equal(200, second.Status);
         var lines = await EntryLinesAsync(api, second.Data!["journalEntryId"].S());
-        Assert.Equal(100, Amount(lines, "523", b, "debit")); Assert.Equal(100, Amount(lines, "122", null, "credit"));
+        Assert.Equal(100, Amount(lines, expense, b, "debit")); Assert.Equal(100, Amount(lines, accumulated, null, "credit"));
 
         // تقرير المركز القديم يبقى بحركته التاريخية
         var income = (await api.Get($"/financialstatements/IncomeStatement?from=2026-01-01&to=2026-01-31&costCenterId={a}")).Data!;

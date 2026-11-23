@@ -73,7 +73,7 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
         e.Country = PartyValidation.NormalizeCountry(e.Country);
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("customer", "CUST-");
         e.CurrentBalance = e.OpeningBalance;
-        e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Customer, e.Id, e.NameAr, e.NameEn, ct);
+        e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Customer, e.Id, e.NameAr, e.NameEn, d.AccountCode, ct);
         await OpeningBalances.ApplyAsync(_posting, Db, null, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
     }
 

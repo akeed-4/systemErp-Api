@@ -1,0 +1,66 @@
+using System.Globalization;
+using ERP.Core.Contracts.Shared;
+using ERP.Service.Data;
+
+namespace ERP.Service.Services.Accounting;
+
+/// <summary>
+/// الترقيم الهرمي المركزي (مراكز التكلفة والحسابات المخصصة للكيانات): رمز الابن = رمز الأب + تسلسل بعرض ثابت مكمَّل بأصفار.
+/// التسلسل من عدّاد لكل أب (<see cref="NumberSequence"/> بقفل تزامن متفائل)، فلا يُعاد رقم حُذف صاحبه ولا يتكرر رقم بين طلبين متزامنين،
+/// ويبدأ بعد أكبر رمز قائم بالشكل نفسه (بيانات قديمة أو رموز أُدخلت يدوياً). الفهرس الفريد على (المنشأة، الرمز) هو الضمان الأخير.
+/// يُستدعى داخل معاملة إنشاء السجل، فلا يُستهلك رقم لسجل لم يُحفظ.
+/// </summary>
+internal static class HierarchicalCodes
+{
+    /// <summary>تسلسل الرمز إن كان بشكل «البادئة + <paramref name="width"/> أرقام»، وإلا null (رمز بشكل آخر لا يؤثر في التسلسل).</summary>
+    public static long? SequenceOf(string code, string prefix, int width)
+    {
+        if (code.Length != prefix.Length + width || !code.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        var tail = code.AsSpan(prefix.Length);
+        foreach (var ch in tail) if (ch is < '0' or > '9') return null;
+        return long.Parse(tail, NumberStyles.None, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>البادئة ثم التسلسل بعرض ثابت بأصفار بادئة (1101 + 1 بعرض 4 = 11010001).</summary>
+    public static string Compose(string prefix, long sequence, int width)
+        => prefix + sequence.ToString(CultureInfo.InvariantCulture).PadLeft(width, '0');
+
+    /// <summary>أكبر تسلسل يتسع له العرض (99 لعرض 2، 9999 لعرض 4).</summary>
+    public static long MaxSequence(int width) => (long)Math.Pow(10, width) - 1;
+
+    /// <summary>
+    /// يحجز الرمز التالي تحت <paramref name="prefix"/>. <paramref name="codes"/>: رموز الجدول المعني (مرشّحة بالمنشأة)، يُقرأ منها
+    /// ما يطابق شكل البادئة والعرض فقط. يرمي <see cref="ConflictException"/> برسالة <paramref name="exhaustedMessage"/> إن امتلأ العرض.
+    /// </summary>
+    public static async Task<string> NextAsync(ErpDbContext db, INumberSequenceService numbers, string counterKey, string prefix, int width,
+        IQueryable<string> codes, string exhaustedMessage, CancellationToken ct)
+    {
+        await LockAsync(db, counterKey, ct);
+        var length = prefix.Length + width;
+        var sameShape = await codes.Where(c => c.Length == length && c.StartsWith(prefix)).ToListAsync(ct);
+        var existingMax = sameShape.Select(c => SequenceOf(c, prefix, width) ?? 0).DefaultIfEmpty(0).Max();
+        if (existingMax >= MaxSequence(width)) throw new ConflictException(exhaustedMessage);
+
+        // العدّاد يتقدم دائماً؛ وإن سبقته رموز قائمة (قبل العدّاد أو مُدخلة يدوياً) يُحجز ما يتخطاها دفعة واحدة.
+        var last = await db.Set<NumberSequence>().AsNoTracking().Where(s => s.Key == counterKey)
+            .Select(s => (long?)s.LastValue).FirstOrDefaultAsync(ct) ?? 0;
+        var count = (int)Math.Max(1, existingMax - last + 1);
+        var first = await numbers.ReserveAsync(counterKey, string.Empty, count, ct);
+        var sequence = first + count - 1;
+        if (sequence > MaxSequence(width)) throw new ConflictException(exhaustedMessage);
+        return Compose(prefix, sequence, width);
+    }
+
+    /// <summary>
+    /// قفل تطبيقي على المعاملة لعدّاد الأب (<c>sp_getapplock</c>): الطلبات المتزامنة تحت الأب نفسه تنتظر بالدور بدل أن تستنفد
+    /// محاولات العدّاد المتفائلة، ويُحرَّر القفل مع إتمام المعاملة أو تراجعها. بلا معاملة يبقى قفل العدّاد المتفائل وحده.
+    /// </summary>
+    private static async Task LockAsync(ErpDbContext db, string counterKey, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction == null) return;
+        var resource = $"hc:{db.CurrentTenantId:N}:{counterKey}";
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"DECLARE @r int; EXEC @r = sp_getapplock @Resource = {resource}, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000; IF @r < 0 THROW 51000, 'code sequence lock timeout', 1;",
+            ct);
+    }
+}

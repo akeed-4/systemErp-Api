@@ -2264,4 +2264,8 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="ProjectIssueExceedsProjectAvailable" xml:space="preserve"><value>"{0}": delivery {1:0.####} exceeds what is available to this project {2:0.####} (stock {3:0.####} − reserved for other projects {4:0.####}). Transfer the allocation with approval or wait for the receipt.</value></data>
   <data name="ProjectIssueReservedForOthers" xml:space="preserve"><value>"{0}": delivery {1:0.####} exceeds what is available to this project {2:0.####} (reserved for other projects {3:0.####}).</value></data>
   <data name="RfqAwardPendingApproval" xml:space="preserve"><value>The award of this RFQ is awaiting approval: quotations and suppliers cannot change and it cannot be cancelled until the decision.</value></data>
+  <data name="LinkedAccountCodeOutsideGroup" xml:space="preserve"><value>Account code {0} must start with the code of an existing account inside group {1} (not linked to another customer/supplier/bank).</value></data>
+  <data name="CostCenterCodesExhausted" xml:space="preserve"><value>All available codes under cost center ({0}) have been used.</value></data>
+  <data name="AccountLinkedToFixedAsset" xml:space="preserve"><value>The account belongs to a fixed asset; it is deleted together with the asset from the Fixed Assets screen.</value></data>
+  <data name="CannotDeleteFixedAssetWithEntries" xml:space="preserve"><value>Cannot delete the asset because it has accounting history (acquisition, depreciation, disposal or entries on its accounts). Dispose of the asset instead.</value></data>
 </root>

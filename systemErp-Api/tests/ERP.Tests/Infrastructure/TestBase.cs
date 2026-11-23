@@ -15,6 +15,14 @@ public abstract class TestBase
 
     protected HttpClient NewHttp() => Factory.CreateClient();
 
+    /// <summary>رمزا حسابي الأصل الثابت المحفوظين عليه: مجمع إهلاكه ومصروف إهلاكه (المخصصان له عند إنشائه).</summary>
+    protected static async Task<(string Accumulated, string Expense)> AssetAccountsAsync(Client api, Guid assetId)
+    {
+        var asset = (await api.Get($"/fixedassets/{assetId}")).Data!;
+        async Task<string> CodeOf(string field) => (await api.Get($"/accounts/{asset[field].S()}")).Data!["code"].S();
+        return (await CodeOf("accumulatedDepreciationAccountId"), await CodeOf("depreciationExpenseAccountId"));
+    }
+
     /// <summary>ملف PDF صغير صالح (توقيع %PDF) للمرفقات.</summary>
     protected static readonly byte[] SmallPdf = "%PDF-1.4 medical report"u8.ToArray();
 

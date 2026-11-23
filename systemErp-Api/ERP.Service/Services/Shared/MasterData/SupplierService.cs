@@ -76,7 +76,7 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
         e.Country = PartyValidation.NormalizeCountry(e.Country);
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = await _numbers.NextAsync("supplier", "SUP-");
         e.CurrentBalance = e.OpeningBalance;
-        e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Supplier, e.Id, e.NameAr, e.NameEn, ct);
+        e.AccountCode = await _accounts.EnsureLinkedAccountAsync(LinkedEntityType.Supplier, e.Id, e.NameAr, e.NameEn, d.AccountCode, ct);
         await OpeningBalances.ApplyAsync(_posting, Db, null, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: false, e.NameAr, e.Id, ct);
     }
 

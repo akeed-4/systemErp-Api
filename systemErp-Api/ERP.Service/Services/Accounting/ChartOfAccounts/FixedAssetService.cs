@@ -12,9 +12,16 @@ public class FixedAssetService : CrudService<FixedAsset, FixedAssetDto, CreateFi
     private readonly IAccountingPostingService _posting;
     private Guid? _costCenterFilter;
     private Guid? _warehouseFilter;
+    private readonly IAccountService _accounts;
     private Guid? _previousCostCenterId;
+    /// <summary>عند الإنشاء: لم يُحدَّد حساب مجمع الإهلاك/مصروفه، فيُنشأ للأصل حساب مخصص تحت الحساب الافتراضي.</summary>
+    private bool _dedicateAccumulated, _dedicateExpense;
+    private List<Account> _accountsToDelete = new();
 
-    public FixedAssetService(ErpDbContext db, IAuditService audit, IAccountingPostingService posting) : base(db) { _audit = audit; _posting = posting; }
+    public FixedAssetService(ErpDbContext db, IAuditService audit, IAccountingPostingService posting, IAccountService accounts) : base(db)
+    {
+        _audit = audit; _posting = posting; _accounts = accounts;
+    }
     protected override string Label => Messages.LabelFixedAsset;
     protected override bool Transactional => true; // الأصل وقيد اقتنائه معاً أو لا شيء
 
@@ -79,6 +86,8 @@ public class FixedAssetService : CrudService<FixedAsset, FixedAssetDto, CreateFi
 
         // بلا حسابات محددة: حسابات الأصول الثابتة المادية ومجمع الإهلاك ومصروف الإهلاك الافتراضية في الشجرة.
         var noExpenseAccount = dto.DepreciationExpenseAccountId is null || dto.DepreciationExpenseAccountId == Guid.Empty;
+        _dedicateAccumulated = existing == null && dto.AccumulatedDepreciationAccountId == Guid.Empty;
+        _dedicateExpense = existing == null && noExpenseAccount;
         if (dto.AssetAccountId == Guid.Empty || dto.AccumulatedDepreciationAccountId == Guid.Empty || noExpenseAccount)
         {
             var defaults = new[] { DefaultAccounts.FixedAssets, DefaultAccounts.AccumulatedDepreciation, DefaultAccounts.DepreciationExpense };
@@ -105,6 +114,7 @@ public class FixedAssetService : CrudService<FixedAsset, FixedAssetDto, CreateFi
     /// </summary>
     protected override async Task OnCreatingAsync(FixedAsset e, CreateFixedAssetDto dto, CancellationToken ct)
     {
+        await CreateDedicatedAccountsAsync(e, ct);
         if (string.IsNullOrWhiteSpace(dto.AcquisitionAccountCode)) return;
         var ids = new[] { e.AssetAccountId, e.AccumulatedDepreciationAccountId };
         var codes = await Db.Set<Account>().AsNoTracking().Where(a => ids.Contains(a.Id)).ToDictionaryAsync(a => a.Id, a => a.Code, ct);
@@ -122,6 +132,86 @@ public class FixedAssetService : CrudService<FixedAsset, FixedAssetDto, CreateFi
         }, ct);
         e.AcquisitionJournalEntryId = posted.JournalEntryId;
     }
+
+    /// <summary>
+    /// حسابا الأصل المخصصان: مجمع إهلاكه تحت مجمع الإهلاك (122) ومصروف إهلاكه تحت مصروف الإهلاك (523)، مرتبطان بمعرّف الأصل،
+    /// ويُحفظ معرّفاهما على الأصل. حساب حدّده الطلب صراحةً يُستخدم كما هو. داخل معاملة الأصل فلا يبقى حساب بلا أصل.
+    /// </summary>
+    /// <remarks>
+    /// المحرك يرفض الترحيل على حساب له فروع: إن كان الحساب الافتراضي مستخدماً مباشرة (أصول قديمة عليه أو قيود أو إعداد)
+    /// يبقى الأصل الجديد عليه كما كان، فلا يتعطل إهلاك الأصول القائمة ولا قيودها.
+    /// </remarks>
+    private async Task CreateDedicatedAccountsAsync(FixedAsset e, CancellationToken ct)
+    {
+        if (_dedicateAccumulated && await _accounts.CanHoldSubAccountsAsync(DefaultAccounts.AccumulatedDepreciation, ct))
+        {
+            var (nameAr, nameEn) = AccumulatedNames(e);
+            e.AccumulatedDepreciationAccountId = (await _accounts.CreateLinkedChildAccountAsync(
+                DefaultAccounts.AccumulatedDepreciation, LinkedEntityType.FixedAsset, e.Id, nameAr, nameEn, ct)).Id;
+        }
+        if (_dedicateExpense && await _accounts.CanHoldSubAccountsAsync(DefaultAccounts.DepreciationExpense, ct))
+        {
+            var (nameAr, nameEn) = ExpenseNames(e);
+            e.DepreciationExpenseAccountId = (await _accounts.CreateLinkedChildAccountAsync(
+                DefaultAccounts.DepreciationExpense, LinkedEntityType.FixedAsset, e.Id, nameAr, nameEn, ct)).Id;
+        }
+    }
+
+    private static (string Ar, string En) AccumulatedNames(FixedAsset e)
+        => ($"مجمع إهلاك {e.NameAr} ({e.AssetCode})", $"Accumulated Depreciation - {EnglishName(e)} ({e.AssetCode})");
+
+    private static (string Ar, string En) ExpenseNames(FixedAsset e)
+        => ($"مصروف إهلاك {e.NameAr} ({e.AssetCode})", $"Depreciation Expense - {EnglishName(e)} ({e.AssetCode})");
+
+    private static string EnglishName(FixedAsset e) => string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn;
+
+    /// <summary>
+    /// الحسابات المخصصة للأصل ثابتة عليه (لا يستبدلها التعديل)، وتغيير اسمه أو رمزه يعيد تسمية حساباته فقط دون تغيير أرقامها.
+    /// </summary>
+    protected override async Task OnUpdatingAsync(FixedAsset e, UpdateFixedAssetDto dto, CancellationToken ct)
+    {
+        // الدور من نوع الحساب: المصروف = مصروف الإهلاك، وغيره = مجمع الإهلاك (يعيد الحساب المخصص لأصل فُرِّغ حقله أيضاً)
+        var dedicated = await DedicatedAccountsQuery(e.Id).ToListAsync(ct);
+        if (dedicated.FirstOrDefault(a => a.Type != AccountCategory.Expense) is { } accumulated)
+        {
+            e.AccumulatedDepreciationAccountId = accumulated.Id;
+            (accumulated.NameAr, accumulated.NameEn) = AccumulatedNames(e);
+        }
+        if (dedicated.FirstOrDefault(a => a.Type == AccountCategory.Expense) is { } expense)
+        {
+            e.DepreciationExpenseAccountId = expense.Id;
+            (expense.NameAr, expense.NameEn) = ExpenseNames(e);
+        }
+    }
+
+    /// <summary>
+    /// حذف الأصل يحذف حساباته المخصصة معه، ويُمنع إن كان للأصل أثر في الدفاتر (قيد اقتناء أو إهلاك مرحَّل أو استبعاد أو أي قيد
+    /// على حساباته المخصصة): يُستبعد الأصل حينها بدلاً من حذفه فيبقى أثره التاريخي.
+    /// </summary>
+    protected override async Task OnDeletingAsync(FixedAsset e, CancellationToken ct)
+    {
+        var dedicated = await DedicatedAccountsQuery(e.Id).ToListAsync(ct);
+        var codes = dedicated.Select(a => a.Code).ToList();
+        if (e.DisposedAt != null || e.AcquisitionJournalEntryId != null
+            || await Db.Set<FixedAssetDepreciation>().AnyAsync(d => d.FixedAssetId == e.Id, ct)
+            || (codes.Count > 0 && await Db.Set<JournalEntryLine>().AnyAsync(l => codes.Contains(l.AccountCode), ct)))
+            throw new ConflictException(Messages.CannotDeleteFixedAssetWithEntries);
+        if (codes.Count > 0 && await Db.Set<Account>().AnyAsync(a => a.ParentCode != null && codes.Contains(a.ParentCode), ct))
+            throw new ConflictException(Messages.CannotDeleteAccountWithChildren);
+        _accountsToDelete = dedicated;
+    }
+
+    /// <summary>بعد حذف الأصل (المفتاح الأجنبي إليها مقيَّد) تُحذف حساباته المخصصة في المعاملة نفسها.</summary>
+    protected override async Task OnDeletedAsync(FixedAsset e, CancellationToken ct)
+    {
+        if (_accountsToDelete.Count == 0) return;
+        Db.RemoveRange(_accountsToDelete);
+        await SaveAsync(ct);
+        _accountsToDelete = new();
+    }
+
+    private IQueryable<Account> DedicatedAccountsQuery(Guid assetId)
+        => Db.Set<Account>().Where(a => a.LinkedEntityType == LinkedEntityType.FixedAsset && a.LinkedEntityId == assetId);
 
     protected override async Task OnUpdatedAsync(FixedAsset entity, CancellationToken ct)
     {

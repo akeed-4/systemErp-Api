@@ -19,7 +19,10 @@ public class AccountingTests : TestBase
         var (_, sAcc) = await SeedSupplierAsync(api);
         var bank = await api.Post("/banks", new { nameAr = "بنك", accountNumber = "1", iban = "SA0380000000608010167519", status = "active" });
         Assert.StartsWith("112", cAcc); Assert.StartsWith("211", sAcc); Assert.StartsWith("111", bank.Data!["accountCode"].S());
-        Assert.Equal(409, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{sAcc}")).Data!["id"].S()}")).Status); // مرتبط بمورد
+        // حساب المورد بلا حركات يُحذف من الدليل مع المورد نفسه (لا يبقى كيان بلا حساب)
+        var suppliers = (await api.Get("/suppliers")).Data!["totalCount"].D();
+        Assert.Equal(200, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{sAcc}")).Data!["id"].S()}")).Status);
+        Assert.Equal(suppliers - 1, (await api.Get("/suppliers")).Data!["totalCount"].D());
         // حساب العميل بلا حركات مالية يُحذف مع سجل العميل
         var customers = (await api.Get("/customers")).Data!["totalCount"].D();
         Assert.Equal(200, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{cAcc}")).Data!["id"].S()}")).Status);
@@ -70,7 +73,11 @@ public class AccountingTests : TestBase
         Assert.Equal(200, (await api.Post($"/journalentries/{id}/reverse", new { reason = "تصحيح" })).Status);
         Assert.Equal(0, (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D());
         Assert.Equal(409, (await api.Post($"/journalentries/{id}/reverse", new { reason = "تصحيح" })).Status);   // لا يُعكس مرتين
-        Assert.Equal(409, (await api.Delete($"/journalentries/{id}")).Status);          // المعكوس مقفل
+        Assert.Equal(409, (await api.Put($"/journalentries/{id}", Lines(500))).Status);   // المعكوس لا يُعدَّل
+        // الحذف يمسح القيد وقيده العكسي معاً بلا قيد جديد، والرصيد يبقى صفراً
+        Assert.True((await api.Delete($"/journalentries/{id}")).Status is 200 or 204);
+        Assert.Equal(404, (await api.Get($"/journalentries/{id}")).Status);
+        Assert.Equal(0, (await api.Get("/accounts/ByCode/1111")).Data!["balance"].D());
     }
 
     [Fact]

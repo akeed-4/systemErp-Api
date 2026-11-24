@@ -85,10 +85,9 @@ public class ZatcaService : IZatcaService
 
         if (session != null) await ExpireStaleRequestAsync(session);
         if (session?.Status is ComplianceRequestingStatus or ProductionRequestingStatus)
-            throw new ConflictException("A ZATCA certificate request for this user is still in progress. Wait for it to finish, then refresh the status.");
+            throw new ConflictException(Messages.ZatcaOnboardingInProgress);
         if (session?.Status is ComplianceUnknownStatus or ProductionUnknownStatus)
-            throw new ConflictException((session.ErrorMessage is { Length: > 0 } reason ? reason + " " : string.Empty)
-                + "The previous ZATCA request has an unresolved outcome and will not be resent automatically. An owner or system admin must review it (company/ZatcaOnboard/stuck) before a new attempt.");
+            throw new ConflictException(session.Status == ProductionUnknownStatus ? Messages.ZatcaProductionUnresolved : Messages.ZatcaOnboardingUnresolved);
 
         var missing = new List<string>();
         if (otp.Length == 0 && session?.ComplianceRequestId == null) missing.Add(Messages.ZatcaFieldOtp);
@@ -132,19 +131,22 @@ public class ZatcaService : IZatcaService
             }
             catch (Exception ex)
             {
+                // لا رد مؤكد من الهيئة: النتيجة مجهولة (لا رفض)، فتُعرض تنبيهاً يحتاج مراجعة لا فشلاً قابلاً للإعادة
                 session.Status = ComplianceUnknownStatus;
-                session.ErrorMessage = $"Compliance CSID request failed without a confirmed ZATCA response: {ex.GetType().Name}: {ex.Message}";
+                session.ErrorMessage = string.Format(Messages.ZatcaComplianceCsidUnknown, $"{ex.GetType().Name}: {ex.Message}");
                 await _db.SaveChangesAsync(CancellationToken.None);
-                throw;
+                throw new ConflictException(session.ErrorMessage);
             }
 
             if (!compliance.Success)
             {
+                // رفض صريح من الهيئة يختلف عن انقطاع أو انتهاء مهلة بلا رد (Reached = false): الثاني مصيره مجهول
                 session.Status = compliance.Reached ? "compliance_csid_rejected" : ComplianceUnknownStatus;
-                session.ErrorMessage = compliance.Message;
+                session.ErrorMessage = compliance.Reached ? compliance.Message : string.Format(Messages.ZatcaComplianceCsidUnknown, compliance.Message);
                 if (compliance.Reached && (unit == null || !unit.IsActive))
                     config.ComplianceStatus = ComplianceStatus.NotEnrolled;
                 await _db.SaveChangesAsync(CancellationToken.None);
+                if (!compliance.Reached) throw new ConflictException(session.ErrorMessage!);
                 throw new ValidationFailedException(string.Format(Messages.ZatcaComplianceCsidFailed, compliance.Message));
             }
 
@@ -167,7 +169,7 @@ public class ZatcaService : IZatcaService
                 session.Status = ComplianceUnsavedStatus;
                 session.ErrorMessage = "ZATCA issued the Compliance CSID but it could not be stored: " + Diagnose(ex);
                 await _db.SaveChangesAsync(CancellationToken.None);
-                throw;
+                throw new ConflictException(string.Format(Messages.ZatcaComplianceCsidNotStored, ex.Message));
             }
         }
 
@@ -183,7 +185,7 @@ public class ZatcaService : IZatcaService
                 session.Status = "compliance_tests_failed";
                 session.ErrorMessage = "Generating/signing the compliance test documents failed: " + Diagnose(ex);
                 await _db.SaveChangesAsync(CancellationToken.None);
-                throw;
+                throw new ConflictException(string.Format(Messages.ZatcaComplianceTestsGenerationFailed, ex.Message));
             }
         }
 
@@ -193,7 +195,7 @@ public class ZatcaService : IZatcaService
         foreach (var test in interrupted)
         {
             test.Status = "processing_unknown";
-            test.ResponseMessage = "The server restarted before a ZATCA response was saved; automatic resubmission is disabled.";
+            test.ResponseMessage = Messages.ZatcaComplianceTestInterrupted;
             test.CompletedAt = DateTime.UtcNow;
         }
         if (interrupted.Count > 0) await _db.SaveChangesAsync(ct);
@@ -207,9 +209,14 @@ public class ZatcaService : IZatcaService
         if (tests.Count == 0 || tests.Any(t => t.Status != "accepted"))
         {
             session.Status = "tests_attention";
-            session.ErrorMessage = "Compliance tests require attention. Rejected tests may be retried with the same signed document; unresolved submissions are not retried automatically.";
+            // سبب الرفض من الهيئة (المحفوظ على الجلسة) يسبق الإرشاد العام، فيرى المستخدم ما رفضته الهيئة فعلاً
+            var reasons = session.ErrorMessage;
+            session.ErrorMessage = string.IsNullOrWhiteSpace(reasons) ? Messages.ZatcaComplianceTestsAttention
+                : reasons.StartsWith(Messages.ZatcaComplianceTestsAttention, StringComparison.Ordinal) ? reasons
+                : $"{Messages.ZatcaComplianceTestsAttention} {reasons}";
+            if (session.ErrorMessage.Length > 4000) session.ErrorMessage = session.ErrorMessage[..4000];
             await _db.SaveChangesAsync(ct);
-            throw new ValidationFailedException(session.ErrorMessage);
+            throw new ConflictException(session.ErrorMessage);
         }
 
         await IssueProductionCsidAsync(session, unit, target, config, tenant, baseUrl, ct);
@@ -322,8 +329,7 @@ public class ZatcaService : IZatcaService
         // لهذا الطلب؛ بوابة المطورين لا تسجل شهادات الامتثال على المكلف، فالشهادة اليتيمة فيها بلا أثر.
         var sandbox = session.Environment == ZatcaEnvironment.Sandbox;
         if (!sandbox && !request.ConfirmNoCsidIssued)
-            throw new ValidationFailedException(
-                "Confirm that no CSID was issued for this request: review the EGS units in the Fatoora portal for this environment, then resend with confirmNoCsidIssued = true.");
+            throw new ValidationFailedException(Messages.ZatcaRecoveryConfirmRequired);
 
         var note = request.Note?.Trim();
         if (note is { Length: > 500 }) note = note[..500];
@@ -357,15 +363,13 @@ public class ZatcaService : IZatcaService
     /// <summary>سبب منع إغلاق الجلسة، أو null إن كان إغلاقها آمناً.</summary>
     private static string? RecoveryBlockedReason(ZatcaOnboardingSession s) => s.Status switch
     {
-        ComplianceRequestingStatus => $"The Compliance CSID request is still within its time limit ({RequestStaleAfter.TotalMinutes:0} min). Try again after it expires.",
-        ProductionRequestingStatus or ProductionUnknownStatus =>
-            "A Compliance CSID was already issued and a Production CSID may have been issued too. This stage is not closed automatically: check the EGS units in the Fatoora portal and revoke any orphan certificate there.",
-        ComplianceUnknownStatus when HasStoredCsid(s) =>
-            "The system holds a ZATCA certificate or request ID for this session, so it is not stuck at CSID issuance.",
+        ComplianceRequestingStatus => string.Format(Messages.ZatcaRecoveryStillRequesting, RequestStaleAfter.TotalMinutes.ToString("0", CultureInfo.InvariantCulture)),
+        ProductionRequestingStatus or ProductionUnknownStatus => Messages.ZatcaRecoveryProductionStage,
+        ComplianceUnknownStatus when HasStoredCsid(s) => Messages.ZatcaRecoveryHasCsid,
         ComplianceUnknownStatus => null,
         // شهادة امتثال صدرت ولم تُحفظ: لا تصلح إلا لفحوص الامتثال ولا تُبلّغ بها فواتير، فإغلاق الجلسة آمن
         ComplianceUnsavedStatus => null,
-        _ => $"Session status '{s.Status}' is not a stuck certificate request.",
+        _ => string.Format(Messages.ZatcaRecoveryNotStuck, s.Status),
     };
 
     /// <summary>
@@ -394,7 +398,7 @@ public class ZatcaService : IZatcaService
         if ((session.UpdatedAt ?? session.StartedAt) > DateTime.UtcNow - RequestStaleAfter) return false;
         var compliance = session.Status == ComplianceRequestingStatus;
         session.Status = compliance ? ComplianceUnknownStatus : ProductionUnknownStatus;
-        session.ErrorMessage = $"The {(compliance ? "Compliance" : "Production")} CSID request was interrupted (the server process stopped) before its outcome was saved.";
+        session.ErrorMessage = compliance ? Messages.ZatcaComplianceRequestInterrupted : Messages.ZatcaProductionRequestInterrupted;
         await _db.SaveChangesAsync(CancellationToken.None);
         return true;
     }
@@ -404,8 +408,7 @@ public class ZatcaService : IZatcaService
     {
         var probe = await _api.ProbeAsync(baseUrl, ct);
         if (probe.Reached) return;
-        throw new ValidationFailedException(
-            $"The server cannot reach ZATCA ({new Uri(baseUrl).Host}): {probe.Detail}. Nothing was sent and the attempt can be retried once connectivity is restored (see company/ZatcaConnectivity).");
+        throw new ValidationFailedException(string.Format(Messages.ZatcaUnreachable, new Uri(baseUrl).Host, probe.Detail));
     }
 
     public async Task<ZatcaOnboardingStatusDto> RetryComplianceTestAsync(Guid sessionId, Guid testId, CancellationToken ct = default)
@@ -427,7 +430,7 @@ public class ZatcaService : IZatcaService
         var test = await _db.Set<ZatcaComplianceTest>()
             .FirstOrDefaultAsync(t => t.Id == testId && t.SessionId == sessionId, ct)
             ?? throw new NotFoundException(Messages.ZatcaUserNotFound);
-        if (test.Status != "rejected") throw new ConflictException("Only a definitive rejection can be retried. Processing or unknown submissions must not be resubmitted.");
+        if (test.Status != "rejected") throw new ConflictException(Messages.ZatcaComplianceRetryRejectedOnly);
 
         var tenant = await _db.Set<Tenant>().FirstAsync(ct);
         var config = tenant.ZatcaConfig;
@@ -646,7 +649,7 @@ public class ZatcaService : IZatcaService
     private bool IsAdmin => _user.RoleId is "owner" or "admin";
 
     /// <summary>عنوان واجهة الهيئة بحسب البيئة: بوابة المطورين (تجارب)، المحاكاة، أو الإنتاج.</summary>
-    private static string BaseUrl(ZatcaConfig c, ZatcaEnvironment? environment = null)
+    internal static string BaseUrl(ZatcaConfig c, ZatcaEnvironment? environment = null)
     {
         if (!string.IsNullOrWhiteSpace(c.CustomEndpointUrl)) return c.CustomEndpointUrl.Trim().TrimEnd('/');
         const string host = "https://gw-fatoora.zatca.gov.sa/e-invoicing";
@@ -873,9 +876,9 @@ public class ZatcaService : IZatcaService
     {
         if (test.Status == "accepted") return;
         if (test.Status is "submitted" or "processing_unknown")
-            throw new ConflictException("This compliance test has an unresolved submission and must not be sent again automatically.");
+            throw new ConflictException(Messages.ZatcaComplianceTestUnresolved);
         if (test.Status is not ("generated" or "rejected"))
-            throw new ConflictException("Only a new or definitively rejected compliance test can be submitted.");
+            throw new ConflictException(Messages.ZatcaComplianceTestNotSubmittable);
 
         test.Status = "submitted";
         test.SubmittedAt = DateTime.UtcNow;
@@ -925,9 +928,9 @@ public class ZatcaService : IZatcaService
     {
         await ExpireStaleRequestAsync(session);
         if (session.Status == ProductionRequestingStatus)
-            throw new ConflictException("A Production CSID request for this user is still in progress. Wait for it to finish, then refresh the status.");
+            throw new ConflictException(Messages.ZatcaProductionInProgress);
         if (session.Status == ProductionUnknownStatus)
-            throw new ConflictException("The Production CSID request has an unresolved outcome and will not be sent again automatically.");
+            throw new ConflictException(Messages.ZatcaProductionUnresolved);
 
         await EnsureReachableAsync(baseUrl, ct);
         session.Status = ProductionRequestingStatus;
@@ -943,15 +946,17 @@ public class ZatcaService : IZatcaService
         catch (Exception ex)
         {
             session.Status = ProductionUnknownStatus;
-            session.ErrorMessage = $"Production CSID request failed without a confirmed ZATCA response: {ex.GetType().Name}: {ex.Message}";
+            session.ErrorMessage = string.Format(Messages.ZatcaProductionCsidUnknown, $"{ex.GetType().Name}: {ex.Message}");
             await _db.SaveChangesAsync(CancellationToken.None);
-            throw;
+            throw new ConflictException(session.ErrorMessage);
         }
         if (!production.Success)
         {
+            // رفض صريح من الهيئة، أو انقطاع/انتهاء مهلة بلا رد مؤكد (مصيره مجهول فلا يُعرض رفضاً)
             session.Status = production.Reached ? "production_rejected" : ProductionUnknownStatus;
-            session.ErrorMessage = production.Message;
+            session.ErrorMessage = production.Reached ? production.Message : string.Format(Messages.ZatcaProductionCsidUnknown, production.Message);
             await _db.SaveChangesAsync(CancellationToken.None);
+            if (!production.Reached) throw new ConflictException(session.ErrorMessage!);
             throw new ValidationFailedException(string.Format(Messages.ZatcaProductionCsidFailed, production.Message));
         }
 
@@ -970,7 +975,7 @@ public class ZatcaService : IZatcaService
             session.Status = ProductionUnknownStatus;
             session.ErrorMessage = "ZATCA issued the Production CSID but it could not be stored: " + Diagnose(ex);
             await _db.SaveChangesAsync(CancellationToken.None);
-            throw;
+            throw new ConflictException(string.Format(Messages.ZatcaProductionCsidNotStored, ex.Message));
         }
 
         if (unit == null)

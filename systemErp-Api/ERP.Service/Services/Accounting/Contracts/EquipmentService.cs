@@ -451,7 +451,7 @@ public class EquipmentService : IEquipmentService
         => _tx.RunAsync(async token =>
         {
             var log = await _db.Set<EquipmentLog>().FirstOrDefaultAsync(l => l.Id == logId, token) ?? throw new NotFoundException("سطر السجل غير موجود.");
-            if (log.JournalEntryId is Guid entry) await _posting.ReverseAsync(entry, "حذف سطر من سجل تشغيل المعدة", token);
+            if (log.JournalEntryId is Guid entry) await _posting.DeleteEntryAsync(entry, token); // الحذف يمسح قيد السطر بلا قيد عكسي
             _db.Remove(log);
             await _db.SaveChangesAsync(token);
             await _audit.LogAsync("EQUIPMENT_LOG_DELETED", nameof(EquipmentLog), logId.ToString(), $"حذف سطر {log.Kind} • {log.Date:yyyy-MM-dd} • {log.Amount:0.00}", token);

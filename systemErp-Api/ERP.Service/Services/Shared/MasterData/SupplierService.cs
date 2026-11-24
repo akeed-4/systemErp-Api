@@ -85,26 +85,26 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
         e.Country = PartyValidation.NormalizeCountry(e.Country);
         var o = Db.Entry(e).OriginalValues;
         e.AccountCode = o.GetValue<string>(nameof(Supplier.AccountCode));
+        // حساب الأستاذ لا يتغيّر إلا عبر قواعد الحساب المرتبط (بلا تاريخ محاسبي)
+        e.AccountCode = await _accounts.ChangeLinkedAccountCodeAsync(LinkedEntityType.Supplier, e.Id, e.AccountCode, d.AccountCode, ct) ?? e.AccountCode;
         e.CurrentBalance = o.GetValue<decimal>(nameof(Supplier.CurrentBalance));
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = o.GetValue<string>(nameof(Supplier.Code));
         // الرصيد الافتتاحي قيد في الدفاتر: تغييره يعكس قيده ويرحّل الجديد، والطرف القديم يُقيَّد افتتاحيه عند أول تعديل
         e.OpeningEntryId = o.GetValue<Guid?>(nameof(Supplier.OpeningEntryId));
         if (e.OpeningBalance != o.GetValue<decimal>(nameof(Supplier.OpeningBalance)) || (e.OpeningEntryId == null && e.OpeningBalance != 0))
             await OpeningBalances.ApplyAsync(_posting, Db, e.OpeningEntryId, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: false, e.NameAr, e.Id, ct);
-        var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
-        if (acc != null) { acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn; }
+        if (await LinkedPartyAccounts.OwnedAccountAsync(Db, LinkedPartyAccounts.Of(e), ct) is { } acc)
+        {
+            acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn;
+        }
     }
 
+    /// <summary>المورد وحسابه المملوك يُحذفان معاً، أو يُرفض الحذف كله إن كان له قيود أو مستندات أو سجلات تشير إليه أو إلى حسابه.</summary>
     protected override async Task OnDeletingAsync(Supplier e, CancellationToken ct)
     {
         if (await Db.Set<CarProcurementOrder>().AnyAsync(o => o.SupplierId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteSupplierWithRequisitions);
-        var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
-        if (acc != null)
-        {
-            if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == acc.Code, ct))
-                throw new ConflictException(Messages.CannotDeleteSupplierWithEntries);
+        if (await LinkedPartyAccounts.PrepareDeleteAsync(Db, LinkedPartyAccounts.Of(e), Messages.CannotDeleteSupplierWithEntries, ct) is { } acc)
             Db.Remove(acc);
-        }
     }
 }

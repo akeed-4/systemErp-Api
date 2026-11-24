@@ -589,7 +589,8 @@ public class ProjectSupplyService : IProjectSupplyService
     /// عكس مستند مواد مرحّل: يمنعه اختيار كمياته في مستخلص غير ملغى أو سحب مرحّل منه، ثم يعكس قيده وحركات مخزونه (للتسليم والإرجاع)
     /// ويعلّمه ملغى. يستدعيه الإلغاء من الشاشة، وسند الاستلام ومرتجعه لعهدتهما (داخل معاملة المستدعي).
     /// </summary>
-    private async Task CancelCoreAsync(ProjectMaterialIssue issue, string reason, CancellationToken token)
+    /// <param name="deleteEntry">حذف سند الاستلام أو مرتجعه: قيد العهدة يُحذف نهائياً بلا قيد عكسي (الإلغاء من الشاشة يعكسه ويبقى سجلاً).</param>
+    private async Task CancelCoreAsync(ProjectMaterialIssue issue, string reason, CancellationToken token, bool deleteEntry = false)
     {
         if (issue.Status != ProjectMaterialIssueStatuses.Posted) throw new ConflictException("يُلغى مستند الصرف المرحّل فقط.");
         // عقد مغلق أو ملغى: حساباته سُوّيت، فلا يُعكس صرف ولا عهدة سند استلام (ولا يُحذف السند) بقيد بعد الإغلاق
@@ -611,7 +612,13 @@ public class ProjectSupplyService : IProjectSupplyService
         // رمز التزامن على الأسطر: اختيارها في مستخلص بالتوازي مع هذا الإلغاء يفشل أحدهما بدل أن يمرّا معاً
         foreach (var line in issue.Lines) _db.Entry(line).State = EntityState.Modified;
         var note = $"إلغاء مستند مواد {issue.IssueNumber}: {reason}";
-        if (issue.JournalEntryId is { } entryId) await _posting.ReverseAsync(entryId, note, token);
+        // حذف القيد يفرّغ مرجعه على المستند، فيُحفظ وجوده قبل ذلك لقيد إعادة التقييم أدناه
+        var hadEntry = issue.JournalEntryId != null;
+        if (issue.JournalEntryId is { } entryId)
+        {
+            if (deleteEntry) await _posting.DeleteEntryAsync(entryId, token);
+            else await _posting.ReverseAsync(entryId, note, token);
+        }
         decimal residual = 0;
         // الإرجاع يُعكس بحركة صادر من الموقع (والفرق عن تكلفة الإرجاع إعادة تقييم)، والهدر بلا حركة مخزون
         if (issue.Kind == K.Return)
@@ -640,7 +647,7 @@ public class ProjectSupplyService : IProjectSupplyService
         // التسليم المعكوس يعيد الكمية للموقع فيعود ما استهلكه من حجز المشروع
         if (issue.Kind == K.Issue) await StockReservations.ReverseIssueAsync(_db, issue.Id, token);
         await _db.SaveChangesAsync(token);
-        if (issue.JournalEntryId != null)
+        if (hadEntry)
         {
             var accounts = await PostingAccounts.SettingsAsync(_db, token);
             await InventoryValuation.PostRevaluationAsync(_db, _posting, residual, await accounts.InventoryAsync(_db, issue.WarehouseId, token), note, issue.Id, token);
@@ -741,7 +748,8 @@ public class ProjectSupplyService : IProjectSupplyService
     public async Task CancelReceiptCustodyAsync(Guid contractId, Guid custodyIssueId, string reason, CancellationToken ct = default)
     {
         var issue = await LoadAsync(contractId, custodyIssueId, track: true, ct);
-        if (issue.Status == ProjectMaterialIssueStatuses.Posted) await CancelCoreAsync(issue, reason, ct);
+        // يُستدعى من حذف سند الاستلام أو مرتجعه وحدهما: قيد العهدة يُحذف مع المستند
+        if (issue.Status == ProjectMaterialIssueStatuses.Posted) await CancelCoreAsync(issue, reason, ct, deleteEntry: true);
     }
 
     // ---------------- البناء والترحيل ----------------

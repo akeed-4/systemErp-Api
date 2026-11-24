@@ -377,6 +377,48 @@ public class PurchaseCycleService : IPurchaseCycleService
 
     // ---------------- أمر الشراء: الاستلام والفوترة الجزئية ----------------
 
+    /// <summary>
+    /// قائمة أوامر الشراء (قراءة فقط) بروابطها وكمياتها: المستلم الصافي (المسلَّم − المرتجع) والمفوتر من سندات الأمر
+    /// بالقاعدة نفسها في <see cref="PurchaseOrderReceipts.ProgressAsync"/>.
+    /// </summary>
+    public async Task<List<PurchaseOrderListDto>> ListOrdersAsync(string? status, Guid? requisitionId, Guid? rfqId, CancellationToken ct = default)
+    {
+        var q = _db.Set<CommercialOrder>().AsNoTracking().Where(o => o.Type == PurchaseOrderReceipts.OrderType);
+        if (!string.IsNullOrWhiteSpace(status)) q = q.Where(o => o.Status == status);
+        if (requisitionId.HasValue) q = q.Where(o => o.RequisitionId == requisitionId);
+        if (rfqId.HasValue) q = q.Where(o => o.RfqId == rfqId);
+        var orders = await q.OrderByDescending(o => o.OrderDate).ThenByDescending(o => o.CreatedAt).Take(500)
+            .Select(o => new PurchaseOrderListDto
+            {
+                Id = o.Id, OrderNumber = o.OrderNumber, SupplierId = o.PartyId, SupplierName = o.PartyName, Status = o.Status,
+                GrandTotal = o.GrandTotal, ExtraCosts = o.ExtraCosts, OrderDate = o.OrderDate, ExpectedDeliveryDate = o.ExpectedDeliveryDate,
+                WarehouseId = o.WarehouseId, RequisitionId = o.RequisitionId, RfqId = o.RfqId,
+                OrderedQuantity = o.Items.Sum(i => (decimal?)i.Quantity) ?? 0,
+            }).ToListAsync(ct);
+        if (orders.Count == 0) return orders;
+
+        var orderIds = orders.Select(o => (Guid?)o.Id).ToList();
+        var progress = (await _db.Set<DeliveryNoteItem>().AsNoTracking()
+                .Where(i => orderIds.Contains(i.DeliveryNote.PurchaseOrderId))
+                .Select(i => new { OrderId = i.DeliveryNote.PurchaseOrderId!.Value, i.DeliveryNoteId, Q = i.DeliveredQty - i.ReturnedQty, Billed = i.DeliveryNote.InvoiceId != null })
+                .ToListAsync(ct))
+            .GroupBy(x => x.OrderId)
+            .ToDictionary(g => g.Key, g => (Received: g.Sum(x => x.Q), Invoiced: g.Where(x => x.Billed).Sum(x => x.Q), Notes: g.Select(x => x.DeliveryNoteId).Distinct().Count()));
+        var reqIds = orders.Where(o => o.RequisitionId != null).Select(o => o.RequisitionId!.Value).Distinct().ToList();
+        var requisitions = await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => reqIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.RequisitionNumber, r.ContractId }).ToDictionaryAsync(r => r.Id, ct);
+        var rfqIds = orders.Where(o => o.RfqId != null).Select(o => o.RfqId!.Value).Distinct().ToList();
+        var rfqNumbers = await _db.Set<PurchaseRfq>().AsNoTracking().Where(r => rfqIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.RfqNumber, ct);
+
+        foreach (var o in orders)
+        {
+            if (progress.TryGetValue(o.Id, out var p)) { o.ReceivedQuantity = p.Received; o.InvoicedQuantity = p.Invoiced; o.ReceiptCount = p.Notes; }
+            if (o.RequisitionId is Guid rid && requisitions.TryGetValue(rid, out var req)) { o.RequisitionNumber = req.RequisitionNumber; o.ContractId = req.ContractId; }
+            if (o.RfqId is Guid fid) o.RfqNumber = rfqNumbers.GetValueOrDefault(fid);
+        }
+        return orders;
+    }
+
     public async Task<PurchaseOrderTrackingDto> OrderTrackingAsync(Guid orderId, CancellationToken ct = default)
     {
         var order = await PurchaseOrderAsync(orderId, ct);
@@ -386,13 +428,16 @@ public class PurchaseCycleService : IPurchaseCycleService
             {
                 Id = n.Id, DeliveryNumber = n.DeliveryNumber, Date = n.Date, GrandTotal = n.GrandTotal, InvoiceId = n.InvoiceId, InvoiceNumber = n.InvoiceNumber,
             }).ToListAsync(ct);
+        var requisition = order.RequisitionId == null ? null
+            : await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.Id == order.RequisitionId)
+                .Select(r => new { r.RequisitionNumber, r.ContractId }).FirstOrDefaultAsync(ct);
         var dto = new PurchaseOrderTrackingDto
         {
             Id = order.Id, OrderNumber = order.OrderNumber, Status = order.Status, SupplierId = order.PartyId, SupplierName = order.PartyName,
             WarehouseId = order.WarehouseId, ExtraCosts = order.ExtraCosts, GrandTotal = order.GrandTotal,
             RequisitionId = order.RequisitionId, RfqId = order.RfqId, QuotationId = order.QuotationId, Receipts = receipts,
-            RequisitionNumber = order.RequisitionId == null ? null
-                : await _db.Set<MaterialRequisition>().AsNoTracking().Where(r => r.Id == order.RequisitionId).Select(r => r.RequisitionNumber).FirstOrDefaultAsync(ct),
+            OrderDate = order.OrderDate, ExpectedDeliveryDate = order.ExpectedDeliveryDate, PaymentTerms = order.PaymentTerms,
+            RequisitionNumber = requisition?.RequisitionNumber, ContractId = requisition?.ContractId,
             RfqNumber = order.RfqId == null ? null
                 : await _db.Set<PurchaseRfq>().AsNoTracking().Where(r => r.Id == order.RfqId).Select(r => r.RfqNumber).FirstOrDefaultAsync(ct),
             QuotationNumber = order.QuotationId == null ? null

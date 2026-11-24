@@ -2296,6 +2296,11 @@
   <data name="WarehouseInUse" xml:space="preserve"><value>لا يمكن حذف الموقع: مستخدم في {0}.</value></data>
   <data name="WarehouseOnlySiteOfUsers" xml:space="preserve"><value>لا يمكن حذف الموقع: هو الموقع الوحيد المسموح للمستخدمين ({0})؛ عدّل مواقعهم أولاً.</value></data>
   <data name="WarehouseOnlySiteOfRoleScope" xml:space="preserve"><value>لا يمكن حذف الموقع: هو الموقع الوحيد في نطاق صلاحيات دور أو مستخدم؛ عدّل النطاق أولاً.</value></data>
+  <data name="PartyAlreadyHasAccount" xml:space="preserve"><value>{0} «{1}» مرتبط بالحساب {2}؛ لا يُربط بحساب آخر. غيّر رمز حسابه من شاشته إن لم تكن عليه حركات.</value></data>
+  <data name="LinkedAccountInUse" xml:space="preserve"><value>الحساب {0} مستخدم في سجلات أخرى ({1})؛ لا يمكن حذفه أو تغيير ارتباطه.</value></data>
+  <data name="PartyHasLinkedRecords" xml:space="preserve"><value>لا يمكن حذف {0} «{1}»: مرتبط بسجلات قائمة ({2}).</value></data>
+  <data name="LinkedAccountHasEntries" xml:space="preserve"><value>لا يمكن تغيير الحساب المرتبط: الحساب {0} عليه قيود محاسبية، وتغييره يقطع ارتباط القيود والمستندات السابقة.</value></data>
+  <data name="LinkedAccountNotOwned" xml:space="preserve"><value>الحساب {0} عام أو مشترك وغير مخصص لهذا {1}؛ لا يُغيَّر ارتباطه من شاشة الكيان.</value></data>
   <data name="LinkedAccountCodeOutsideGroup" xml:space="preserve"><value>رمز الحساب {0} يجب أن يبدأ برمز حساب قائم داخل مجموعة {1} (غير مرتبط بعميل/مورد/بنك آخر).</value></data>
   <data name="CostCenterCodesExhausted" xml:space="preserve"><value>امتلأت أرقام المراكز المتاحة تحت المركز ({0}).</value></data>
   <data name="AccountLinkedToFixedAsset" xml:space="preserve"><value>الحساب مخصص لأصل ثابت؛ يُحذف مع الأصل من شاشة الأصول الثابتة.</value></data>
@@ -2312,4 +2317,27 @@
   <data name="BranchHasLocations" xml:space="preserve"><value>لا يمكن حذف فرع له مواقع؛ انقل مواقعه إلى فرع آخر أولاً.</value></data>
   <data name="LocationBranchRequired" xml:space="preserve"><value>حدّد الفرع الذي يتبعه الموقع.</value></data>
   <data name="UserNameManagedByHr" xml:space="preserve"><value>اسم المستخدم المرتبط بموظف يُدار من ملف الموظف في شؤون الموظفين.</value></data>
+  <data name="ZatcaComplianceCsidUnknown" xml:space="preserve"><value>لم يصل رد مؤكد من هيئة الزكاة على طلب شهادة الامتثال ({0}). قد تكون الهيئة أصدرت الشهادة، لذلك لن يُعاد الطلب تلقائياً. يراجعه المالك أو مدير النظام من «جلسات الربط العالقة» في شاشة الربط.</value></data>
+  <data name="ZatcaProductionCsidUnknown" xml:space="preserve"><value>لم يصل رد مؤكد من هيئة الزكاة على طلب شهادة الإنتاج ({0}). قد تكون الهيئة أصدرت الشهادة، لذلك لن يُعاد الطلب تلقائياً. راجع وحدات EGS في بوابة فاتورة قبل أي محاولة جديدة.</value></data>
+  <data name="ZatcaComplianceCsidNotStored" xml:space="preserve"><value>أصدرت هيئة الزكاة شهادة الامتثال لكن تعذّر حفظها في النظام ({0}). سُجّل السبب في حالة الربط؛ يغلق المالك أو مدير النظام الجلسة من «جلسات الربط العالقة» ثم يُعاد الربط برمز تحقق جديد.</value></data>
+  <data name="ZatcaProductionCsidNotStored" xml:space="preserve"><value>أصدرت هيئة الزكاة شهادة الإنتاج لكن تعذّر حفظها في النظام ({0}). سُجّل السبب ورقم طلب الهيئة في حالة الربط؛ راجع وحدات EGS في بوابة فاتورة وتواصل مع الدعم.</value></data>
+  <data name="ZatcaComplianceTestsGenerationFailed" xml:space="preserve"><value>تعذّر توليد مستندات اختبار الامتثال وتوقيعها ({0}). أعد المحاولة؛ تُستخدم شهادة الامتثال المحفوظة دون رمز تحقق جديد.</value></data>
+  <data name="ZatcaOnboardingInProgress" xml:space="preserve"><value>طلب شهادة لهذا المستخدم ما زال قيد المعالجة لدى هيئة الزكاة. انتظر انتهاءه ثم حدّث الحالة.</value></data>
+  <data name="ZatcaOnboardingUnresolved" xml:space="preserve"><value>نتيجة طلب الشهادة السابق لدى هيئة الزكاة غير مؤكدة ولن يُعاد إرساله تلقائياً. يراجعه المالك أو مدير النظام من «جلسات الربط العالقة» في شاشة الربط قبل محاولة جديدة.</value></data>
+  <data name="ZatcaProductionInProgress" xml:space="preserve"><value>طلب شهادة الإنتاج لهذا المستخدم ما زال قيد المعالجة لدى هيئة الزكاة. انتظر انتهاءه ثم حدّث الحالة.</value></data>
+  <data name="ZatcaProductionUnresolved" xml:space="preserve"><value>نتيجة طلب شهادة الإنتاج غير مؤكدة ولن يُعاد إرساله تلقائياً. راجع وحدات EGS في بوابة فاتورة.</value></data>
+  <data name="ZatcaUnreachable" xml:space="preserve"><value>تعذّر على الخادم الوصول إلى هيئة الزكاة ({0}): {1}. لم يُرسل شيء، ويمكن إعادة المحاولة بعد عودة الاتصال.</value></data>
+  <data name="ZatcaComplianceTestsAttention" xml:space="preserve"><value>بعض اختبارات الامتثال تحتاج مراجعة. يُعاد إرسال الاختبار المرفوض بالمستند الموقّع نفسه، أما الإرسال غير المحسوم فلا يُعاد تلقائياً.</value></data>
+  <data name="ZatcaComplianceRetryRejectedOnly" xml:space="preserve"><value>لا يُعاد إلا الاختبار الذي رفضته الهيئة صراحةً؛ الإرسال قيد المعالجة أو مجهول النتيجة لا يُعاد.</value></data>
+  <data name="ZatcaComplianceTestUnresolved" xml:space="preserve"><value>لهذا الاختبار إرسال غير محسوم، فلا يُرسل مرة أخرى تلقائياً.</value></data>
+  <data name="ZatcaComplianceTestNotSubmittable" xml:space="preserve"><value>لا يُرسل إلا اختبار امتثال جديد أو مرفوض صراحةً.</value></data>
+  <data name="ZatcaComplianceTestInterrupted" xml:space="preserve"><value>توقف الخادم قبل حفظ رد الهيئة على هذا الاختبار؛ لا يُعاد إرساله تلقائياً.</value></data>
+  <data name="ZatcaComplianceRequestInterrupted" xml:space="preserve"><value>انقطع طلب شهادة الامتثال (توقفت عملية الخادم) قبل حفظ نتيجته.</value></data>
+  <data name="ZatcaProductionRequestInterrupted" xml:space="preserve"><value>انقطع طلب شهادة الإنتاج (توقفت عملية الخادم) قبل حفظ نتيجته.</value></data>
+  <data name="ZatcaRecoveryStillRequesting" xml:space="preserve"><value>طلب شهادة الامتثال ما زال ضمن مهلته ({0} دقيقة). أعد المحاولة بعد انتهائها.</value></data>
+  <data name="ZatcaRecoveryProductionStage" xml:space="preserve"><value>صدرت شهادة الامتثال وربما شهادة الإنتاج أيضاً. هذه المرحلة لا تُغلق من النظام: راجع وحدات EGS في بوابة فاتورة وألغِ أي شهادة يتيمة هناك.</value></data>
+  <data name="ZatcaRecoveryHasCsid" xml:space="preserve"><value>يحتفظ النظام بشهادة أو رقم طلب من الهيئة لهذه الجلسة، فهي ليست عالقة عند إصدار الشهادة.</value></data>
+  <data name="ZatcaRecoveryNotStuck" xml:space="preserve"><value>حالة الجلسة «{0}» ليست طلب شهادة عالقاً.</value></data>
+  <data name="ZatcaRecoveryConfirmRequired" xml:space="preserve"><value>أكّد أنه لم تصدر شهادة لهذا الطلب: راجع وحدات EGS في بوابة فاتورة لهذه البيئة ثم أعد الإغلاق مع التأكيد.</value></data>
+  <data name="ZatcaTestUnreachable" xml:space="preserve"><value>تعذّر الوصول إلى بوابة هيئة الزكاة ({0}): {1}</value></data>
 </root>

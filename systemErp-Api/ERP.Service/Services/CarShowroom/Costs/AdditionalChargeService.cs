@@ -120,7 +120,7 @@ public class AdditionalChargeService : IAdditionalChargeService
             await EnsureContractOpenAsync(line.DocumentType, line.DocumentId, line.Treatment == ChargeTreatment.RechargeToCustomer, token);
             await VehicleCostLedger.EnsureOpeningAsync(_db, vehicleIds, token);
             var description = Describe(line);
-            await ChargePosting.UnpostAsync(_db, _posting, line, "حذف سطر المصروف", token);
+            await ChargePosting.UnpostAsync(_db, _posting, line, "حذف سطر المصروف", token, delete: true);
             _db.RemoveRange(line.Allocations);
             _db.Remove(line);
             await _db.SaveChangesAsync(token);

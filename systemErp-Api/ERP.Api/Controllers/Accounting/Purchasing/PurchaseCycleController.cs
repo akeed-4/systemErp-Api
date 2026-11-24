@@ -54,6 +54,10 @@ public class PurchaseCycleController : ErpControllerBase
     [HttpPost("rfqs/{id:guid}/cancel"), RequireScreen(Award, ScreenAction.Approve)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Success(await _cycle.CancelRfqAsync(id, ct));
 
+    [HttpGet("orders")]
+    public async Task<IActionResult> Orders([FromQuery] string? status, [FromQuery] Guid? requisitionId, [FromQuery] Guid? rfqId, CancellationToken ct)
+        => Success(await _cycle.ListOrdersAsync(status, requisitionId, rfqId, ct));
+
     [HttpGet("orders/{id:guid}")]
     public async Task<IActionResult> Order(Guid id, CancellationToken ct) => Success(await _cycle.OrderTrackingAsync(id, ct));
 

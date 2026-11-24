@@ -80,34 +80,29 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
     protected override async Task OnUpdatingAsync(Customer e, UpdateCustomerDto d, CancellationToken ct)
     {
         e.Country = PartyValidation.NormalizeCountry(e.Country);
-        // الكود وحساب الأستاذ وأرصدة الحركة لا يُعدَّلان من الطلب.
+        // أرصدة الحركة لا تُعدَّل من الطلب، وحساب الأستاذ لا يتغيّر إلا عبر قواعد الحساب المرتبط (بلا تاريخ محاسبي)
         var o = Db.Entry(e).OriginalValues;
         e.AccountCode = o.GetValue<string>(nameof(Customer.AccountCode));
+        e.AccountCode = await _accounts.ChangeLinkedAccountCodeAsync(LinkedEntityType.Customer, e.Id, e.AccountCode, d.AccountCode, ct) ?? e.AccountCode;
         e.CurrentBalance = o.GetValue<decimal>(nameof(Customer.CurrentBalance));
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = o.GetValue<string>(nameof(Customer.Code));
         // الرصيد الافتتاحي قيد في الدفاتر: تغييره يعكس قيده ويرحّل الجديد، والطرف القديم يُقيَّد افتتاحيه عند أول تعديل
         e.OpeningEntryId = o.GetValue<Guid?>(nameof(Customer.OpeningEntryId));
         if (e.OpeningBalance != o.GetValue<decimal>(nameof(Customer.OpeningBalance)) || (e.OpeningEntryId == null && e.OpeningBalance != 0))
             await OpeningBalances.ApplyAsync(_posting, Db, e.OpeningEntryId, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
-        await RenameLinkedAccountAsync(e.AccountCode, e.NameAr, e.NameEn, ct);
+        // اسم الحساب يتبع اسم العميل، للحساب المملوك له فقط (الحساب العام/المشترك لا يُعاد تسميته)
+        if (await LinkedPartyAccounts.OwnedAccountAsync(Db, LinkedPartyAccounts.Of(e), ct) is { } acc)
+        {
+            acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn;
+        }
     }
 
-    private async Task RenameLinkedAccountAsync(string code, string ar, string en, CancellationToken ct)
-    {
-        var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == code, ct);
-        if (acc != null) { acc.NameAr = ar; acc.NameEn = string.IsNullOrWhiteSpace(en) ? ar : en; }
-    }
-
+    /// <summary>العميل وحسابه المملوك يُحذفان معاً، أو يُرفض الحذف كله إن كان له فواتير أو قيود أو سجلات تشير إليه أو إلى حسابه.</summary>
     protected override async Task OnDeletingAsync(Customer e, CancellationToken ct)
     {
         if (await Db.Set<InvoiceBase>().AnyAsync(i => i.PartyId == e.Id, ct))
             throw new ConflictException(Messages.CannotDeleteCustomerWithInvoices);
-        var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
-        if (acc != null)
-        {
-            if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == acc.Code, ct))
-                throw new ConflictException(Messages.CannotDeleteCustomerWithEntries);
+        if (await LinkedPartyAccounts.PrepareDeleteAsync(Db, LinkedPartyAccounts.Of(e), Messages.CannotDeleteCustomerWithEntries, ct) is { } acc)
             Db.Remove(acc);
-        }
     }
 }

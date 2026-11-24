@@ -82,7 +82,11 @@ public class JournalDeleteReverseTests : TestBase
         Assert.Equal(409, (await api.Post($"/journalentries/{id}/reverse", Reason())).Status);       // لا عكس مكرر
         Assert.Equal(409, (await api.Post($"/journalentries/{reversal}/reverse", Reason())).Status); // ولا عكس للعكسي
         Assert.Equal(409, (await api.Delete($"/journalentries/{reversal}")).Status);                 // ولا حذف للعكسي
-        Assert.Equal(409, (await api.Delete($"/journalentries/{id}")).Status);                       // ولا حذف لأصل له عكسي
+        Assert.Equal(0m, await BalanceAsync(api, "521"));
+        // حذف الأصل المعكوس: يُمسح مع عكسيه بلا قيد جديد، ويبقى الرصيد صفراً
+        var before = (await api.Get("/journalentries?pageSize=50")).Data!["items"]!.AsArray().Count;
+        Assert.True((await api.Delete($"/journalentries/{id}")).Status is 200 or 204);
+        Assert.Equal(before - 2, (await api.Get("/journalentries?pageSize=50")).Data!["items"]!.AsArray().Count);
         Assert.Equal(0m, await BalanceAsync(api, "521"));
     }
 

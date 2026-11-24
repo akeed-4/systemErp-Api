@@ -17,6 +17,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
     public AccountService(ErpDbContext db, INumberSequenceService numbers) : base(db) { _numbers = numbers; }
 
     protected override string Label => Messages.LabelAccount;
+    // حذف حساب الكيان يحذف كيانه، وتغيير رمزه يغيّر رمزه على الكيان: معاً أو لا شيء
+    protected override bool Transactional => true;
 
     protected override IQueryable<Account> ApplySearch(IQueryable<Account> q, string term)
         => q.Where(a => a.Code.Contains(term) || a.NameAr.Contains(term) || a.NameEn.Contains(term));
@@ -60,6 +62,15 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         if (existing != null && existing.Code != dto.Code
             && await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == existing.Code, ct))
             throw new ConflictException(Messages.CannotChangeCodeOfAccountWithEntries);
+        // حساب عميل/مورد/بنك: تغيير رمزه أو أبيه يغيّر هوية الارتباط، فيُسمح به بلا تاريخ فقط وداخل مجموعة الكيان
+        if (existing != null && (existing.Code != dto.Code || existing.ParentCode != dto.ParentCode)
+            && await LinkedPartyAccounts.OwnerOfAsync(Db, existing, existing.Code, ct) is { } owner)
+        {
+            await LinkedPartyAccounts.EnsureAccountFreeAsync(Db, existing, owner, string.Format(Messages.LinkedAccountHasEntries, existing.Code), ct);
+            var group = LinkedPartyAccounts.GroupOf(owner.Type);
+            if (string.IsNullOrEmpty(dto.ParentCode) || !await IsWithinGroupAsync(dto.ParentCode, group, ct))
+                throw new ValidationFailedException(string.Format(Messages.LinkedAccountCodeOutsideGroup, dto.Code, group));
+        }
         if (existing is { IsSystem: true } && (existing.Code != dto.Code || existing.Type != dto.Type))
             throw new ConflictException(Messages.CannotEditSystemAccountCodeOrType);
         // حسابات النظام تُرحِّل عليها المستندات آلياً (الضريبة، المخزون...): إيقافها يعطّل الترحيل كله
@@ -80,6 +91,27 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         entity.Level = await LevelOfAsync(dto.ParentCode, ct);
         entity.IsSystem = false;
         entity.Balance = 0; // الأرصدة تتغيّر بالقيود فقط
+        // ربط حساب جديد بكيان قائم بلا حساب: يُحفظ رمزه على الكيان في المعاملة نفسها
+        if (await LinkTargetAsync(dto, ct) is { } party) party.SetAccountCode(entity.Code);
+    }
+
+    /// <summary>
+    /// حساب جديد يُربط بعميل/مورد/بنك قائم (شاشة الحسابات «ربط بكيان موجود»): الكيان موجود، وليس له حساب (لا مملوك ولا عام)،
+    /// والحساب تحت مجموعة الكيان. الكيان الذي له حساب لا يُستبدل حسابه بحساب آخر من هنا.
+    /// </summary>
+    private async Task<LinkedPartyAccounts.Party?> LinkTargetAsync(CreateAccountDto dto, CancellationToken ct)
+    {
+        if (!LinkedPartyAccounts.IsParty(dto.LinkedEntityType)) return null;
+        var type = dto.LinkedEntityType!.Value;
+        if (dto.LinkedEntityId is not Guid id) return null;
+        var party = await LinkedPartyAccounts.FindAsync(Db, type, id, ct) ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
+        var owned = await LinkedPartyAccounts.OwnedAccountAsync(Db, party, ct);
+        if (owned != null || !string.IsNullOrWhiteSpace(party.AccountCode))
+            throw new ConflictException(string.Format(Messages.PartyAlreadyHasAccount, party.Label, party.Name, owned?.Code ?? party.AccountCode));
+        var group = LinkedPartyAccounts.GroupOf(type);
+        if (string.IsNullOrEmpty(dto.ParentCode) || !await IsWithinGroupAsync(dto.ParentCode, group, ct))
+            throw new ValidationFailedException(string.Format(Messages.LinkedAccountCodeOutsideGroup, dto.Code, group));
+        return party;
     }
 
     protected override async Task OnUpdatingAsync(Account entity, UpdateAccountDto dto, CancellationToken ct)
@@ -91,6 +123,49 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         entity.IsSystem = original.GetValue<bool>(nameof(Account.IsSystem));
         entity.LinkedEntityType = original.GetValue<LinkedEntityType?>(nameof(Account.LinkedEntityType));
         entity.LinkedEntityId = original.GetValue<Guid?>(nameof(Account.LinkedEntityId));
+        // رمز حساب الكيان تغيّر (بعد التحقق في ValidateAsync): يتبعه رمز الحساب على الكيان فلا ينقطع الارتباط
+        var oldCode = original.GetValue<string>(nameof(Account.Code));
+        if (oldCode != entity.Code && await LinkedPartyAccounts.OwnerOfAsync(Db, entity, oldCode, ct) is { } owner)
+            owner.SetAccountCode(entity.Code);
+    }
+
+    /// <summary>هل الحساب <paramref name="code"/> هو المجموعة <paramref name="group"/> أو أحد فروعها؟</summary>
+    private async Task<bool> IsWithinGroupAsync(string code, string group, CancellationToken ct)
+    {
+        var parents = await Db.Set<Account>().AsNoTracking().Select(a => new { a.Code, a.ParentCode }).ToDictionaryAsync(a => a.Code, a => a.ParentCode, ct);
+        var seen = new HashSet<string>();
+        for (string? c = code; c != null && seen.Add(c); c = parents.GetValueOrDefault(c))
+            if (c == group) return true;
+        return false;
+    }
+
+    public async Task<string?> ChangeLinkedAccountCodeAsync(LinkedEntityType type, Guid entityId, string? currentCode, string? requestedCode, CancellationToken ct = default)
+    {
+        var requested = requestedCode?.Trim();
+        if (string.IsNullOrEmpty(requested) || requested == currentCode) return currentCode;
+        var party = await LinkedPartyAccounts.FindAsync(Db, type, entityId, ct) ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
+        var account = await LinkedPartyAccounts.OwnedAccountAsync(Db, party, ct)
+            ?? throw new ConflictException(string.Format(Messages.LinkedAccountNotOwned, currentCode, party.Label));
+        // كيان بلا رمز محفوظ وحسابه المرتبط به بالرمز المطلوب: يُثبَّت الارتباط القائم (لا تغيير في الحساب)
+        if (account.Code == requested) return requested;
+        await LinkedPartyAccounts.EnsureAccountFreeAsync(Db, account, party, string.Format(Messages.LinkedAccountHasEntries, account.Code), ct);
+
+        var group = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == LinkedPartyAccounts.GroupOf(type), ct)
+            ?? throw new ConflictException(string.Format(Messages.ParentAccountMissingInChart, LinkedPartyAccounts.GroupOf(type)));
+        // الرمز الجديد حساب جديد (أرقام، غير مستخدم، تحت مجموعة الكيان): لا يُستبدل بحساب قائم آخر
+        var parent = await RequestedLinkedParentAsync(requested, group, ct);
+        account.Code = requested;
+        account.ParentCode = parent.Code;
+        account.Level = parent.Level + 1;
+        account.Type = parent.Type;
+        account.IsDebitNature = parent.IsDebitNature;
+        account.LinkedEntityType = type;
+        account.LinkedEntityId = entityId;
+        parent.IsGroup = true;
+        party.SetAccountCode(requested);
+        // يُحفظ داخل معاملة التعديل: ما يليه (قيد الرصيد الافتتاحي) يبحث عن الحساب برمزه الجديد
+        await Db.SaveChangesAsync(ct);
+        return requested;
     }
 
     protected override async Task OnDeletingAsync(Account entity, CancellationToken ct)
@@ -102,16 +177,22 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             throw new ConflictException(Messages.CannotDeleteAccountWithEntries);
         if (entity.LinkedEntityType is LinkedEntityType.FixedAsset)
             throw new ConflictException(Messages.AccountLinkedToFixedAsset);
-        // حساب العميل بلا حركات مالية (لا قيود — فُحصت أعلاه — ولا فواتير): يُحذف مع سجل العميل، فلا يبقى عميل بلا حساب
-        var customer = await Db.Set<Customer>().FirstOrDefaultAsync(c =>
-            (entity.LinkedEntityType == LinkedEntityType.Customer && c.Id == entity.LinkedEntityId) || c.AccountCode == entity.Code, ct);
-        if (customer != null)
+        // حساب عميل/مورد/بنك بلا حركات (لا قيود — فُحصت أعلاه — ولا مستندات أو سجلات تشير إليه أو إلى كيانه):
+        // يُحذف مع كيانه في المعاملة نفسها، فلا يبقى كيان بلا حساب ولا حساب بلا كيان
+        if (await LinkedPartyAccounts.OwnerOfAsync(Db, entity, entity.Code, ct) is { } owner)
         {
-            if (await Db.Set<InvoiceBase>().AnyAsync(i => i.PartyId == customer.Id, ct))
+            if (owner.Type == LinkedEntityType.Customer && await Db.Set<InvoiceBase>().AnyAsync(i => i.PartyId == owner.Id, ct))
                 throw new ConflictException(Messages.CannotDeleteCustomerWithInvoices);
-            Db.Remove(customer);
+            await LinkedPartyAccounts.EnsureAccountFreeAsync(Db, entity, owner, Messages.CannotDeleteAccountWithEntries, ct);
+            await LinkedPartyAccounts.EnsurePartyUnreferencedAsync(Db, owner, ct);
+            Db.Remove(owner.Entity);
             return;
         }
+        // حساب يحمل رمزَه كيانٌ دون أن يملكه (مشترك بين أكثر من كيان): لا يُحذف فيبقى الكيان بلا حساب
+        if (await Db.Set<Customer>().AnyAsync(c => c.AccountCode == entity.Code, ct)
+            || await Db.Set<Supplier>().AnyAsync(s => s.AccountCode == entity.Code, ct)
+            || await Db.Set<BankEntity>().AnyAsync(b => b.AccountCode == entity.Code, ct))
+            throw new ConflictException(Messages.AccountLinkedToEntity);
         if (entity.LinkedEntityType is not null and not LinkedEntityType.General)
             throw new ConflictException(Messages.AccountLinkedToEntity);
     }

@@ -188,6 +188,26 @@ public class PurchaseOrderSummaryDto
     public decimal ExtraCosts { get; set; }
 }
 
+/// <summary>
+/// صف قائمة أوامر الشراء (شاشة أوامر الشراء المستقلة): الأمر وروابطه في الدورة وكمياته الإجمالية (المطلوب والمستلم الصافي والمفوتر)
+/// من سندات الاستلام نفسها التي يحسب منها <c>orders/{id}</c>؛ للعرض فقط.
+/// </summary>
+public class PurchaseOrderListDto : PurchaseOrderSummaryDto
+{
+    public DateTime OrderDate { get; set; }
+    public DateTime ExpectedDeliveryDate { get; set; }
+    public Guid? WarehouseId { get; set; }
+    public Guid? RequisitionId { get; set; }
+    public string? RequisitionNumber { get; set; }
+    public Guid? ContractId { get; set; }
+    public Guid? RfqId { get; set; }
+    public string? RfqNumber { get; set; }
+    public decimal OrderedQuantity { get; set; }
+    public decimal ReceivedQuantity { get; set; }
+    public decimal InvoicedQuantity { get; set; }
+    public int ReceiptCount { get; set; }
+}
+
 /// <summary>فوترة عدة سندات استلام من أمر الشراء بفاتورة مورد واحدة.</summary>
 public class InvoicePurchaseReceiptsDto
 {
@@ -227,6 +247,11 @@ public class PurchaseOrderTrackingDto
     public string? RfqNumber { get; set; }
     public Guid? QuotationId { get; set; }
     public string? QuotationNumber { get; set; }
+    public DateTime OrderDate { get; set; }
+    public DateTime ExpectedDeliveryDate { get; set; }
+    public string? PaymentTerms { get; set; }
+    /// <summary>مشروع المقاولات من طلب الشراء (يحدد مرحلة الصرف للمشروع بعد الاستلام).</summary>
+    public Guid? ContractId { get; set; }
     public List<PurchaseOrderTrackingLineDto> Lines { get; set; } = new();
     public List<PurchaseOrderReceiptDto> Receipts { get; set; } = new();
 }

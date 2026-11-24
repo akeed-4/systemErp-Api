@@ -107,11 +107,15 @@ internal static class ChargePosting
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>يعكس قيد السطر قبل تعديله أو إلغائه أو حذفه. حصة نُقلت إلى المخزون عند الاستلام يُعاد نقلها أولاً ليتطابق العكس.</summary>
-    public static async Task UnpostAsync(ErpDbContext db, IAccountingPostingService posting, AdditionalChargeLine line, string reason, CancellationToken ct)
+    /// <summary>
+    /// يسحب قيد السطر قبل تعديله أو إلغائه (بقيد عكسي) أو حذفه (<paramref name="delete"/>: يُحذف القيد نهائياً بلا قيد عكسي).
+    /// حصة نُقلت إلى المخزون عند الاستلام يُعاد نقلها بعده، لأن قيد النقل مستقل عن قيد السطر ومشترك بين الأسطر.
+    /// </summary>
+    public static async Task UnpostAsync(ErpDbContext db, IAccountingPostingService posting, AdditionalChargeLine line, string reason, CancellationToken ct, bool delete = false)
     {
         if (line.JournalEntryId == null || !PostsItself(line)) return;
-        await posting.ReverseAsync(line.JournalEntryId.Value, reason, ct);
+        if (delete) await posting.DeleteEntryAsync(line.JournalEntryId.Value, ct);
+        else await posting.ReverseAsync(line.JournalEntryId.Value, reason, ct);
         await UndoReclassAsync(db, posting, new[] { line }, ct);
         line.JournalEntryId = null;
         await db.SaveChangesAsync(ct);

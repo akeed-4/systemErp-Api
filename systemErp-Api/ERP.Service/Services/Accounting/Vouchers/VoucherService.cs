@@ -281,15 +281,15 @@ public class VoucherService : IVoucherService
         {
             var voucher = await _db.Set<Voucher>().Include(v => v.PaymentSplits).Include(v => v.Allocations).FirstOrDefaultAsync(v => v.Id == id, token)
                 ?? throw new NotFoundException(Messages.VoucherNotFound);
-            // السند المرحَّل لا يُحذف فيزيائياً: يُعكس قيده ثم يُزال السند (مطابقاً لسلوك deleteVoucher في الواجهة).
+            // السند المرحَّل يُحذف مع قيده وأسطره نهائياً (بلا قيد عكسي) ضمن معاملة واحدة.
             if (voucher.DepositStatus == "applied") throw new ConflictException("عربون مخصوم من فاتورة بيع؛ لا يُحذف. يُصحَّح بمرتجع الفاتورة.");
             if (voucher.DepositVehicleId.HasValue && voucher.DepositStatus != "open") throw new ConflictException(Messages.DepositNotOpen);
-            if (voucher.JournalEntryId.HasValue) await _posting.ReverseAsync(voucher.JournalEntryId.Value, $"حذف السند {voucher.VoucherNumber}", token);
+            if (voucher.JournalEntryId.HasValue) await _posting.DeleteEntryAsync(voucher.JournalEntryId.Value, token);
             _db.RemoveRange(voucher.PaymentSplits);
             _db.RemoveRange(voucher.Allocations); // الفواتير الموزَّع عليها تعود بمتبقّيها
             _db.Remove(voucher);
             await _db.SaveChangesAsync(token);
             if (voucher.DepositVehicleId.HasValue) await ReleaseVehicleAsync(voucher.DepositVehicleId.Value, voucher.Id, token);
-            await _audit.LogAsync("VOUCHER_DELETED", nameof(Voucher), id.ToString(), $"حذف السند {voucher.VoucherNumber} بمبلغ {voucher.Amount:0.00} وعكس قيده", token);
+            await _audit.LogAsync("VOUCHER_DELETED", nameof(Voucher), id.ToString(), $"حذف السند {voucher.VoucherNumber} بمبلغ {voucher.Amount:0.00} وحذف قيده", token);
         }, ct);
 }

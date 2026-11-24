@@ -66,24 +66,24 @@ public class BankService : CrudService<BankEntity, BankEntityDto, CreateBankEnti
         e.Currency = await CurrencyCodeAsync(e.Currency, ct);
         var o = Db.Entry(e).OriginalValues;
         e.AccountCode = o.GetValue<string?>(nameof(BankEntity.AccountCode));
+        // حساب الأستاذ لا يتغيّر إلا عبر قواعد الحساب المرتبط (بلا تاريخ محاسبي)
+        e.AccountCode = await _accounts.ChangeLinkedAccountCodeAsync(LinkedEntityType.Bank, e.Id, e.AccountCode, d.AccountCode, ct);
         e.CurrentBalance = o.GetValue<decimal>(nameof(BankEntity.CurrentBalance));
         if (string.IsNullOrWhiteSpace(e.Code)) e.Code = o.GetValue<string>(nameof(BankEntity.Code));
         // الرصيد الافتتاحي قيد في الدفاتر: تغييره يعكس قيده ويرحّل الجديد، والطرف القديم يُقيَّد افتتاحيه عند أول تعديل
         e.OpeningEntryId = o.GetValue<Guid?>(nameof(BankEntity.OpeningEntryId));
         if (e.OpeningBalance != o.GetValue<decimal>(nameof(BankEntity.OpeningBalance)) || (e.OpeningEntryId == null && e.OpeningBalance != 0))
             await OpeningBalances.ApplyAsync(_posting, Db, e.OpeningEntryId, id => e.OpeningEntryId = id, e.AccountCode!, e.OpeningBalance, debitNature: true, e.NameAr, e.Id, ct);
-        var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
-        if (acc != null) { acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn; acc.Currency = e.Currency; }
+        if (await LinkedPartyAccounts.OwnedAccountAsync(Db, LinkedPartyAccounts.Of(e), ct) is { } acc)
+        {
+            acc.NameAr = e.NameAr; acc.NameEn = string.IsNullOrWhiteSpace(e.NameEn) ? e.NameAr : e.NameEn; acc.Currency = e.Currency;
+        }
     }
 
+    /// <summary>البنك وحسابه المملوك يُحذفان معاً، أو يُرفض الحذف كله إن كان له قيود أو طرق دفع أو سجلات تشير إليه أو إلى حسابه.</summary>
     protected override async Task OnDeletingAsync(BankEntity e, CancellationToken ct)
     {
-        var acc = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == e.AccountCode, ct);
-        if (acc != null)
-        {
-            if (await Db.Set<JournalEntryLine>().AnyAsync(l => l.AccountCode == acc.Code, ct))
-                throw new ConflictException(Messages.CannotDeleteBankWithEntries);
+        if (await LinkedPartyAccounts.PrepareDeleteAsync(Db, LinkedPartyAccounts.Of(e), Messages.CannotDeleteBankWithEntries, ct) is { } acc)
             Db.Remove(acc);
-        }
     }
 }

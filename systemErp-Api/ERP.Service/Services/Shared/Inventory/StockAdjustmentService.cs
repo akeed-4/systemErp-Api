@@ -53,9 +53,9 @@ public class StockAdjustmentService : IStockAdjustmentService
         {
             var (itemId, oldSigned) = await CurrentAsync(id, token);
             var before = await ValueBeforeAsync(itemId, token);
-            await ReverseEntryAsync(id, "حذف", token);
+            await DeleteEntryAsync(id, token);
             await _inventory.DeleteMovementAsync(id, token);
-            // ما بقي بعد عكس القيد = أثر إعادة بناء التكلفة على بقية الرصيد (صرف سابق أعيد تسعيره)
+            // ما بقي بعد حذف القيد = أثر إعادة بناء التكلفة على بقية الرصيد (صرف سابق أعيد تسعيره)
             await InventoryValuation.PostRevaluationAsync(_db, _posting, new[] { (itemId, await ValueAfterAsync(itemId, token) - before + oldSigned) },
                 "إعادة تقييم المخزون بعد حذف تسوية", id, token);
         }, ct);
@@ -136,6 +136,13 @@ public class StockAdjustmentService : IStockAdjustmentService
                 ? new() { new(inventory, value, 0, note), new(counter, 0, value, note) }
                 : new() { new(counter, value, 0, note), new(inventory, 0, value, note) },
         }, ct);
+    }
+
+    /// <summary>حذف التسوية: قيدها وأسطره يُحذفان نهائياً بلا قيد عكسي.</summary>
+    private async Task DeleteEntryAsync(Guid movementId, CancellationToken ct)
+    {
+        var entryId = await _db.Set<StockMovement>().AsNoTracking().Where(m => m.Id == movementId).Select(m => m.JournalEntryId).FirstOrDefaultAsync(ct);
+        if (entryId.HasValue) await _posting.DeleteEntryAsync(entryId.Value, ct);
     }
 
     private async Task ReverseEntryAsync(Guid movementId, string reason, CancellationToken ct)

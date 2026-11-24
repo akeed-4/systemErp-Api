@@ -19,6 +19,9 @@ public interface IPurchaseCycleService
     Task<RfqComparisonDto> CompareAsync(Guid rfqId, CancellationToken ct = default);
     Task<PurchaseRfqDto> AwardAsync(Guid rfqId, AwardRfqDto request, CancellationToken ct = default);
 
+    /// <summary>أوامر الشراء الناتجة عن الترسية (للقراءة): اختيارياً بحالة أو طلب شراء أو طلب عروض.</summary>
+    Task<List<PurchaseOrderListDto>> ListOrdersAsync(string? status, Guid? requisitionId, Guid? rfqId, CancellationToken ct = default);
+
     Task<PurchaseOrderTrackingDto> OrderTrackingAsync(Guid orderId, CancellationToken ct = default);
     Task<DeliveryNoteDto> ReceiveAsync(Guid orderId, ReceivePurchaseOrderDto request, CancellationToken ct = default);
     Task<InvoiceDto> InvoiceReceiptAsync(Guid orderId, Guid deliveryNoteId, DateTime? date, CancellationToken ct = default);

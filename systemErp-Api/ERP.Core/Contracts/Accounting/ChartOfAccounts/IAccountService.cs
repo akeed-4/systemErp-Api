@@ -25,5 +25,11 @@ public interface IAccountService : ICrudService<AccountDto, CreateAccountDto, Up
     /// لا قيود عليه، ولا أصل ثابت يشير إليه، ولا إعداد حسابات أو طريقة دفع تستخدمه (المحرك يرفض الترحيل على حساب أب).
     /// </summary>
     Task<bool> CanHoldSubAccountsAsync(string code, CancellationToken ct = default);
+    /// <summary>
+    /// تغيير رمز الحساب المرتبط بعميل/مورد/بنك من شاشة الكيان (يُستدعى داخل معاملة تعديله): الفارغ أو المطابق للحالي لا يغيّر شيئاً.
+    /// يُسمح فقط إن كان الحساب مملوكاً للكيان بلا قيود ولا سجلات تستخدم رمزه، والرمز الجديد غير مستخدم وتحت مجموعة الكيان؛
+    /// فيُعاد ترقيم الحساب نفسه (يبقى الارتباط). لا يُستبدل بحساب قائم آخر. يُرجع رمز الحساب الذي يُحفظ على الكيان.
+    /// </summary>
+    Task<string?> ChangeLinkedAccountCodeAsync(LinkedEntityType type, Guid entityId, string? currentCode, string? requestedCode, CancellationToken ct = default);
     Task<(Guid Id, string Code)> CreateLinkedChildAccountAsync(string parentCode, LinkedEntityType type, Guid entityId, string nameAr, string nameEn, CancellationToken ct = default);
 }

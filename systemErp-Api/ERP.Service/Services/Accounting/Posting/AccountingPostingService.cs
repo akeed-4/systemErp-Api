@@ -1,5 +1,6 @@
 using ERP.Core.Contracts.Accounting;
 using ERP.Service.Data;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace ERP.Service.Services.Accounting;
 
@@ -105,20 +106,75 @@ public class AccountingPostingService : IAccountingPostingService
 
     /// <summary>
     /// حذف نهائي لقيد يدوي (إعدام لا إلغاء): بلا قيد عكسي، يُسحب أثره من أرصدة الحسابات والكيانات المرتبطة ثم يُمسح مع أسطره.
-    /// القيد العكسي والمعكوس والآلي والمطابق مع البنك وما له قيد عكسي لا يُحذف، ولا ما في فترة مقفلة. يعمل داخل معاملة المتصل.
+    /// القيد اليدوي المعكوس سابقاً يُحذف مع قيده العكسي (أثرهما معاً صفر فلا تتغير الأرصدة). القيد العكسي وحده والآلي والمطابق
+    /// مع البنك لا يُحذف، ولا ما في فترة مقفلة. يعمل داخل معاملة المتصل.
     /// </summary>
     public async Task PurgeManualAsync(Guid journalEntryId, CancellationToken ct = default)
     {
-        var entry = await LoadManualAsync(journalEntryId, ct);
-        EnsureNotReconciled(entry);
-        await _periods.EnsureOpenAsync(entry.Date, ct);
-        if (await _db.Set<JournalEntry>().AnyAsync(e => e.SourceType == ReversalSource && e.SourceReferenceId == entry.Id, ct))
-            throw new ConflictException(Messages.JournalEntryHasReversal);
-        await UnapplyAsync(entry, ct);
-        _db.RemoveRange(entry.Lines);
-        _db.Remove(entry);
+        var entry = await _db.Set<JournalEntry>().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == journalEntryId, ct)
+            ?? throw new NotFoundException(Messages.JournalEntryNotFound);
+        if (entry.SourceType == ReversalSource) throw new ConflictException(Messages.ReversalEntryIsAuditTrail);
+        if (!IsManual(entry.SourceType)) throw new ConflictException(Messages.JournalEntryOwnedByDocument);
+        await RemoveWithReversalAsync(entry, ct);
+    }
+
+    /// <summary>
+    /// حذف قيد مستند يُحذف (فاتورة، سند، تسوية مخزون...): يُمسح القيد وأسطره نهائياً بلا قيد عكسي ولا بديل، ويُسحب أثره من الأرصدة.
+    /// إن كان معكوساً من قبل يُحذف قيده العكسي معه. قيد الإقفال والقيد العكسي وحده لا يُحذفان، ولا قيد في فترة مقفلة أو مطابَق
+    /// مع البنك. مراجع المستندات إليه تُفرَّغ. يعمل داخل معاملة المتصل، فيُحذف المستند وقيده معاً أو لا شيء.
+    /// </summary>
+    public async Task DeleteEntryAsync(Guid journalEntryId, CancellationToken ct = default)
+    {
+        var entry = await _db.Set<JournalEntry>().Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == journalEntryId, ct);
+        if (entry == null) return; // حُذف من قبل (مسار حذف متداخل)
+        if (entry.SourceType == ReversalSource) throw new ConflictException(Messages.ReversalEntryIsAuditTrail);
+        if (entry.SourceType == FiscalPeriodService.ClosingSource) throw new ConflictException(Messages.ClosingEntryCannotBeDeleted);
+        await RemoveWithReversalAsync(entry, ct);
+    }
+
+    /// <summary>يحذف القيد وقيده العكسي إن وُجد: تحقق الفترة والمطابقة، سحب الأثر من الأرصدة، تفريغ المراجع، ثم المسح.</summary>
+    private async Task RemoveWithReversalAsync(JournalEntry entry, CancellationToken ct)
+    {
+        var chain = new List<JournalEntry> { entry };
+        var reversal = await _db.Set<JournalEntry>().Include(e => e.Lines)
+            .FirstOrDefaultAsync(e => e.SourceType == ReversalSource && e.SourceReferenceId == entry.Id, ct);
+        if (reversal != null) chain.Add(reversal);
+        foreach (var e in chain)
+        {
+            EnsureNotReconciled(e);
+            await _periods.EnsureOpenAsync(e.Date, ct);
+        }
+        foreach (var e in chain.Where(e => e.Status != JournalEntryStatus.Draft)) await UnapplyAsync(e, ct);
+        foreach (var e in chain) await DetachReferencesAsync(e.Id, ct);
+        foreach (var e in chain)
+        {
+            _db.RemoveRange(e.Lines);
+            _db.Remove(e);
+        }
         await _db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// يفرّغ كل مرجع إلى القيد المحذوف (أعمدة *JournalEntryId في المستندات والحركات): المتتبَّع في الذاكرة، والمخزَّن بتحديث مباشر.
+    /// المفاتيح الأجنبية إلى القيد مقيّدة (Restrict)، فبدون ذلك يُرفض الحذف، والمراجع بلا مفتاح تبقى معلّقة على قيد غير موجود.
+    /// </summary>
+    private async Task DetachReferencesAsync(Guid entryId, CancellationToken ct)
+    {
+        foreach (var tracked in _db.ChangeTracker.Entries().Where(t => t.State != EntityState.Deleted && t.Entity is not JournalEntryLine and not JournalEntry))
+            foreach (var p in tracked.Properties.Where(p => IsEntryReference(p.Metadata) && p.CurrentValue is Guid g && g == entryId))
+                p.CurrentValue = null;
+
+        foreach (var type in _db.Model.GetEntityTypes().Where(t => t.ClrType != typeof(JournalEntryLine) && t.ClrType != typeof(JournalEntry)))
+            foreach (var property in type.GetDeclaredProperties().Where(IsEntryReference))
+                foreach (var mapping in property.GetTableColumnMappings())
+                {
+                    var table = mapping.Column.Table;
+                    var name = table.Schema == null ? $"[{table.Name}]" : $"[{table.Schema}].[{table.Name}]";
+                    await _db.Database.ExecuteSqlRawAsync($"UPDATE {name} SET [{mapping.Column.Name}] = NULL WHERE [{mapping.Column.Name}] = {{0}}", new object[] { entryId }, ct);
+                }
+    }
+
+    private static bool IsEntryReference(IReadOnlyProperty p) => p.ClrType == typeof(Guid?) && p.Name.EndsWith("JournalEntryId", StringComparison.Ordinal);
 
     /// <summary>القيد اليدوي فقط. القيد الآلي يتبع مستنده (فاتورة، سند، جرد...)، وتعديله أو إلغاؤه وحده يفصل الدفاتر عن المستند والمخزون.</summary>
     private async Task<JournalEntry> LoadManualAsync(Guid id, CancellationToken ct)

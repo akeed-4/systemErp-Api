@@ -151,7 +151,10 @@ public class BooksIntegrityTests : TestBase
             .Select(n => int.Parse(new string(n.Where(char.IsDigit).ToArray()), CultureInfo.InvariantCulture)).ToList();
         Assert.Equal(new[] { numbers[0], numbers[0] + 1, numbers[0] + 2 }, numbers);
 
-        Assert.Equal(409, (await api.Delete($"/journalentries/{id}")).Status); // المعكوس لا يُحذف
+        // حذف الأصل المعكوس يمسحه مع قيده العكسي (بلا قيد جديد)، والميزان متوازن والرصيد صفر
+        Assert.True((await api.Delete($"/journalentries/{id}")).Status is 200 or 204);
+        Assert.Equal(404, (await api.Get($"/journalentries/{reversal["id"].S()}")).Status);
+        Assert.Equal(0m, await BalanceAsync(api, "1111"));
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
     }
 

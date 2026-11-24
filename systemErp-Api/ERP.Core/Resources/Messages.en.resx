@@ -2296,6 +2296,11 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="WarehouseInUse" xml:space="preserve"><value>The warehouse cannot be deleted: it is used in {0}.</value></data>
   <data name="WarehouseOnlySiteOfUsers" xml:space="preserve"><value>The warehouse cannot be deleted: it is the only site allowed for users ({0}); change their sites first.</value></data>
   <data name="WarehouseOnlySiteOfRoleScope" xml:space="preserve"><value>The warehouse cannot be deleted: it is the only site in a role or user permission scope; change the scope first.</value></data>
+  <data name="PartyAlreadyHasAccount" xml:space="preserve"><value>{0} "{1}" is linked to account {2}; it cannot be linked to another account. Change its account code from its own screen if it has no activity.</value></data>
+  <data name="LinkedAccountInUse" xml:space="preserve"><value>Account {0} is used by other records ({1}); it cannot be deleted or relinked.</value></data>
+  <data name="PartyHasLinkedRecords" xml:space="preserve"><value>Cannot delete {0} "{1}": it is linked to existing records ({2}).</value></data>
+  <data name="LinkedAccountHasEntries" xml:space="preserve"><value>Cannot change the linked account: account {0} has journal entries, and changing it would break the link to past entries and documents.</value></data>
+  <data name="LinkedAccountNotOwned" xml:space="preserve"><value>Account {0} is a general or shared account, not dedicated to this {1}; its link cannot be changed from the entity screen.</value></data>
   <data name="LinkedAccountCodeOutsideGroup" xml:space="preserve"><value>Account code {0} must start with the code of an existing account inside group {1} (not linked to another customer/supplier/bank).</value></data>
   <data name="CostCenterCodesExhausted" xml:space="preserve"><value>All available codes under cost center ({0}) have been used.</value></data>
   <data name="AccountLinkedToFixedAsset" xml:space="preserve"><value>The account belongs to a fixed asset; it is deleted together with the asset from the Fixed Assets screen.</value></data>
@@ -2312,4 +2317,27 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="BranchHasLocations" xml:space="preserve"><value>A branch with locations cannot be deleted; move its locations to another branch first.</value></data>
   <data name="LocationBranchRequired" xml:space="preserve"><value>Select the branch this location belongs to.</value></data>
   <data name="UserNameManagedByHr" xml:space="preserve"><value>The name of a user linked to an employee is managed from the employee record in HR.</value></data>
+  <data name="ZatcaComplianceCsidUnknown" xml:space="preserve"><value>No confirmed ZATCA response was received for the compliance certificate request ({0}). ZATCA may have issued it, so the request will not be resent automatically. An owner or system admin must review it under "Stuck onboarding sessions" on the ZATCA screen.</value></data>
+  <data name="ZatcaProductionCsidUnknown" xml:space="preserve"><value>No confirmed ZATCA response was received for the production certificate request ({0}). ZATCA may have issued it, so the request will not be resent automatically. Review the EGS units in the Fatoora portal before any new attempt.</value></data>
+  <data name="ZatcaComplianceCsidNotStored" xml:space="preserve"><value>ZATCA issued the compliance certificate but it could not be stored ({0}). The cause is recorded on the onboarding status; an owner or system admin closes the session under "Stuck onboarding sessions", then onboarding is repeated with a new OTP.</value></data>
+  <data name="ZatcaProductionCsidNotStored" xml:space="preserve"><value>ZATCA issued the production certificate but it could not be stored ({0}). The cause and ZATCA request ID are recorded on the onboarding status; review the EGS units in the Fatoora portal and contact support.</value></data>
+  <data name="ZatcaComplianceTestsGenerationFailed" xml:space="preserve"><value>Generating and signing the compliance test documents failed ({0}). Try again; the stored compliance certificate is reused without a new OTP.</value></data>
+  <data name="ZatcaOnboardingInProgress" xml:space="preserve"><value>A ZATCA certificate request for this user is still in progress. Wait for it to finish, then refresh the status.</value></data>
+  <data name="ZatcaOnboardingUnresolved" xml:space="preserve"><value>The previous ZATCA certificate request has an unconfirmed outcome and will not be resent automatically. An owner or system admin must review it under "Stuck onboarding sessions" on the ZATCA screen before a new attempt.</value></data>
+  <data name="ZatcaProductionInProgress" xml:space="preserve"><value>The production certificate request for this user is still in progress. Wait for it to finish, then refresh the status.</value></data>
+  <data name="ZatcaProductionUnresolved" xml:space="preserve"><value>The production certificate request has an unconfirmed outcome and will not be resent automatically. Review the EGS units in the Fatoora portal.</value></data>
+  <data name="ZatcaUnreachable" xml:space="preserve"><value>The server cannot reach ZATCA ({0}): {1}. Nothing was sent and the attempt can be retried once connectivity is restored.</value></data>
+  <data name="ZatcaComplianceTestsAttention" xml:space="preserve"><value>Some compliance tests require attention. A rejected test is resent with the same signed document; unresolved submissions are not retried automatically.</value></data>
+  <data name="ZatcaComplianceRetryRejectedOnly" xml:space="preserve"><value>Only a test that ZATCA explicitly rejected can be retried; processing or unknown submissions are not resent.</value></data>
+  <data name="ZatcaComplianceTestUnresolved" xml:space="preserve"><value>This compliance test has an unresolved submission and will not be sent again automatically.</value></data>
+  <data name="ZatcaComplianceTestNotSubmittable" xml:space="preserve"><value>Only a new or explicitly rejected compliance test can be submitted.</value></data>
+  <data name="ZatcaComplianceTestInterrupted" xml:space="preserve"><value>The server stopped before the ZATCA response to this test was saved; it is not resent automatically.</value></data>
+  <data name="ZatcaComplianceRequestInterrupted" xml:space="preserve"><value>The compliance certificate request was interrupted (the server process stopped) before its outcome was saved.</value></data>
+  <data name="ZatcaProductionRequestInterrupted" xml:space="preserve"><value>The production certificate request was interrupted (the server process stopped) before its outcome was saved.</value></data>
+  <data name="ZatcaRecoveryStillRequesting" xml:space="preserve"><value>The compliance certificate request is still within its time limit ({0} min). Try again after it expires.</value></data>
+  <data name="ZatcaRecoveryProductionStage" xml:space="preserve"><value>A compliance certificate was issued and a production certificate may have been issued too. This stage is not closed by the system: review the EGS units in the Fatoora portal and revoke any orphan certificate there.</value></data>
+  <data name="ZatcaRecoveryHasCsid" xml:space="preserve"><value>The system holds a ZATCA certificate or request ID for this session, so it is not stuck at certificate issuance.</value></data>
+  <data name="ZatcaRecoveryNotStuck" xml:space="preserve"><value>Session status "{0}" is not a stuck certificate request.</value></data>
+  <data name="ZatcaRecoveryConfirmRequired" xml:space="preserve"><value>Confirm that no certificate was issued for this request: review the EGS units in the Fatoora portal for this environment, then close the session again with the confirmation.</value></data>
+  <data name="ZatcaTestUnreachable" xml:space="preserve"><value>Cannot reach the ZATCA gateway ({0}): {1}</value></data>
 </root>

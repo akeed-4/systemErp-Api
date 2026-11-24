@@ -10,10 +10,11 @@ public class CompanyService : ICompanyService
     private readonly ErpDbContext _db;
     private readonly ITenantContext _tenant;
     private readonly ISecretProtector _secrets;
+    private readonly ERP.Core.Contracts.Accounting.IZatcaApiClient _zatcaApi;
 
-    public CompanyService(ErpDbContext db, ITenantContext tenant, ISecretProtector secrets)
+    public CompanyService(ErpDbContext db, ITenantContext tenant, ISecretProtector secrets, ERP.Core.Contracts.Accounting.IZatcaApiClient zatcaApi)
     {
-        _db = db; _tenant = tenant; _secrets = secrets;
+        _db = db; _tenant = tenant; _secrets = secrets; _zatcaApi = zatcaApi;
     }
 
     private async Task<Tenant> LoadAsync(CancellationToken ct)
@@ -104,8 +105,9 @@ public class CompanyService : ICompanyService
     }
 
     /// <summary>
-    /// يتحقق من اكتمال بيانات الربط: رقم ضريبي صحيح ومستخدم واحد مربوط على الأقل (يحفظه الربط برمز التحقق
-    /// (<see cref="ERP.Core.Contracts.Accounting.IZatcaService.OnboardAsync"/>). لا يُجرى اتصال بالهيئة هنا.
+    /// يفحص الربط فعلاً: الوصول إلى بوابة الهيئة في البيئة المحفوظة (طلب لا يصدر شهادة ولا يستهلك رمز تحقق، برمز HTTP
+    /// وزمنه الحقيقيين)، ثم اكتمال البيانات: رقم ضريبي صحيح ومستخدم واحد مربوط على الأقل (يحفظه الربط برمز التحقق
+    /// (<see cref="ERP.Core.Contracts.Accounting.IZatcaService.OnboardAsync"/>)). النجاح يشترط الأمرين معاً.
     /// </summary>
     public async Task<ZatcaConnectionTestResultDto> TestZatcaConnectionAsync(CancellationToken ct = default)
     {
@@ -116,15 +118,24 @@ public class CompanyService : ICompanyService
         // الشهادة والمفتاح يُحفظان لكل مستخدم مربوط (ZatcaUnit) لا على المنشأة
         if (!await _db.Set<ZatcaUnit>().AnyAsync(u => u.IsActive, ct)) missing.Add("ZatcaUnit");
 
-        var ok = missing.Count == 0;
+        var baseUrl = ERP.Service.Services.Accounting.ZatcaService.BaseUrl(c);
+        var probe = await _zatcaApi.ProbeAsync(baseUrl, ct);
+        var latency = (int)Math.Min(probe.ElapsedMs, int.MaxValue);
+        var ok = probe.Reached && missing.Count == 0;
         c.LastTestDate = DateTime.UtcNow;
         c.LastTestStatus = ok ? ZatcaSubmissionStatus.Cleared : ZatcaSubmissionStatus.Rejected;
-        c.LastTestLatencyMs = 0;
-        c.LastTestMessage = ok
-            ? Messages.ZatcaConnected
-            : Messages.ZatcaTestMissingPrefix + string.Join(", ", missing);
+        c.LastTestLatencyMs = latency;
+        c.LastTestMessage = !probe.Reached
+            ? string.Format(Messages.ZatcaTestUnreachable, new Uri(baseUrl).Host, probe.Detail)
+            : missing.Count > 0
+                ? Messages.ZatcaTestMissingPrefix + string.Join(", ", missing)
+                : Messages.ZatcaConnected;
         await _db.SaveChangesAsync(ct);
 
-        return new ZatcaConnectionTestResultDto { Success = ok, Message = c.LastTestMessage, MissingFields = missing };
+        return new ZatcaConnectionTestResultDto
+        {
+            Success = ok, Message = c.LastTestMessage, LatencyMs = latency, Reached = probe.Reached, HttpStatus = probe.HttpStatus,
+            MissingFields = missing,
+        };
     }
 }

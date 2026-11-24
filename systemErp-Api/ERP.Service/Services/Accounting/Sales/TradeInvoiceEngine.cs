@@ -460,10 +460,10 @@ public class TradeInvoiceEngine
             if (await _db.Set<VoucherAllocation>().AnyAsync(a => a.InvoiceId == invoice.Id, ct)) throw new ConflictException(Messages.PostedInvoiceDeleteHasPayments);
         }
         if (invoice is Invoice car) foreach (var ext in _extensions) await ext.OnUnpostingAsync(car, ct);
-        // التعديل: يبقى القيد ويُستبدل في مكانه بنفس رقمه عند إعادة الترحيل (FinalizeAsync). الحذف: يُعكس القيد فيبقى أثره في السجل.
+        // التعديل: يبقى القيد ويُستبدل في مكانه بنفس رقمه عند إعادة الترحيل (FinalizeAsync). الحذف: يُحذف القيد وأسطره نهائياً بلا قيد عكسي.
         if (forDelete && invoice.JournalEntryId is { } entryId)
         {
-            await _posting.ReverseAsync(entryId, reason, ct);
+            await _posting.DeleteEntryAsync(entryId, ct);
             // فاتورة مؤجر سُوّي بها استحقاق إيجار: يُفك ما زاد عن فواتيره الباقية (التعديل يعيد الموازنة عند إعادة الترحيل)
             await _rentals.OnPurchaseDocumentChangedAsync(invoice, ct);
         }
@@ -965,9 +965,9 @@ public class TradeInvoiceEngine
             // ما وصل للهيئة لا يُحذف أبداً، مقبولاً أو مرفوضاً: صار حلقة في سلسلة التجزئة والعدّاد، ويُصحَّح بمرتجع فقط
             if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted || invoice.ZatcaHash != null)
                 throw new ConflictException(string.Format(Messages.InvoiceSentToZatcaCannotBeDeleted, invoice.InvoiceNumber));
-            // المرحّلة (قبل إرسالها للهيئة) تُحذف: يُعكس قيدها وحركاتها وتعود سياراتها؛ المسودة تُحذف مباشرة
+            // المرحّلة (قبل إرسالها للهيئة) تُحذف: يُحذف قيدها نهائياً (بلا قيد عكسي) وتُعكس حركاتها المخزنية وتعود سياراتها؛ المسودة تُحذف مباشرة
             var wasPosted = invoice.Status == "posted";
-            // المرتجع المرحّل (قبل إرساله للهيئة) يُحذف كالفاتورة: يُعكس قيده وحركاته وتعود كمياته متاحة للإرجاع من أصله
+            // المرتجع المرحّل (قبل إرساله للهيئة) يُحذف كالفاتورة: يُحذف قيده وتُعكس حركاته وتعود كمياته متاحة للإرجاع من أصله
             if (wasPosted) await UnpostForEditAsync(invoice, token, forDelete: true, allowReturn: true);
             else EnsureNotLinkedToAnotherDocument(invoice);
             await ReleaseSourceAsync(invoice, token);

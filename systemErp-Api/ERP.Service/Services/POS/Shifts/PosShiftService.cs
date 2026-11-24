@@ -162,7 +162,7 @@ public class PosShiftService : IPosShiftService
         => (await _db.Set<PosCashMovement>().AsNoTracking().Where(m => m.ShiftId == shiftId).OrderBy(m => m.CreatedAt).ToListAsync(ct))
             .Select(Mapper.Map<PosCashMovementDto>).ToList();
 
-    /// <summary>إلغاء حركة نقدية: يُعكس قيدها وتُطرح من الوردية (الوردية المفتوحة لكاشيرها، والمغلقة للأدوار الإدارية).</summary>
+    /// <summary>حذف حركة نقدية: يُحذف قيدها نهائياً (بلا قيد عكسي) وتُطرح من الوردية (الوردية المفتوحة لكاشيرها، والمغلقة للأدوار الإدارية).</summary>
     public Task DeleteCashMovementAsync(Guid id, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
@@ -176,7 +176,7 @@ public class PosShiftService : IPosShiftService
 
     private async Task RemoveMovementAsync(PosCashMovement m, PosShift shift, CancellationToken ct)
     {
-        if (m.JournalEntryId.HasValue) await _posting.ReverseAsync(m.JournalEntryId.Value, "إلغاء حركة نقدية على درج الكاشير", ct);
+        if (m.JournalEntryId.HasValue) await _posting.DeleteEntryAsync(m.JournalEntryId.Value, ct); // تُحذف الحركة وقيدها بلا قيد عكسي
         if (m.Type == PosCashMovementType.PaidIn) shift.TotalCashIn -= m.Amount; else shift.TotalCashOut -= m.Amount;
         _db.Remove(m);
     }
@@ -253,7 +253,7 @@ public class PosShiftService : IPosShiftService
             var fresh = await _db.Set<PosShift>().FirstAsync(s => s.Id == id, token);
             foreach (var m in movements) await RemoveMovementAsync(m, fresh, token);
             if (fresh.VarianceJournalEntryId is Guid variance)
-                await _posting.ReverseAsync(variance, $"حذف الوردية {fresh.ShiftNumber}", token);
+                await _posting.DeleteEntryAsync(variance, token);
             _db.Remove(fresh);
             await _db.SaveChangesAsync(token);
         }, ct);

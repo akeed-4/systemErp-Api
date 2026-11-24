@@ -223,7 +223,7 @@ public class WorkOrderExecutionService : IWorkOrderExecutionService
             if (!St.Editable.Contains(o.Status)) throw new ConflictException(Messages.WorkOrderNotEditable);
             var log = await _db.Set<WorkOrderTimeLog>().FirstOrDefaultAsync(l => l.Id == logId && l.WorkOrderId == o.Id, token)
                 ?? throw new NotFoundException(Messages.TimeLogNotFound);
-            if (log.JournalEntryId is Guid entry) await _posting.ReverseAsync(entry, $"حذف ساعات فني على أمر العمل {o.OrderNumber}", token);
+            if (log.JournalEntryId is Guid entry) await _posting.DeleteEntryAsync(entry, token); // الحذف يمسح قيد الساعات بلا قيد عكسي
             _db.Remove(log);
             await _db.SaveChangesAsync(token);
             await LogAsync("WORK_ORDER_TIME_DELETED", o, $"{log.Kind} • {log.Minutes:0} min", token);

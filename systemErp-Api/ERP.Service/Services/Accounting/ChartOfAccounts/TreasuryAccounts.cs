@@ -24,6 +24,33 @@ internal static class TreasuryAccounts
     public static async Task<string> BanksGroupAsync(ErpDbContext db, CancellationToken ct)
         => await db.Set<Account>().AnyAsync(a => a.Code == DefaultAccounts.Banks && a.IsSystem, ct) ? DefaultAccounts.Banks : DefaultAccounts.CashBoxes;
 
+    // ---------- ترقيم البنوك والصناديق ----------
+
+    /// <summary>عرض تسلسل الحساب بعد رمز مجموعته: البنوك 110001، 110002...، والصناديق 111001، 111002...</summary>
+    public const int ChildWidth = 3;
+
+    /// <summary>هل الأب مجموعة نقدية تُرقَّم فروعها المباشرة آلياً: الصناديق 111، أو البنوك 110 إن كانت حساب نظام (<see cref="Roots"/>).</summary>
+    public static async Task<bool> IsNumberedGroupAsync(ErpDbContext db, string? parentCode, CancellationToken ct) => parentCode switch
+    {
+        DefaultAccounts.CashBoxes => await db.Set<Account>().AnyAsync(a => a.Code == parentCode, ct),
+        DefaultAccounts.Banks => await db.Set<Account>().AnyAsync(a => a.Code == parentCode && a.IsSystem, ct),
+        _ => false,
+    };
+
+    /// <summary>
+    /// يصرف رمز الحساب التالي تحت مجموعة النقدية <paramref name="group"/> (المجموعة + 3 خانات) من عدّادها، وهو عدّاد الأب المشترك
+    /// لكل الشاشات (<see cref="HierarchicalCodes.AccountChildKey"/>): البنك من شاشة البنوك أو شجرة الحسابات، والصندوق من الشجرة أو
+    /// صندوق الموقع، فلا يمس تسلسلُ البنوك تسلسلَ الصناديق. لا يتكرر بين طلبين متزامنين (قفل المعاملة وقفل العدّاد المتفائل)، ولا يعيد
+    /// رقماً حُذف حسابه، ويبدأ بعد أكبر رمز قائم بالشكل نفسه. الرموز القديمة بشكل آخر (1111، 1112، 1113) لا تدخل في التسلسل ولا يُعاد
+    /// ترقيمها. يُستدعى داخل معاملة إنشاء الحساب.
+    /// </summary>
+    public static Task<string> NextCodeAsync(ErpDbContext db, string group, CancellationToken ct)
+        => HierarchicalCodes.NextAccountChildAsync(db, group, ChildWidth, Messages.SubAccountCodesExhausted, ct);
+
+    /// <summary>الرمز المتوقع التالي تحت المجموعة بلا صرف (للعرض في نوافذ الإضافة)؛ الفعلي يُصرف عند الحفظ.</summary>
+    public static Task<string?> PeekCodeAsync(ErpDbContext db, string group, CancellationToken ct)
+        => HierarchicalCodes.PeekAccountChildAsync(db, group, ChildWidth, ct);
+
     public static async Task<Snapshot> LoadAsync(ErpDbContext db, CancellationToken ct)
         => new(await db.Set<Account>().AsNoTracking().Select(a => new ChartRow(a.Code, a.ParentCode, a.IsSystem)).ToListAsync(ct));
 

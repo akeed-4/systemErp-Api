@@ -25,6 +25,10 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
 
     protected override async Task ValidateAsync(CreateAccountDto dto, Account? existing, CancellationToken ct)
     {
+        // حساب جديد تحت البنوك (110) أو الصناديق (111) بلا رمز: يُصرف من تسلسل مجموعته (110001...، 111001...) داخل معاملة الإنشاء
+        if (existing == null && string.IsNullOrWhiteSpace(dto.Code) && await TreasuryAccounts.IsNumberedGroupAsync(Db, dto.ParentCode, ct))
+            dto.Code = await TreasuryAccounts.NextCodeAsync(Db, dto.ParentCode!, ct);
+
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(dto.Code)) errors.Add(Messages.AccountCodeRequired);
         else if (!dto.Code.All(char.IsDigit)) errors.Add(Messages.AccountCodeDigitsOnly);
@@ -220,6 +224,9 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         return Mapper.Map<AccountDto>(a);
     }
 
+    public async Task<string?> PeekTreasuryCodeAsync(string parentCode, CancellationToken ct = default)
+        => await TreasuryAccounts.IsNumberedGroupAsync(Db, parentCode, ct) ? await TreasuryAccounts.PeekCodeAsync(Db, parentCode, ct) : null;
+
     public async Task<List<AccountDto>> GetTreeAsync(CancellationToken ct = default)
     {
         var all = (await Db.Set<Account>().AsNoTracking().OrderBy(a => a.Code).ToListAsync(ct)).Select(Mapper.Map<AccountDto>).ToList();
@@ -272,14 +279,10 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         }
         else
         {
-            // أكبر كود فرعي حالي تحت الأب (خانات الأبناء: 3 أرقام بعد كود الأب)
+            // الرمز التالي من عدّاد المجموعة (3 خانات بعد رمزها): لا يعيد رقم حساب محذوف ولا يتكرر بين طلبين متزامنين.
+            // البنوك: 110001، 110002... مستقلة عن الصناديق (111001...)، والقديمة 1112/1113 خارج التسلسل وتبقى برموزها.
             parent = group;
-            var existingCodes = await Db.Set<Account>().AsNoTracking()
-                .Where(a => a.ParentCode == groupCode && a.Code.Length == groupCode.Length + 3)
-                .Select(a => a.Code).ToListAsync(ct);
-            var next = existingCodes.Select(c => HierarchicalCodes.SequenceOf(c, groupCode, 3) ?? 0).DefaultIfEmpty(0).Max() + 1;
-            if (next > 999) throw new ConflictException(Messages.SubAccountCodesExhausted);
-            code = $"{groupCode}{next:D3}";
+            code = await HierarchicalCodes.NextAccountChildAsync(Db, groupCode, LinkedChildWidth, Messages.SubAccountCodesExhausted, ct);
         }
 
         var account = new Account
@@ -345,7 +348,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         {
             try
             {
-                code = await HierarchicalCodes.NextAsync(Db, _numbers, $"account_child_code:{parentCode}:{width}", parentCode, width,
+                code = await HierarchicalCodes.NextAsync(Db, _numbers, HierarchicalCodes.AccountChildKey(parentCode, width), parentCode, width,
                     Db.Set<Account>().Select(a => a.Code), Messages.SubAccountCodesExhausted, ct);
             }
             catch (ConflictException) when (width < LinkedChildMaxWidth) { }

@@ -93,12 +93,14 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
     }
 
     /// <summary>ينشئ حسابات المواقع الناقصة للمواقع القائمة غير الرئيسية (المخزون فقط لموقع بلا حركات). يُرجع عدد المواقع المعدَّلة.</summary>
-    public async Task<int> EnsureSiteAccountsAsync(CancellationToken ct = default)
-    {
-        var touched = await SiteAccounts.EnsureAllAsync(Db, ct);
-        await Db.SaveChangesAsync(ct);
-        return touched;
-    }
+    public Task<int> EnsureSiteAccountsAsync(CancellationToken ct = default)
+        // معاملة واحدة: صرف الرموز من العدّاد يحفظ أثناء الإنشاء، فالفشل في موقع يلغي الكل، والقفل يرتّب الطلبات المتزامنة
+        => new TransactionRunner(Db).RunAsync(async token =>
+        {
+            var touched = await SiteAccounts.EnsureAllAsync(Db, token);
+            await Db.SaveChangesAsync(token);
+            return touched;
+        }, ct);
 
     internal static string InventoryAccountName(string? name, bool english = false)
         => english ? $"Inventory - {name}" : $"مخزون - {name}";

@@ -145,32 +145,39 @@ public class NumberSequenceService : INumberSequenceService
     private static string Clean(string? code) => new string((code ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
 
     // ---------------- الصرف ----------------
-    public async Task<long> ReserveAsync(string key, string defaultPrefix, int count, CancellationToken ct = default)
+    public Task<long> ReserveAsync(string key, string defaultPrefix, int count, CancellationToken ct = default)
+        => ReserveAsync(_db, key, defaultPrefix, count, ct);
+
+    /// <summary>
+    /// حجز كتلة من العدّاد على سياق مباشر (للمساعدات الثابتة بلا حقن، كحسابات المواقع). يحفظ السياق، فما أُضيف قبله يُحفظ معه:
+    /// يُستدعى داخل معاملة المستدعي.
+    /// </summary>
+    internal static async Task<long> ReserveAsync(ErpDbContext db, string key, string defaultPrefix, int count, CancellationToken ct)
     {
         for (var attempt = 0; attempt < 8; attempt++)
         {
-            var seq = await _db.Set<NumberSequence>().FirstOrDefaultAsync(s => s.Key == key, ct);
+            var seq = await db.Set<NumberSequence>().FirstOrDefaultAsync(s => s.Key == key, ct);
             var isNew = seq == null;
             if (seq == null)
             {
                 seq = new NumberSequence { Key = key, Prefix = defaultPrefix, LastValue = 0 };
-                _db.Add(seq);
+                db.Add(seq);
             }
             var first = seq.LastValue + 1;
             seq.LastValue += count;
             seq.Version = Guid.NewGuid();
             try
             {
-                await _db.SaveChangesAsync(ct);
+                await db.SaveChangesAsync(ct);
                 return first;
             }
             catch (DbUpdateConcurrencyException ex) when (ex.Entries.Any(e => e.Entity is NumberSequence))
             {
-                _db.Entry(seq).State = EntityState.Detached;
+                db.Entry(seq).State = EntityState.Detached;
             }
             catch (DbUpdateException) when (isNew)
             {
-                _db.Entry(seq).State = EntityState.Detached;
+                db.Entry(seq).State = EntityState.Detached;
             }
         }
         throw new ConflictException(Messages.DocumentNumberGenerationFailed);

@@ -69,6 +69,8 @@ public class AccountingSettingsService : IAccountingSettingsService
             await ValidateAccountsAsync(settings, token);
             await EnsureChangeableAsync(before, settings, token);
             if (settings.InventoryMethod != before.InventoryMethod) await ApplyMethodChangeAsync(before, settings, d.InventoryMethodEffectiveFrom, token);
+            // الجرد الدوري: بضاعة أول المدة وآخرها لكل موقع إضافي ينقصه أحدهما (الجرد المستمر لا يطلبهما)
+            await SiteAccounts.EnsurePeriodicAllAsync(_db, settings, token);
 
             await _db.SaveChangesAsync(token);
             if (periodicSetup is { Created: > 0 } or { Reused: > 0 }) await LogPeriodicSetupAsync(periodicSetup, token);

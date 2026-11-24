@@ -67,7 +67,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             && await LinkedPartyAccounts.OwnerOfAsync(Db, existing, existing.Code, ct) is { } owner)
         {
             await LinkedPartyAccounts.EnsureAccountFreeAsync(Db, existing, owner, string.Format(Messages.LinkedAccountHasEntries, existing.Code), ct);
-            var group = LinkedPartyAccounts.GroupOf(owner.Type);
+            var group = await LinkedPartyAccounts.GroupOfAsync(Db, owner.Type, ct);
             if (string.IsNullOrEmpty(dto.ParentCode) || !await IsWithinGroupAsync(dto.ParentCode, group, ct))
                 throw new ValidationFailedException(string.Format(Messages.LinkedAccountCodeOutsideGroup, dto.Code, group));
         }
@@ -108,7 +108,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         var owned = await LinkedPartyAccounts.OwnedAccountAsync(Db, party, ct);
         if (owned != null || !string.IsNullOrWhiteSpace(party.AccountCode))
             throw new ConflictException(string.Format(Messages.PartyAlreadyHasAccount, party.Label, party.Name, owned?.Code ?? party.AccountCode));
-        var group = LinkedPartyAccounts.GroupOf(type);
+        var group = await LinkedPartyAccounts.GroupOfAsync(Db, type, ct);
         if (string.IsNullOrEmpty(dto.ParentCode) || !await IsWithinGroupAsync(dto.ParentCode, group, ct))
             throw new ValidationFailedException(string.Format(Messages.LinkedAccountCodeOutsideGroup, dto.Code, group));
         return party;
@@ -150,8 +150,9 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         if (account.Code == requested) return requested;
         await LinkedPartyAccounts.EnsureAccountFreeAsync(Db, account, party, string.Format(Messages.LinkedAccountHasEntries, account.Code), ct);
 
-        var group = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == LinkedPartyAccounts.GroupOf(type), ct)
-            ?? throw new ConflictException(string.Format(Messages.ParentAccountMissingInChart, LinkedPartyAccounts.GroupOf(type)));
+        var groupCode = await LinkedPartyAccounts.GroupOfAsync(Db, type, ct);
+        var group = await Db.Set<Account>().FirstOrDefaultAsync(a => a.Code == groupCode, ct)
+            ?? throw new ConflictException(string.Format(Messages.ParentAccountMissingInChart, groupCode));
         // الرمز الجديد حساب جديد (أرقام، غير مستخدم، تحت مجموعة الكيان): لا يُستبدل بحساب قائم آخر
         var parent = await RequestedLinkedParentAsync(requested, group, ct);
         account.Code = requested;
@@ -253,7 +254,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         {
             LinkedEntityType.Customer => DefaultAccounts.Receivables,
             LinkedEntityType.Supplier => DefaultAccounts.Payables,
-            LinkedEntityType.Bank => DefaultAccounts.Banks,
+            // البنوك (110)، أو 111 قبل فصلها أو مع تعارض الرمز 110 (TreasuryAccounts)
+            LinkedEntityType.Bank => await TreasuryAccounts.BanksGroupAsync(Db, ct),
             LinkedEntityType.Warehouse => DefaultAccounts.InventoryGroup,
             _ => throw new ValidationFailedException(Messages.EntityTypeNotSupportedForAutoAccount),
         };

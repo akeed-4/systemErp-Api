@@ -10,7 +10,7 @@ namespace ERP.Service.Services.Accounting;
 public static class DefaultAccounts
 {
     public const string Cash = "1111";
-    public const string CashBoxes = "111";       // الصناديق: الصندوق العام وصناديق المواقع تحته
+    public const string CashBoxes = "111";       // الصندوق/النقدية: الصندوق الرئيسي (1111) وصناديق المواقع تحته
     public const string Banks = "110";           // البنوك: البنك الافتراضي وتحصيلات البوابة وحسابات البنوك الفرعية تحته
     public const string DefaultBank = "1112";
     public const string PaymentGatewayReceivable = "1113"; // تحصيلات بوابة الدفع الإلكتروني (Paymob) حتى تسويتها للبنك
@@ -69,8 +69,8 @@ public static class DefaultAccounts
         ("1",    "الأصول",                          "Assets",                    AccountCategory.Asset,     null),
         ("11",   "الأصول المتداولة",                "Current Assets",            AccountCategory.Asset,     "1"),
         ("110",  "البنوك",                          "Banks",                     AccountCategory.Asset,     "11"),
-        ("111",  "الصناديق",                        "Cash Boxes",                AccountCategory.Asset,     "11"),
-        ("1111", "الصندوق",                         "Cash on Hand",              AccountCategory.Asset,     "111"),
+        ("111",  "الصندوق/النقدية",                 "Cash Boxes",                AccountCategory.Asset,     "11"),
+        ("1111", "الصندوق الرئيسي",                 "Main Cash Box",             AccountCategory.Asset,     "111"),
         // رمزا البنك الافتراضي والبوابة من قبل فصل البنوك عن الصناديق: يبقيان كما هما تحت مجموعة البنوك (القيود مرتبطة بالرمز)
         ("1112", "البنوك (حساب افتراضي)",           "Default Bank Account",      AccountCategory.Asset,     "110"),
         ("1113", "تحصيلات بوابة الدفع الإلكتروني", "Payment Gateway Receivable", AccountCategory.Asset, "110"),
@@ -138,14 +138,7 @@ public static class DefaultAccounts
     /// <summary>مجموعات الكيانات: تُنشأ تحتها حسابات العملاء والموردين والبنوك والمواقع آلياً فهي رئيسية ولو كانت فارغة.</summary>
     public static readonly string[] EntityGroups = { Banks, CashBoxes, Receivables, InventoryGroup, Payables };
 
-    /// <summary>
-    /// حساب نقدية: تحت الصناديق (111) أو البنوك (110) بالرمز. حسابات البنوك القديمة (111xxx) انتقلت تحت البنوك برموزها فتبقى بادئتها 111.
-    /// </summary>
-    public static bool IsTreasury(string code)
-        => code.StartsWith(Banks, StringComparison.Ordinal) || code.StartsWith(CashBoxes, StringComparison.Ordinal);
-
-    /// <summary>حساب نقدية يُرحَّل عليه (لا إحدى المجموعتين).</summary>
-    public static bool IsTreasuryAccount(string code) => code is not (Banks or CashBoxes) && IsTreasury(code);
+    // تصنيف حسابات النقدية بسلسلة الآباء لا ببداية الرمز: TreasuryAccounts
 
     private static readonly HashSet<string> GroupCodes =
         Chart.Select(a => a.Parent).OfType<string>().Concat(EntityGroups).ToHashSet();

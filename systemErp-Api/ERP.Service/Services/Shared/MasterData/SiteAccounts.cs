@@ -8,7 +8,8 @@ namespace ERP.Service.Services.Shared;
 /// <list type="bullet">
 /// <item>مخزون الموقع تحت المخزون (114)، ويُربط فقط إن لم يُحدَّد له حساب ولا حركة مخزون عليه (فلا ينقسم رصيده).</item>
 /// <item>تكلفة إيراد الموقع تحت تكلفة المبيعات (51)، ومبيعاته تحت إيرادات المبيعات (41)، وصندوقه تحت الصناديق (111).</item>
-/// <item>بضاعة أول المدة وآخرها للموقع (الجرد الدوري) بجوار حسابي الإعدادات في تكلفة المبيعات (أو تحت مجموعة تكلفة البضاعة المباعة إن لم يُحددا).</item>
+/// <item>بضاعة أول المدة وآخرها للموقع مع الجرد الدوري فقط، بجوار حسابي الإعدادات (أو تحت مجموعة تكلفة البضاعة المباعة إن لم يُحددا)،
+/// وتُعرض في تكلفة المبيعات أياً كان نوع أبيها (<see cref="CostOfSales.SitePeriodicAccountsAsync"/>).</item>
 /// </list>
 /// الرمز = رمز الأب + رقم متسلسل من ثلاث خانات (114001، 41001...). الموقع الرئيسي يبقى على حسابات الإعدادات (عدا مخزونه 114001 منذ التأسيس).
 /// </summary>
@@ -35,11 +36,14 @@ public static class SiteAccounts
             : code == w.ShortageAccountCode ? Role.Shortage : code == w.SurplusAccountCode ? Role.Surplus
             : code == w.OpeningInventoryAccountCode ? Role.OpeningInventory : code == w.EndingInventoryAccountCode ? Role.EndingInventory : null;
 
-    /// <summary>ينقص الموقعَ حسابٌ من حساباته الخاصة (الرئيسي: تكلفة الإيراد والعجز والزيادة؛ مبيعاته وصندوقه على الإعدادات).</summary>
-    public static bool IsMissing(Warehouse w)
+    /// <summary>
+    /// ينقص الموقعَ حسابٌ من حساباته الخاصة (الرئيسي: تكلفة الإيراد والعجز والزيادة؛ مبيعاته وصندوقه على الإعدادات).
+    /// بضاعة أول المدة وآخرها تُطلب فقط مع الجرد الدوري (<paramref name="periodic"/>).
+    /// </summary>
+    public static bool IsMissing(Warehouse w, bool periodic)
         => w.CogsAccountCode == null || w.ShortageAccountCode == null || w.SurplusAccountCode == null
            || (!w.IsDefault && (w.InventoryAccountCode == null || w.SalesAccountCode == null || w.CashAccountCode == null
-               || w.OpeningInventoryAccountCode == null || w.EndingInventoryAccountCode == null));
+               || (periodic && (w.OpeningInventoryAccountCode == null || w.EndingInventoryAccountCode == null))));
 
     /// <summary>
     /// ينشئ ما ينقص من حسابات الموقع ويربطها به (لا يمس حساباً محدداً). <paramref name="isNew"/>: موقع جديد لم تُحفظ له حركات بعد.
@@ -72,8 +76,26 @@ public static class SiteAccounts
         // الرئيسي: مبيعاته وصندوقه على حسابات الإعدادات
         if (w.IsDefault) return created;
         if (w.SalesAccountCode == null) { w.SalesAccountCode = await CreateAsync(db, w, Role.Sales, await ParentOfAsync(db, settings.SalesRevenue(), ct), ct); created++; }
-        if (w.CashAccountCode == null) { w.CashAccountCode = await CreateAsync(db, w, Role.Cash, await ParentOfAsync(db, cash, ct), ct); created++; }
-        // بضاعة أول المدة وآخرها: بجوار حساب الإعدادات إن حُدد، وإلا تحت مجموعة تكلفة البضاعة المباعة
+        if (w.CashAccountCode == null)
+        {
+            // صندوق الموقع تحت الصندوق/النقدية (111)، مرتبط بالموقع؛ وصندوق قائم له تحت 111 (فُقد ربطه) يُعاد ربطه بدل إنشاء مكرر
+            var cashGroup = await db.Set<Account>().AnyAsync(a => a.Code == DefaultAccounts.CashBoxes, ct) ? DefaultAccounts.CashBoxes : await ParentOfAsync(db, cash, ct);
+            var own = await db.Set<Account>().Where(a => a.LinkedEntityType == LinkedEntityType.Warehouse && a.LinkedEntityId == w.Id && a.ParentCode == cashGroup)
+                .Select(a => a.Code).ToListAsync(ct);
+            var existing = own.FirstOrDefault(c => RoleOf(w, c) == null);
+            if (existing != null) w.CashAccountCode = existing;
+            else { w.CashAccountCode = await CreateAsync(db, w, Role.Cash, cashGroup, ct); created++; }
+        }
+        // بضاعة أول المدة وآخرها: مع الجرد الدوري فقط (الجرد المستمر لا يستخدمهما). ما أُنشئ سابقاً يبقى ولا يُحذف.
+        if (settings.InventoryMethod == InventorySystem.Periodic) created += await EnsurePeriodicAsync(db, w, settings, ct);
+        return created;
+    }
+
+    /// <summary>بضاعة أول المدة وآخرها للموقع الإضافي: بجوار حساب الإعدادات إن حُدد، وإلا تحت مجموعة تكلفة البضاعة المباعة.</summary>
+    private static async Task<int> EnsurePeriodicAsync(ErpDbContext db, Warehouse w, AccountingSettings settings, CancellationToken ct)
+    {
+        if (w.IsDefault) return 0;
+        var created = 0;
         if (w.OpeningInventoryAccountCode == null)
         {
             w.OpeningInventoryAccountCode = await CreateAsync(db, w, Role.OpeningInventory, await PeriodicParentAsync(db, settings.OpeningInventoryAccountCode, settings, ct), ct);
@@ -87,10 +109,26 @@ public static class SiteAccounts
         return created;
     }
 
+    /// <summary>
+    /// عند اختيار الجرد الدوري (حفظ الإعدادات): أول المدة وآخرها لكل موقع إضافي ينقصه أحدهما. <paramref name="settings"/> الإعدادات قيد الحفظ
+    /// (قد تكون حساباتها أُنشئت في المعاملة نفسها). يُرجع عدد الحسابات المنشأة. الحفظ على المستدعي.
+    /// </summary>
+    public static async Task<int> EnsurePeriodicAllAsync(ErpDbContext db, AccountingSettings settings, CancellationToken ct)
+    {
+        if (settings.InventoryMethod != InventorySystem.Periodic) return 0;
+        var created = 0;
+        foreach (var w in await db.Set<Warehouse>().Where(w => !w.IsDefault && (w.OpeningInventoryAccountCode == null || w.EndingInventoryAccountCode == null))
+                     .OrderBy(w => w.CreatedAt).ToListAsync(ct))
+            created += await EnsurePeriodicAsync(db, w, settings, ct);
+        return created;
+    }
+
     /// <summary>أب حساب الإعدادات المحدد (أول المدة أو آخرها) إن وُجد في الدليل، وإلا أب تكلفة البضاعة المباعة (51).</summary>
     private static async Task<string> PeriodicParentAsync(ErpDbContext db, string? configured, AccountingSettings settings, CancellationToken ct)
     {
-        if (configured != null && await db.Set<Account>().Where(a => a.Code == configured).Select(a => a.ParentCode).FirstOrDefaultAsync(ct) is { } parent)
+        // حساب الإعدادات قد يكون أُنشئ في المعاملة نفسها (تهيئة حسابات الدوري عند اختياره) فلم يُحفظ بعد
+        if (configured != null && (db.Set<Account>().Local.FirstOrDefault(a => a.Code == configured)?.ParentCode
+                ?? await db.Set<Account>().Where(a => a.Code == configured).Select(a => a.ParentCode).FirstOrDefaultAsync(ct)) is { } parent)
             return parent;
         return await ParentOfAsync(db, settings.Cogs(), ct);
     }
@@ -125,7 +163,8 @@ public static class SiteAccounts
 
     private static async Task<string> CreateAsync(ErpDbContext db, Warehouse w, Role role, string parentCode, CancellationToken ct)
     {
-        var parent = await db.Set<Account>().FirstOrDefaultAsync(a => a.Code == parentCode, ct)
+        var parent = db.Set<Account>().Local.FirstOrDefault(a => a.Code == parentCode)
+            ?? await db.Set<Account>().FirstOrDefaultAsync(a => a.Code == parentCode, ct)
             ?? throw new ValidationFailedException(string.Format(Messages.SiteAccountParentMissing, parentCode));
         // التسلسل التالي تحت الأب (المحفوظ والمضاف في هذه المعاملة)
         var length = parentCode.Length + 3;

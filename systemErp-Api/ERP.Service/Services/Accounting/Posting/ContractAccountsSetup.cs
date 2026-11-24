@@ -34,6 +34,8 @@ internal static class ContractAccountsSetup
         public int Level { get; init; }
         public LinkedEntityType? Linked { get; init; }
         public bool IsNew { get; init; }
+        /// <summary>حساب نظام: يميّز مجموعة البنوك 110 عن حساب أنشأه المستخدم بالرمز نفسه (TreasuryAccounts).</summary>
+        public bool IsSystem { get; init; }
     }
 
     /// <summary>
@@ -270,7 +272,7 @@ internal static class ContractAccountsSetup
     private static async Task<ContractAccountsSetupDto> RunAsync(ErpDbContext db, Spec[] specs, AccountingSettings settings, bool preview, CancellationToken ct)
     {
         var chart = await db.Set<Account>().AsNoTracking()
-            .Select(a => new Node { Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn, Type = a.Type, ParentCode = a.ParentCode, Level = a.Level, Linked = a.LinkedEntityType })
+            .Select(a => new Node { Code = a.Code, NameAr = a.NameAr, NameEn = a.NameEn, Type = a.Type, ParentCode = a.ParentCode, Level = a.Level, Linked = a.LinkedEntityType, IsSystem = a.IsSystem })
             .ToListAsync(ct);
         var showroom = await AccountRoleRules.ShowroomAccountsAsync(db, ct);
 
@@ -339,6 +341,7 @@ internal static class ContractAccountsSetup
         string? ParentOf(string code) => byCode.TryGetValue(code, out var n) ? n.ParentCode : null;
         var costOfSalesGroup = CostOfSales.Group(settings, ParentOf);
         bool InCostOfSales(Node a) => CostOfSales.Contains(a.Code, a.Type, ParentOf, costOfSalesGroup);
+        var treasuryRoots = TreasuryAccounts.Roots(c => byCode.TryGetValue(c, out var n) ? n.IsSystem : null);
 
         foreach (var spec in specs)
         {
@@ -368,7 +371,7 @@ internal static class ContractAccountsSetup
             var candidates = chart.Where(a => (names.Contains(Normalize(a.NameAr)) || names.Contains(Normalize(a.NameEn)))
                     && (spec.CostOfSalesOnly ? a.Type == spec.Type && InCostOfSales(a) : role.Types.Contains(a.Type))
                     && !parents.Contains(a.Code)
-                    && a.Linked is null && !IsUnder(a.Code, DefaultAccounts.Banks, byCode) && !IsUnder(a.Code, DefaultAccounts.CashBoxes, byCode)
+                    && a.Linked is null && !treasuryRoots.Any(root => IsUnder(a.Code, root, byCode))
                     && !excluded.Contains(a.Code) && !taken.Contains(a.Code))
                 .ToList();
             if (candidates.Count > 1)

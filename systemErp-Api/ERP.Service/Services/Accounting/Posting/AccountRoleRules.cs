@@ -13,8 +13,10 @@ internal static class AccountRoleRules
     public static async Task<List<string>> ProblemsAsync(ErpDbContext db, IEnumerable<(PostingAccounts.Role Role, string Code)> assignments, CancellationToken ct)
     {
         var chart = await db.Set<Account>().AsNoTracking()
-            .Select(a => new { a.Code, a.ParentCode, a.Type, a.LinkedEntityType }).ToDictionaryAsync(a => a.Code, ct);
+            .Select(a => new { a.Code, a.ParentCode, a.Type, a.LinkedEntityType, a.IsSystem }).ToDictionaryAsync(a => a.Code, ct);
         var parents = chart.Values.Select(a => a.ParentCode).OfType<string>().ToHashSet();
+        // جذور النقدية: الصناديق، والبنوك إن كانت مجموعة النظام (حساب المستخدم بالرمز 110 ليس نقدية)
+        var treasuryRoots = TreasuryAccounts.Roots(c => chart.TryGetValue(c, out var a) ? a.IsSystem : null);
         bool IsUnder(string code, string root)
         {
             for (var c = code; c != null; c = chart.TryGetValue(c, out var a) ? a.ParentCode : null)
@@ -30,7 +32,7 @@ internal static class AccountRoleRules
             else if (parents.Contains(code)) errors.Add(string.Format(Messages.AccountSettingIsParent, role.Label, code));
             // حساب الموقع المرتبط به حساب مخزون عادي؛ حسابات العملاء والموردين والبنوك لا تصلح لدور
             else if (account.LinkedEntityType is { } linked && linked != LinkedEntityType.Warehouse) errors.Add(string.Format(Messages.AccountSettingIsPartyAccount, role.Label, code));
-            else if (IsUnder(code, DefaultAccounts.Banks) || IsUnder(code, DefaultAccounts.CashBoxes)) errors.Add(string.Format(Messages.AccountSettingIsCashOrBank, role.Label, code));
+            else if (treasuryRoots.Any(root => IsUnder(code, root))) errors.Add(string.Format(Messages.AccountSettingIsCashOrBank, role.Label, code));
             else if (showroom.Contains(code)) errors.Add(string.Format(Messages.AccountSettingIsShowroomAccount, role.Label, code));
             else if (!role.Types.Contains(account.Type)) errors.Add(string.Format(Messages.AccountSettingWrongType, role.Label, code));
         }

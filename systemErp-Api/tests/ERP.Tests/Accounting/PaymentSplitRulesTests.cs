@@ -59,6 +59,6 @@ public class PaymentSplitRulesTests : TestBase
         Assert.Equal(400, (await api.Post("/paymentmethods", new { code = "BOX", nameAr = "صندوق", type = "cash", linkedAccountCode = "9999", status = "active" })).Status); // غير موجود
         var ok = await api.Post("/paymentmethods", new { code = "BOX", nameAr = "صندوق", type = "cash", linkedAccountCode = "1111", status = "active" });
         Assert.Equal(201, ok.Status);
-        Assert.Equal("الصندوق", ok.Data!["linkedAccountName"].S()); // الاسم من الدليل
+        Assert.Equal("الصندوق الرئيسي", ok.Data!["linkedAccountName"].S()); // الاسم من الدليل
     }
 }

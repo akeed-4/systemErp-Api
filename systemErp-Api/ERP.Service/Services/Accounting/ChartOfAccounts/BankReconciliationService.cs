@@ -28,7 +28,8 @@ public class BankReconciliationService : IBankReconciliationService
         var code = accountCode?.Trim() ?? string.Empty;
         var account = await _db.Set<Account>().AsNoTracking().FirstOrDefaultAsync(a => a.Code == code, ct)
             ?? throw new NotFoundException(Messages.AccountNotFound);
-        if (!DefaultAccounts.IsTreasuryAccount(code)) // حساب تحت البنوك (110) أو الصناديق (111)
+        // حساب حركة تحت البنوك (110) أو الصناديق (111) بسلسلة الآباء الفعلية، لا ببداية الرمز
+        if (!(await TreasuryAccounts.LoadAsync(_db, ct)).IsPostingCash(code))
             throw new ValidationFailedException(Messages.ReconciliationRequiresBankAccount);
         return account;
     }

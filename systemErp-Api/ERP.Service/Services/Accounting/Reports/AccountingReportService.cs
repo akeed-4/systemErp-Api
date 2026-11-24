@@ -226,12 +226,14 @@ public class AccountingReportService : IAccountingReportService
         var vouchers = await _db.Set<Voucher>().AsNoTracking().GroupBy(v => v.Type).Select(g => new { g.Key, Sum = g.Sum(v => v.Amount) }).ToListAsync(ct);
         var posting = await PostingAccounts.SettingsAsync(_db, ct);
         string outputVatCode = posting.OutputVat(), inputVatCode = posting.InputVat();
+        // النقدية بسلسلة الآباء (الصناديق والبنوك وفروعهما)، لا ببداية الرمز
+        var cash = (await TreasuryAccounts.LoadAsync(_db, ct)).CashCodes();
         var under = await Leaves().GroupBy(a => 1).Select(g => new
         {
             Opex = g.Sum(a => a.Code.StartsWith("52") ? a.Balance : 0m),
             OutputVat = g.Sum(a => a.Code.StartsWith(outputVatCode) ? a.Balance : 0m),
             InputVat = g.Sum(a => a.Code.StartsWith(inputVatCode) ? a.Balance : 0m),
-            Banks = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Banks) || a.Code.StartsWith(DefaultAccounts.CashBoxes) ? a.Balance : 0m), // الصناديق والبنوك
+            Banks = g.Sum(a => cash.Contains(a.Code) ? a.Balance : 0m), // الصناديق والبنوك
             Receivables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Receivables) ? a.Balance : 0m),
             Payables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Payables) ? a.Balance : 0m),
         }).FirstOrDefaultAsync(ct);
@@ -322,9 +324,10 @@ public class AccountingReportService : IAccountingReportService
                                        || (e.SourceType == "reversal" && Entries.Any(o => o.Id == e.SourceReferenceId && (o.SourceType == null || o.SourceType == "manual"))))
                              select e.Id;
         // يُستثنى القيد الذي لا طرف مقابل له غير النقدية/البنوك: سداد للهيئة/استرداد منها أو مقاصّة بين الحسابين
+        var cash = (await TreasuryAccounts.LoadAsync(_db, ct)).CashCodes(); // بسلسلة الآباء لا ببداية الرمز
         var totals = await Lines
             .Where(l => vatAccounts.Contains(l.AccountCode) && manualEntryIds.Contains(l.JournalEntryId)
-                && Lines.Any(o => o.JournalEntryId == l.JournalEntryId && !vatAccounts.Contains(o.AccountCode) && !o.AccountCode.StartsWith(DefaultAccounts.Banks) && !o.AccountCode.StartsWith(DefaultAccounts.CashBoxes)))
+                && Lines.Any(o => o.JournalEntryId == l.JournalEntryId && !vatAccounts.Contains(o.AccountCode) && !cash.Contains(o.AccountCode)))
             .GroupBy(l => l.AccountCode).Select(g => new { Code = g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
         var output = totals.Where(t => t.Code == outputVatCode).Sum(t => t.Credit - t.Debit);
         var input = totals.Where(t => t.Code == inputVatCode).Sum(t => t.Debit - t.Credit);

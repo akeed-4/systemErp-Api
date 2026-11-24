@@ -15,5 +15,4 @@ public class AccountsController : CrudController<AccountDto, CreateAccountDto, U
     public async Task<IActionResult> Tree(CancellationToken ct) => Success(await _accounts.GetTreeAsync(ct));
 
     [HttpGet("ByCode/{code}")]
-    public async Task<IActionResult> ByCode(string code, CancellationToken ct) => Success(await _accounts.GetByCodeAsync(code, ct));
-}
+    public async Task<IActionResult> ByCode(string code, CancellationToken ct) => Success(await _accounts.GetByCodeAsync(code, ct));}

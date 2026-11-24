@@ -121,6 +121,8 @@ public class FinancialStatementService : IFinancialStatementService
         var group = CostOfSales.Group(settings, ParentOf);
         var periodic = settings.InventoryMethod == InventorySystem.Periodic || settings.PreviousInventoryMethod == InventorySystem.Periodic
             ? CostOfSales.PeriodicAccounts(settings) : new HashSet<string>();
+        // أول المدة وآخرها للمواقع: في تكلفة المبيعات دائماً (لا يحددها نوع أبيها)
+        periodic.UnionWith(await CostOfSales.SitePeriodicAccountsAsync(_db, ct));
         return a => periodic.Contains(a.Code) || CostOfSales.Contains(a.Code, a.Type, ParentOf, group);
     }
 
@@ -230,8 +232,6 @@ public class FinancialStatementService : IFinancialStatementService
         return flow;
     }
 
-    private static bool IsCash(string code) => DefaultAccounts.IsTreasury(code); // الصناديق (111) والبنوك (110)
-
     /// <summary>
     /// السطور غير النقدية في القيود التي حرّكت النقدية خلال الفترة: مجموع (دائن − مدين) لها يساوي صافي حركة النقد
     /// في القيد نفسه (القيد متوازن)، فتُنسب كل حركة نقد إلى حسابها المقابل بدقة.
@@ -241,15 +241,20 @@ public class FinancialStatementService : IFinancialStatementService
         var end = to.Date.AddDays(1);
         var moduleScope = ReportModuleScope.Normalize(module);
         var lines = _db.Set<JournalEntryLine>().AsNoTracking();
+        // النقدية بسلسلة الآباء (الصناديق والبنوك وفروعهما)، لا ببداية الرمز
+        var cash = (await TreasuryAccounts.LoadAsync(_db, ct)).CashCodes();
         var cashEntryIds = from l in lines
                            join e in ReportModuleScope.Entries(_db.Set<JournalEntry>().AsNoTracking(), moduleScope) on l.JournalEntryId equals e.Id
-                           where e.Date >= @from && e.Date < end && (l.AccountCode.StartsWith(DefaultAccounts.Banks) || l.AccountCode.StartsWith(DefaultAccounts.CashBoxes))
+                           where e.Date >= @from && e.Date < end && cash.Contains(l.AccountCode)
                            select e.Id;
-        var counterparts = await lines.Where(l => cashEntryIds.Contains(l.JournalEntryId) && !l.AccountCode.StartsWith(DefaultAccounts.Banks) && !l.AccountCode.StartsWith(DefaultAccounts.CashBoxes))
+        var counterparts = await lines.Where(l => cashEntryIds.Contains(l.JournalEntryId) && !cash.Contains(l.AccountCode))
             .GroupBy(l => l.AccountCode).Select(g => new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) }).ToListAsync(ct);
         return counterparts.Select(c => new Movement(c.Code, c.Debit - c.Credit)).ToList();
     }
 
     private async Task<decimal> CashBalanceAsync(DateTime asOf, string? module, CancellationToken ct)
-        => DocumentPricing.Round((await NetByAccountAsync(null, asOf, excludeYearClosing: false, module, ct)).Where(m => IsCash(m.Code)).Sum(m => m.Net));
+    {
+        var treasury = await TreasuryAccounts.LoadAsync(_db, ct);
+        return DocumentPricing.Round((await NetByAccountAsync(null, asOf, excludeYearClosing: false, module, ct)).Where(m => treasury.IsCash(m.Code)).Sum(m => m.Net));
+    }
 }

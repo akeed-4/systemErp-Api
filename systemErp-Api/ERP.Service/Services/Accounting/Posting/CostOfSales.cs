@@ -26,4 +26,14 @@ internal static class CostOfSales
     public static HashSet<string> PeriodicAccounts(AccountingSettings s)
         => new[] { s.PurchasesAccountCode, s.PurchaseReturnsAccountCode, s.OpeningInventoryAccountCode, s.EndingInventoryAccountCode }
             .OfType<string>().ToHashSet();
+
+    /// <summary>
+    /// بضاعة أول المدة وآخرها الخاصة بالمواقع (Warehouse): تُنشأ بجوار حسابي الإعدادات فترث نوع أبيهما، فتُعرض في تكلفة المبيعات
+    /// صراحةً أياً كان نوعها (لا إيراداً ولا مصروفاً تشغيلياً).
+    /// </summary>
+    public static async Task<HashSet<string>> SitePeriodicAccountsAsync(ERP.Service.Data.ErpDbContext db, CancellationToken ct)
+        => (await db.Set<Warehouse>().AsNoTracking()
+                .Where(w => w.OpeningInventoryAccountCode != null || w.EndingInventoryAccountCode != null)
+                .Select(w => new { w.OpeningInventoryAccountCode, w.EndingInventoryAccountCode }).ToListAsync(ct))
+            .SelectMany(w => new[] { w.OpeningInventoryAccountCode, w.EndingInventoryAccountCode }).OfType<string>().ToHashSet();
 }

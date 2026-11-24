@@ -44,12 +44,15 @@ internal static class LinkedPartyAccounts
 
     public static bool IsParty(LinkedEntityType? type) => type is LinkedEntityType.Customer or LinkedEntityType.Supplier or LinkedEntityType.Bank;
 
-    /// <summary>مجموعة حسابات الكيان في الدليل (العملاء 112، الموردون 211، البنوك 110).</summary>
-    public static string GroupOf(LinkedEntityType type) => type switch
+    /// <summary>
+    /// مجموعة حسابات الكيان في الدليل (العملاء 112، الموردون 211، البنوك 110). البنوك على 111 إن لم تُفصل بعد أو كان الرمز 110 لحساب
+    /// أنشأه المستخدم (<see cref="TreasuryAccounts.BanksGroupAsync"/>).
+    /// </summary>
+    public static async Task<string> GroupOfAsync(ErpDbContext db, LinkedEntityType type, CancellationToken ct) => type switch
     {
         LinkedEntityType.Customer => DefaultAccounts.Receivables,
         LinkedEntityType.Supplier => DefaultAccounts.Payables,
-        LinkedEntityType.Bank => DefaultAccounts.Banks,
+        LinkedEntityType.Bank => await TreasuryAccounts.BanksGroupAsync(db, ct),
         _ => throw new ValidationFailedException(Messages.EntityTypeNotSupportedForAutoAccount),
     };
 
@@ -76,9 +79,20 @@ internal static class LinkedPartyAccounts
         users.AddRange((await db.Set<Supplier>().Where(s => s.AccountCode == code).ToListAsync(ct)).Select(Of));
         users.AddRange((await db.Set<BankEntity>().Where(b => b.AccountCode == code).ToListAsync(ct)).Select(Of));
         if (users.Count != 1) return null;
-        var group = GroupOf(users[0].Type);
-        // حساب بنك قديم (111xxx) انتقل تحت البنوك برمزه: يُعرف بأبيه
-        return (code.Length > group.Length && code.StartsWith(group, StringComparison.Ordinal)) || account.ParentCode == group ? users[0] : null;
+        var group = await GroupOfAsync(db, users[0].Type, ct);
+        // داخل مجموعة الكيان بسلسلة الآباء لا ببداية الرمز (بنك قديم 111xxx تحت البنوك 110 بنك، و1101 تحت 11 ليس منها)
+        return await IsWithinAsync(db, account.ParentCode, group, ct) ? users[0] : null;
+    }
+
+    /// <summary>هل <paramref name="code"/> هو <paramref name="group"/> أو أحد فروعه (بسلسلة الآباء الفعلية).</summary>
+    private static async Task<bool> IsWithinAsync(ErpDbContext db, string? code, string group, CancellationToken ct)
+    {
+        if (code == null) return false;
+        var parents = await db.Set<Account>().AsNoTracking().Select(a => new { a.Code, a.ParentCode }).ToDictionaryAsync(a => a.Code, a => a.ParentCode, ct);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (string? c = code; c != null && seen.Add(c); c = parents.GetValueOrDefault(c))
+            if (c == group) return true;
+        return false;
     }
 
     /// <summary>الحساب المملوك للكيان، أو null إن كان رمزه المحفوظ لحساب عام/مشترك (فلا يُمس).</summary>

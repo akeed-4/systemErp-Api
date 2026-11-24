@@ -15,5 +15,5 @@ public class PaymentGatewaySettings : BaseEntity
     /// <summary>أرقام التكامل (بطاقات/مدى/Apple Pay) مفصولة بفواصل.</summary>
     public string IntegrationIds { get; set; } = string.Empty;
     /// <summary>حساب تحصيلات بوابة الدفع حتى تسوية Paymob للبنك.</summary>
-    public string SettlementAccountCode { get; set; } = "1113";
+    public string SettlementAccountCode { get; set; } = "1102";
 }

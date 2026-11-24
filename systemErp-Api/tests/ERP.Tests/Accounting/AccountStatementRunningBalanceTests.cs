@@ -16,7 +16,7 @@ public class AccountStatementRunningBalanceTests : TestBase
     public AccountStatementRunningBalanceTests(ErpFactory f) : base(f) { }
 
     private const string Cash = "1111";    // مدين الطبيعة
-    private const string Bank = "1112";    // مدين الطبيعة
+    private const string Bank = "1101";    // مدين الطبيعة
     private const string Capital = "31";   // دائن الطبيعة
 
     private static string Q(params (string Key, string Json)[] parts)

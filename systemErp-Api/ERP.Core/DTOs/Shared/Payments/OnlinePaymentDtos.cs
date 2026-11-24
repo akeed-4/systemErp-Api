@@ -69,7 +69,7 @@ public class PaymentGatewaySettingsDto
     public bool HasSecretKey { get; set; }
     public bool HasHmacSecret { get; set; }
     public string IntegrationIds { get; set; } = string.Empty;
-    public string SettlementAccountCode { get; set; } = "1113";
+    public string SettlementAccountCode { get; set; } = "1102";
     /// <summary>رابط الإشعارات الذي يُضبط في لوحة Paymob.</summary>
     public string WebhookUrl { get; set; } = string.Empty;
 }
@@ -83,5 +83,5 @@ public class UpdatePaymentGatewaySettingsDto
     public string? SecretKey { get; set; }
     public string? HmacSecret { get; set; }
     public string IntegrationIds { get; set; } = string.Empty;
-    public string SettlementAccountCode { get; set; } = "1113";
+    public string SettlementAccountCode { get; set; } = "1102";
 }

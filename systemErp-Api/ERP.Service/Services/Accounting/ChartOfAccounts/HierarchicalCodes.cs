@@ -77,9 +77,6 @@ internal static class HierarchicalCodes
     public static Task<string> NextAccountChildAsync(ErpDbContext db, string parentCode, int width, string exhaustedMessage, CancellationToken ct)
         => NextAsync(db, AccountChildKey(parentCode, width), parentCode, width, db.Set<Account>().Select(a => a.Code), exhaustedMessage, ct);
 
-    /// <summary>الرمز الفرعي المتوقع التالي بلا صرف (للعرض).</summary>
-    public static Task<string?> PeekAccountChildAsync(ErpDbContext db, string parentCode, int width, CancellationToken ct)
-        => PeekAsync(db, AccountChildKey(parentCode, width), parentCode, width, db.Set<Account>().Select(a => a.Code), ct);
 
     private static async Task<long> ExistingMaxAsync(IQueryable<string> codes, string prefix, int width, CancellationToken ct)
     {

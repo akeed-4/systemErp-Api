@@ -9,11 +9,11 @@ namespace ERP.Service.Services.Accounting;
 /// </summary>
 public static class DefaultAccounts
 {
-    public const string Cash = "1111";
+    public const string Cash = "1111";          // أول تسلسل الصناديق (111): الصندوق الرئيسي، ثم صناديق المواقع والمضافة 1112...
     public const string CashBoxes = "111";       // الصندوق/النقدية: الصندوق الرئيسي (1111) وصناديق المواقع تحته
     public const string Banks = "110";           // البنوك: البنك الافتراضي وتحصيلات البوابة وحسابات البنوك الفرعية تحته
-    public const string DefaultBank = "1112";
-    public const string PaymentGatewayReceivable = "1113"; // تحصيلات بوابة الدفع الإلكتروني (Paymob) حتى تسويتها للبنك
+    public const string DefaultBank = "1101";    // أول تسلسل البنوك (110): البنك الافتراضي، ثم البوابة 1102، ثم البنوك المضافة 1103...
+    public const string PaymentGatewayReceivable = "1102"; // تحصيلات بوابة الدفع الإلكتروني (Paymob) حتى تسويتها للبنك
     public const string Receivables = "112";     // الأب: حسابات العملاء الفرعية تحته
     public const string InputVat = "1131";
     public const string InventoryGroup = "114";  // الأب: حسابات مخزون المواقع الفرعية تحته (114001...)
@@ -71,9 +71,9 @@ public static class DefaultAccounts
         ("110",  "البنوك",                          "Banks",                     AccountCategory.Asset,     "11"),
         ("111",  "الصندوق/النقدية",                 "Cash Boxes",                AccountCategory.Asset,     "11"),
         ("1111", "الصندوق الرئيسي",                 "Main Cash Box",             AccountCategory.Asset,     "111"),
-        // رمزا البنك الافتراضي والبوابة من قبل فصل البنوك عن الصناديق: يبقيان كما هما تحت مجموعة البنوك (القيود مرتبطة بالرمز)
-        ("1112", "البنوك (حساب افتراضي)",           "Default Bank Account",      AccountCategory.Asset,     "110"),
-        ("1113", "تحصيلات بوابة الدفع الإلكتروني", "Payment Gateway Receivable", AccountCategory.Asset, "110"),
+        // البنك الافتراضي والبوابة أول تسلسل البنوك الموحد (TreasuryAccounts): 1101، 1102، ثم البنوك المضافة 1103...
+        ("1101", "البنوك (حساب افتراضي)",           "Default Bank Account",      AccountCategory.Asset,     "110"),
+        ("1102", "تحصيلات بوابة الدفع الإلكتروني", "Payment Gateway Receivable", AccountCategory.Asset, "110"),
         ("112",  "العملاء",                         "Accounts Receivable",       AccountCategory.Asset,     "11"),
         ("113",  "ضريبة وأرصدة مدينة",             "Tax and Other Receivables", AccountCategory.Asset,     "11"),
         ("1131", "ضريبة القيمة المضافة - مدخلات",  "Input VAT",                 AccountCategory.Asset,     "113"),

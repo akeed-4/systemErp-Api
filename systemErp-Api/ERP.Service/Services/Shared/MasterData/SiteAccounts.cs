@@ -11,7 +11,7 @@ namespace ERP.Service.Services.Shared;
 /// <item>بضاعة أول المدة وآخرها للموقع مع الجرد الدوري فقط، بجوار حسابي الإعدادات (أو تحت مجموعة تكلفة البضاعة المباعة إن لم يُحددا)،
 /// وتُعرض في تكلفة المبيعات أياً كان نوع أبيها (<see cref="CostOfSales.SitePeriodicAccountsAsync"/>).</item>
 /// </list>
-/// الرمز = رمز الأب + رقم متسلسل من ثلاث خانات (114001، 41001...) من عدّاد الأب (<see cref="HierarchicalCodes.NextAccountChildAsync"/>). الموقع الرئيسي يبقى على حسابات الإعدادات (عدا مخزونه 114001 منذ التأسيس).
+/// الرمز = رمز الأب + رقم متسلسل من ثلاث خانات (114001، 41001...) من عدّاد الأب، وصندوق الموقع على تسلسل الصناديق (1112، 1113...) (<see cref="HierarchicalCodes.NextAccountChildAsync"/>). الموقع الرئيسي يبقى على حسابات الإعدادات (عدا مخزونه 114001 منذ التأسيس).
 /// </summary>
 public static class SiteAccounts
 {
@@ -166,10 +166,11 @@ public static class SiteAccounts
         var parent = db.Set<Account>().Local.FirstOrDefault(a => a.Code == parentCode)
             ?? await db.Set<Account>().FirstOrDefaultAsync(a => a.Code == parentCode, ct)
             ?? throw new ValidationFailedException(string.Format(Messages.SiteAccountParentMissing, parentCode));
-        // التسلسل التالي من عدّاد الأب المشترك مع بقية الشاشات (صندوق الموقع تحت 111 على تسلسل الصناديق 111001...):
-        // لا يعيد رقم حساب محذوف ولا يتكرر بين طلبين متزامنين. الصرف يحفظ ما أُضيف قبله في المعاملة نفسها.
-        var code = await HierarchicalCodes.NextAccountChildAsync(db, parentCode, 3,
-            string.Format(Messages.SiteAccountsFull, parentCode), ct);
+        // التسلسل التالي من عدّاد الأب المشترك مع بقية الشاشات: صندوق الموقع تحت 111 على تسلسل الصناديق الموحد (1111 ← 1112...)،
+        // والبقية 3 خانات بعد رمز الأب (114001...). لا يعيد رقم حساب محذوف ولا يتكرر بين طلبين متزامنين؛ الصرف يحفظ ما أُضيف قبله.
+        var code = await TreasuryAccounts.IsNumberedGroupAsync(db, parentCode, ct)
+            ? await TreasuryAccounts.NextCodeAsync(db, parentCode, ct)
+            : await HierarchicalCodes.NextAccountChildAsync(db, parentCode, 3, string.Format(Messages.SiteAccountsFull, parentCode), ct);
         var english = string.IsNullOrWhiteSpace(w.NameEn) ? w.NameAr : w.NameEn;
         parent.IsGroup = true;
         db.Add(new Account

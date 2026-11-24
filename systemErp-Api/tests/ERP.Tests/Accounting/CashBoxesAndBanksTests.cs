@@ -67,8 +67,8 @@ public class CashBoxesAndBanksTests : TestBase
         Assert.Equal("الصندوق الرئيسي", (await AccountAsync(api, "1111"))["nameAr"].S());
         Assert.Equal("111", await ParentAsync(api, "1111"));
         Assert.Equal("البنوك", (await AccountAsync(api, "110"))["nameAr"].S());
-        Assert.Equal("110", await ParentAsync(api, "1112"));
-        Assert.Equal("110", await ParentAsync(api, "1113"));
+        Assert.Equal("110", await ParentAsync(api, "1101"));
+        Assert.Equal("110", await ParentAsync(api, "1102"));
         Assert.Equal(before, await LinesTotalAsync(api, "1111"));
     }
 
@@ -111,19 +111,19 @@ public class CashBoxesAndBanksTests : TestBase
         Assert.True(cash["isGroup"]!.GetValue<bool>());
         Assert.True(banks["isGroup"]!.GetValue<bool>());
         Assert.Equal("111", await ParentAsync(api, "1111"));
-        Assert.Equal("110", await ParentAsync(api, "1112"));
-        Assert.Equal("110", await ParentAsync(api, "1113"));
+        Assert.Equal("110", await ParentAsync(api, "1101")); // البنك الافتراضي: أول تسلسل البنوك
+        Assert.Equal("110", await ParentAsync(api, "1102")); // تحصيلات البوابة
 
         var bank = await api.Post("/banks", new { nameAr = "بنك الاختبار", nameEn = "Test Bank", openingBalance = 500 });
         Assert.True(bank.Status == 201, bank.Body?.ToJsonString());
         var bankCode = bank.Data!["accountCode"].S();
-        Assert.StartsWith("110", bankCode);
+        Assert.Equal("1103", bankCode); // أول بنك مضاف بعد الافتراضيين
         Assert.Equal("110", await ParentAsync(api, bankCode));
 
         var site = await api.Post("/warehouses", new { code = "S1", nameAr = "موقع جدة", nameEn = "Jeddah", location = "جدة", status = "active" });
         Assert.True(site.Status == 201, site.Body?.ToJsonString());
         var siteCash = site.Data!["cashAccountCode"].S();
-        Assert.StartsWith("111", siteCash);
+        Assert.Equal("1112", siteCash); // أول صندوق بعد الصندوق الرئيسي
         Assert.Equal("111", await ParentAsync(api, siteCash));
     }
 
@@ -135,6 +135,7 @@ public class CashBoxesAndBanksTests : TestBase
         await WithDb(async db =>
         {
             var accounts = await db.Set<Account>().IgnoreQueryFilters().Where(a => a.TenantId == api.TenantId).ToListAsync();
+            OldSeedCodes(accounts);
             foreach (var a in accounts.Where(a => a.ParentCode == "110")) a.ParentCode = "111";
             var cash = accounts.Single(a => a.Code == "111");
             (cash.NameAr, cash.NameEn) = ("النقدية والبنوك", "Cash and Banks");
@@ -203,6 +204,7 @@ public class CashBoxesAndBanksTests : TestBase
     private Task<int> LegacyTreeAsync(Client api, bool userAccount110) => WithDb(async db =>
     {
         var accounts = await db.Set<Account>().IgnoreQueryFilters().Where(a => a.TenantId == api.TenantId).ToListAsync();
+        OldSeedCodes(accounts);
         foreach (var a in accounts.Where(a => a.ParentCode == "110")) a.ParentCode = "111";
         var cash = accounts.Single(a => a.Code == "111");
         (cash.NameAr, cash.NameEn) = ("النقدية والبنوك", "Cash and Banks");
@@ -237,12 +239,12 @@ public class CashBoxesAndBanksTests : TestBase
     public async Task Account_whose_code_starts_with_110_or_111_but_is_outside_the_cash_groups_is_not_cash()
     {
         var api = await NewTenantAsync();
-        // 110…119 مشغولة تحت 11: الرمز التالي المقترح 1101 (يبدأ بـ 110) — أصل متداول غير نقدي
-        Assert.Equal(201, (await api.Post("/accounts", new { code = "1101", nameAr = "عهد", nameEn = "Custody", type = "asset", parentCode = "11", isDebitNature = true })).Status);
-        await PostEntryAsync(api, "1101", "31", 1000);
+        // رمز يبدأ بـ 110 تحت الأصول المتداولة 11 لا تحت البنوك — أصل متداول غير نقدي
+        Assert.Equal(201, (await api.Post("/accounts", new { code = "1109", nameAr = "عهد", nameEn = "Custody", type = "asset", parentCode = "11", isDebitNature = true })).Status);
+        await PostEntryAsync(api, "1109", "31", 1000);
 
-        Assert.Equal(400, (await api.Get($"/bankreconciliations/Worksheet?accountCode=1101&statementDate={Today}")).Status);
-        Assert.Equal(200, (await api.Get($"/bankreconciliations/Worksheet?accountCode=1112&statementDate={Today}")).Status);
+        Assert.Equal(400, (await api.Get($"/bankreconciliations/Worksheet?accountCode=1109&statementDate={Today}")).Status);
+        Assert.Equal(200, (await api.Get($"/bankreconciliations/Worksheet?accountCode=1101&statementDate={Today}")).Status);
         Assert.Equal(200, (await api.Get($"/bankreconciliations/Worksheet?accountCode=1111&statementDate={Today}")).Status);
 
         var flow = await CashFlowAsync(api);
@@ -252,7 +254,7 @@ public class CashBoxesAndBanksTests : TestBase
 
         // حركة نقدية حقيقية تُحتسب: الصندوق والبنك
         await PostEntryAsync(api, "1111", "31", 300);
-        await PostEntryAsync(api, "1112", "31", 200);
+        await PostEntryAsync(api, "1101", "31", 200);
         flow = await CashFlowAsync(api);
         Assert.Equal(500, flow["financing"]!["total"].D());
         Assert.Equal(500, flow["closingCash"]!["total"].D());
@@ -376,6 +378,96 @@ public class CashBoxesAndBanksTests : TestBase
         Assert.DoesNotContain(opening, Codes(income["operatingExpenses"]!));
         Assert.Equal(-60, income["costOfSales"]!["total"].D()); // أول المدة 40 − آخر المدة 100
         Assert.Equal(0, income["revenue"]!["total"].D());
+    }
+
+    /// <summary>رموز التأسيس قبل توحيد تسلسل البنوك (البنك الافتراضي 1112 والبوابة 1113) لمحاكاة قاعدة قديمة.</summary>
+    private static void OldSeedCodes(List<Account> accounts)
+    {
+        foreach (var a in accounts)
+            a.Code = a.Code switch { "1101" => "1112", "1102" => "1113", _ => a.Code };
+    }
+
+    private static async Task<string> NewBankAsync(Client api, string name)
+    {
+        var r = await api.Post("/banks", new { nameAr = name, nameEn = name });
+        Assert.True(r.Status == 201, r.Body?.ToJsonString());
+        return r.Data!["accountCode"].S();
+    }
+
+    private static async Task<string> NewAccountUnderAsync(Client api, string parent, string name, string code = "")
+    {
+        var r = await api.Post("/accounts", new { code, nameAr = name, nameEn = name, type = "asset", parentCode = parent, isDebitNature = true });
+        Assert.True(r.Status == 201, r.Body?.ToJsonString());
+        return r.Data!["code"].S();
+    }
+
+    [Fact]
+    public async Task Banks_and_cash_boxes_share_one_sequence_with_their_default_accounts_per_group()
+    {
+        var api = await NewTenantAsync();
+        Assert.Equal("1103", (await api.Get("/accounts/treasury-next-code/110")).Data!["code"].S());
+        Assert.Equal("1112", (await api.Get("/accounts/treasury-next-code/111")).Data!["code"].S());
+
+        // البنوك: الافتراضيان 1101، 1102 ثم المضاف من شاشة البنوك أو الشجرة على التسلسل نفسه
+        Assert.Equal("1103", await NewBankAsync(api, "بنك أ"));
+        Assert.Equal("1104", await NewAccountUnderAsync(api, "110", "بنك من الشجرة"));
+        // الرمز المرسل يدوياً تحت المجموعة لا يكسر التسلسل
+        Assert.Equal("1105", await NewAccountUnderAsync(api, "110", "بنك برمز يدوي", code: "110777"));
+
+        // الصناديق مستقلة: الرئيسي 1111 ثم صندوق الموقع والمضاف من الشجرة
+        var site = await api.Post("/warehouses", new { code = "SQ", nameAr = "موقع القصيم", nameEn = "Qassim", location = "القصيم", status = "active" });
+        Assert.True(site.Status == 201, site.Body?.ToJsonString());
+        Assert.Equal("1112", site.Data!["cashAccountCode"].S());
+        Assert.Equal("1113", await NewAccountUnderAsync(api, "111", "صندوق فرعي"));
+        Assert.Equal("1106", await NewBankAsync(api, "بنك ب")); // البنوك لم تتأثر بالصناديق
+    }
+
+    [Fact]
+    public async Task Deleted_bank_code_is_not_reused_and_codes_used_elsewhere_are_skipped()
+    {
+        var api = await NewTenantAsync();
+        var bank = await api.Post("/banks", new { nameAr = "بنك مؤقت", nameEn = "Temp" });
+        Assert.Equal("1103", bank.Data!["accountCode"].S());
+        Assert.Equal(200, (await api.Delete($"/banks/{bank.Data!["id"].S()}")).Status);
+        Assert.Equal("1104", await NewBankAsync(api, "بعد الحذف"));
+
+        // 1105 مستخدم لحساب تحت أب آخر (11): التسلسل يتخطاه بدل التعارض
+        Assert.Equal(201, (await api.Post("/accounts", new { code = "1105", nameAr = "عهد", nameEn = "Custody", type = "asset", parentCode = "11", isDebitNature = true })).Status);
+        Assert.Equal("1106", await NewBankAsync(api, "بعد المشغول"));
+        Assert.Equal("11", await ParentAsync(api, "1105"));
+    }
+
+    [Fact]
+    public async Task Sequence_continues_after_nine_and_tree_orders_codes_numerically()
+    {
+        var api = await NewTenantAsync();
+        var codes = new List<string>();
+        for (var i = 0; i < 8; i++) codes.Add(await NewBankAsync(api, $"بنك {i}"));
+        Assert.Equal(new[] { "1103", "1104", "1105", "1106", "1107", "1108", "1109", "11010" }, codes);
+        Assert.Equal("11011", (await api.Get("/accounts/treasury-next-code/110")).Data!["code"].S());
+
+        static IEnumerable<JsonNode> Flatten(JsonNode n) => new[] { n }.Concat((n["children"]?.AsArray() ?? new JsonArray()).SelectMany(c => Flatten(c!)));
+        var tree = (await api.Get("/accounts/tree")).Data!.AsArray().SelectMany(n => Flatten(n!));
+        var banks = tree.Single(a => a["code"].S() == "110")["children"]!.AsArray().Select(c => c!["code"].S()).ToList();
+        Assert.Equal(new[] { "1101", "1102", "1103", "1104", "1105", "1106", "1107", "1108", "1109", "11010" }, banks);
+    }
+
+    [Fact]
+    public async Task Concurrent_bank_and_cash_box_creation_never_duplicates_codes()
+    {
+        var api = await NewTenantAsync();
+        var banks = await Task.WhenAll(Enumerable.Range(0, 6).Select(i => api.Post("/banks", new { nameAr = $"بنك متزامن {i}", nameEn = $"B{i}" })));
+        var boxes = await Task.WhenAll(Enumerable.Range(0, 6).Select(i =>
+            api.Post("/accounts", new { code = "", nameAr = $"صندوق متزامن {i}", nameEn = $"C{i}", type = "asset", parentCode = "111", isDebitNature = true })));
+        Assert.All(banks, r => Assert.True(r.Status == 201, r.Body?.ToJsonString()));
+        Assert.All(boxes, r => Assert.True(r.Status == 201, r.Body?.ToJsonString()));
+
+        var bankCodes = banks.Select(r => r.Data!["accountCode"].S()).OrderBy(c => c.Length).ThenBy(c => c).ToList();
+        var boxCodes = boxes.Select(r => r.Data!["code"].S()).OrderBy(c => c.Length).ThenBy(c => c).ToList();
+        Assert.Equal(new[] { "1103", "1104", "1105", "1106", "1107", "1108" }, bankCodes);
+        Assert.Equal(new[] { "1112", "1113", "1114", "1115", "1116", "1117" }, boxCodes);
+        foreach (var c in bankCodes) Assert.Equal("110", await ParentAsync(api, c));
+        foreach (var c in boxCodes) Assert.Equal("111", await ParentAsync(api, c));
     }
 
     private Task<decimal> LinesTotalAsync(Client api, string code)

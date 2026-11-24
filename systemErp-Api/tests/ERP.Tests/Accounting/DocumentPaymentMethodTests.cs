@@ -30,12 +30,12 @@ public class DocumentPaymentMethodTests : TestBase
     public async Task The_method_type_decides_the_invoice_payment_type()
     {
         var api = await NewTenantAsync();
-        await MethodAsync(api, "MADA", "card", "1112");
+        await MethodAsync(api, "MADA", "card", "1101");
         // الواجهة أرسلت «نقدي» لكن الطريقة المختارة بطاقة: النوع من الطريقة والترحيل على حسابها
         var invoice = await api.PostInvoice(Sale("MADA"));
         Assert.Equal(201, invoice.Status);
         Assert.Equal("bank_card", invoice.Data!["paymentMethod"].S());
-        Assert.Equal(115, await BalanceAsync(api, "1112"));
+        Assert.Equal(115, await BalanceAsync(api, "1101"));
         Assert.Equal(0, await BalanceAsync(api, "1111"));
     }
 
@@ -44,7 +44,7 @@ public class DocumentPaymentMethodTests : TestBase
     {
         var api = await NewTenantAsync();
         await MethodAsync(api, "CASH", "cash", "1111");
-        await MethodAsync(api, "BANK", "bank", "1112");
+        await MethodAsync(api, "BANK", "bank", "1101");
         var sale = await api.PostInvoice(Sale("CASH"));
         Assert.Equal(115, await BalanceAsync(api, "1111"));
 
@@ -59,7 +59,7 @@ public class DocumentPaymentMethodTests : TestBase
         Assert.Equal(new[] { 69m, 46m }, splits.Select(s => s!["amount"].D()));
         Assert.Equal(new[] { "CASH", "BANK" }, splits.Select(s => s!["paymentMethodCode"].S()));
         Assert.Equal(46, await BalanceAsync(api, "1111"));
-        Assert.Equal(-46, await BalanceAsync(api, "1112"));
+        Assert.Equal(-46, await BalanceAsync(api, "1101"));
 
         // طريقة موقوفة في الرد تُرفض
         Assert.Equal(400, (await api.PostReturn(new
@@ -73,7 +73,7 @@ public class DocumentPaymentMethodTests : TestBase
     public async Task A_voucher_saves_its_chosen_method_and_posts_to_the_method_account()
     {
         var api = await NewTenantAsync();
-        await MethodAsync(api, "BANK-2", "bank", "1112");
+        await MethodAsync(api, "BANK-2", "bank", "1101");
         await MethodAsync(api, "LATER", "credit", "1111");
         var customer = (await api.Post("/customers", new { nameAr = "عميل", phone = "050", city = "الرياض", status = "active" })).Data!;
         object Receipt(string code, string treasury) => new { type = "receipt", amount = 80, partyName = "عميل", partyAccountCode = customer["accountCode"].S(),
@@ -83,9 +83,9 @@ public class DocumentPaymentMethodTests : TestBase
         var voucher = await api.Post("/vouchers", Receipt("BANK-2", "1111"));
         Assert.True(voucher.Success);
         Assert.Equal("BANK-2", voucher.Data!["paymentMethodCode"].S());
-        Assert.Equal("1112", voucher.Data["treasuryAccountCode"].S());
+        Assert.Equal("1101", voucher.Data["treasuryAccountCode"].S());
         Assert.Equal("bank_transfer", voucher.Data["paymentMethod"].S());
-        Assert.Equal(80, await BalanceAsync(api, "1112"));
+        Assert.Equal(80, await BalanceAsync(api, "1101"));
         Assert.Equal(0, await BalanceAsync(api, "1111"));
         Assert.Equal("BANK-2", (await api.Get($"/vouchers/{voucher.Data["id"].S()}")).Data!["paymentMethodCode"].S());
 
@@ -99,7 +99,7 @@ public class DocumentPaymentMethodTests : TestBase
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
         await MethodAsync(api, "CASH", "cash", "1111");
-        await MethodAsync(api, "MADA", "card", "1112");
+        await MethodAsync(api, "MADA", "card", "1101");
         await MethodAsync(api, "LATER", "credit", "1111");
         await OpenPosShiftAsync(api);
         var cashBefore = await BalanceAsync(api, "1111");
@@ -116,7 +116,7 @@ public class DocumentPaymentMethodTests : TestBase
         var payments = tx.Data["payments"]!.AsArray();
         Assert.Equal(new[] { "MADA", "CASH" }, payments.Select(p => p!["paymentMethodCode"].S()));
         Assert.Equal("card", payments[0]!["type"].S());
-        Assert.Equal(70, await BalanceAsync(api, "1112"));
+        Assert.Equal(70, await BalanceAsync(api, "1101"));
         Assert.Equal(cashBefore + 45, await BalanceAsync(api, "1111"));
 
         var shift = (await api.Get("/pos/shifts/active")).Data!;

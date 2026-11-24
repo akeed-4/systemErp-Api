@@ -77,7 +77,7 @@ public class OnlinePaymentTests : TestBase
         var r = await api.Put("/payments/GatewaySettings", new
         {
             isEnabled = true, baseUrl = "https://ksa.paymob.com", publicKey = "pk_test", secretKey = "sk_test", hmacSecret = TenantHmac,
-            integrationIds = "123, 456", settlementAccountCode = "1113",
+            integrationIds = "123, 456", settlementAccountCode = "1102",
         });
         Assert.Equal(200, r.Status);
         Assert.True(r.Data!["hasSecretKey"]!.GetValue<bool>());
@@ -120,14 +120,14 @@ public class OnlinePaymentTests : TestBase
         Assert.Equal("4242", paid["cardLast4"].S());
         Assert.NotNull(paid["voucherId"]);
 
-        // سند قبض: دائن العميل، مدين تحصيلات البوابة 1113
+        // سند قبض: دائن العميل، مدين تحصيلات البوابة 1102
         Assert.Equal(0, (await api.Get($"/accounts/ByCode/{account}")).Data!["balance"].D());
-        Assert.Equal(230, (await api.Get("/accounts/ByCode/1113")).Data!["balance"].D());
+        Assert.Equal(230, (await api.Get("/accounts/ByCode/1102")).Data!["balance"].D());
         var (d, c) = Totals(await api.Get("/reports/TrialBalance")); Assert.Equal(d, c);
 
         // إشعار مكرر: لا سند ثانٍ
         Assert.Equal(200, (await api.SendAsync(HttpMethod.Post, $"/payments/paymob/webhook?hmac={hmac}", body, anonymous: true)).Status);
-        Assert.Equal(230, (await api.Get("/accounts/ByCode/1113")).Data!["balance"].D());
+        Assert.Equal(230, (await api.Get("/accounts/ByCode/1102")).Data!["balance"].D());
         Assert.Equal(409, (await api.Post("/payments/InvoiceLink", new { invoiceId })).Status); // مسددة بالكامل
 
         // صفحة العميل العامة
@@ -155,7 +155,7 @@ public class OnlinePaymentTests : TestBase
 
         var sale = await api.Post("/pos/transactions/checkout", Checkout());
         Assert.Equal(201, sale.Status);
-        Assert.Equal(115, (await api.Get("/accounts/ByCode/1113")).Data!["balance"].D()); // التحصيل على حساب البوابة لا البنك
+        Assert.Equal(115, (await api.Get("/accounts/ByCode/1102")).Data!["balance"].D()); // التحصيل على حساب البوابة لا البنك
         Assert.NotNull((await api.Get($"/payments/{paymentId}")).Data!["consumedAt"]);
         Assert.Equal(409, (await api.Post("/pos/transactions/checkout", Checkout())).Status); // لا يُستخدم مرتين
 

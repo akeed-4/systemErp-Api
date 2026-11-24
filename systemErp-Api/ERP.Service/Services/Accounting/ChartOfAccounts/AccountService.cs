@@ -25,8 +25,9 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
 
     protected override async Task ValidateAsync(CreateAccountDto dto, Account? existing, CancellationToken ct)
     {
-        // حساب جديد تحت البنوك (110) أو الصناديق (111) بلا رمز: يُصرف من تسلسل مجموعته (110001...، 111001...) داخل معاملة الإنشاء
-        if (existing == null && string.IsNullOrWhiteSpace(dto.Code) && await TreasuryAccounts.IsNumberedGroupAsync(Db, dto.ParentCode, ct))
+        // حساب جديد مباشرة تحت البنوك (110) أو الصناديق (111): رمزه من تسلسل مجموعته الموحد (1103...، 1112...) داخل معاملة الإنشاء،
+        // ولو أُرسل برمز (لا ترقيم يدوي في المجموعتين)
+        if (existing == null && await TreasuryAccounts.IsNumberedGroupAsync(Db, dto.ParentCode, ct))
             dto.Code = await TreasuryAccounts.NextCodeAsync(Db, dto.ParentCode!, ct);
 
         var errors = new List<string>();
@@ -229,7 +230,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
 
     public async Task<List<AccountDto>> GetTreeAsync(CancellationToken ct = default)
     {
-        var all = (await Db.Set<Account>().AsNoTracking().OrderBy(a => a.Code).ToListAsync(ct)).Select(Mapper.Map<AccountDto>).ToList();
+        // ترتيب رقمي (الرموز أرقام فقط): الأقصر أولاً ثم بالقيمة، فيأتي 1109 قبل 11010 تحت أبيهما
+        var all = (await Db.Set<Account>().AsNoTracking().OrderBy(a => a.Code.Length).ThenBy(a => a.Code).ToListAsync(ct)).Select(Mapper.Map<AccountDto>).ToList();
         var byCode = all.ToDictionary(a => a.Code);
         var roots = new List<AccountDto>();
         foreach (var a in all)
@@ -271,7 +273,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
 
         Account parent;
         string code;
-        if (!string.IsNullOrWhiteSpace(requestedCode))
+        // البنك تحت مجموعة البنوك: رمزه من تسلسلها دائماً، والرمز المطلوب من الشجرة يُتجاهل
+        if (!string.IsNullOrWhiteSpace(requestedCode) && !await TreasuryAccounts.IsNumberedGroupAsync(Db, groupCode, ct))
         {
             // رمز اختاره المستخدم في شجرة الحسابات: يُحفظ كما عُرض له بعد التحقق، فلا يظهر في الشجرة برقم آخر
             code = requestedCode.Trim();
@@ -279,10 +282,12 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         }
         else
         {
-            // الرمز التالي من عدّاد المجموعة (3 خانات بعد رمزها): لا يعيد رقم حساب محذوف ولا يتكرر بين طلبين متزامنين.
-            // البنوك: 110001، 110002... مستقلة عن الصناديق (111001...)، والقديمة 1112/1113 خارج التسلسل وتبقى برموزها.
+            // الرمز التالي من عدّاد المجموعة: لا يعيد رقم حساب محذوف ولا يتكرر بين طلبين متزامنين. البنوك على تسلسل مجموعتها
+            // الموحد مع الافتراضيين (1101، 1102 ← 1103...)، والعملاء والموردون 3 خانات بعد رمز المجموعة (112001...).
             parent = group;
-            code = await HierarchicalCodes.NextAccountChildAsync(Db, groupCode, LinkedChildWidth, Messages.SubAccountCodesExhausted, ct);
+            code = await TreasuryAccounts.IsNumberedGroupAsync(Db, groupCode, ct)
+                ? await TreasuryAccounts.NextCodeAsync(Db, groupCode, ct)
+                : await HierarchicalCodes.NextAccountChildAsync(Db, groupCode, LinkedChildWidth, Messages.SubAccountCodesExhausted, ct);
         }
 
         var account = new Account

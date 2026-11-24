@@ -107,7 +107,7 @@ public class PurchaseLandedCostTests : TestBase
         var types = await TypesAsync(api);
         var created = await api.Post("/purchase-landed-costs", new
         {
-            invoiceIds = new[] { invoice }, payee = "payment_account", paymentAccountCode = "1112", lines = new[] { Line(types["PORT_FEES"], 10) },
+            invoiceIds = new[] { invoice }, payee = "payment_account", paymentAccountCode = "1101", lines = new[] { Line(types["PORT_FEES"], 10) },
         });
         Assert.Equal(201, created.Status);
         var id = created.Data!["id"].S();
@@ -115,7 +115,7 @@ public class PurchaseLandedCostTests : TestBase
         var entry = await EntryAsync(api, approved["journalEntryId"].S());
         Assert.Equal(6, entry[MainSiteInventory]); // الباقي في المخزون 6 وحدات
         Assert.Equal(4, entry["511"]);  // حصة المبيع على تكلفة المبيعات
-        Assert.Equal(-10, entry["1112"]); // دائن البنك
+        Assert.Equal(-10, entry["1101"]); // دائن البنك
         Assert.Equal(6, approved["inventoryAmount"].D());
         Assert.Equal(4, approved["expensedAmount"].D());
         Assert.Equal(11, await AverageCostAsync(api, item));
@@ -124,7 +124,7 @@ public class PurchaseLandedCostTests : TestBase
         Assert.Equal(200, cancelled.Status);
         Assert.Equal("cancelled", cancelled.Data!["status"].S());
         var reverse = await EntryAsync(api, cancelled.Data["cancelJournalEntryId"].S());
-        Assert.Equal(-6, reverse[MainSiteInventory]); Assert.Equal(-4, reverse["511"]); Assert.Equal(10, reverse["1112"]);
+        Assert.Equal(-6, reverse[MainSiteInventory]); Assert.Equal(-4, reverse["511"]); Assert.Equal(10, reverse["1101"]);
         Assert.Equal(10, await AverageCostAsync(api, item));
         Assert.Equal(409, (await api.Post($"/purchase-landed-costs/{id}/cancel")).Status);
         Assert.Equal(409, (await api.Delete($"/purchase-landed-costs/{id}")).Status); // الملغى بعد اعتماده يبقى في السجل
@@ -225,7 +225,7 @@ public class PurchaseLandedCostTests : TestBase
 
         var created = await api.Post("/purchase-landed-costs", new
         {
-            invoiceIds = new[] { invoice }, payee = "payment_account", paymentAccountCode = "1112",
+            invoiceIds = new[] { invoice }, payee = "payment_account", paymentAccountCode = "1101",
             lines = new[] { Line(types["CUSTOMS_DUTY"], 20), Line(types["IMPORT_VAT"], 15) },
         });
         Assert.Equal(201, created.Status);
@@ -233,7 +233,7 @@ public class PurchaseLandedCostTests : TestBase
         Assert.Equal(15, created.Data["baseInputVat"].D());
         var approved = (await api.Post($"/purchase-landed-costs/{created.Data["id"].S()}/approve")).Data!;
         var entry = await EntryAsync(api, approved["journalEntryId"].S());
-        Assert.Equal(20, entry[MainSiteInventory]); Assert.Equal(15, entry["1131"]); Assert.Equal(-35, entry["1112"]);
+        Assert.Equal(20, entry[MainSiteInventory]); Assert.Equal(15, entry["1131"]); Assert.Equal(-35, entry["1101"]);
         Assert.Equal(12, await AverageCostAsync(api, item)); // 10 + 20/10
     }
 

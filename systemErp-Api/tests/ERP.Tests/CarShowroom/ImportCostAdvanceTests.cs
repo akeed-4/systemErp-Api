@@ -12,7 +12,7 @@ public class ImportCostAdvanceTests : TestBase
 {
     public ImportCostAdvanceTests(ErpFactory f) : base(f) { }
 
-    private const string Clearing = "1144", InTransit = "1143", InputVat = "1131", Bank = "1112";
+    private const string Clearing = "1144", InTransit = "1143", InputVat = "1131", Bank = "1101";
 
     private static async Task<Dictionary<string, string>> TypeIdsAsync(Client api)
         => (await api.Get("/expensetypes?pageSize=200")).Data!["items"]!.AsArray().ToDictionary(t => t!["code"].S(), t => t!["id"].S());

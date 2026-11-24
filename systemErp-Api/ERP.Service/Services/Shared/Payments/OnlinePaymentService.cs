@@ -332,7 +332,7 @@ public class OnlinePaymentService : IOnlinePaymentService
         return new PaymobCredentials(o.BaseUrl, o.SecretKey, o.PublicKey, o.HmacSecret, ids);
     }
 
-    /// <summary>حساب تحصيلات بوابة الدفع للمنشأة (يُنشأ 1113 إن لم يوجد).</summary>
+    /// <summary>حساب تحصيلات بوابة الدفع للمنشأة (يُنشأ 1102 إن لم يوجد).</summary>
     private Task<string> SettlementAccountAsync(CancellationToken ct) => SettlementAccountAsync(_db, ct);
 
     internal static async Task<string> SettlementAccountAsync(ErpDbContext db, CancellationToken ct)

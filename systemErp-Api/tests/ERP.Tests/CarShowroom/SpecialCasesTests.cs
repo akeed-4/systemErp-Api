@@ -289,7 +289,7 @@ public class SpecialCasesTests : TestBase
         var api = await NewTenantAsync();
         var (customer, _) = await SeedCustomerAsync(api, name: "علي");
         Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "CASH", nameAr = "نقد", type = "cash", linkedAccountCode = "1111", status = "active" })).Status);
-        Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "BANK", nameAr = "تحويل", type = "bank", linkedAccountCode = "1112", status = "active" })).Status);
+        Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "BANK", nameAr = "تحويل", type = "bank", linkedAccountCode = "1101", status = "active" })).Status);
         var car = await SeedCarAsync(api);
         var voucher = await api.Post("/vouchers", new
         {
@@ -297,11 +297,11 @@ public class SpecialCasesTests : TestBase
             paymentSplits = new[] { new { method = "cash", paymentMethodCode = "CASH", amount = 600m }, new { method = "bank_transfer", paymentMethodCode = "BANK", amount = 400m } },
         });
         Assert.True(voucher.Success);
-        Assert.Equal(600, await BalanceAsync(api, "1111")); Assert.Equal(400, await BalanceAsync(api, "1112"));
+        Assert.Equal(600, await BalanceAsync(api, "1111")); Assert.Equal(400, await BalanceAsync(api, "1101"));
 
         var reservation = (await api.Get($"/vehiclereservations?vehicleId={car}&status=active")).Data!["items"]!.AsArray().Single()!;
         Assert.Equal(200, (await api.Post($"/vehiclereservations/{reservation["id"].S()}/cancel", new { reason = "تراجع العميل", depositAction = "refund" })).Status);
-        Assert.Equal(0, await BalanceAsync(api, "1111")); Assert.Equal(0, await BalanceAsync(api, "1112")); Assert.Equal(0, await BalanceAsync(api, "216"));
+        Assert.Equal(0, await BalanceAsync(api, "1111")); Assert.Equal(0, await BalanceAsync(api, "1101")); Assert.Equal(0, await BalanceAsync(api, "216"));
         await AssertBalancedAsync(api);
     }
 
@@ -315,10 +315,10 @@ public class SpecialCasesTests : TestBase
         string Period(int offset) => start.AddMonths(offset).ToString("yyyy-MM");
 
         Assert.Equal(400, (await api.Post("/prepaidexpenses", new { expenseTypeId = types["TAMM_SUBSCRIPTION"], startDate = start, months = 0, totalAmount = 1000 })).Status);
-        var prepaid = await api.Post("/prepaidexpenses", new { expenseTypeId = types["TAMM_SUBSCRIPTION"], description = "اشتراك تم", startDate = start, months = 3, totalAmount = 1000, vatAmount = 150, paymentAccountCode = "1112" });
+        var prepaid = await api.Post("/prepaidexpenses", new { expenseTypeId = types["TAMM_SUBSCRIPTION"], description = "اشتراك تم", startDate = start, months = 3, totalAmount = 1000, vatAmount = 150, paymentAccountCode = "1101" });
         Assert.Equal(201, prepaid.Status);
         Assert.StartsWith("PPE-", prepaid.Data!["number"].S());
-        Assert.Equal(1000, await BalanceAsync(api, "117")); Assert.Equal(150, await BalanceAsync(api, "1131")); Assert.Equal(-1150, await BalanceAsync(api, "1112"));
+        Assert.Equal(1000, await BalanceAsync(api, "117")); Assert.Equal(150, await BalanceAsync(api, "1131")); Assert.Equal(-1150, await BalanceAsync(api, "1101"));
 
         // زر «ترحيل إطفاء الشهر»: مرة واحدة لكل شهر
         Assert.Equal(400, (await api.Post("/prepaidexpenses/amortize", new { period = "2026/13" })).Status);
@@ -339,7 +339,7 @@ public class SpecialCasesTests : TestBase
         Assert.Equal(3, listed["amortizations"]!.AsArray().Count);
 
         // مصروف لم يُطفأ منه يُلغى ويُعكس قيده
-        var other = await api.Post("/prepaidexpenses", new { expenseTypeId = types["TAMM_SUBSCRIPTION"], startDate = start, months = 12, totalAmount = 600, paymentAccountCode = "1112" });
+        var other = await api.Post("/prepaidexpenses", new { expenseTypeId = types["TAMM_SUBSCRIPTION"], startDate = start, months = 12, totalAmount = 600, paymentAccountCode = "1101" });
         Assert.Equal("cancelled", (await api.Post($"/prepaidexpenses/{other.Data!["id"].S()}/cancel")).Data!["status"].S());
         Assert.Equal(0, await BalanceAsync(api, "117"));
         await AssertBalancedAsync(api);

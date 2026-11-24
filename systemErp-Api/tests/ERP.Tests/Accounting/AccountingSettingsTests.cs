@@ -246,7 +246,7 @@ public class AccountingSettingsTests : TestBase
         await UseSettingsInventoryAccountAsync(api); // المخزون على حساب الإعدادات كما في المنشآت القائمة
         await AccountAsync(api, "1138", "asset", "113");
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "1111" })).Status); // صندوق
-        Assert.Equal(400, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1112" })).Status);  // بنك
+        Assert.Equal(400, (await api.Put("/accounting-settings", new { inputVatAccountCode = "1101" })).Status);  // بنك
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "1142" })).Status); // مخزون السيارات
         Assert.Equal(400, (await api.Put("/accounting-settings", new { cogsAccountCode = "512" })).Status);       // تكلفة السيارات
         Assert.Equal(400, (await api.Put("/accounting-settings", new { inventoryAccountCode = "1131" })).Status); // = ضريبة المدخلات الافتراضية

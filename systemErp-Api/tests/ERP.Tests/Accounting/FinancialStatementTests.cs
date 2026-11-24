@@ -43,7 +43,7 @@ public class FinancialStatementTests : TestBase
         Assert.Equal(-300, cash["investing"]!["total"].D());
         Assert.Equal(1000, cash["financing"]!["total"].D());
         Assert.Equal(cash["openingCash"]!["total"].D() + cash["netChange"]!["total"].D(), cash["closingCash"]!["total"].D());
-        Assert.Equal(await BalanceAsync(api, "1111") + await BalanceAsync(api, "1112") + await BalanceAsync(api, "1113"), cash["closingCash"]!["total"].D());
+        Assert.Equal(await BalanceAsync(api, "1111") + await BalanceAsync(api, "1101") + await BalanceAsync(api, "1102"), cash["closingCash"]!["total"].D());
 
         Assert.Equal(400, (await api.Get($"/financialstatements/IncomeStatement?from={to}&to={from}")).Status);
     }

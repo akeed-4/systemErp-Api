@@ -125,7 +125,7 @@ public class ChargePostingAndTaxTests : TestBase
         // سند تكاليف إضافية ومصروف مدفوع مقدماً
         var voucher = await api.Post("/landedcostvouchers", new { supplierId = supplier, vehicleIds = new[] { vid }, lines = new[] { new { expenseTypeId = types["CUSTOMS_CLEARANCE"], amount = 400, vatAmount = 60 } } });
         Assert.Equal(200, (await api.Post($"/landedcostvouchers/{voucher.Data!["id"].S()}/approve")).Status);
-        Assert.Equal(201, (await api.Post("/prepaidexpenses", new { expenseTypeId = types["TAMM_SUBSCRIPTION"], startDate = DateTime.UtcNow, months = 12, totalAmount = 1200, vatAmount = 180, paymentAccountCode = "1112" })).Status);
+        Assert.Equal(201, (await api.Post("/prepaidexpenses", new { expenseTypeId = types["TAMM_SUBSCRIPTION"], startDate = DateTime.UtcNow, months = 12, totalAmount = 1200, vatAmount = 180, paymentAccountCode = "1101" })).Status);
         Assert.Equal((6390m, 2600m), await ReturnAsync());
         Assert.Equal(6390, await BalanceAsync(api, "1131")); // الإقرار يطابق حساب ضريبة المدخلات
 
@@ -233,11 +233,11 @@ public class ChargePostingAndTaxTests : TestBase
         var api = await NewTenantAsync();
         var (vid, _) = await SeedCarAsync(api);
 
-        Assert.Equal(400, (await api.Post("/tammwallet/topup", new { amount = 0, treasuryAccountCode = "1112" })).Status);
+        Assert.Equal(400, (await api.Post("/tammwallet/topup", new { amount = 0, treasuryAccountCode = "1101" })).Status);
         Assert.Equal(400, (await api.Post("/tammwallet/topup", new { amount = 100 })).Status);
-        Assert.Equal(200, (await api.Post("/tammwallet/topup", new { amount = 1000, treasuryAccountCode = "1112", reference = "TR-1" })).Status);
+        Assert.Equal(200, (await api.Post("/tammwallet/topup", new { amount = 1000, treasuryAccountCode = "1101", reference = "TR-1" })).Status);
         Assert.Equal(1000, await BalanceAsync(api, "119"));
-        Assert.Equal(-1000, await BalanceAsync(api, "1112"));
+        Assert.Equal(-1000, await BalanceAsync(api, "1101"));
 
         // نقل ملكية للمعرض: إضافة للتكلفة من رصيد تم
         var op = await api.Post("/tammoperations", new { type = "transfer_to_showroom", vehicleId = vid, fee = 250 });

@@ -89,7 +89,7 @@ public class PosOfflineSalesTests : TestBase
 
     private static async Task MethodAsync(Client api, string code, string type)
     {
-        var r = await api.Post("/paymentmethods", new { code, nameAr = "طريقة " + code, nameEn = code, type, linkedAccountCode = type == "cash" ? "1111" : "1112", status = "active" });
+        var r = await api.Post("/paymentmethods", new { code, nameAr = "طريقة " + code, nameEn = code, type, linkedAccountCode = type == "cash" ? "1111" : "1101", status = "active" });
         Assert.True(r.Status == 201, r.Body?.ToJsonString());
     }
 }

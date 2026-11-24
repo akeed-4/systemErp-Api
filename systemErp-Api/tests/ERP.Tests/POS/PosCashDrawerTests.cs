@@ -91,11 +91,11 @@ public class PosCashDrawerTests : TestBase
         Assert.Equal(100, await BalanceAsync(api, "1111"));
 
         // صرف من حساب نقدية آخر يختاره الكاشير: يُقيَّد عليه لا على الصندوق
-        var chosen = await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 30, reason = "ضيافة", cashAccountCode = "1112" });
+        var chosen = await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 30, reason = "ضيافة", cashAccountCode = "1101" });
         Assert.Equal(200, chosen.Status);
-        Assert.Equal("1112", chosen.Data!["cashAccountCode"].S());
+        Assert.Equal("1101", chosen.Data!["cashAccountCode"].S());
         Assert.Equal(100, await BalanceAsync(api, "1111"));
-        Assert.Equal(-130, await BalanceAsync(api, "1112")); // دائن 100 مقابل الإيداع الأول + 30 هذا الصرف
+        Assert.Equal(-130, await BalanceAsync(api, "1101")); // دائن 100 مقابل الإيداع الأول + 30 هذا الصرف
         Assert.Equal(30, await BalanceAsync(api, "521"));
 
         Assert.Equal(400, (await api.Post("/pos/shifts/CashMovements", new { type = "paid_out", amount = 5, reason = "x", cashAccountCode = "521", counterAccountCode = "521" })).Status);

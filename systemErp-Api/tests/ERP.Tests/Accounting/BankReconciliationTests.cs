@@ -13,7 +13,7 @@ public class BankReconciliationTests : TestBase
     public async Task Reconciliation_completes_only_when_matched_lines_equal_the_statement_balance()
     {
         var api = await NewTenantAsync();
-        const string Bank = "1112";
+        const string Bank = "1101";
         async Task<string> EntryAsync(string debit, string credit, decimal amount)
         {
             var r = await api.Post("/journalentries", new { date = DateTime.UtcNow.AddDays(-1), description = "x",

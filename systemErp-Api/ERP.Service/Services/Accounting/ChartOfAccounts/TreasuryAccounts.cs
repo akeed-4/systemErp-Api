@@ -1,10 +1,11 @@
 using ERP.Service.Data;
+using ERP.Service.Services.Shared;
 
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
 /// حسابات النقدية: حسابان رئيسيان تحت الأصول المتداولة، الصناديق (111) والبنوك (110). يُعرف حساب النقدية بسلسلة الآباء الفعلية
-/// في الدليل لا ببداية الرمز: حساب تحت 11 برمز 1101 أو 1110 ليس نقدية، وبنك قديم برمز 111xxx نُقل تحت البنوك نقدية.
+/// في الدليل لا ببداية الرمز: حساب تحت 11 برمز يبدأ بـ 110 أو 111 ليس نقدية، وبنك قديم برمز 111xxx نُقل تحت البنوك نقدية.
 /// 110 يُعد البنوك فقط إن كان حساب نظام؛ حساب أنشأه المستخدم بالرمز نفسه لا يُمس ولا يُعامل كنقدية، وتبقى البنوك عندها تحت 111.
 /// </summary>
 internal static class TreasuryAccounts
@@ -25,31 +26,84 @@ internal static class TreasuryAccounts
         => await db.Set<Account>().AnyAsync(a => a.Code == DefaultAccounts.Banks && a.IsSystem, ct) ? DefaultAccounts.Banks : DefaultAccounts.CashBoxes;
 
     // ---------- ترقيم البنوك والصناديق ----------
+    //
+    // تسلسل واحد لكل مجموعة يشمل الحسابات الافتراضية والمضافة: رمز المجموعة + رقم التسلسل بلا أصفار بادئة.
+    //   البنوك 110:    1101 (البنك الافتراضي)، 1102 (تحصيلات البوابة)، 1103 أول بنك مضاف، ... 1109، 11010، 11011...
+    //   الصناديق 111:  1111 (الصندوق الرئيسي)، 1112 أول صندوق إضافي، ... 1119، 11110...
+    // التسلسل يُقرأ من الأبناء الفعليين للمجموعة (ParentCode) لا من بداية الرمز، ومن عدّاد مستقل لكل مجموعة.
 
-    /// <summary>عرض تسلسل الحساب بعد رمز مجموعته: البنوك 110001، 110002...، والصناديق 111001، 111002...</summary>
-    public const int ChildWidth = 3;
+    /// <summary>مفتاح عدّاد المجموعة (منفصل عن عدّادات العرض الثابت <see cref="HierarchicalCodes.AccountChildKey"/>).</summary>
+    public static string CounterKey(string group) => $"treasury_code:{group}";
 
     /// <summary>هل الأب مجموعة نقدية تُرقَّم فروعها المباشرة آلياً: الصناديق 111، أو البنوك 110 إن كانت حساب نظام (<see cref="Roots"/>).</summary>
     public static async Task<bool> IsNumberedGroupAsync(ErpDbContext db, string? parentCode, CancellationToken ct) => parentCode switch
     {
-        DefaultAccounts.CashBoxes => await db.Set<Account>().AnyAsync(a => a.Code == parentCode, ct),
-        DefaultAccounts.Banks => await db.Set<Account>().AnyAsync(a => a.Code == parentCode && a.IsSystem, ct),
+        DefaultAccounts.CashBoxes => db.Set<Account>().Local.Any(a => a.Code == parentCode) || await db.Set<Account>().AnyAsync(a => a.Code == parentCode, ct),
+        DefaultAccounts.Banks => db.Set<Account>().Local.Any(a => a.Code == parentCode && a.IsSystem) || await db.Set<Account>().AnyAsync(a => a.Code == parentCode && a.IsSystem, ct),
         _ => false,
     };
 
-    /// <summary>
-    /// يصرف رمز الحساب التالي تحت مجموعة النقدية <paramref name="group"/> (المجموعة + 3 خانات) من عدّادها، وهو عدّاد الأب المشترك
-    /// لكل الشاشات (<see cref="HierarchicalCodes.AccountChildKey"/>): البنك من شاشة البنوك أو شجرة الحسابات، والصندوق من الشجرة أو
-    /// صندوق الموقع، فلا يمس تسلسلُ البنوك تسلسلَ الصناديق. لا يتكرر بين طلبين متزامنين (قفل المعاملة وقفل العدّاد المتفائل)، ولا يعيد
-    /// رقماً حُذف حسابه، ويبدأ بعد أكبر رمز قائم بالشكل نفسه. الرموز القديمة بشكل آخر (1111، 1112، 1113) لا تدخل في التسلسل ولا يُعاد
-    /// ترقيمها. يُستدعى داخل معاملة إنشاء الحساب.
-    /// </summary>
-    public static Task<string> NextCodeAsync(ErpDbContext db, string group, CancellationToken ct)
-        => HierarchicalCodes.NextAccountChildAsync(db, group, ChildWidth, Messages.SubAccountCodesExhausted, ct);
+    /// <summary>تسلسل الرمز تحت المجموعة: المجموعة ثم رقم موجب بلا صفر بادئ (1103 ← 3، 11010 ← 10)، وإلا null.</summary>
+    public static long? SequenceOf(string code, string group)
+    {
+        if (code.Length <= group.Length || code.Length > group.Length + 9 || !code.StartsWith(group, StringComparison.Ordinal)) return null;
+        var tail = code.AsSpan(group.Length);
+        if (tail[0] == '0') return null;
+        foreach (var ch in tail) if (ch is < '0' or > '9') return null;
+        return long.Parse(tail, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture);
+    }
 
-    /// <summary>الرمز المتوقع التالي تحت المجموعة بلا صرف (للعرض في نوافذ الإضافة)؛ الفعلي يُصرف عند الحفظ.</summary>
-    public static Task<string?> PeekCodeAsync(ErpDbContext db, string group, CancellationToken ct)
-        => HierarchicalCodes.PeekAccountChildAsync(db, group, ChildWidth, ct);
+    /// <summary>رمز التسلسل <paramref name="sequence"/> تحت المجموعة (1101، 11010).</summary>
+    public static string Compose(string group, long sequence) => group + sequence.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// يصرف رمز الحساب التالي تحت مجموعة النقدية <paramref name="group"/> من عدّادها المستقل، لكل الشاشات: البنك من شاشة البنوك أو
+    /// الشجرة، والصندوق من الشجرة أو صندوق الموقع. يبدأ بعد أكبر تسلسل بين الأبناء الفعليين للمجموعة وقيمة العدّاد، فلا يُعاد رقم حُذف
+    /// حسابه، ويتخطى أي رمز مستخدم في الدليل كله (ولو تحت أب آخر). الطلبات المتزامنة تحت المجموعة نفسها تنتظر بالدور (قفل المعاملة)،
+    /// والعدّاد المتفائل والفهرس الفريد ضمانان إضافيان. يُستدعى داخل معاملة إنشاء الحساب.
+    /// </summary>
+    public static async Task<string> NextCodeAsync(ErpDbContext db, string group, CancellationToken ct)
+    {
+        var key = CounterKey(group);
+        await HierarchicalCodes.LockAsync(db, key, ct);
+        var taken = await TakenCodesAsync(db, group, ct);
+        var start = Math.Max(MaxChildSequence(taken.Children, group), await LastValueAsync(db, key, ct)) + 1;
+        var sequence = start;
+        while (taken.All.Contains(Compose(group, sequence))) sequence++;
+        // يُحجز من العدّاد ما يصل إلى التسلسل المختار دفعة واحدة (ما تخطاه لرموز مستخدمة لا يُعاد)
+        var count = (int)Math.Max(1, sequence - await LastValueAsync(db, key, ct));
+        var code = Compose(group, await NumberSequenceService.ReserveAsync(db, key, string.Empty, count, ct) + count - 1);
+        // طلب سبقنا رغم القفل (بلا معاملة) فأنشأ الرمز: نتقدم بعده
+        while (db.Set<Account>().Local.Any(a => a.Code == code) || await db.Set<Account>().AnyAsync(a => a.Code == code, ct))
+            code = Compose(group, await NumberSequenceService.ReserveAsync(db, key, string.Empty, 1, ct));
+        return code;
+    }
+
+    /// <summary>الرمز المتوقع التالي تحت المجموعة بلا صرف (للعرض في نوافذ الإضافة)؛ الفعلي يُصرف عند الحفظ وقد يتقدم إن سبقه طلب متزامن.</summary>
+    public static async Task<string?> PeekCodeAsync(ErpDbContext db, string group, CancellationToken ct)
+    {
+        var taken = await TakenCodesAsync(db, group, ct);
+        var sequence = Math.Max(MaxChildSequence(taken.Children, group), await LastValueAsync(db, CounterKey(group), ct)) + 1;
+        while (taken.All.Contains(Compose(group, sequence))) sequence++;
+        return Compose(group, sequence);
+    }
+
+    private static long MaxChildSequence(IEnumerable<string> children, string group)
+        => children.Select(c => SequenceOf(c, group) ?? 0).DefaultIfEmpty(0).Max();
+
+    /// <summary>رموز الأبناء الفعليين للمجموعة، وكل رموز الدليل بشكل تسلسلها (للتخطي)، شاملة المضاف في المعاملة ولم يُحفظ.</summary>
+    private static async Task<(List<string> Children, HashSet<string> All)> TakenCodesAsync(ErpDbContext db, string group, CancellationToken ct)
+    {
+        var rows = await db.Set<Account>().AsNoTracking()
+            .Where(a => a.ParentCode == group || (a.Code.StartsWith(group) && a.Code.Length > group.Length))
+            .Select(a => new { a.Code, a.ParentCode }).ToListAsync(ct);
+        var local = db.Set<Account>().Local.Select(a => new { a.Code, a.ParentCode }).ToList();
+        var all = rows.Concat(local).ToList();
+        return (all.Where(a => a.ParentCode == group).Select(a => a.Code).ToList(), all.Select(a => a.Code).ToHashSet(StringComparer.Ordinal));
+    }
+
+    private static async Task<long> LastValueAsync(ErpDbContext db, string key, CancellationToken ct)
+        => await db.Set<NumberSequence>().AsNoTracking().Where(s => s.Key == key).Select(s => (long?)s.LastValue).FirstOrDefaultAsync(ct) ?? 0;
 
     public static async Task<Snapshot> LoadAsync(ErpDbContext db, CancellationToken ct)
         => new(await db.Set<Account>().AsNoTracking().Select(a => new ChartRow(a.Code, a.ParentCode, a.IsSystem)).ToListAsync(ct));

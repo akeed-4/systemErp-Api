@@ -14,7 +14,7 @@ public class PosCardTerminalTests : TestBase
     {
         var api = await NewTenantAsync();
         var product = await SeedProductAsync(api);
-        Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "MADA-T", nameAr = "مدى (الجهاز)", type = "card", linkedAccountCode = "1112", useCardTerminal = true, status = "active" })).Status);
+        Assert.Equal(201, (await api.Post("/paymentmethods", new { code = "MADA-T", nameAr = "مدى (الجهاز)", type = "card", linkedAccountCode = "1101", useCardTerminal = true, status = "active" })).Status);
         await OpenPosShiftAsync(api);
         return (api, product);
     }

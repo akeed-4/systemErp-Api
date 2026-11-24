@@ -236,11 +236,11 @@ public class AccountingIntegrityTests : TestBase
         Assert.Equal(201, chosen.Status);
         Assert.Equal("TR-BOX", chosen.Data!["paymentMethodCode"].S());
         Assert.Equal(115, await BalanceAsync(api, "1111"));
-        Assert.Equal(0, await BalanceAsync(api, "1112"));
+        Assert.Equal(0, await BalanceAsync(api, "1101"));
 
         // بلا رمز: السلوك السابق (حساب النوع الافتراضي)
         Assert.Equal(201, (await api.PostInvoice(Sale(null))).Status);
-        Assert.Equal(115, await BalanceAsync(api, "1112"));
+        Assert.Equal(115, await BalanceAsync(api, "1101"));
 
         // الدفع المتعدد: كل جزء على حساب طريقته
         var split = await api.PostInvoice(new { kind = "sales", invoiceType = "simplified", status = "posted", paymentMethod = "cash", isSplitPayment = true,
@@ -248,7 +248,7 @@ public class AccountingIntegrityTests : TestBase
             items = new[] { new { itemName = "خدمة", quantity = 1, unitPrice = 100, vatRate = 15 } } });
         Assert.Equal(201, split.Status);
         Assert.Equal(130, await BalanceAsync(api, "1111"));
-        Assert.Equal(215, await BalanceAsync(api, "1112"));
+        Assert.Equal(215, await BalanceAsync(api, "1101"));
     }
 
     [Fact]

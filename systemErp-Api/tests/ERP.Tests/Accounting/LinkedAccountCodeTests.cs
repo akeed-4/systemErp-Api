@@ -35,10 +35,14 @@ public class LinkedAccountCodeTests : TestBase
         var supplier = await api.Post("/suppliers", new { nameAr = "مورد", nameEn = "S", phone = "0500000001", accountCode = "211007" });
         Assert.Equal(201, supplier.Status);
         Assert.Equal("211007", supplier.Data!["accountCode"].S());
-        var bank = await api.Post("/banks", new { nameAr = "بنك", nameEn = "B", accountCode = "11009" }); // تحت البنوك (110)
+        // البنوك على تسلسل مجموعتها الموحد دائماً: الرمز المطلوب لا يُعتمد (1101، 1102 للافتراضيين ثم 1103...)
+        var bank = await api.Post("/banks", new { nameAr = "بنك", nameEn = "B", accountCode = "11009" });
         Assert.Equal(201, bank.Status);
-        Assert.Equal("11009", bank.Data!["accountCode"].S());
-        Assert.Equal(400, (await api.Post("/banks", new { nameAr = "بنك 2", nameEn = "B2", accountCode = "11119" })).Status); // تحت الصناديق: ليس بنكاً
+        Assert.Equal("1103", bank.Data!["accountCode"].S());
+        var other = await api.Post("/banks", new { nameAr = "بنك 2", nameEn = "B2", accountCode = "11119" });
+        Assert.Equal(201, other.Status);
+        Assert.Equal("1104", other.Data!["accountCode"].S());
+        Assert.Equal("110", (await api.Get("/accounts/ByCode/1104")).Data!["parentCode"].S());
     }
 
     [Fact]
@@ -46,11 +50,13 @@ public class LinkedAccountCodeTests : TestBase
     {
         var api = await NewTenantAsync();
         var customersBefore = (await api.Get("/customers")).Data!["totalCount"]!.GetValue<int>();
-        foreach (var (code, parent, type) in new[] { ("1128", "112", "asset"), ("2118", "211", "liability"), ("1118", "111", "asset"), ("1108", "110", "asset") })
+        // تحت الصناديق والبنوك الرمز من تسلسل المجموعة (1112، 1103) لا المُرسل
+        foreach (var (code, parent, type, expected) in new[] { ("1128", "112", "asset", "1128"), ("2118", "211", "liability", "2118"), ("1118", "111", "asset", "1112"), ("1108", "110", "asset", "1103") })
         {
             var created = await api.Post("/accounts", new { code, nameAr = "عام " + code, nameEn = code, type, parentCode = parent, isDebitNature = type == "asset", linkedEntityType = "general" });
             Assert.Equal(201, created.Status);
-            var saved = (await api.Get($"/accounts/ByCode/{code}")).Data!;
+            Assert.Equal(expected, created.Data!["code"].S());
+            var saved = (await api.Get($"/accounts/ByCode/{expected}")).Data!;
             Assert.Equal(parent, saved["parentCode"].S());
             Assert.True(saved["linkedEntityId"] == null);
             Assert.True(saved["linkedEntityType"] == null || saved["linkedEntityType"].S() == "general");
@@ -107,7 +113,11 @@ public class LinkedAccountCodeTests : TestBase
         Assert.Equal(400, (await api.Post("/customers", Customer("مسافة", "112 05"))).Status);
         Assert.Equal(400, (await api.Post("/customers", Customer("تحت البنوك", "110077"))).Status);
         Assert.Equal(400, (await api.Post("/suppliers", new { nameAr = "مورد", nameEn = "S", phone = "0500000002", accountCode = "112077" })).Status);
-        Assert.Equal(400, (await api.Post("/banks", new { nameAr = "بنك", nameEn = "B", accountCode = "211077" })).Status);
+        // البنك لا يقبل رمزاً مطلوباً: يُرقَّم على تسلسل البنوك ولو أُرسل رمز خارجها
+        var bank = await api.Post("/banks", new { nameAr = "بنك", nameEn = "B", accountCode = "211077" });
+        Assert.Equal(201, bank.Status);
+        Assert.Equal("1103", bank.Data!["accountCode"].S());
+        Assert.Equal(404, (await api.Get("/accounts/ByCode/211077")).Status);
         // لا أثر للمحاولات المرفوضة
         Assert.Equal(404, (await api.Get("/accounts/ByCode/110077")).Status);
 

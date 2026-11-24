@@ -10,7 +10,7 @@ public interface IAccountService : ICrudService<AccountDto, CreateAccountDto, Up
     Task<List<AccountDto>> GetTreeAsync(CancellationToken ct = default);
     Task<AccountDto> GetByCodeAsync(string code, CancellationToken ct = default);
     /// <summary>
-    /// رمز الحساب المتوقع التالي تحت مجموعة النقدية <paramref name="parentCode"/> (البنوك 110 ← 110001...، الصناديق 111 ← 111001...)
+    /// رمز الحساب المتوقع التالي تحت مجموعة النقدية <paramref name="parentCode"/> (البنوك 110 ← 1101، 1102، 1103...، الصناديق 111 ← 1111، 1112...)
     /// بلا صرف، للعرض في نوافذ الإضافة؛ null لأب لا يُرقَّم آلياً. الرمز الفعلي يُصرف عند الحفظ بإرسال رمز فارغ.
     /// </summary>
     Task<string?> PeekTreasuryCodeAsync(string parentCode, CancellationToken ct = default);

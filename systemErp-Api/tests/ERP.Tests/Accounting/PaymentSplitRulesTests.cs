@@ -29,7 +29,7 @@ public class PaymentSplitRulesTests : TestBase
     {
         var api = await NewTenantAsync();
         await MethodAsync(api, "CASHBOX", "cash", "1111");
-        await MethodAsync(api, "MADA", "card", "1112");
+        await MethodAsync(api, "MADA", "card", "1101");
 
         // نقداً ثم نقداً: مرفوض باسم الطريقة المكررة
         var repeated = await api.PostInvoice(SplitSale(("cash", "CASHBOX", 60), ("cash", "CASHBOX", 55)));

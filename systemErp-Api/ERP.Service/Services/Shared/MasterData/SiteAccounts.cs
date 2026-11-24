@@ -7,13 +7,14 @@ namespace ERP.Service.Services.Shared;
 /// حسابات الموقع (الموقع/المعرض) الخاصة: لكل موقع إضافي أربعة حسابات باسمه مرتبطة به، تحت أب حساب الدور المقابل في الإعدادات:
 /// <list type="bullet">
 /// <item>مخزون الموقع تحت المخزون (114)، ويُربط فقط إن لم يُحدَّد له حساب ولا حركة مخزون عليه (فلا ينقسم رصيده).</item>
-/// <item>تكلفة إيراد الموقع تحت تكلفة المبيعات (51)، ومبيعاته تحت إيرادات المبيعات (41)، وصندوقه تحت النقدية والبنوك (111).</item>
+/// <item>تكلفة إيراد الموقع تحت تكلفة المبيعات (51)، ومبيعاته تحت إيرادات المبيعات (41)، وصندوقه تحت الصناديق (111).</item>
+/// <item>بضاعة أول المدة وآخرها للموقع (الجرد الدوري) بجوار حسابي الإعدادات في تكلفة المبيعات (أو تحت مجموعة تكلفة البضاعة المباعة إن لم يُحددا).</item>
 /// </list>
 /// الرمز = رمز الأب + رقم متسلسل من ثلاث خانات (114001، 41001...). الموقع الرئيسي يبقى على حسابات الإعدادات (عدا مخزونه 114001 منذ التأسيس).
 /// </summary>
 public static class SiteAccounts
 {
-    public enum Role { Inventory, Cogs, Sales, Cash, Shortage, Surplus }
+    public enum Role { Inventory, Cogs, Sales, Cash, Shortage, Surplus, OpeningInventory, EndingInventory }
 
     public static string Name(Role role, string? siteName, bool english = false) => role switch
     {
@@ -22,6 +23,8 @@ public static class SiteAccounts
         Role.Sales => english ? $"Sales - {siteName}" : $"مبيعات - {siteName}",
         Role.Shortage => english ? $"Inventory shortage - {siteName}" : $"عجز مخزون - {siteName}",
         Role.Surplus => english ? $"Inventory surplus - {siteName}" : $"زيادة مخزون - {siteName}",
+        Role.OpeningInventory => english ? $"Opening inventory - {siteName}" : $"بضاعة أول المدة - {siteName}",
+        Role.EndingInventory => english ? $"Closing inventory - {siteName}" : $"بضاعة آخر المدة - {siteName}",
         _ => english ? $"Cash box - {siteName}" : $"صندوق - {siteName}",
     };
 
@@ -29,12 +32,14 @@ public static class SiteAccounts
     public static Role? RoleOf(Warehouse w, string code)
         => code == w.InventoryAccountCode ? Role.Inventory : code == w.CogsAccountCode ? Role.Cogs
             : code == w.SalesAccountCode ? Role.Sales : code == w.CashAccountCode ? Role.Cash
-            : code == w.ShortageAccountCode ? Role.Shortage : code == w.SurplusAccountCode ? Role.Surplus : null;
+            : code == w.ShortageAccountCode ? Role.Shortage : code == w.SurplusAccountCode ? Role.Surplus
+            : code == w.OpeningInventoryAccountCode ? Role.OpeningInventory : code == w.EndingInventoryAccountCode ? Role.EndingInventory : null;
 
     /// <summary>ينقص الموقعَ حسابٌ من حساباته الخاصة (الرئيسي: تكلفة الإيراد والعجز والزيادة؛ مبيعاته وصندوقه على الإعدادات).</summary>
     public static bool IsMissing(Warehouse w)
         => w.CogsAccountCode == null || w.ShortageAccountCode == null || w.SurplusAccountCode == null
-           || (!w.IsDefault && (w.InventoryAccountCode == null || w.SalesAccountCode == null || w.CashAccountCode == null));
+           || (!w.IsDefault && (w.InventoryAccountCode == null || w.SalesAccountCode == null || w.CashAccountCode == null
+               || w.OpeningInventoryAccountCode == null || w.EndingInventoryAccountCode == null));
 
     /// <summary>
     /// ينشئ ما ينقص من حسابات الموقع ويربطها به (لا يمس حساباً محدداً). <paramref name="isNew"/>: موقع جديد لم تُحفظ له حركات بعد.
@@ -68,7 +73,26 @@ public static class SiteAccounts
         if (w.IsDefault) return created;
         if (w.SalesAccountCode == null) { w.SalesAccountCode = await CreateAsync(db, w, Role.Sales, await ParentOfAsync(db, settings.SalesRevenue(), ct), ct); created++; }
         if (w.CashAccountCode == null) { w.CashAccountCode = await CreateAsync(db, w, Role.Cash, await ParentOfAsync(db, cash, ct), ct); created++; }
+        // بضاعة أول المدة وآخرها: بجوار حساب الإعدادات إن حُدد، وإلا تحت مجموعة تكلفة البضاعة المباعة
+        if (w.OpeningInventoryAccountCode == null)
+        {
+            w.OpeningInventoryAccountCode = await CreateAsync(db, w, Role.OpeningInventory, await PeriodicParentAsync(db, settings.OpeningInventoryAccountCode, settings, ct), ct);
+            created++;
+        }
+        if (w.EndingInventoryAccountCode == null)
+        {
+            w.EndingInventoryAccountCode = await CreateAsync(db, w, Role.EndingInventory, await PeriodicParentAsync(db, settings.EndingInventoryAccountCode, settings, ct), ct);
+            created++;
+        }
         return created;
+    }
+
+    /// <summary>أب حساب الإعدادات المحدد (أول المدة أو آخرها) إن وُجد في الدليل، وإلا أب تكلفة البضاعة المباعة (51).</summary>
+    private static async Task<string> PeriodicParentAsync(ErpDbContext db, string? configured, AccountingSettings settings, CancellationToken ct)
+    {
+        if (configured != null && await db.Set<Account>().Where(a => a.Code == configured).Select(a => a.ParentCode).FirstOrDefaultAsync(ct) is { } parent)
+            return parent;
+        return await ParentOfAsync(db, settings.Cogs(), ct);
     }
 
     /// <summary>للمواقع القائمة (والرئيسي لحساباته الخاصة): ينشئ الناقص لكلٍ منها. يُرجع عدد المواقع التي أُنشئ لها حساب.</summary>

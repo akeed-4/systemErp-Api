@@ -231,7 +231,7 @@ public class AccountingReportService : IAccountingReportService
             Opex = g.Sum(a => a.Code.StartsWith("52") ? a.Balance : 0m),
             OutputVat = g.Sum(a => a.Code.StartsWith(outputVatCode) ? a.Balance : 0m),
             InputVat = g.Sum(a => a.Code.StartsWith(inputVatCode) ? a.Balance : 0m),
-            Banks = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Banks) ? a.Balance : 0m),
+            Banks = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Banks) || a.Code.StartsWith(DefaultAccounts.CashBoxes) ? a.Balance : 0m), // الصناديق والبنوك
             Receivables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Receivables) ? a.Balance : 0m),
             Payables = g.Sum(a => a.Code.StartsWith(DefaultAccounts.Payables) ? a.Balance : 0m),
         }).FirstOrDefaultAsync(ct);
@@ -324,7 +324,7 @@ public class AccountingReportService : IAccountingReportService
         // يُستثنى القيد الذي لا طرف مقابل له غير النقدية/البنوك: سداد للهيئة/استرداد منها أو مقاصّة بين الحسابين
         var totals = await Lines
             .Where(l => vatAccounts.Contains(l.AccountCode) && manualEntryIds.Contains(l.JournalEntryId)
-                && Lines.Any(o => o.JournalEntryId == l.JournalEntryId && !vatAccounts.Contains(o.AccountCode) && !o.AccountCode.StartsWith(DefaultAccounts.Banks)))
+                && Lines.Any(o => o.JournalEntryId == l.JournalEntryId && !vatAccounts.Contains(o.AccountCode) && !o.AccountCode.StartsWith(DefaultAccounts.Banks) && !o.AccountCode.StartsWith(DefaultAccounts.CashBoxes)))
             .GroupBy(l => l.AccountCode).Select(g => new { Code = g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
         var output = totals.Where(t => t.Code == outputVatCode).Sum(t => t.Credit - t.Debit);
         var input = totals.Where(t => t.Code == inputVatCode).Sum(t => t.Debit - t.Credit);

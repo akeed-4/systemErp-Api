@@ -101,7 +101,7 @@ public class HrUserSyncTests : TestBase
     }
 
     [Fact]
-    public async Task Deleting_the_employee_deactivates_the_linked_user_but_never_the_owner()
+    public async Task Deleting_the_employee_deactivates_the_linked_system_user_but_never_the_owner()
     {
         var api = await NewTenantWithModulesAsync("hr");
         var (employeeId, userId, _) = await LinkedSystemUserAsync(api, "E4");

@@ -44,7 +44,7 @@ internal static class LinkedPartyAccounts
 
     public static bool IsParty(LinkedEntityType? type) => type is LinkedEntityType.Customer or LinkedEntityType.Supplier or LinkedEntityType.Bank;
 
-    /// <summary>مجموعة حسابات الكيان في الدليل (العملاء 112، الموردون 211، البنوك 111).</summary>
+    /// <summary>مجموعة حسابات الكيان في الدليل (العملاء 112، الموردون 211، البنوك 110).</summary>
     public static string GroupOf(LinkedEntityType type) => type switch
     {
         LinkedEntityType.Customer => DefaultAccounts.Receivables,
@@ -77,7 +77,8 @@ internal static class LinkedPartyAccounts
         users.AddRange((await db.Set<BankEntity>().Where(b => b.AccountCode == code).ToListAsync(ct)).Select(Of));
         if (users.Count != 1) return null;
         var group = GroupOf(users[0].Type);
-        return code.Length > group.Length && code.StartsWith(group, StringComparison.Ordinal) ? users[0] : null;
+        // حساب بنك قديم (111xxx) انتقل تحت البنوك برمزه: يُعرف بأبيه
+        return (code.Length > group.Length && code.StartsWith(group, StringComparison.Ordinal)) || account.ParentCode == group ? users[0] : null;
     }
 
     /// <summary>الحساب المملوك للكيان، أو null إن كان رمزه المحفوظ لحساب عام/مشترك (فلا يُمس).</summary>

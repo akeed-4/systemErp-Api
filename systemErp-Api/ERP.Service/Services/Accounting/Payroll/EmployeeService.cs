@@ -70,25 +70,67 @@ public class EmployeeService : CrudService<Employee, EmployeeDto, CreateEmployee
             throw new ConflictException(Messages.EmployeeCodeInUse);
     }
 
+    /// <summary>الحذف يمس عدة جداول (العضويات، الطلبات، الحضور، المستخدم المربوط): كلها أو لا شيء.</summary>
+    protected override bool Transactional => true;
+
+    /// <summary>
+    /// حذف ملف الموظف بعد فحص كل ارتباطاته:
+    /// <list type="bullet">
+    /// <item>يُمنع بمسيرات الرواتب (أثر مالي) والإجازات والسلف وتسوية نهاية الخدمة، وبالسجلات التشغيلية التي تحمل معرّفه
+    /// (موارد المشاريع، تشغيل المعدات وصيانتها، الورشة، أذونات المواد، التأجير والنقل): الرسالة تسمّي ما يمنع.</item>
+    /// <item>يُزال معه: عضوياته في المشاريع، وتكلفته المعيارية، وحضوره، ومقدّم الطلب في طلبات الشراء (يبقى اسمه نصاً)، وإدارته للأقسام.</item>
+    /// <item>المستخدم المربوط: حساب البوابة يُحذف، ومستخدم النظام يُعطَّل (<see cref="HrLinks.ReleaseLinkedUserAsync"/>).</item>
+    /// </list>
+    /// </summary>
     protected override async Task OnDeletingAsync(Employee e, CancellationToken ct)
     {
-        if (await Db.Set<PayrollLine>().AnyAsync(l => l.EmployeeId == e.Id, ct))
-            throw new ConflictException(Messages.EmployeeHasPayroll);
+        var runs = (await (from l in Db.Set<PayrollLine>()
+                           join r in Db.Set<PayrollRun>() on l.PayrollRunId equals r.Id
+                           where l.EmployeeId == e.Id
+                           select new { r.RunNumber, r.Period }).Distinct().ToListAsync(ct))
+            .OrderBy(r => r.Period).Select(r => r.RunNumber).ToList();
+        if (runs.Count > 0)
+            throw new ConflictException(string.Format(Messages.EmployeeHasPayroll, runs.Count, string.Join("، ", runs.Take(5))));
         if (await Db.Set<LeaveRequest>().AnyAsync(l => l.EmployeeId == e.Id, ct))
             throw new ConflictException(Messages.EmployeeHasLeaves);
         if (await Db.Set<EmployeeLoan>().AnyAsync(l => l.EmployeeId == e.Id, ct) || await Db.Set<EndOfServiceSettlement>().AnyAsync(s => s.EmployeeId == e.Id, ct))
             throw new ConflictException(Messages.EmployeeHasLoansOrSettlement);
-        // عضو مشروع أو مقدّم طلب شراء: العلاقة بالمعرّف، فلا يُحذف ملفه ويبقى السجل (يُوقف بدل الحذف)
-        if (await Db.Set<ProjectMember>().AnyAsync(m => m.EmployeeId == e.Id, ct)
-            || await Db.Set<MaterialRequisition>().AnyAsync(r => r.RequestedByEmployeeId == e.Id, ct))
-            throw new ConflictException(Messages.EmployeeLinkedToProjects);
+        if (await OperationalLinksAsync(e.Id, ct) is { Count: > 0 } links)
+            throw new ConflictException(string.Format(Messages.EmployeeHasOperationalLinks, string.Join("، ", links)));
+
+        // عضويات المشاريع: لا يشير إليها جدول آخر، فتُحذف مع الملف
+        Db.RemoveRange(await Db.Set<ProjectMember>().Where(m => m.EmployeeId == e.Id).ToListAsync(ct));
+        // مقدّم طلب الشراء: يبقى اسمه وقسمه المنسوخان في الطلب ويزول المعرّف (قيد Restrict)
+        foreach (var requisition in await Db.Set<MaterialRequisition>().Where(r => r.RequestedByEmployeeId == e.Id).ToListAsync(ct))
+            requisition.RequestedByEmployeeId = null;
+        // التكلفة المعيارية إعداد: المستندات ثبّتت تكلفتها على أسطرها
+        Db.RemoveRange(await Db.Set<EmployeeStandardCostRate>().Where(r => r.EmployeeId == e.Id).ToListAsync(ct));
         // سجلات الحضور تُحذف مع الموظف: لا أثر مالي لها ما دام بلا مسيرات
         Db.RemoveRange(await Db.Set<AttendanceRecord>().Where(a => a.EmployeeId == e.Id).ToListAsync(ct));
-        // المستخدم المربوط (حساب البوابة أو مستخدم النظام) يُعطَّل مع حذف ملفه، ويزول الربط بزوال الملف
-        await HrLinks.DeactivateLinkedUserAsync(Db, e, ct);
+        await HrLinks.ReleaseLinkedUserAsync(Db, e, ct);
         // مدير قسم يُحذف: يبقى القسم بلا مدير
         foreach (var department in await Db.Set<Department>().Where(x => x.ManagerEmployeeId == e.Id).ToListAsync(ct))
             department.ManagerEmployeeId = null;
+    }
+
+    /// <summary>السجلات التشغيلية التي تحمل معرّف الموظف بلا قيد في القاعدة: «النوع (العدد)» لكل نوع موجود.</summary>
+    private async Task<List<string>> OperationalLinksAsync(Guid id, CancellationToken ct)
+    {
+        var checks = new (string Label, Func<Task<int>> Count)[]
+        {
+            (Messages.EmployeeLinkProjectResources, () => Db.Set<ProjectResource>().CountAsync(r => r.EmployeeId == id, ct)),
+            (Messages.EmployeeLinkEquipmentOperation, async () => await Db.Set<EquipmentAssignment>().CountAsync(a => a.OperatorEmployeeId == id, ct)
+                + await Db.Set<EquipmentMaintenanceOrder>().CountAsync(m => m.TechnicianEmployeeId == id, ct)),
+            (Messages.EmployeeLinkWorkshop, () => Db.Set<WorkOrderTimeLog>().CountAsync(l => l.EmployeeId == id, ct)),
+            (Messages.EmployeeLinkMaterialIssues, () => Db.Set<ProjectMaterialIssue>().CountAsync(i => i.ReceiverEmployeeId == id, ct)),
+            (Messages.EmployeeLinkRental, async () => await Db.Set<RentalContractLine>().CountAsync(l => l.OperatorEmployeeId == id, ct)
+                + await Db.Set<RentalTimesheet>().CountAsync(t => t.OperatorEmployeeId == id, ct)
+                + await Db.Set<RentalTransportJob>().CountAsync(j => j.DriverEmployeeId == id, ct)),
+        };
+        var found = new List<string>();
+        foreach (var (label, count) in checks)
+            if (await count() is var n and > 0) found.Add($"{label} ({n})");
+        return found;
     }
 
     /// <summary>انتقل الموظف إلى «منتهي الخدمة» في هذا التعديل (لا كل حفظ لموظف منتهٍ: من أعاد تنشيط مستخدمه يدوياً لا يُعطَّل ثانية).</summary>

@@ -368,7 +368,7 @@ internal static class ContractAccountsSetup
             var candidates = chart.Where(a => (names.Contains(Normalize(a.NameAr)) || names.Contains(Normalize(a.NameEn)))
                     && (spec.CostOfSalesOnly ? a.Type == spec.Type && InCostOfSales(a) : role.Types.Contains(a.Type))
                     && !parents.Contains(a.Code)
-                    && a.Linked is null && !IsUnder(a.Code, DefaultAccounts.Banks, byCode)
+                    && a.Linked is null && !IsUnder(a.Code, DefaultAccounts.Banks, byCode) && !IsUnder(a.Code, DefaultAccounts.CashBoxes, byCode)
                     && !excluded.Contains(a.Code) && !taken.Contains(a.Code))
                 .ToList();
             if (candidates.Count > 1)

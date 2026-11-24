@@ -354,7 +354,7 @@
   <data name="EmailInvalid" xml:space="preserve"><value>The email address is invalid.</value></data>
   <data name="EmployeeCodeInUse" xml:space="preserve"><value>The employee code is already in use.</value></data>
   <data name="EmployeeGosiRateInvalid" xml:space="preserve"><value>The social insurance rate must be between 0 and 100.</value></data>
-  <data name="EmployeeHasPayroll" xml:space="preserve"><value>The employee has payroll runs; deactivate instead of deleting.</value></data>
+  <data name="EmployeeHasPayroll" xml:space="preserve"><value>The employee cannot be deleted: they have {0} payroll run(s) ({1}). Deactivate or terminate them instead.</value></data>
   <data name="EmployeeSalaryInvalid" xml:space="preserve"><value>The basic salary is required and salary components cannot be negative.</value></data>
   <data name="EndDateBeforeStart" xml:space="preserve"><value>End date is before the start date.</value></data>
   <data name="EnterEmailOrMobile" xml:space="preserve"><value>Enter the email address or mobile number.</value></data>
@@ -1722,7 +1722,6 @@
   <data name="ProjectMemberRoleSystem" xml:space="preserve"><value>Built-in system roles cannot be edited or deleted.</value></data>
   <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>The user does not exist or is inactive.</value></data>
   <data name="ProjectMemberEmployeeInvalid" xml:space="preserve"><value>The employee does not exist or is inactive.</value></data>
-  <data name="EmployeeLinkedToProjects" xml:space="preserve"><value>The employee is a project member or a purchase requester: deactivate instead of deleting.</value></data>
   <data name="RequisitionDepartmentInvalid" xml:space="preserve"><value>The department does not exist.</value></data>
   <data name="RequisitionEmployeeInvalid" xml:space="preserve"><value>The requester is not an active employee.</value></data>
   <data name="RequisitionEmployeeDepartmentMismatch" xml:space="preserve"><value>The requester does not belong to the selected department.</value></data>
@@ -2340,4 +2339,10 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="ZatcaRecoveryNotStuck" xml:space="preserve"><value>Session status "{0}" is not a stuck certificate request.</value></data>
   <data name="ZatcaRecoveryConfirmRequired" xml:space="preserve"><value>Confirm that no certificate was issued for this request: review the EGS units in the Fatoora portal for this environment, then close the session again with the confirmation.</value></data>
   <data name="ZatcaTestUnreachable" xml:space="preserve"><value>Cannot reach the ZATCA gateway ({0}): {1}</value></data>
+  <data name="EmployeeHasOperationalLinks" xml:space="preserve"><value>The employee cannot be deleted because they are linked to operational records: {0}. Deactivate them instead.</value></data>
+  <data name="EmployeeLinkProjectResources" xml:space="preserve"><value>project resource assignments</value></data>
+  <data name="EmployeeLinkEquipmentOperation" xml:space="preserve"><value>equipment operation or maintenance</value></data>
+  <data name="EmployeeLinkWorkshop" xml:space="preserve"><value>workshop time logs</value></data>
+  <data name="EmployeeLinkMaterialIssues" xml:space="preserve"><value>material issue receipts</value></data>
+  <data name="EmployeeLinkRental" xml:space="preserve"><value>rental operation or transport</value></data>
 </root>

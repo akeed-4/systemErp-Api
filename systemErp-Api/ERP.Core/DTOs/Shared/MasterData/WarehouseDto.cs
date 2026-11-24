@@ -23,4 +23,6 @@ public partial class WarehouseDto
     public string? CashAccountCode { get; set; }
     public string? ShortageAccountCode { get; set; }
     public string? SurplusAccountCode { get; set; }
+    public string? OpeningInventoryAccountCode { get; set; }
+    public string? EndingInventoryAccountCode { get; set; }
 }

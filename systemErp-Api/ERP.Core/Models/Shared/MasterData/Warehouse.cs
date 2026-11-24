@@ -29,4 +29,10 @@ public class Warehouse : BaseEntity
     /// <summary>عجز وزيادة مخزون الموقع (فروق الجرد المستمر): تُنشأ لكل موقع حتى الرئيسي تحت مجموعة حسابي الإعدادات. فارغ = حساب الإعدادات.</summary>
     public string? ShortageAccountCode { get; set; }
     public string? SurplusAccountCode { get; set; }
+    /// <summary>
+    /// بضاعة أول المدة وآخرها للموقع الإضافي (الجرد الدوري): تُنشآن تلقائياً باسمه بجوار حسابي الإعدادات في تكلفة المبيعات، ويقابل بهما قيدُ الجرد
+    /// الدوري حسابَ مخزون الموقع. الرئيسي على حسابي الإعدادات. فارغ = حساب الإعدادات.
+    /// </summary>
+    public string? OpeningInventoryAccountCode { get; set; }
+    public string? EndingInventoryAccountCode { get; set; }
 }

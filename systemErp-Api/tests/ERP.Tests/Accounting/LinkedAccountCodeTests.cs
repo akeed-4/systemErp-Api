@@ -35,9 +35,10 @@ public class LinkedAccountCodeTests : TestBase
         var supplier = await api.Post("/suppliers", new { nameAr = "مورد", nameEn = "S", phone = "0500000001", accountCode = "211007" });
         Assert.Equal(201, supplier.Status);
         Assert.Equal("211007", supplier.Data!["accountCode"].S());
-        var bank = await api.Post("/banks", new { nameAr = "بنك", nameEn = "B", accountCode = "11109" });
+        var bank = await api.Post("/banks", new { nameAr = "بنك", nameEn = "B", accountCode = "11009" }); // تحت البنوك (110)
         Assert.Equal(201, bank.Status);
-        Assert.Equal("11109", bank.Data!["accountCode"].S());
+        Assert.Equal("11009", bank.Data!["accountCode"].S());
+        Assert.Equal(400, (await api.Post("/banks", new { nameAr = "بنك 2", nameEn = "B2", accountCode = "11119" })).Status); // تحت الصناديق: ليس بنكاً
     }
 
     [Fact]
@@ -45,7 +46,7 @@ public class LinkedAccountCodeTests : TestBase
     {
         var api = await NewTenantAsync();
         var customersBefore = (await api.Get("/customers")).Data!["totalCount"]!.GetValue<int>();
-        foreach (var (code, parent, type) in new[] { ("1128", "112", "asset"), ("2118", "211", "liability"), ("1118", "111", "asset") })
+        foreach (var (code, parent, type) in new[] { ("1128", "112", "asset"), ("2118", "211", "liability"), ("1118", "111", "asset"), ("1108", "110", "asset") })
         {
             var created = await api.Post("/accounts", new { code, nameAr = "عام " + code, nameEn = code, type, parentCode = parent, isDebitNature = type == "asset", linkedEntityType = "general" });
             Assert.Equal(201, created.Status);
@@ -87,7 +88,7 @@ public class LinkedAccountCodeTests : TestBase
 
         Assert.Equal(firstCode, (await api.Get($"/customers/{first["id"].S()}")).Data!["accountCode"].S());
         Assert.Equal("112", (await api.Get($"/accounts/ByCode/{firstCode}")).Data!["parentCode"].S());
-        foreach (var (code, parent) in new[] { ("112", "11"), ("211", "21"), ("111", "11") })
+        foreach (var (code, parent) in new[] { ("112", "11"), ("211", "21"), ("110", "11"), ("111", "11") })
             Assert.Equal(parent, (await api.Get($"/accounts/ByCode/{code}")).Data!["parentCode"].S());
     }
 
@@ -104,11 +105,11 @@ public class LinkedAccountCodeTests : TestBase
         Assert.Equal(400, (await api.Post("/customers", Customer("تحت عميل", "1120101"))).Status);
         Assert.Equal(409, (await api.Post("/customers", Customer("رمز المجموعة", "112"))).Status);
         Assert.Equal(400, (await api.Post("/customers", Customer("مسافة", "112 05"))).Status);
-        Assert.Equal(400, (await api.Post("/customers", Customer("تحت البنوك", "111077"))).Status);
+        Assert.Equal(400, (await api.Post("/customers", Customer("تحت البنوك", "110077"))).Status);
         Assert.Equal(400, (await api.Post("/suppliers", new { nameAr = "مورد", nameEn = "S", phone = "0500000002", accountCode = "112077" })).Status);
         Assert.Equal(400, (await api.Post("/banks", new { nameAr = "بنك", nameEn = "B", accountCode = "211077" })).Status);
         // لا أثر للمحاولات المرفوضة
-        Assert.Equal(404, (await api.Get("/accounts/ByCode/111077")).Status);
+        Assert.Equal(404, (await api.Get("/accounts/ByCode/110077")).Status);
 
         var generated = await api.Post("/customers", Customer("تلقائي"));
         Assert.Equal(201, generated.Status);

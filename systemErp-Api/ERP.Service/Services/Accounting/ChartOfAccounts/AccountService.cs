@@ -295,7 +295,7 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
     }
 
     /// <summary>
-    /// أب الرمز المطلوب لحساب كيان: أطول حساب قائم رمزه بادئة له، ويجب أن يكون مجموعة الكيان (112/211/111) أو أحد فروعها
+    /// أب الرمز المطلوب لحساب كيان: أطول حساب قائم رمزه بادئة له، ويجب أن يكون مجموعة الكيان (112/211/110) أو أحد فروعها
     /// غير المرتبطة بكيان آخر؛ والرمز أرقام فقط وغير مستخدم.
     /// </summary>
     private async Task<Account> RequestedLinkedParentAsync(string code, Account group, CancellationToken ct)

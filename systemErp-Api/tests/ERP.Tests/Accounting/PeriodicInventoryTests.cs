@@ -358,6 +358,55 @@ public class PeriodicInventoryTests : TestBase
         Assert.Equal(0m, await BalanceAsync(api2, a2.Opening));           // حسابات الدخل أُقفلت
     }
 
+    /// <summary>
+    /// الموقع الإضافي يُنشأ له بضاعة أول المدة وآخرها باسمه بجوار حسابي الإعدادات، وقيد الجرد يقابل حساب مخزونه بهما (رصيده الدفتري قيد مُدرج
+    /// بلا كميات)، والرئيسي على حسابي الإعدادات.
+    /// </summary>
+    [Fact]
+    public async Task Each_added_site_has_its_own_opening_and_closing_inventory_and_the_count_entry_uses_them()
+    {
+        var (api, a) = await PeriodicTenantAsync();
+        var site = await api.Post("/warehouses", new { code = "JD2", nameAr = "معرض جدة", nameEn = "Jeddah", location = "جدة", status = "active" });
+        Assert.True(site.Status == 201, site.Body?.ToJsonString());
+        var siteInventory = site.Data!["inventoryAccountCode"].S();
+        var siteOpening = site.Data["openingInventoryAccountCode"].S();
+        var siteEnding = site.Data["endingInventoryAccountCode"].S();
+        foreach (var (own, general) in new[] { (siteOpening, a.Opening), (siteEnding, a.Ending) })
+        {
+            Assert.NotEqual(general, own);
+            var account = (await api.Get($"/accounts/ByCode/{own}")).Data!;
+            Assert.Contains("معرض جدة", account["nameAr"].S());
+            Assert.Equal("expense", account["type"].S().ToLowerInvariant());
+            Assert.Equal((await api.Get($"/accounts/ByCode/{general}")).Data!["parentCode"].S(), account["parentCode"].S());
+        }
+
+        var product = await SeedProductAsync(api, stock: 0);
+        await OpeningStockAsync(api, product, 10, 40, Today);
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ERP.Service.Data.ErpDbContext>();
+            var entry = new JournalEntry
+            {
+                TenantId = api.TenantId, EntryNumber = "SITE-" + Guid.NewGuid().ToString("N")[..6], Date = Today, Description = "رصيد مخزون الموقع",
+                SourceType = "test_site_balance", Status = JournalEntryStatus.Posted, TotalDebit = 200, TotalCredit = 200,
+            };
+            entry.Lines.Add(new JournalEntryLine { TenantId = api.TenantId, AccountCode = siteInventory, AccountName = "مخزون جدة", Debit = 200 });
+            entry.Lines.Add(new JournalEntryLine { TenantId = api.TenantId, AccountCode = "33", AccountName = "أرصدة افتتاحية", Credit = 200 });
+            db.Add(entry);
+            await db.SaveChangesAsync();
+        }
+
+        var approved = await ApproveCountAsync(api, ItemCount(product, 10));
+        Ok(approved);
+        var lines = await JournalLinesAsync(api, approved.Data!["journalEntryId"].S());
+        Assert.Equal(200m, Credit(lines, siteInventory));
+        Assert.Equal(200m, Debit(lines, siteOpening));
+        Assert.Equal(400m, Credit(lines, MainSiteInventory));
+        Assert.Equal(400m, Debit(lines, a.Opening));
+        Assert.Equal(400m, Debit(lines, MainSiteInventory));
+        Assert.Equal(400m, Credit(lines, a.Ending));
+    }
+
     // ---------------- معالجة قيود النموذج القديم ----------------
 
     /// <summary>قيد قديم كما رحّله النموذج السابق (تحويل رصيد المخزون إلى أول المدة)، مُدرج مباشرة لأن مساره أُزيل.</summary>

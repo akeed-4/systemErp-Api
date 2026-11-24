@@ -18,7 +18,7 @@ public class AccountingTests : TestBase
         var (_, cAcc) = await SeedCustomerAsync(api);
         var (_, sAcc) = await SeedSupplierAsync(api);
         var bank = await api.Post("/banks", new { nameAr = "بنك", accountNumber = "1", iban = "SA0380000000608010167519", status = "active" });
-        Assert.StartsWith("112", cAcc); Assert.StartsWith("211", sAcc); Assert.StartsWith("111", bank.Data!["accountCode"].S());
+        Assert.StartsWith("112", cAcc); Assert.StartsWith("211", sAcc); Assert.StartsWith("110", bank.Data!["accountCode"].S()); // البنوك
         // حساب المورد بلا حركات يُحذف من الدليل مع المورد نفسه (لا يبقى كيان بلا حساب)
         var suppliers = (await api.Get("/suppliers")).Data!["totalCount"].D();
         Assert.Equal(200, (await api.Delete($"/accounts/{(await api.Get($"/accounts/ByCode/{sAcc}")).Data!["id"].S()}")).Status);

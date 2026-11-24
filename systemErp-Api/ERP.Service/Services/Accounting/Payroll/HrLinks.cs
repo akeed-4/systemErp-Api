@@ -37,11 +37,24 @@ public static class HrLinks
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.RequestedBy, e.NameAr), ct);
     }
 
-    /// <summary>حذف ملف الموظف: المستخدم المربوط (بوابة أو نظام) يُعطَّل ولا يُحذف، فيبقى سجله في المستندات والتدقيق. يُحفظ مع الحذف.</summary>
-    public static async Task DeactivateLinkedUserAsync(ErpDbContext db, Employee employee, CancellationToken ct)
+    /// <summary>
+    /// حذف ملف الموظف: حساب البوابة وحده (دور «موظف»، لا يفتح شاشات النظام) يُحذف معه ومع صلاحياته ودعواته، فيختفي من قائمة المستخدمين.
+    /// مستخدم النظام يُعطَّل ويُفك ربطه ولا يُحذف: اسمه في المستندات والتدقيق. المالك لا يُمس. الحذف متتبَّع فيلتقطه ناسخ الدليل،
+    /// ويُحفظ مع حذف الملف.
+    /// </summary>
+    public static async Task ReleaseLinkedUserAsync(ErpDbContext db, Employee employee, CancellationToken ct)
     {
-        if (employee.UserId is Guid userId && await db.Set<User>().FirstOrDefaultAsync(u => u.Id == userId, ct) is { } user)
+        if (employee.UserId is not Guid userId) return;
+        employee.UserId = null;
+        if (await db.Set<User>().FirstOrDefaultAsync(u => u.Id == userId, ct) is not { } user) return;
+        if (user.Role != UserRole.Employee)
+        {
             Deactivate(user);
+            return;
+        }
+        db.RemoveRange(await db.Set<UserRolePermission>().Where(p => p.UserId == userId).ToListAsync(ct));
+        db.RemoveRange(await db.Set<UserInvite>().Where(i => i.UserId == userId).ToListAsync(ct));
+        db.Remove(user);
     }
 
     /// <summary>المالك لا يُعطَّل أبداً (كما في شاشة المستخدمين).</summary>

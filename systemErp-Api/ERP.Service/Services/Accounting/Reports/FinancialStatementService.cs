@@ -230,7 +230,7 @@ public class FinancialStatementService : IFinancialStatementService
         return flow;
     }
 
-    private static bool IsCash(string code) => code.StartsWith(DefaultAccounts.Banks, StringComparison.Ordinal);
+    private static bool IsCash(string code) => DefaultAccounts.IsTreasury(code); // الصناديق (111) والبنوك (110)
 
     /// <summary>
     /// السطور غير النقدية في القيود التي حرّكت النقدية خلال الفترة: مجموع (دائن − مدين) لها يساوي صافي حركة النقد
@@ -243,9 +243,9 @@ public class FinancialStatementService : IFinancialStatementService
         var lines = _db.Set<JournalEntryLine>().AsNoTracking();
         var cashEntryIds = from l in lines
                            join e in ReportModuleScope.Entries(_db.Set<JournalEntry>().AsNoTracking(), moduleScope) on l.JournalEntryId equals e.Id
-                           where e.Date >= @from && e.Date < end && l.AccountCode.StartsWith(DefaultAccounts.Banks)
+                           where e.Date >= @from && e.Date < end && (l.AccountCode.StartsWith(DefaultAccounts.Banks) || l.AccountCode.StartsWith(DefaultAccounts.CashBoxes))
                            select e.Id;
-        var counterparts = await lines.Where(l => cashEntryIds.Contains(l.JournalEntryId) && !l.AccountCode.StartsWith(DefaultAccounts.Banks))
+        var counterparts = await lines.Where(l => cashEntryIds.Contains(l.JournalEntryId) && !l.AccountCode.StartsWith(DefaultAccounts.Banks) && !l.AccountCode.StartsWith(DefaultAccounts.CashBoxes))
             .GroupBy(l => l.AccountCode).Select(g => new { Code = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) }).ToListAsync(ct);
         return counterparts.Select(c => new Movement(c.Code, c.Debit - c.Credit)).ToList();
     }

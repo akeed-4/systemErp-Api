@@ -354,7 +354,7 @@
   <data name="EmailInvalid" xml:space="preserve"><value>البريد الإلكتروني غير صالح.</value></data>
   <data name="EmployeeCodeInUse" xml:space="preserve"><value>رقم الموظف مستخدم مسبقاً.</value></data>
   <data name="EmployeeGosiRateInvalid" xml:space="preserve"><value>نسبة التأمينات بين 0 و 100.</value></data>
-  <data name="EmployeeHasPayroll" xml:space="preserve"><value>للموظف مسيرات رواتب؛ عطّله بدلاً من حذفه.</value></data>
+  <data name="EmployeeHasPayroll" xml:space="preserve"><value>لا يمكن حذف الموظف: له {0} مسير رواتب ({1}). أوقفه أو أنهِ خدمته بدلاً من حذفه.</value></data>
   <data name="EmployeeSalaryInvalid" xml:space="preserve"><value>الراتب الأساسي مطلوب، وبنود الراتب لا تكون سالبة.</value></data>
   <data name="EndDateBeforeStart" xml:space="preserve"><value>تاريخ النهاية قبل البداية.</value></data>
   <data name="EnterEmailOrMobile" xml:space="preserve"><value>أدخل البريد الإلكتروني أو رقم الجوال.</value></data>
@@ -1722,7 +1722,6 @@
   <data name="ProjectMemberRoleSystem" xml:space="preserve"><value>أدوار النظام الأساسية لا تُعدّل ولا تُحذف.</value></data>
   <data name="ProjectMemberUserInvalid" xml:space="preserve"><value>المستخدم غير موجود أو غير فعّال.</value></data>
   <data name="ProjectMemberEmployeeInvalid" xml:space="preserve"><value>الموظف غير موجود أو غير فعّال.</value></data>
-  <data name="EmployeeLinkedToProjects" xml:space="preserve"><value>الموظف عضو في مشروع أو مقدّم طلب شراء: أوقفه بدل حذفه.</value></data>
   <data name="RequisitionDepartmentInvalid" xml:space="preserve"><value>القسم غير موجود.</value></data>
   <data name="RequisitionEmployeeInvalid" xml:space="preserve"><value>مقدّم الطلب ليس موظفاً فعّالاً.</value></data>
   <data name="RequisitionEmployeeDepartmentMismatch" xml:space="preserve"><value>مقدّم الطلب ليس من القسم المختار.</value></data>
@@ -2340,4 +2339,10 @@
   <data name="ZatcaRecoveryNotStuck" xml:space="preserve"><value>حالة الجلسة «{0}» ليست طلب شهادة عالقاً.</value></data>
   <data name="ZatcaRecoveryConfirmRequired" xml:space="preserve"><value>أكّد أنه لم تصدر شهادة لهذا الطلب: راجع وحدات EGS في بوابة فاتورة لهذه البيئة ثم أعد الإغلاق مع التأكيد.</value></data>
   <data name="ZatcaTestUnreachable" xml:space="preserve"><value>تعذّر الوصول إلى بوابة هيئة الزكاة ({0}): {1}</value></data>
+  <data name="EmployeeHasOperationalLinks" xml:space="preserve"><value>لا يمكن حذف الموظف لارتباطه بسجلات تشغيلية: {0}. أوقفه بدلاً من حذفه.</value></data>
+  <data name="EmployeeLinkProjectResources" xml:space="preserve"><value>موارد مسندة في المشاريع</value></data>
+  <data name="EmployeeLinkEquipmentOperation" xml:space="preserve"><value>تشغيل المعدات أو صيانتها</value></data>
+  <data name="EmployeeLinkWorkshop" xml:space="preserve"><value>سجلات عمل في الورشة</value></data>
+  <data name="EmployeeLinkMaterialIssues" xml:space="preserve"><value>استلام أذونات تسليم المواد</value></data>
+  <data name="EmployeeLinkRental" xml:space="preserve"><value>تشغيل أو نقل في التأجير</value></data>
 </root>

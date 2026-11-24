@@ -20843,6 +20843,9 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("EndingInventoryAccountCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("InventoryAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -20862,6 +20865,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("NameEn")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OpeningInventoryAccountCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")

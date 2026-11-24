@@ -173,8 +173,9 @@ public class ProjectStockReservationTests : TestBase
         Assert.Equal("إدارة المشاريع", member["departmentName"].S());
         Assert.Equal("م. سامي", member["userName"].S());
 
-        // الموظف العضو لا يُحذف ملفه
-        Rejected(await api.Delete($"/employees/{employeeId}"), "delete member employee", 409);
+        // حذف ملف الموظف العضو يزيله من أعضاء المشروع (العضوية لا يشير إليها جدول آخر)
+        Ok(await api.Delete($"/employees/{employeeId}"), "delete member employee");
+        Assert.Empty((await api.Get($"/commercialcontracts/{p.Id}/project")).Data!["members"]!.AsArray());
     }
 
     [Fact]

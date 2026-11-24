@@ -11,6 +11,8 @@ namespace ERP.Service.Services.Accounting;
 /// <item>إلغاء الرصيد الدفتري X لكل حساب مخزون حتى D: مدين بضاعة أول المدة / دائن المخزون.</item>
 /// <item>إثبات القيمة الفعلية Y موزّعة على حسابات مخزون المواقع بكمياتها: مدين المخزون / دائن بضاعة آخر المدة.</item>
 /// </list>
+/// مقابل حساب مخزون الموقع الإضافي بضاعة أول المدة وآخرها الخاصتان به (<see cref="CountersAsync"/>)؛ والرئيسي وحساب الإعدادات وما يتشاركه أكثر
+/// من موقع على حسابي الإعدادات.
 /// فيبقى رصيد المخزون Y بعد الجرد، وتكلفة المبيعات = أول المدة + المشتريات − المردودات − آخر المدة. X هو الرصيد الدفتري الفعلي فلا احتساب
 /// مزدوجاً مع جرد سابق في السنة نفسها، ولا مع قيود النموذج القديم (عكس آخر المدة في اليوم التالي أو تحويل الرصيد عند بدء الدوري) التي صفّرت
 /// المخزون: X عندها صفر وأول المدة مُثبت من قبل. بعد القيد لا تُسجَّل حركة مخزون بتاريخ سابق فلا تفترق القيمة المثبتة عن الكميات.
@@ -86,8 +88,11 @@ internal static class PeriodicInventory
 
         await DefaultAccounts.EnsureAsync(db, ct, actual.Keys.Concat(book.Keys).Distinct().ToArray());
         var description = $"قيد الجرد الدوري {count.CountNumber}: تحميل المخزون الدفتري على بضاعة أول المدة وإثبات بضاعة آخر المدة";
-        var lines = AgainstInventory(s.OpeningInventory(), book, inventoryDebit: false, "إلغاء رصيد المخزون الدفتري (بضاعة أول المدة)")
-            .Concat(AgainstInventory(s.EndingInventory(), actual, inventoryDebit: true, "إثبات المخزون الفعلي (بضاعة آخر المدة)"))
+        var counters = await CountersAsync(db, s, ct);
+        var lines = AgainstInventory(a => counters.TryGetValue(a, out var c) ? c.Opening : s.OpeningInventory(), book, inventoryDebit: false,
+                "إلغاء رصيد المخزون الدفتري (بضاعة أول المدة)")
+            .Concat(AgainstInventory(a => counters.TryGetValue(a, out var c) ? c.Ending : s.EndingInventory(), actual, inventoryDebit: true,
+                "إثبات المخزون الفعلي (بضاعة آخر المدة)"))
             .ToList();
         return await posting.PostAsync(new GenericPostingRequest
         {
@@ -117,15 +122,30 @@ internal static class PeriodicInventory
     }
 
     /// <summary>
-    /// حسابات المخزون بمبالغها (مدينة إن <paramref name="inventoryDebit"/>، والسالب بالعكس) مقابل حساب واحد بالمجموع.
+    /// بضاعة أول المدة وآخرها لحساب مخزون كل موقع إضافي له حساباه ولا يتشاركه مع موقع آخر. ما ليس في القاموس على حسابي الإعدادات.
     /// </summary>
-    private static List<PostingLine> AgainstInventory(string counter, IReadOnlyDictionary<string, decimal> inventory, bool inventoryDebit, string note)
+    private static async Task<Dictionary<string, (string Opening, string Ending)>> CountersAsync(ErpDbContext db, AccountingSettings s, CancellationToken ct)
+    {
+        var sites = await db.Set<Warehouse>().AsNoTracking().Where(w => w.InventoryAccountCode != null)
+            .Select(w => new { w.InventoryAccountCode, w.IsDefault, w.OpeningInventoryAccountCode, w.EndingInventoryAccountCode }).ToListAsync(ct);
+        return sites.GroupBy(w => w.InventoryAccountCode!).Where(g => g.Count() == 1 && !g.Single().IsDefault).Select(g => g.Single())
+            .ToDictionary(w => w.InventoryAccountCode!, w => (w.OpeningInventoryAccountCode ?? s.OpeningInventory(), w.EndingInventoryAccountCode ?? s.EndingInventory()));
+    }
+
+    /// <summary>
+    /// حسابات المخزون بمبالغها (مدينة إن <paramref name="inventoryDebit"/>، والسالب بالعكس) مقابل حساب كلٍ منها (<paramref name="counterOf"/>) بمجموع ما يقابله.
+    /// </summary>
+    private static List<PostingLine> AgainstInventory(Func<string, string> counterOf, IReadOnlyDictionary<string, decimal> inventory, bool inventoryDebit, string note)
     {
         var lines = inventory.Where(a => a.Value != 0)
             .Select(a => (a.Value > 0) == inventoryDebit ? new PostingLine(a.Key, Math.Abs(a.Value), 0, note) : new PostingLine(a.Key, 0, Math.Abs(a.Value), note))
             .ToList();
-        var total = inventory.Values.Sum();
-        if (total != 0) lines.Add((total > 0) == inventoryDebit ? new PostingLine(counter, 0, Math.Abs(total), note) : new PostingLine(counter, Math.Abs(total), 0, note));
+        foreach (var counter in inventory.GroupBy(a => counterOf(a.Key)).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var total = counter.Sum(a => a.Value);
+            if (total != 0)
+                lines.Add((total > 0) == inventoryDebit ? new PostingLine(counter.Key, 0, Math.Abs(total), note) : new PostingLine(counter.Key, Math.Abs(total), 0, note));
+        }
         return lines;
     }
 }

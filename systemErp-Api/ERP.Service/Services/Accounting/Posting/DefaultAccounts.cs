@@ -10,7 +10,8 @@ namespace ERP.Service.Services.Accounting;
 public static class DefaultAccounts
 {
     public const string Cash = "1111";
-    public const string Banks = "111";           // الأب: حسابات البنوك الفرعية تحته
+    public const string CashBoxes = "111";       // الصناديق: الصندوق العام وصناديق المواقع تحته
+    public const string Banks = "110";           // البنوك: البنك الافتراضي وتحصيلات البوابة وحسابات البنوك الفرعية تحته
     public const string DefaultBank = "1112";
     public const string PaymentGatewayReceivable = "1113"; // تحصيلات بوابة الدفع الإلكتروني (Paymob) حتى تسويتها للبنك
     public const string Receivables = "112";     // الأب: حسابات العملاء الفرعية تحته
@@ -67,10 +68,12 @@ public static class DefaultAccounts
     {
         ("1",    "الأصول",                          "Assets",                    AccountCategory.Asset,     null),
         ("11",   "الأصول المتداولة",                "Current Assets",            AccountCategory.Asset,     "1"),
-        ("111",  "النقدية والبنوك",                 "Cash and Banks",            AccountCategory.Asset,     "11"),
+        ("110",  "البنوك",                          "Banks",                     AccountCategory.Asset,     "11"),
+        ("111",  "الصناديق",                        "Cash Boxes",                AccountCategory.Asset,     "11"),
         ("1111", "الصندوق",                         "Cash on Hand",              AccountCategory.Asset,     "111"),
-        ("1112", "البنوك (حساب افتراضي)",           "Default Bank Account",      AccountCategory.Asset,     "111"),
-        ("1113", "تحصيلات بوابة الدفع الإلكتروني", "Payment Gateway Receivable", AccountCategory.Asset, "111"),
+        // رمزا البنك الافتراضي والبوابة من قبل فصل البنوك عن الصناديق: يبقيان كما هما تحت مجموعة البنوك (القيود مرتبطة بالرمز)
+        ("1112", "البنوك (حساب افتراضي)",           "Default Bank Account",      AccountCategory.Asset,     "110"),
+        ("1113", "تحصيلات بوابة الدفع الإلكتروني", "Payment Gateway Receivable", AccountCategory.Asset, "110"),
         ("112",  "العملاء",                         "Accounts Receivable",       AccountCategory.Asset,     "11"),
         ("113",  "ضريبة وأرصدة مدينة",             "Tax and Other Receivables", AccountCategory.Asset,     "11"),
         ("1131", "ضريبة القيمة المضافة - مدخلات",  "Input VAT",                 AccountCategory.Asset,     "113"),
@@ -133,7 +136,16 @@ public static class DefaultAccounts
     };
 
     /// <summary>مجموعات الكيانات: تُنشأ تحتها حسابات العملاء والموردين والبنوك والمواقع آلياً فهي رئيسية ولو كانت فارغة.</summary>
-    public static readonly string[] EntityGroups = { Banks, Receivables, InventoryGroup, Payables };
+    public static readonly string[] EntityGroups = { Banks, CashBoxes, Receivables, InventoryGroup, Payables };
+
+    /// <summary>
+    /// حساب نقدية: تحت الصناديق (111) أو البنوك (110) بالرمز. حسابات البنوك القديمة (111xxx) انتقلت تحت البنوك برموزها فتبقى بادئتها 111.
+    /// </summary>
+    public static bool IsTreasury(string code)
+        => code.StartsWith(Banks, StringComparison.Ordinal) || code.StartsWith(CashBoxes, StringComparison.Ordinal);
+
+    /// <summary>حساب نقدية يُرحَّل عليه (لا إحدى المجموعتين).</summary>
+    public static bool IsTreasuryAccount(string code) => code is not (Banks or CashBoxes) && IsTreasury(code);
 
     private static readonly HashSet<string> GroupCodes =
         Chart.Select(a => a.Parent).OfType<string>().Concat(EntityGroups).ToHashSet();

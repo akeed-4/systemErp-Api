@@ -30,7 +30,7 @@ internal static class AccountRoleRules
             else if (parents.Contains(code)) errors.Add(string.Format(Messages.AccountSettingIsParent, role.Label, code));
             // حساب الموقع المرتبط به حساب مخزون عادي؛ حسابات العملاء والموردين والبنوك لا تصلح لدور
             else if (account.LinkedEntityType is { } linked && linked != LinkedEntityType.Warehouse) errors.Add(string.Format(Messages.AccountSettingIsPartyAccount, role.Label, code));
-            else if (IsUnder(code, DefaultAccounts.Banks)) errors.Add(string.Format(Messages.AccountSettingIsCashOrBank, role.Label, code));
+            else if (IsUnder(code, DefaultAccounts.Banks) || IsUnder(code, DefaultAccounts.CashBoxes)) errors.Add(string.Format(Messages.AccountSettingIsCashOrBank, role.Label, code));
             else if (showroom.Contains(code)) errors.Add(string.Format(Messages.AccountSettingIsShowroomAccount, role.Label, code));
             else if (!role.Types.Contains(account.Type)) errors.Add(string.Format(Messages.AccountSettingWrongType, role.Label, code));
         }

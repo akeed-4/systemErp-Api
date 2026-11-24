@@ -55,7 +55,7 @@ internal static class HierarchicalCodes
     /// قفل تطبيقي على المعاملة لعدّاد الأب (<c>sp_getapplock</c>): الطلبات المتزامنة تحت الأب نفسه تنتظر بالدور بدل أن تستنفد
     /// محاولات العدّاد المتفائلة، ويُحرَّر القفل مع إتمام المعاملة أو تراجعها. بلا معاملة يبقى قفل العدّاد المتفائل وحده.
     /// </summary>
-    private static async Task LockAsync(ErpDbContext db, string counterKey, CancellationToken ct)
+    internal static async Task LockAsync(ErpDbContext db, string counterKey, CancellationToken ct)
     {
         if (db.Database.CurrentTransaction == null) return;
         var resource = $"hc:{db.CurrentTenantId:N}:{counterKey}";

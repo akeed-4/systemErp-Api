@@ -135,6 +135,7 @@ public class TradeInvoiceEngine
             {
                 item.ProjectResourceId = line.ProjectResourceId;
                 item.OriginalInvoiceItemId = line.OriginalInvoiceItemId;
+                item.WarehouseId = SiteOf(invoice, line); // السطر القديم بلا موقع = موقع المستند
                 if (line.ComponentsJson != null) item.Components = InvoiceLineStock.Components(line);
             }
         return dto;
@@ -159,6 +160,7 @@ public class TradeInvoiceEngine
     private async Task ApplyProjectNamesAsync<T>(IReadOnlyCollection<(T Invoice, InvoiceDto Dto)> rows, CancellationToken ct)
         where T : InvoiceBase
     {
+        await ApplyLineNamesAsync(rows.SelectMany(row => row.Dto.Items).ToList(), ct);
         var requisitionIds = rows
             .Where(row => row.Invoice.Kind == InvoiceKind.Purchase
                 && row.Invoice.ReferenceType == "material_requisition"
@@ -472,11 +474,15 @@ public class TradeInvoiceEngine
         var serviceCost = invoice.Lines.Where(i => InvoiceLineStock.IsNonStock(i) && i.UnitCost > 0).Sum(i => Math.Round(i.Quantity * i.UnitCost, 2));
         var originalStockChange = stockIn ? invoice.TotalCost - serviceCost : -(invoice.TotalCost - serviceCost);
         decimal reversalChange = 0;
+        // مواقع المستند: موقع واحد = إعادة التقييم كما كانت؛ أكثر = لكل موقع على حساب مخزونه من حركات ترحيله الأخير
+        var stockSites = invoice.Lines.Where(l => !InvoiceLineStock.IsNonStock(l)).Select(l => SiteOf(invoice, l)).Distinct().ToList();
+        var postedBySite = stockSites.Count > 1 ? await PostedStockValueBySiteAsync(invoice.Id, ct) : null;
+        var reversalBySite = new Dictionary<Guid, decimal>();
         foreach (var item in stockItems)
         {
             var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
             {
-                ItemId = item.ItemId, WarehouseId = invoice.WarehouseId, Quantity = item.Quantity,
+                ItemId = item.ItemId, WarehouseId = SiteOf(invoice, item), Quantity = item.Quantity,
                 Type = stockIn ? StockMovementType.AdjustmentOut : StockMovementType.AdjustmentIn,
                 UnitCost = stockIn ? 0 : item.UnitCost, // المبيعات ومرتجع المشتريات تعود بتكلفة خروجها
                 // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)، وتحمل الحركة تلك القيمة
@@ -487,6 +493,7 @@ public class TradeInvoiceEngine
                 BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, item.ItemId, item.Id, ct),
             }, ct);
             reversalChange += recorded.ValueChange;
+            reversalBySite[SiteKey(SiteOf(invoice, item))] = reversalBySite.GetValueOrDefault(SiteKey(SiteOf(invoice, item))) + recorded.ValueChange;
         }
         // المجمّع والمركّب: تعود مكوناته بتكلفة خروجها المحفوظة على السطر (لا من تعريف الصنف الحالي)؛ ومرتجعه تخرج مكوناته بتكلفة دخولها
         foreach (var item in invoice.Lines.Where(InvoiceLineStock.SellsComponents))
@@ -494,7 +501,7 @@ public class TradeInvoiceEngine
             {
                 var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
                 {
-                    ItemId = c.ItemId, WarehouseId = invoice.WarehouseId, Quantity = c.Quantity,
+                    ItemId = c.ItemId, WarehouseId = SiteOf(invoice, item), Quantity = c.Quantity,
                     Type = stockIn ? StockMovementType.AdjustmentOut : StockMovementType.AdjustmentIn,
                     UnitCost = stockIn ? 0 : c.UnitCost, OutUnitCost = stockIn && restoreAverage ? c.UnitCost : null,
                     UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate), ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
@@ -502,15 +509,31 @@ public class TradeInvoiceEngine
                     BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, c.ItemId, item.Id, ct),
                 }, ct);
                 reversalChange += recorded.ValueChange;
+                reversalBySite[SiteKey(SiteOf(invoice, item))] = reversalBySite.GetValueOrDefault(SiteKey(SiteOf(invoice, item))) + recorded.ValueChange;
             }
         await ItemBatches.MarkReversedAsync(_db, "invoice", invoice.Id, ct);
         await _db.SaveChangesAsync(ct);
         // هللات التقريب (أو إعادة تسعير آخر شراء): قيد إعادة تقييم يبقي حساب المخزون مساوياً لقيمة الأصناف
         // الفرق تسوية لأثر هذا المستند على حساب مخزون موقعه؛ المستند بحساب يدوي (السيارات) يبقى على حساب المخزون العام كما كان
         var postingAccounts = await PostingAccounts.SettingsAsync(_db, ct);
-        var inventoryAccount = string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)
-            ? await postingAccounts.InventoryAsync(_db, invoice.WarehouseId, ct) : postingAccounts.Inventory();
-        await InventoryValuation.PostRevaluationAsync(_db, _posting, reversalChange + originalStockChange, inventoryAccount, reason, invoice.Id, ct);
+        if (postedBySite == null || !string.IsNullOrWhiteSpace(invoice.InventoryAccountCode))
+        {
+            var site = stockSites.Count == 1 ? stockSites[0] : invoice.WarehouseId;
+            var inventoryAccount = string.IsNullOrWhiteSpace(invoice.InventoryAccountCode)
+                ? await postingAccounts.InventoryAsync(_db, site, ct) : postingAccounts.Inventory();
+            await InventoryValuation.PostRevaluationAsync(_db, _posting, reversalChange + originalStockChange, inventoryAccount, reason, invoice.Id, ct);
+        }
+        else
+        {
+            var byAccount = new Dictionary<string, decimal>();
+            foreach (var site in stockSites)
+            {
+                var account = await postingAccounts.InventoryAsync(_db, site, ct);
+                byAccount[account] = byAccount.GetValueOrDefault(account)
+                    + reversalBySite.GetValueOrDefault(SiteKey(site)) + postedBySite.GetValueOrDefault(SiteKey(site));
+            }
+            await InventoryValuation.PostRevaluationAsync(_db, _posting, byAccount, reason, invoice.Id, ct);
+        }
         if (forDelete) invoice.JournalEntryId = null;
     }
 
@@ -657,12 +680,12 @@ public class TradeInvoiceEngine
         where TReturn : InvoiceBase
     {
         var originalLines = original.Lines.ToList();
-        var rentalContractPurchase = IsRentalContractPurchase(original);
-        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, token, excludeReturnId);
-        var lines = NormalizeReturnLines(originalLines, r.Lines, previouslyReturned, rentalContractPurchase, returnAllWhenEmpty: true);
+        var perSourceLine = ReturnsPerSourceLine(original);
+        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, perSourceLine, token, excludeReturnId);
+        var lines = NormalizeReturnLines(originalLines, r.Lines, previouslyReturned, perSourceLine, returnAllWhenEmpty: true);
         if (lines.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
 
-        var dto = BuildTradeReturn(original, r, lines, previouslyReturned, rentalContractPurchase);
+        var dto = BuildTradeReturn(original, r, lines, previouslyReturned, perSourceLine);
         if (r.RefundSplits.Count > 0) await ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
         else if (r.RefundPaymentMethod == null) MirrorOriginalSplits(dto, original);
         return dto;
@@ -696,23 +719,23 @@ public class TradeInvoiceEngine
                 }
 
         var originalLines = original.Lines.ToList();
-        var rentalContractPurchase = IsRentalContractPurchase(original);
-        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, rentalContractPurchase, ct, r.ExcludeReturnId);
-        var chosen = NormalizeReturnLines(originalLines, r.Lines.Where(l => l.Quantity > 0).ToList(), previouslyReturned, rentalContractPurchase);
-        var priced = chosen.Count > 0 ? PriceReturn(BuildTradeReturn(original, r, chosen, previouslyReturned, rentalContractPurchase)) : (Totals: null, Lines: Array.Empty<PricedLine>());
-        var previewLines = rentalContractPurchase
+        var perSourceLine = ReturnsPerSourceLine(original);
+        var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, perSourceLine, ct, r.ExcludeReturnId);
+        var chosen = NormalizeReturnLines(originalLines, r.Lines.Where(l => l.Quantity > 0).ToList(), previouslyReturned, perSourceLine);
+        var priced = chosen.Count > 0 ? PriceReturn(BuildTradeReturn(original, r, chosen, previouslyReturned, perSourceLine)) : (Totals: null, Lines: Array.Empty<PricedLine>());
+        var previewLines = perSourceLine
             ? originalLines
             : originalLines.GroupBy(i => i.ItemId).Select(g => g.First()).ToList();
         foreach (var src in previewLines)
         {
-            var returned = previouslyReturned.GetValueOrDefault(rentalContractPurchase ? src.Id : src.ItemId);
-            var index = chosen.FindIndex(l => rentalContractPurchase
+            var returned = previouslyReturned.GetValueOrDefault(perSourceLine ? src.Id : src.ItemId);
+            var index = chosen.FindIndex(l => perSourceLine
                 ? l.OriginalInvoiceItemId == src.Id
                 : l.ItemId == src.ItemId);
             var line = index >= 0 ? priced.Lines[index] : null;
             preview.Lines.Add(new ReturnPreviewLineDto
             {
-                OriginalInvoiceItemId = rentalContractPurchase ? src.Id : null,
+                OriginalInvoiceItemId = perSourceLine ? src.Id : null,
                 ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit,
                 OriginalQuantity = src.Quantity, ReturnedQuantity = returned, RemainingQuantity = Math.Max(0, src.Quantity - returned),
                 UnitPrice = src.UnitPrice, Discount = src.Discount, VatRate = src.VatRate,
@@ -727,15 +750,79 @@ public class TradeInvoiceEngine
     private static bool IsRentalContractPurchase(InvoiceBase original)
         => original.Kind == InvoiceKind.Purchase && original.Lines.Any(line => line.ProjectResourceId.HasValue);
 
+    /// <summary>
+    /// المرتجع يُبنى لكل سطر أصل (بسعره وخصمه وموقعه، والكمية تُوزَّع على أسطر الصنف بالترتيب) لا لكل صنف: فاتورة مؤجر المعدات،
+    /// أو صنف وردت أسطره من أكثر من موقع (فيعود كل جزء لموقع سطره). غير ذلك يبقى بالصنف كما كان.
+    /// </summary>
+    private static bool ReturnsPerSourceLine(InvoiceBase original)
+        => IsRentalContractPurchase(original)
+           || original.Lines.GroupBy(line => line.ItemId).Any(g => g.Select(line => SiteOf(original, line)).Distinct().Count() > 1);
+
+    /// <summary>موقع السطر الفعلي: المحفوظ عليه، والفارغ (أسطر قديمة) = موقع المستند.</summary>
+    internal static Guid? SiteOf(InvoiceBase invoice, InvoiceItemBase line) => line.WarehouseId ?? invoice.WarehouseId;
+
+    private static Guid SiteKey(Guid? site) => site ?? Guid.Empty;
+
+    /// <summary>
+    /// موقع كل سطر: المرسَل أو موقع المستند، ويُحفظ الفعلي على السطر. الموقع المختلف عن موقع المستند يجب أن يكون من المنشأة ومسموحاً
+    /// للمستخدم (كموقع المستند)، وفعّالاً إلا في المرتجع (يعود لموقع سطر أصله ولو أُوقف بعده).
+    /// </summary>
+    private async Task ApplyLineWarehousesAsync(InvoiceBase invoice, CreateInvoiceDto r, bool isReturn, CancellationToken ct)
+    {
+        var lines = invoice.Lines.ToList();
+        for (var i = 0; i < lines.Count && i < r.Items.Count; i++) lines[i].WarehouseId = r.Items[i].WarehouseId ?? invoice.WarehouseId;
+        var others = lines.Where(l => l.WarehouseId != invoice.WarehouseId).Select(l => l.WarehouseId!.Value).Distinct().ToList();
+        if (others.Count == 0) return;
+        var found = await _db.Set<Warehouse>().AsNoTracking().Where(w => others.Contains(w.Id))
+            .Select(w => new { w.Id, w.Status }).ToDictionaryAsync(w => w.Id, ct);
+        foreach (var id in others)
+        {
+            if (!found.TryGetValue(id, out var site)) throw new ValidationFailedException(Messages.WarehouseNotFound);
+            if (!isReturn && site.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
+            if (!_db.IsWarehouseAllowed(id)) throw new ForbiddenException(Messages.WarehouseNotAllowed);
+        }
+    }
+
+    /// <summary>للقراءة: اسم موقع السطر والاسم الإنجليزي الحالي لصنفه (من البطاقة، بلا تخزين على السطر).</summary>
+    private async Task ApplyLineNamesAsync(IReadOnlyCollection<InvoiceItemDto> items, CancellationToken ct)
+    {
+        if (items.Count == 0) return;
+        var productIds = items.Where(i => i.ItemId != Guid.Empty).Select(i => i.ItemId).Distinct().ToList();
+        var siteIds = items.Where(i => i.WarehouseId.HasValue).Select(i => i.WarehouseId!.Value).Distinct().ToList();
+        var names = productIds.Count == 0 ? new Dictionary<Guid, string>()
+            : await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.NameEn, ct);
+        var sites = siteIds.Count == 0 ? new Dictionary<Guid, string>()
+            : await _db.Set<Warehouse>().AsNoTracking().Where(w => siteIds.Contains(w.Id)).ToDictionaryAsync(w => w.Id, w => w.NameAr, ct);
+        foreach (var item in items)
+        {
+            if (names.TryGetValue(item.ItemId, out var nameEn) && !string.IsNullOrWhiteSpace(nameEn)) item.ItemNameEn = nameEn;
+            if (item.WarehouseId is Guid site && sites.TryGetValue(site, out var siteName)) item.WarehouseName = siteName;
+        }
+    }
+
+    /// <summary>
+    /// قيمة ما أدخله/أخرجه آخر ترحيل للمستند في كل موقع (مجموع تغيّر قيمة حركاته منذ آخر عكس): أثره على حساب مخزون كل موقع،
+    /// لإعادة تقييم كل موقع على حسابه عند العكس.
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> PostedStockValueBySiteAsync(Guid invoiceId, CancellationToken ct)
+    {
+        var lastReversal = await _db.Set<StockMovement>().AsNoTracking()
+            .Where(m => m.SourceId == invoiceId && m.SourceType == "invoice_reversal").MaxAsync(m => (DateTime?)m.CreatedAt, ct);
+        var rows = await _db.Set<StockMovement>().AsNoTracking()
+            .Where(m => m.SourceId == invoiceId && m.SourceType == "invoice" && (lastReversal == null || m.CreatedAt > lastReversal))
+            .GroupBy(m => m.WarehouseId).Select(g => new { g.Key, Value = g.Sum(m => m.ValueChange) }).ToListAsync(ct);
+        return rows.ToDictionary(r => SiteKey(r.Key), r => r.Value);
+    }
+
     private async Task<Dictionary<Guid, decimal>> PreviouslyReturnedAsync<TReturn>(
-        InvoiceBase original, bool rentalContractPurchase, CancellationToken ct, Guid? excludeReturnId = null) where TReturn : InvoiceBase
+        InvoiceBase original, bool perSourceLine, CancellationToken ct, Guid? excludeReturnId = null) where TReturn : InvoiceBase
     {
         // المرتجع الجاري تعديله لا يُحسب من «المرتجع من قبل»: كمياته تُعاد اختيارها
         var rows = await _db.Set<InvoiceItemBase>().AsNoTracking()
             .Where(i => _db.Set<TReturn>().Any(inv => inv.Id == i.InvoiceId && inv.OriginalInvoiceId == original.Id && inv.Status == "posted"
                 && (excludeReturnId == null || inv.Id != excludeReturnId)))
             .ToListAsync(ct);
-        if (!rentalContractPurchase)
+        if (!perSourceLine)
             return rows.GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
 
         var returned = rows.Where(i => i.OriginalInvoiceItemId.HasValue)
@@ -764,10 +851,10 @@ public class TradeInvoiceEngine
         IReadOnlyList<InvoiceItemBase> originalLines,
         IReadOnlyList<ReturnLineDto> requested,
         IReadOnlyDictionary<Guid, decimal> previouslyReturned,
-        bool rentalContractPurchase,
+        bool perSourceLine,
         bool returnAllWhenEmpty = false)
     {
-        if (!rentalContractPurchase)
+        if (!perSourceLine)
         {
             if (requested.Count == 0 && !returnAllWhenEmpty) return new();
             if (requested.Count > 0) return requested.ToList();
@@ -851,7 +938,7 @@ public class TradeInvoiceEngine
     /// <summary>طلب مرتجع تجارة عامة من الأصل: بيانات الطرف والحسابات والمعالجة منه، وكل سطر بسعر أصله وخصمه النسبي.</summary>
     private static UpdateInvoiceDto BuildTradeReturn(
         InvoiceBase original, CreateReturnInvoiceRequestDto r, List<ReturnLineDto> lines,
-        Dictionary<Guid, decimal> previouslyReturned, bool rentalContractPurchase)
+        Dictionary<Guid, decimal> previouslyReturned, bool perSourceLine)
     {
         var originalLines = original.Lines.ToList();
         var dto = new UpdateInvoiceDto
@@ -878,11 +965,11 @@ public class TradeInvoiceEngine
         if (r.ReturnDate.HasValue) dto.IssueDate = r.ReturnDate.Value;
         foreach (var l in lines)
         {
-            var src = rentalContractPurchase && l.OriginalInvoiceItemId is Guid sourceId
+            var src = perSourceLine && l.OriginalInvoiceItemId is Guid sourceId
                 ? originalLines.FirstOrDefault(i => i.Id == sourceId && i.ItemId == l.ItemId)
                 : originalLines.FirstOrDefault(i => i.ItemId == l.ItemId);
             if (src == null) throw new ValidationFailedException(Messages.ItemNotInOriginalInvoice);
-            var remaining = src.Quantity - previouslyReturned.GetValueOrDefault(rentalContractPurchase ? src.Id : src.ItemId);
+            var remaining = src.Quantity - previouslyReturned.GetValueOrDefault(perSourceLine ? src.Id : src.ItemId);
             if (l.Quantity <= 0 || l.Quantity > remaining)
                 throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.ItemName, remaining));
             dto.Items.Add(new InvoiceItemDto
@@ -895,8 +982,9 @@ public class TradeInvoiceEngine
                 RevenueAccountCode = src.RevenueAccountCode,
                 Discount = src.Quantity == 0 ? 0 : Math.Round(src.Discount * l.Quantity / src.Quantity, 2),
                 CostCenterId = src.CostCenterId,
-                ProjectResourceId = rentalContractPurchase ? src.ProjectResourceId : null,
-                OriginalInvoiceItemId = rentalContractPurchase ? src.Id : null,
+                WarehouseId = SiteOf(original, src), // كل سطر يعود إلى موقع سطر أصله
+                ProjectResourceId = perSourceLine ? src.ProjectResourceId : null,
+                OriginalInvoiceItemId = perSourceLine ? src.Id : null,
             });
         }
         // خصم الفاتورة يُوزَّع نسبياً على الكميات المرتجعة.
@@ -1435,6 +1523,7 @@ public class TradeInvoiceEngine
         var warehouse = await WarehouseStocks.ResolveAsync(_db, r.WarehouseId, ct);
         if (r.WarehouseId.HasValue && warehouse.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
         invoice.WarehouseId = warehouse.Id; invoice.WarehouseName = warehouse.NameAr;
+        await ApplyLineWarehousesAsync(invoice, r, isReturn, ct);
 
         invoice.PartyCountry = string.IsNullOrWhiteSpace(invoice.PartyCountry) ? "SA" : invoice.PartyCountry.Trim().ToUpperInvariant();
         var domesticParty = invoice.PartyCountry == "SA";
@@ -1599,6 +1688,9 @@ public class TradeInvoiceEngine
             return;
         }
         if (r.OriginalInvoiceId.HasValue || (r.SystemGenerated && exclusive)) return;
+        // بيع نقطة البيع شامل حين يكون سعر بطاقة الصنف شاملاً (إعداد المنشأة، لا اختيار المستخدم)
+        if (r.SystemGenerated && r.Kind == InvoiceKind.Sales && r.ReferenceType == "pos_transaction"
+            && await _db.Set<AccountingSettings>().AsNoTracking().Select(s => s.ItemPricesIncludeVat).FirstOrDefaultAsync(ct)) return;
         if (r.ExistingInvoiceId is Guid id
             && await _db.Set<T>().AsNoTracking().AnyAsync(i => i.Id == id && i.PricingMethod == r.PricingMethod, ct)) return;
         // الشامل في المبيعات معطّل للمنشأة افتراضياً: لا يتيحه حتى المالك والمدير حتى يُفعَّل في إعدادات الحسابات
@@ -1823,7 +1915,7 @@ public class TradeInvoiceEngine
                     inCost = await _db.Set<Product>().AsNoTracking().Where(p => p.Id == c.ItemId).Select(p => p.AverageCost).FirstOrDefaultAsync(ct);
                 var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
                 {
-                    ItemId = c.ItemId, Quantity = c.Quantity, WarehouseId = invoice.WarehouseId,
+                    ItemId = c.ItemId, Quantity = c.Quantity, WarehouseId = SiteOf(invoice, item),
                     Type = isSale ? StockMovementType.OutSales : StockMovementType.AdjustmentIn, UnitCost = isSale ? 0 : inCost,
                     UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate), ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate,
                     Notes = $"مكوّن {item.ItemName}", SourceType = "invoice", SourceId = invoice.Id, SourceLineId = item.Id,
@@ -1834,7 +1926,7 @@ public class TradeInvoiceEngine
             InvoiceLineStock.SetComponents(item, components);
             item.UnitCost = item.Quantity == 0 ? 0 : Math.Round(lineValue / item.Quantity, 4);
             totalCost += lineValue;
-            stockByCenter.Add(item.CostCenterId, lineValue);
+            stockByCenter.Add(item.CostCenterId, lineValue, SiteOf(invoice, item));
         }
 
         foreach (var item in invoice.Lines.Where(InvoiceLineStock.MovesItself))
@@ -1850,7 +1942,7 @@ public class TradeInvoiceEngine
             movement.UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate); movement.ReferenceNumber = invoice.InvoiceNumber;
             movement.Date = invoice.IssueDate;
             movement.SourceType = "invoice"; movement.SourceId = invoice.Id;
-            movement.WarehouseId = invoice.WarehouseId;
+            movement.WarehouseId = SiteOf(invoice, item);
             ApplyLineBatch(invoice, item, movement, returnPools);
 
             var recorded = await _inventory.RecordMovementAsync(movement, ct);
@@ -1860,7 +1952,7 @@ public class TradeInvoiceEngine
             // بإشارته: الإضافة بآخر سعر شراء أقل تُنقص قيمة الرصيد كله
             var valueChange = invoice.Kind is InvoiceKind.Purchase or InvoiceKind.SalesReturn ? recorded.ValueChange : -recorded.ValueChange;
             totalCost += valueChange;
-            stockByCenter.Add(item.CostCenterId, valueChange);
+            stockByCenter.Add(item.CostCenterId, valueChange, SiteOf(invoice, item));
         }
         var stockCost = totalCost; // قيمة ما دخل/خرج من المخزون فعلاً (الأصناف المخزنية فقط)
         var costByCenter = stockByCenter.Copy(); // تكلفة المبيعات لكل مركز: مخزون أسطره ثم تكلفة بنود خدماته
@@ -1868,7 +1960,7 @@ public class TradeInvoiceEngine
         {
             var svcCost = Math.Round(svc.Quantity * svc.UnitCost, 2);
             totalCost += svcCost;
-            costByCenter.Add(svc.CostCenterId, svcCost);
+            costByCenter.Add(svc.CostCenterId, svcCost, SiteOf(invoice, svc));
         }
         invoice.TotalCost = totalCost; // بالعملة الأساسية
         invoice.GrossProfit = isSales ? (invoice.IsReturn ? -(baseNet - totalCost) : baseNet - totalCost) : 0;
@@ -1979,7 +2071,7 @@ public class TradeInvoiceEngine
 
     /// <summary>إيراد كل سطر على حسابه ومركز تكلفته بالعملة الأساسية.</summary>
     private static List<RevenuePosting> RevenueByLine(InvoiceBase invoice, decimal fx, decimal baseNet)
-        => LineNets(invoice, fx, baseNet).Select(l => new RevenuePosting(l.Line.RevenueAccountCode, l.Line.CostCenterId, l.Net)).ToList();
+        => LineNets(invoice, fx, baseNet).Select(l => new RevenuePosting(l.Line.RevenueAccountCode, l.Line.CostCenterId, l.Net, SiteOf(invoice, l.Line))).ToList();
 
     /// <summary>
     /// حصص مراكز التكلفة في قيد المشتريات: صافي كل مركز من أسطره، وخدماته بنسبة صافي بنود خدماته، ومخزونه تغيّر قيمة أصنافه
@@ -1992,8 +2084,8 @@ public class TradeInvoiceEngine
         var nonStock = new CostCenterTotals();
         foreach (var (line, amount) in LineNets(invoice, fx, baseNet))
         {
-            net.Add(line.CostCenterId, amount);
-            if (InvoiceLineStock.IsNonStock(line)) nonStock.Add(line.CostCenterId, amount);
+            net.Add(line.CostCenterId, amount, SiteOf(invoice, line));
+            if (InvoiceLineStock.IsNonStock(line)) nonStock.Add(line.CostCenterId, amount, SiteOf(invoice, line));
         }
         var expense = CostCenterTotals.Apportion(expenseAmount, nonStock);
         CostCenterTotals? inventory = null;
@@ -2001,10 +2093,10 @@ public class TradeInvoiceEngine
         {
             inventory = stockByCenter.Copy();
             var nonStockInventory = CostCenterTotals.Apportion(total - stockByCenter.Total, nonStock);
-            foreach (var center in nonStockInventory.Centers) inventory.Add(center, nonStockInventory[center]);
+            foreach (var slice in nonStockInventory.Slices) inventory.Add(slice.Center, nonStockInventory[slice], slice.Site);
         }
-        return net.Centers.Union(expense.Centers).Union(inventory?.Centers ?? Enumerable.Empty<Guid?>())
-            .Select(c => new PurchaseCostCenterShare(c, net[c], expense[c], inventory?[c])).ToList();
+        return net.Slices.Union(expense.Slices).Union(inventory?.Slices ?? Enumerable.Empty<(Guid? Center, Guid? Site)>())
+            .Select(s => new PurchaseCostCenterShare(s.Center, net[s], expense[s], inventory?[s], s.Site)).ToList();
     }
 
     /// <summary>يحوّل المدفوع إلى العملة الأساسية؛ السداد الكامل يطابق إجمالي المستند المحوَّل بلا كسر تقريب.</summary>

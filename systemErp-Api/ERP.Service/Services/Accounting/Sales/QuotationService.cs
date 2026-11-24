@@ -49,15 +49,16 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
             WarehouseId = e.WarehouseId, Date = e.Date, ManualNumber = d.QuotationNumber, UserEntered = true,
             Exists = (n, c) => Db.Set<Quotation>().AnyAsync(q => q.QuotationNumber == n, c),
         }, ct);
+        await LineDimensions.EnsureAsync(Db, e.Items.Select(i => (i.WarehouseId, i.CostCenterId)), ct);
         Recalculate(e);
     }
 
-    protected override Task OnUpdatingAsync(Quotation e, UpdateQuotationDto d, CancellationToken ct)
+    protected override async Task OnUpdatingAsync(Quotation e, UpdateQuotationDto d, CancellationToken ct)
     {
         e.QuotationNumber = Db.Entry(e).OriginalValues.GetValue<string>(nameof(Quotation.QuotationNumber));
         e.ConvertedInvoiceId = Db.Entry(e).OriginalValues.GetValue<Guid?>(nameof(Quotation.ConvertedInvoiceId));
+        await LineDimensions.EnsureAsync(Db, e.Items.Select(i => (i.WarehouseId, i.CostCenterId)), ct);
         Recalculate(e);
-        return Task.CompletedTask;
     }
 
     protected override Task OnDeletingAsync(Quotation e, CancellationToken ct)
@@ -99,6 +100,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
                 {
                     ItemId = i.ItemId, ItemName = i.ItemName, Sku = i.Sku, Unit = i.Unit, Quantity = i.Quantity,
                     UnitPrice = i.UnitPrice, Discount = i.Discount, VatRate = i.VatRate,
+                    WarehouseId = i.WarehouseId, CostCenterId = i.CostCenterId, // موقع السطر ومركزه ينتقلان كما هما
                 }).ToList(),
             }, token);
 
@@ -129,6 +131,7 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
                 {
                     ItemId = i.ItemId, ItemName = i.ItemName, Sku = i.Sku, Unit = i.Unit, Quantity = i.Quantity,
                     UnitPrice = i.UnitPrice, Discount = i.Discount, VatRate = i.VatRate,
+                    WarehouseId = i.WarehouseId, CostCenterId = i.CostCenterId, // موقع السطر ومركزه ينتقلان كما هما
                 }).ToList(),
             }, token);
             q.Status = "converted_to_order";

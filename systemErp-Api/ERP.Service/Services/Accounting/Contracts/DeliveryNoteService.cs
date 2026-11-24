@@ -79,6 +79,14 @@ public class DeliveryNoteService : IDeliveryNoteService
 
     private async Task ApplyProjectNamesAsync(IReadOnlyCollection<DeliveryNoteDto> notes, CancellationToken ct)
     {
+        // الاسم الإنجليزي الحالي لأصناف الأسطر من البطاقة (لا يُحفظ على السطر)
+        var productIds = notes.SelectMany(n => n.Items).Select(i => i.ItemId).Where(id => id != Guid.Empty).Distinct().ToList();
+        if (productIds.Count > 0)
+        {
+            var names = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.NameEn, ct);
+            foreach (var item in notes.SelectMany(n => n.Items))
+                if (names.TryGetValue(item.ItemId, out var nameEn) && !string.IsNullOrWhiteSpace(nameEn)) item.ItemNameEn = nameEn;
+        }
         var contractIds = notes.Where(note => note.ContractId.HasValue).Select(note => note.ContractId!.Value).Distinct().ToList();
         if (contractIds.Count == 0) return;
 
@@ -114,6 +122,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (r.ConstructionWarehouseReceipt && r.RequisitionId == null) throw new ValidationFailedException(Messages.ProjectReceiptRequiresRequisition);
             var note = Mapper.Map<DeliveryNote>(r);
             note.CustodyIssueId = null;
+            await LineDimensions.EnsureAsync(_db, note.Items.Select(i => (i.WarehouseId, i.CostCenterId)), token);
             // استلام على أمر شراء: المورد والسعر من الأمر، والكمية ≤ المتبقي منه (وطلب المشروع يجعله استلام مشروع)
             await PurchaseOrderReceipts.PrepareAsync(_db, note, token);
             var projectReceipt = ProjectReceipts.IsProjectReceipt(note);
@@ -192,6 +201,7 @@ public class DeliveryNoteService : IDeliveryNoteService
                 && !(note.Type == ProjectReceipts.NoteType && note.WarehouseId == linked.WarehouseId))
                 throw new ConflictException(Messages.BoqContractBilledByCertificates);
             foreach (var removed in Mapper.SyncCollections(r, note, added => _db.Add(added))) _db.Remove(removed);
+            await LineDimensions.EnsureAsync(_db, note.Items.Select(i => (i.WarehouseId, i.CostCenterId)), token);
             foreach (var i in note.Items) i.ReturnedQty = 0;
             Price(note);
             await _db.SaveChangesAsync(token);
@@ -209,14 +219,15 @@ public class DeliveryNoteService : IDeliveryNoteService
     private static void ValidatePricing(IEnumerable<DeliveryNoteItemDto> items, List<string> errors)
     {
         if (items.Any(i => i.UnitPrice < 0 || i.VatRate is < 0 or > 100)) errors.Add(Messages.PriceAndVatInvalid);
+        if (items.Any(i => i.Discount < 0 || i.Discount > DocumentPricing.Round(i.DeliveredQty * i.UnitPrice))) errors.Add(Messages.SomeDocumentLinesInvalid);
     }
 
-    /// <summary>قيمة البيان تُحتسب في السرفر: الكمية المسلّمة × السعر، والضريبة لكل سطر.</summary>
+    /// <summary>قيمة البيان تُحتسب في السرفر: الكمية المسلّمة × السعر ناقص خصم السطر، والضريبة لكل سطر.</summary>
     private static void Price(DeliveryNote note)
     {
         foreach (var i in note.Items)
         {
-            i.TotalBeforeVat = DocumentPricing.Round(i.DeliveredQty * i.UnitPrice);
+            i.TotalBeforeVat = DocumentPricing.Round(i.DeliveredQty * i.UnitPrice - i.Discount);
             i.VatAmount = DocumentPricing.Round(i.TotalBeforeVat * i.VatRate / 100m);
             i.TotalAfterVat = i.TotalBeforeVat + i.VatAmount;
         }
@@ -347,7 +358,9 @@ public class DeliveryNoteService : IDeliveryNoteService
                 // سعر وضريبة المرتجع من سطر التسليم الأصلي، لا مما يرسله العميل.
                 var src = note.Items.First(x => x.ItemId == i.ItemId);
                 i.ItemName = src.ItemName; i.Unit = src.Unit; i.UnitPrice = src.UnitPrice; i.VatRate = src.VatRate;
-                var net = DocumentPricing.Round(i.Quantity * i.UnitPrice);
+                // خصم سطر التسليم بنسبة الكمية المرتجعة
+                var net = DocumentPricing.Round(i.Quantity * i.UnitPrice
+                    - (src.DeliveredQty == 0 ? 0 : src.Discount * i.Quantity / src.DeliveredQty));
                 i.VatAmount = DocumentPricing.Round(net * i.VatRate / 100m);
                 i.TotalAfterVat = net + i.VatAmount;
             }
@@ -452,7 +465,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             Kind = sales ? InvoiceKind.Sales : InvoiceKind.Purchase, SystemGenerated = true, // فاتورة البيان: الرقم تلقائي دائماً
             IssueDate = date?.Date ?? default,
-            CostCenterId = contractCenter, CostCenterFromSource = true,
+            // مركز العقد من المصدر؛ ومركز اختاره المستخدم على سطر البيان يُفحص بصلاحية التعيين في الفاتورة
+            CostCenterId = contractCenter, CostCenterFromSource = lines.All(x => x.Item.CostCenterId == null),
             InvoiceType = sales ? TradeHelper.InvoiceTypeFor(note.PartyTaxNumber) : InvoiceType.TaxInvoice,
             PartyId = partyId,
             PartyName = selectedSupplier?.NameAr ?? note.PartyName,
@@ -469,6 +483,9 @@ public class DeliveryNoteService : IDeliveryNoteService
                 ItemId = !projectReceipt && products.Contains(x.Item.ItemId) ? x.Item.ItemId : Guid.Empty,
                 ItemName = x.Item.ItemName, Sku = x.Item.Sku ?? string.Empty, Unit = x.Item.Unit ?? string.Empty,
                 Quantity = x.Qty, UnitPrice = x.Item.UnitPrice, VatRate = x.Item.VatRate,
+                // الخصم بنسبة الكمية المفوترة (الصافي بعد المرتجع)، والموقع والمركز من سطر البيان (سند المشروع بلا موقع عام)
+                Discount = x.Item.DeliveredQty == 0 ? 0 : DocumentPricing.Round(x.Item.Discount * x.Qty / x.Item.DeliveredQty),
+                WarehouseId = projectReceipt ? null : x.Item.WarehouseId, CostCenterId = x.Item.CostCenterId,
             }).ToList(),
         }, token);
         foreach (var n in notes) { n.InvoiceId = invoice.Id; n.InvoiceNumber = invoice.InvoiceNumber; n.Status = DeliveryNoteStatus.Invoiced; }

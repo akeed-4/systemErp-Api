@@ -45,6 +45,11 @@ public abstract class InvoiceItemBase : BaseEntity
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public Guid? CostCenterId { get; set; }
+    /// <summary>
+    /// موقع السطر الذي يُصرف منه أو يُستلم فيه صنفه وتُقيَّد حركته على حسابات موقعه (المخزون، التكلفة، المبيعات). يُحفظ الفعلي لكل سطر
+    /// جديد (موقع المستند افتراضياً)؛ الفارغ (أسطر قديمة) = موقع المستند <see cref="InvoiceBase.WarehouseId"/>.
+    /// </summary>
+    public Guid? WarehouseId { get; set; }
     /// <summary>المعدة المستأجرة المرتبطة بسطر فاتورة المؤجر؛ فارغ لغير مصروفات الإيجار.</summary>
     public Guid? ProjectResourceId { get; set; }
     /// <summary>سطر الفاتورة الأصلية الذي أُرجع هذا السطر عنه؛ يميّز البنود المتكررة في المرتجعات.</summary>

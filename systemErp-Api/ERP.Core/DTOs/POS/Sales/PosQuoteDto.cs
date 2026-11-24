@@ -6,6 +6,8 @@ namespace ERP.Core.DTOs.POS;
 /// </summary>
 public class PosQuoteDto
 {
+    /// <summary>طريقة تسعير السلة: «شامل» إن كان سعر بطاقة الصنف شاملاً ولا صنف بضريبة انتقائية، وإلا «غير شامل» (سعر الوحدة صافٍ).</summary>
+    public InvoicePricingMethod PricingMethod { get; set; }
     public List<PosQuoteLineDto> Lines { get; set; } = new();
     public decimal GrossTotal { get; set; }
     public decimal LineDiscounts { get; set; }

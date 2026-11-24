@@ -52,6 +52,8 @@ public class SaveAccountingSettingsDto
     public bool? ConstructionSeparateApprover { get; set; }
     /// <summary>السماح بالتسعير الشامل للضريبة في المبيعات؛ فارغ = بلا تغيير.</summary>
     public bool? AllowSalesVatInclusivePricing { get; set; }
+    /// <summary>سعر بطاقة الصنف شامل الضريبة؛ فارغ = بلا تغيير.</summary>
+    public bool? ItemPricesIncludeVat { get; set; }
 }
 
 public class AccountingSettingsDto : SaveAccountingSettingsDto

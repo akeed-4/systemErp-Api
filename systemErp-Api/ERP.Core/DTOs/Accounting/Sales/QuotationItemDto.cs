@@ -14,4 +14,7 @@ public partial class QuotationItemDto
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
+    /// <summary>موقع السطر (فارغ = موقع المستند).</summary>
+    public Guid? WarehouseId { get; set; }
+    public Guid? CostCenterId { get; set; }
 }

@@ -99,6 +99,14 @@ internal static class InventoryValuation
         return await PostAsync(db, posting, new() { [inventoryAccount] = amount }, description, sourceId, ct);
     }
 
+    /// <summary>إعادة تقييم بقيد واحد على عدة حسابات مخزون (أثر مستند متعدد المواقع على حساب كل موقع).</summary>
+    public static async Task<PostingResult?> PostRevaluationAsync(ErpDbContext db, IAccountingPostingService posting,
+        Dictionary<string, decimal> byAccount, string description, Guid? sourceId, CancellationToken ct)
+    {
+        if (byAccount.All(a => a.Value == 0) || (await PostingAccounts.SettingsAsync(db, ct)).IsPeriodic(SaudiTime.Today)) return null;
+        return await PostAsync(db, posting, byAccount, description, sourceId, ct);
+    }
+
     private static async Task<PostingResult?> PostAsync(ErpDbContext db, IAccountingPostingService posting, Dictionary<string, decimal> byAccount,
         string description, Guid? sourceId, CancellationToken ct)
     {

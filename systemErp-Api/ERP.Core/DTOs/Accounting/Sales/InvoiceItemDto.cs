@@ -39,6 +39,12 @@ public partial class InvoiceItemDto
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public Guid? CostCenterId { get; set; }
+    /// <summary>موقع السطر؛ فارغ في الطلب = موقع المستند (والمرتجع = موقع سطر أصله). يعود في القراءة بالموقع الفعلي.</summary>
+    public Guid? WarehouseId { get; set; }
+    /// <summary>للقراءة: اسم موقع السطر الفعلي.</summary>
+    public string? WarehouseName { get; set; }
+    /// <summary>للقراءة: الاسم الإنجليزي الحالي من بطاقة الصنف (لا يُحفظ على السطر).</summary>
+    public string? ItemNameEn { get; set; }
     public Guid? ProjectResourceId { get; set; }
     public Guid? OriginalInvoiceItemId { get; set; }
     public string? RevenueAccountCode { get; set; }

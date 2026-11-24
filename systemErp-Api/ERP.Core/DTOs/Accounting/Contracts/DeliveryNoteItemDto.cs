@@ -11,6 +11,13 @@ public partial class DeliveryNoteItemDto
     public string? Sku { get; set; }
     public string? Unit { get; set; }
     public decimal UnitPrice { get; set; }
+    /// <summary>خصم السطر مبلغاً قبل الضريبة.</summary>
+    public decimal Discount { get; set; }
+    /// <summary>موقع السطر (فارغ = موقع البيان).</summary>
+    public Guid? WarehouseId { get; set; }
+    public Guid? CostCenterId { get; set; }
+    /// <summary>للقراءة: الاسم الإنجليزي من بطاقة الصنف.</summary>
+    public string? ItemNameEn { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }

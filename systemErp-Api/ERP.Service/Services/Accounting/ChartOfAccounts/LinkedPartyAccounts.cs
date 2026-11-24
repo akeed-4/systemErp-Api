@@ -36,6 +36,18 @@ internal static class LinkedPartyAccounts
                 case BankEntity b: b.AccountCode = code; break;
             }
         }
+
+        /// <summary>اسم الكيان يتبع اسم حسابه المملوك (تعديل الاسم من الدليل)؛ الإنجليزي الفارغ = العربي.</summary>
+        public void SetName(string nameAr, string? nameEn)
+        {
+            var en = string.IsNullOrWhiteSpace(nameEn) ? nameAr : nameEn;
+            switch (Entity)
+            {
+                case Customer c: (c.NameAr, c.NameEn) = (nameAr, en); break;
+                case Supplier s: (s.NameAr, s.NameEn) = (nameAr, en); break;
+                case BankEntity b: (b.NameAr, b.NameEn) = (nameAr, en); break;
+            }
+        }
     }
 
     public static Party Of(Customer c) => new(LinkedEntityType.Customer, c.Id, c.AccountCode, c.NameAr, c);

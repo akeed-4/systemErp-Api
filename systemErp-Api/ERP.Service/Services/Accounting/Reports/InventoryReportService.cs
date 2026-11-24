@@ -252,7 +252,8 @@ public class InventoryReportService : IInventoryReportService
         var inv = _db.Set<InvoiceBase>().AsNoTracking().Where(i => i.Status == "posted" && (i.Kind == main || i.Kind == ret));
         if (q.DateFrom.HasValue) inv = inv.Where(i => i.IssueDate >= q.DateFrom);
         if (q.DateTo.HasValue) inv = inv.Where(i => i.IssueDate < q.EndExclusive());
-        if (q.WarehouseId.HasValue) inv = inv.Where(i => i.WarehouseId == q.WarehouseId.Value);
+        // الموقع على مستوى السطر (موقعه الفعلي؛ السطر القديم بلا موقع = موقع مستنده)، فسطر من موقع آخر يُحسب لموقعه
+        var siteId = q.WarehouseId;
         var moduleScope = ReportModuleScope.Normalize(q.Module);
         if (moduleScope != null) inv = inv.Where(i => moduleScope.Contains(i.Module));
         if (q.ItemId.HasValue) inv = inv.Where(i => _db.Set<InvoiceItemBase>().Any(it => it.InvoiceId == i.Id && it.ItemId == q.ItemId));
@@ -260,6 +261,7 @@ public class InventoryReportService : IInventoryReportService
         var lines = from it in _db.Set<InvoiceItemBase>().AsNoTracking()
                     join i in inv on it.InvoiceId equals i.Id
                     where it.ItemId != Guid.Empty && (!q.ItemId.HasValue || it.ItemId == q.ItemId)
+                        && (!siteId.HasValue || (it.WarehouseId ?? i.WarehouseId) == siteId)
                     let isRet = i.IsReturn || i.Kind == ret
                     select new
                     {

@@ -15,6 +15,10 @@ public class QuotationItem : BaseEntity
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }
     public decimal TotalAfterVat { get; set; }
+    /// <summary>موقع السطر (فارغ = موقع المستند)؛ ينتقل إلى سطر الفاتورة عند التحويل.</summary>
+    public Guid? WarehouseId { get; set; }
+    /// <summary>مركز تكلفة السطر (فارغ = بلا مركز)؛ ينتقل إلى سطر الفاتورة عند التحويل.</summary>
+    public Guid? CostCenterId { get; set; }
     /// <summary>سطر طلب عرض الأسعار المقابل (عرض RFQ).</summary>
     public Guid? RfqItemId { get; set; }
 

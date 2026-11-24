@@ -1,16 +1,25 @@
 namespace ERP.Service.Services.Accounting;
 
-/// <summary>مجاميع مبالغ لكل مركز تكلفة، ومنها «بلا مركز»، لتوزيع قيد المستند على مراكز أسطره.</summary>
+/// <summary>
+/// مجاميع مبالغ لكل شريحة (مركز تكلفة، موقع)، ومنها «بلا مركز» و«موقع الطلب»، لتوزيع قيد المستند على مراكز أسطره وحسابات مواقعها.
+/// المستند بموقع واحد لكل أسطره يعطي شرائح بمركزها وحده كما كان.
+/// </summary>
 internal sealed class CostCenterTotals
 {
-    private readonly Dictionary<Guid, decimal> _amounts = new(); // Guid.Empty = بلا مركز (لا مركز حقيقياً بهذا المعرّف)
+    // Guid.Empty = بلا مركز / موقع الطلب (لا مركز ولا موقع حقيقياً بهذا المعرّف)
+    private readonly Dictionary<(Guid Center, Guid Site), decimal> _amounts = new();
 
-    private static Guid Key(Guid? center) => center ?? Guid.Empty;
-    private static Guid? Center(Guid key) => key == Guid.Empty ? null : key;
+    private static (Guid, Guid) Key(Guid? center, Guid? site) => (center ?? Guid.Empty, site ?? Guid.Empty);
+    private static Guid? Value(Guid key) => key == Guid.Empty ? null : key;
 
-    public void Add(Guid? center, decimal amount) => _amounts[Key(center)] = _amounts.GetValueOrDefault(Key(center)) + amount;
-    public decimal this[Guid? center] => _amounts.GetValueOrDefault(Key(center));
-    public IEnumerable<Guid?> Centers => _amounts.Keys.Select(Center);
+    public void Add(Guid? center, decimal amount, Guid? site = null)
+    {
+        var key = Key(center, site);
+        _amounts[key] = _amounts.GetValueOrDefault(key) + amount;
+    }
+
+    public decimal this[(Guid? Center, Guid? Site) slice] => _amounts.GetValueOrDefault(Key(slice.Center, slice.Site));
+    public IEnumerable<(Guid? Center, Guid? Site)> Slices => _amounts.Keys.Select(k => (Value(k.Center), Value(k.Site)));
     public decimal Total => _amounts.Values.Sum();
 
     public CostCenterTotals Copy()
@@ -20,9 +29,10 @@ internal sealed class CostCenterTotals
         return copy;
     }
 
-    public List<CostCenterAmount> ToAmounts() => _amounts.Select(p => new CostCenterAmount(Center(p.Key), p.Value)).ToList();
+    public List<CostCenterAmount> ToAmounts()
+        => _amounts.Select(p => new CostCenterAmount(Value(p.Key.Center), p.Value, Value(p.Key.Site))).ToList();
 
-    /// <summary>يوزّع مبلغاً على المراكز بنسبة أوزانها؛ كسر التقريب على أكبرها وزناً فيطابق مجموعُ الحصص المبلغَ تماماً.</summary>
+    /// <summary>يوزّع مبلغاً على الشرائح بنسبة أوزانها؛ كسر التقريب على أكبرها وزناً فيطابق مجموعُ الحصص المبلغَ تماماً.</summary>
     public static CostCenterTotals Apportion(decimal amount, CostCenterTotals weights)
     {
         var result = new CostCenterTotals();
@@ -30,7 +40,8 @@ internal sealed class CostCenterTotals
         var total = weights.Total;
         if (total == 0)
         {
-            result.Add(weights.Centers.FirstOrDefault(), amount);
+            var first = weights.Slices.FirstOrDefault();
+            result.Add(first.Center, amount, first.Site);
             return result;
         }
         foreach (var (key, weight) in weights._amounts)

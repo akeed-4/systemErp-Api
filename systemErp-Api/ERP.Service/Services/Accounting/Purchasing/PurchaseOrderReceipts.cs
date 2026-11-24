@@ -79,6 +79,8 @@ internal static class PurchaseOrderReceipts
                 throw new ValidationFailedException(string.Format(Messages.ItemNotInOrder, item.ItemName, order.OrderNumber));
             item.ItemName = line.First.ItemName; item.Sku = line.First.Sku; item.Unit = line.First.Unit;
             item.UnitPrice = line.UnitPrice; item.VatRate = line.VatRate;
+            item.Discount = 0; // سعر الاستلام من الأمر صافٍ بعد خصمه وتكاليفه
+            item.WarehouseId ??= line.First.WarehouseId; item.CostCenterId ??= line.First.CostCenterId;
             item.ContractQty = line.Ordered;
         }
         foreach (var g in note.Items.GroupBy(i => i.ItemId))

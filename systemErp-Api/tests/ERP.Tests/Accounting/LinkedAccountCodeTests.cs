@@ -26,8 +26,8 @@ public class LinkedAccountCodeTests : TestBase
         Assert.Equal("112", account["parentCode"].S());
         Assert.Equal("customer", account["linkedEntityType"].S());
 
-        // تحت مجموعة فرعية داخل العملاء: الأب أطول حساب قائم رمزه بادئة
-        var group = await api.Post("/accounts", new { code = "1129", nameAr = "عملاء الجملة", nameEn = "Wholesale", type = "asset", parentCode = "112", isDebitNature = true });
+        // تحت مجموعة فرعية داخل العملاء (حساب رئيسي: الفرعي هناك يُنشئ عميلاً): الأب أطول حساب قائم رمزه بادئة
+        var group = await api.Post("/accounts", new { code = "1129", nameAr = "عملاء الجملة", nameEn = "Wholesale", type = "asset", parentCode = "112", isDebitNature = true, isGroup = true });
         Assert.Equal(201, group.Status);
         Assert.Equal(201, (await api.Post("/customers", Customer("عميل ب", "11291"))).Status);
         Assert.Equal("1129", (await api.Get("/accounts/ByCode/11291")).Data!["parentCode"].S());
@@ -68,8 +68,8 @@ public class LinkedAccountCodeTests : TestBase
     public async Task Multi_level_codes_take_the_parent_with_the_longest_matching_prefix()
     {
         var api = await NewTenantAsync();
-        Assert.Equal(201, (await api.Post("/accounts", new { code = "1129", nameAr = "مجموعة", nameEn = "G", type = "asset", parentCode = "112", isDebitNature = true })).Status);
-        Assert.Equal(201, (await api.Post("/accounts", new { code = "11291", nameAr = "فرعية", nameEn = "S", type = "asset", parentCode = "1129", isDebitNature = true })).Status);
+        Assert.Equal(201, (await api.Post("/accounts", new { code = "1129", nameAr = "مجموعة", nameEn = "G", type = "asset", parentCode = "112", isDebitNature = true, isGroup = true })).Status);
+        Assert.Equal(201, (await api.Post("/accounts", new { code = "11291", nameAr = "فرعية", nameEn = "S", type = "asset", parentCode = "1129", isDebitNature = true, isGroup = true })).Status);
 
         Assert.Equal(201, (await api.Post("/customers", Customer("عميل عميق", "112915"))).Status);
         Assert.Equal("11291", (await api.Get("/accounts/ByCode/112915")).Data!["parentCode"].S());

@@ -109,4 +109,10 @@ public class AccountingSettings : BaseEntity
     /// ولغيرهما بصلاحية «الفواتير: التسعير الشامل للضريبة» (غير ممنوحة افتراضياً لأي دور).
     /// </summary>
     public bool AllowSalesVatInclusivePricing { get; set; }
+    /// <summary>
+    /// سعر البيع في بطاقة الصنف شامل ضريبة القيمة المضافة (معطّل افتراضياً = السعر قبل الضريبة كما كان). يحدد معنى السعر المقترح للسطر
+    /// وطريقة التسعير الافتراضية: المستند الشامل يأخذ السعر كما هو، وغير الشامل صافيه (<c>VatPricing.NetUnitPrice</c>)، ونقطة البيع
+    /// تُسعَّر شاملة ما لم يكن في السلة صنف بضريبة انتقائية. مستقل عن <see cref="AllowSalesVatInclusivePricing"/>.
+    /// </summary>
+    public bool ItemPricesIncludeVat { get; set; }
 }

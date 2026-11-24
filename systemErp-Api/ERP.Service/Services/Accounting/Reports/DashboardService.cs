@@ -137,14 +137,40 @@ public class DashboardService : IDashboardService
             }).ToList();
         }
 
-        var sites = (await allSitesSales.Where(i => i.IssueDate >= from && i.IssueDate < toEnd)
+        // الفاتورة بموقع واحد لكل أسطرها تُنسب لموقعها كما كانت؛ وفاتورة أسطرها من أكثر من موقع تُوزَّع على مواقع أسطرها
+        // (صافي السطر، وربحه = صافيه − تكلفة كميته)، ويُعدّ لكل موقع منها فاتورة
+        var sitesRange = allSitesSales.Where(i => i.IssueDate >= from && i.IssueDate < toEnd);
+        var lineItems = _db.Set<InvoiceItemBase>().AsNoTracking();
+        var singleSite = sitesRange.Where(i => !lineItems.Any(l => l.InvoiceId == i.Id && l.WarehouseId != null && l.WarehouseId != i.WarehouseId));
+        var siteRows = await singleSite
             .GroupBy(i => new { i.WarehouseId, i.WarehouseName }).Select(g => new
             {
                 g.Key.WarehouseId, g.Key.WarehouseName,
                 Net = g.Sum(i => (i.Kind == InvoiceKind.SalesReturn ? -1 : 1) * (i.GrandTotal - i.VatTotal) * i.ExchangeRate),
                 Profit = g.Sum(i => i.GrossProfit),
                 Count = g.Count(i => i.Kind == InvoiceKind.Sales),
-            }).ToListAsync(ct))
+            }).ToListAsync(ct);
+        var splitLines = await (from l in lineItems
+                                join i in sitesRange on l.InvoiceId equals i.Id
+                                where lineItems.Any(o => o.InvoiceId == i.Id && o.WarehouseId != null && o.WarehouseId != i.WarehouseId)
+                                select new
+                                {
+                                    InvoiceId = i.Id, WarehouseId = l.WarehouseId ?? i.WarehouseId, IsSale = i.Kind == InvoiceKind.Sales,
+                                    Sign = i.Kind == InvoiceKind.SalesReturn ? -1m : 1m, Net = l.TotalBeforeVat * i.ExchangeRate,
+                                    Cost = l.Quantity * l.UnitCost,
+                                }).ToListAsync(ct);
+        var splitSiteIds = splitLines.Where(x => x.WarehouseId.HasValue).Select(x => x.WarehouseId!.Value).Distinct().ToList();
+        var splitNames = splitSiteIds.Count == 0 ? new Dictionary<Guid, string>()
+            : await _db.Set<Warehouse>().AsNoTracking().Where(w => splitSiteIds.Contains(w.Id)).ToDictionaryAsync(w => w.Id, w => w.NameAr, ct);
+        siteRows.AddRange(splitLines.GroupBy(x => x.WarehouseId).Select(g => new
+        {
+            WarehouseId = g.Key,
+            WarehouseName = g.Key is Guid site ? splitNames.GetValueOrDefault(site) : null,
+            Net = g.Sum(x => x.Sign * x.Net),
+            Profit = g.Sum(x => x.Sign * (x.Net - x.Cost)),
+            Count = g.Where(x => x.IsSale).Select(x => x.InvoiceId).Distinct().Count(),
+        }));
+        var sites = siteRows
             // الاسم مخزَّن على الفاتورة فقد يختلف بين فواتير الموقع نفسه
             .GroupBy(x => x.WarehouseId).Select(g => new SalesPerformanceSiteDto
             {

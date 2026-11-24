@@ -16,6 +16,11 @@ public partial class CreateAccountDto
     public string? Currency { get; set; }
     public LinkedEntityType? LinkedEntityType { get; set; }
     public Guid? LinkedEntityId { get; set; }
+    /// <summary>
+    /// جوال ورقم ضريبي اختياريان للعميل أو المورد الذي يُنشأ تلقائياً مع حساب فرعي تحت مجموعته (يُكمَلان لاحقاً من شاشته).
+    /// </summary>
+    public string? EntityPhone { get; set; }
+    public string? EntityVatNumber { get; set; }
     public string? Notes { get; set; }
     /// <summary>فارغ = يبقى إعداد الحساب كما هو عند التعديل، و«اختياري» عند الإنشاء.</summary>
     public CostCenterPolicy? CostCenterPolicy { get; set; }

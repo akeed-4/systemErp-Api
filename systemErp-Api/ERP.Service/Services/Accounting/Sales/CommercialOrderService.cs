@@ -76,6 +76,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
             Exists = (n, c) => Db.Set<CommercialOrder>().AnyAsync(o => o.OrderNumber == n, c),
         }, ct);
         await StampAgreementAsync(e, ct);
+        await LineDimensions.EnsureAsync(Db, e.Items.Select(i => (i.WarehouseId, i.CostCenterId)), ct);
         Recalculate(e);
     }
 
@@ -85,6 +86,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         e.ConvertedInvoiceId = Db.Entry(e).OriginalValues.GetValue<Guid?>(nameof(CommercialOrder.ConvertedInvoiceId));
         if (Db.Entry(e).OriginalValues.GetValue<Guid?>(nameof(CommercialOrder.AgreementId)) is { } previous) _touchedAgreements.Add(previous);
         await StampAgreementAsync(e, ct);
+        await LineDimensions.EnsureAsync(Db, e.Items.Select(i => (i.WarehouseId, i.CostCenterId)), ct);
         Recalculate(e);
     }
 
@@ -150,6 +152,7 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
                 {
                     ItemId = i.ItemId, ItemName = i.ItemName, Sku = i.Sku, Unit = i.Unit, Quantity = i.Quantity,
                     UnitPrice = i.UnitPrice, Discount = i.Discount, VatRate = i.VatRate,
+                    WarehouseId = i.WarehouseId, CostCenterId = i.CostCenterId, // موقع السطر ومركزه ينتقلان كما هما
                 }).ToList(),
             }, token);
             o.ConvertedInvoiceId = invoice.Id;

@@ -12,6 +12,12 @@ public class DeliveryNoteItem : BaseEntity
     public string? Sku { get; set; }
     public string? Unit { get; set; }
     public decimal UnitPrice { get; set; }
+    /// <summary>خصم السطر مبلغاً قبل الضريبة (من الكمية المسلّمة × السعر)، وينتقل إلى سطر الفاتورة.</summary>
+    public decimal Discount { get; set; }
+    /// <summary>موقع السطر (فارغ = موقع البيان)؛ ينتقل إلى سطر الفاتورة.</summary>
+    public Guid? WarehouseId { get; set; }
+    /// <summary>مركز تكلفة السطر؛ ينتقل إلى سطر الفاتورة.</summary>
+    public Guid? CostCenterId { get; set; }
     public decimal VatRate { get; set; } = 15m;
     public decimal VatAmount { get; set; }
     public decimal TotalBeforeVat { get; set; }

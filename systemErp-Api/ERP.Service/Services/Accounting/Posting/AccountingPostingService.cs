@@ -329,17 +329,27 @@ public class AccountingPostingService : IAccountingPostingService
             if (receivable > Tolerance)
                 lines.Add(new(RequireParty(r.PartyAccountCode, Messages.PartyCustomer), receivable, 0));
         }
-        // حسابات الموقع: مبيعاته وتكلفة إيراده (الحساب المحدد في المستند أو سطره يتقدم). المرتجع على حساب المرتجعات إن ضُبط، وإلا مبيعات الموقع
-        var site = await PostingAccounts.SiteAsync(_db, r.WarehouseId, ct);
-        var revenue = r.RevenueAccountCode
-            ?? (site.Sales != null && !(r.IsReturn && accounts.SalesReturnsAccountCode != null) ? site.Sales : accounts.SalesRevenue(r.IsReturn));
-        var cogs = r.CogsAccountCode ?? site.Cogs ?? accounts.Cogs();
-        lines.AddRange(RevenueLines(r, revenue));
+        // حسابات الموقع: مبيعاته وتكلفة إيراده ومخزونه (الحساب المحدد في المستند أو سطره يتقدم). المرتجع على حساب المرتجعات إن ضُبط،
+        // وإلا مبيعات الموقع. كل جزء من الإيراد والتكلفة على موقعه (سطر من موقع آخر على حسابات موقعه)، والفارغ = موقع الطلب
+        var costLines = periodic ? new List<CostCenterAmount>() : CostLines(r).ToList();
+        var sites = new Dictionary<Guid, (string Revenue, string Cogs, string Inventory)>();
+        foreach (var siteId in r.RevenueLines.Select(l => l.WarehouseId).Concat(costLines.Select(l => l.WarehouseId))
+                     .Select(w => w ?? r.WarehouseId).Append(r.WarehouseId).Distinct())
+        {
+            var site = await PostingAccounts.SiteAsync(_db, siteId, ct);
+            sites[siteId ?? Guid.Empty] = (
+                r.RevenueAccountCode
+                    ?? (site.Sales != null && !(r.IsReturn && accounts.SalesReturnsAccountCode != null) ? site.Sales : accounts.SalesRevenue(r.IsReturn)),
+                r.CogsAccountCode ?? site.Cogs ?? accounts.Cogs(),
+                r.InventoryAccountCode ?? await accounts.InventoryAsync(_db, siteId, ct));
+        }
+        (string Revenue, string Cogs, string Inventory) SiteOf(Guid? warehouseId) => sites[(warehouseId ?? r.WarehouseId) ?? Guid.Empty];
+        lines.AddRange(RevenueLines(r, w => SiteOf(w).Revenue));
         if (r.ExciseTaxAmount > 0) lines.Add(new(accounts.OutputExcise(), 0, r.ExciseTaxAmount));
         if (r.VatAmount > 0) lines.Add(new(accounts.OutputVat(), 0, r.VatAmount));
-        var inventoryAccount = r.InventoryAccountCode ?? await accounts.InventoryAsync(_db, r.WarehouseId, ct);
-        foreach (var cost in periodic ? Array.Empty<CostCenterAmount>() : CostLines(r))
+        foreach (var cost in costLines)
         {
+            var (_, cogs, inventoryAccount) = SiteOf(cost.WarehouseId);
             if (cost.Amount > 0)
             {
                 lines.Add(new(cogs, cost.Amount, 0, null, cost.CostCenterId));
@@ -359,24 +369,28 @@ public class AccountingPostingService : IAccountingPostingService
         return await PostAsync(request, ct);
     }
 
-    /// <summary>الإيراد موزّعاً على حساب ومركز تكلفة كل سطر (مجمَّعاً)، أو سطراً واحداً بحساب المستند.</summary>
-    private static IEnumerable<PostingLine> RevenueLines(SalePostingRequest r, string fallback)
+    /// <summary>
+    /// الإيراد موزّعاً على حساب ومركز تكلفة كل سطر (مجمَّعاً)، أو سطراً واحداً بحساب المستند. الجزء بلا حساب على حساب موقعه
+    /// (<paramref name="fallback"/> بموقع الجزء، والفارغ = موقع الطلب).
+    /// </summary>
+    private static IEnumerable<PostingLine> RevenueLines(SalePostingRequest r, Func<Guid?, string> fallback)
     {
-        if (r.RevenueLines.Count == 0) return new[] { new PostingLine(fallback, 0, r.NetAmount, null, r.CostCenterId) };
+        if (r.RevenueLines.Count == 0) return new[] { new PostingLine(fallback(null), 0, r.NetAmount, null, r.CostCenterId) };
         if (Math.Abs(r.RevenueLines.Sum(l => l.Amount) - r.NetAmount) > Tolerance)
             throw new ValidationFailedException(Messages.RevenueLinesMustEqualNet);
         return r.RevenueLines.Where(l => l.Amount != 0)
-            .GroupBy(l => (Account: string.IsNullOrWhiteSpace(l.AccountCode) ? fallback : l.AccountCode!.Trim(), l.CostCenterId))
+            .GroupBy(l => (Account: string.IsNullOrWhiteSpace(l.AccountCode) ? fallback(l.WarehouseId) : l.AccountCode!.Trim(), l.CostCenterId))
             .Select(g => new PostingLine(g.Key.Account, 0, g.Sum(l => l.Amount), null, g.Key.CostCenterId));
     }
 
-    /// <summary>التكلفة موزّعة على مراكز أسطرها (مجمَّعة لكل مركز)، أو مبلغاً واحداً بلا مركز.</summary>
+    /// <summary>التكلفة موزّعة على مراكز أسطرها ومواقعها (مجمَّعة لكل مركز وموقع)، أو مبلغاً واحداً بلا مركز على موقع الطلب.</summary>
     private static IEnumerable<CostCenterAmount> CostLines(SalePostingRequest r)
     {
         if (r.CostLines.Count == 0) return new[] { new CostCenterAmount(null, r.CostAmount) };
         if (Math.Abs(r.CostLines.Sum(l => l.Amount) - r.CostAmount) > Tolerance)
             throw new ValidationFailedException(Messages.CostCenterSharesMismatch);
-        return r.CostLines.GroupBy(l => l.CostCenterId).Select(g => new CostCenterAmount(g.Key, g.Sum(l => l.Amount)));
+        return r.CostLines.GroupBy(l => (l.CostCenterId, l.WarehouseId))
+            .Select(g => new CostCenterAmount(g.Key.CostCenterId, g.Sum(l => l.Amount), g.Key.WarehouseId));
     }
 
     /// <summary>
@@ -387,9 +401,9 @@ public class AccountingPostingService : IAccountingPostingService
     private static List<PurchaseCostCenterShare> PurchaseShares(PurchasePostingRequest r, decimal inventory, bool atDocumentValue)
     {
         if (r.CostCenterShares.Count == 0) return new() { new(r.CostCenterId, r.NetAmount, r.ExpenseAmount, inventory) };
-        var shares = r.CostCenterShares.GroupBy(s => s.CostCenterId)
-            .Select(g => new PurchaseCostCenterShare(g.Key, g.Sum(s => s.Net), g.Sum(s => s.Expense),
-                g.Sum(s => atDocumentValue ? s.Net - s.Expense : s.Inventory ?? s.Net - s.Expense)))
+        var shares = r.CostCenterShares.GroupBy(s => (s.CostCenterId, s.WarehouseId))
+            .Select(g => new PurchaseCostCenterShare(g.Key.CostCenterId, g.Sum(s => s.Net), g.Sum(s => s.Expense),
+                g.Sum(s => atDocumentValue ? s.Net - s.Expense : s.Inventory ?? s.Net - s.Expense), g.Key.WarehouseId))
             .ToList();
         if (shares.Any(s => s.Expense < 0)
             || Math.Abs(shares.Sum(s => s.Net) - r.NetAmount) > Tolerance
@@ -413,14 +427,18 @@ public class AccountingPostingService : IAccountingPostingService
         // الدوري: الأصناف على حساب المشتريات (والمرتجع على مردوداتها) بسعر المستند، ولا يُمس حساب المخزون داخل الفترة
         var periodic = r.InventoryAccountCode == null && accounts.IsPeriodic(r.Date);
         var inventory = periodic ? r.NetAmount - r.ExpenseAmount : r.InventoryAmount ?? r.NetAmount - r.ExpenseAmount;
-        var inventoryAccount = r.InventoryAccountCode
-            ?? (periodic ? (r.IsReturn ? accounts.PurchaseReturns() : accounts.Purchases()) : await accounts.InventoryAsync(_db, r.WarehouseId, ct));
         var varianceAccount = string.IsNullOrWhiteSpace(r.VarianceAccountCode) ? DefaultAccounts.PurchasePriceVariance : r.VarianceAccountCode;
 
-        // كل مركز بمخزونه وخدماته وفرق سعره: لا يُنسب مركز سطر لأسطر غيره
+        // كل مركز بمخزونه وخدماته وفرق سعره: لا يُنسب مركز سطر لأسطر غيره. ومخزون كل حصة على حساب موقعها (الفارغ = موقع الطلب)
+        var shares = PurchaseShares(r, inventory, atDocumentValue: periodic);
+        var inventoryAccounts = new Dictionary<Guid, string>();
+        foreach (var siteId in shares.Select(s => s.WarehouseId ?? r.WarehouseId).Append(r.WarehouseId).Distinct())
+            inventoryAccounts[siteId ?? Guid.Empty] = r.InventoryAccountCode
+                ?? (periodic ? (r.IsReturn ? accounts.PurchaseReturns() : accounts.Purchases()) : await accounts.InventoryAsync(_db, siteId, ct));
         var lines = new List<PostingLine>();
-        foreach (var share in PurchaseShares(r, inventory, atDocumentValue: periodic))
+        foreach (var share in shares)
         {
+            var inventoryAccount = inventoryAccounts[(share.WarehouseId ?? r.WarehouseId) ?? Guid.Empty];
             var shareInventory = share.Inventory!.Value;
             var shareVariance = share.Net - share.Expense - shareInventory;
             if (shareInventory > 0) lines.Add(new(inventoryAccount, shareInventory, 0, null, share.CostCenterId));

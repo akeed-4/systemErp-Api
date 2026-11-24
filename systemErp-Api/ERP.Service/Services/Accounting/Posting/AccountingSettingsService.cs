@@ -40,6 +40,9 @@ public class AccountingSettingsService : IAccountingSettingsService
     public Task<bool> SalesVatInclusiveAllowedAsync(CancellationToken ct = default)
         => _db.Set<AccountingSettings>().AsNoTracking().Select(s => s.AllowSalesVatInclusivePricing).FirstOrDefaultAsync(ct);
 
+    public Task<bool> ItemPricesIncludeVatAsync(CancellationToken ct = default)
+        => _db.Set<AccountingSettings>().AsNoTracking().Select(s => s.ItemPricesIncludeVat).FirstOrDefaultAsync(ct);
+
     public Task<AccountingSettingsDto> SaveAsync(SaveAccountingSettingsDto d, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
@@ -60,6 +63,7 @@ public class AccountingSettingsService : IAccountingSettingsService
             if (d.PurchaseReturnPeriodDays is { } purchaseDays) settings.PurchaseReturnPeriodDays = ReturnPeriod(purchaseDays);
             if (d.ConstructionSeparateApprover is { } separate) settings.ConstructionSeparateApprover = separate;
             if (d.AllowSalesVatInclusivePricing is { } inclusive) settings.AllowSalesVatInclusivePricing = inclusive;
+            if (d.ItemPricesIncludeVat is { } pricesIncludeVat) settings.ItemPricesIncludeVat = pricesIncludeVat;
 
             // اختيار الدوري وحساباته الإلزامية ناقصة: تُهيّأ في المعاملة نفسها قبل التحقق (فشل الحفظ يلغي ما أُنشئ)
             ContractAccountsSetupDto? periodicSetup = null;
@@ -276,6 +280,7 @@ public class AccountingSettingsService : IAccountingSettingsService
         var dto = Mapper.Map<AccountingSettingsDto>(s);
         dto.ConstructionSeparateApprover = s.ConstructionSeparateApprover;
         dto.AllowSalesVatInclusivePricing = s.AllowSalesVatInclusivePricing;
+        dto.ItemPricesIncludeVat = s.ItemPricesIncludeVat;
         dto.EffectiveAccounts = PostingAccounts.Roles.ToDictionary(r => r.Key, r => r.Effective(s));
         return dto;
     }

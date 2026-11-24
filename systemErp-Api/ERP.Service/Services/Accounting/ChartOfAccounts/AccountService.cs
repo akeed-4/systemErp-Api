@@ -98,6 +98,65 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         entity.Balance = 0; // الأرصدة تتغيّر بالقيود فقط
         // ربط حساب جديد بكيان قائم بلا حساب: يُحفظ رمزه على الكيان في المعاملة نفسها
         if (await LinkTargetAsync(dto, ct) is { } party) party.SetAccountCode(entity.Code);
+        // حساب فرعي تحت العملاء أو الموردين أو البنوك: يُنشأ كيانه بالاسم نفسه في المعاملة نفسها (ما لم يُطلب «حساب عام»)
+        else if (await AutoPartyTypeAsync(dto, ct) is { } type) await CreatePartyAsync(entity, type, dto, ct);
+    }
+
+    /// <summary>
+    /// نوع الكيان الذي يُنشأ تلقائياً للحساب الجديد من موقعه في الشجرة (سلسلة الآباء حتى مجموعة العملاء أو الموردين أو البنوك الفعلية)،
+    /// أو null: حساب رئيسي، أو «عام» صراحةً، أو ربط بكيان قائم، أو خارج مجموعات الكيانات. نوع مُرسَل بلا كيان يجب أن يطابق الموقع.
+    /// </summary>
+    private async Task<LinkedEntityType?> AutoPartyTypeAsync(CreateAccountDto dto, CancellationToken ct)
+    {
+        if (dto.IsGroup == true || dto.LinkedEntityId != null || string.IsNullOrEmpty(dto.ParentCode)) return null;
+        if (dto.LinkedEntityType is not (null or LinkedEntityType.Customer or LinkedEntityType.Supplier or LinkedEntityType.Bank)) return null;
+        foreach (var type in new[] { LinkedEntityType.Customer, LinkedEntityType.Supplier, LinkedEntityType.Bank })
+        {
+            var group = await LinkedPartyAccounts.GroupOfAsync(Db, type, ct);
+            if (!await IsWithinGroupAsync(dto.ParentCode, group, ct)) continue;
+            if (dto.LinkedEntityType is { } requested && requested != type)
+                throw new ValidationFailedException(string.Format(Messages.LinkedAccountCodeOutsideGroup, dto.Code, await LinkedPartyAccounts.GroupOfAsync(Db, requested, ct)));
+            return type;
+        }
+        return dto.LinkedEntityType is null ? null
+            : throw new ValidationFailedException(string.Format(Messages.LinkedAccountCodeOutsideGroup, dto.Code, await LinkedPartyAccounts.GroupOfAsync(Db, dto.LinkedEntityType.Value, ct)));
+    }
+
+    /// <summary>
+    /// الكيان المقابل للحساب الجديد بالاسم نفسه ورمز من تسلسل نوعه، مربوطاً به بالمعرّف (LinkedEntityType/LinkedEntityId) ورمزه.
+    /// الجوال والرقم الضريبي اختياريان هنا (يُكمَلان من شاشة الكيان)؛ عملة البنك عملة الحساب.
+    /// </summary>
+    private async Task CreatePartyAsync(Account account, LinkedEntityType type, CreateAccountDto dto, CancellationToken ct)
+    {
+        var nameAr = account.NameAr.Trim();
+        var nameEn = string.IsNullOrWhiteSpace(account.NameEn) ? nameAr : account.NameEn.Trim();
+        var phone = dto.EntityPhone?.Trim() ?? string.Empty;
+        var vat = string.IsNullOrWhiteSpace(dto.EntityVatNumber) ? null : dto.EntityVatNumber.Trim();
+        if (vat != null && !SaudiVat.IsValid(vat)) throw new ValidationFailedException(Messages.SaudiVatNumberFormat);
+        var id = Guid.NewGuid();
+        object party = type switch
+        {
+            LinkedEntityType.Customer => new Customer
+            {
+                Id = id, Code = await _numbers.NextAsync("customer", "CUST-", ct), NameAr = nameAr, NameEn = nameEn, Phone = phone,
+                VatNumber = vat, IsVatRegistered = vat != null, AccountCode = account.Code,
+            },
+            LinkedEntityType.Supplier => new Supplier
+            {
+                Id = id, Code = await _numbers.NextAsync("supplier", "SUP-", ct), NameAr = nameAr, NameEn = nameEn, Phone = phone,
+                VatNumber = vat, IsVatRegistered = vat != null, AccountCode = account.Code,
+            },
+            _ => new BankEntity
+            {
+                Id = id, Code = await _numbers.NextAsync("bank", "BNK-", ct), NameAr = nameAr, NameEn = nameEn, AccountCode = account.Code,
+                Currency = string.IsNullOrWhiteSpace(account.Currency)
+                    ? await Db.Set<Currency>().Where(c => c.IsBaseCurrency).Select(c => c.Code).FirstOrDefaultAsync(ct) ?? "SAR"
+                    : account.Currency.Trim().ToUpperInvariant(),
+            },
+        };
+        Db.Add(party);
+        account.LinkedEntityType = type;
+        account.LinkedEntityId = id;
     }
 
     /// <summary>
@@ -130,8 +189,13 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         entity.LinkedEntityId = original.GetValue<Guid?>(nameof(Account.LinkedEntityId));
         // رمز حساب الكيان تغيّر (بعد التحقق في ValidateAsync): يتبعه رمز الحساب على الكيان فلا ينقطع الارتباط
         var oldCode = original.GetValue<string>(nameof(Account.Code));
-        if (oldCode != entity.Code && await LinkedPartyAccounts.OwnerOfAsync(Db, entity, oldCode, ct) is { } owner)
-            owner.SetAccountCode(entity.Code);
+        var nameChanged = original.GetValue<string>(nameof(Account.NameAr)) != entity.NameAr || original.GetValue<string>(nameof(Account.NameEn)) != entity.NameEn;
+        if ((oldCode != entity.Code || nameChanged) && await LinkedPartyAccounts.OwnerOfAsync(Db, entity, oldCode, ct) is { } owner)
+        {
+            if (oldCode != entity.Code) owner.SetAccountCode(entity.Code);
+            // اسم الكيان المملوك يتبع اسم حسابه (والعكس في شاشة الكيان): الاسمان متطابقان دائماً
+            if (nameChanged && !string.IsNullOrWhiteSpace(entity.NameAr)) owner.SetName(entity.NameAr.Trim(), entity.NameEn?.Trim());
+        }
     }
 
     /// <summary>هل الحساب <paramref name="code"/> هو المجموعة <paramref name="group"/> أو أحد فروعها؟</summary>

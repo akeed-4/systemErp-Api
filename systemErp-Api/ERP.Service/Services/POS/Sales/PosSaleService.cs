@@ -81,7 +81,7 @@ public class PosSaleService : IPosSaleService
                 WarehouseId = shift.WarehouseId ?? settings.WarehouseId,
                 PartyId = customer?.Id, PartyName = r.CustomerName ?? customer?.NameAr ?? "عميل نقدي POS",
                 PartyVatNumber = vat, PartyPhone = r.CustomerPhone ?? customer?.Phone,
-                InvoiceDiscount = couponDiscount + loyaltyDiscount, Status = "posted",
+                InvoiceDiscount = couponDiscount + loyaltyDiscount, Status = "posted", PricingMethod = cart.Method,
                 ReferenceType = "pos_transaction", Notes = $"بيع نقطة بيع - وردية {shift.ShiftNumber}",
                 Items = lines.Select((l, i) => new InvoiceItemDto
                 {
@@ -113,7 +113,8 @@ public class PosSaleService : IPosSaleService
                 InvoiceNumber = invoice.InvoiceNumber, ShiftId = shift.Id, CustomerId = customer?.Id,
                 CustomerName = invoice.PartyName, CustomerPhone = invoice.PartyPhone, CustomerTaxNumber = vat,
                 InvoiceType = standard ? "standard" : "simplified",
-                SubtotalBeforeVat = DocumentPricing.Round(lines.Select((l, i) => l.Quantity * prices[i]).Sum()),
+                SubtotalBeforeVat = cart.Method == InvoicePricingMethod.Inclusive ? priced.Subtotal
+                    : DocumentPricing.Round(lines.Select((l, i) => l.Quantity * prices[i]).Sum()),
                 CouponDiscount = couponDiscount, CouponCode = coupon?.Code, LoyaltyDiscount = loyaltyDiscount, LoyaltyPointsRedeemed = pointsUsed,
                 TotalDiscount = lineDiscounts.Sum() + couponDiscount + loyaltyDiscount,
                 ExciseTaxAmount = priced.ExciseTaxTotal, VatAmount = priced.VatTotal, GrandTotal = total, PaymentMethod = method,
@@ -138,7 +139,8 @@ public class PosSaleService : IPosSaleService
                     UnitPrice = prices[i], ExciseTaxRate = pl.ExciseTaxRate, ExciseRetailPrice = pl.ExciseRetailPrice,
                     ExciseStandardPrice = pl.ExciseStandardPrice, ExciseTaxBaseAmount = pl.ExciseTaxBaseAmount,
                     ExciseTaxAmount = pl.ExciseTaxAmount, VatRate = p.VatRate, VatAmount = pl.VatAmount,
-                    Subtotal = DocumentPricing.Round(lines[i].Quantity * prices[i] - lineDiscounts[i]),
+                    Subtotal = cart.Method == InvoicePricingMethod.Inclusive ? pl.Net
+                        : DocumentPricing.Round(lines[i].Quantity * prices[i] - lineDiscounts[i]),
                     Discount = lineDiscounts[i], TotalWithVat = pl.Total,
                 });
             }
@@ -172,7 +174,7 @@ public class PosSaleService : IPosSaleService
         List<CheckoutLineDto> Lines, Dictionary<Guid, Product> Products, List<decimal> OfferDiscounts, List<decimal> LineDiscounts,
         PosCoupon? Coupon, decimal CouponDiscount, string? CouponError,
         Customer? Customer, CustomerLoyalty? Loyalty, decimal LoyaltyDiscount, int PointsUsed, string? LoyaltyError,
-        PricedDocument Priced, List<decimal> UnitPrices, PosPromotionSettings Rules);
+        PricedDocument Priced, List<decimal> UnitPrices, PosPromotionSettings Rules, InvoicePricingMethod Method);
 
     /// <summary>تسعير السلة من الكتالوج (مشترك بين الإتمام والعرض المسبق). strict=false: الكوبون/الولاء غير الصالح يُتجاهل مع رسالة.</summary>
     private async Task<CartPricing> PriceCartAsync(CheckoutRequestDto r, bool strict, PosShift shift, CancellationToken token)
@@ -206,6 +208,13 @@ public class PosSaleService : IPosSaleService
             var offline = r.Offline != null;
             if (offline && lines.Any(l => l.OfflineUnitPrice is < 0)) throw new ValidationFailedException(Messages.QtyPositiveDiscountsNonNegative);
             var unitPrices = lines.Select(l => offline ? l.OfflineUnitPrice ?? products[l.ItemId].SellingPrice : products[l.ItemId].SellingPrice).ToList();
+            // سعر البطاقة شامل الضريبة: البيع شامل فيطابق الإجمالي سعر الرف، إلا سلة فيها صنف بضريبة انتقائية (لا تُسعَّر شاملة) فتُباع
+            // غير شاملة بصافي السعر (وقد يختلف إجماليها بهللة). غير ذلك غير شامل كما كان.
+            var pricesIncludeVat = await _db.Set<AccountingSettings>().AsNoTracking().Select(s => s.ItemPricesIncludeVat).FirstOrDefaultAsync(token);
+            var method = pricesIncludeVat && lines.All(l => products[l.ItemId].ExciseTaxRate <= 0)
+                ? InvoicePricingMethod.Inclusive : InvoicePricingMethod.Exclusive;
+            if (pricesIncludeVat && method == InvoicePricingMethod.Exclusive)
+                unitPrices = unitPrices.Select((price, i) => VatPricing.NetUnitPrice(InvoicePricingMethod.Inclusive, price, products[lines[i].ItemId].VatRate)).ToList();
 
             // 2) الخصومات على مستوى السطر (عروض السرفر + خصم يدوي إداري)
             var offerDiscounts = new List<decimal>();
@@ -214,7 +223,7 @@ public class PosSaleService : IPosSaleService
             {
                 var l = lines[li];
                 var p = products[l.ItemId];
-                var offer = offline ? 0m : PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, p.SellingPrice);
+                var offer = offline ? 0m : PosPricing.BestOfferDiscount(offers, p.Id, categoryIds.TryGetValue(p.Category, out var cid) ? cid : null, l.Quantity, unitPrices[li]);
                 var gross = l.Quantity * unitPrices[li];
                 if (l.ManualDiscount > gross - offer) throw new ValidationFailedException(string.Format(Messages.ItemDiscountExceedsValue, p.NameAr));
                 if (rules.MaxLineDiscountPercent is { } maxLine && gross > 0 && l.ManualDiscount * 100m / gross > maxLine)
@@ -267,17 +276,20 @@ public class PosSaleService : IPosSaleService
             var priced = DocumentPricing.Price(
                 lines.Select((l, i) => new PricedLineInput(l.Quantity, unitPrices[i], lineDiscounts[i], products[l.ItemId].VatRate,
                     null, products[l.ItemId].ExciseTaxRate, products[l.ItemId].ExciseRetailPrice, products[l.ItemId].ExciseStandardPrice)).ToList(),
-                couponDiscount + loyaltyDiscount);
+                couponDiscount + loyaltyDiscount, method);
             if (!shift.AllowDiscount && (lines.Any(l => l.ManualDiscount > 0) || couponDiscount > 0 || loyaltyDiscount > 0))
                 throw new ForbiddenException("الخصومات غير مسموحة على نقطة البيع الحالية.");
             if (shift.MaxDiscountPercent.HasValue && priced.Subtotal > 0 && priced.DiscountTotal * 100m / priced.Subtotal > shift.MaxDiscountPercent.Value)
                 throw new ForbiddenException($"تجاوز الخصم الحد المسموح لهذه النقطة ({shift.MaxDiscountPercent.Value:0.##}%).");
             // حد خصم الكاشير على الفاتورة (يدوي + كوبون + نقاط)؛ العروض التلقائية خارجه
             var cashierDiscount = lines.Sum(l => l.ManualDiscount) + couponDiscount + loyaltyDiscount;
-            if (rules.MaxInvoiceDiscountPercent is { } maxInvoice && priced.Subtotal > 0 && cashierDiscount * 100m / priced.Subtotal > maxInvoice)
+            // الخصم المدخل بطريقة السلة (شامل في الشامل): يُقاس على إجمالي الأسطر بالطريقة نفسها
+            var discountBase = method == InvoicePricingMethod.Inclusive
+                ? DocumentPricing.Round(lines.Select((l, i) => l.Quantity * unitPrices[i]).Sum()) : priced.Subtotal;
+            if (rules.MaxInvoiceDiscountPercent is { } maxInvoice && discountBase > 0 && cashierDiscount * 100m / discountBase > maxInvoice)
                 throw new ValidationFailedException(string.Format(Messages.InvoiceDiscountExceedsMax, maxInvoice.ToString("0.##")));
             return new CartPricing(lines, products, offerDiscounts, lineDiscounts, coupon, couponDiscount, couponError,
-                customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced, unitPrices, rules);
+                customer, loyalty, loyaltyDiscount, pointsUsed, loyaltyError, priced, unitPrices, rules, method);
     }
 
     /// <summary>تسعير السلة من السرفر للعرض على شاشة الكاشير قبل الدفع — بلا أي أثر.</summary>
@@ -296,7 +308,7 @@ public class PosSaleService : IPosSaleService
                 return new PosQuoteLineDto
                 {
                     ItemId = prod.Id, Sku = prod.Sku, NameAr = prod.NameAr, NameEn = prod.NameEn, Unit = prod.Unit,
-                    Quantity = l.Quantity, UnitPrice = prod.SellingPrice, VatRate = prod.VatRate,
+                    Quantity = l.Quantity, UnitPrice = cart.UnitPrices[i], VatRate = prod.VatRate,
                     OfferDiscount = cart.OfferDiscounts[i], ManualDiscount = l.ManualDiscount,
                     Net = pl.Net, ExciseTaxBaseAmount = pl.ExciseTaxBaseAmount, ExciseTaxAmount = pl.ExciseTaxAmount,
                     VatAmount = pl.VatAmount, Total = pl.Total, StockOnHand = prod.CurrentStock,
@@ -309,6 +321,7 @@ public class PosSaleService : IPosSaleService
             TotalDiscount = cart.LineDiscounts.Sum() + cart.CouponDiscount + cart.LoyaltyDiscount,
             NetBeforeVat = p.NetTotal, ExciseTaxTotal = p.ExciseTaxTotal, VatTotal = p.VatTotal, GrandTotal = p.GrandTotal,
             PointsToEarn = cart.Customer == null ? 0 : PosPricing.PointsFor(cart.Rules, p.GrandTotal),
+            PricingMethod = cart.Method,
         };
     }
 

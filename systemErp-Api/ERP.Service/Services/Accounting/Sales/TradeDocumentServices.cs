@@ -65,6 +65,11 @@ public abstract class TradeReturnService<T, TOriginal> : TradeDocumentService<T>
 public class SalesInvoiceService : TradeDocumentService<SalesInvoice>, ISalesInvoiceService
 {
     public SalesInvoiceService(TradeInvoiceEngine engine) : base(engine) { }
+    public Task<InvoiceDto> ReassignCostCentersAsync(Guid id, ReassignInvoiceCostCentersDto request, CancellationToken ct = default)
+        => Engine.ReassignCostCentersAsync<SalesInvoice>(id, request, ct);
+    public Task<InvoiceDto> AmendPostedAsync(Guid id, AmendPostedSalesInvoiceDto request, CancellationToken ct = default)
+        => Engine.AmendPostedSalesAsync<SalesInvoice>(id, request, ct);
+    public Task<List<InvoiceSellerOptionDto>> SellerOptionsAsync(CancellationToken ct = default) => Engine.SellerOptionsAsync(ct);
 }
 
 public class PurchaseInvoiceService : TradeDocumentService<PurchaseInvoice>, IPurchaseInvoiceService

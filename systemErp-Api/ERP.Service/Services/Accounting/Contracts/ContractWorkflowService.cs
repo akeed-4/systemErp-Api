@@ -465,7 +465,8 @@ public class ContractWorkflowService : IContractWorkflowService
                 if (type?.Billing == ContractBilling.AfterReceipt)
                 {
                     var unbilled = await _db.Set<DeliveryNote>().AsNoTracking()
-                        .Where(n => n.ContractId == c.Id && n.Status != DeliveryNoteStatus.Draft && n.Status != DeliveryNoteStatus.Returned && n.InvoiceId == null)
+                        .Where(n => n.ContractId == c.Id && n.Status != DeliveryNoteStatus.Draft && n.Status != DeliveryNoteStatus.Returned && n.Status != DeliveryNoteStatus.Cancelled
+                            && (n.InvoiceId == null || n.Status == DeliveryNoteStatus.PartiallyInvoiced))
                         .Select(n => n.DeliveryNumber).ToListAsync(ct);
                     if (unbilled.Count > 0) missing.Add(string.Format(Messages.ContractMissingInvoicing, string.Join("، ", unbilled)));
                 }
@@ -538,10 +539,10 @@ public class ContractWorkflowService : IContractWorkflowService
     private async Task<List<string>> RemainingQuantitiesAsync(CommercialContract c, CancellationToken ct)
     {
         var received = await _db.Set<DeliveryNote>().AsNoTracking()
-            .Where(n => n.ContractId == c.Id && n.Status != DeliveryNoteStatus.Draft)
+            .Where(n => n.ContractId == c.Id && n.Status != DeliveryNoteStatus.Draft && n.Status != DeliveryNoteStatus.Cancelled)
             .SelectMany(n => n.Items)
             .GroupBy(i => i.ItemId)
-            .Select(g => new { ItemId = g.Key, Net = g.Sum(i => i.DeliveredQty - i.ReturnedQty) })
+            .Select(g => new { ItemId = g.Key, Net = g.Sum(i => (i.ConfirmedQty ?? i.DeliveredQty) - i.ReturnedQty) })
             .ToDictionaryAsync(x => x.ItemId, x => x.Net, ct);
         return c.Items.Where(i => i.ItemId.HasValue)
             .GroupBy(i => i.ItemId!.Value)

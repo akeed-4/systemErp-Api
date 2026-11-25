@@ -46,6 +46,10 @@ public abstract class InvoiceBase : BaseEntity, IScopedRecord, IPartyDocument
     /// </summary>
     public string? JournalCostCentersJson { get; set; }
     public string? WarehouseName { get; set; }
+    /// <summary>البائع (موظف) في فاتورة البيع، ويرثه مرتجعها. بيان داخلي لا يدخل في الفاتورة الصادرة، فيُعدَّل ولو بعد الإرسال للهيئة.</summary>
+    public Guid? SellerEmployeeId { get; set; }
+    /// <summary>اسم البائع لحظة الحفظ.</summary>
+    public string? SellerName { get; set; }
     /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>
     public string? PartyStreet { get; set; }
     public string? PartyBuildingNo { get; set; }

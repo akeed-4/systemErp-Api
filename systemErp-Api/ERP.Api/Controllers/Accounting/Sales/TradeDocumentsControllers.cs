@@ -156,7 +156,32 @@ public abstract class TradeReturnsControllerBase : TradeDocumentsControllerBase
 [RequireModule(PlatformModules.Accounting, PlatformModules.Pos)]
 public class SalesInvoicesController : TradeDocumentsControllerBase
 {
-    public SalesInvoicesController(ISalesInvoiceService service, IPermissionService permissions) : base(service, permissions, "sales") { }
+    private readonly ISalesInvoiceService _invoices;
+    public SalesInvoicesController(ISalesInvoiceService service, IPermissionService permissions) : base(service, permissions, "sales") => _invoices = service;
+
+    /// <summary>تغيير مراكز التكلفة بعد الترحيل (ولو بعد الهيئة): الأبعاد فقط؛ صلاحية التعديل وتعيين المراكز.</summary>
+    [HttpPut("{id:guid}/cost-centers")]
+    public async Task<IActionResult> ReassignCostCenters(Guid id, [FromBody] ReassignInvoiceCostCentersDto dto, CancellationToken ct)
+    {
+        await Require(ScreenAction.Edit, ct);
+        return Success(await _invoices.ReassignCostCentersAsync(id, dto, ct), Messages.InvoiceUpdated);
+    }
+
+    /// <summary>التعديل المسموح بعد الترحيل والإرسال للهيئة: البائع ومراكز التكلفة وموقع الصرف وفق الضوابط المخزنية؛ صلاحية التعديل.</summary>
+    [HttpPut("{id:guid}/amend")]
+    public async Task<IActionResult> AmendPosted(Guid id, [FromBody] AmendPostedSalesInvoiceDto dto, CancellationToken ct)
+    {
+        await Require(ScreenAction.Edit, ct);
+        return Success(await _invoices.AmendPostedAsync(id, dto, ct), Messages.InvoiceUpdated);
+    }
+
+    /// <summary>البائعون المتاحون لفاتورة البيع (موظفون نشطون برمزهم واسمهم)، بصلاحية عرض المبيعات لا الموارد البشرية.</summary>
+    [HttpGet("sellers")]
+    public async Task<IActionResult> Sellers(CancellationToken ct)
+    {
+        await Require(ScreenAction.View, ct);
+        return Success(await _invoices.SellerOptionsAsync(ct));
+    }
 }
 
 [Route("api/v1/purchase-invoices"), ScopedRecord("purchase-invoice")]

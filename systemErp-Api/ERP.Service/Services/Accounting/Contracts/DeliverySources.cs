@@ -1,0 +1,241 @@
+using ERP.Core.Contracts.Shared;
+using ERP.Service.Data;
+
+namespace ERP.Service.Services.Accounting;
+
+/// <summary>
+/// مصدرا بيان التسليم ومعادلة الكميات:
+/// <list type="bullet">
+/// <item>كمية البيان الفعّالة للسطر = (المؤكد تسليمه إن أُكّد، وإلا كمية البيان) − مرتجع التسليم. الملغى والمسودة لا يُحتسبان،
+/// فإلغاء البيان يحرر كمياته المحجوزة دون كتابة.</item>
+/// <item>فاتورة بيع مرحّلة: المتبقي لسطرها = كمية السطر − المرتجع مالياً (إشعارات دائنة مرحّلة) − الفعّال في بياناتها الأخرى.
+/// مرتجع التسليم يعيد الكمية للتسليم، والمرتجع المالي يخرجها من التسليم: لا يُخلط بينهما.</item>
+/// </list>
+/// الفحص والحجز داخل معاملة بقفل المصدر (<c>sp_getapplock</c>) فلا يقرأ طلبان متزامنان المتبقي نفسه.
+/// </summary>
+internal static class DeliverySources
+{
+    public const decimal Tolerance = 0.00005m;
+
+    /// <summary>أنواع الأصناف التي تُسلَّم مادياً؛ الخدمة والبند الوصفي (بلا صنف) لا يُسلَّمان ببيان ويبقيان في الفاتورة.</summary>
+    private static readonly string[] PhysicalTypes =
+        { ProductItemTypes.Stock, ProductItemTypes.Manufactured, ProductItemTypes.Kit, ProductItemTypes.Composite };
+
+    public static async Task LockAsync(ErpDbContext db, string scope, Guid id, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction == null)
+            throw new InvalidOperationException("Delivery lock requires an active transaction.");
+        var resource = $"{scope}:{db.CurrentTenantId:N}:{id:N}";
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"DECLARE @r int; EXEC @r = sp_getapplock @Resource = {resource}, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000; IF @r < 0 THROW 51000, 'delivery lock timeout', 1;",
+            ct);
+    }
+
+    /// <summary>قفل البيان نفسه لعمليات التوصيل والفوترة عليه (تأكيد/إلغاء/فوترة متزامنة).</summary>
+    public static Task LockNoteAsync(ErpDbContext db, Guid noteId, CancellationToken ct) => LockAsync(db, "delivery-note", noteId, ct);
+
+    public static bool IsDeliverable(string? itemType, Guid itemId)
+        => itemId != Guid.Empty && PhysicalTypes.Contains(itemType ?? ProductItemTypes.Stock);
+
+    /// <summary>البيانات التي تحجز كمياتها: لا المسودة ولا الملغى.</summary>
+    public static IQueryable<DeliveryNoteItem> Active(IQueryable<DeliveryNoteItem> q)
+        => q.Where(i => i.DeliveryNote.Status != DeliveryNoteStatus.Draft && i.DeliveryNote.Status != DeliveryNoteStatus.Cancelled);
+
+    // ---------------- فاتورة البيع المرحّلة ----------------
+
+    /// <summary>
+    /// فاتورة البيع كمصدر: مرحّلة، بيع لا مرتجع، وليست ناتجة عن بيان تسليم (فلا تتكرر دورة التسليم والفوترة).
+    /// </summary>
+    public static async Task<SalesInvoice> SalesInvoiceAsync(ErpDbContext db, Guid invoiceId, CancellationToken ct)
+    {
+        var invoice = await db.Set<SalesInvoice>().AsNoTracking().Include(i => i.Items).FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
+            ?? throw new NotFoundException(Messages.InvoiceNotFound);
+        if (invoice.Status != "posted" || invoice.IsReturn || invoice.OriginalInvoiceId != null || invoice.Kind != InvoiceKind.Sales)
+            throw new ConflictException(Messages.DeliverySourceInvoiceNotPosted);
+        var fromNote = invoice.ReferenceType == "delivery_note"
+            || await db.Set<DeliveryNote>().AnyAsync(n => n.InvoiceId == invoiceId, ct)
+            || await db.Set<DeliveryNoteInvoiceLine>().AnyAsync(l => l.InvoiceId == invoiceId, ct);
+        if (fromNote) throw new ConflictException(Messages.DeliverySourceInvoiceFromDeliveryNote);
+        return invoice;
+    }
+
+    /// <summary>أسطر الفاتورة بكمياتها: المفوتر، المرتجع مالياً، الفعّال في البيانات (عدا <paramref name="exceptNoteId"/>)، والمتبقي.</summary>
+    public static async Task<DeliverySourceDto> SalesInvoiceSourceAsync(ErpDbContext db, SalesInvoice invoice, Guid? exceptNoteId, CancellationToken ct)
+    {
+        var lines = invoice.Items.OrderBy(l => l.CreatedAt).ToList();
+
+        // المرتجع مالياً لكل سطر بوحدة السطر: بسطره الأصلي، والقديم بلا سطر أصل يوزَّع على أسطر الصنف بالترتيب
+        var returns = await db.Set<SalesReturn>().AsNoTracking()
+            .Where(r => r.OriginalInvoiceId == invoice.Id && r.Status == "posted")
+            .SelectMany(r => r.Items).Select(l => new { l.OriginalInvoiceItemId, l.ItemId, l.Quantity, l.UnitFactor }).ToListAsync(ct);
+        var financial = lines.ToDictionary(l => l.Id, _ => 0m);
+        foreach (var r in returns)
+        {
+            var baseQty = r.Quantity * (r.UnitFactor <= 0 ? 1 : r.UnitFactor);
+            if (r.OriginalInvoiceItemId is Guid lineId && lines.FirstOrDefault(l => l.Id == lineId) is { } own)
+            {
+                financial[own.Id] += baseQty / Factor(own);
+                continue;
+            }
+            foreach (var l in lines.Where(l => l.ItemId == r.ItemId))
+            {
+                if (baseQty <= Tolerance) break;
+                var room = (l.Quantity - financial[l.Id]) * Factor(l);
+                var take = Math.Min(room, baseQty);
+                if (take <= 0) continue;
+                financial[l.Id] += take / Factor(l);
+                baseQty -= take;
+            }
+        }
+
+        var noteId = exceptNoteId ?? Guid.Empty;
+        var delivered = await Active(db.Set<DeliveryNoteItem>().AsNoTracking())
+            .Where(i => i.DeliveryNote.SourceType == DeliveryNoteSources.SalesInvoice && i.DeliveryNote.SourceId == invoice.Id
+                && i.DeliveryNoteId != noteId && i.SourceLineId != null)
+            .GroupBy(i => i.SourceLineId!.Value)
+            .Select(g => new { g.Key, Qty = g.Sum(i => (i.ConfirmedQty ?? i.DeliveredQty) - i.ReturnedQty) })
+            .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+
+        return new DeliverySourceDto
+        {
+            SourceType = DeliveryNoteSources.SalesInvoice, SourceId = invoice.Id, SourceNumber = invoice.InvoiceNumber,
+            PartyId = invoice.PartyId, PartyName = invoice.PartyName, PartyTaxNumber = invoice.PartyVatNumber, PartyPhone = invoice.PartyPhone,
+            WarehouseId = invoice.WarehouseId, CostCenterId = invoice.CostCenterId,
+            Lines = lines.Select(l =>
+            {
+                var deliverable = IsDeliverable(l.ItemType, l.ItemId);
+                var done = delivered.GetValueOrDefault(l.Id);
+                return new DeliverySourceLineDto
+                {
+                    SourceLineId = l.Id, ItemId = l.ItemId, ItemName = l.ItemName, Sku = l.Sku, Unit = l.Unit,
+                    WarehouseId = l.WarehouseId ?? invoice.WarehouseId, CostCenterId = l.CostCenterId ?? invoice.CostCenterId,
+                    UnitPrice = l.UnitPrice, VatRate = l.VatRate, SourceQty = l.Quantity,
+                    FinancialReturnedQty = Round(financial[l.Id]), DeliveredQty = Round(done),
+                    RemainingQty = deliverable ? Math.Max(0, Round(l.Quantity - financial[l.Id] - done)) : 0,
+                    Deliverable = deliverable,
+                };
+            }).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// يبني بيان التسليم من فاتورة البيع: الطرف من الفاتورة، وكل سطر من سطر فاتورته (الصنف والوحدة والسعر والضريبة والموقع ومركز التكلفة
+    /// منه لا من العميل، فلا يتغير موقع الصرف)، والكمية ≤ المتبقي. يُستدعى داخل المعاملة؛ يقفل الفاتورة.
+    /// </summary>
+    public static async Task PrepareFromSalesInvoiceAsync(ErpDbContext db, DeliveryNote note, Guid invoiceId, CancellationToken ct)
+    {
+        await LockAsync(db, "sales-invoice-delivery", invoiceId, ct);
+        var invoice = await SalesInvoiceAsync(db, invoiceId, ct);
+        var source = await SalesInvoiceSourceAsync(db, invoice, note.Id == Guid.Empty ? null : note.Id, ct);
+        var byLine = source.Lines.ToDictionary(l => l.SourceLineId);
+
+        note.Type = "sales_delivery";
+        note.SourceType = DeliveryNoteSources.SalesInvoice;
+        note.SourceId = invoice.Id; note.SourceNumber = invoice.InvoiceNumber;
+        note.ContractId = null; note.ContractNumber = null; note.RequisitionId = null; note.PurchaseOrderId = null;
+        note.PartyId = invoice.PartyId; note.PartyType = "customer"; note.PartyName = invoice.PartyName;
+        note.PartyTaxNumber = invoice.PartyVatNumber; note.PartyPhone ??= invoice.PartyPhone;
+        note.WarehouseId = invoice.WarehouseId;
+
+        foreach (var g in note.Items.GroupBy(i => i.SourceLineId))
+        {
+            if (g.Key is not Guid lineId || !byLine.TryGetValue(lineId, out var line))
+                throw new ValidationFailedException(Messages.DeliveryLineNotInSourceInvoice);
+            if (!line.Deliverable)
+                throw new ValidationFailedException(string.Format(Messages.DeliveryLineNotDeliverable, line.ItemName));
+            var qty = g.Sum(i => i.DeliveredQty);
+            if (qty > line.RemainingQty + Tolerance)
+                throw new ValidationFailedException(string.Format(Messages.DeliveryExceedsInvoice,
+                    line.ItemName, qty.ToString("0.####"), line.RemainingQty.ToString("0.####"), line.SourceQty.ToString("0.####")));
+            foreach (var i in g)
+            {
+                i.ItemId = line.ItemId; i.ItemName = line.ItemName; i.Sku = line.Sku; i.Unit = line.Unit;
+                i.UnitPrice = line.UnitPrice; i.VatRate = line.VatRate; i.Discount = 0;
+                i.WarehouseId = line.WarehouseId; i.CostCenterId = line.CostCenterId;
+                i.ContractQty = line.SourceQty;
+            }
+        }
+        if (note.Items.Any(i => i.DeliveredQty <= 0)) throw new ValidationFailedException(Messages.DeliveryQtyPositive);
+    }
+
+    // ---------------- الاتفاقية ----------------
+
+    /// <summary>بنود الاتفاقية بالمتفق عليه والفعّال في بياناتها والمتبقي (المفتاح: الصنف، وإلا معرّف البند الوصفي).</summary>
+    public static async Task<DeliverySourceDto> ContractSourceAsync(ErpDbContext db, CommercialContract contract, CancellationToken ct)
+    {
+        var items = await db.Set<CommercialContractItem>().AsNoTracking()
+            .Where(i => i.ContractId == contract.Id && !i.IsGroup).OrderBy(i => i.SortOrder).ToListAsync(ct);
+        var delivered = await Active(db.Set<DeliveryNoteItem>().AsNoTracking())
+            .Where(i => i.DeliveryNote.ContractId == contract.Id)
+            .GroupBy(i => i.ItemId)
+            .Select(g => new { g.Key, Qty = g.Sum(i => (i.ConfirmedQty ?? i.DeliveredQty) - i.ReturnedQty) })
+            .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+        var types = await ItemTypesAsync(db, items.Where(i => i.ItemId != null).Select(i => i.ItemId!.Value), ct);
+        var used = new Dictionary<Guid, decimal>();
+        var lines = new List<DeliverySourceLineDto>();
+        foreach (var i in items)
+        {
+            var key = i.ItemId ?? i.Id;
+            // الصنف المكرر في الاتفاقية: صافي المسلَّم يُستهلك من بنوده بالترتيب
+            var pool = delivered.GetValueOrDefault(key) - used.GetValueOrDefault(key);
+            var done = Math.Max(0, Math.Min(pool, i.Quantity));
+            used[key] = used.GetValueOrDefault(key) + done;
+            lines.Add(new DeliverySourceLineDto
+            {
+                SourceLineId = i.Id, ItemId = key, ItemName = i.Description, Unit = i.Unit, UnitPrice = i.UnitPrice, VatRate = i.VatRate,
+                WarehouseId = contract.WarehouseId, CostCenterId = contract.CostCenterId,
+                SourceQty = i.Quantity, DeliveredQty = Round(done), RemainingQty = Math.Max(0, Round(i.Quantity - done)),
+                Deliverable = i.ItemId is Guid pid && IsDeliverable(types.GetValueOrDefault(pid), pid) || i.ItemId == null,
+            });
+        }
+        return new DeliverySourceDto
+        {
+            SourceType = DeliveryNoteSources.Contract, SourceId = contract.Id, SourceNumber = contract.ContractNumber,
+            PartyId = contract.PartyId, PartyName = contract.PartyName, PartyPhone = contract.PartyPhone,
+            WarehouseId = contract.WarehouseId, CostCenterId = contract.CostCenterId, Lines = lines,
+        };
+    }
+
+    private static async Task<Dictionary<Guid, string>> ItemTypesAsync(ErpDbContext db, IEnumerable<Guid> ids, CancellationToken ct)
+    {
+        var list = ids.Distinct().ToList();
+        return list.Count == 0 ? new()
+            : await db.Set<Product>().AsNoTracking().Where(p => list.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.ItemType, ct);
+    }
+
+    // ---------------- الفوترة والحالة ----------------
+
+    /// <summary>المتاح للفوترة المرحلية من سطر بيان متتبَّع: المؤكد − مرتجع التسليم − ما فُوتر.</summary>
+    public static decimal Billable(DeliveryNoteItem i) => Math.Max(0, (i.ConfirmedQty ?? 0) - i.ReturnedQty - i.InvoicedQty);
+
+    /// <summary>حالة الفوترة/المرتجع لبيان متتبَّع من كميات أسطره (لا يمس الملغى).</summary>
+    public static void RefreshTrackedStatus(DeliveryNote note)
+    {
+        if (note.Status == DeliveryNoteStatus.Cancelled) return;
+        decimal Basis(DeliveryNoteItem i) => i.ConfirmedQty ?? i.DeliveredQty;
+        if (note.Items.Any(i => i.InvoicedQty > 0))
+            note.Status = DeliveryTrackingStatuses.IsConfirmed(note.DeliveryStatus) && note.Items.All(i => Billable(i) <= Tolerance)
+                ? DeliveryNoteStatus.Invoiced : DeliveryNoteStatus.PartiallyInvoiced;
+        else if (note.Items.Any(i => i.ReturnedQty > 0))
+            note.Status = note.Items.All(i => i.ReturnedQty >= Basis(i) - Tolerance) ? DeliveryNoteStatus.Returned : DeliveryNoteStatus.PartiallyReturned;
+        else note.Status = DeliveryNoteStatus.Delivered;
+    }
+
+    public static void AddEvent(ErpDbContext db, DeliveryNote note, ICurrentUser user, string type, string? from, string? to, string? notes = null)
+        => db.Add(new DeliveryNoteEvent
+        {
+            DeliveryNoteId = note.Id, EventType = type, FromStatus = from, ToStatus = to, Notes = notes,
+            UserId = user.UserId, UserName = user.Name ?? user.Email, OccurredAt = DateTime.UtcNow,
+        });
+
+    public static Task<List<DeliveryNoteEventDto>> EventsAsync(ErpDbContext db, Guid noteId, CancellationToken ct)
+        => db.Set<DeliveryNoteEvent>().AsNoTracking().Where(e => e.DeliveryNoteId == noteId).OrderBy(e => e.OccurredAt).ThenBy(e => e.CreatedAt)
+            .Select(e => new DeliveryNoteEventDto
+            {
+                Id = e.Id, DeliveryNoteId = e.DeliveryNoteId, EventType = e.EventType, FromStatus = e.FromStatus, ToStatus = e.ToStatus,
+                Notes = e.Notes, UserId = e.UserId, UserName = e.UserName, OccurredAt = e.OccurredAt,
+            }).ToListAsync(ct);
+
+    private static decimal Factor(SalesInvoiceItem l) => l.UnitFactor <= 0 ? 1 : l.UnitFactor;
+    private static decimal Round(decimal v) => Math.Round(v, 4);
+}

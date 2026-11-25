@@ -2243,6 +2243,38 @@
   <data name="ItemNotInOrder" xml:space="preserve"><value>الصنف «{0}» ليس في أمر الشراء {1}.</value></data>
   <data name="ReceiptQtyPositive" xml:space="preserve"><value>أدخل كمية مستلمة موجبة.</value></data>
   <data name="ReceiptExceedsOrder" xml:space="preserve"><value>«{0}»: الاستلام {1} يتجاوز المتبقي من أمر الشراء {2} (المطلوب {3}).</value></data>
+  <data name="ItemNotInContract" xml:space="preserve"><value>«{0}» ليس من بنود الاتفاقية {1}؛ التسليم على الاتفاقية لبنودها فقط.</value></data>
+  <data name="DeliveryExceedsContract" xml:space="preserve"><value>«{0}»: التسليم {1} يتجاوز المتبقي من الاتفاقية {2} (المتفق عليه {3}).</value></data>
+  <data name="DeliverySourceInvoiceNotPosted" xml:space="preserve"><value>بيان التسليم من فاتورة بيع مرحّلة فقط (لا مسودة ولا مرتجع).</value></data>
+  <data name="DeliverySourceInvoiceFromDeliveryNote" xml:space="preserve"><value>الفاتورة ناتجة عن بيان تسليم؛ لا يُنشأ منها بيان تسليم آخر.</value></data>
+  <data name="DeliveryLineNotInSourceInvoice" xml:space="preserve"><value>كل سطر في البيان يجب أن يكون من أسطر الفاتورة المصدر.</value></data>
+  <data name="DeliveryLineNotDeliverable" xml:space="preserve"><value>«{0}» خدمة أو بند غير مخزني: يبقى في الفاتورة ولا يُسلَّم ببيان.</value></data>
+  <data name="DeliveryExceedsInvoice" xml:space="preserve"><value>«{0}»: التسليم {1} يتجاوز المتبقي من الفاتورة {2} (المفوتر {3}).</value></data>
+  <data name="DeliveryQtyPositive" xml:space="preserve"><value>أدخل كمية تسليم موجبة لكل سطر.</value></data>
+  <data name="DeliverySourceRequired" xml:space="preserve"><value>اختر فاتورة البيع المصدر.</value></data>
+  <data name="DeliveryNoteFromInvoiceNotBillable" xml:space="preserve"><value>بيان التسليم من فاتورة بيع مستند توصيل فقط ولا يُفوتر.</value></data>
+  <data name="DeliveryNoteNotConfirmed" xml:space="preserve"><value>أكّد استلام البيان أولاً: تُفوتر الكميات المسلّمة فعلياً فقط.</value></data>
+  <data name="DeliveryNoteNothingToBill" xml:space="preserve"><value>لا كميات مؤكدة غير مفوترة في هذا البيان.</value></data>
+  <data name="DeliveryNoteCancelled" xml:space="preserve"><value>البيان ملغى.</value></data>
+  <data name="DeliveryNoteNotEditableAfterDispatch" xml:space="preserve"><value>لا يُعدَّل البيان بعد خروجه للتوصيل.</value></data>
+  <data name="DeliveryNoteHasHistory" xml:space="preserve"><value>البيان له سجل أحداث فلا يُحذف؛ ألغِه بسبب بدلاً من الحذف.</value></data>
+  <data name="DeliveryStatusTransitionInvalid" xml:space="preserve"><value>لا يُسمح بهذا الإجراء في حالة التوصيل الحالية ({0}).</value></data>
+  <data name="DeliveryNoteNotTracked" xml:space="preserve"><value>البيان غير متتبَّع (سابق أو يدوي أو سند استلام).</value></data>
+  <data name="DeliveryCancelReasonRequired" xml:space="preserve"><value>أدخل سبب الإلغاء.</value></data>
+  <data name="DeliveryCannotCancel" xml:space="preserve"><value>لا يُلغى البيان بعد التسليم الفعلي أو الفوترة أو المرتجع.</value></data>
+  <data name="DeliveryReceiverRequired" xml:space="preserve"><value>أدخل اسم المستلم.</value></data>
+  <data name="DeliveryConfirmExceedsNote" xml:space="preserve"><value>«{0}»: المؤكد {1} يتجاوز كمية البيان {2}.</value></data>
+  <data name="DeliveryConfirmNothing" xml:space="preserve"><value>أدخل كمية مسلّمة لسطر واحد على الأقل، أو ألغِ البيان.</value></data>
+  <data name="DeliveryReturnNotConfirmed" xml:space="preserve"><value>مرتجع التسليم بعد تأكيد الاستلام فقط؛ قبل ذلك عدّل البيان أو ألغه.</value></data>
+  <data name="DeliveryReturnExceedsUnbilled" xml:space="preserve"><value>«{0}»: المرتجع يتجاوز المسلَّم غير المفوتر {1}؛ المفوتر يُرجع بإشعار دائن.</value></data>
+  <data name="InvoiceHasDeliveryNotes" xml:space="preserve"><value>للفاتورة بيانات تسليم قائمة ({0}): ألغِها أولاً.</value></data>
+  <data name="CostCenterReassignPostedSalesOnly" xml:space="preserve"><value>تغيير مراكز التكلفة بعد الترحيل لفاتورة بيع مرحّلة فقط.</value></data>
+  <data name="CostCenterReassignUnbalanced" xml:space="preserve"><value>تعذّر إعادة توزيع القيد على المراكز بالمبالغ نفسها؛ لم يُغيَّر شيء.</value></data>
+  <data name="CostCenterReassignReasonRequired" xml:space="preserve"><value>أدخل سبب التعديل.</value></data>
+  <data name="SellerNotFound" xml:space="preserve"><value>البائع غير موجود في الموظفين.</value></data>
+  <data name="SellerInactive" xml:space="preserve"><value>البائع ليس موظفاً نشطاً.</value></data>
+  <data name="InvoiceLineStockIssued" xml:space="preserve"><value>صُرف مخزون «{0}» من موقعه عند الترحيل فلا يتغير موقع صرفه في الفاتورة؛ انقل الكمية بتحويل مخزني.</value></data>
+  <data name="InvoiceSiteChangeAltersJournal" xml:space="preserve"><value>تغيير الموقع يبدّل حسابات قيد الفاتورة (حسابات الموقع)، وهذا غير مسموح بعد الترحيل؛ لم يُغيَّر شيء.</value></data>
   <data name="ReceiptNotEditable" xml:space="preserve"><value>سند الاستلام على أمر شراء لا يُعدَّل: احذفه وأنشئ غيره أو أرجع منه.</value></data>
   <data name="ReceiptNotOfOrder" xml:space="preserve"><value>سند الاستلام ليس من هذا الأمر.</value></data>
   <data name="PurchaseReceiptsToInvoiceRequired" xml:space="preserve"><value>اختر سند استلام واحداً على الأقل للفوترة.</value></data>
@@ -2353,4 +2385,13 @@
   <data name="EmployeeLinkWorkshop" xml:space="preserve"><value>سجلات عمل في الورشة</value></data>
   <data name="EmployeeLinkMaterialIssues" xml:space="preserve"><value>استلام أذونات تسليم المواد</value></data>
   <data name="EmployeeLinkRental" xml:space="preserve"><value>تشغيل أو نقل في التأجير</value></data>
+  <data name="DeliveryLocationInvalid" xml:space="preserve"><value>موقع التوصيل غير صالح: يجب أن يكون موقعاً فعالاً لعميل البيان.</value></data>
+  <data name="CoordinatesInvalid" xml:space="preserve"><value>الإحداثيات غير صالحة: خط العرض بين -90 و90 وخط الطول بين -180 و180، ويُدخلان معاً.</value></data>
+  <data name="DeliveryLocationReviewRequired" xml:space="preserve"><value>تلزم مراجعة موقع التوصيل قبل خروج البيان.</value></data>
+  <data name="DeliveryLocationMissing" xml:space="preserve"><value>لا موقع توصيل على البيان لمراجعته.</value></data>
+  <data name="DeliveryLocationNotFound" xml:space="preserve"><value>موقع التوصيل غير موجود.</value></data>
+  <data name="DeliveryLocationNameAddressRequired" xml:space="preserve"><value>اسم الموقع والعنوان مطلوبان.</value></data>
+  <data name="GeocodingDisabled" xml:space="preserve"><value>البحث الجغرافي غير مفعّل؛ أدخل العنوان أو حدّد الموقع على الخريطة.</value></data>
+  <data name="GeocodingQueryInvalid" xml:space="preserve"><value>نص البحث من 3 إلى 200 حرف.</value></data>
+  <data name="GeocodingUnavailable" xml:space="preserve"><value>خدمة البحث الجغرافي غير متاحة الآن؛ أدخل الموقع يدوياً.</value></data>
 </root>

@@ -15,11 +15,48 @@ public class DeliveryNoteService : IDeliveryNoteService
     private readonly ITransactionRunner _tx;
     private readonly IProjectSupplyService _supply;
     private readonly ERP.Core.Contracts.Shared.IPermissionService _permissions;
+    private readonly ERP.Core.Contracts.Shared.ICurrentUser _user;
 
     public DeliveryNoteService(ErpDbContext db, INumberSequenceService numbers, ICommercialContractService contracts, ISalesInvoiceService sales, IPurchaseInvoiceService purchases,
-        ITransactionRunner tx, IProjectSupplyService supply, ERP.Core.Contracts.Shared.IPermissionService permissions)
+        ITransactionRunner tx, IProjectSupplyService supply, ERP.Core.Contracts.Shared.IPermissionService permissions, ERP.Core.Contracts.Shared.ICurrentUser user)
     {
-        _db = db; _numbers = numbers; _contracts = contracts; _sales = sales; _purchases = purchases; _tx = tx; _supply = supply; _permissions = permissions;
+        _db = db; _numbers = numbers; _contracts = contracts; _sales = sales; _purchases = purchases; _tx = tx; _supply = supply; _permissions = permissions; _user = user;
+    }
+
+    // ---------- مصدر البيان (الاتفاقية أو فاتورة البيع) ----------
+
+    public async Task<DeliverySourceDto> GetSalesInvoiceSourceAsync(Guid invoiceId, CancellationToken ct = default)
+    {
+        await AuthorizeAsync("sales_delivery", ScreenAction.Create, null, ct);
+        var invoice = await DeliverySources.SalesInvoiceAsync(_db, invoiceId, ct);
+        return await DeliverySources.SalesInvoiceSourceAsync(_db, invoice, null, ct);
+    }
+
+    public async Task<DeliverySourceDto> GetContractSourceAsync(Guid contractId, CancellationToken ct = default)
+    {
+        await AuthorizeAsync("sales_delivery", ScreenAction.Create, null, ct);
+        var contract = await _db.Set<CommercialContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == contractId, ct)
+            ?? throw new NotFoundException(Messages.ContractNotFoundDot);
+        if (await CommercialContractService.IsBoqContractAsync(_db, contract.ContractType, ct)) throw new ConflictException(Messages.BoqContractBilledByCertificates);
+        return await DeliverySources.ContractSourceAsync(_db, contract, ct);
+    }
+
+    public async Task<List<DeliveryNoteEventDto>> GetEventsAsync(Guid id, CancellationToken ct = default)
+    {
+        var note = await _db.Set<DeliveryNote>().AsNoTracking().Where(n => n.Id == id).Select(n => new { n.Type, n.ContractId }).FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
+        await AuthorizeAsync(note.Type, ScreenAction.View, note.ContractId, ct);
+        return await DeliverySources.EventsAsync(_db, id, ct);
+    }
+
+    /// <summary>أسطر الطلب تُعاد قيمها المحسوبة: لا يُقبل من العميل مؤكد ولا مفوتر، ولا مصدر لسطر بيان يدوي.</summary>
+    private static void ResetTrackingFields(DeliveryNote note)
+    {
+        foreach (var i in note.Items)
+        {
+            i.ConfirmedQty = null; i.InvoicedQty = 0; i.ReturnedQty = 0;
+            if (note.SourceType == DeliveryNoteSources.Manual) i.SourceLineId = null;
+        }
     }
 
     // ---------- الصلاحية بنوع المستند ----------
@@ -109,6 +146,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         => _tx.RunAsync(async token =>
         {
             var errors = new List<string>();
+            var fromInvoice = r.SourceType == DeliveryNoteSources.SalesInvoice;
+            if (fromInvoice) return await CreateFromSalesInvoiceAsync(r, token);
             // سند استلام المشروع: المورد من الطلب (يُفحص مع قواعد المشروع)
             if (r.RequisitionId == null) TradeHelper.RequireParty(r.PartyName, errors);
             if (r.Type is not ("sales_delivery" or "purchase_delivery")) errors.Add(Messages.DeliveryNoteTypeInvalid);
@@ -122,6 +161,9 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (r.ConstructionWarehouseReceipt && r.RequisitionId == null) throw new ValidationFailedException(Messages.ProjectReceiptRequiresRequisition);
             var note = Mapper.Map<DeliveryNote>(r);
             note.CustodyIssueId = null;
+            note.SourceType = DeliveryNoteSources.Manual; note.SourceId = null; note.SourceNumber = null;
+            note.DeliveryStatus = DeliveryTrackingStatuses.Legacy;
+            ResetTrackingFields(note);
             await LineDimensions.EnsureAsync(_db, note.Items.Select(i => (i.WarehouseId, i.CostCenterId)), token);
             // استلام على أمر شراء: المورد والسعر من الأمر، والكمية ≤ المتبقي منه (وطلب المشروع يجعله استلام مشروع)
             await PurchaseOrderReceipts.PrepareAsync(_db, note, token);
@@ -147,6 +189,14 @@ public class DeliveryNoteService : IDeliveryNoteService
                 if (contract != null && contract.Stage != ContractStageDefinition.Active)
                     throw new ConflictException(Messages.DeliveryContractNotActive);
                 note.ContractNumber = contract?.ContractNumber ?? r.ContractNumber;
+                if (contract != null && note.Type == "sales_delivery")
+                {
+                    // مسار الاتفاقية: بيان متتبَّع يُفوتر مرحلياً بالمؤكد تسليمه
+                    note.SourceType = DeliveryNoteSources.Contract; note.SourceId = contract.Id; note.SourceNumber = contract.ContractNumber;
+                    note.DeliveryStatus = DeliveryTrackingStatuses.Pending;
+                }
+                // التسليم على دفعات: كل سطر من بنود الاتفاقية وضمن المتبقي منه
+                if (contract != null) await ContractDeliveries.EnsureWithinContractAsync(_db, note, contract, token);
             }
             note.Date = r.Date == default ? SaudiTime.Today : r.Date;
             // بيان التسليم (بيع) وسند الاستلام (شراء) نوعان بعدّادين وبادئتين مستقلتين
@@ -162,9 +212,15 @@ public class DeliveryNoteService : IDeliveryNoteService
             foreach (var i in note.Items) i.ReturnedQty = 0;
             // وحدة السطر من وحدات صنفه (تنتقل إلى الفاتورة ويحدد محركها معاملها)
             await ProductLineUnits.NormalizeAsync(_db, note.Items.ToList(), i => i.ItemId, i => i.Unit, (i, u) => i.Unit = u, token);
+            await DeliveryLocationSnapshot.ApplyAsync(_db, note, token);
             Price(note);
             _db.Add(note);
             await _db.SaveChangesAsync(token);
+            if (DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus))
+            {
+                DeliverySources.AddEvent(_db, note, _user, "created", null, note.DeliveryStatus);
+                await _db.SaveChangesAsync(token);
+            }
             if (projectReceipt && note.WarehouseId is null)
             {
                 note.CustodyIssueId = await _supply.PostPurchaseReceiptAsync(note, token);
@@ -186,6 +242,10 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (ProjectReceipts.IsProjectReceipt(note)) throw new ConflictException(Messages.ProjectReceiptNotEditable);
             if (note.PurchaseOrderId != null) throw new ConflictException(Messages.ReceiptNotEditable);
             if (await _db.Set<DeliveryReturnNote>().AnyAsync(x => x.DeliveryNoteId == id, token)) throw new ConflictException(Messages.HasReturns);
+            // البيان المتتبَّع يُعدَّل قبل خروجه للتوصيل فقط
+            var tracked = DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus);
+            if (tracked && note.DeliveryStatus != DeliveryTrackingStatuses.Pending) throw new ConflictException(Messages.DeliveryNoteNotEditableAfterDispatch);
+            if (note.SourceType == DeliveryNoteSources.SalesInvoice) return await UpdateFromSalesInvoiceAsync(note, r, token);
 
             var errors = new List<string>();
             TradeHelper.RequireParty(r.PartyName, errors);
@@ -195,21 +255,83 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
 
             var keep = (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber, note.RequisitionId, note.CustodyIssueId, note.PurchaseOrderId);
+            var source = (note.SourceType, note.SourceId, note.SourceNumber, note.DeliveryStatus, note.ContractId, note.ContractNumber);
             Mapper.Apply(r, note);
             (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber, note.RequisitionId, note.CustodyIssueId, note.PurchaseOrderId) = keep;
+            (note.SourceType, note.SourceId, note.SourceNumber, note.DeliveryStatus) = (source.SourceType, source.SourceId, source.SourceNumber, source.DeliveryStatus);
+            // بيان الاتفاقية المتتبَّع لا ينتقل لاتفاقية أخرى
+            if (tracked) (note.ContractId, note.ContractNumber) = (source.ContractId, source.ContractNumber);
             if (note.ContractId is Guid linkedContractId
                 && await _db.Set<CommercialContract>().AsNoTracking().Where(c => c.Id == linkedContractId).Select(c => new { c.ContractType, c.WarehouseId }).FirstOrDefaultAsync(token) is { } linked
                 && await CommercialContractService.IsBoqContractAsync(_db, linked.ContractType, token)
                 && !(note.Type == ProjectReceipts.NoteType && note.WarehouseId == linked.WarehouseId))
                 throw new ConflictException(Messages.BoqContractBilledByCertificates);
             foreach (var removed in Mapper.SyncCollections(r, note, added => _db.Add(added))) _db.Remove(removed);
+            ResetTrackingFields(note);
+            // بيان اتفاقية (لا جدول كميات): الأسطر من بنودها والكميات ضمن المتبقي منها عدا هذا البيان
+            if (note.ContractId is Guid agreementId
+                && await _db.Set<CommercialContract>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == agreementId, token) is { } agreement
+                && !await CommercialContractService.IsBoqContractAsync(_db, agreement.ContractType, token))
+                await ContractDeliveries.EnsureWithinContractAsync(_db, note, agreement, token);
             await LineDimensions.EnsureAsync(_db, note.Items.Select(i => (i.WarehouseId, i.CostCenterId)), token);
             foreach (var i in note.Items) i.ReturnedQty = 0;
             await ProductLineUnits.NormalizeAsync(_db, note.Items.ToList(), i => i.ItemId, i => i.Unit, (i, u) => i.Unit = u, token);
+            await DeliveryLocationSnapshot.ApplyAsync(_db, note, token);
             Price(note);
+            if (tracked) DeliverySources.AddEvent(_db, note, _user, "updated", note.DeliveryStatus, note.DeliveryStatus);
             await _db.SaveChangesAsync(token);
             return await GetAsync(id, token);
         }, ct);
+
+    /// <summary>
+    /// بيان من فاتورة بيع مرحّلة: مستند توصيل فقط — لا فاتورة ولا حركة مخزون ولا قيد. الأسطر والموقع والطرف من الفاتورة،
+    /// والكميات ضمن المتبقي بقفل الفاتورة.
+    /// </summary>
+    private async Task<DeliveryNoteDto> CreateFromSalesInvoiceAsync(CreateDeliveryNoteDto r, CancellationToken token)
+    {
+        if (r.SourceId is not Guid invoiceId) throw new ValidationFailedException(Messages.DeliverySourceRequired);
+        if (r.Type != "sales_delivery") throw new ValidationFailedException(Messages.DeliveryNoteTypeInvalid);
+        if (r.Items.Count == 0) throw new ValidationFailedException(Messages.AtLeastOneLineRequired);
+        await AuthorizeAsync(r.Type, ScreenAction.Create, null, token);
+        var note = Mapper.Map<DeliveryNote>(r);
+        note.CustodyIssueId = null;
+        note.SourceType = DeliveryNoteSources.SalesInvoice;
+        ResetTrackingFields(note);
+        await DeliverySources.PrepareFromSalesInvoiceAsync(_db, note, invoiceId, token);
+        note.DeliveryStatus = DeliveryTrackingStatuses.Pending;
+        note.Date = r.Date == default ? SaudiTime.Today : r.Date;
+        note.DeliveryNumber = await _numbers.AssignAsync(new DocumentNumberRequest
+        {
+            Key = "delivery_note", DefaultPrefix = "DN-", WarehouseId = note.WarehouseId, Date = note.Date,
+            ManualNumber = r.DeliveryNumber, UserEntered = true,
+            Exists = (n, c) => _db.Set<DeliveryNote>().AnyAsync(x => x.DeliveryNumber == n, c),
+        }, token);
+        note.Status = DeliveryNoteStatus.Delivered;
+        note.InvoiceId = null; note.InvoiceNumber = null;
+        await DeliveryLocationSnapshot.ApplyAsync(_db, note, token);
+        Price(note);
+        _db.Add(note);
+        await _db.SaveChangesAsync(token);
+        DeliverySources.AddEvent(_db, note, _user, "created", null, note.DeliveryStatus, $"فاتورة {note.SourceNumber}");
+        await _db.SaveChangesAsync(token);
+        return await GetAsync(note.Id, token);
+    }
+
+    private async Task<DeliveryNoteDto> UpdateFromSalesInvoiceAsync(DeliveryNote note, UpdateDeliveryNoteDto r, CancellationToken token)
+    {
+        if (r.Items.Count == 0) throw new ValidationFailedException(Messages.AtLeastOneLineRequired);
+        var keep = (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber, note.SourceType, note.SourceId, note.SourceNumber, note.DeliveryStatus);
+        Mapper.Apply(r, note);
+        (note.DeliveryNumber, note.Type, note.Status, note.InvoiceId, note.InvoiceNumber, note.SourceType, note.SourceId, note.SourceNumber, note.DeliveryStatus) = keep;
+        foreach (var removed in Mapper.SyncCollections(r, note, added => _db.Add(added))) _db.Remove(removed);
+        ResetTrackingFields(note);
+        await DeliverySources.PrepareFromSalesInvoiceAsync(_db, note, note.SourceId!.Value, token);
+        await DeliveryLocationSnapshot.ApplyAsync(_db, note, token);
+        Price(note);
+        DeliverySources.AddEvent(_db, note, _user, "updated", note.DeliveryStatus, note.DeliveryStatus);
+        await _db.SaveChangesAsync(token);
+        return await GetAsync(note.Id, token);
+    }
 
     /// <summary>حالة أمر الشراء من سنداته بعد كل تغيير على سند مرتبط به.</summary>
     private async Task RefreshOrderAsync(Guid? orderId, CancellationToken ct)
@@ -246,6 +368,10 @@ public class DeliveryNoteService : IDeliveryNoteService
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
             await AuthorizeAsync(note.Type, ScreenAction.Delete, note.ContractId, token);
             if (note.InvoiceId != null) throw new ConflictException(Messages.CannotDeleteBilledNote);
+            // البيان المتتبَّع (له سجل أحداث) لا يُحذف نهائياً: يُلغى بسبب
+            if (DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus) || await _db.Set<DeliveryNoteEvent>().AnyAsync(e => e.DeliveryNoteId == id, token)
+                || await _db.Set<DeliveryNoteInvoiceLine>().AnyAsync(l => l.DeliveryNoteId == id, token))
+                throw new ConflictException(Messages.DeliveryNoteHasHistory);
             if (await _db.Set<DeliveryReturnNote>().AnyAsync(x => x.DeliveryNoteId == id, token)) throw new ConflictException(Messages.DeleteReturnsFirst);
             // عهدة سند المشروع وقيدها تُعكس معه (يمنعها اختيار كمياتها في مستخلص أو هدر منها)
             if (note.CustodyIssueId is { } custody)
@@ -286,9 +412,17 @@ public class DeliveryNoteService : IDeliveryNoteService
                     var src = note.Items.FirstOrDefault(i => i.ItemId == line.ItemId);
                     if (src != null) src.ReturnedQty = Math.Max(0, src.ReturnedQty - line.Quantity);
                 }
-                note.Status = note.Items.Any(i => i.ReturnedQty > 0)
-                    ? (note.Items.All(i => i.ReturnedQty >= i.DeliveredQty) ? DeliveryNoteStatus.Returned : DeliveryNoteStatus.PartiallyReturned)
-                    : DeliveryNoteStatus.Delivered;
+                if (DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus))
+                {
+                    // حذف المرتجع يعيد الكمية مسلَّمة: يُفحص المتبقي من المصدر (لا يتجاوز مع البيانات اللاحقة)
+                    await EnsureSourceRoomAsync(note, token);
+                    DeliverySources.RefreshTrackedStatus(note);
+                    DeliverySources.AddEvent(_db, note, _user, "return_deleted", note.DeliveryStatus, note.DeliveryStatus, ret.ReturnNumber);
+                }
+                else
+                    note.Status = note.Items.Any(i => i.ReturnedQty > 0)
+                        ? (note.Items.All(i => i.ReturnedQty >= i.DeliveredQty) ? DeliveryNoteStatus.Returned : DeliveryNoteStatus.PartiallyReturned)
+                        : DeliveryNoteStatus.Delivered;
             }
             if (note?.PurchaseOrderId is Guid orderId) await PurchaseOrderReceipts.LockAsync(_db, orderId, token);
             _db.RemoveRange(ret.Items);
@@ -326,6 +460,8 @@ public class DeliveryNoteService : IDeliveryNoteService
     public Task<DeliveryReturnNoteDto> CreateReturnAsync(CreateDeliveryReturnNoteDto r, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            // قفل البيان: مرتجع متزامن مع تأكيد أو فوترة أو إلغاء لا يقرأ الكميات نفسها
+            await DeliverySources.LockNoteAsync(_db, r.DeliveryNoteId, token);
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == r.DeliveryNoteId, token)
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
             await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
@@ -333,17 +469,38 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (r.Items.Count == 0 || r.Items.Any(i => i.Quantity <= 0)) throw new ValidationFailedException(Messages.ReturnedQuantitiesMustBePositive);
             if (r.Type is not ("sales_delivery_return" or "purchase_delivery_return")) throw new ValidationFailedException(Messages.InvalidType);
             if (ProjectReceipts.IsProjectReceipt(note) && r.Type != ProjectReceipts.ReturnType) throw new ValidationFailedException(Messages.InvalidType);
+            if (note.Status == DeliveryNoteStatus.Cancelled) throw new ConflictException(Messages.DeliveryNoteCancelled);
+            // مرتجع التسليم في البيان المتتبَّع: بعد تأكيد الاستلام، ومن المسلَّم غير المفوتر (المفوتر يُرجع ماليا بإشعار دائن)
+            var tracked = DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus);
+            if (tracked)
+            {
+                if (!DeliveryTrackingStatuses.IsConfirmed(note.DeliveryStatus)) throw new ConflictException(Messages.DeliveryReturnNotConfirmed);
+            }
 
             foreach (var line in r.Items)
             {
                 var src = note.Items.FirstOrDefault(i => i.ItemId == line.ItemId)
                     ?? throw new ValidationFailedException(Messages.ItemNotInDeliveryNote);
+                if (tracked)
+                {
+                    var open = DeliverySources.Billable(src);
+                    if (line.Quantity > open + DeliverySources.Tolerance)
+                        throw new ValidationFailedException(string.Format(Messages.DeliveryReturnExceedsUnbilled, src.ItemName, open.ToString("0.####")));
+                    src.ReturnedQty += line.Quantity;
+                    continue;
+                }
                 var remaining = src.DeliveredQty - src.ReturnedQty;
                 if (line.Quantity > remaining)
                     throw new ValidationFailedException(string.Format(Messages.ReturnQtyExceedsAvailable, src.ItemName, remaining));
                 src.ReturnedQty += line.Quantity;
             }
-            note.Status = note.Items.All(i => i.ReturnedQty >= i.DeliveredQty) ? DeliveryNoteStatus.Returned : DeliveryNoteStatus.PartiallyReturned;
+            if (tracked)
+            {
+                DeliverySources.RefreshTrackedStatus(note);
+                DeliverySources.AddEvent(_db, note, _user, "returned", note.DeliveryStatus, note.DeliveryStatus, r.ReturnReason);
+            }
+            else
+                note.Status = note.Items.All(i => i.ReturnedQty >= i.DeliveredQty) ? DeliveryNoteStatus.Returned : DeliveryNoteStatus.PartiallyReturned;
 
             var ret = Mapper.Map<DeliveryReturnNote>(r);
             ret.DeliveryNumber = note.DeliveryNumber;
@@ -388,14 +545,81 @@ public class DeliveryNoteService : IDeliveryNoteService
             // سند على أمر شراء: يقفل الأمر قبل قراءة السند فلا يُفوتر مرتين بالتزامن (منفرداً ومع غيره في فاتورة واحدة)
             if (await _db.Set<DeliveryNote>().AsNoTracking().Where(n => n.Id == deliveryNoteId).Select(n => n.PurchaseOrderId).FirstOrDefaultAsync(token) is Guid orderId)
                 await PurchaseOrderReceipts.LockAsync(_db, orderId, token);
+            await DeliverySources.LockNoteAsync(_db, deliveryNoteId, token);
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
-            if (note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
+            await EnsureBillableAsync(note, token);
+            if (!DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus) && note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
             // الفوترة إنشاء فاتورة من نوع السند: مشتريات لسند المورد، ومبيعات لسند العميل
             await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
             return await BillAsync(new List<DeliveryNote> { note }, date, supplierId,
                 ("delivery_note", note.Id, note.DeliveryNumber), token);
         }, ct);
+
+    /// <summary>
+    /// قواعد الفوترة من البيان: بيان الفاتورة لا يُفوتر، والملغى لا يُفوتر، والمتتبَّع يُفوتر بعد تأكيد الاستلام وبما لم يُفوتر من المؤكد.
+    /// </summary>
+    private Task EnsureBillableAsync(DeliveryNote note, CancellationToken ct)
+    {
+        if (note.SourceType == DeliveryNoteSources.SalesInvoice) throw new ConflictException(Messages.DeliveryNoteFromInvoiceNotBillable);
+        if (note.Status == DeliveryNoteStatus.Cancelled) throw new ConflictException(Messages.DeliveryNoteCancelled);
+        if (DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus))
+        {
+            if (!DeliveryTrackingStatuses.IsConfirmed(note.DeliveryStatus)) throw new ConflictException(Messages.DeliveryNoteNotConfirmed);
+            if (note.Items.All(i => DeliverySources.Billable(i) <= DeliverySources.Tolerance)) throw new ConflictException(Messages.DeliveryNoteNothingToBill);
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>يسجّل ما فُوتر من كل سطر في فاتورة مرحلية (يمنع تكرار الفوترة، وحذف الفاتورة يحرره) ويحدّث حالة البيان.</summary>
+    private void RecordTrackedBilling(DeliveryNote note, IEnumerable<(DeliveryNoteItem Item, decimal Qty)> lines, InvoiceDto invoice)
+    {
+        foreach (var (item, qty) in lines.Where(x => x.Qty > 0))
+        {
+            item.InvoicedQty += qty;
+            _db.Add(new DeliveryNoteInvoiceLine
+            {
+                DeliveryNoteId = note.Id, DeliveryNoteItemId = item.Id, InvoiceId = invoice.Id, InvoiceNumber = invoice.InvoiceNumber, Quantity = qty,
+            });
+        }
+        note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber;
+        DeliverySources.RefreshTrackedStatus(note);
+        DeliverySources.AddEvent(_db, note, _user, "invoiced", note.DeliveryStatus, note.DeliveryStatus, invoice.InvoiceNumber);
+    }
+
+    /// <summary>
+    /// بعد إعادة كمية للتسليم (حذف مرتجع تسليم): صافي البيانات الفعّالة على المصدر لا يتجاوز كميته. يُحفظ أولاً ثم يُقرأ بقفل المصدر.
+    /// </summary>
+    private async Task EnsureSourceRoomAsync(DeliveryNote note, CancellationToken ct)
+    {
+        if (note.SourceId is not Guid sourceId) return;
+        if (note.SourceType == DeliveryNoteSources.SalesInvoice)
+        {
+            await DeliverySources.LockAsync(_db, "sales-invoice-delivery", sourceId, ct);
+            await _db.SaveChangesAsync(ct);
+            var invoice = await _db.Set<SalesInvoice>().AsNoTracking().Include(i => i.Items).FirstAsync(i => i.Id == sourceId, ct);
+            var src = await DeliverySources.SalesInvoiceSourceAsync(_db, invoice, null, ct);
+            if (src.Lines.FirstOrDefault(l => l.SourceQty - l.FinancialReturnedQty - l.DeliveredQty < -DeliverySources.Tolerance) is { } over)
+                throw new ConflictException(string.Format(Messages.DeliveryExceedsInvoice, over.ItemName, over.DeliveredQty.ToString("0.####"),
+                    Math.Max(0, over.SourceQty - over.FinancialReturnedQty).ToString("0.####"), over.SourceQty.ToString("0.####")));
+            return;
+        }
+        if (note.SourceType != DeliveryNoteSources.Contract) return;
+        await DeliverySources.LockAsync(_db, "contract-delivery", sourceId, ct);
+        await _db.SaveChangesAsync(ct);
+        var agreed = await _db.Set<CommercialContractItem>().AsNoTracking().Where(i => i.ContractId == sourceId && !i.IsGroup)
+            .Select(i => new { Key = i.ItemId ?? i.Id, i.Description, i.Quantity }).ToListAsync(ct);
+        var delivered = await DeliverySources.Active(_db.Set<DeliveryNoteItem>().AsNoTracking()).Where(i => i.DeliveryNote.ContractId == sourceId)
+            .GroupBy(i => i.ItemId).Select(g => new { g.Key, Qty = g.Sum(i => (i.ConfirmedQty ?? i.DeliveredQty) - i.ReturnedQty) }).ToListAsync(ct);
+        foreach (var d in delivered)
+        {
+            var lines = agreed.Where(a => a.Key == d.Key).ToList();
+            var qty = lines.Sum(a => a.Quantity);
+            if (lines.Count > 0 && d.Qty > qty + DeliverySources.Tolerance)
+                throw new ConflictException(string.Format(Messages.DeliveryExceedsContract, lines[0].Description, d.Qty.ToString("0.####"),
+                    qty.ToString("0.####"), qty.ToString("0.####")));
+        }
+    }
 
     /// <summary>
     /// فاتورة مورد واحدة لعدة سندات استلام من أمر شراء واحد (بقفل الأمر): كل سند غير مفوتر ومن الأمر نفسه وبالموقع والمشروع نفسيهما،
@@ -430,7 +654,10 @@ public class DeliveryNoteService : IDeliveryNoteService
         (string Type, Guid Id, string Number) reference, CancellationToken token)
     {
         var note = notes[0];
-        var lines = notes.SelectMany(n => n.Items).Select(i => (Item: i, Qty: i.DeliveredQty - i.ReturnedQty)).Where(x => x.Qty > 0).ToList();
+        // البيان المتتبَّع (اتفاقية): المؤكد تسليمه غير المفوتر فقط؛ وغيره صافي الكمية كما كان
+        var tracked = notes.Count == 1 && DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus);
+        var lines = notes.SelectMany(n => n.Items)
+            .Select(i => (Item: i, Qty: tracked ? DeliverySources.Billable(i) : i.DeliveredQty - i.ReturnedQty)).Where(x => x.Qty > 0).ToList();
         if (lines.Count == 0) throw new ConflictException(Messages.NoNetQuantitiesToBill);
 
         // الأصناف المخزنية تُفوتر كأصناف، وغيرها (بنود العقد الوصفية) كبنود خدمة.
@@ -491,7 +718,8 @@ public class DeliveryNoteService : IDeliveryNoteService
                 WarehouseId = projectReceipt ? null : x.Item.WarehouseId, CostCenterId = x.Item.CostCenterId,
             }).ToList(),
         }, token);
-        foreach (var n in notes) { n.InvoiceId = invoice.Id; n.InvoiceNumber = invoice.InvoiceNumber; n.Status = DeliveryNoteStatus.Invoiced; }
+        if (tracked) RecordTrackedBilling(note, lines, invoice);
+        else foreach (var n in notes) { n.InvoiceId = invoice.Id; n.InvoiceNumber = invoice.InvoiceNumber; n.Status = DeliveryNoteStatus.Invoiced; }
         // بيان عقد: الفاتورة تُسجَّل في فواتير العقد وتُضاف لمفوتره كما في فوترة الدفعات (فاتورة مورد المشروع ليست فوترة للعميل)
         if (!projectReceipt && !constructionWarehouseReceipt && note.ContractId is Guid billedContractId
             && await _db.Set<CommercialContract>().FirstOrDefaultAsync(c => c.Id == billedContractId, token) is { } contract)
@@ -508,9 +736,12 @@ public class DeliveryNoteService : IDeliveryNoteService
     public Task<InvoiceDto> CreateMilestoneInvoiceAsync(Guid deliveryNoteId, Guid milestoneId, DateTime? date = null, CancellationToken ct = default)
         => _tx.RunAsync(async token =>
         {
+            await DeliverySources.LockNoteAsync(_db, deliveryNoteId, token);
             var note = await _db.Set<DeliveryNote>().Include(n => n.Items).FirstOrDefaultAsync(n => n.Id == deliveryNoteId, token)
                 ?? throw new NotFoundException(Messages.DeliveryNoteNotFound);
-            if (note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
+            await EnsureBillableAsync(note, token);
+            var tracked = DeliveryTrackingStatuses.IsTracked(note.DeliveryStatus);
+            if (!tracked && note.InvoiceId != null) throw new ConflictException(Messages.DeliveryNoteAlreadyBilled);
             if (note.Status == DeliveryNoteStatus.Returned) throw new ConflictException(Messages.DeliveryNoteFullyReturned);
             await AuthorizeAsync(note.Type, ScreenAction.Create, note.ContractId, token);
             if (note.ContractId == null) throw new ValidationFailedException(Messages.DeliveryNoteNotLinkedToContract);
@@ -518,7 +749,9 @@ public class DeliveryNoteService : IDeliveryNoteService
             if (note.Type != "sales_delivery") throw new ConflictException(Messages.MilestoneBillingSalesOnly);
 
             var invoice = await _contracts.BillMilestoneAsync(note.ContractId.Value, milestoneId, date, token);
-            note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced;
+            // الدفعة على بيان متتبَّع تستهلك كل المؤكد غير المفوتر فيه (لا يُفوتر مرة أخرى)
+            if (tracked) RecordTrackedBilling(note, note.Items.Select(i => (i, DeliverySources.Billable(i))).ToList(), invoice);
+            else { note.InvoiceId = invoice.Id; note.InvoiceNumber = invoice.InvoiceNumber; note.Status = DeliveryNoteStatus.Invoiced; }
             // سطر فواتير العقد الذي أنشأته فوترة الدفعة يُربط بالبيان الذي فُوتر معه
             var logged = await _db.Set<ContractInvoice>().FirstOrDefaultAsync(i => i.InvoiceId == invoice.Id, token);
             if (logged != null) logged.DeliveryNoteId = note.Id;

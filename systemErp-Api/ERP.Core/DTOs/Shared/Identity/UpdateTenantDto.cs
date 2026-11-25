@@ -4,6 +4,7 @@ public partial class UpdateTenantDto : CreateTenantDto
 {
     /// <summary>المنطقة الزمنية (IANA مثل Asia/Riyadh)؛ فارغ = تبقى الحالية.</summary>
     public string? TimeZoneId { get; set; }
+    public bool? RequireDeliveryLocationReview { get; set; }
 
     // العنوان الوطني للمنشأة (يظهر في الفاتورة الإلكترونية ويشترطه الربط مع الهيئة). يُحرَّر من بيانات المنشأة ويُخزَّن في إعدادات
     // الهيئة حيث يقرؤه ملف الفاتورة. null = يبقى الحالي (الواجهات القديمة لا ترسله)، والنص الفارغ يمسحه.

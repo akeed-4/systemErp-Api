@@ -55,6 +55,13 @@ public static class ServiceCollectionExtensions
         services.Configure<EmailOptions>(config.GetSection(EmailOptions.Section));
         services.Configure<WhatsAppOptions>(config.GetSection(WhatsAppOptions.Section));
         services.AddHttpClient("paymob", c => c.Timeout = TimeSpan.FromSeconds(30));
+        // البحث الجغرافي المجاني: معرّف تطبيق إلزامي في سياسات المزودين المجانيين
+        services.AddHttpClient(ERP.Service.Services.Shared.GeocodingService.HttpClientName, (sp, c) =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(10);
+            var agent = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()["Geocoding:UserAgent"];
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(agent) ? "NumoERP/1.0" : agent);
+        });
         services.AddHttpClient(MetaWhatsAppProvider.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddHttpClient(ERP.Service.Services.Accounting.ZatcaApiClient.HttpClientName, c => c.Timeout = ERP.Service.Services.Accounting.ZatcaApiClient.ClientTimeout);
         // مفاتيح تشفير أسرار بوابات الدفع وسلاسل اتصال القواعد المستقلة، باسم تطبيق ثابت لا يتغيّر بتغيّر مسار التنصيب.

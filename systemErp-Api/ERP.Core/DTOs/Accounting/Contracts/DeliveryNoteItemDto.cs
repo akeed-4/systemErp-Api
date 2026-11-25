@@ -24,4 +24,10 @@ public partial class DeliveryNoteItemDto
     public decimal TotalAfterVat { get; set; }
     /// <summary>بند جدول كميات المشروع لسند استلام مشروع؛ فارغ = من سطر الطلب.</summary>
     public Guid? BoqItemId { get; set; }
+    /// <summary>سطر المصدر: بند الاتفاقية أو سطر فاتورة البيع (إلزامي لبيان من فاتورة).</summary>
+    public Guid? SourceLineId { get; set; }
+    /// <summary>للقراءة: الكمية المؤكد تسليمها فعلياً (فارغ = لم تُؤكد).</summary>
+    public decimal? ConfirmedQty { get; set; }
+    /// <summary>للقراءة: ما فُوتر منها في فواتير مرحلية.</summary>
+    public decimal InvoicedQty { get; set; }
 }

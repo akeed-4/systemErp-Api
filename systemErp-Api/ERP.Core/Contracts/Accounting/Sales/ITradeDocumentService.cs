@@ -30,7 +30,15 @@ public interface ITradeDocumentService
 }
 
 /// <summary>فواتير المبيعات (جدول SalesInvoice)، ومنها فواتير نقاط البيع.</summary>
-public interface ISalesInvoiceService : ITradeDocumentService { }
+public interface ISalesInvoiceService : ITradeDocumentService
+{
+    /// <summary>تغيير مراكز تكلفة فاتورة بيع مرحّلة (ولو أُرسلت للهيئة): يُعاد توزيع القيد بالمبالغ نفسها، بلا أثر مخزني ولا على الفاتورة الصادرة.</summary>
+    Task<InvoiceDto> ReassignCostCentersAsync(Guid id, ReassignInvoiceCostCentersDto request, CancellationToken ct = default);
+    /// <summary>التعديل المسموح بعد الترحيل والإرسال للهيئة: البائع ومراكز التكلفة وموقع الصرف وفق الضوابط المخزنية.</summary>
+    Task<InvoiceDto> AmendPostedAsync(Guid id, AmendPostedSalesInvoiceDto request, CancellationToken ct = default);
+    /// <summary>البائعون المتاحون (موظفون نشطون).</summary>
+    Task<List<InvoiceSellerOptionDto>> SellerOptionsAsync(CancellationToken ct = default);
+}
 
 /// <summary>فواتير المشتريات (جدول PurchaseInvoice).</summary>
 public interface IPurchaseInvoiceService : ITradeDocumentService

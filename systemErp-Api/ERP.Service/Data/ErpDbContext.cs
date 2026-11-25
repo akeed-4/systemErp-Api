@@ -287,6 +287,7 @@ public class ErpDbContext : DbContext
         // ---- القيود ومراكز التكلفة ----
         (typeof(InvoiceBase), nameof(InvoiceBase.JournalEntryId), typeof(JournalEntry)),
         (typeof(InvoiceBase), nameof(InvoiceBase.CostCenterId), typeof(CostCenter)),
+        (typeof(InvoiceBase), nameof(InvoiceBase.SellerEmployeeId), typeof(Employee)), // بائع فاتورة البيع: لا يُحذف موظف منسوبة إليه فواتير
         (typeof(InvoiceItemBase), nameof(InvoiceItemBase.CostCenterId), typeof(CostCenter)),
         (typeof(QuotationItem), nameof(QuotationItem.CostCenterId), typeof(CostCenter)),
         (typeof(CommercialOrderItem), nameof(CommercialOrderItem.CostCenterId), typeof(CostCenter)),
@@ -1905,6 +1906,7 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<MaterialRequisition>().HasOne<Employee>().WithMany().HasForeignKey(r => r.RequestedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
         StockReservationModel.Configure(modelBuilder);
         PurchaseCycleModel.Configure(modelBuilder);
+        DeliveryTrackingModel.Configure(modelBuilder);
         modelBuilder.Entity<ProductionOrderLine>(e =>
         {
             e.Property(l => l.Kind).HasMaxLength(16).IsRequired();

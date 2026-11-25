@@ -24,5 +24,11 @@ public interface IDeliveryNoteService
     /// <summary>فاتورة بيع/شراء مرحّلة من صافي الكميات المسلّمة (بعد المرتجعات) وتربط الفاتورة بالبيان.</summary>
     Task<InvoiceDto> CreateInvoiceAsync(Guid deliveryNoteId, DateTime? date = null, Guid? supplierId = null, CancellationToken ct = default);
     /// <summary>فاتورة مورد واحدة لعدة سندات استلام غير مفوترة من أمر شراء واحد.</summary>
+    /// <summary>فاتورة بيع مرحّلة كمصدر بيان: أسطرها والمرتجع مالياً والمسلَّم والمتبقي، والخدمات غير قابلة للتسليم.</summary>
+    Task<DeliverySourceDto> GetSalesInvoiceSourceAsync(Guid invoiceId, CancellationToken ct = default);
+    /// <summary>اتفاقية كمصدر بيان: بنودها والمسلَّم والمتبقي.</summary>
+    Task<DeliverySourceDto> GetContractSourceAsync(Guid contractId, CancellationToken ct = default);
+    /// <summary>سجل أحداث البيان.</summary>
+    Task<List<DeliveryNoteEventDto>> GetEventsAsync(Guid id, CancellationToken ct = default);
     Task<InvoiceDto> CreatePurchaseOrderInvoiceAsync(Guid purchaseOrderId, IReadOnlyCollection<Guid> deliveryNoteIds, DateTime? date = null, CancellationToken ct = default);
 }

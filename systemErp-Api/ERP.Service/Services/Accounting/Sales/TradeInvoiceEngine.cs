@@ -424,6 +424,14 @@ public class TradeInvoiceEngine
             ? allowReturn && invoice.Kind is InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn
             : invoice.Kind is InvoiceKind.Sales or InvoiceKind.Purchase;
         if (!editableKind) throw new ConflictException(isReturnDoc ? Messages.PostedReturnEditFromReturnScreen : Messages.PostedInvoiceLocked);
+        // فاتورة بيع عليها بيانات تسليم قائمة (أسطرها ومواقعها وكمياتها مرجع التسليم): تُلغى البيانات أولاً
+        if (invoice.Kind == InvoiceKind.Sales && !isReturnDoc)
+        {
+            var notes = await _db.Set<DeliveryNote>().AsNoTracking()
+                .Where(n => n.SourceType == DeliveryNoteSources.SalesInvoice && n.SourceId == invoice.Id && n.Status != DeliveryNoteStatus.Cancelled)
+                .Select(n => n.DeliveryNumber).ToListAsync(ct);
+            if (notes.Count > 0) throw new ConflictException(string.Format(Messages.InvoiceHasDeliveryNotes, string.Join("، ", notes)));
+        }
         // المرسلة للهيئة لا تُعدَّل، إلا المرفوضة: تُصحَّح وتُعاد بمعرّف جديد (الحذف ممنوع لها أيضاً: صارت حلقة في السلسلة)
         if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted && (forDelete || invoice.ZatcaStatus != ZatcaSubmissionStatus.Rejected))
             throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
@@ -766,6 +774,22 @@ public class TradeInvoiceEngine
 
     private static Guid SiteKey(Guid? site) => site ?? Guid.Empty;
 
+    /// <summary>البائع: موظف من المنشأة (نشط لغير المرتجع)، ويُحفظ اسمه لحظة الحفظ. الفارغ = بلا بائع.</summary>
+    private async Task ApplySellerAsync(InvoiceBase invoice, Guid? employeeId, bool requireActive, CancellationToken ct)
+    {
+        invoice.SellerEmployeeId = employeeId; invoice.SellerName = null;
+        if (employeeId is not Guid id) return;
+        var employee = await _db.Set<Employee>().AsNoTracking().Where(e => e.Id == id).Select(e => new { e.NameAr, e.Status }).FirstOrDefaultAsync(ct)
+            ?? throw new ValidationFailedException(Messages.SellerNotFound);
+        if (requireActive && employee.Status != EmployeeStatuses.Active) throw new ValidationFailedException(Messages.SellerInactive);
+        invoice.SellerName = employee.NameAr;
+    }
+
+    /// <summary>البائعون المتاحون لفاتورة البيع: الموظفون النشطون (رمز واسم فقط، بلا بيانات الموظف الأخرى).</summary>
+    public Task<List<InvoiceSellerOptionDto>> SellerOptionsAsync(CancellationToken ct)
+        => _db.Set<Employee>().AsNoTracking().Where(e => e.Status == EmployeeStatuses.Active).OrderBy(e => e.Code)
+            .Select(e => new InvoiceSellerOptionDto { Id = e.Id, Code = e.Code, NameAr = e.NameAr, NameEn = e.NameEn }).ToListAsync(ct);
+
     /// <summary>
     /// موقع كل سطر: المرسَل أو موقع المستند، ويُحفظ الفعلي على السطر. الموقع المختلف عن موقع المستند يجب أن يكون من المنشأة ومسموحاً
     /// للمستخدم (كموقع المستند)، وفعّالاً إلا في المرتجع (يعود لموقع سطر أصله ولو أُوقف بعده).
@@ -988,6 +1012,7 @@ public class TradeInvoiceEngine
             PartyAddress = original.PartyAddress, PartyPhone = original.PartyPhone, PartyEmail = original.PartyEmail,
             WarehouseId = original.WarehouseId, // المرتجع يعود إلى موقع فاتورته
             CostCenterId = original.CostCenterId,
+            SellerEmployeeId = original.SellerEmployeeId, // المرتجع يُنسب لبائع فاتورته
             JournalCostCenters = JournalCostCenterMap.Unpack(original.JournalCostCentersJson), // المرتجع يعكس قيد أصله على مراكزه
             // الحسابات المحددة يدوياً على الأصل تتقدم في مرتجعه كما تقدمت فيه: المخزون يعود لحسابه والإيراد يُعكس من حسابه
             RevenueAccountCode = original.RevenueAccountCode, InventoryAccountCode = original.InventoryAccountCode, CogsAccountCode = original.CogsAccountCode,
@@ -1147,9 +1172,185 @@ public class TradeInvoiceEngine
         m.Status = "converted_to_invoice";
     }
 
+    /// <summary>تغيير مراكز التكلفة وحدها (المسار القائم): تعديل بعد الإرسال لا يمس البائع ولا المواقع.</summary>
+    public Task<InvoiceDto> ReassignCostCentersAsync<T>(Guid id, ReassignInvoiceCostCentersDto r, CancellationToken ct) where T : InvoiceBase, new()
+        => AmendPostedSalesCoreAsync<T>(id, new AmendPostedSalesInvoiceDto
+        {
+            CostCenterId = r.CostCenterId, Reason = r.Reason,
+            Lines = r.Lines.Select(l => new AmendPostedSalesLineDto { LineId = l.LineId, CostCenterId = l.CostCenterId }).ToList(),
+        }, touchSeller: false, ct);
+
+    /// <summary>
+    /// التعديل المسموح لفاتورة بيع مرحّلة (ولو أُرسلت للهيئة)، ولا يمس الفاتورة الصادرة (الأرقام والضريبة والـ XML):
+    /// - البائع: بيان داخلي يُغيَّر بلا أثر محاسبي.
+    /// - مراكز التكلفة (الترويسة = العام، والأسطر = الجدول): يُعاد بناء القيد في مكانه بالحسابات والمبالغ نفسها وتتغير أبعاده فقط.
+    /// - موقع الصرف: لسطر لم يُصرف مخزونه (خدمة/غير مخزني) أو موقع الترويسة، ما دام القيد يبقى بالحسابات والمبالغ نفسها.
+    ///   السطر المخزني صُرف عند الترحيل: يُرفض ويُعالج بتحويل مخزني.
+    /// المرفقات (مستندات الأرشفة) عبر المرفقات المشتركة بمالك <c>sales_invoice</c>. ضمانة القيد: مجاميع كل حساب قبل وبعد متطابقة، وإلا يُرفض.
+    /// </summary>
+    public Task<InvoiceDto> AmendPostedSalesAsync<T>(Guid id, AmendPostedSalesInvoiceDto r, CancellationToken ct) where T : InvoiceBase, new()
+        => AmendPostedSalesCoreAsync<T>(id, r, touchSeller: true, ct);
+
+    private Task<InvoiceDto> AmendPostedSalesCoreAsync<T>(Guid id, AmendPostedSalesInvoiceDto r, bool touchSeller, CancellationToken ct) where T : InvoiceBase, new()
+        => _tx.RunAsync(async token =>
+        {
+            var invoice = await Detailed(_db.Set<T>()).FirstOrDefaultAsync(i => i.Id == id, token) ?? throw new NotFoundException(Messages.InvoiceNotFound);
+            if (invoice.Kind != InvoiceKind.Sales || invoice.IsReturn || invoice.OriginalInvoiceId != null || invoice.Status != "posted" || invoice.JournalEntryId is not Guid entryId)
+                throw new ConflictException(Messages.CostCenterReassignPostedSalesOnly);
+            if (string.IsNullOrWhiteSpace(r.Reason)) throw new ValidationFailedException(Messages.CostCenterReassignReasonRequired);
+            if (r.Lines.Any(l => invoice.Lines.All(x => x.Id != l.LineId)) || r.Lines.Select(l => l.LineId).Distinct().Count() != r.Lines.Count)
+                throw new ValidationFailedException(Messages.SomeDocumentLinesInvalid);
+
+            var lineOf = invoice.Lines.ToDictionary(l => l.Id);
+            var sellerChanged = touchSeller && r.SellerEmployeeId != invoice.SellerEmployeeId;
+            var centersChanged = r.CostCenterId != invoice.CostCenterId || r.Lines.Any(l => lineOf[l.LineId].CostCenterId != (l.CostCenterId ?? r.CostCenterId));
+            var headerSiteChanged = r.WarehouseId is Guid newHeader && newHeader != invoice.WarehouseId;
+            var siteChanges = r.Lines.Where(l => l.WarehouseId is Guid w && w != SiteOf(invoice, lineOf[l.LineId]))
+                .Select(l => (Line: lineOf[l.LineId], Site: l.WarehouseId!.Value)).ToList();
+            if (!sellerChanged && !centersChanged && !headerSiteChanged && siteChanges.Count == 0) return await GetAsync<T>(id, token);
+
+            var changes = new List<string>();
+            if (sellerChanged)
+            {
+                var from = invoice.SellerName;
+                await ApplySellerAsync(invoice, r.SellerEmployeeId, requireActive: true, token);
+                changes.Add($"البائع: {from ?? "-"} ← {invoice.SellerName ?? "-"}");
+            }
+
+            if (centersChanged || headerSiteChanged || siteChanges.Count > 0)
+            {
+                if (invoice is Invoice { VehicleLines.Count: > 0 } || (invoice.ReferenceType != null && !IsCommercialSource(invoice.ReferenceType)))
+                    throw new ConflictException(Messages.InvoiceFromSourceDocument);
+                await EnsureOpenPeriodAsync(invoice.IssueDate, token);
+                if (centersChanged)
+                {
+                    await LineDimensions.EnsureAsync(_db, r.Lines.Select(l => ((Guid?)null, l.CostCenterId)).Append(((Guid?)null, r.CostCenterId)), token);
+                    await CostCenterRules.EnsureCanAssignAsync(_permissions, true, token);
+                }
+                // موقع الصرف: السطر المخزني صُرف مخزونه عند الترحيل فلا يُنقل إلا بتحويل مخزني
+                foreach (var (line, _) in siteChanges)
+                    if (!InvoiceLineStock.IsNonStock(line)) throw new ConflictException(string.Format(Messages.InvoiceLineStockIssued, line.ItemName));
+                var newSites = siteChanges.Select(c => c.Site).Concat(headerSiteChanged ? new[] { r.WarehouseId!.Value } : Array.Empty<Guid>()).Distinct().ToList();
+                var sites = await _db.Set<Warehouse>().AsNoTracking().Where(w => newSites.Contains(w.Id))
+                    .Select(w => new { w.Id, w.Status, w.NameAr }).ToDictionaryAsync(w => w.Id, token);
+                foreach (var site in newSites)
+                {
+                    if (!sites.TryGetValue(site, out var w)) throw new ValidationFailedException(Messages.WarehouseNotFound);
+                    if (w.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
+                    if (!_db.IsWarehouseAllowed(site)) throw new ForbiddenException(Messages.WarehouseNotAllowed);
+                }
+
+                var before = await AccountTotalsAsync(entryId, token);
+                if (headerSiteChanged)
+                {
+                    // الأسطر القديمة بلا موقع تتبع الترويسة: تُثبَّت على موقعها الحالي فلا ينقل تغييرُ الترويسة مخزونَها
+                    foreach (var line in invoice.Lines.Where(l => l.WarehouseId == null)) line.WarehouseId = invoice.WarehouseId;
+                    var header = sites[r.WarehouseId!.Value];
+                    changes.Add($"موقع الفاتورة: {invoice.WarehouseName} ← {header.NameAr}");
+                    invoice.WarehouseId = header.Id; invoice.WarehouseName = header.NameAr;
+                }
+                foreach (var (line, site) in siteChanges)
+                {
+                    changes.Add($"موقع «{line.ItemName}» ← {sites[site].NameAr}");
+                    line.WarehouseId = site;
+                }
+                if (centersChanged)
+                {
+                    changes.Add("مراكز التكلفة");
+                    invoice.CostCenterId = r.CostCenterId;
+                    foreach (var l in r.Lines) lineOf[l.LineId].CostCenterId = l.CostCenterId ?? r.CostCenterId; // كالحفظ: السطر بلا مركز يأخذ العام
+                }
+
+                // التكلفة: قيمة ما صُرف فعلاً لكل موقع (حركات الترحيل الأخير) موزعة على أسطره المخزنية بتكلفتها، وتكلفة بنود الخدمات كما رُحّلت
+                var fx = invoice.ExchangeRate <= 0 ? 1 : invoice.ExchangeRate;
+                var baseTotal = DocumentPricing.Round(invoice.GrandTotal * fx);
+                var baseVat = DocumentPricing.Round(invoice.VatTotal * fx);
+                var baseNet = baseTotal - baseVat;
+                var costByCenter = new CostCenterTotals();
+                foreach (var (site, value) in await PostedStockValueBySiteAsync(invoice.Id, token))
+                {
+                    var weights = new CostCenterTotals();
+                    foreach (var line in invoice.Lines.Where(l => !InvoiceLineStock.IsNonStock(l) && SiteKey(SiteOf(invoice, l)) == site))
+                        weights.Add(line.CostCenterId, Math.Max(0, line.Quantity * line.UnitCost), SiteOf(invoice, line));
+                    if (weights.Total <= 0) throw new ConflictException(Messages.CostCenterReassignUnbalanced);
+                    var share = CostCenterTotals.Apportion(-value, weights);
+                    foreach (var slice in share.Slices) costByCenter.Add(slice.Center, share[slice], slice.Site);
+                }
+                foreach (var svc in invoice.Lines.Where(i => InvoiceLineStock.IsNonStock(i) && i.UnitCost > 0))
+                    costByCenter.Add(svc.CostCenterId, Math.Round(svc.Quantity * svc.UnitCost, 2), SiteOf(invoice, svc));
+                if (Math.Abs(costByCenter.Total - invoice.TotalCost) > 0.01m) throw new ConflictException(Messages.CostCenterReassignUnbalanced);
+
+                var reposted = await _posting.PostSaleAsync(new SalePostingRequest
+                {
+                    Module = invoice.Module, Date = invoice.IssueDate, Description = $"{DescribeKind(invoice.Kind)} {invoice.InvoiceNumber} - {invoice.PartyName}",
+                    SourceType = SourceTypeFor(invoice.Kind), SourceId = invoice.Id, ReplaceEntryId = entryId,
+                    SourceNumber = invoice.InvoiceNumber, IsReturn = false, PartyAccountCode = await PartyAccountAsync(invoice, true, token),
+                    NetAmount = baseNet, ExciseTaxAmount = DocumentPricing.Round(invoice.ExciseTaxTotal * fx),
+                    VatAmount = baseVat, CostAmount = invoice.TotalCost, Payments = ToBase(await ResolvePaymentsAsync(invoice, token), fx, invoice.GrandTotal, baseTotal),
+                    RevenueAccountCode = invoice.RevenueAccountCode, InventoryAccountCode = invoice.InventoryAccountCode, CogsAccountCode = invoice.CogsAccountCode, WarehouseId = invoice.WarehouseId,
+                    RevenueLines = RevenueByLine(invoice, fx, baseNet), CostLines = costByCenter.ToAmounts(),
+                    CostCenterByAccount = JournalCostCenterMap.Map(invoice.JournalCostCentersJson),
+                }, token);
+                await _db.SaveChangesAsync(token);
+                invoice.JournalEntryId = reposted.JournalEntryId;
+                await _db.SaveChangesAsync(token);
+                var after = await AccountTotalsAsync(reposted.JournalEntryId, token);
+                // تغيير موقع يبدّل حسابات القيد (حسابات الموقع) ليس تعديلاً للأبعاد: يُرفض كله
+                if (before.Count != after.Count || before.Any(b => !after.TryGetValue(b.Key, out var a) || a != b.Value))
+                    throw new ConflictException(headerSiteChanged || siteChanges.Count > 0 ? Messages.InvoiceSiteChangeAltersJournal : Messages.CostCenterReassignUnbalanced);
+
+                // بيانات التسليم من الفاتورة تتبع مراكز أسطرها ومواقعها (مستند تشغيلي بلا قيد ولا حركة مخزون)
+                foreach (var item in await _db.Set<DeliveryNoteItem>()
+                             .Where(i => i.DeliveryNote.SourceType == DeliveryNoteSources.SalesInvoice && i.DeliveryNote.SourceId == invoice.Id && i.SourceLineId != null).ToListAsync(token))
+                    if (lineOf.TryGetValue(item.SourceLineId!.Value, out var src)) { item.CostCenterId = src.CostCenterId; item.WarehouseId = SiteOf(invoice, src); }
+            }
+
+            await _audit.LogAsync(touchSeller ? "INVOICE_AMENDED_AFTER_POSTING" : "INVOICE_COST_CENTERS_REASSIGNED", typeof(T).Name, invoice.Id.ToString(),
+                $"{invoice.InvoiceNumber}: {string.Join("، ", changes)} — {r.Reason?.Trim()}", token);
+            await _db.SaveChangesAsync(token);
+            return await GetAsync<T>(id, token);
+        }, ct);
+
+    /// <summary>مجموع المدين والدائن لكل حساب في القيد (بلا الأبعاد).</summary>
+    private async Task<Dictionary<string, (decimal Debit, decimal Credit)>> AccountTotalsAsync(Guid entryId, CancellationToken ct)
+        => (await _db.Set<JournalEntryLine>().AsNoTracking().Where(l => l.JournalEntryId == entryId)
+                .GroupBy(l => l.AccountCode).Select(g => new { g.Key, D = g.Sum(l => l.Debit), C = g.Sum(l => l.Credit) }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => (x.D, x.C));
+
+    /// <summary>
+    /// حذف فاتورة مرحلية من بيان اتفاقية متتبَّع (من البيان أو بدفعة): تُحذف أسطر فوترتها وتُطرح كمياتها من المفوتر،
+    /// فتعود الكميات المؤكدة قابلة للفوترة مرة واحدة.
+    /// </summary>
+    private async Task ReleaseTrackedDeliveryBillingAsync(InvoiceBase invoice, CancellationToken ct)
+    {
+        var billed = await _db.Set<DeliveryNoteInvoiceLine>().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+        if (billed.Count == 0) return;
+        foreach (var noteId in billed.Select(l => l.DeliveryNoteId).Distinct())
+        {
+            var note = await _db.Set<DeliveryNote>().Include(x => x.Items).FirstAsync(x => x.Id == noteId, ct);
+            foreach (var line in billed.Where(l => l.DeliveryNoteId == noteId))
+                if (note.Items.FirstOrDefault(i => i.Id == line.DeliveryNoteItemId) is { } item) item.InvoicedQty = Math.Max(0, item.InvoicedQty - line.Quantity);
+            if (note.InvoiceId == invoice.Id)
+            {
+                var previous = await _db.Set<DeliveryNoteInvoiceLine>().AsNoTracking()
+                    .Where(l => l.DeliveryNoteId == noteId && l.InvoiceId != invoice.Id).OrderByDescending(l => l.CreatedAt)
+                    .Select(l => new { l.InvoiceId, l.InvoiceNumber }).FirstOrDefaultAsync(ct);
+                note.InvoiceId = previous?.InvoiceId; note.InvoiceNumber = previous?.InvoiceNumber;
+            }
+            DeliverySources.RefreshTrackedStatus(note);
+            _db.Add(new DeliveryNoteEvent
+            {
+                DeliveryNoteId = note.Id, EventType = "invoice_released", FromStatus = note.DeliveryStatus, ToStatus = note.DeliveryStatus,
+                Notes = invoice.InvoiceNumber, OccurredAt = DateTime.UtcNow,
+            });
+        }
+        _db.RemoveRange(billed);
+    }
+
     /// <summary>عند حذف فاتورة محوّلة من مستند تجاري يُفَك الارتباط ليعود المستند قابلاً للتحويل.</summary>
     private async Task ReleaseSourceAsync(InvoiceBase invoice, CancellationToken ct)
     {
+        await ReleaseTrackedDeliveryBillingAsync(invoice, ct);
         if (invoice.ReferenceId == null) return;
         var sourceId = invoice.ReferenceId.Value;
         switch (invoice.ReferenceType)
@@ -1167,9 +1368,9 @@ public class TradeInvoiceEngine
                 if (m != null) { m.ConvertedInvoiceId = null; m.Status = "approved"; }
                 break;
             case "delivery_note":
-                // حذف فاتورة البيان يعيده قابلاً للفوترة بدل أن يبقى مرتبطاً بفاتورة محذوفة
+                // حذف فاتورة البيان يعيده قابلاً للفوترة بدل أن يبقى مرتبطاً بفاتورة محذوفة (المتتبَّع حُرِّر أعلاه)
                 var n = await _db.Set<DeliveryNote>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == sourceId && x.InvoiceId == invoice.Id, ct);
-                if (n != null)
+                if (n != null && !DeliveryTrackingStatuses.IsTracked(n.DeliveryStatus))
                 {
                     n.InvoiceId = null; n.InvoiceNumber = null;
                     n.Status = n.Items.Any(i => i.ReturnedQty > 0) ? DeliveryNoteStatus.PartiallyReturned : DeliveryNoteStatus.Delivered;
@@ -1566,8 +1767,9 @@ public class TradeInvoiceEngine
         if (r.WarehouseId.HasValue && warehouse.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
         invoice.WarehouseId = warehouse.Id; invoice.WarehouseName = warehouse.NameAr;
         await ApplyLineWarehousesAsync(invoice, r, isReturn, ct);
+        await ApplySellerAsync(invoice, r.Kind is InvoiceKind.Sales or InvoiceKind.SalesReturn ? r.SellerEmployeeId : null, requireActive: !isReturn, ct);
 
-        invoice.PartyCountry = string.IsNullOrWhiteSpace(invoice.PartyCountry) ? "SA" : invoice.PartyCountry.Trim().ToUpperInvariant();
+        invoice.PartyCountry =string.IsNullOrWhiteSpace(invoice.PartyCountry) ? "SA" : invoice.PartyCountry.Trim().ToUpperInvariant();
         var domesticParty = invoice.PartyCountry == "SA";
         if (domesticParty && !string.IsNullOrWhiteSpace(invoice.PartyVatNumber) && !SaudiVat.IsValid(invoice.PartyVatNumber))
             throw new ValidationFailedException(Messages.PartyVatNumberInvalid);

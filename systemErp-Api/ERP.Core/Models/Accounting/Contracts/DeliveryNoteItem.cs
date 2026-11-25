@@ -25,5 +25,14 @@ public class DeliveryNoteItem : BaseEntity
     /// <summary>بند القياس في جدول كميات المشروع لسند استلام مشروع (من سطر الطلب).</summary>
     public Guid? BoqItemId { get; set; }
 
+    /// <summary>سطر المصدر: بند الاتفاقية أو سطر فاتورة البيع.</summary>
+    public Guid? SourceLineId { get; set; }
+    /// <summary>
+    /// الكمية المسلّمة فعلياً والمؤكدة بإثبات الاستلام (فارغ = لم تُؤكد). <see cref="DeliveredQty"/> يبقى كمية البيان كما هو.
+    /// </summary>
+    public decimal? ConfirmedQty { get; set; }
+    /// <summary>ما فُوتر من الكمية المؤكدة في فواتير مرحلية (بيان اتفاقية متتبَّع).</summary>
+    public decimal InvoicedQty { get; set; }
+
     public virtual DeliveryNote DeliveryNote { get; set; } = null!;
 }

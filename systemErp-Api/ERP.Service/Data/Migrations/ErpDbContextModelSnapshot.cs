@@ -3409,6 +3409,16 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("AssignedToUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("ContractId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3430,9 +3440,40 @@ namespace ERP.Service.Data.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeliveryAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("DeliveryConfirmedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("DeliveryLatitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<Guid?>("DeliveryLocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("DeliveryLongitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
                     b.Property<string>("DeliveryNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("DeliveryStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)")
+                        .HasDefaultValue("untracked");
+
+                    b.Property<DateTime?>("DispatchedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("DriverName")
                         .HasColumnType("nvarchar(max)");
@@ -3446,6 +3487,20 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("InvoiceNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LocationReviewNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("LocationReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LocationReviewedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("LocationReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -3469,8 +3524,26 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("PurchaseOrderId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ReceiverName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<Guid?>("RequisitionId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("manual");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3518,6 +3591,8 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("TenantId", "DeliveryLocationId");
+
                     b.HasIndex("TenantId", "DeliveryNumber")
                         .IsUnique();
 
@@ -3525,7 +3600,118 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId", "RequisitionId");
 
+                    b.HasIndex("TenantId", "DeliveryStatus", "Date");
+
+                    b.HasIndex("TenantId", "SourceType", "SourceId");
+
                     b.ToTable("DeliveryNote");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DeliveryNoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeliveryNoteId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "DeliveryNoteId", "OccurredAt");
+
+                    b.ToTable("DeliveryNoteEvent");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteInvoiceLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DeliveryNoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DeliveryNoteItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeliveryNoteId");
+
+                    b.HasIndex("DeliveryNoteItemId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "DeliveryNoteId");
+
+                    b.HasIndex("TenantId", "InvoiceId");
+
+                    b.HasIndex("TenantId", "DeliveryNoteItemId", "InvoiceId")
+                        .IsUnique();
+
+                    b.ToTable("DeliveryNoteInvoiceLine");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteItem", b =>
@@ -3536,6 +3722,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid?>("BoqItemId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("ConfirmedQty")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal>("ContractQty")
                         .HasPrecision(18, 4)
@@ -3558,6 +3748,10 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal>("InvoicedQty")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<Guid>("ItemId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3571,6 +3765,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("Sku")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("SourceLineId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -3613,6 +3810,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "SourceLineId");
 
                     b.ToTable("DeliveryNoteItem");
                 });
@@ -5434,6 +5633,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<string>("RevenueAccountCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("SellerEmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SellerName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("SendToZatca")
                         .HasColumnType("bit");
 
@@ -5509,6 +5714,8 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("CustomerId");
 
                     b.HasIndex("JournalEntryId");
+
+                    b.HasIndex("SellerEmployeeId");
 
                     b.HasIndex("SupplierId");
 
@@ -17788,6 +17995,83 @@ namespace ERP.Service.Data.Migrations
                     b.ToTable("Customer");
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.CustomerDeliveryLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("District")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "CustomerId")
+                        .IsUnique()
+                        .HasFilter("[IsDefault] = 1 AND [IsActive] = 1");
+
+                    b.HasIndex("TenantId", "CustomerId", "IsActive");
+
+                    b.ToTable("CustomerDeliveryLocation");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.DocumentApprovalTrack", b =>
                 {
                     b.Property<Guid>("Id")
@@ -20526,6 +20810,9 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("RequireDeliveryLocationReview")
+                        .HasColumnType("bit");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -21785,6 +22072,30 @@ namespace ERP.Service.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteEvent", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.DeliveryNote", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryNoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteInvoiceLine", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.DeliveryNote", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryNoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Accounting.DeliveryNoteItem", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryNoteItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryNoteItem", b =>
                 {
                     b.HasOne("ERP.Core.Models.Accounting.CostCenter", null)
@@ -22109,6 +22420,11 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Accounting.JournalEntry", null)
                         .WithMany()
                         .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Accounting.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("SellerEmployeeId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ERP.Core.Models.Shared.Supplier", null)
@@ -24084,6 +24400,15 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
                         .WithMany()
                         .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.CustomerDeliveryLocation", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

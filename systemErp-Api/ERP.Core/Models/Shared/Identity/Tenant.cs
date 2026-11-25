@@ -26,6 +26,8 @@ public class Tenant : BaseEntity
     public string DocumentNumberingScope { get; set; } = "tenant";
     /// <summary>المنطقة الزمنية للمنشأة (IANA)؛ منها «اليوم» ووقت الحضور الميداني.</summary>
     public string TimeZoneId { get; set; } = "Asia/Riyadh";
+    /// <summary>مراجعة موقع التوصيل إلزامية قبل خروج البيان المتتبَّع (معطّل افتراضياً).</summary>
+    public bool RequireDeliveryLocationReview { get; set; }
     
     public ZatcaConfig ZatcaConfig { get; set; } = new();
 }

@@ -130,6 +130,11 @@ public static class PermissionCatalog
             Crud(A.Approve, A.Post, A.Cancel, A.Discount),
             new[] { "sales", "pos", "agreements", "sales/agreements", "purchases/agreements", "orders", "delivery-notes", "sales/delivery-notes", "contracts/delivery-notes" },
             Legacy: CancelFromEdit),
+        // متابعة التوصيل وتقاريرها: صلاحيات مستقلة لكل إجراء (لا ترث المبيعات)
+        new(DeliveryTrackingScreenId, "sales", "متابعة التوصيل", "Delivery Tracking",
+            new[] { A.View, A.Review, A.Send, A.Receive, A.Cancel, A.Print, A.Export }, new[] { "delivery-tracking", "sales/delivery-tracking" }),
+        new(DeliveryReportsScreenId, "sales", "تقارير التوصيل", "Delivery Reports",
+            new[] { A.View, A.Print, A.Export, A.Pdf }, new[] { "delivery-reports", "sales/delivery-reports" }),
         new("sales-returns", "sales", "مرتجع المبيعات والإشعارات الدائنة", "Sales Returns & Credit Notes",
             Crud(A.Approve, A.Post), new[] { "sales/returns" }),
         new(PermissionService.InvoiceTaxTreatmentOverrideScreenId, "sales", "الفواتير: تجاوز التصنيف الضريبي للصنف في سطر الفاتورة", "Invoices: Override Item Tax Treatment on a Line",
@@ -297,6 +302,10 @@ public static class PermissionCatalog
     public const string RentalBookingsScreenId = "rental-bookings";
     public const string RentalContractsScreenId = "rental-contracts";
     public const string RentalHandoversScreenId = "rental-handovers";
+    /// <summary>متابعة توصيل بيانات التسليم: عرض، خروج للتوصيل (إرسال)، تأكيد الاستلام (استلام)، إلغاء البيان. مستقلة عن المبيعات.</summary>
+    public const string DeliveryTrackingScreenId = "delivery-tracking";
+    /// <summary>تقارير التوصيل (قراءة وطباعة وتصدير).</summary>
+    public const string DeliveryReportsScreenId = "delivery-reports";
     public const string RentalBillingScreenId = "rental-billing";
     public const string RentalTimesheetsScreenId = "rental-timesheets";
     public const string RentalDepositsScreenId = "rental-deposits";

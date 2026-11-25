@@ -29,6 +29,9 @@ public partial class InvoiceDto
     /// <summary>مراكز التكلفة المختارة لحسابات قيد الفاتورة.</summary>
     public List<JournalCostCenterDto> JournalCostCenters { get; set; } = new();
     public string? WarehouseName { get; set; }
+    /// <summary>البائع (موظف) في فاتورة البيع ومرتجعها.</summary>
+    public Guid? SellerEmployeeId { get; set; }
+    public string? SellerName { get; set; }
     /// <summary>العنوان الوطني للطرف (إلزامي لمشتري الفاتورة الضريبية): الشارع، رقم المبنى، الحي، المدينة، الرمز البريدي، الدولة.</summary>
     public string? PartyStreet { get; set; }
     public string? PartyBuildingNo { get; set; }

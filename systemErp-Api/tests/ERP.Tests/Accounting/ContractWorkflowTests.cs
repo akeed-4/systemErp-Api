@@ -154,6 +154,51 @@ public class ContractWorkflowTests : TestBase
         Assert.Equal("initial_acceptance", (await Move(owner, id, "initial_acceptance")).Data!["status"].S());
     }
 
+    /// <summary>
+    /// اتفاقية النظام المحاسبي: مسار مبسط يُعتمد بانتقال واحد (مسودة ← ساري)، ثم التسليم على دفعات من بنودها فقط
+    /// وضمن المتبقي منها صافياً بعد المرتجع، والتعديل يستثني البيان نفسه.
+    /// </summary>
+    [Fact]
+    public async Task Agreement_with_direct_approval_limits_deliveries_to_its_lines_and_remaining_quantities()
+    {
+        var owner = await NewTenantAsync();
+        var (party, _) = await SeedCustomerAsync(owner);
+        var product = await SeedProductAsync(owner);
+        var other = await SeedProductAsync(owner, sku: "P2");
+        var created = await owner.Post("/commercialcontracts", new
+        {
+            title = "اتفاقية توريد", contractType = "supply_materials", workflow = "simple", requiresGuarantee = false, partyName = "عميل", partyId = party,
+            contractValue = 400, vatRate = 15, startDate = DateTime.UtcNow.Date, endDate = DateTime.UtcNow.Date.AddMonths(3),
+            items = new object[] { new { itemId = product, description = "صنف", unit = "PCS", quantity = 4, unitPrice = 100, vatRate = 15 } },
+            milestones = Array.Empty<object>(), clauses = Array.Empty<object>(),
+        });
+        var id = created.Data!["id"].S();
+        var activated = await Move(owner, id, "active");
+        Assert.True(activated.Status == 200, activated.Body?.ToJsonString());
+
+        object Note(Guid item, decimal qty) => new
+        {
+            type = "sales_delivery", partyName = "عميل", partyId = party, contractId = id, date = DateTime.UtcNow,
+            items = new[] { new { itemId = item, itemName = "صنف", unit = "PCS", contractQty = 4, deliveredQty = qty, unitPrice = 100, vatRate = 15 } },
+        };
+
+        Assert.Equal(400, (await owner.Post("/deliverynotes", Note(other, 1))).Status); // ليس من بنود الاتفاقية
+        var first = await owner.Post("/deliverynotes", Note(product, 3));
+        Assert.Equal(200, first.Status);
+        Assert.Equal(400, (await owner.Post("/deliverynotes", Note(product, 2))).Status); // المتبقي 1
+
+        var firstId = first.Data!["id"].S();
+        Assert.Equal(200, (await owner.Put($"/deliverynotes/{firstId}", Note(product, 4))).Status); // التعديل يستثني البيان نفسه
+        Assert.Equal(400, (await owner.Post("/deliverynotes", Note(product, 1))).Status); // سُلّمت كلها
+
+        Assert.Equal(200, (await owner.Post("/deliverynotes/returns", new
+        {
+            type = "sales_delivery_return", deliveryNoteId = firstId, returnReason = "تالف", items = new[] { new { itemId = product, quantity = 1 } },
+        })).Status);
+        Assert.Equal(200, (await owner.Post("/deliverynotes", Note(product, 1))).Status); // المرتجع يعيد المتبقي مرة واحدة
+        Assert.Equal(400, (await owner.Post("/deliverynotes", Note(product, 1))).Status);
+    }
+
     [Fact]
     public async Task Buttons_show_only_transitions_the_user_may_perform()
     {

@@ -17,6 +17,14 @@ public class DeliveryNotesController : ErpControllerBase
     [HttpGet] public async Task<IActionResult> List([FromQuery] PaginationParams q, CancellationToken ct) => Success(await _notes.ListAsync(q, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _notes.GetAsync(id, ct));
 
+    // مصدر البيان: أسطر الاتفاقية أو فاتورة البيع المرحّلة بالمسلَّم والمتبقي (الفحص النهائي في الإنشاء بقفل المصدر)
+    [HttpGet("sources/sales-invoice/{invoiceId:guid}")]
+    public async Task<IActionResult> SalesInvoiceSource(Guid invoiceId, CancellationToken ct) => Success(await _notes.GetSalesInvoiceSourceAsync(invoiceId, ct));
+    [HttpGet("sources/contract/{contractId:guid}")]
+    public async Task<IActionResult> ContractSource(Guid contractId, CancellationToken ct) => Success(await _notes.GetContractSourceAsync(contractId, ct));
+    [HttpGet("{id:guid}/events")]
+    public async Task<IActionResult> Events(Guid id, CancellationToken ct) => Success(await _notes.GetEventsAsync(id, ct));
+
     // سندات التسليم ومرتجعاتها تخضع لسياسات الاعتماد (تُحجز العملية حتى اعتمادها)
     private const string Approval = "delivery-notes";
     private const string ReturnApproval = "delivery-returns";

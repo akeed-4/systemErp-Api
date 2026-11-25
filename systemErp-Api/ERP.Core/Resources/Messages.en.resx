@@ -2243,6 +2243,38 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="ItemNotInOrder" xml:space="preserve"><value>Item "{0}" is not on purchase order {1}.</value></data>
   <data name="ReceiptQtyPositive" xml:space="preserve"><value>Enter a positive received quantity.</value></data>
   <data name="ReceiptExceedsOrder" xml:space="preserve"><value>"{0}": receipt {1} exceeds the remaining {2} on the purchase order (ordered {3}).</value></data>
+  <data name="ItemNotInContract" xml:space="preserve"><value>"{0}" is not a line of agreement {1}; deliveries on an agreement are limited to its lines.</value></data>
+  <data name="DeliveryExceedsContract" xml:space="preserve"><value>"{0}": delivery {1} exceeds the remaining {2} on the agreement (agreed {3}).</value></data>
+  <data name="DeliverySourceInvoiceNotPosted" xml:space="preserve"><value>A delivery note can be created only from a posted sales invoice (not a draft or return).</value></data>
+  <data name="DeliverySourceInvoiceFromDeliveryNote" xml:space="preserve"><value>This invoice was issued from a delivery note; another delivery note cannot be created from it.</value></data>
+  <data name="DeliveryLineNotInSourceInvoice" xml:space="preserve"><value>Every delivery line must belong to the source invoice.</value></data>
+  <data name="DeliveryLineNotDeliverable" xml:space="preserve"><value>"{0}" is a service or non-stock line: it stays on the invoice and is not delivered.</value></data>
+  <data name="DeliveryExceedsInvoice" xml:space="preserve"><value>"{0}": delivery {1} exceeds the remaining invoice quantity {2} (invoiced {3}).</value></data>
+  <data name="DeliveryQtyPositive" xml:space="preserve"><value>Enter a positive delivery quantity for each line.</value></data>
+  <data name="DeliverySourceRequired" xml:space="preserve"><value>Select the source sales invoice.</value></data>
+  <data name="DeliveryNoteFromInvoiceNotBillable" xml:space="preserve"><value>A delivery note created from a sales invoice is an operational document and cannot be invoiced.</value></data>
+  <data name="DeliveryNoteNotConfirmed" xml:space="preserve"><value>Confirm receipt of the delivery note first: only actually delivered quantities are invoiced.</value></data>
+  <data name="DeliveryNoteNothingToBill" xml:space="preserve"><value>No confirmed, uninvoiced quantities on this delivery note.</value></data>
+  <data name="DeliveryNoteCancelled" xml:space="preserve"><value>The delivery note is cancelled.</value></data>
+  <data name="DeliveryNoteNotEditableAfterDispatch" xml:space="preserve"><value>The delivery note cannot be edited after dispatch.</value></data>
+  <data name="DeliveryNoteHasHistory" xml:space="preserve"><value>The delivery note has an event history and cannot be deleted; cancel it with a reason instead.</value></data>
+  <data name="DeliveryStatusTransitionInvalid" xml:space="preserve"><value>This action is not allowed in the current delivery status ({0}).</value></data>
+  <data name="DeliveryNoteNotTracked" xml:space="preserve"><value>The delivery note is not tracked (legacy, manual or goods receipt).</value></data>
+  <data name="DeliveryCancelReasonRequired" xml:space="preserve"><value>Enter a cancellation reason.</value></data>
+  <data name="DeliveryCannotCancel" xml:space="preserve"><value>A delivery note cannot be cancelled after actual delivery, invoicing or returns.</value></data>
+  <data name="DeliveryReceiverRequired" xml:space="preserve"><value>Enter the receiver name.</value></data>
+  <data name="DeliveryConfirmExceedsNote" xml:space="preserve"><value>"{0}": confirmed {1} exceeds the note quantity {2}.</value></data>
+  <data name="DeliveryConfirmNothing" xml:space="preserve"><value>Enter a delivered quantity for at least one line, or cancel the note.</value></data>
+  <data name="DeliveryReturnNotConfirmed" xml:space="preserve"><value>Delivery returns are allowed only after receipt is confirmed; before that edit or cancel the note.</value></data>
+  <data name="DeliveryReturnExceedsUnbilled" xml:space="preserve"><value>"{0}": the return exceeds the delivered uninvoiced quantity {1}; invoiced quantities are returned by credit note.</value></data>
+  <data name="InvoiceHasDeliveryNotes" xml:space="preserve"><value>The invoice has active delivery notes ({0}): cancel them first.</value></data>
+  <data name="CostCenterReassignPostedSalesOnly" xml:space="preserve"><value>Cost centers can be reassigned after posting only for a posted sales invoice.</value></data>
+  <data name="CostCenterReassignUnbalanced" xml:space="preserve"><value>The entry could not be redistributed across cost centers with the same amounts; nothing was changed.</value></data>
+  <data name="CostCenterReassignReasonRequired" xml:space="preserve"><value>Enter the reason for the amendment.</value></data>
+  <data name="SellerNotFound" xml:space="preserve"><value>The seller was not found among employees.</value></data>
+  <data name="SellerInactive" xml:space="preserve"><value>The seller is not an active employee.</value></data>
+  <data name="InvoiceLineStockIssued" xml:space="preserve"><value>Stock for "{0}" was issued from its site when the invoice was posted, so its issue site cannot change; move the quantity with a stock transfer.</value></data>
+  <data name="InvoiceSiteChangeAltersJournal" xml:space="preserve"><value>Changing the site would change the invoice journal accounts (site accounts), which is not allowed after posting; nothing was changed.</value></data>
   <data name="ReceiptNotEditable" xml:space="preserve"><value>A receipt against a purchase order cannot be edited: delete it and create another, or return from it.</value></data>
   <data name="ReceiptNotOfOrder" xml:space="preserve"><value>The goods receipt does not belong to this purchase order.</value></data>
   <data name="PurchaseReceiptsToInvoiceRequired" xml:space="preserve"><value>Select at least one goods receipt to invoice.</value></data>
@@ -2353,4 +2385,13 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="EmployeeLinkWorkshop" xml:space="preserve"><value>workshop time logs</value></data>
   <data name="EmployeeLinkMaterialIssues" xml:space="preserve"><value>material issue receipts</value></data>
   <data name="EmployeeLinkRental" xml:space="preserve"><value>rental operation or transport</value></data>
+  <data name="DeliveryLocationInvalid" xml:space="preserve"><value>Invalid delivery location: it must be an active location of the note's customer.</value></data>
+  <data name="CoordinatesInvalid" xml:space="preserve"><value>Invalid coordinates: latitude -90..90 and longitude -180..180, entered together.</value></data>
+  <data name="DeliveryLocationReviewRequired" xml:space="preserve"><value>The delivery location must be reviewed before dispatch.</value></data>
+  <data name="DeliveryLocationMissing" xml:space="preserve"><value>The delivery note has no delivery location to review.</value></data>
+  <data name="DeliveryLocationNotFound" xml:space="preserve"><value>Delivery location not found.</value></data>
+  <data name="DeliveryLocationNameAddressRequired" xml:space="preserve"><value>Location name and address are required.</value></data>
+  <data name="GeocodingDisabled" xml:space="preserve"><value>Geocoding search is disabled; enter the address or pick the location on the map.</value></data>
+  <data name="GeocodingQueryInvalid" xml:space="preserve"><value>Search text must be 3 to 200 characters.</value></data>
+  <data name="GeocodingUnavailable" xml:space="preserve"><value>Geocoding service is unavailable; enter the location manually.</value></data>
 </root>

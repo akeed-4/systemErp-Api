@@ -23,5 +23,7 @@ public partial class TenantDto
     public bool IsActive { get; set; } = true;
     public DateTime? BooksLockedThrough { get; set; }
     public string TimeZoneId { get; set; } = "Asia/Riyadh";
+    /// <summary>مراجعة موقع التوصيل إلزامية قبل خروج البيان المتتبَّع (معطّل افتراضياً).</summary>
+    public bool RequireDeliveryLocationReview { get; set; }
     public ZatcaConfigDto ZatcaConfig { get; set; } = new();
 }

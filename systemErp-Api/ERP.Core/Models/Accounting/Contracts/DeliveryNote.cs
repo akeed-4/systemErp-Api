@@ -45,5 +45,63 @@ public class DeliveryNote : BaseEntity, IScopedRecord, IPartyDocument
     /// <summary>أمر الشراء الذي يُستلم عليه (استلام جزئي): الكمية ≤ المتبقي من الأمر والسعر والمورد من الأمر.</summary>
     public Guid? PurchaseOrderId { get; set; }
 
+    // ---------- مصدر البيان ومتابعة التوصيل (الهجرة DeliveryNoteSourcesAndTracking) ----------
+    /// <summary>مصدر البيان <see cref="DeliveryNoteSources"/>: manual (القائم وسندات الاستلام) | contract | sales_invoice.</summary>
+    public string SourceType { get; set; } = DeliveryNoteSources.Manual;
+    /// <summary>المستند المصدر: الاتفاقية أو فاتورة البيع المرحّلة.</summary>
+    public Guid? SourceId { get; set; }
+    public string? SourceNumber { get; set; }
+    /// <summary>
+    /// حالة التوصيل <see cref="DeliveryTrackingStatuses"/> مستقلة عن الفوترة والمرتجع. untracked = غير متتبَّع (البيانات السابقة، واليدوية، وسندات الاستلام): لا يُفترض أنه سُلّم فعلياً.
+    /// </summary>
+    public string DeliveryStatus { get; set; } = DeliveryTrackingStatuses.Legacy;
+    public DateTime? DispatchedAt { get; set; }
+    /// <summary>تأكيد الاستلام (إثبات التسليم): الوقت والمستخدم واسم المستلم.</summary>
+    public DateTime? DeliveredAt { get; set; }
+    public Guid? DeliveryConfirmedByUserId { get; set; }
+    public string? ReceiverName { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public Guid? CancelledByUserId { get; set; }
+    public string? CancellationReason { get; set; }
+
+    // ---------- موقع التوصيل (الهجرة CustomerDeliveryLocations) ----------
+    /// <summary>موقع العميل المختار (مرجع للمتابعة فقط)؛ المعتمد هو اللقطة أدناه.</summary>
+    public Guid? DeliveryLocationId { get; set; }
+    /// <summary>لقطة العنوان والإحداثيات وقت الإعداد: لا تتغير بتعديل موقع العميل.</summary>
+    public string? DeliveryAddress { get; set; }
+    public decimal? DeliveryLatitude { get; set; }
+    public decimal? DeliveryLongitude { get; set; }
+    /// <summary>مراجعة الموقع قبل الخروج (إلزامية بإعداد المنشأة)؛ تُمسح بتغيير اللقطة.</summary>
+    public DateTime? LocationReviewedAt { get; set; }
+    public Guid? LocationReviewedByUserId { get; set; }
+    public string? LocationReviewedByName { get; set; }
+    public string? LocationReviewNotes { get; set; }
+
     public virtual ICollection<DeliveryNoteItem> Items { get; set; } = new List<DeliveryNoteItem>();
+}
+
+/// <summary>مصدر بيان التسليم.</summary>
+public static class DeliveryNoteSources
+{
+    /// <summary>البيانات القائمة اليدوية وسندات الاستلام (المشتريات) كما كانت.</summary>
+    public const string Manual = "manual";
+    /// <summary>اتفاقية/عقد عميل: يُفوتر من البيان بالكميات المؤكد تسليمها (فواتير مرحلية).</summary>
+    public const string Contract = "contract";
+    /// <summary>فاتورة بيع مرحّلة: مستند تشغيلي للتوصيل فقط، لا فاتورة ولا حركة ولا قيد.</summary>
+    public const string SalesInvoice = "sales_invoice";
+}
+
+/// <summary>حالات التوصيل (مستقلة عن <see cref="DeliveryNoteStatus"/> للفوترة والمرتجع).</summary>
+public static class DeliveryTrackingStatuses
+{
+    public const string Legacy = "untracked";
+    public const string Pending = "pending";
+    public const string InTransit = "in_transit";
+    public const string PartiallyDelivered = "partially_delivered";
+    public const string Delivered = "delivered";
+    public const string Cancelled = "cancelled";
+
+    /// <summary>بيان متتبَّع (أُنشئ بعد التتبع): قواعد التأكيد والإلغاء والفوترة بالمؤكد.</summary>
+    public static bool IsTracked(string? status) => status is not null && status != Legacy;
+    public static bool IsConfirmed(string? status) => status is PartiallyDelivered or Delivered;
 }

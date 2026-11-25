@@ -31,4 +31,13 @@ public partial class CreateDeliveryNoteDto
     public bool ConstructionWarehouseReceipt { get; set; }
     /// <summary>أمر الشراء المستلم عليه (يُفحص المتبقي والمورد والسعر من الأمر).</summary>
     public Guid? PurchaseOrderId { get; set; }
+    /// <summary>مصدر البيان: contract (الاتفاقية في ContractId) أو sales_invoice (فاتورة بيع مرحّلة في SourceId)؛ فارغ = كما كان.</summary>
+    public string? SourceType { get; set; }
+    /// <summary>فاتورة البيع المصدر (sales_invoice).</summary>
+    public Guid? SourceId { get; set; }
+    /// <summary>موقع العميل المختار؛ العنوان والإحداثيات الفارغة تُعبّأ منه (لقطة).</summary>
+    public Guid? DeliveryLocationId { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public decimal? DeliveryLatitude { get; set; }
+    public decimal? DeliveryLongitude { get; set; }
 }

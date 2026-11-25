@@ -35,4 +35,24 @@ public partial class DeliveryNoteDto
     /// <summary>عهدة المشروع المنشأة من السند (سند استلام مشروع).</summary>
     public Guid? CustodyIssueId { get; set; }
     public Guid? PurchaseOrderId { get; set; }
+    public string SourceType { get; set; } = "manual";
+    public Guid? SourceId { get; set; }
+    public string? SourceNumber { get; set; }
+    /// <summary>حالة التوصيل: untracked | pending | in_transit | partially_delivered | delivered | cancelled.</summary>
+    public string DeliveryStatus { get; set; } = "untracked";
+    public DateTime? DispatchedAt { get; set; }
+    public DateTime? DeliveredAt { get; set; }
+    public Guid? DeliveryConfirmedByUserId { get; set; }
+    public string? ReceiverName { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public Guid? CancelledByUserId { get; set; }
+    public string? CancellationReason { get; set; }
+    public Guid? DeliveryLocationId { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public decimal? DeliveryLatitude { get; set; }
+    public decimal? DeliveryLongitude { get; set; }
+    public DateTime? LocationReviewedAt { get; set; }
+    public Guid? LocationReviewedByUserId { get; set; }
+    public string? LocationReviewedByName { get; set; }
+    public string? LocationReviewNotes { get; set; }
 }

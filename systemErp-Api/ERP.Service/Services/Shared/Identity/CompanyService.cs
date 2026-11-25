@@ -43,6 +43,7 @@ public class CompanyService : ICompanyService
         t.Address = r.Address; t.City = r.City; t.Country = r.Country; t.Phone = r.Phone; t.Email = r.Email;
         t.LogoUrl = r.LogoUrl; t.FinancialYearStart = r.FinancialYearStart; t.FinancialYearEnd = r.FinancialYearEnd;
         if (r.TimeZoneId != null) t.TimeZoneId = r.TimeZoneId.Trim();
+        if (r.RequireDeliveryLocationReview is bool review) t.RequireDeliveryLocationReview = review;
 
         // العنوان الوطني: مصدره بيانات المنشأة، ويُخزَّن في إعدادات الهيئة حيث تقرؤه الفاتورة الإلكترونية والربط
         static string? Clean(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();

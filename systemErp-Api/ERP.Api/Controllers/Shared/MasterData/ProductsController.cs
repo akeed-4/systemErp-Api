@@ -24,6 +24,11 @@ public class ProductsController : CrudController<ProductDto, CreateProductDto, U
     public async Task<IActionResult> Import([FromBody] List<CreateProductDto> items, CancellationToken ct)
         => Success(await _products.ImportAsync(items, ct));
 
+    /// <summary>إضافة وحدة بديلة لبطاقة الصنف من سطر مستند (قائمة الوحدات في فاتورة المبيعات): تعديل على الصنف.</summary>
+    [HttpPost("{id:guid}/units"), RequireScreen("master-data", ScreenAction.Edit)]
+    public async Task<IActionResult> AddUnit(Guid id, [FromBody] ProductUnitDto unit, CancellationToken ct)
+        => Success(await _products.AddUnitAsync(id, unit, ct), Messages.UpdatedSuccessfully);
+
     /// <summary>هل دخل الصنف حركة أو مستنداً (يقفل تكلفته المعيارية في الواجهة لمن لا يملك صلاحية إعادة التقييم).</summary>
     [HttpGet("{id:guid}/usage")]
     public async Task<IActionResult> Usage(Guid id, CancellationToken ct)

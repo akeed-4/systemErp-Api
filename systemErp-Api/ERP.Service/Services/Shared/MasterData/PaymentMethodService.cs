@@ -10,8 +10,12 @@ public class PaymentMethodService : CrudService<PaymentMethodItem, PaymentMethod
     public PaymentMethodService(ErpDbContext db) : base(db) { }
     protected override string Label => Messages.LabelPaymentMethod;
 
+    /// <summary>
+    /// الطرق الفعّالة لقوائم المستندات، الأقدم أولاً (ثم بالرمز): أول طريقة من النوع هي الافتراضية في الواجهة كما في الترحيل
+    /// (<see cref="ERP.Service.Services.Accounting.TreasuryResolver"/>)، فطريقة صندوق أُنشئت تلقائياً لا تتقدم على طريقة قائمة.
+    /// </summary>
     public async Task<List<PaymentMethodItemDto>> ListActiveAsync(CancellationToken ct = default)
-        => (await Db.Set<PaymentMethodItem>().AsNoTracking().Where(m => m.Status == "active").OrderBy(m => m.Code).ToListAsync(ct))
+        => (await Db.Set<PaymentMethodItem>().AsNoTracking().Where(m => m.Status == "active").OrderBy(m => m.CreatedAt).ThenBy(m => m.Code).ToListAsync(ct))
             .Select(Mapper.Map<PaymentMethodItemDto>).ToList();
 
     protected override IQueryable<PaymentMethodItem> ApplySearch(IQueryable<PaymentMethodItem> q, string t)

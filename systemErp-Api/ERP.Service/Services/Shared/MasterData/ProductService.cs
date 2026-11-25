@@ -417,6 +417,33 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         foreach (var w in await Db.Set<WorkItem>().Where(w => w.ProductId == e.Id).ToListAsync(ct)) w.ProductId = null;
     }
 
+    /// <summary>
+    /// وحدة بديلة جديدة على بطاقة الصنف من سطر مستند («إضافة وحدة» في قائمة الوحدات): من دليل الوحدات، غير الأساسية ولا مكررة،
+    /// ومعاملها أكبر من صفر؛ تُضاف آخر الوحدات ولا تمس بقية الصنف. أسطر المستندات القائمة تحفظ لقطة وحدتها فلا تتأثر.
+    /// </summary>
+    public async Task<ProductDto> AddUnitAsync(Guid id, ProductUnitDto unit, CancellationToken ct = default)
+    {
+        var product = await Db.Set<Product>().FirstOrDefaultAsync(p => p.Id == id, ct)
+            ?? throw new NotFoundException(string.Format(Messages.EntityNotFound, Label));
+        var code = unit.UnitCode?.Trim() ?? string.Empty;
+        if (code.Length == 0) throw new ValidationFailedException(Messages.ProductUnitRequired);
+        if (string.IsNullOrWhiteSpace(product.Unit)) throw new ValidationFailedException(Messages.ProductBaseUnitRequired);
+        if (unit.Factor <= 0) throw new ValidationFailedException(string.Format(Messages.ProductUnitFactorPositive, code));
+        var known = await Db.Set<UnitOfMeasure>().AsNoTracking().Where(u => u.Code == code).Select(u => u.Code).FirstOrDefaultAsync(ct)
+            ?? throw new ValidationFailedException(Messages.UnitOfMeasureNotFound);
+        var existing = await Db.Set<ProductUnit>().Where(u => u.ProductId == id).ToListAsync(ct);
+        if (string.Equals(known, product.Unit, StringComparison.OrdinalIgnoreCase)
+            || existing.Any(u => string.Equals(u.UnitCode, known, StringComparison.OrdinalIgnoreCase)))
+            throw new ValidationFailedException(string.Format(Messages.ProductUnitDuplicate, known));
+        Db.Add(new ProductUnit
+        {
+            ProductId = id, UnitCode = known, Factor = unit.Factor,
+            SortOrder = existing.Count == 0 ? 0 : existing.Max(u => u.SortOrder) + 1,
+        });
+        await Db.SaveChangesAsync(ct);
+        return await GetAsync(id, ct);
+    }
+
     /// <summary>الصنف «مستخدم» إن دخل حركة مخزنية أو فاتورة (أو مرتجعها) أو نقطة بيع أو سند تسليم أو جرداً.</summary>
     public async Task<bool> IsUsedAsync(Guid id, CancellationToken ct = default)
         => await Db.Set<StockMovement>().AnyAsync(m => m.ItemId == id, ct)

@@ -74,8 +74,11 @@ public class DeliverySourceLineDto
     public string? Unit { get; set; }
     public Guid? WarehouseId { get; set; }
     public Guid? CostCenterId { get; set; }
+    /// <summary>سعر الوحدة قبل الضريبة (سطر الفاتورة الشاملة يُعاد بصافيه).</summary>
     public decimal UnitPrice { get; set; }
     public decimal VatRate { get; set; }
+    /// <summary>صافي سطر الفاتورة قبل الضريبة بعد خصم السطر ونصيبه من خصم الفاتورة؛ البيان يأخذ منه بنسبة كميته.</summary>
+    public decimal SourceNet { get; set; }
     /// <summary>الكمية في المصدر (المفوترة أو المتفق عليها).</summary>
     public decimal SourceQty { get; set; }
     /// <summary>المرتجع مالياً (إشعارات دائنة مرحّلة على سطر الفاتورة).</summary>

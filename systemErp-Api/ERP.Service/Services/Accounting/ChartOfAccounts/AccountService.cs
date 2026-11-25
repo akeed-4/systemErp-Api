@@ -100,6 +100,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         if (await LinkTargetAsync(dto, ct) is { } party) party.SetAccountCode(entity.Code);
         // حساب فرعي تحت العملاء أو الموردين أو البنوك: يُنشأ كيانه بالاسم نفسه في المعاملة نفسها (ما لم يُطلب «حساب عام»)
         else if (await AutoPartyTypeAsync(dto, ct) is { } type) await CreatePartyAsync(entity, type, dto, ct);
+        // صندوق جديد تحت الصندوق/النقدية (111): طريقة دفع نقدية باسمه مرتبطة بحسابه
+        else if (await CashBoxPaymentMethods.IsCashBoxAsync(Db, entity, ct)) await CashBoxPaymentMethods.EnsureForNewBoxAsync(Db, entity, ct);
     }
 
     /// <summary>
@@ -196,6 +198,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             // اسم الكيان المملوك يتبع اسم حسابه (والعكس في شاشة الكيان): الاسمان متطابقان دائماً
             if (nameChanged && !string.IsNullOrWhiteSpace(entity.NameAr)) owner.SetName(entity.NameAr.Trim(), entity.NameEn?.Trim());
         }
+        // طرق الدفع المرتبطة بالحساب (صندوق أو غيره): رمزه واسمه، وطريقة الصندوق التلقائية تتبع اسمه وحالته
+        await CashBoxPaymentMethods.SyncAsync(Db, oldCode, original.GetValue<string>(nameof(Account.NameAr)), entity, ct);
     }
 
     /// <summary>هل الحساب <paramref name="code"/> هو المجموعة <paramref name="group"/> أو أحد فروعها؟</summary>
@@ -265,6 +269,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             throw new ConflictException(Messages.AccountLinkedToEntity);
         if (entity.LinkedEntityType is not null and not LinkedEntityType.General)
             throw new ConflictException(Messages.AccountLinkedToEntity);
+        // الصندوق المحذوف (بلا قيود): تُحذف طريقة دفعه معه
+        await CashBoxPaymentMethods.RemoveForAccountAsync(Db, entity.Code, ct);
     }
 
     private async Task<int> LevelOfAsync(string? parentCode, CancellationToken ct)

@@ -34,7 +34,9 @@ public static class TreasuryResolver
             PaymentMethod.BankTransfer => "bank",
             _ => "credit",
         };
-        var match = configured.FirstOrDefault(m => m.Status == "active" && m.Type == type && !string.IsNullOrEmpty(m.LinkedAccountCode));
+        // الافتراضي للنوع: أقدم طريقة فعّالة منه (ثم بالرمز)، فطريقة صندوق تُنشأ لاحقاً (CashBoxPaymentMethods) لا تغيّر حساب النقد الافتراضي
+        var match = configured.Where(m => m.Status == "active" && m.Type == type && !string.IsNullOrEmpty(m.LinkedAccountCode))
+            .OrderBy(m => m.CreatedAt).ThenBy(m => m.Code, StringComparer.Ordinal).FirstOrDefault();
         if (match != null) return match.LinkedAccountCode;
         return method == PaymentMethod.Cash ? DefaultAccounts.Cash : DefaultAccounts.DefaultBank;
     }

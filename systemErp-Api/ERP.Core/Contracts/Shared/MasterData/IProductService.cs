@@ -9,4 +9,7 @@ public interface IProductService : ICrudService<ProductDto, CreateProductDto, Up
 
     /// <summary>دخل الصنف حركة أو مستنداً: تكلفته المعيارية لا يغيّرها إلا صاحب صلاحية إعادة التقييم.</summary>
     Task<bool> IsUsedAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>يضيف وحدة بديلة واحدة لبطاقة الصنف (من سطر مستند) ويُرجع الصنف بوحداته.</summary>
+    Task<ProductDto> AddUnitAsync(Guid id, ProductUnitDto unit, CancellationToken ct = default);
 }

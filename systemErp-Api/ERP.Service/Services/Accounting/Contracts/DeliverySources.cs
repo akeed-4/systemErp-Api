@@ -1,5 +1,7 @@
 using ERP.Core.Contracts.Shared;
 using ERP.Service.Data;
+using ERP.Core.Models.Shared;
+using ERP.Service.Services.Shared;
 
 namespace ERP.Service.Services.Accounting;
 
@@ -109,7 +111,7 @@ internal static class DeliverySources
                 {
                     SourceLineId = l.Id, ItemId = l.ItemId, ItemName = l.ItemName, Sku = l.Sku, Unit = l.Unit,
                     WarehouseId = l.WarehouseId ?? invoice.WarehouseId, CostCenterId = l.CostCenterId ?? invoice.CostCenterId,
-                    UnitPrice = l.UnitPrice, VatRate = l.VatRate, SourceQty = l.Quantity,
+                    UnitPrice = ExclusiveUnitPrice(invoice, l), VatRate = l.VatRate, SourceNet = l.TotalBeforeVat, SourceQty = l.Quantity,
                     FinancialReturnedQty = Round(financial[l.Id]), DeliveredQty = Round(done),
                     RemainingQty = deliverable ? Math.Max(0, Round(l.Quantity - financial[l.Id] - done)) : 0,
                     Deliverable = deliverable,
@@ -150,7 +152,8 @@ internal static class DeliverySources
             foreach (var i in g)
             {
                 i.ItemId = line.ItemId; i.ItemName = line.ItemName; i.Sku = line.Sku; i.Unit = line.Unit;
-                i.UnitPrice = line.UnitPrice; i.VatRate = line.VatRate; i.Discount = 0;
+                // قيمة البيان من صافي سطر الفاتورة بنسبة الكمية: خصم السطر وخصم الفاتورة والسعر الشامل لا يرفعونها عن الفاتورة
+                i.UnitPrice = line.UnitPrice; i.VatRate = line.VatRate; i.Discount = ShareDiscount(line, i.DeliveredQty);
                 i.WarehouseId = line.WarehouseId; i.CostCenterId = line.CostCenterId;
                 i.ContractQty = line.SourceQty;
             }
@@ -235,6 +238,19 @@ internal static class DeliverySources
                 Id = e.Id, DeliveryNoteId = e.DeliveryNoteId, EventType = e.EventType, FromStatus = e.FromStatus, ToStatus = e.ToStatus,
                 Notes = e.Notes, UserId = e.UserId, UserName = e.UserName, OccurredAt = e.OccurredAt,
             }).ToListAsync(ct);
+
+    /// <summary>سعر الوحدة قبل الضريبة: الفاتورة الشاملة تخزن السعر شاملاً.</summary>
+    private static decimal ExclusiveUnitPrice(SalesInvoice invoice, SalesInvoiceItem l)
+        => invoice.PricingMethod == InvoicePricingMethod.Inclusive && l.VatRate > 0
+            ? Math.Round(l.UnitPrice * 100m / (100m + l.VatRate), 4) : l.UnitPrice;
+
+    /// <summary>خصم سطر البيان = إجماليه بسعر الوحدة الصافي − نصيبه من صافي سطر الفاتورة (لا سالب).</summary>
+    private static decimal ShareDiscount(DeliverySourceLineDto line, decimal qty)
+    {
+        if (line.SourceQty <= 0 || qty <= 0) return 0;
+        var net = DocumentPricing.Round(line.SourceNet * qty / line.SourceQty);
+        return Math.Max(0, DocumentPricing.Round(qty * line.UnitPrice - net));
+    }
 
     private static decimal Factor(SalesInvoiceItem l) => l.UnitFactor <= 0 ? 1 : l.UnitFactor;
     private static decimal Round(decimal v) => Math.Round(v, 4);

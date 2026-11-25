@@ -265,8 +265,10 @@ public class InventoryReportService : IInventoryReportService
                     let isRet = i.IsReturn || i.Kind == ret
                     select new
                     {
-                        it.ItemId, it.Sku, it.ItemName, it.Unit, i.Id, i.PartyName, i.IssueDate, isRet,
-                        it.Quantity, it.TotalBeforeVat, it.VatAmount, LineCost = it.Quantity * it.UnitCost,
+                        // الكمية بالوحدة الأساسية (السطر بوحدة بديلة × معاملها) فتُجمع أسطر الصنف بوحداتها المختلفة
+                        it.ItemId, it.Sku, it.ItemName, Unit = it.UnitFactor == 1 ? it.Unit : _db.Set<Product>().Where(p => p.Id == it.ItemId).Select(p => p.Unit).FirstOrDefault() ?? it.Unit,
+                        i.Id, i.PartyName, i.IssueDate, isRet,
+                        Quantity = it.Quantity * it.UnitFactor, it.TotalBeforeVat, it.VatAmount, LineCost = it.Quantity * it.UnitCost,
                     };
         // التجميع أولاً بمجاميع شرطية بسيطة (لا let ولا Where داخل المجموعة: EF لا يترجم Select على المجموعة بلا تجميع)،
         // ثم الحقول المشتقة في إسقاط ثانٍ على نتيجة التجميع؛ يبقى استعلاماً واحداً فالترقيم والفلترة والإجماليات من السرفر.

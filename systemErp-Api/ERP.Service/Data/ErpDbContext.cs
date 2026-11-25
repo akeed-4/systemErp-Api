@@ -1844,6 +1844,16 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<Product>().Property(p => p.ItemType).HasMaxLength(20).HasDefaultValue(ProductItemTypes.Stock);
         modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.ItemType });
         modelBuilder.Entity<InvoiceItemBase>().Property(i => i.ItemType).HasMaxLength(20);
+        // وحدة السطر ومعاملها إلى الأساسية: الأسطر القائمة = 1 (الوحدة الأساسية) فلا يتغير أثرها
+        modelBuilder.Entity<InvoiceItemBase>().Property(i => i.UnitFactor).HasPrecision(18, 6).HasDefaultValue(1m);
+        // الوحدات البديلة للصنف: تُقرأ وتُحفظ معه، وتُحذف بحذفه
+        modelBuilder.Entity<Product>().Property(p => p.SalesUnit).HasMaxLength(50);
+        modelBuilder.Entity<ProductUnit>(e =>
+        {
+            e.Property(u => u.UnitCode).HasMaxLength(50).IsRequired();
+            e.Property(u => u.Factor).HasPrecision(18, 6);
+            e.HasOne(u => u.Product).WithMany(p => p.Units).HasForeignKey(u => u.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
         // مكونات الصنف تُقرأ بمالكها، ويُفحص بها استخدام الصنف مكوّناً
         modelBuilder.Entity<ProductComponent>(e =>
         {

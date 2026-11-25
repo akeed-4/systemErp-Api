@@ -160,6 +160,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             note.Status = DeliveryNoteStatus.Delivered;
             note.InvoiceId = null; note.InvoiceNumber = null;
             foreach (var i in note.Items) i.ReturnedQty = 0;
+            // وحدة السطر من وحدات صنفه (تنتقل إلى الفاتورة ويحدد محركها معاملها)
+            await ProductLineUnits.NormalizeAsync(_db, note.Items.ToList(), i => i.ItemId, i => i.Unit, (i, u) => i.Unit = u, token);
             Price(note);
             _db.Add(note);
             await _db.SaveChangesAsync(token);
@@ -203,6 +205,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             foreach (var removed in Mapper.SyncCollections(r, note, added => _db.Add(added))) _db.Remove(removed);
             await LineDimensions.EnsureAsync(_db, note.Items.Select(i => (i.WarehouseId, i.CostCenterId)), token);
             foreach (var i in note.Items) i.ReturnedQty = 0;
+            await ProductLineUnits.NormalizeAsync(_db, note.Items.ToList(), i => i.ItemId, i => i.Unit, (i, u) => i.Unit = u, token);
             Price(note);
             await _db.SaveChangesAsync(token);
             return await GetAsync(id, token);

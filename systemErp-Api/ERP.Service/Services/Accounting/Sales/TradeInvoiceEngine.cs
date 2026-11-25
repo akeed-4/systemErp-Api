@@ -482,12 +482,13 @@ public class TradeInvoiceEngine
         {
             var recorded = await _inventory.RecordMovementAsync(new RecordStockMovementDto
             {
-                ItemId = item.ItemId, WarehouseId = SiteOf(invoice, item), Quantity = item.Quantity,
+                // العكس بالوحدة الأساسية كما رُحِّل: الكمية × المعامل، والتكلفة والسعر لكل وحدة أساسية
+                ItemId = item.ItemId, WarehouseId = SiteOf(invoice, item), Quantity = InvoiceLineStock.BaseQuantity(item),
                 Type = stockIn ? StockMovementType.AdjustmentOut : StockMovementType.AdjustmentIn,
-                UnitCost = stockIn ? 0 : item.UnitCost, // المبيعات ومرتجع المشتريات تعود بتكلفة خروجها
+                UnitCost = stockIn ? 0 : InvoiceLineStock.BaseUnitCost(item, item.UnitCost), // المبيعات ومرتجع المشتريات تعود بتكلفة خروجها
                 // المتوسط المتحرك: إخراج كمية الشراء بتكلفة شرائها يعيد متوسط ما قبل الشراء (لا شيء بعدها يغيّره)، وتحمل الحركة تلك القيمة
-                OutUnitCost = restoreAverage ? item.UnitCost : null,
-                UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate), ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
+                OutUnitCost = restoreAverage ? InvoiceLineStock.BaseUnitCost(item, item.UnitCost) : null,
+                UnitPrice = Math.Round(VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate) / InvoiceLineStock.Factor(item), 4), ReferenceNumber = invoice.InvoiceNumber, Date = invoice.IssueDate, Notes = reason,
                 SourceType = "invoice_reversal", SourceId = invoice.Id, SourceLineId = item.Id,
                 // الصنف المتتبَّع: يعود العكس لتشغيلات ترحيل هذا السطر نفسها
                 BatchAllocations = await ItemBatches.OfDocumentAsync(_db, "invoice", invoice.Id, item.ItemId, item.Id, ct),
@@ -756,7 +757,9 @@ public class TradeInvoiceEngine
     /// </summary>
     private static bool ReturnsPerSourceLine(InvoiceBase original)
         => IsRentalContractPurchase(original)
-           || original.Lines.GroupBy(line => line.ItemId).Any(g => g.Select(line => SiteOf(original, line)).Distinct().Count() > 1);
+           || original.Lines.GroupBy(line => line.ItemId).Any(g => g.Select(line => SiteOf(original, line)).Distinct().Count() > 1
+               // أو بأكثر من وحدة: كمية كل سطر بوحدته، فلا تُجمع كميات وحدات مختلفة
+               || g.Select(InvoiceLineStock.Factor).Distinct().Count() > 1);
 
     /// <summary>موقع السطر الفعلي: المحفوظ عليه، والفارغ (أسطر قديمة) = موقع المستند.</summary>
     internal static Guid? SiteOf(InvoiceBase invoice, InvoiceItemBase line) => line.WarehouseId ?? invoice.WarehouseId;
@@ -781,6 +784,40 @@ public class TradeInvoiceEngine
             if (!isReturn && site.Status != "active") throw new ValidationFailedException(Messages.WarehouseInactive);
             if (!_db.IsWarehouseAllowed(id)) throw new ForbiddenException(Messages.WarehouseNotAllowed);
         }
+    }
+
+    /// <summary>
+    /// وحدة كل سطر ومعاملها إلى وحدة الصنف الأساسية، والخادم مصدرها لا ما يرسله العميل:
+    /// - فاتورة البيع والشراء: من وحدات الصنف (<see cref="ProductLineUnits"/>): الأساسية بمعامل 1 أو بديلة بمعاملها، والفارغة =
+    ///   الأساسية؛ صنف له وحدات بديلة يُرفض فيه غيرها، وصنف بلا وحدات بديلة يبقى كما كان (النص المرسل بمعامل 1).
+    /// - المرتجع على أصل (بيع أو شراء): وحدة سطر أصله ومعامله (لقطة الفاتورة)، فيعود بالكمية نفسها مهما تغيّرت وحدات الصنف بعدها؛
+    ///   والمرتجع بلا أصل أو سطر لا أصل له كالفاتورة من وحدات الصنف.
+    /// العنصر <c>Unit</c> الفارغ = يُترك منطق الوحدة القائم.
+    /// </summary>
+    private async Task<List<(string? Unit, decimal Factor)>> ResolveLineUnitsAsync(CreateInvoiceDto r, Dictionary<Guid, Product> products, CancellationToken ct)
+    {
+        // المرتجع على أصل: وحدة سطر الأصل ومعامله (السطر القديم بنص حر يبقى كما حُفظ)
+        var fromOrigin = new (string? Unit, decimal Factor)?[r.Items.Count];
+        if (r.Kind is InvoiceKind.SalesReturn or InvoiceKind.PurchaseReturn && r.OriginalInvoiceId is Guid originalId)
+        {
+            var origin = await _db.Set<InvoiceItemBase>().AsNoTracking().Where(l => l.InvoiceId == originalId)
+                .Select(l => new { l.Id, l.ItemId, l.Unit, l.UnitFactor }).ToListAsync(ct);
+            for (var i = 0; i < r.Items.Count; i++)
+            {
+                var src = r.Items[i];
+                var match = origin.FirstOrDefault(l => src.OriginalInvoiceItemId.HasValue && l.Id == src.OriginalInvoiceItemId)
+                    ?? origin.FirstOrDefault(l => l.ItemId == src.ItemId && string.Equals(l.Unit, src.Unit, StringComparison.OrdinalIgnoreCase))
+                    ?? origin.FirstOrDefault(l => l.ItemId == src.ItemId);
+                if (match != null) fromOrigin[i] = (match.Unit, match.UnitFactor > 0 ? match.UnitFactor : 1m);
+            }
+        }
+        // الفاتورة المحوَّلة من مستند (عرض، أمر، بيان) تقبل نص وحدة قديماً غير مرتبط بمعنى الأساسية كما كان
+        var result = await ProductLineUnits.ResolveAsync(_db, r.Items.Select((item, i) =>
+            (fromOrigin[i] == null && products.ContainsKey(item.ItemId) ? item.ItemId : Guid.Empty, (string?)item.Unit)).ToList(), ct,
+            unlinkedAsBase: r.SystemGenerated);
+        for (var i = 0; i < result.Count; i++)
+            if (fromOrigin[i] is { } o) result[i] = o;
+        return result;
     }
 
     /// <summary>للقراءة: اسم موقع السطر والاسم الإنجليزي الحالي لصنفه (من البطاقة، بلا تخزين على السطر).</summary>
@@ -974,7 +1011,7 @@ public class TradeInvoiceEngine
                 throw new ValidationFailedException(string.Format(Messages.ReturnQtyRange, src.ItemName, remaining));
             dto.Items.Add(new InvoiceItemDto
             {
-                ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, Quantity = l.Quantity,
+                ItemId = src.ItemId, ItemName = src.ItemName, Sku = src.Sku, Unit = src.Unit, UnitFactor = InvoiceLineStock.Factor(src), Quantity = l.Quantity,
                 UnitPrice = src.UnitPrice, UnitCost = src.UnitCost, VatRate = src.VatRate,
                 ExciseTaxRate = src.ExciseTaxRate, ExciseRetailPrice = src.ExciseRetailPrice,
                 ExciseStandardPrice = src.ExciseStandardPrice,
@@ -1428,6 +1465,9 @@ public class TradeInvoiceEngine
         invoice.ZatcaQrCode = null; invoice.ZatcaHash = null; invoice.ZatcaUblXml = null; invoice.ZatcaPih = null;
         invoice.JournalEntryId = null;
 
+        // وحدة كل سطر ومعاملها إلى الأساسية: البيع من وحدات الصنف، والمرتجع من سطر أصله؛ وغيرهما بالوحدة الأساسية كما كان
+        var lineUnits = await ResolveLineUnitsAsync(r, products, ct);
+
         // الأسطر: الأرقام من السرفر دائماً، وبيانات الصنف من الكتالوج إن لم تُرسل.
         invoice.ClearLines();
         for (var i = 0; i < r.Items.Count; i++)
@@ -1438,7 +1478,8 @@ public class TradeInvoiceEngine
             line.ItemId = src.ItemId;
             line.ItemName = string.IsNullOrWhiteSpace(src.ItemName) ? p!.NameAr : src.ItemName;
             line.Sku = string.IsNullOrWhiteSpace(src.Sku) ? p?.Sku ?? string.Empty : src.Sku;
-            line.Unit = string.IsNullOrWhiteSpace(src.Unit) ? p?.Unit ?? string.Empty : src.Unit;
+            line.Unit = lineUnits[i].Unit ?? (string.IsNullOrWhiteSpace(src.Unit) ? p?.Unit ?? string.Empty : src.Unit);
+            line.UnitFactor = lineUnits[i].Factor;
             line.Quantity = src.Quantity; line.UnitPrice = src.UnitPrice; line.Discount = src.Discount;
             line.ItemType = p == null ? ProductItemTypes.Service : ProductItemTypes.Normalize(p.ItemType);
             // بند الخدمة يحمل تكلفته (مثل تكلفة السيارة) لأن لا مخزون يحسبها؛ والصنف الخدمي تكلفته المعيارية (والمرتجع تكلفة أصله)
@@ -1455,7 +1496,8 @@ public class TradeInvoiceEngine
                     return new InvoiceLineComponent
                     {
                         ItemId = cp.Id, Sku = cp.Sku, ItemName = cp.NameAr, Unit = cp.Unit,
-                        QuantityPerUnit = c.Quantity, Quantity = Math.Round(src.Quantity * c.Quantity, 4),
+                        // المكوّن لكل وحدة أساسية من المجمّع: كمية السطر بوحدته × معاملها
+                        QuantityPerUnit = c.Quantity, Quantity = Math.Round(src.Quantity * line.UnitFactor * c.Quantity, 4),
                     };
                 }).ToList());
             }
@@ -1811,7 +1853,7 @@ public class TradeInvoiceEngine
             default: // المرتجعات
                 movement.ItemBatchId = item.ItemBatchId;
                 if (item.ItemBatchId == null && returnPools.TryGetValue(item.ItemId, out var pool))
-                    movement.BatchAllocations = ItemBatches.Take(pool, item.Quantity);
+                    movement.BatchAllocations = ItemBatches.Take(pool, InvoiceLineStock.BaseQuantity(item));
                 else if (item.ItemBatchId == null && invoice.Kind == InvoiceKind.SalesReturn)
                 {
                     movement.BatchNumber = item.BatchNumber; movement.ProductionDate = item.ProductionDate; movement.ExpiryDate = item.ExpiryDate;
@@ -1887,7 +1929,8 @@ public class TradeInvoiceEngine
         {
             originalLines = (await _db.Set<InvoiceItemBase>().AsNoTracking().Where(i => i.InvoiceId == invoice.OriginalInvoiceId).ToListAsync(ct))
                 .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.First());
-            originalCosts = originalLines.ToDictionary(x => x.Key, x => x.Value.UnitCost);
+            // تكلفة الوحدة الأساسية (تكلفة السطر لكل وحدة من وحدته ÷ معاملها)
+            originalCosts = originalLines.ToDictionary(x => x.Key, x => InvoiceLineStock.BaseUnitCost(x.Value, x.Value.UnitCost));
         }
 
         // المرتجع على أصل: يعود لتشغيلات الأصل بترتيبها، بعد خصم ما أعادته مرتجعاته السابقة
@@ -1934,12 +1977,16 @@ public class TradeInvoiceEngine
             var movement = invoice.Kind switch
             {
                 InvoiceKind.Sales => new RecordStockMovementDto { Type = StockMovementType.OutSales },
-                InvoiceKind.Purchase => new RecordStockMovementDto { Type = StockMovementType.InPurchase, UnitCost = item.Quantity == 0 ? 0 : Math.Round(item.TotalBeforeVat * fx / item.Quantity, 4) },
+                // تكلفة الوحدة الأساسية: صافي السطر ÷ كميته بالأساسية (الكمية × معامل وحدته)
+                InvoiceKind.Purchase => new RecordStockMovementDto { Type = StockMovementType.InPurchase, UnitCost = InvoiceLineStock.BaseQuantity(item) == 0 ? 0 : Math.Round(item.TotalBeforeVat * fx / InvoiceLineStock.BaseQuantity(item), 4) },
                 InvoiceKind.SalesReturn => new RecordStockMovementDto { Type = StockMovementType.AdjustmentIn, UnitCost = originalCosts.GetValueOrDefault(item.ItemId) },
                 _ => new RecordStockMovementDto { Type = StockMovementType.AdjustmentOut },
             };
-            movement.ItemId = item.ItemId; movement.Quantity = item.Quantity;
-            movement.UnitPrice = VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate); movement.ReferenceNumber = invoice.InvoiceNumber;
+            // المخزون بالوحدة الأساسية: الكمية × معامل وحدة السطر، وسعر الوحدة الأساسية = سعر وحدة السطر ÷ المعامل
+            var factor = InvoiceLineStock.Factor(item);
+            movement.ItemId = item.ItemId; movement.Quantity = InvoiceLineStock.BaseQuantity(item);
+            movement.UnitPrice = Math.Round(VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate) / factor, 4);
+            movement.ReferenceNumber = invoice.InvoiceNumber;
             movement.Date = invoice.IssueDate;
             movement.SourceType = "invoice"; movement.SourceId = invoice.Id;
             movement.WarehouseId = SiteOf(invoice, item);
@@ -1947,7 +1994,8 @@ public class TradeInvoiceEngine
 
             var recorded = await _inventory.RecordMovementAsync(movement, ct);
             WriteBackBatches(invoice, item, recorded.Batches);
-            item.UnitCost = invoice.Kind == InvoiceKind.Purchase ? movement.UnitCost : recorded.UnitCost;
+            // تكلفة السطر لكل وحدة من وحدته (الحركة بتكلفة الوحدة الأساسية)
+            item.UnitCost = Math.Round((invoice.Kind == InvoiceKind.Purchase ? movement.UnitCost : recorded.UnitCost) * factor, 4);
             // تغيّر القيمة الدفترية للصنف لا الكمية × التكلفة: حساب المخزون يبقى مساوياً لقيمة الأصناف بلا هللات تقريب
             // بإشارته: الإضافة بآخر سعر شراء أقل تُنقص قيمة الرصيد كله
             var valueChange = invoice.Kind is InvoiceKind.Purchase or InvoiceKind.SalesReturn ? recorded.ValueChange : -recorded.ValueChange;

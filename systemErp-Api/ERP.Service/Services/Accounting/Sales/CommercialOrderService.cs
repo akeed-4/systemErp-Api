@@ -36,6 +36,17 @@ public class CommercialOrderService : CrudService<CommercialOrder, CommercialOrd
         if (d.ExpectedDeliveryDate < d.OrderDate) errors.Add(Messages.ExpectedDeliveryBeforeOrderDate);
         if (d.Items.Count == 0) errors.Add(Messages.AtLeastOneItemRequired);
         if (existing?.ConvertedInvoiceId != null) errors.Add(Messages.CannotEditInvoicedOrder);
+        // وحدة السطر من وحدات صنفه (تنتقل إلى الفاتورة وسندات الاستلام). الاستلام والاتفاقيات تجمع كمية الصنف في الأمر، فالصنف
+        // بوحدة واحدة في الأمر، وأمر الاتفاقية بالوحدة الأساسية (كميات الاتفاقية بها)
+        var units = await ProductLineUnits.ResolveAsync(Db, d.Items.Select(i => (i.ItemId, (string?)i.Unit)).ToList(), ct, unlinkedAsBase: true);
+        for (var i = 0; i < d.Items.Count; i++)
+            if (units[i].Unit is { } code) d.Items[i].Unit = code;
+        foreach (var g in d.Items.Select((item, i) => (item, units[i].Factor, Linked: units[i].Unit != null))
+                     .Where(x => x.Linked).GroupBy(x => x.item.ItemId))
+            if (g.Select(x => x.Factor).Distinct().Count() > 1)
+                errors.Add(string.Format(Messages.OrderItemMixedUnits, g.First().item.ItemName));
+        if (d.AgreementId.HasValue && d.Items.Where((_, i) => units[i].Factor != 1m).FirstOrDefault() is { } alt)
+            errors.Add(string.Format(Messages.AgreementOrderBaseUnitOnly, alt.ItemName));
         // أمر من ترسية طلب عروض أو عليه سندات استلام: أسعاره وكمياته أساس الاستلام والفوترة الجزئية
         if (existing != null && (existing.RfqId != null || await Db.Set<DeliveryNote>().AnyAsync(n => n.PurchaseOrderId == existing.Id, ct)))
             errors.Add(Messages.RfqLinkedReadOnly);

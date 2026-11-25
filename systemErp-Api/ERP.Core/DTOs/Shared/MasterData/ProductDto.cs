@@ -14,6 +14,10 @@ public partial class ProductDto
     public string ItemType { get; set; } = "stock";
     public string Category { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
+    /// <summary>وحدة البيع الافتراضية: الأساسية (الفارغ) أو إحدى الوحدات البديلة.</summary>
+    public string? SalesUnit { get; set; }
+    /// <summary>الوحدات البديلة المرتبطة بالصنف. إن أُرسلت تُستبدل بها كاملة؛ الغائبة (null) تُبقيها كما هي.</summary>
+    public List<ProductUnitDto>? Units { get; set; }
     public decimal CurrentStock { get; set; }
     public decimal AverageCost { get; set; }
     public decimal LastPurchaseCost { get; set; }

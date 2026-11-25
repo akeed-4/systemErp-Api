@@ -25,8 +25,10 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
     protected override IQueryable<Quotation> ApplyFilters(IQueryable<Quotation> q, PaginationParams p)
         => string.IsNullOrWhiteSpace(p.Status) ? q : q.Where(x => x.Status == p.Status);
 
-    protected override Task ValidateAsync(CreateQuotationDto d, Quotation? existing, CancellationToken ct)
+    protected override async Task ValidateAsync(CreateQuotationDto d, Quotation? existing, CancellationToken ct)
     {
+        // وحدة السطر من وحدات صنفه (تنتقل كما هي إلى الفاتورة أو الأمر عند التحويل)
+        await ProductLineUnits.NormalizeAsync(Db, d.Items, i => i.ItemId, i => i.Unit, (i, u) => i.Unit = u, ct);
         var errors = new List<string>();
         TradeHelper.RequireParty(d.PartyName, errors);
         if (d.Type is not ("sales_quotation" or "purchase_quotation")) errors.Add(Messages.QuotationTypeValues);
@@ -37,7 +39,6 @@ public class QuotationService : CrudService<Quotation, QuotationDto, CreateQuota
         if (existing != null && existing.Status.StartsWith("converted")) errors.Add(Messages.CannotEditConvertedQuotation);
         if (existing?.RfqId != null) errors.Add(Messages.RfqLinkedReadOnly);
         if (errors.Count > 0) throw new ValidationFailedException(errors[0], errors);
-        return Task.CompletedTask;
     }
 
     protected override async Task OnCreatingAsync(Quotation e, CreateQuotationDto d, CancellationToken ct)

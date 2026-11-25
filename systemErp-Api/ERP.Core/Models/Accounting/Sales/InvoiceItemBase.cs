@@ -12,6 +12,11 @@ public abstract class InvoiceItemBase : BaseEntity
     public string ItemName { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
+    /// <summary>
+    /// معامل تحويل <see cref="Unit"/> إلى وحدة الصنف الأساسية (لقطة وقت الحفظ): الكمية المخزنية = الكمية × المعامل، والتكلفة
+    /// على السطر لكل وحدة من وحدته. الأسطر القديمة ووحدة الصنف الأساسية = 1، فلا يتغير أثر أي مستند قائم.
+    /// </summary>
+    public decimal UnitFactor { get; set; } = 1m;
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal UnitCost { get; set; }

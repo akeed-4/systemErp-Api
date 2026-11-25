@@ -83,7 +83,7 @@ public class UnitOfMeasureService : CrudService<UnitOfMeasure, UnitOfMeasureDto,
 
     protected override async Task OnDeletingAsync(UnitOfMeasure e, CancellationToken ct)
     {
-        if (await Db.Set<Product>().AnyAsync(p => p.Unit == e.Code, ct))
+        if (await Db.Set<Product>().AnyAsync(p => p.Unit == e.Code, ct) || await Db.Set<ProductUnit>().AnyAsync(u => u.UnitCode == e.Code, ct))
             throw new ConflictException(Messages.UnitUsedByItems);
         if (await Db.Set<UnitOfMeasure>().AnyAsync(u => u.BaseUnitCode == e.Code, ct))
             throw new ConflictException(Messages.UnitIsBaseForOthers);

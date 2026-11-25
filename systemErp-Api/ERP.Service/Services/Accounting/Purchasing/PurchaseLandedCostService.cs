@@ -271,7 +271,8 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
         }
         var returned = (await _db.Set<PurchaseReturn>().AsNoTracking().Include(r => r.Items)
                 .Where(r => r.OriginalInvoiceId != null && invoiceIds.Contains(r.OriginalInvoiceId.Value) && r.Status == "posted").ToListAsync(ct))
-            .SelectMany(r => r.Items.Select(i => (Invoice: r.OriginalInvoiceId!.Value, i.ItemId, i.Quantity)))
+            // الكميات بالوحدة الأساسية (السطر بوحدة بديلة × معاملها) فتُطرح من أسطر الصنف بوحداتها المختلفة
+            .SelectMany(r => r.Items.Select(i => (Invoice: r.OriginalInvoiceId!.Value, i.ItemId, Quantity: InvoiceLineStock.BaseQuantity(i))))
             .GroupBy(x => (x.Invoice, x.ItemId)).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
         var productIds = invoices.SelectMany(i => i.Items).Select(i => i.ItemId).Where(i => i != Guid.Empty).Distinct().ToList();
         var weights = await _db.Set<Product>().AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.WeightKg, ct);
@@ -283,11 +284,13 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
                 var left = returned.GetValueOrDefault((invoice.Id, group.Key));
                 foreach (var item in group)
                 {
-                    var less = Math.Min(left, item.Quantity);
+                    // صافي الكمية بالوحدة الأساسية: نصيب السطر لكل وحدة أساسية يضاف إلى تكلفة حركته (وهي بالأساسية)
+                    var quantity = InvoiceLineStock.BaseQuantity(item);
+                    var less = Math.Min(left, quantity);
                     left -= less;
-                    var net = item.Quantity - less;
+                    var net = quantity - less;
                     if (net <= 0) continue;
-                    var value = DocumentPricing.Round(item.TotalBeforeVat * invoice.ExchangeRate * net / item.Quantity);
+                    var value = DocumentPricing.Round(item.TotalBeforeVat * invoice.ExchangeRate * net / quantity);
                     var unitWeight = weights.GetValueOrDefault(item.ItemId);
                     targets.Add(new Target(invoice.Id, invoice.InvoiceNumber, item.Id, item.ItemId, item.ItemName, net, value,
                         unitWeight is > 0 ? unitWeight * net : null));
@@ -368,7 +371,7 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
             var current = mine.Where(m => m.SourceType == "invoice" && m.Type == StockMovementType.InPurchase && (lastReversal == null || m.CreatedAt > lastReversal)).ToList();
             foreach (var line in invoiceLines)
             {
-                var movement = current.FirstOrDefault(m => m.ItemId == line.ItemId && m.Quantity == line.Quantity)
+                var movement = current.FirstOrDefault(m => m.ItemId == line.ItemId && m.Quantity == InvoiceLineStock.BaseQuantity(line))
                     ?? current.FirstOrDefault(m => m.ItemId == line.ItemId)
                     ?? throw new ConflictException(string.Format(Messages.PurchaseLandedCostInvoiceInvalid, line.ItemName));
                 current.Remove(movement);
@@ -481,7 +484,8 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
         var ids = invoiceItemIds.Distinct().ToList();
         if (ids.Count == 0) return new();
         return await _db.Set<PurchaseInvoiceItem>().AsNoTracking().Where(i => ids.Contains(i.Id))
-            .Select(i => new { i.Id, Cost = i.Quantity == 0 ? 0 : i.TotalBeforeVat * i.Invoice.ExchangeRate / i.Quantity })
+            // لكل وحدة أساسية مثل صافي الكمية في السند
+            .Select(i => new { i.Id, Cost = i.Quantity == 0 ? 0 : i.TotalBeforeVat * i.Invoice.ExchangeRate / (i.Quantity * (i.UnitFactor > 0 ? i.UnitFactor : 1m)) })
             .ToDictionaryAsync(i => i.Id, i => Math.Round(i.Cost, 4), ct);
     }
 

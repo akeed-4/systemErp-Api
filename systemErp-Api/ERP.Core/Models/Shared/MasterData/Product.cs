@@ -12,7 +12,12 @@ public class Product : BaseEntity
     /// <summary>طبيعة الصنف (<see cref="ProductItemTypes"/>): بضاعة، خدمي، مجمّع، مركّب، منتج صناعي.</summary>
     public string ItemType { get; set; } = ProductItemTypes.Stock;
     public string Category { get; set; } = string.Empty;
+    /// <summary>الوحدة الأساسية: المخزون والتكلفة بها دائماً.</summary>
     public string Unit { get; set; } = string.Empty;
+    /// <summary>وحدة البيع الافتراضية (الأساسية أو إحدى <see cref="Units"/>)؛ الفارغ = الأساسية.</summary>
+    public string? SalesUnit { get; set; }
+    /// <summary>الوحدات البديلة المرتبطة بالصنف ومعامل تحويل كلٍّ منها إلى الأساسية.</summary>
+    public virtual List<ProductUnit> Units { get; set; } = new();
     public decimal CurrentStock { get; set; }
     public decimal AverageCost { get; set; }
     public decimal LastPurchaseCost { get; set; }

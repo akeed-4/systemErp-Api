@@ -904,6 +904,14 @@
   <data name="UnitIsBaseForOthers" xml:space="preserve"><value>الوحدة هي وحدة أساس لوحدات أخرى.</value></data>
   <data name="UnitOfMeasureNotFound" xml:space="preserve"><value>وحدة القياس غير موجودة.</value></data>
   <data name="UnitUsedByItems" xml:space="preserve"><value>الوحدة مستخدمة في أصناف.</value></data>
+  <data name="ProductUnitRequired" xml:space="preserve"><value>اختر الوحدة لكل سطر من وحدات الصنف البديلة.</value></data>
+  <data name="ProductBaseUnitRequired" xml:space="preserve"><value>حدد الوحدة الأساسية للصنف قبل إضافة وحدات بديلة.</value></data>
+  <data name="ProductUnitDuplicate" xml:space="preserve"><value>الوحدة «{0}» مكررة أو هي الوحدة الأساسية للصنف.</value></data>
+  <data name="ProductUnitFactorPositive" xml:space="preserve"><value>معامل تحويل الوحدة «{0}» يجب أن يكون أكبر من صفر.</value></data>
+  <data name="ProductSalesUnitNotLinked" xml:space="preserve"><value>وحدة البيع الافتراضية «{0}» ليست من وحدات الصنف.</value></data>
+  <data name="InvoiceUnitNotLinked" xml:space="preserve"><value>الوحدة «{1}» ليست من وحدات الصنف «{0}».</value></data>
+  <data name="OrderItemMixedUnits" xml:space="preserve"><value>الصنف «{0}» مكرر في الأمر بأكثر من وحدة؛ اجعل أسطره بوحدة واحدة.</value></data>
+  <data name="AgreementOrderBaseUnitOnly" xml:space="preserve"><value>أوامر الاتفاقيات بالوحدة الأساسية للصنف: «{0}».</value></data>
   <data name="UnknownScreensPrefix" xml:space="preserve"><value>شاشات غير معروفة: </value></data>
   <data name="Updated" xml:space="preserve"><value>تم التعديل</value></data>
   <data name="UpdatedSuccessfully" xml:space="preserve"><value>تم التعديل بنجاح</value></data>

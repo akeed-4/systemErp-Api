@@ -121,9 +121,6 @@ namespace ERP.Service.Data.Migrations
                     b.Property<bool>("AllowSalesVatInclusivePricing")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("ItemPricesIncludeVat")
-                        .HasColumnType("bit");
-
                     b.Property<string>("CogsAccountCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -178,6 +175,9 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<string>("InventorySurplusAccountCode")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("ItemPricesIncludeVat")
+                        .HasColumnType("bit");
 
                     b.Property<string>("OpeningInventoryAccountCode")
                         .HasColumnType("nvarchar(max)");
@@ -1277,6 +1277,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1344,9 +1347,6 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("VatRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid?>("CostCenterId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("WarehouseId")
                         .HasColumnType("uniqueidentifier");
@@ -3541,11 +3541,11 @@ namespace ERP.Service.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<decimal>("DeliveredQty")
                         .HasPrecision(18, 4)
@@ -5630,6 +5630,12 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("UnitCost")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("UnitFactor")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(1m);
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 4)
@@ -8504,6 +8510,9 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -8561,9 +8570,6 @@ namespace ERP.Service.Data.Migrations
                     b.Property<decimal>("VatRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid?>("CostCenterId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("WarehouseId")
                         .HasColumnType("uniqueidentifier");
@@ -19253,6 +19259,10 @@ namespace ERP.Service.Data.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("SalesUnit")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<decimal>("SellingPrice")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -19419,6 +19429,45 @@ namespace ERP.Service.Data.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("ProductComponent");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.ProductUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Factor")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UnitCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ProductUnit");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.ProductionOrder", b =>
@@ -21448,11 +21497,6 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("CostCenterId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
-                        .WithMany()
-                        .HasForeignKey("WarehouseId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ERP.Core.Models.Shared.Product", null)
                         .WithMany()
                         .HasForeignKey("ItemId")
@@ -21464,6 +21508,11 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Order");
                 });
@@ -22510,11 +22559,6 @@ namespace ERP.Service.Data.Migrations
                         .HasForeignKey("CostCenterId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
-                        .WithMany()
-                        .HasForeignKey("WarehouseId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ERP.Core.Models.Shared.Product", null)
                         .WithMany()
                         .HasForeignKey("ItemId")
@@ -22530,6 +22574,11 @@ namespace ERP.Service.Data.Migrations
                     b.HasOne("ERP.Core.Models.Accounting.PurchaseRfqItem", null)
                         .WithMany()
                         .HasForeignKey("RfqItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Core.Models.Shared.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Quotation");
@@ -24108,6 +24157,17 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Core.Models.Shared.ProductUnit", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Shared.Product", "Product")
+                        .WithMany("Units")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("ERP.Core.Models.Shared.ProductionOrder", b =>
                 {
                     b.HasOne("ERP.Core.Models.Shared.Product", null)
@@ -24712,6 +24772,11 @@ namespace ERP.Service.Data.Migrations
             modelBuilder.Entity("ERP.Core.Models.Shared.InventoryCount", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Shared.Product", b =>
+                {
+                    b.Navigation("Units");
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Shared.ProductionOrder", b =>

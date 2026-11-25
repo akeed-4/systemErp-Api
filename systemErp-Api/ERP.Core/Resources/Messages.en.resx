@@ -904,6 +904,14 @@
   <data name="UnitIsBaseForOthers" xml:space="preserve"><value>The unit is the base unit for other units.</value></data>
   <data name="UnitOfMeasureNotFound" xml:space="preserve"><value>The unit of measure was not found.</value></data>
   <data name="UnitUsedByItems" xml:space="preserve"><value>The unit is used by items.</value></data>
+  <data name="ProductUnitRequired" xml:space="preserve"><value>Choose a unit for each alternative unit row.</value></data>
+  <data name="ProductBaseUnitRequired" xml:space="preserve"><value>Set the item base unit before adding alternative units.</value></data>
+  <data name="ProductUnitDuplicate" xml:space="preserve"><value>The unit "{0}" is duplicated or is the item base unit.</value></data>
+  <data name="ProductUnitFactorPositive" xml:space="preserve"><value>The conversion factor of unit "{0}" must be greater than zero.</value></data>
+  <data name="ProductSalesUnitNotLinked" xml:space="preserve"><value>The default sales unit "{0}" is not one of the item units.</value></data>
+  <data name="InvoiceUnitNotLinked" xml:space="preserve"><value>The unit "{1}" is not one of the units of item "{0}".</value></data>
+  <data name="OrderItemMixedUnits" xml:space="preserve"><value>Item "{0}" appears in the order in more than one unit; use a single unit for its lines.</value></data>
+  <data name="AgreementOrderBaseUnitOnly" xml:space="preserve"><value>Agreement orders use the item's base unit: "{0}".</value></data>
   <data name="UnknownScreensPrefix" xml:space="preserve"><value>Unknown screens: </value></data>
   <data name="Updated" xml:space="preserve"><value>Updated</value></data>
   <data name="UpdatedSuccessfully" xml:space="preserve"><value>Updated successfully</value></data>

@@ -22,6 +22,15 @@ internal static class InvoiceLineStock
     /// <summary>سطر صنف مجمّع/مركّب: تتحرك مكوناته.</summary>
     public static bool SellsComponents(InvoiceItemBase l) => l.ItemId != Guid.Empty && ProductItemTypes.SellsComponents(l.ItemType);
 
+    /// <summary>معامل وحدة السطر إلى وحدة الصنف الأساسية (السطر القديم أو بلا معامل = 1).</summary>
+    public static decimal Factor(InvoiceItemBase l) => l.UnitFactor > 0 ? l.UnitFactor : 1m;
+
+    /// <summary>كمية السطر بالوحدة الأساسية: ما يتحرك في المخزون فعلاً.</summary>
+    public static decimal BaseQuantity(InvoiceItemBase l) => Math.Round(l.Quantity * Factor(l), 4);
+
+    /// <summary>تكلفة الوحدة الأساسية من تكلفة وحدة السطر.</summary>
+    public static decimal BaseUnitCost(InvoiceItemBase l, decimal lineUnitCost) => Math.Round(lineUnitCost / Factor(l), 4);
+
     public static List<InvoiceLineComponent> Components(InvoiceItemBase l)
         => string.IsNullOrWhiteSpace(l.ComponentsJson) ? new()
             : JsonSerializer.Deserialize<List<InvoiceLineComponent>>(l.ComponentsJson, Json) ?? new();

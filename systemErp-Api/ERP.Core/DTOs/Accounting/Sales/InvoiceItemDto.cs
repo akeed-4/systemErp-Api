@@ -7,6 +7,8 @@ public partial class InvoiceItemDto
     public string ItemName { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
+    /// <summary>معامل تحويل الوحدة إلى وحدة الصنف الأساسية (يحدده الخادم من وحدات الصنف؛ ما يُرسل يُتجاهل).</summary>
+    public decimal UnitFactor { get; set; } = 1m;
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal UnitCost { get; set; }

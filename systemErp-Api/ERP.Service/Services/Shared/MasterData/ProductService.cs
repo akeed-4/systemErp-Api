@@ -45,7 +45,46 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
             throw new ValidationFailedException(Messages.ProductCategoryNotFound);
         if (!string.IsNullOrWhiteSpace(d.Unit) && !await Db.Set<UnitOfMeasure>().AnyAsync(u => u.Code == d.Unit, ct))
             throw new ValidationFailedException(Messages.UnitOfMeasureNotFound);
+        await ValidateUnitsAsync(d, existing, ct);
         await ValidateItemTypeAsync(d, existing, ct);
+    }
+
+    /// <summary>
+    /// الوحدات البديلة ووحدة البيع الافتراضية: كل وحدة من دليل الوحدات، غير الأساسية، بلا تكرار، ومعاملها أكبر من صفر؛ ووحدة البيع
+    /// الأساسية أو إحدى البديلة. أسطر المستندات تحفظ لقطة وحدتها ومعاملها، فتعديل الوحدات لا يغيّر مستنداً قائماً.
+    /// </summary>
+    private async Task ValidateUnitsAsync(CreateProductDto d, Product? existing, CancellationToken ct)
+    {
+        var baseUnit = d.Unit?.Trim() ?? string.Empty;
+        if (d.Units != null)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < d.Units.Count; i++)
+            {
+                var u = d.Units[i];
+                u.UnitCode = u.UnitCode?.Trim() ?? string.Empty;
+                u.SortOrder = i;
+                if (u.UnitCode.Length == 0) throw new ValidationFailedException(Messages.ProductUnitRequired);
+                if (baseUnit.Length == 0) throw new ValidationFailedException(Messages.ProductBaseUnitRequired);
+                if (string.Equals(u.UnitCode, baseUnit, StringComparison.OrdinalIgnoreCase) || !seen.Add(u.UnitCode))
+                    throw new ValidationFailedException(string.Format(Messages.ProductUnitDuplicate, u.UnitCode));
+                if (u.Factor <= 0) throw new ValidationFailedException(string.Format(Messages.ProductUnitFactorPositive, u.UnitCode));
+            }
+            var codes = seen.ToList();
+            if (codes.Count > 0)
+            {
+                var known = await Db.Set<UnitOfMeasure>().AsNoTracking().Where(x => codes.Contains(x.Code)).Select(x => x.Code).ToListAsync(ct);
+                var unknown = codes.FirstOrDefault(c => !known.Contains(c, StringComparer.OrdinalIgnoreCase));
+                if (unknown != null) throw new ValidationFailedException(Messages.UnitOfMeasureNotFound);
+            }
+        }
+
+        d.SalesUnit = string.IsNullOrWhiteSpace(d.SalesUnit) ? null : d.SalesUnit.Trim();
+        if (d.SalesUnit == null || string.Equals(d.SalesUnit, baseUnit, StringComparison.OrdinalIgnoreCase)) { d.SalesUnit = null; return; }
+        var alternatives = d.Units?.Select(u => u.UnitCode)
+            ?? existing?.Units.Select(u => u.UnitCode) ?? Enumerable.Empty<string>();
+        if (!alternatives.Contains(d.SalesUnit, StringComparer.OrdinalIgnoreCase))
+            throw new ValidationFailedException(string.Format(Messages.ProductSalesUnitNotLinked, d.SalesUnit));
     }
 
     /// <summary>المكونات المتحقق منها لهذا الحفظ (تُكتب بعد حفظ الصنف)؛ null = لا تغيير على مكوناته.</summary>

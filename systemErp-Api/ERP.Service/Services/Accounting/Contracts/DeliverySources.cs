@@ -65,30 +65,8 @@ internal static partial class DeliverySources
     public static async Task<DeliverySourceDto> SalesInvoiceSourceAsync(ErpDbContext db, SalesInvoice invoice, Guid? exceptNoteId, CancellationToken ct)
     {
         var lines = invoice.Items.OrderBy(l => l.CreatedAt).ToList();
-
-        // المرتجع مالياً لكل سطر بوحدة السطر: بسطره الأصلي، والقديم بلا سطر أصل يوزَّع على أسطر الصنف بالترتيب
-        var returns = await db.Set<SalesReturn>().AsNoTracking()
-            .Where(r => r.OriginalInvoiceId == invoice.Id && r.Status == "posted")
-            .SelectMany(r => r.Items).Select(l => new { l.OriginalInvoiceItemId, l.ItemId, l.Quantity, l.UnitFactor }).ToListAsync(ct);
-        var financial = lines.ToDictionary(l => l.Id, _ => 0m);
-        foreach (var r in returns)
-        {
-            var baseQty = r.Quantity * (r.UnitFactor <= 0 ? 1 : r.UnitFactor);
-            if (r.OriginalInvoiceItemId is Guid lineId && lines.FirstOrDefault(l => l.Id == lineId) is { } own)
-            {
-                financial[own.Id] += baseQty / Factor(own);
-                continue;
-            }
-            foreach (var l in lines.Where(l => l.ItemId == r.ItemId))
-            {
-                if (baseQty <= Tolerance) break;
-                var room = (l.Quantity - financial[l.Id]) * Factor(l);
-                var take = Math.Min(room, baseQty);
-                if (take <= 0) continue;
-                financial[l.Id] += take / Factor(l);
-                baseQty -= take;
-            }
-        }
+        var returns = await FinancialReturnLinesAsync(db, new[] { invoice.Id }, ct);
+        var financial = FinancialReturned(lines, returns.GetValueOrDefault(invoice.Id) ?? new());
 
         var noteId = exceptNoteId ?? Guid.Empty;
         var delivered = await Active(db.Set<DeliveryNoteItem>().AsNoTracking())
@@ -159,6 +137,109 @@ internal static partial class DeliverySources
             }
         }
         if (note.Items.Any(i => i.DeliveredQty <= 0)) throw new ValidationFailedException(Messages.DeliveryQtyPositive);
+    }
+
+    private sealed record ReturnLine(Guid? OriginalInvoiceItemId, Guid ItemId, decimal Quantity, decimal UnitFactor);
+
+    /// <summary>أسطر مرتجعات المبيعات المرحّلة (الإشعارات الدائنة) لكل فاتورة.</summary>
+    private static async Task<Dictionary<Guid, List<ReturnLine>>> FinancialReturnLinesAsync(ErpDbContext db, IReadOnlyCollection<Guid> invoiceIds,
+        CancellationToken ct)
+    {
+        var rows = await db.Set<SalesReturn>().AsNoTracking()
+            .Where(r => r.OriginalInvoiceId != null && invoiceIds.Contains(r.OriginalInvoiceId.Value) && r.Status == "posted")
+            .SelectMany(r => r.Items.Select(l => new { InvoiceId = r.OriginalInvoiceId!.Value, l.OriginalInvoiceItemId, l.ItemId, l.Quantity, l.UnitFactor }))
+            .ToListAsync(ct);
+        return rows.GroupBy(r => r.InvoiceId)
+            .ToDictionary(g => g.Key, g => g.Select(r => new ReturnLine(r.OriginalInvoiceItemId, r.ItemId, r.Quantity, r.UnitFactor)).ToList());
+    }
+
+    /// <summary>المرتجع مالياً لكل سطر بوحدة السطر: بسطره الأصلي، والقديم بلا سطر أصل يوزَّع على أسطر الصنف بالترتيب.</summary>
+    private static Dictionary<Guid, decimal> FinancialReturned(List<SalesInvoiceItem> lines, IEnumerable<ReturnLine> returns)
+    {
+        var financial = lines.ToDictionary(l => l.Id, _ => 0m);
+        foreach (var r in returns)
+        {
+            var baseQty = r.Quantity * (r.UnitFactor <= 0 ? 1 : r.UnitFactor);
+            if (r.OriginalInvoiceItemId is Guid lineId && lines.FirstOrDefault(l => l.Id == lineId) is { } own)
+            {
+                financial[own.Id] += baseQty / Factor(own);
+                continue;
+            }
+            foreach (var l in lines.Where(l => l.ItemId == r.ItemId))
+            {
+                if (baseQty <= Tolerance) break;
+                var room = (l.Quantity - financial[l.Id]) * Factor(l);
+                var take = Math.Min(room, baseQty);
+                if (take <= 0) continue;
+                financial[l.Id] += take / Factor(l);
+                baseQty -= take;
+            }
+        }
+        return financial;
+    }
+
+    /// <summary>
+    /// حالة تسليم فواتير البيع المرحّلة (للعرض، دفعة واحدة لصفحة القائمة) بمعادلة المتبقي نفسها في <see cref="SalesInvoiceSourceAsync"/>:
+    /// المطلوب = كمية السطر المادي − المرتجع مالياً، والمسلَّم = الفعّال في البيانات النشطة. الفاتورة الناتجة عن بيان تسليم مسلّمة ببيانها.
+    /// الفواتير الأخرى (مسودة، مرتجع، غير بيع) لا تُعاد.
+    /// </summary>
+    public static async Task<Dictionary<Guid, (string Status, bool Remaining)>> SalesInvoiceDeliveryAsync(ErpDbContext db,
+        IReadOnlyCollection<SalesInvoice> invoices, CancellationToken ct)
+    {
+        var result = new Dictionary<Guid, (string Status, bool Remaining)>();
+        var eligible = invoices.Where(i => i.Kind == InvoiceKind.Sales && i.Status == "posted" && !i.IsReturn && i.OriginalInvoiceId == null).ToList();
+        if (eligible.Count == 0) return result;
+        var ids = eligible.Select(i => i.Id).ToList();
+
+        var fromNote = (await db.Set<DeliveryNote>().AsNoTracking()
+                .Where(n => n.InvoiceId != null && ids.Contains(n.InvoiceId.Value)).Select(n => n.InvoiceId!.Value).ToListAsync(ct))
+            .Concat(await db.Set<DeliveryNoteInvoiceLine>().AsNoTracking()
+                .Where(l => ids.Contains(l.InvoiceId)).Select(l => l.InvoiceId).ToListAsync(ct))
+            .ToHashSet();
+        var returns = await FinancialReturnLinesAsync(db, ids, ct);
+        var noteLines = (await Active(db.Set<DeliveryNoteItem>().AsNoTracking())
+                .Where(i => i.DeliveryNote.SourceType == DeliveryNoteSources.SalesInvoice && i.DeliveryNote.SourceId != null
+                    && ids.Contains(i.DeliveryNote.SourceId.Value) && i.SourceLineId != null)
+                .Select(i => new
+                {
+                    InvoiceId = i.DeliveryNote.SourceId!.Value, LineId = i.SourceLineId!.Value,
+                    Effective = (i.ConfirmedQty ?? i.DeliveredQty) - i.ReturnedQty, i.DeliveryNote.DeliveryStatus,
+                })
+                .ToListAsync(ct))
+            .ToLookup(x => x.InvoiceId);
+
+        foreach (var invoice in eligible)
+        {
+            if (fromNote.Contains(invoice.Id) || invoice.ReferenceType == "delivery_note")
+            {
+                result[invoice.Id] = (InvoiceDeliveryStatuses.Delivered, false);
+                continue;
+            }
+            var lines = invoice.Items.OrderBy(l => l.CreatedAt).ToList();
+            var financial = FinancialReturned(lines, returns.GetValueOrDefault(invoice.Id) ?? new());
+            var notes = noteLines[invoice.Id].ToList();
+            var doneByLine = notes.GroupBy(n => n.LineId).ToDictionary(g => g.Key, g => g.Sum(n => n.Effective));
+
+            decimal required = 0;
+            var remaining = false;
+            foreach (var l in lines.Where(l => IsDeliverable(l.ItemType, l.ItemId)))
+            {
+                var need = Math.Max(0, l.Quantity - financial[l.Id]);
+                required += need;
+                if (need - doneByLine.GetValueOrDefault(l.Id) > Tolerance) remaining = true;
+            }
+            var active = notes.Where(n => n.Effective > Tolerance).ToList();
+            var pending = active.Any(n => n.DeliveryStatus is DeliveryTrackingStatuses.Pending or DeliveryTrackingStatuses.InTransit);
+            var confirmed = active.Any(n => DeliveryTrackingStatuses.IsConfirmed(n.DeliveryStatus));
+
+            var status = required <= Tolerance ? InvoiceDeliveryStatuses.NotRequired
+                : active.Count == 0 ? InvoiceDeliveryStatuses.NotDelivered
+                : !remaining && !pending ? InvoiceDeliveryStatuses.Delivered
+                : confirmed ? InvoiceDeliveryStatuses.PartiallyDelivered
+                : InvoiceDeliveryStatuses.InProgress;
+            result[invoice.Id] = (status, remaining && required > Tolerance);
+        }
+        return result;
     }
 
     // ---------------- الاتفاقية ----------------

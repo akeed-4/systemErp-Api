@@ -89,9 +89,30 @@ public partial class InvoiceDto
     public string? SettlementAccountCode { get; set; }
     /// <summary>المتبقي على الجزء الآجل بعد السندات الموزّعة والمرتجعات (0 للمسودة والنقدية).</summary>
     public decimal AmountDue { get; set; }
+    /// <summary>
+    /// حالة تسليم فاتورة البيع المرحّلة (محسوبة، للعرض فقط) <see cref="InvoiceDeliveryStatuses"/>؛ null لغير فاتورة البيع المرحّلة.
+    /// </summary>
+    public string? DeliveryStatus { get; set; }
+    /// <summary>يبقى في الفاتورة ما يُسلَّم ببيان جديد (المتبقي بعد المرتجع المالي والبيانات النشطة).</summary>
+    public bool DeliveryRemaining { get; set; }
     public List<InvoiceItemDto> Items { get; set; } = new();
     public List<InvoicePaymentSplitDto> PaymentSplits { get; set; } = new();
     /// <summary>أسطر السيارات: تُرسل بدل Items في فواتير الشراء/البيع متعددة السيارات.</summary>
     public List<InvoiceVehicleLineDto> VehicleLines { get; set; } = new();
     public List<InvoiceVehicleBatchDto> VehicleBatches { get; set; } = new();
+}
+
+/// <summary>حالات تسليم فاتورة البيع (محسوبة من بياناتها، مستقلة عن حالة الفاتورة والسداد).</summary>
+public static class InvoiceDeliveryStatuses
+{
+    /// <summary>لا أصناف مادية تُسلَّم (خدمات/بنود وصفية) أو أُرجع كل شيء مالياً.</summary>
+    public const string NotRequired = "not_required";
+    /// <summary>لا بيان تسليم نشط عليها.</summary>
+    public const string NotDelivered = "not_delivered";
+    /// <summary>عليها بيانات لم يُؤكَّد استلام أي منها بعد (بانتظار الخروج أو في الطريق).</summary>
+    public const string InProgress = "in_progress";
+    /// <summary>أُكّد استلام جزء، والباقي لم يُسلَّم أو ما زال في الطريق.</summary>
+    public const string PartiallyDelivered = "partially_delivered";
+    /// <summary>كل المتبقي سُلّم وأُكّد استلامه (أو الفاتورة ناتجة عن بيان تسليم).</summary>
+    public const string Delivered = "delivered";
 }

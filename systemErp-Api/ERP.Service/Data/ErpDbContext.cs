@@ -149,7 +149,7 @@ public class ErpDbContext : DbContext
         (typeof(PurchaseLandedCost), nameof(PurchaseLandedCost.SupplierId), typeof(Supplier)),
         (typeof(PurchaseLandedCostLine), nameof(PurchaseLandedCostLine.ExpenseTypeId), typeof(PurchaseExpenseType)),
         (typeof(PurchaseLandedCostAllocation), nameof(PurchaseLandedCostAllocation.ItemId), typeof(Product)),
-        // PurchaseLandedCostInvoice.InvoiceId وAllocation.InvoiceId: فاتورة في جدول PurchaseInvoice (TPC)، فلا قيد قاعدة بيانات عليه.
+        // PurchaseLandedCostInvoice.InvoiceId وAllocation.InvoiceId: فاتورة في جدول PurchaseInvoice (TPC) أو فاتورة استلام مخزني (SourceType)، فلا قيد قاعدة بيانات عليه.
         (typeof(ContractApproval), nameof(ContractApproval.ContractId), typeof(CommercialContract)),
         (typeof(ContractStatusLog), nameof(ContractStatusLog.ContractId), typeof(CommercialContract)),
         (typeof(ContractInvoice), nameof(ContractInvoice.ContractId), typeof(CommercialContract)),
@@ -207,6 +207,8 @@ public class ErpDbContext : DbContext
         // مستند التصنيع: المنتج ومواده لا تُحذف بعد دخولها مستنداً
         (typeof(ProductionOrder), nameof(ProductionOrder.ProductId), typeof(Product)),
         (typeof(ProductionOrderLine), nameof(ProductionOrderLine.ComponentProductId), typeof(Product)),
+        // فواتير الصرف والاستلام المخزني: الصنف لا يُحذف بعد دخوله مستنداً
+        (typeof(InventoryVoucherLine), nameof(InventoryVoucherLine.ItemId), typeof(Product)),
         // بند المكتبة المرتبط بصنف خدمي يبيعه في كل الوحدات
         (typeof(WorkItem), nameof(WorkItem.ProductId), typeof(Product)),
         // صرف مواد المشروع وطلب شراء المشروع: لا يُحذف عقد أو صنف عليه صرف أو طلب
@@ -460,6 +462,7 @@ public class ErpDbContext : DbContext
         (typeof(ConstructionResource), nameof(ConstructionResource.Code)),
         (typeof(WorkItem), nameof(WorkItem.Code)),
         (typeof(ProductionOrder), nameof(ProductionOrder.OrderNumber)),
+        (typeof(InventoryVoucher), nameof(InventoryVoucher.VoucherNumber)),
         (typeof(ProjectMaterialIssue), nameof(ProjectMaterialIssue.IssueNumber)),
         (typeof(Equipment), nameof(Equipment.Code)),
         (typeof(EquipmentMaintenanceOrder), nameof(EquipmentMaintenanceOrder.OrderNumber)),
@@ -1907,6 +1910,7 @@ public class ErpDbContext : DbContext
         StockReservationModel.Configure(modelBuilder);
         PurchaseCycleModel.Configure(modelBuilder);
         DeliveryTrackingModel.Configure(modelBuilder);
+        InventoryVoucherModel.Configure(modelBuilder);
         modelBuilder.Entity<ProductionOrderLine>(e =>
         {
             e.Property(l => l.Kind).HasMaxLength(16).IsRequired();

@@ -2415,4 +2415,20 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="DuplicateFieldNameAr" xml:space="preserve"><value>The Arabic name</value></data>
   <data name="DuplicateFieldNameEn" xml:space="preserve"><value>The English name</value></data>
   <data name="DuplicateFieldIdNumber" xml:space="preserve"><value>The ID number</value></data>
+  <data name="AccountRole_InventoryIssueAccountCode" xml:space="preserve"><value>Internal issue account</value></data>
+  <data name="AccountRole_InventoryReceiptAccountCode" xml:space="preserve"><value>Receipt without invoice account</value></data>
+  <data name="InventoryVoucherNotFound" xml:space="preserve"><value>The inventory document was not found.</value></data>
+  <data name="InventoryVoucherNotDraft" xml:space="preserve"><value>A posted or cancelled document cannot be edited, deleted or posted again: cancel it and create a new one.</value></data>
+  <data name="InventoryVoucherNotPosted" xml:space="preserve"><value>Only a posted document can be cancelled.</value></data>
+  <data name="InventoryVoucherCancelReasonRequired" xml:space="preserve"><value>A cancellation reason is required.</value></data>
+  <data name="InventoryVoucherLinesRequired" xml:space="preserve"><value>Add at least one item with a positive quantity.</value></data>
+  <data name="InventoryVoucherItemNotStock" xml:space="preserve"><value>“{0}” has no stock (service, kit or composite): issue and receipt documents are for stock and manufactured items.</value></data>
+  <data name="InventoryVoucherQuantityInvalid" xml:space="preserve"><value>The quantity of “{0}” must be greater than zero.</value></data>
+  <data name="InventoryVoucherCounterAccountInvalid" xml:space="preserve"><value>Account {0} mapped to the movement reason is not valid: it must be an active sub-account, not a customer, supplier, tax or inventory account. Review “Inventory movement accounts” in the accounting settings.</value></data>
+  <data name="InventoryVoucherHasLandedCosts" xml:space="preserve"><value>An approved landed-cost voucher raised the cost of this receipt's items: cancel that voucher first.</value></data>
+  <data name="InventoryVoucherPostForbidden" xml:space="preserve"><value>You are not allowed to post this inventory document.</value></data>
+  <data name="PurchaseLandedCostReceiptInvalid" xml:space="preserve"><value>Inventory receipt {0} cannot take landed costs: it must be posted.</value></data>
+  <data name="AccountRole_InventoryProjectIssueAccountCode" xml:space="preserve"><value>Issue to project account (project cost or work in progress)</value></data>
+  <data name="AccountRole_InventoryOpeningReceiptAccountCode" xml:space="preserve"><value>Opening stock receipt account</value></data>
+  <data name="InventoryVoucherReasonInvalid" xml:space="preserve"><value>The movement reason is not valid for this document.</value></data>
 </root>

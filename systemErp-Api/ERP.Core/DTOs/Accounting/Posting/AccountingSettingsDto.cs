@@ -13,6 +13,14 @@ public class SaveAccountingSettingsDto
     public string? CogsAccountCode { get; set; }
     public string? InventoryShortageAccountCode { get; set; }
     public string? InventorySurplusAccountCode { get; set; }
+    /// <summary>الحساب المقابل الافتراضي لفاتورة الصرف المخزني (فارغ = 532).</summary>
+    public string? InventoryIssueAccountCode { get; set; }
+    /// <summary>الحساب المقابل الافتراضي لفاتورة الاستلام المخزني (فارغ = 424).</summary>
+    public string? InventoryReceiptAccountCode { get; set; }
+    /// <summary>صرف لمشروع (فارغ = 517).</summary>
+    public string? InventoryProjectIssueAccountCode { get; set; }
+    /// <summary>استلام رصيد افتتاحي (فارغ = 33).</summary>
+    public string? InventoryOpeningReceiptAccountCode { get; set; }
     public string? PurchasesAccountCode { get; set; }
     public string? PurchaseReturnsAccountCode { get; set; }
     public string? OpeningInventoryAccountCode { get; set; }

@@ -34,6 +34,8 @@ public static class DocumentNumberTypes
         new("inventory_count", "الجرد", "Inventory counts", "inventory", "IC-", true),
         new("stock_transfer", "التحويلات المخزنية", "Stock transfers", "inventory", "TRF-", true),
         new("production_order", "مستندات التصنيع", "Production orders", "inventory", "MFG-", true),
+        new("inventory_issue", "فواتير الصرف المخزني", "Inventory issue invoices", "inventory", "IIS-", true),
+        new("inventory_receipt", "فواتير الاستلام المخزني", "Inventory receipt invoices", "inventory", "IRC-", true),
         new("project_material_issue", "صرف مواد للمشاريع", "Project material issues", "contracts", "PMI-", true),
         new("equipment_maintenance", "أوامر صيانة المعدات", "Equipment work orders", "contracts", "EMO-", false),
         new("equipment_rental", "عقود إيجار المعدات", "Equipment rental contracts", "contracts", "ERC-", false),

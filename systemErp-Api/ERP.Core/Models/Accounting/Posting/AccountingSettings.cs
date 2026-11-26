@@ -18,6 +18,14 @@ public class AccountingSettings : BaseEntity
     public string? InventoryShortageAccountCode { get; set; }
     public string? InventorySurplusAccountCode { get; set; }
 
+    // فواتير الصرف والاستلام المخزني: الحساب المقابل الافتراضي (المستند يغيّره). فارغ = 532 مصروفات الصرف المخزني / 424 واردات مخزنية بلا فاتورة
+    public string? InventoryIssueAccountCode { get; set; }
+    public string? InventoryReceiptAccountCode { get; set; }
+    /// <summary>صرف لمشروع: تكلفة المشروع أو الأعمال تحت التنفيذ (فارغ = 517 تكلفة مواد المشاريع).</summary>
+    public string? InventoryProjectIssueAccountCode { get; set; }
+    /// <summary>استلام رصيد افتتاحي (فارغ = 33 الأرصدة الافتتاحية).</summary>
+    public string? InventoryOpeningReceiptAccountCode { get; set; }
+
     // الجرد الدوري (إلزامية عند اختياره)
     public string? PurchasesAccountCode { get; set; }
     public string? PurchaseReturnsAccountCode { get; set; }

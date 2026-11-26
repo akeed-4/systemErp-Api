@@ -162,7 +162,7 @@ public class WarehouseService : CrudService<Warehouse, WarehouseDto, CreateWareh
         [nameof(InvoiceBase)] = "فواتير ومرتجعات", [nameof(JournalEntry)] = "قيود يومية", [nameof(Voucher)] = "سندات قبض وصرف",
         [nameof(DeliveryNote)] = "بيانات تسليم واستلام", [nameof(Quotation)] = "عروض أسعار", [nameof(CommercialOrder)] = "أوامر بيع وشراء",
         [nameof(MaterialRequisition)] = "طلبات شراء", [nameof(PurchaseRfq)] = "طلبات عروض أسعار", [nameof(StockTransfer)] = "تحويلات مخزنية",
-        [nameof(InventoryCount)] = "جرد", [nameof(ProductionOrder)] = "أوامر تصنيع", [nameof(StockReservation)] = "حجوزات مخزون",
+        [nameof(InventoryCount)] = "جرد", [nameof(ProductionOrder)] = "أوامر تصنيع", [nameof(InventoryVoucher)] = "فواتير صرف واستلام مخزني", [nameof(StockReservation)] = "حجوزات مخزون",
         [nameof(ProjectMaterialIssue)] = "أذونات صرف مواد", [nameof(CommercialContract)] = "عقود ومشاريع", [nameof(FixedAsset)] = "أصول ثابتة",
         [nameof(FixedAssetDepreciation)] = "إهلاك أصول", [nameof(Equipment)] = "معدات", [nameof(PosShift)] = "ورديات نقاط البيع",
         [nameof(PosTerminal)] = "أجهزة نقاط البيع", [nameof(PosInvoiceSettings)] = "إعدادات نقاط البيع", [nameof(Vehicle)] = "مركبات",

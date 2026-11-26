@@ -39,6 +39,8 @@ public class SavePurchaseLandedCostDto
 {
     public DateTime? Date { get; set; }
     public List<Guid> InvoiceIds { get; set; } = new();
+    /// <summary>فواتير الاستلام المخزني المرحّلة (بديل أو إضافة لفواتير الشراء).</summary>
+    public List<Guid> InventoryReceiptIds { get; set; } = new();
     public PurchaseCostPayee Payee { get; set; } = PurchaseCostPayee.Supplier;
     public Guid? SupplierId { get; set; }
     public string? PaymentAccountCode { get; set; }
@@ -107,6 +109,8 @@ public class PurchaseLandedCostInvoiceDto
 {
     public Guid InvoiceId { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
+    /// <summary>purchase_invoice | inventory_receipt.</summary>
+    public string SourceType { get; set; } = "purchase_invoice";
 }
 
 public class PurchaseLandedCostLineDto

@@ -94,14 +94,25 @@ public class PurchaseLandedCost : BaseEntity
     public virtual ICollection<PurchaseLandedCostLine> Lines { get; set; } = new List<PurchaseLandedCostLine>();
 }
 
-/// <summary>فاتورة شراء مرتبطة بالسند.</summary>
+/// <summary>مستند مصدر مرتبط بالسند: فاتورة شراء أو فاتورة استلام مخزني (<see cref="SourceType"/>).</summary>
 public class PurchaseLandedCostInvoice : BaseEntity
 {
     public Guid VoucherId { get; set; }
+    /// <summary>معرّف المستند المصدر (فاتورة الشراء أو فاتورة الاستلام)، بلا قيد قاعدة بيانات.</summary>
     public Guid InvoiceId { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
+    /// <summary><see cref="PurchaseLandedCostSources"/> (القائم = فاتورة شراء).</summary>
+    public string SourceType { get; set; } = PurchaseLandedCostSources.PurchaseInvoice;
 
     public virtual PurchaseLandedCost Voucher { get; set; } = null!;
+}
+
+/// <summary>أنواع مصادر سند التكاليف الإضافية.</summary>
+public static class PurchaseLandedCostSources
+{
+    public const string PurchaseInvoice = "purchase_invoice";
+    /// <summary>فاتورة استلام مخزني (<c>InventoryVoucher</c> بنوع receipt): أسطرها حركات InPurchase بلا مرتجعات.</summary>
+    public const string InventoryReceipt = "inventory_receipt";
 }
 
 public class PurchaseLandedCostLine : BaseEntity

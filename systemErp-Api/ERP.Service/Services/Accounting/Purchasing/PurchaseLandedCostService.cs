@@ -6,7 +6,8 @@ using ERP.Service.Services.Shared;
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
-/// سند التكاليف الإضافية للمشتريات العامة (فواتير PurchaseInvoice وحدها؛ فواتير السيارات في جدول آخر لا يُمس).
+/// سند التكاليف الإضافية للمشتريات العامة: فواتير PurchaseInvoice وفواتير الاستلام المخزني (InventoryVoucher بنوع receipt، حركاتها
+/// InPurchase بلا مرتجعات)؛ فواتير السيارات في جدول آخر لا يُمس.
 /// كل سطر يُوزَّع على أسطر الأصناف بكمياتها الصافية بعد المرتجعات. عند الاعتماد ترتفع تكلفة حركة الشراء لكل سطر صنف بحصته
 /// على الكمية الصافية، ويُعاد بناء تكلفة الصنف من حركاته: ما تغيّرت به قيمة المخزون فعلاً يُقيَّد على حسابه، والباقي
 /// (حصة ما خرج من المخزون) على تكلفة المبيعات، أو فرق السعر في التكلفة المعيارية وآخر سعر شراء. الضريبة المستردة منفصلة.
@@ -101,7 +102,9 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
             if (policy.IncludeFreightAndCustoms)
             {
                 var allocations = voucher.Lines.SelectMany(l => l.Allocations).Where(a => a.Amount > 0).ToList();
-                var movements = await PurchaseMovementsAsync(voucher.Invoices.Select(i => i.InvoiceId).ToList(), allocations, token);
+                var movements = await PurchaseMovementsAsync(voucher.Invoices.Where(i => i.SourceType != PurchaseLandedCostSources.InventoryReceipt)
+                    .Select(i => i.InvoiceId).ToList(), allocations, token);
+                foreach (var (lineId, movement) in await ReceiptMovementsAsync(allocations, token)) movements[lineId] = movement;
                 foreach (var a in allocations)
                 {
                     a.StockMovementId = movements[a.InvoiceItemId].Id;
@@ -166,14 +169,16 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
     // ---------- البناء والتوزيع ----------
 
     /// <summary>سطر صنف في فاتورة شراء مرتبطة: كميته الصافية وأوزان توزيعه.</summary>
-    private sealed record Target(Guid InvoiceId, string InvoiceNumber, Guid InvoiceItemId, Guid ItemId, string ItemName, decimal NetQuantity, decimal Value, decimal? Weight);
+    private sealed record Target(Guid InvoiceId, string InvoiceNumber, Guid InvoiceItemId, Guid ItemId, string ItemName, decimal NetQuantity, decimal Value, decimal? Weight,
+        string SourceType = PurchaseLandedCostSources.PurchaseInvoice);
 
     private async Task<PurchaseLandedCost> BuildAsync(SavePurchaseLandedCostDto d, CancellationToken ct)
     {
         var invoiceIds = d.InvoiceIds.Where(i => i != Guid.Empty).Distinct().ToList();
-        if (invoiceIds.Count == 0) throw new ValidationFailedException(Messages.PurchaseLandedCostInvoicesRequired);
+        var receiptIds = d.InventoryReceiptIds.Where(i => i != Guid.Empty).Distinct().ToList();
+        if (invoiceIds.Count == 0 && receiptIds.Count == 0) throw new ValidationFailedException(Messages.PurchaseLandedCostInvoicesRequired);
         if (d.Lines.Count == 0) throw new ValidationFailedException(Messages.PurchaseLandedCostLinesRequired);
-        var targets = await TargetsAsync(invoiceIds, ct);
+        var targets = await TargetsAsync(invoiceIds, receiptIds, ct);
 
         var voucher = new PurchaseLandedCost
         {
@@ -200,8 +205,8 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
                 throw new ValidationFailedException(Messages.PurchaseLandedCostPayeeInvalid);
         }
         (voucher.CurrencyCode, voucher.ExchangeRate) = await ChargeShares.ResolveCurrencyAsync(_db, d.CurrencyCode, d.ExchangeRate, ct);
-        foreach (var number in targets.GroupBy(t => t.InvoiceId).Select(g => (g.Key, g.First().InvoiceNumber)))
-            voucher.Invoices.Add(new PurchaseLandedCostInvoice { InvoiceId = number.Key, InvoiceNumber = number.InvoiceNumber });
+        foreach (var source in targets.GroupBy(t => t.InvoiceId).Select(g => g.First()))
+            voucher.Invoices.Add(new PurchaseLandedCostInvoice { InvoiceId = source.InvoiceId, InvoiceNumber = source.InvoiceNumber, SourceType = source.SourceType });
 
         var typeIds = d.Lines.Select(l => l.ExpenseTypeId).Distinct().ToList();
         var types = await _db.Set<PurchaseExpenseType>().AsNoTracking().Where(t => typeIds.Contains(t.Id) && t.IsActive).ToDictionaryAsync(t => t.Id, ct);
@@ -259,8 +264,38 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
         return voucher;
     }
 
-    /// <summary>أسطر الأصناف في فواتير الشراء المرحّلة بكمياتها الصافية بعد المرتجعات المرحّلة (المرتجع يُخصم من أسطر صنفه بترتيبها).</summary>
-    private async Task<List<Target>> TargetsAsync(List<Guid> invoiceIds, CancellationToken ct)
+    /// <summary>
+    /// أسطر الأصناف في فواتير الشراء المرحّلة بكمياتها الصافية بعد المرتجعات المرحّلة (المرتجع يُخصم من أسطر صنفه بترتيبها)،
+    /// ثم أسطر فواتير الاستلام المرحّلة بكمياتها كاملة (لا مرتجع عليها) وقيمتها صافي السطر.
+    /// </summary>
+    private async Task<List<Target>> TargetsAsync(List<Guid> invoiceIds, List<Guid> receiptIds, CancellationToken ct)
+    {
+        var targets = invoiceIds.Count == 0 ? new List<Target>() : await InvoiceTargetsAsync(invoiceIds, ct);
+        if (receiptIds.Count > 0)
+        {
+            var receipts = await _db.Set<InventoryVoucher>().AsNoTracking().Include(v => v.Lines)
+                .Where(v => receiptIds.Contains(v.Id) && v.Kind == InventoryVoucherKinds.Receipt).ToListAsync(ct);
+            var receiptProducts = receipts.SelectMany(v => v.Lines).Select(l => l.ItemId).Distinct().ToList();
+            var receiptWeights = await _db.Set<Product>().AsNoTracking().Where(p => receiptProducts.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.WeightKg, ct);
+            foreach (var id in receiptIds)
+            {
+                var receipt = receipts.FirstOrDefault(v => v.Id == id);
+                if (receipt == null || receipt.Status != InventoryVoucherStatuses.Posted)
+                    throw new ValidationFailedException(string.Format(Messages.PurchaseLandedCostReceiptInvalid, receipt?.VoucherNumber ?? id.ToString()));
+                foreach (var line in receipt.Lines.Where(l => l.StockMovementId.HasValue && l.Quantity > 0).OrderBy(l => l.LineNo))
+                {
+                    var quantity = line.Quantity * (line.UnitFactor > 0 ? line.UnitFactor : 1);
+                    var unitWeight = receiptWeights.GetValueOrDefault(line.ItemId);
+                    targets.Add(new Target(receipt.Id, receipt.VoucherNumber, line.Id, line.ItemId, line.ItemName, quantity, line.LineTotal,
+                        unitWeight is > 0 ? unitWeight * quantity : null, PurchaseLandedCostSources.InventoryReceipt));
+                }
+            }
+        }
+        if (targets.Count == 0) throw new ValidationFailedException(Messages.PurchaseLandedCostNoStockLines);
+        return targets;
+    }
+
+    private async Task<List<Target>> InvoiceTargetsAsync(List<Guid> invoiceIds, CancellationToken ct)
     {
         var invoices = await _db.Set<PurchaseInvoice>().AsNoTracking().Include(i => i.Items).Where(i => invoiceIds.Contains(i.Id)).ToListAsync(ct);
         foreach (var id in invoiceIds)
@@ -296,7 +331,6 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
                         unitWeight is > 0 ? unitWeight * net : null));
                 }
             }
-        if (targets.Count == 0) throw new ValidationFailedException(Messages.PurchaseLandedCostNoStockLines);
         return targets;
     }
 
@@ -324,7 +358,9 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
 
     private static SavePurchaseLandedCostDto ToSaveDto(PurchaseLandedCost v) => new()
     {
-        Date = v.Date, InvoiceIds = v.Invoices.Select(i => i.InvoiceId).ToList(), Payee = v.Payee, SupplierId = v.SupplierId,
+        Date = v.Date, InvoiceIds = v.Invoices.Where(i => i.SourceType != PurchaseLandedCostSources.InventoryReceipt).Select(i => i.InvoiceId).ToList(),
+        InventoryReceiptIds = v.Invoices.Where(i => i.SourceType == PurchaseLandedCostSources.InventoryReceipt).Select(i => i.InvoiceId).ToList(),
+        Payee = v.Payee, SupplierId = v.SupplierId,
         PaymentAccountCode = v.PaymentAccountCode, SupplierInvoiceNumber = v.SupplierInvoiceNumber, CurrencyCode = v.CurrencyCode,
         ExchangeRate = v.ExchangeRate, Notes = v.Notes,
         Lines = v.Lines.OrderBy(l => l.LineNo).Select(l => new SavePurchaseLandedCostLineDto
@@ -379,6 +415,18 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
             }
         }
         return result;
+    }
+
+    /// <summary>حركة الاستلام لكل سطر فاتورة استلام في التوزيع (محفوظة على السطر عند ترحيله).</summary>
+    private async Task<Dictionary<Guid, StockMovement>> ReceiptMovementsAsync(List<PurchaseLandedCostAllocation> allocations, CancellationToken ct)
+    {
+        var lineIds = allocations.Select(a => a.InvoiceItemId).Distinct().ToList();
+        var lines = await _db.Set<InventoryVoucherLine>().AsNoTracking().Where(l => lineIds.Contains(l.Id) && l.StockMovementId != null)
+            .Select(l => new { l.Id, l.StockMovementId }).ToListAsync(ct);
+        if (lines.Count == 0) return new();
+        var movementIds = lines.Select(l => l.StockMovementId!.Value).ToList();
+        var movements = await _db.Set<StockMovement>().Where(m => movementIds.Contains(m.Id)).ToDictionaryAsync(m => m.Id, ct);
+        return lines.Where(l => movements.ContainsKey(l.StockMovementId!.Value)).ToDictionary(l => l.Id, l => movements[l.StockMovementId!.Value]);
     }
 
     /// <summary>
@@ -483,16 +531,21 @@ public class PurchaseLandedCostService : IPurchaseLandedCostService
     {
         var ids = invoiceItemIds.Distinct().ToList();
         if (ids.Count == 0) return new();
-        return await _db.Set<PurchaseInvoiceItem>().AsNoTracking().Where(i => ids.Contains(i.Id))
+        var costs = await _db.Set<PurchaseInvoiceItem>().AsNoTracking().Where(i => ids.Contains(i.Id))
             // لكل وحدة أساسية مثل صافي الكمية في السند
             .Select(i => new { i.Id, Cost = i.Quantity == 0 ? 0 : i.TotalBeforeVat * i.Invoice.ExchangeRate / (i.Quantity * (i.UnitFactor > 0 ? i.UnitFactor : 1m)) })
             .ToDictionaryAsync(i => i.Id, i => Math.Round(i.Cost, 4), ct);
+        // أسطر فواتير الاستلام: صافي السطر (بلا ضريبة، بالعملة الأساسية) لكل وحدة أساسية
+        foreach (var l in await _db.Set<InventoryVoucherLine>().AsNoTracking().Where(l => ids.Contains(l.Id))
+                     .Select(l => new { l.Id, l.LineTotal, l.Quantity, l.UnitFactor }).ToListAsync(ct))
+            costs[l.Id] = l.Quantity == 0 ? 0 : Math.Round(l.LineTotal / (l.Quantity * (l.UnitFactor > 0 ? l.UnitFactor : 1m)), 4);
+        return costs;
     }
 
     private static PurchaseLandedCostDto ToDto(PurchaseLandedCost v, Dictionary<Guid, decimal> unitCosts)
     {
         var dto = Mapper.Map<PurchaseLandedCostDto>(v);
-        dto.Invoices = v.Invoices.Select(i => new PurchaseLandedCostInvoiceDto { InvoiceId = i.InvoiceId, InvoiceNumber = i.InvoiceNumber }).ToList();
+        dto.Invoices = v.Invoices.Select(i => new PurchaseLandedCostInvoiceDto { InvoiceId = i.InvoiceId, InvoiceNumber = i.InvoiceNumber, SourceType = i.SourceType }).ToList();
         dto.Lines = v.Lines.OrderBy(l => l.LineNo).Select(l =>
         {
             var line = Mapper.Map<PurchaseLandedCostLineDto>(l);

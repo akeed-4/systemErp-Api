@@ -335,3 +335,10 @@ Angular → Controller (ERP.Api) → Contract (ERP.Core) → Service (ERP.Servic
 ## لتقليل وقت القراءة
 
 ابدأ بهذا الملف. بعد ذلك ابحث عن اسم endpoint أو DTO أو الكيان باستخدام `rg -n`، واقرأ الملفات المتصلة بالسلسلة المطلوبة فقط. لا تعِد قراءة `ARCHITECTURE.md` بالكامل إلا إذا كان التغيير معمارياً أو يمس القواعد العامة.
+
+## فواتير الصرف والاستلام المخزني
+
+- `InventoryVoucher` بنوع `issue`/`receipt` (`InventoryVoucherService`، `api/v1/inventory-issues|inventory-receipts`، ترقيم `inventory_issue`/`inventory_receipt`، الهجرتان `InventoryIssueReceiptVouchers` و`InventoryVoucherReasons`). مسودة ← ترحيل ← إلغاء بسبب، بنمط مستند التصنيع؛ RowVersion يمنع الترحيل المزدوج.
+- الصرف `AdjustmentOut` بتكلفة السياسة؛ الاستلام `InPurchase` بصافي `DocumentPricing` بضريبة صفر (قواعد الشراء في التكلفة، والفرق على حساب الانحرافات). الدوري: المشتريات بدل المخزون.
+- الحساب المقابل من **سبب الحركة** (`InventoryVoucherReasons`): صرف داخلي `InventoryIssueAccountCode` (532)، صرف لمشروع `InventoryProjectIssueAccountCode` (517)، تسوية نقص/زيادة حسابا فروقات موقع السطر (`VarianceAsync`)، رصيد افتتاحي `InventoryOpeningReceiptAccountCode` (33)، استلام بلا فاتورة `InventoryReceiptAccountCode` (424). يُحل عند الترحيل ويُحفظ على السطر والمستند، فتعديل الإعدادات لا يمس المرحّل. الحساب في الاستجابة لمن يملك عرض `accounts` فقط.
+- سند التكاليف الإضافية يقبل فواتير الاستلام (`PurchaseLandedCostInvoice.SourceType`)، والاستلام عليه سند معتمد لا يُلغى قبل إلغائه.

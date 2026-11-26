@@ -61,6 +61,8 @@ public static class DefaultAccounts
     public const string VehicleExpenses = "529";
     public const string PurchaseCancellationLoss = "530";
     public const string PurchaseFreightExpense = "531"; // التكاليف الإضافية للمشتريات التي لا تدخل تكلفة الأصناف (شحن، نقل، تأمين)
+    public const string InventoryIssueExpense = "532"; // مقابل فاتورة الصرف المخزني الافتراضي (استهلاك داخلي، لا بيع)
+    public const string InventoryReceiptsWithoutInvoice = "424"; // مقابل فاتورة الاستلام المخزني الافتراضي (وارد بلا مورد ولا التزام)
     public const string ProjectMaterialsCost = "517"; // تكلفة مواد المشاريع المصروفة من المواقع (بمركز تكلفة المشروع)
     public const string AppliedManufacturingCosts = "516"; // تكاليف تصنيع محمّلة على المنتجات (شغل اليد والمصاريف غير المباشرة): دائن عند التصنيع
 
@@ -112,6 +114,7 @@ public static class DefaultAccounts
         ("421",  "زيادة نقدية الصندوق",             "Cash Overage",              AccountCategory.Revenue,   "42"),
         ("422",  "أرباح استبعاد الأصول الثابتة",    "Gain on Disposal of Fixed Assets", AccountCategory.Revenue, "42"),
         ("423",  "إيراد عربونات مصادرة",            "Forfeited Customer Deposits", AccountCategory.Revenue, "42"),
+        ("424",  "واردات مخزنية بلا فاتورة",        "Inventory Receipts without Invoice", AccountCategory.Revenue, "42"),
         ("5",    "المصروفات",                       "Expenses",                  AccountCategory.Expense,   null),
         ("51",   "تكلفة المبيعات",                  "Cost of Sales",             AccountCategory.Expense,   "5"),
         ("511",  "تكلفة البضاعة المباعة",           "Cost of Goods Sold",        AccountCategory.Expense,   "51"),
@@ -133,6 +136,7 @@ public static class DefaultAccounts
         ("529",  "مصاريف تشغيل وبيع السيارات",      "Vehicle Operating and Selling Expenses", AccountCategory.Expense, "52"),
         ("530",  "خسائر إلغاء مشتريات السيارات",    "Loss on Cancelled Vehicle Purchases", AccountCategory.Expense, "52"),
         ("531",  "مصاريف شحن ونقل المشتريات",       "Purchase Freight and Transport Expenses", AccountCategory.Expense, "52"),
+        ("532",  "مصروفات الصرف المخزني",           "Inventory Issue Expenses",  AccountCategory.Expense,   "52"),
     };
 
     /// <summary>مجموعات الكيانات: تُنشأ تحتها حسابات العملاء والموردين والبنوك والمواقع آلياً فهي رئيسية ولو كانت فارغة.</summary>

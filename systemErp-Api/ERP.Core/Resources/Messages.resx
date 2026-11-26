@@ -2415,4 +2415,20 @@
   <data name="DuplicateFieldNameAr" xml:space="preserve"><value>الاسم العربي</value></data>
   <data name="DuplicateFieldNameEn" xml:space="preserve"><value>الاسم الإنجليزي</value></data>
   <data name="DuplicateFieldIdNumber" xml:space="preserve"><value>رقم الهوية</value></data>
+  <data name="AccountRole_InventoryIssueAccountCode" xml:space="preserve"><value>حساب الصرف الداخلي</value></data>
+  <data name="AccountRole_InventoryReceiptAccountCode" xml:space="preserve"><value>حساب الاستلام بلا فاتورة</value></data>
+  <data name="InventoryVoucherNotFound" xml:space="preserve"><value>المستند المخزني غير موجود.</value></data>
+  <data name="InventoryVoucherNotDraft" xml:space="preserve"><value>المستند المرحّل أو الملغى لا يُعدَّل ولا يُحذف ولا يُرحَّل مرة أخرى: ألغه ثم أنشئ غيره.</value></data>
+  <data name="InventoryVoucherNotPosted" xml:space="preserve"><value>يُلغى المستند المرحّل فقط.</value></data>
+  <data name="InventoryVoucherCancelReasonRequired" xml:space="preserve"><value>سبب الإلغاء مطلوب.</value></data>
+  <data name="InventoryVoucherLinesRequired" xml:space="preserve"><value>أضف صنفاً واحداً على الأقل بكمية موجبة.</value></data>
+  <data name="InventoryVoucherItemNotStock" xml:space="preserve"><value>«{0}» صنف بلا رصيد مخزني (خدمي أو مجمّع أو مركّب): فواتير الصرف والاستلام لأصناف البضاعة والمنتجات الصناعية.</value></data>
+  <data name="InventoryVoucherQuantityInvalid" xml:space="preserve"><value>كمية «{0}» يجب أن تكون أكبر من صفر.</value></data>
+  <data name="InventoryVoucherCounterAccountInvalid" xml:space="preserve"><value>الحساب {0} المربوط بسبب الحركة غير صالح: يلزم حساب فرعي فعّال، لا حساب عميل أو مورد أو ضريبة أو مخزون. راجع «ربط الحسابات بحركات المخزون» في إعدادات الحسابات.</value></data>
+  <data name="InventoryVoucherHasLandedCosts" xml:space="preserve"><value>على فاتورة الاستلام سند تكاليف إضافية معتمد رفع تكلفة أصنافها: ألغِ السند أولاً.</value></data>
+  <data name="InventoryVoucherPostForbidden" xml:space="preserve"><value>لا تملك صلاحية ترحيل هذا المستند المخزني.</value></data>
+  <data name="PurchaseLandedCostReceiptInvalid" xml:space="preserve"><value>فاتورة الاستلام {0} غير صالحة للتكاليف الإضافية: يلزم أن تكون مرحّلة.</value></data>
+  <data name="AccountRole_InventoryProjectIssueAccountCode" xml:space="preserve"><value>حساب الصرف لمشروع (تكلفة المشروع أو الأعمال تحت التنفيذ)</value></data>
+  <data name="AccountRole_InventoryOpeningReceiptAccountCode" xml:space="preserve"><value>حساب استلام الرصيد الافتتاحي للمخزون</value></data>
+  <data name="InventoryVoucherReasonInvalid" xml:space="preserve"><value>سبب الحركة غير صالح لهذا المستند.</value></data>
 </root>

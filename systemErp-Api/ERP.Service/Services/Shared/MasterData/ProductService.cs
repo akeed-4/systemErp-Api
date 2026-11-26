@@ -412,6 +412,8 @@ public class ProductService : CrudService<Product, ProductDto, CreateProductDto,
         if (await Db.Set<ProductionOrder>().AnyAsync(o => o.ProductId == e.Id, ct)
             || await Db.Set<ProductionOrderLine>().AnyAsync(l => l.ComponentProductId == e.Id, ct))
             throw new ConflictException($"«{e.NameAr}» مستخدم في مستندات تصنيع ولا يُحذف.");
+        if (await Db.Set<InventoryVoucherLine>().AnyAsync(l => l.ItemId == e.Id, ct))
+            throw new ConflictException($"«{e.NameAr}» مستخدم في فواتير صرف أو استلام مخزني ولا يُحذف.");
         Db.RemoveRange(await Db.Set<ProductComponent>().Where(c => c.ProductId == e.Id).ToListAsync(ct));
         // بند مكتبة المقاولات المرتبط به يبقى بلا صنف خدمي
         foreach (var w in await Db.Set<WorkItem>().Where(w => w.ProductId == e.Id).ToListAsync(ct)) w.ProductId = null;

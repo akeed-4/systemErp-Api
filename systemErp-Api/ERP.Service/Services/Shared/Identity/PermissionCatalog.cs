@@ -181,6 +181,11 @@ public static class PermissionCatalog
         new("branches", "inventory", "الفروع", "Branches", Crud(), new[] { "master-data/branches" }, InheritsFrom: "warehouses"),
         new(ProductionOrdersScreenId, "inventory", "مستندات التصنيع (تحويل المواد إلى منتج)", "Production Orders",
             Crud(A.Post, A.Cancel), new[] { "production-orders" }, InheritsFrom: "inventory-counts"),
+        // فواتير الصرف والاستلام المخزني: شاشتان مستقلتان (ترحيلهما يحرك المخزون والقيد)، ترثان الجرد حتى تُحفظ لهما صلاحيات
+        new("inventory-issues", "inventory", "فواتير الصرف المخزني", "Inventory Issue Invoices",
+            Crud(A.Post, A.Cancel), new[] { "inventory-issues" }, InheritsFrom: "inventory-counts"),
+        new("inventory-receipts", "inventory", "فواتير الاستلام المخزني", "Inventory Receipt Invoices",
+            Crud(A.Post, A.Cancel), new[] { "inventory-receipts" }, InheritsFrom: "inventory-counts"),
         new("inventory-counts", "inventory", "جرد المخزون والمركبات واعتماده", "Inventory Counts & Approvals",
             Crud(A.Approve, A.Reject, A.Cancel), new[] { "inventory-counts", "showroom/inventory-counts" }, Legacy: CancelFromEdit),
 

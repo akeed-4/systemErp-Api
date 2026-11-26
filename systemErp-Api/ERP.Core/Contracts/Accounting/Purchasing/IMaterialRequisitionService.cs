@@ -8,6 +8,6 @@ public interface IMaterialRequisitionService : ICrudService<MaterialRequisitionD
 {
     Task<MaterialRequisitionDto> ApproveAsync(Guid id, CancellationToken ct = default);
     Task<InvoiceDto> ConvertToPurchaseInvoiceAsync(Guid id, CancellationToken ct = default);
-    /// <summary>أقسام شؤون الموظفين وموظفوها الفعّالون لاختيار القسم ومقدّم الطلب (بالمعرّف).</summary>
+    /// <summary>أقسام الموارد البشرية وموظفوها الفعّالون لاختيار القسم ومقدّم الطلب (بالمعرّف).</summary>
     Task<RequisitionRequestersDto> RequestersAsync(CancellationToken ct = default);
 }

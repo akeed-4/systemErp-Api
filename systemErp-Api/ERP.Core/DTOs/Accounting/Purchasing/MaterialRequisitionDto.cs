@@ -42,7 +42,7 @@ public partial class MaterialRequisitionDto
     public List<MaterialRequisitionItemDto> Items { get; set; } = new();
 }
 
-/// <summary>خيارات القسم ومقدّم الطلب من شؤون الموظفين (فارغة بلا وحدة الموارد البشرية: يبقى النص الحر).</summary>
+/// <summary>خيارات القسم ومقدّم الطلب من الموارد البشرية (فارغة بلا وحدة الموارد البشرية: يبقى النص الحر).</summary>
 public class RequisitionRequestersDto
 {
     public List<RequisitionDepartmentOptionDto> Departments { get; set; } = new();

@@ -35,7 +35,7 @@ public class AttendanceRecord : BaseEntity
 
 public static class AttendanceSources
 {
-    /// <summary>كشف اليوم في شؤون الموظفين (والسجلات السابقة لتمييز المصدر).</summary>
+    /// <summary>كشف اليوم في الموارد البشرية (والسجلات السابقة لتمييز المصدر).</summary>
     public const string Manual = "manual";
     /// <summary>الاستيراد الجماعي (ملف جهاز البصمة أو Excel).</summary>
     public const string Import = "import";
@@ -46,7 +46,7 @@ public static class AttendanceSources
 
 /// <summary>
 /// دليل الموقع لحضور أو انصراف ميداني: الإحداثيات ودقتها وبعدها عن موقع المشروع ونطاقه وقت التسجيل.
-/// بيانات موقع شخصية: تُجمع عند التسجيل وحده، ولا يطّلع عليها إلا شؤون الموظفين وإدارة المشروع.
+/// بيانات موقع شخصية: تُجمع عند التسجيل وحده، ولا تطّلع عليها إلا الموارد البشرية وإدارة المشروع.
 /// </summary>
 public class AttendanceGpsPunch : BaseEntity
 {

@@ -37,7 +37,7 @@ public partial class FieldGpsAttendanceTests
         var punch = Assert.Single(record["punches"]!.AsArray())!;
         Assert.False(punch["withinGeofence"]!.GetValue<bool>()); Assert.Equal("pending", punch["reviewStatus"].S());
 
-        // شؤون الموظفين ترى حالة التحقق بلا إحداثيات، واللوحة ترى إحداثيات الاستثناء وحده
+        // الموارد البشرية ترى حالة التحقق بلا إحداثيات، واللوحة ترى إحداثيات الاستثناء وحده
         var hrRow = await HrDayRowAsync(s.Hr, s.EmployeeId);
         Assert.Equal("exception_pending", hrRow["gpsStatus"].S()); Assert.Equal("mobile_gps", hrRow["source"].S());
         var exceptions = (await s.Hr.Get($"/commercialcontracts/{s.ProjectId}/project/attendance/exceptions")).Data!.AsArray();
@@ -157,7 +157,7 @@ public partial class FieldGpsAttendanceTests
         return (await owner.LoginAsAsync(NewHttp(), email, Password), created.Data!["id"].G());
     }
 
-    // ---------- كشف شؤون الموظفين والاستيراد مع اليوم الميداني ----------
+    // ---------- كشف الموارد البشرية والاستيراد مع اليوم الميداني ----------
 
     [Fact]
     public async Task Hr_sheet_and_fingerprint_import_change_hr_fields_of_a_field_day_but_keep_its_times_and_location()

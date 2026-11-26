@@ -39,7 +39,7 @@ public class DepartmentHeadcountDto
     public int Count { get; set; }
 }
 
-/// <summary>مؤشرات شؤون الموظفين: الأعداد ونسبة التوطين وتكلفة الرواتب الشهرية للموظفين على رأس العمل.</summary>
+/// <summary>مؤشرات الموارد البشرية: الأعداد ونسبة التوطين وتكلفة الرواتب الشهرية للموظفين على رأس العمل.</summary>
 public class EmployeeSummaryDto
 {
     public int ActiveCount { get; set; }

@@ -232,7 +232,7 @@ public class EquipmentMaintenanceService : IEquipmentMaintenanceService
         var description = r.Description?.Trim() ?? string.Empty;
         if (description.Length == 0) errors.Add("وصف العمل المطلوب مطلوب.");
         if (r.LaborCost < 0 || r.ExternalCost < 0 || r.DowntimeHours < 0 || r.MeterReading < 0) errors.Add("القيم لا تكون سالبة.");
-        if (r.TechnicianEmployeeId is Guid tech && !await _db.Set<Employee>().AnyAsync(x => x.Id == tech, ct)) errors.Add("الفني غير موجود في شؤون الموظفين.");
+        if (r.TechnicianEmployeeId is Guid tech && !await _db.Set<Employee>().AnyAsync(x => x.Id == tech, ct)) errors.Add("الفني غير موجود في الموارد البشرية.");
         if (r.SupplierId is Guid supplier && !await _db.Set<Supplier>().AnyAsync(x => x.Id == supplier, ct)) errors.Add("الورشة (المورد) غير موجودة.");
         var parts = (r.Parts ?? new()).Where(p => p.ProductId != Guid.Empty).ToList();
         if (parts.Count > 0 && (r.WarehouseId is not Guid wh || !await _db.Set<Warehouse>().AnyAsync(w => w.Id == wh, ct)))

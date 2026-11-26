@@ -7,7 +7,7 @@ public partial class CreateMaterialRequisitionDto
     public DateTime RequiredDate { get; set; }
     public string Department { get; set; } = string.Empty;
     public string RequestedBy { get; set; } = string.Empty;
-    /// <summary>قسم شؤون الموظفين: يُكتب منه اسم القسم (يتقدّم على النص).</summary>
+    /// <summary>قسم الموارد البشرية: يُكتب منه اسم القسم (يتقدّم على النص).</summary>
     public Guid? DepartmentId { get; set; }
     /// <summary>الموظف مقدّم الطلب (من القسم)؛ يُكتب منه الاسم، ويُملأ القسم منه إن لم يُرسل.</summary>
     public Guid? RequestedByEmployeeId { get; set; }

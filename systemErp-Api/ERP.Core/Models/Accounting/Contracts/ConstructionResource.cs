@@ -3,7 +3,7 @@ namespace ERP.Core.Models.Accounting;
 /// <summary>
 /// مورد في مكتبة المقاولات (مادة/عمالة/معدة/مقاول باطن/أخرى) بوحدته وتكلفته المعيارية: يُسعَّر في مكان واحد وتستخدمه
 /// البنود القياسية في تحليلها. مصدر التكلفة (<see cref="ResourceCostSources"/>): يدوي، أو من الصنف المخزني للمادة،
-/// أو من شؤون الموظفين للعمالة (متوسط التكلفة المحمّلة لموظفي المهنة)، أو من تفصيل التكلفة للعمالة والمعدات، أو مركّب.
+/// أو من الموارد البشرية للعمالة (متوسط التكلفة المحمّلة لموظفي المهنة)، أو من تفصيل التكلفة للعمالة والمعدات، أو مركّب.
 /// التكلفة لها سجل بتواريخ سريان (<see cref="ConstructionResourceCost"/>) لا يُعدَّل، فتغيّرها لا يغيّر ما سُعِّر قبله.
 /// </summary>
 public class ConstructionResource : BaseEntity
@@ -35,7 +35,7 @@ public class ConstructionResource : BaseEntity
     /// <summary>الصنف المخزني لمورد المادة (اختياري؛ لازم مع مصدر product).</summary>
     public Guid? ProductId { get; set; }
 
-    // ---- العمالة: شؤون الموظفين ----
+    // ---- العمالة: الموارد البشرية ----
     /// <summary>المهنة: المسمى الوظيفي كما في ملفات الموظفين (مصدر hr_job).</summary>
     public string? HrJobTitle { get; set; }
     /// <summary>حصر المهنة في قسم (اختياري).</summary>
@@ -75,7 +75,7 @@ public static class ResourceCostSources
     public const string Manual = "manual";
     /// <summary>من الصنف المخزني (المعيارية، ثم المتوسط، ثم آخر شراء) محوّلة لوحدة المورد؛ للمادة.</summary>
     public const string Product = "product";
-    /// <summary>من شؤون الموظفين: متوسط التكلفة المحمّلة لموظفي المهنة الفعّالين × ساعات الوحدة؛ للعمالة.</summary>
+    /// <summary>من الموارد البشرية: متوسط التكلفة المحمّلة لموظفي المهنة الفعّالين × ساعات الوحدة؛ للعمالة.</summary>
     public const string HrJob = "hr_job";
     /// <summary>مورد مركّب: مجموع تكلفة مكوناته × كمياتها × (1 + الهدر)؛ لأي نوع.</summary>
     public const string Composite = "composite";

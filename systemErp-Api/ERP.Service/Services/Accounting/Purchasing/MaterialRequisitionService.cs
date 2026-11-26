@@ -58,7 +58,7 @@ public class MaterialRequisitionService : CrudService<MaterialRequisition, Mater
     };
 
     /// <summary>
-    /// القسم ومقدّم الطلب من شؤون الموظفين بالمعرّف: الموظف فعّال ومن القسم المختار، والقسم يُملأ من الموظف إن لم يُرسل.
+    /// القسم ومقدّم الطلب من الموارد البشرية بالمعرّف: الموظف فعّال ومن القسم المختار، والقسم يُملأ من الموظف إن لم يُرسل.
     /// النصان يُكتبان من السجلين (والعميل القديم بلا معرّفات يبقى على النص الحر).
     /// </summary>
     private async Task ValidateRequesterAsync(CreateMaterialRequisitionDto d, CancellationToken ct)

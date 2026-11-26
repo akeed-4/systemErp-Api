@@ -14,7 +14,7 @@ namespace ERP.Service.Services.Accounting;
 /// والأنواع ذات الحد السنوي لا تتجاوزه، ولا تتداخل إجازتان لموظف؛ والطلب المعاد للاستكمال يبقى حاجزاً لأيامه فلا
 /// تُحتسب مرتين عند إعادة إرساله أو تعديله (يُعدَّل الطلب نفسه). إجازة منقوصة الأجر تدخل خصماً في مسير شهرها، فلا
 /// يتغيّر وضعها بعد ترحيل ذلك المسير إلا بعكسه. كل انتقال يُسجَّل في سجل التدقيق (ومنه سجل حالات الطلب)،
-/// وقرارات شؤون الموظفين تُشعر الموظف صاحب الطلب.
+/// وقرارات الموارد البشرية تُشعر الموظف صاحب الطلب.
 /// </summary>
 public class LeaveService : ILeaveService
 {
@@ -33,7 +33,7 @@ public class LeaveService : ILeaveService
         public const string AttachmentAdded = "attachment_add";
         public const string AttachmentDeleted = "attachment_delete";
         public const string AttachmentViewed = "attachment_view";
-        /// <summary>تظهر للموظف في سجل طلبه (فتح شؤون الموظفين للمرفق يبقى في سجل التدقيق وحده).</summary>
+        /// <summary>تظهر للموظف في سجل طلبه (فتح الموارد البشرية للمرفق يبقى في سجل التدقيق وحده).</summary>
         public static readonly string[] Visible = { Submit, Update, Return, Resubmit, Approve, Reject, Cancel, AttachmentAdded, AttachmentDeleted };
     }
 
@@ -289,7 +289,7 @@ public class LeaveService : ILeaveService
     }
 
     /// <summary>
-    /// يُشعر الموظف صاحب الطلب (إن كان له حساب بوابة) بقرار شؤون الموظفين: اعتماد، رفض، طلب استكمال، أو إلغاء.
+    /// يُشعر الموظف صاحب الطلب (إن كان له حساب بوابة) بقرار الموارد البشرية: اعتماد، رفض، طلب استكمال، أو إلغاء.
     /// إلغاء الموظف طلبه بنفسه لا يُشعره. تعذّر الإشعار لا يُسقط القرار.
     /// </summary>
     private async Task NotifyEmployeeAsync(LeaveRequest leave, string action, CancellationToken ct)

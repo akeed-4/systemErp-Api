@@ -16,16 +16,16 @@ public static class PlatformModules
     public const string CarShowroom = "car_showroom";
     /// <summary>نقاط البيع: الورديات والبيع والمرتجعات والعروض والولاء. تُباع منفردة أو مع غيرها.</summary>
     public const string Pos = "pos";
-    /// <summary>شؤون الموظفين: ملفات الموظفين والإجازات والسلف والحضور ومسير الرواتب ونهاية الخدمة. تُباع كوحدة مستقلة.</summary>
+    /// <summary>الموارد البشرية: ملفات الموظفين والإجازات والسلف والحضور ومسير الرواتب ونهاية الخدمة. تُباع كوحدة مستقلة.</summary>
     public const string Hr = "hr";
     /// <summary>
-    /// إرسال المستندات عبر WhatsApp Business من رقم المنشأة (ربط رسمي عبر Meta). إضافة تُمنح صراحةً كشؤون الموظفين، لكنها
+    /// إرسال المستندات عبر WhatsApp Business من رقم المنشأة (ربط رسمي عبر Meta). إضافة تُمنح صراحةً كالموارد البشرية، لكنها
     /// ليست وحدة دفاتر: لا قيود ولا سندات ولا تقارير لها، فلا تدخل في <see cref="All"/> ولا يصح اشتراك بها وحدها.
     /// </summary>
     public const string WhatsApp = "whatsapp";
     /// <summary>
     /// المقاولات: المكتبة والمناقصات وعقود جدول الكميات ومشاريعها (المراحل والموارد والتقارير اليومية والمواد والمستخلصات).
-    /// إضافة فوق النظام المحاسبي تُمنح صراحةً كشؤون الموظفين، وسعرها باتفاق مع العميل لا ضمن سعر الباقة.
+    /// إضافة فوق النظام المحاسبي تُمنح صراحةً كالموارد البشرية، وسعرها باتفاق مع العميل لا ضمن سعر الباقة.
     /// </summary>
     public const string Construction = "construction";
     /// <summary>
@@ -45,7 +45,7 @@ public static class PlatformModules
         new() { Number = 1, Key = Accounting, NameAr = "النظام المحاسبي", NameEn = "Accounting", DescriptionAr = "الحسابات والقيود والسندات والتقارير المالية.", DescriptionEn = "Accounts, journals, vouchers and financial reports.", Icon = "account_balance", SortOrder = 1 },
         new() { Number = 2, Key = CarShowroom, NameAr = "معارض السيارات", NameEn = "Car Showroom", DescriptionAr = "مخزون المركبات والشراء والاستيراد وعقود البيع وتقارير المعرض.", DescriptionEn = "Vehicle inventory, procurement, sales contracts and showroom reports.", Icon = "directions_car", SortOrder = 2 },
         new() { Number = 3, Key = Pos, NameAr = "نقاط البيع", NameEn = "Point of Sale", DescriptionAr = "البيع بالورديات والباركود والمرتجعات وطرق الدفع.", DescriptionEn = "Shift-based sales, barcode, returns and payment methods.", Icon = "point_of_sale", SortOrder = 3 },
-        new() { Number = 4, Key = Hr, NameAr = "شؤون الموظفين", NameEn = "Human Resources", DescriptionAr = "الموظفون والإجازات والحضور والسلف والرواتب ونهاية الخدمة.", DescriptionEn = "Employees, leaves, attendance, loans, payroll and end of service.", Icon = "groups", SortOrder = 4 },
+        new() { Number = 4, Key = Hr, NameAr = "الموارد البشرية", NameEn = "Human Resources", DescriptionAr = "الموظفون والإجازات والحضور والسلف والرواتب ونهاية الخدمة.", DescriptionEn = "Employees, leaves, attendance, loans, payroll and end of service.", Icon = "groups", SortOrder = 4 },
         new() { Number = 6, Key = Construction, NameAr = "المقاولات", NameEn = "Construction", DescriptionAr = "المناقصات وعقود جدول الكميات والمشاريع والتقارير اليومية والمواد والمستخلصات. سعرها حسب الاتفاق.", DescriptionEn = "Tenders, BOQ contracts, projects, daily site reports, materials and certificates. Priced by agreement.", Icon = "engineering", SortOrder = 6 },
         new() { Number = 5, Key = WhatsApp, NameAr = "واتساب للأعمال", NameEn = "WhatsApp Business", DescriptionAr = "ربط رقم واتساب المنشأة وإرسال الفواتير للعملاء منه.", DescriptionEn = "Connect the company WhatsApp number and send invoices to customers from it.", Icon = "chat", SortOrder = 5 },
         new() { Number = 7, Key = Workshop, NameAr = "ورش السيارات", NameEn = "Automotive Workshop", DescriptionAr = "مركبات العملاء والاستقبال وأوامر العمل والتقديرات والفنيين وقطع الغيار والجودة والضمان.", DescriptionEn = "Customer vehicles, reception, work orders, estimates, technicians, spare parts, quality and warranty.", Icon = "car_repair", SortOrder = 7 },
@@ -64,7 +64,7 @@ public static class PlatformModules
     /// <summary>كل ما يحمله الاشتراك: وحدات الدفاتر والإضافات.</summary>
     public static readonly string[] Licensable = Catalog.Select(module => module.Key).ToArray();
     public const string AllCsv = Accounting + "," + CarShowroom + "," + Pos + "," + Hr;
-    /// <summary>الوحدات التي تحملها الباقات والاشتراكات افتراضياً؛ شؤون الموظفين إضافة تُمنح صراحةً عند شرائها.</summary>
+    /// <summary>الوحدات التي تحملها الباقات والاشتراكات افتراضياً؛ الموارد البشرية إضافة تُمنح صراحةً عند شرائها.</summary>
     public const string DefaultCsv = Accounting + "," + CarShowroom + "," + Pos;
 
     /// <summary>يطبّع القائمة (حروف صغيرة، بلا تكرار، المعروف فقط، بترتيب ثابت). يرمي إن خلت من وحدة دفاتر أو فيها وحدة غير معروفة.</summary>

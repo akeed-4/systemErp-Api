@@ -44,7 +44,7 @@ public class LeaveRequest : BaseEntity
     public int AttachmentCount { get; set; }
 }
 
-/// <summary>مرفق طلب إجازة (PDF أو صورة) محفوظ في قاعدة البيانات؛ يفتحه صاحب الطلب ومن له صلاحية شؤون الموظفين.</summary>
+/// <summary>مرفق طلب إجازة (PDF أو صورة) محفوظ في قاعدة البيانات؛ يفتحه صاحب الطلب ومن له صلاحية الموارد البشرية.</summary>
 public class LeaveAttachment : BaseEntity
 {
     public Guid LeaveRequestId { get; set; }
@@ -61,7 +61,7 @@ public static class LeaveStatuses
     public const string Approved = "approved";
     public const string Rejected = "rejected";
     public const string Cancelled = "cancelled";
-    /// <summary>أعادته شؤون الموظفين للموظف لاستكماله (تقرير طبي مثلاً) بسبب مكتوب؛ يعدّله ويعيد إرساله فيصير معلّقاً.</summary>
+    /// <summary>أعادته الموارد البشرية للموظف لاستكماله (تقرير طبي مثلاً) بسبب مكتوب؛ يعدّله ويعيد إرساله فيصير معلّقاً.</summary>
     public const string NeedsInfo = "needs_info";
 
     /// <summary>طلب قائم يحجز أيامه: معلّق أو بانتظار الاستكمال أو معتمد (للتداخل والحد السنوي والرصيد).</summary>

@@ -13,7 +13,7 @@ public class MaterialRequisition : BaseEntity, IScopedRecord
     /// <summary>اسم القسم المنسوخ للبحث والطباعة؛ مع <see cref="DepartmentId"/> يُحدَّث من القسم عند تعديله. نص حر في الطلبات القديمة.</summary>
     public string Department { get; set; } = string.Empty;
     public string RequestedBy { get; set; } = string.Empty;
-    /// <summary>قسم شؤون الموظفين (<see cref="Accounting.Department"/>)، مصدر <see cref="Department"/>. فارغ في الطلبات القديمة.</summary>
+    /// <summary>قسم الموارد البشرية (<see cref="Accounting.Department"/>)، مصدر <see cref="Department"/>. فارغ في الطلبات القديمة.</summary>
     public Guid? DepartmentId { get; set; }
     /// <summary>الموظف مقدّم الطلب، مصدر <see cref="RequestedBy"/>؛ من القسم المختار.</summary>
     public Guid? RequestedByEmployeeId { get; set; }

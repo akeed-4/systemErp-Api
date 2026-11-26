@@ -125,7 +125,7 @@ public class ConstructionResourceCostHistoryDto
 
 /// <summary>
 /// سعر جديد في سجل المورد بتاريخ سريان (ماضٍ أو مستقبلي)، للمصدر اليدوي (<see cref="UnitCost"/>) أو التفصيل
-/// (<see cref="Breakdown"/>). المصادر المحسوبة (الصنف، شؤون الموظفين، المركّب) تُحدَّث من مصدرها.
+/// (<see cref="Breakdown"/>). المصادر المحسوبة (الصنف، الموارد البشرية، المركّب) تُحدَّث من مصدرها.
 /// </summary>
 public class AddResourceCostDto
 {
@@ -181,7 +181,7 @@ public class ConstructionResourceComponentDto
     public int SortOrder { get; set; }
 }
 
-/// <summary>نتيجة تحديث تكاليف الموارد من مصادرها (الأصناف وشؤون الموظفين).</summary>
+/// <summary>نتيجة تحديث تكاليف الموارد من مصادرها (الأصناف والموارد البشرية).</summary>
 public class ResourceCostRefreshDto
 {
     public int Updated { get; set; }
@@ -190,7 +190,7 @@ public class ResourceCostRefreshDto
 }
 
 /// <summary>
-/// خيارات ربط العمالة بشؤون الموظفين: المهن (المسميات الوظيفية) والأقسام بعدد الموظفين الفعّالين، بلا أي رواتب.
+/// خيارات ربط العمالة بالموارد البشرية: المهن (المسميات الوظيفية) والأقسام بعدد الموظفين الفعّالين، بلا أي رواتب.
 /// </summary>
 public class HrLaborOptionsDto
 {

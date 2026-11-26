@@ -3,7 +3,7 @@ using ERP.Tests.Infrastructure;
 
 namespace ERP.Tests;
 
-/// <summary>شؤون الموظفين: ملف الموظف (وثائق وعقد وقسم)، تنبيهات الانتهاء، المؤشرات، وصلاحية الشاشة.</summary>
+/// <summary>الموارد البشرية: ملف الموظف (وثائق وعقد وقسم)، تنبيهات الانتهاء، المؤشرات، وصلاحية الشاشة.</summary>
 [Collection("api")]
 public class HrEmployeeTests : TestBase
 {

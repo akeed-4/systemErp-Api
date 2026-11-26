@@ -22,13 +22,13 @@ public interface IAttendanceService
     Task<List<AttendanceSummaryRowDto>> GetSummaryAsync(string period, CancellationToken ct = default);
     /// <summary>
     /// يسجّل حضوراً ميدانياً تحقّق منه <see cref="IFieldAttendanceService"/> في سجل اليوم بقواعده: الشهر المرحّل مقفل،
-    /// وسجل واحد للموظف في اليوم (يومٌ سجّلته شؤون الموظفين لا يُسجَّل ميدانياً)، وحضور واحد وانصراف واحد.
+    /// وسجل واحد للموظف في اليوم (يومٌ سجّلته الموارد البشرية لا يُسجَّل ميدانياً)، وحضور واحد وانصراف واحد.
     /// </summary>
     Task RecordFieldCheckInAsync(FieldPunchCommand punch, CancellationToken ct = default);
     Task RecordFieldCheckOutAsync(FieldPunchCommand punch, CancellationToken ct = default);
     /// <summary>
     /// قرار مراجع المشروع في استثناء خارج النطاق (الشهر المرحّل مقفل، ولا يراجع الموظف استثناءه). رفض الحضور يجعل اليوم غياباً،
-    /// ورفض الانصراف يُسقط ساعات العمل؛ وتعدّل شؤون الموظفين بعده ما تراه من كشف اليوم. يعيد تاريخ السجل.
+    /// ورفض الانصراف يُسقط ساعات العمل؛ وتعدّل الموارد البشرية بعده ما تراه من كشف اليوم. يعيد تاريخ السجل.
     /// </summary>
     Task<DateTime> ReviewFieldExceptionAsync(Guid contractId, Guid punchId, bool approve, string? note, CancellationToken ct = default);
 }

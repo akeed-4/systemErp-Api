@@ -138,7 +138,7 @@ public class ProjectMember : BaseEntity
 {
     public Guid ContractId { get; set; }
     /// <summary>
-    /// موظف شؤون الموظفين (<see cref="Employee"/>): مصدر الاسم والقسم والمسمى عند العرض، فيظهر تعديل ملفه في كل الشاشات.
+    /// موظف الموارد البشرية (<see cref="Employee"/>): مصدر الاسم والقسم والمسمى عند العرض، فيظهر تعديل ملفه في كل الشاشات.
     /// فارغ في العضوية القديمة التي لم يُعثر لمستخدمها على ملف موظف.
     /// </summary>
     public Guid? EmployeeId { get; set; }

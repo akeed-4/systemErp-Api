@@ -10,8 +10,8 @@ namespace ERP.Service.Services.Accounting;
 /// <list type="bullet">
 /// <item>manual: كما أُدخلت.</item>
 /// <item>product (للمادة): من الصنف المخزني محوّلة لوحدة المورد، بشرط تحوّل الوحدة.</item>
-/// <item>hr_job (للعمالة): من شؤون الموظفين، متوسط تكلفة ساعة المهنة × ساعات الوحدة، ووحدة المورد من نوع «وقت».
-/// قراءة هذا المصدر تتطلب صلاحية شؤون الموظفين، فالتكلفة مشتقة من الرواتب.</item>
+/// <item>hr_job (للعمالة): من الموارد البشرية، متوسط تكلفة ساعة المهنة × ساعات الوحدة، ووحدة المورد من نوع «وقت».
+/// قراءة هذا المصدر تتطلب صلاحية الموارد البشرية، فالتكلفة مشتقة من الرواتب.</item>
 /// <item>breakdown (للعمالة والمعدات): من تفصيل التكلفة (السعر بأساسه + تكاليف الساعة) × ساعات الوحدة.</item>
 /// </list>
 /// التكلفة غير اليدوية تُحسب هنا عند الحفظ وبأمر «تحديث التكاليف»، ولا تُقبل من الطلب.
@@ -164,7 +164,7 @@ public class ConstructionResourceService
             if (latest is DateTime l && effective < l)
                 throw new ValidationFailedException(string.Format(Messages.ResourceCostEffectiveBeforeLatest, l.ToString("yyyy-MM-dd")));
         }
-        // القيمة اليدوية والتفصيل إدخال تكلفة؛ المصادر المحسوبة (الصنف، شؤون الموظفين، المركّب) لا تتطلب صلاحية التكاليف
+        // القيمة اليدوية والتفصيل إدخال تكلفة؛ المصادر المحسوبة (الصنف، الموارد البشرية، المركّب) لا تتطلب صلاحية التكاليف
         var entersCost = d.CostSource == ResourceCostSources.Breakdown
             || (d.CostSource == ResourceCostSources.Manual && (existing != null || d.StandardCost != 0));
         if (entersCost) await RequireCostEditAsync(ct);
@@ -284,7 +284,7 @@ public class ConstructionResourceService
     private Task<int> RecomputeCompositesAsync(CancellationToken ct) => ResourceCostRules.RecomputeCompositesAsync(Db, ct, Author);
 
     /// <summary>
-    /// يحدّث التكاليف من مصادرها: الأسعار المجدولة التي حلّ موعدها أولاً، ثم الصنف وشؤون الموظفين (سطر سجل لكل ما تغيّر)،
+    /// يحدّث التكاليف من مصادرها: الأسعار المجدولة التي حلّ موعدها أولاً، ثم الصنف والموارد البشرية (سطر سجل لكل ما تغيّر)،
     /// ثم المركّبات.
     /// </summary>
     public async Task<ResourceCostRefreshDto> RefreshCostsAsync(CancellationToken ct = default)

@@ -196,7 +196,7 @@ public static class PermissionCatalog
         new(PermissionService.ItemBatchCorrectionScreenId, "master-data", "الأصناف: تصحيح تاريخي تشغيلة لها حركات", "Items: Correct Dates of a Batch with Movements",
             new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
 
-        new("hr", "hr", "شؤون الموظفين والرواتب", "Human Resources & Payroll",
+        new("hr", "hr", "الموارد البشرية والرواتب", "Human Resources & Payroll",
             Crud(A.Approve, A.Reject, A.Cancel, A.Post, A.Import), new[] { "hr", "payroll" }, Legacy: CancelFromEdit),
 
         new("car-showroom", "car-showroom", "إدارة وتعاريف معارض السيارات والمبايعات", "Car Showroom & Automotive",
@@ -266,6 +266,8 @@ public static class PermissionCatalog
         new("approval-policies", "settings", "سياسات الموافقات والطلبات", "Approval Policies & Requests",
             new[] { A.View, A.Create, A.Edit, A.Delete, A.Approve, A.Reject }, Array.Empty<string>()),
         new("zatca", "settings", "الربط الإلكتروني والفوترة (ZATCA)", "ZATCA Integration", new[] { A.View, A.Edit }, new[] { "zatca-integration" }),
+        // أدوات الصيانة (إعادة احتساب التكاليف...): للإداريين افتراضياً؛ كل أداة تتحقق أيضاً من صلاحية مصدرها في الـ API
+        new("maintenance", "settings", "الصيانة وأدوات البيانات", "Maintenance & Data Tools", new[] { A.View, A.Edit }, new[] { "maintenance" }, Restricted: true),
         // تشخيص محلي مؤقت لمسار الربط (لا اتصال بالهيئة ولا كتابة)؛ حسّاس، ونقطته معطّلة افتراضياً بإعداد مستقل
         new("zatca-diagnostics", "settings", "تشخيص ZATCA المحلي (مؤقت)", "ZATCA Local Diagnostics (temporary)", new[] { A.Edit }, Array.Empty<string>(), Restricted: true),
         // تعديل = إدارة (المزامنة والقوالب)

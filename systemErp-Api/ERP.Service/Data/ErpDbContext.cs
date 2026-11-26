@@ -448,6 +448,7 @@ public class ErpDbContext : DbContext
         (typeof(UnitOfMeasure), nameof(UnitOfMeasure.Code)),
         (typeof(PaymentMethodItem), nameof(PaymentMethodItem.Code)),
         (typeof(Currency), nameof(Currency.Code)),
+        (typeof(Country), nameof(Country.Code)),
         (typeof(Warehouse), nameof(Warehouse.Code)),
         (typeof(Branch), nameof(Branch.Code)),
         (typeof(Account), nameof(Account.Code)),
@@ -1837,6 +1838,18 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<Product>().Property(p => p.ExpiryAlertDays).HasDefaultValue(30);
         // معامل تحويل الوحدة بدقة أعلى: تغيير وحدة الأساس يقسم معاملات النوع (1 ÷ 12...)
         modelBuilder.Entity<UnitOfMeasure>().Property(u => u.ConversionFactor).HasPrecision(18, 8);
+        // دول المنشأة: الرمز الثنائي محفوظ في السجلات (فريد لكل منشأة عبر UniquePerTenant)
+        modelBuilder.Entity<Country>(e =>
+        {
+            e.Property(c => c.Code).HasMaxLength(2).IsRequired();
+            e.Property(c => c.Code3).HasMaxLength(3);
+            e.Property(c => c.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(c => c.NameEn).HasMaxLength(150).IsRequired();
+            e.Property(c => c.NationalityAr).HasMaxLength(100);
+            e.Property(c => c.NationalityEn).HasMaxLength(100);
+            e.Property(c => c.DialCode).HasMaxLength(12);
+            e.Property(c => c.CurrencyCode).HasMaxLength(3);
+        });
         modelBuilder.Entity<UnitOfMeasure>().Property(u => u.UnitType).HasMaxLength(20).HasDefaultValue(UnitTypes.Count);
         modelBuilder.Entity<InvoiceItemBase>().Property(i => i.VatCategory).HasDefaultValue(VatCategory.Standard);
         modelBuilder.Entity<InvoiceItemBase>().HasIndex(i => i.ProjectResourceId).HasFilter("[ProjectResourceId] IS NOT NULL");
@@ -1904,7 +1917,7 @@ public class ErpDbContext : DbContext
         modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.ContractId });
         // مرحلة الطلب: مرجع بلا قيد (كاحتياجات المواد)، والفهرس لحساب ما طُلب لكل مرحلة ولمنع حذف مرحلة لها طلبات
         modelBuilder.Entity<MaterialRequisition>().HasIndex(r => new { r.TenantId, r.PhaseId });
-        // القسم ومقدّم الطلب من شؤون الموظفين بقيد (لا يُحذف قسم أو موظف عليه طلبات)؛ النصان المنسوخان للقديم والبحث
+        // القسم ومقدّم الطلب من الموارد البشرية بقيد (لا يُحذف قسم أو موظف عليه طلبات)؛ النصان المنسوخان للقديم والبحث
         modelBuilder.Entity<MaterialRequisition>().HasOne<Department>().WithMany().HasForeignKey(r => r.DepartmentId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<MaterialRequisition>().HasOne<Employee>().WithMany().HasForeignKey(r => r.RequestedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
         StockReservationModel.Configure(modelBuilder);

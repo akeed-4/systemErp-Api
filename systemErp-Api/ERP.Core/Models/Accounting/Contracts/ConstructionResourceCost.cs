@@ -50,7 +50,7 @@ public static class ResourceCostReasons
     public const string Migration = "migration";
     public const string Created = "created";
     public const string Updated = "updated";
-    /// <summary>تحديث التكاليف من مصادرها (الصنف وشؤون الموظفين).</summary>
+    /// <summary>تحديث التكاليف من مصادرها (الصنف والموارد البشرية).</summary>
     public const string Refresh = "refresh";
     /// <summary>ربط المادة بصنف مخزني.</summary>
     public const string ProductLink = "product_link";

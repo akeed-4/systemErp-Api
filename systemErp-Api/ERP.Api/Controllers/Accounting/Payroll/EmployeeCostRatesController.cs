@@ -24,7 +24,7 @@ public class EmployeeCostRatesController : ErpControllerBase
     public async Task<IActionResult> Add([FromBody] CreateEmployeeCostRateDto request, CancellationToken ct)
         => Success(await _rates.AddAsync(request, ct), Messages.CreatedSuccessfully);
 
-    /// <summary>الفنيون أو المشغّلون (موظفون نشطون) بتكلفتهم الحالية، دون اشتراط إضافة شؤون الموظفين.</summary>
+    /// <summary>الفنيون أو المشغّلون (موظفون نشطون) بتكلفتهم الحالية، دون اشتراط إضافة الموارد البشرية.</summary>
     [HttpGet("staff")]
     public async Task<IActionResult> Staff([FromQuery] string purpose, CancellationToken ct)
         => Success(await _rates.StaffAsync(purpose, ct));

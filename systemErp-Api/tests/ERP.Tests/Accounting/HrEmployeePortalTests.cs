@@ -16,7 +16,7 @@ public class HrEmployeePortalTests : TestBase
     private static string Day(DateTime d) => d.ToString("yyyy-MM-dd");
     private static readonly DateTime Today = DateTime.UtcNow.Date;
 
-    /// <summary>منشأة يشمل اشتراكها وحدة شؤون الموظفين (يمنحها مدير المنصة؛ الباقات الافتراضية لا تشملها).</summary>
+    /// <summary>منشأة يشمل اشتراكها وحدة الموارد البشرية (يمنحها مدير المنصة؛ الباقات الافتراضية لا تشملها).</summary>
     private async Task<Client> HrTenantAsync()
     {
         var admin = await NewTenantAsync("شركة مدير المنصة");
@@ -184,7 +184,7 @@ public class HrEmployeePortalTests : TestBase
         Assert.Equal(id1, created.Data!["employeeId"].S());
         var leaveId = created.Data["id"].S();
 
-        // يراه صاحبه وشؤون الموظفين، ولا يراه ولا يلغيه موظف آخر
+        // يراه صاحبه والموارد البشرية، ولا يراه ولا يلغيه موظف آخر
         Assert.Single((await one.Get("/me/leaves")).Data!["requests"]!.AsArray());
         Assert.Empty((await two.Get("/me/leaves")).Data!["requests"]!.AsArray());
         Assert.Equal(404, (await two.Post($"/me/leaves/{leaveId}/cancel")).Status);
@@ -233,7 +233,7 @@ public class HrEmployeePortalTests : TestBase
         Assert.Equal(404, (await UploadAsync(two, $"/me/leaves/{leaveId}/attachments", "x.pdf", Pdf)).Status);
         Assert.Equal(403, (await DownloadAsync(two, $"/leaverequests/{leaveId}/attachments/{attachmentId}")).Status);
 
-        // شؤون الموظفين ترى المرفق وتنزّله
+        // الموارد البشرية ترى المرفق وتنزّله
         Assert.Single((await hr.Get($"/leaverequests/{leaveId}/attachments")).Data!.AsArray());
         Assert.Equal(Pdf, (await DownloadAsync(hr, $"/leaverequests/{leaveId}/attachments/{attachmentId}")).Content);
         Assert.Equal(1, (await hr.Get($"/leaverequests/{leaveId}")).Data!["attachmentCount"]!.GetValue<int>());

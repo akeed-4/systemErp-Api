@@ -6,10 +6,10 @@ namespace ERP.Core.Contracts.Accounting;
 /// <summary>موارد مكتبة المقاولات: تعريفها وتكلفتها المعيارية، وتحديث تكاليف المرتبطة بأصنافها.</summary>
 public interface IConstructionResourceService : ICrudService<ConstructionResourceDto, CreateConstructionResourceDto, UpdateConstructionResourceDto>
 {
-    /// <summary>يعيد حساب تكلفة كل مورد غير يدوي من مصدره الحالي (الصنف المخزني أو شؤون الموظفين).</summary>
+    /// <summary>يعيد حساب تكلفة كل مورد غير يدوي من مصدره الحالي (الصنف المخزني أو الموارد البشرية).</summary>
     Task<ResourceCostRefreshDto> RefreshCostsAsync(CancellationToken ct = default);
 
-    /// <summary>المهن والأقسام من شؤون الموظفين لربط مورد العمالة (أعداد فقط، بلا رواتب).</summary>
+    /// <summary>المهن والأقسام من الموارد البشرية لربط مورد العمالة (أعداد فقط، بلا رواتب).</summary>
     Task<HrLaborOptionsDto> HrLaborOptionsAsync(CancellationToken ct = default);
 
     /// <summary>المواد غير المربوطة بصنف مخزني ومرشحوها من الأصناف (بالرمز، ثم الاسم المطابق، ثم المتشابه).</summary>

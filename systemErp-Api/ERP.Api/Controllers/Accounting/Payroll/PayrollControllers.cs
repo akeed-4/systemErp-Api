@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ERP.Api.Controllers.Accounting;
 
-/// <summary>ملفات الموظفين، مع تنبيهات انتهاء الوثائق والعقود ومؤشرات شؤون الموظفين.</summary>
+/// <summary>ملفات الموظفين، مع تنبيهات انتهاء الوثائق والعقود ومؤشرات الموارد البشرية.</summary>
 [Route("api/v1/employees"), RequireScreen("hr"), RequireModule(PlatformModules.Hr)]
 public class EmployeesController : CrudController<EmployeeDto, CreateEmployeeDto, UpdateEmployeeDto>
 {

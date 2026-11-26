@@ -140,7 +140,7 @@ public class HrSelfServiceTests : TestBase
         Assert.Contains(titles, t => t.Contains("استكمال") || t.Contains("needs more information"));
         Assert.Contains(titles, t => t.Contains("رُفض") || t.Contains("rejected"));
 
-        // اطلاع شؤون الموظفين على المرفق يُسجَّل في سجل التدقيق، ولا يظهر للموظف في سجل طلبه
+        // اطلاع الموارد البشرية على المرفق يُسجَّل في سجل التدقيق، ولا يظهر للموظف في سجل طلبه
         var attachmentId = (await hr.Get($"/leaverequests/{leaveId}/attachments")).Data!.AsArray()[0]!["id"].S();
         var download = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/leaverequests/{leaveId}/attachments/{attachmentId}");
         download.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", hr.Token);
@@ -151,7 +151,7 @@ public class HrSelfServiceTests : TestBase
         Assert.DoesNotContain("attachment_view", myHistory);
         Assert.Contains("reject", myHistory);
 
-        // الموظف لا يرى سجل طلب غيره ولا كشوف الرواتب من شاشات شؤون الموظفين
+        // الموظف لا يرى سجل طلب غيره ولا كشوف الرواتب من شاشات الموارد البشرية
         Assert.Equal(403, (await me.Get($"/leaverequests/{leaveId}/history")).Status);
         Assert.Equal(403, (await me.Get("/payroll")).Status);
     }

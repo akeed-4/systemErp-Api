@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace ERP.Service.Services.Accounting;
 
 /// <summary>
-/// بوابة الموظف. شؤون الموظفين تدعو الموظف فيُنشأ له حساب بدور «موظف» ورابط يعيّن منه كلمة مروره، ثم يقدّم
+/// بوابة الموظف. الموارد البشرية تدعو الموظف فيُنشأ له حساب بدور «موظف» ورابط يعيّن منه كلمة مروره، ثم يقدّم
 /// طلبات إجازته بنفسه. الموظف صاحب الطلب يُؤخذ من جلسة الدخول، وطلبه يمرّ بقواعد <see cref="ILeaveService"/> نفسها.
 /// </summary>
 public class EmployeePortalService : IEmployeePortalService
@@ -34,7 +34,7 @@ public class EmployeePortalService : IEmployeePortalService
         _permissions = permissions; _notifications = notifications; _email = email; _config = config; _log = log;
     }
 
-    // ---------- شؤون الموظفين: دعوة الموظف ----------
+    // ---------- الموارد البشرية: دعوة الموظف ----------
 
     public async Task<PortalAccessDto> GetAccessAsync(Guid employeeId, CancellationToken ct = default)
     {
@@ -232,7 +232,7 @@ public class EmployeePortalService : IEmployeePortalService
         {
             EmployeeId = me.Id, LeaveTypeId = request.LeaveTypeId, StartDate = request.StartDate, EndDate = request.EndDate, Reason = request.Reason,
         }, ct);
-        // المعتمدون (من يملك «اعتماد» شؤون الموظفين) يُشعَرون تلقائياً عند حفظه بانتظار الاعتماد (DocumentApprovalTracker)
+        // المعتمدون (من يملك «اعتماد» الموارد البشرية) يُشعَرون تلقائياً عند حفظه بانتظار الاعتماد (DocumentApprovalTracker)
         return created;
     }
 
@@ -241,7 +241,7 @@ public class EmployeePortalService : IEmployeePortalService
         var me = await MeAsync(ct);
         var leave = await _db.Set<LeaveRequest>().AsNoTracking().FirstOrDefaultAsync(r => r.Id == id && r.EmployeeId == me.Id, ct)
             ?? throw new NotFoundException(Messages.LeaveRequestNotFound);
-        // إجازة معتمدة يلغيها من اعتمدها (شؤون الموظفين)، لا الموظف؛ والقائمة (معلّقة أو بانتظار الاستكمال) يلغيها صاحبها
+        // إجازة معتمدة يلغيها من اعتمدها (الموارد البشرية)، لا الموظف؛ والقائمة (معلّقة أو بانتظار الاستكمال) يلغيها صاحبها
         if (!LeaveStatuses.Open.Contains(leave.Status)) throw new ConflictException(Messages.LeaveRequestNotPending);
         return await _leaves.CancelAsync(id, null, ct);
     }
@@ -286,7 +286,7 @@ public class EmployeePortalService : IEmployeePortalService
             old.UsedAt = DateTime.UtcNow;
     }
 
-    /// <summary>يرسل الرابط لبريد الموظف إن ضُبط البريد وعنوان الواجهة؛ وإلا تنسخه شؤون الموظفين وترسله بنفسها.</summary>
+    /// <summary>يرسل الرابط لبريد الموظف إن ضُبط البريد وعنوان الواجهة؛ وإلا تنسخه الموارد البشرية وترسله بنفسها.</summary>
     private async Task<bool> SendInviteAsync(User user, string token, CancellationToken ct)
     {
         var frontend = _config["App:FrontendUrl"];

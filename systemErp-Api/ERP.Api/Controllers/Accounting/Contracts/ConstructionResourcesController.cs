@@ -16,7 +16,7 @@ public class ConstructionResourcesController : CrudController<ConstructionResour
 
     public ConstructionResourcesController(IConstructionResourceService s) : base(s) => _resources = s;
 
-    /// <summary>إعادة حساب تكاليف الموارد غير اليدوية من مصادرها (الأصناف، وشؤون الموظفين لمن يملك صلاحيتها).</summary>
+    /// <summary>إعادة حساب تكاليف الموارد غير اليدوية من مصادرها (الأصناف، والموارد البشرية لمن يملك صلاحيتها).</summary>
     [HttpPost("refresh-costs"), RequireScreen(PermissionCatalog.ConstructionLibraryScreenId, ScreenAction.Edit)]
     public async Task<IActionResult> RefreshCosts(CancellationToken ct)
     {
@@ -36,7 +36,7 @@ public class ConstructionResourcesController : CrudController<ConstructionResour
         return Success(result, $"تم ربط {result.Linked} مادة بأصنافها.");
     }
 
-    /// <summary>المهن والأقسام من شؤون الموظفين لربط مورد العمالة (أعداد فقط)؛ الخدمة تشترط صلاحية شؤون الموظفين.</summary>
+    /// <summary>المهن والأقسام من الموارد البشرية لربط مورد العمالة (أعداد فقط)؛ الخدمة تشترط صلاحية الموارد البشرية.</summary>
     [HttpGet("hr-labor-options"), RequireScreen(PermissionCatalog.ConstructionLibraryScreenId, ScreenAction.View), RequireModule(PlatformModules.Hr)]
     public async Task<IActionResult> HrLaborOptions(CancellationToken ct)
         => Success(await _resources.HrLaborOptionsAsync(ct));

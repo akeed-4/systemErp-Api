@@ -348,7 +348,7 @@ public class EquipmentService : IEquipmentService
     private async Task EnsureOperatorAsync(Guid? operatorId, CancellationToken ct)
     {
         if (operatorId is Guid id && !await _db.Set<Employee>().AnyAsync(x => x.Id == id && x.Status == EmployeeStatuses.Active, ct))
-            throw new ValidationFailedException("المشغّل غير موجود في شؤون الموظفين أو غير فعّال.");
+            throw new ValidationFailedException("المشغّل غير موجود في الموارد البشرية أو غير فعّال.");
     }
 
     private async Task<EquipmentAssignment> FindAssignmentAsync(Guid id, CancellationToken ct)

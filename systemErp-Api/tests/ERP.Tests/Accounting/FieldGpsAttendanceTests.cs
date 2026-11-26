@@ -5,7 +5,7 @@ namespace ERP.Tests;
 
 /// <summary>
 /// الحضور الميداني بالموقع: الموظف من الجلسة والمشروع من إسناده، والنطاق والدقة يتحقق منهما الخادم، والتسجيل في سجل الحضور
-/// اليومي نفسه (كشف اليوم والملخص)، وسجل واحد وحضور وانصراف واحد في اليوم، وتوافقه مع حضور شؤون الموظفين واستيراد البصمة،
+/// اليومي نفسه (كشف اليوم والملخص)، وسجل واحد وحضور وانصراف واحد في اليوم، وتوافقه مع حضور الموارد البشرية واستيراد البصمة،
 /// وعزل المنشآت، والمنطقة الزمنية للمنشأة.
 /// </summary>
 [Collection("api")]
@@ -125,7 +125,7 @@ public partial class FieldGpsAttendanceTests : TestBase
         Assert.InRange(punch["distanceMeters"].D(), 45m, 55m); Assert.Equal(150, punch["radiusMeters"]!.GetValue<int>());
         Assert.True(checkIn.Data!["canCheckOut"]!.GetValue<bool>());
 
-        // يظهر في كشف يوم شؤون الموظفين كأي سجل
+        // يظهر في كشف يوم الموارد البشرية كأي سجل
         var row = await HrDayRowAsync(s.Hr, s.EmployeeId);
         Assert.Equal("present", row["status"].S()); Assert.Equal("07:20", row["checkIn"].S()); Assert.Equal(20, row["lateMinutes"]!.GetValue<int>());
 
@@ -207,7 +207,7 @@ public partial class FieldGpsAttendanceTests : TestBase
         Assert.Equal(s.ProjectId, ok.Data!["record"]!["contractId"].S());
     }
 
-    // ---------- التوافق مع حضور شؤون الموظفين والبصمة ----------
+    // ---------- التوافق مع حضور الموارد البشرية والبصمة ----------
 
     [Fact]
     public async Task Day_recorded_by_hr_or_fingerprint_import_blocks_field_check_in_and_hr_flows_are_unchanged()

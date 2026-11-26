@@ -416,7 +416,7 @@ public class ConstructionProjectService : IConstructionProjectService
     }
 
     /// <summary>
-    /// الموظفون الفعّالون بأقسامهم من شؤون الموظفين (الواجهة تختار القسم ثم موظفيه، أو الموظف فيظهر قسمه)، ثم المستخدمون الفعّالون
+    /// الموظفون الفعّالون بأقسامهم من الموارد البشرية (الواجهة تختار القسم ثم موظفيه، أو الموظف فيظهر قسمه)، ثم المستخدمون الفعّالون
     /// الذين لا ملف موظف لهم (منشأة بلا موارد بشرية، أو حساب لم يُربط بعد).
     /// </summary>
     public async Task<List<ProjectMemberCandidateDto>> MemberCandidatesAsync(CancellationToken ct = default)
@@ -642,7 +642,7 @@ public class ConstructionProjectService : IConstructionProjectService
         if (name.Length == 0) errors.Add(Messages.ProjectResourceNameRequired);
         var rate = d.Rate;
         string? code = d.Code, category = d.Category;
-        // مهندس أو عامل مربوط بموظف: شؤون الموظفين مصدر بياناته وأجرته. التكلفة الشهرية المحمّلة (الراتب والبدلات وحصة المنشأة
+        // مهندس أو عامل مربوط بموظف: الموارد البشرية مصدر بياناته وأجرته. التكلفة الشهرية المحمّلة (الراتب والبدلات وحصة المنشأة
         // في التأمينات ومخصص نهاية الخدمة) أساسها الشهر، ورقمه ومسماه منه ما لم يُدخلا
         var fromHr = employee != null && (d.Kind == ProjectResourceKinds.Engineer || d.Kind == ProjectResourceKinds.Labor);
         if (fromHr)

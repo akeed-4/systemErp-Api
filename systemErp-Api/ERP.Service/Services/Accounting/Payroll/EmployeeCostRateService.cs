@@ -129,7 +129,7 @@ public class EmployeeCostRateService : IEmployeeCostRateService
             if (request.CostPerHour is < 0) throw new ValidationFailedException(Messages.EmployeeCostRateNegative);
             var hire = (request.HireDate ?? SaudiTime.Today).Date;
             var code = string.IsNullOrWhiteSpace(request.Code) ? await NextCodeAsync(key, token) : request.Code.Trim();
-            // ملف الموظف نفسه بقواعد خدمة الموظفين (لا جدول ثانٍ)؛ ما لا يُدخل هنا يكمله شؤون الموظفين لاحقاً
+            // ملف الموظف نفسه بقواعد خدمة الموظفين (لا جدول ثانٍ)؛ ما لا يُدخل هنا تكمله الموارد البشرية لاحقاً
             var employee = await _employees.CreateAsync(new CreateEmployeeDto
             {
                 Code = code, NameAr = request.NameAr?.Trim() ?? string.Empty, NameEn = Clean(request.NameEn), Phone = Clean(request.Phone),

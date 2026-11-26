@@ -259,6 +259,14 @@
   <data name="CurrencyNotDefinedOrInactive" xml:space="preserve"><value>العملة {0} غير معرّفة أو موقوفة؛ عرّفها وفعّلها من شاشة العملات.</value></data>
   <data name="CurrencyInUseCannotDelete" xml:space="preserve"><value>العملة مستخدمة في مستندات أو حسابات أو بنوك ولا يمكن حذفها؛ يمكنك إيقافها بدلاً من ذلك.</value></data>
   <data name="CurrencyCodeIso3" xml:space="preserve"><value>رمز العملة ISO من 3 أحرف.</value></data>
+  <data name="LabelCountry" xml:space="preserve"><value>الدولة</value></data>
+  <data name="CountryCodeIso2" xml:space="preserve"><value>رمز الدولة ISO من حرفين إنجليزيين (مثل SA).</value></data>
+  <data name="CountryCode3Invalid" xml:space="preserve"><value>الرمز الثلاثي للدولة من 3 أحرف إنجليزية (مثل SAU).</value></data>
+  <data name="CountryDialCodeInvalid" xml:space="preserve"><value>مفتاح الاتصال بأرقام بعد + (مثل +966 أو +1-876).</value></data>
+  <data name="CountryCurrencyInvalid" xml:space="preserve"><value>رمز عملة الدولة ISO من 3 أحرف (مثل SAR).</value></data>
+  <data name="CountryCodeAlreadyExists" xml:space="preserve"><value>رمز الدولة مستخدم لدولة أخرى في القائمة.</value></data>
+  <data name="CountryCodeInUse" xml:space="preserve"><value>لا يمكن تغيير رمز دولة مستخدمة في العملاء أو الموردين أو البنوك أو الفواتير.</value></data>
+  <data name="CountryInUseCannotDelete" xml:space="preserve"><value>لا يمكن حذف دولة مستخدمة في العملاء أو الموردين أو البنوك أو الفواتير؛ أوقفها بدلاً من ذلك.</value></data>
   <data name="CurrencyPrefix" xml:space="preserve"><value>العملة: </value></data>
   <data name="CurrentPasswordIncorrect" xml:space="preserve"><value>كلمة المرور الحالية غير صحيحة.</value></data>
   <data name="CustomerCodeInUse" xml:space="preserve"><value>كود العميل مستخدم مسبقاً.</value></data>
@@ -1109,7 +1117,7 @@
 
   <data name="PayrollWageFileMissingData" xml:space="preserve"><value>ينقص رقم الهوية أو الآيبان للموظفين: {0}. أكمل ملفاتهم ثم صدّر الملف.</value></data>
 
-  <data name="InviteInvalidOrExpired" xml:space="preserve"><value>رابط الدعوة غير صالح أو انتهت صلاحيته. اطلب رابطاً جديداً من شؤون الموظفين.</value></data>
+  <data name="InviteInvalidOrExpired" xml:space="preserve"><value>رابط الدعوة غير صالح أو انتهت صلاحيته. اطلب رابطاً جديداً من الموارد البشرية.</value></data>
 
   <data name="LeaveAttachmentEmpty" xml:space="preserve"><value>اختر ملفاً لإرفاقه.</value></data>
 
@@ -1127,7 +1135,7 @@
 
   <data name="PortalUserLinkedToAnotherEmployee" xml:space="preserve"><value>هذا البريد مرتبط بحساب موظف آخر.</value></data>
 
-  <data name="PortalNoEmployeeProfile" xml:space="preserve"><value>حسابك غير مرتبط بملف موظف. تواصل مع شؤون الموظفين.</value></data>
+  <data name="PortalNoEmployeeProfile" xml:space="preserve"><value>حسابك غير مرتبط بملف موظف. تواصل مع الموارد البشرية.</value></data>
 
   <data name="PortalInviteCreated" xml:space="preserve"><value>تم إنشاء دعوة بوابة الموظف.</value></data>
   <data name="EmployeeCreatedPortalInviteSent" xml:space="preserve"><value>تم حفظ الموظف وإرسال دعوة إلى بريده لتعيين كلمة المرور والدخول إلى بوابته.</value></data>
@@ -1620,14 +1628,14 @@
   <data name="ResourceUnitIncompatible" xml:space="preserve"><value>وحدة المورد «{0}» لا تتحول إلى وحدة الصنف «{1}»؛ يجب أن تكونا من نوع قياس واحد.</value></data>
   <data name="ResourceCodeExists" xml:space="preserve"><value>رمز المورد «{0}» مستخدم لمورد آخر.</value></data>
   <data name="ResourceCostsRefreshed" xml:space="preserve"><value>حُدّثت تكلفة {0} مورد من مصادرها.</value></data>
-  <data name="ResourceCostSourceInvalid" xml:space="preserve"><value>مصدر تكلفة المورد غير صالح (يدوي، الصنف المخزني، شؤون الموظفين، مركّب).</value></data>
-  <data name="ResourceHrLaborOnly" xml:space="preserve"><value>التكلفة من شؤون الموظفين لمورد من نوع «عمالة» فقط.</value></data>
-  <data name="ResourceHrJobRequired" xml:space="preserve"><value>اختر المهنة (المسمى الوظيفي) من شؤون الموظفين.</value></data>
+  <data name="ResourceCostSourceInvalid" xml:space="preserve"><value>مصدر تكلفة المورد غير صالح (يدوي، الصنف المخزني، الموارد البشرية، مركّب).</value></data>
+  <data name="ResourceHrLaborOnly" xml:space="preserve"><value>التكلفة من الموارد البشرية لمورد من نوع «عمالة» فقط.</value></data>
+  <data name="ResourceHrJobRequired" xml:space="preserve"><value>اختر المهنة (المسمى الوظيفي) من الموارد البشرية.</value></data>
   <data name="ResourceHoursPerUnitPositive" xml:space="preserve"><value>ساعات العمل في وحدة المورد يجب أن تكون أكبر من صفر.</value></data>
-  <data name="ResourceHrUnitNotTime" xml:space="preserve"><value>وحدة مورد العمالة المرتبط بشؤون الموظفين يجب أن تكون من نوع «وقت» (ساعة، يوم)، لا «{0}».</value></data>
+  <data name="ResourceHrUnitNotTime" xml:space="preserve"><value>وحدة مورد العمالة المرتبط بالموارد البشرية يجب أن تكون من نوع «وقت» (ساعة، يوم)، لا «{0}».</value></data>
   <data name="ResourceHrDepartmentNotFound" xml:space="preserve"><value>القسم المحدد للمهنة غير موجود.</value></data>
   <data name="ResourceHrNoEmployees" xml:space="preserve"><value>لا موظفين فعّالين بالمسمى الوظيفي «{0}» لحساب تكلفة المهنة.</value></data>
-  <data name="ResourceHrForbidden" xml:space="preserve"><value>تكلفة العمالة من شؤون الموظفين مشتقة من الرواتب، وتتطلب صلاحية عرض شؤون الموظفين.</value></data>
+  <data name="ResourceHrForbidden" xml:space="preserve"><value>تكلفة العمالة من الموارد البشرية مشتقة من الرواتب، وتتطلب صلاحية عرض الموارد البشرية.</value></data>
   <data name="ResourceCostHistoryImmutable" xml:space="preserve"><value>سجل تكلفة المورد لا يُعدَّل ولا يُحذف؛ أضف سعراً جديداً بتاريخ سريانه.</value></data>
   <data name="ResourceBreakdownCostRequired" xml:space="preserve"><value>تفصيل التكلفة يجب أن ينتج تكلفة ساعة أكبر من صفر.</value></data>
   <data name="ResourceBreakdownTypeOnly" xml:space="preserve"><value>تفصيل التكلفة للعمالة والمعدات فقط.</value></data>
@@ -1638,7 +1646,7 @@
   <data name="ResourceSupplierNotFound" xml:space="preserve"><value>المورد المرتبط غير موجود.</value></data>
   <data name="ResourceCostEffectiveFuture" xml:space="preserve"><value>تاريخ سريان التكلفة في نموذج المورد لا يتجاوز اليوم؛ السعر المجدول يُضاف من سجل التكلفة.</value></data>
   <data name="ResourceCostEffectiveBeforeLatest" xml:space="preserve"><value>تاريخ السريان يسبق آخر سعر في السجل ({0})؛ تصحيح الماضي يُضاف من سجل التكلفة.</value></data>
-  <data name="ResourceCostFromSource" xml:space="preserve"><value>تكلفة هذا المورد محسوبة من مصدره (الصنف، شؤون الموظفين، أو المكونات)؛ حدّثها من مصدرها.</value></data>
+  <data name="ResourceCostFromSource" xml:space="preserve"><value>تكلفة هذا المورد محسوبة من مصدره (الصنف، الموارد البشرية، أو المكونات)؛ حدّثها من مصدرها.</value></data>
   <data name="ResourceCostValueRequired" xml:space="preserve"><value>أدخل تكلفة الوحدة.</value></data>
   <data name="ResourceCostEffectiveRequired" xml:space="preserve"><value>أدخل تاريخ سريان السعر.</value></data>
   <data name="ResourceCostForbidden" xml:space="preserve"><value>تعديل تكاليف الموارد يتطلب صلاحية تعديل «مكتبة تكاليف المقاولات».</value></data>
@@ -1814,7 +1822,7 @@
   <data name="FieldAttendanceAccuracyPoor" xml:space="preserve"><value>دقة الموقع {0} م أضعف من المسموح ({1} م). انتقل إلى مكان مكشوف وأعد المحاولة.</value></data>
   <data name="FieldAttendanceOutsideGeofence" xml:space="preserve"><value>أنت على بعد {0} م من موقع المشروع، خارج النطاق المسموح ({1} م).</value></data>
   <data name="FieldAttendanceAlreadyCheckedIn" xml:space="preserve"><value>سُجّل حضورك اليوم مسبقاً.</value></data>
-  <data name="FieldAttendanceDayRecordedByHr" xml:space="preserve"><value>حضورك اليوم مسجّل من شؤون الموظفين؛ لا يُسجَّل ميدانياً.</value></data>
+  <data name="FieldAttendanceDayRecordedByHr" xml:space="preserve"><value>حضورك اليوم مسجّل من الموارد البشرية؛ لا يُسجَّل ميدانياً.</value></data>
   <data name="FieldAttendanceNoOpenCheckIn" xml:space="preserve"><value>لا يوجد حضور ميداني مفتوح اليوم على هذا المشروع لتسجيل الانصراف.</value></data>
   <data name="FieldAttendanceAlreadyCheckedOut" xml:space="preserve"><value>سُجّل انصرافك اليوم مسبقاً.</value></data>
   <data name="FieldAttendanceCheckedIn" xml:space="preserve"><value>سُجّل حضورك.</value></data>
@@ -2355,7 +2363,7 @@
   <data name="CannotDeleteDefaultBranch" xml:space="preserve"><value>لا يمكن حذف الفرع الافتراضي.</value></data>
   <data name="BranchHasLocations" xml:space="preserve"><value>لا يمكن حذف فرع له مواقع؛ انقل مواقعه إلى فرع آخر أولاً.</value></data>
   <data name="LocationBranchRequired" xml:space="preserve"><value>حدّد الفرع الذي يتبعه الموقع.</value></data>
-  <data name="UserNameManagedByHr" xml:space="preserve"><value>اسم المستخدم المرتبط بموظف يُدار من ملف الموظف في شؤون الموظفين.</value></data>
+  <data name="UserNameManagedByHr" xml:space="preserve"><value>اسم المستخدم المرتبط بموظف يُدار من ملف الموظف في الموارد البشرية.</value></data>
   <data name="ZatcaComplianceCsidUnknown" xml:space="preserve"><value>لم يصل رد مؤكد من هيئة الزكاة على طلب شهادة الامتثال ({0}). قد تكون الهيئة أصدرت الشهادة، لذلك لن يُعاد الطلب تلقائياً. يراجعه المالك أو مدير النظام من «جلسات الربط العالقة» في شاشة الربط.</value></data>
   <data name="ZatcaProductionCsidUnknown" xml:space="preserve"><value>لم يصل رد مؤكد من هيئة الزكاة على طلب شهادة الإنتاج ({0}). قد تكون الهيئة أصدرت الشهادة، لذلك لن يُعاد الطلب تلقائياً. راجع وحدات EGS في بوابة فاتورة قبل أي محاولة جديدة.</value></data>
   <data name="ZatcaComplianceCsidNotStored" xml:space="preserve"><value>أصدرت هيئة الزكاة شهادة الامتثال لكن تعذّر حفظها في النظام ({0}). سُجّل السبب في حالة الربط؛ يغلق المالك أو مدير النظام الجلسة من «جلسات الربط العالقة» ثم يُعاد الربط برمز تحقق جديد.</value></data>

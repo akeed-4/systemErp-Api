@@ -431,7 +431,7 @@ public class EquipmentCostReportDto
     public List<EquipmentProjectCostRowDto> Projects { get; set; } = new();
 }
 
-/// <summary>خيارات النماذج: المشاريع المتاحة للإسناد، والموظفون (إن وُجدت شؤون الموظفين)، والأصول غير المربوطة.</summary>
+/// <summary>خيارات النماذج: المشاريع المتاحة للإسناد، والموظفون (إن وُجدت الموارد البشرية)، والأصول غير المربوطة.</summary>
 public class EquipmentOptionsDto
 {
     public List<EquipmentOptionDto> Projects { get; set; } = new();

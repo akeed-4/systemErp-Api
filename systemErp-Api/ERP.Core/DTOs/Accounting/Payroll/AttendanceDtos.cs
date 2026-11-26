@@ -14,7 +14,7 @@ public class AttendanceDayRowDto
     public string? Notes { get; set; }
     /// <summary>للموظف إجازة معتمدة تغطي هذا اليوم.</summary>
     public bool OnApprovedLeave { get; set; }
-    /// <summary>مصدر السجل (<c>AttendanceSources</c>)؛ الميداني تُحفظ أوقاته وموقعه وتعدّل شؤون الموظفين حالته وتأخيره وإضافيه فقط.</summary>
+    /// <summary>مصدر السجل (<c>AttendanceSources</c>)؛ الميداني تُحفظ أوقاته وموقعه وتعدّل الموارد البشرية حالته وتأخيره وإضافيه فقط.</summary>
     public string? Source { get; set; }
     public string? GpsStatus { get; set; }
     public int? WorkedMinutes { get; set; }

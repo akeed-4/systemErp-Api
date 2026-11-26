@@ -138,7 +138,7 @@ public static class EquipmentAssignmentStatuses
 }
 
 /// <summary>
-/// إسناد معدة لمشروع وموقع بمشغّلها (موظف من شؤون الموظفين). الإسناد ينشئ مورد المشروع (<see cref="ProjectResourceId"/>) فتُسجَّل
+/// إسناد معدة لمشروع وموقع بمشغّلها (موظف من الموارد البشرية). الإسناد ينشئ مورد المشروع (<see cref="ProjectResourceId"/>) فتُسجَّل
 /// ساعاتها وتوقفها في التقرير اليومي وتُحمَّل تكلفتها على مركز المشروع؛ الإرجاع أو التحويل يوقف المورد ولا يحذفه.
 /// </summary>
 public class EquipmentAssignment : BaseEntity

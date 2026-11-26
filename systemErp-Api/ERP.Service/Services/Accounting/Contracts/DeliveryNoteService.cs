@@ -1,3 +1,4 @@
+using DevExtreme.AspNet.Data.ResponseModel;
 using ERP.Core.Contracts.Accounting;
 using ERP.Core.Models.Shared;
 using ERP.Service.Data;
@@ -30,6 +31,82 @@ public class DeliveryNoteService : IDeliveryNoteService
         await AuthorizeAsync("sales_delivery", ScreenAction.Create, null, ct);
         var invoice = await DeliverySources.SalesInvoiceAsync(_db, invoiceId, ct);
         return await DeliverySources.SalesInvoiceSourceAsync(_db, invoice, null, ct);
+    }
+
+    /// <summary>
+    /// صفوف خفيفة لنافذة اختيار المصدر: شروط الأهلية نفسها التي يفحصها اختيار المصدر والحفظ (المرحّلة، لا مرتجع، لا ناتجة عن بيان/سند،
+    /// والاتفاقية السارية بلا جدول كميات)، والإسقاط على أعمدة العرض فقط بلا أسطر. العزل بين المنشآت ونطاق السجلات من مرشحات السياق.
+    /// الفحص النهائي للكميات يبقى عند الحفظ بقفل المصدر.
+    /// </summary>
+    public async Task<LoadResult> LoadSourceDocumentsAsync(string sourceType, string? partyType, DataSourceLoadOptions options, CancellationToken ct = default)
+    {
+        var defaultSort = new[] { EntityLoader.Desc(nameof(DeliverySourceDocumentRowDto.Date)), EntityLoader.Desc(nameof(DeliverySourceDocumentRowDto.Number)) };
+        var key = nameof(DeliverySourceDocumentRowDto.Id);
+        var centers = _db.Set<CostCenter>().AsNoTracking();
+        switch (sourceType)
+        {
+            case DeliveryNoteSources.SalesInvoice:
+            {
+                await AuthorizeAsync("sales_delivery", ScreenAction.Create, null, ct);
+                var notes = _db.Set<DeliveryNote>().AsNoTracking();
+                var noteLines = _db.Set<DeliveryNoteInvoiceLine>().AsNoTracking();
+                var rows = _db.Set<SalesInvoice>().AsNoTracking()
+                    .Where(i => i.Kind == InvoiceKind.Sales && i.Status == "posted" && !i.IsReturn && i.OriginalInvoiceId == null
+                        && (i.ReferenceType == null || i.ReferenceType != "delivery_note")
+                        && !notes.Any(n => n.InvoiceId == i.Id) && !noteLines.Any(l => l.InvoiceId == i.Id))
+                    .Select(i => new DeliverySourceDocumentRowDto
+                    {
+                        Id = i.Id, Number = i.InvoiceNumber, Date = i.IssueDate, PartyId = i.CustomerId, PartyName = i.PartyName,
+                        PartyVatNumber = i.PartyVatNumber, PartyPhone = i.PartyPhone, Description = i.Notes, ReferenceNumber = i.ReferenceNumber,
+                        CostCenterName = centers.Where(c => c.Id == i.CostCenterId).Select(c => c.NameAr).FirstOrDefault(),
+                        CostCenterNameEn = centers.Where(c => c.Id == i.CostCenterId).Select(c => c.NameEn).FirstOrDefault(),
+                        WarehouseName = i.WarehouseName, Total = i.GrandTotal, Status = i.Status,
+                    });
+                return await EntityLoader.LoadRowsAsync(rows, options, key, ct, defaultSort);
+            }
+            case DeliveryNoteSources.PurchaseInvoice:
+            {
+                await AuthorizeAsync("purchase_delivery", ScreenAction.Create, null, ct);
+                var notes = _db.Set<DeliveryNote>().AsNoTracking();
+                var rows = _db.Set<PurchaseInvoice>().AsNoTracking()
+                    .Where(i => i.Kind == InvoiceKind.Purchase && i.Status == "posted" && !i.IsReturn && i.OriginalInvoiceId == null
+                        && (i.ReferenceType == null || (i.ReferenceType != "delivery_note" && i.ReferenceType != PurchaseOrderReceipts.InvoiceReferenceType))
+                        && !notes.Any(n => n.InvoiceId == i.Id))
+                    .Select(i => new DeliverySourceDocumentRowDto
+                    {
+                        Id = i.Id, Number = i.InvoiceNumber, Date = i.IssueDate, PartyId = i.SupplierId, PartyName = i.PartyName,
+                        PartyVatNumber = i.PartyVatNumber, PartyPhone = i.PartyPhone, Description = i.Notes, ReferenceNumber = i.ReferenceNumber,
+                        CostCenterName = centers.Where(c => c.Id == i.CostCenterId).Select(c => c.NameAr).FirstOrDefault(),
+                        CostCenterNameEn = centers.Where(c => c.Id == i.CostCenterId).Select(c => c.NameEn).FirstOrDefault(),
+                        WarehouseName = i.WarehouseName, Total = i.GrandTotal, Status = i.Status,
+                    });
+                return await EntityLoader.LoadRowsAsync(rows, options, key, ct, defaultSort);
+            }
+            case DeliveryNoteSources.Contract:
+            {
+                var supplier = partyType == "supplier";
+                await AuthorizeAsync(supplier ? "purchase_delivery" : "sales_delivery", ScreenAction.Create, null, ct);
+                var boqTypes = _db.Set<ContractTypeDefinition>().AsNoTracking().Where(t => t.Billing == ContractBilling.BoqCertificate).Select(t => t.Code);
+                var warehouses = _db.Set<Warehouse>().AsNoTracking();
+                // طرف الاتفاقية كما كانت تصفّيه الشاشة: طرف نوع البيان، والقديمة بلا طرف تظهر للنوعين
+                var side = supplier ? "supplier" : "customer";
+                var rows = _db.Set<CommercialContract>().AsNoTracking()
+                    .Where(c => c.Stage == "active" && !boqTypes.Contains(c.ContractType)
+                        && (c.PartyType == null || c.PartyType == "" || c.PartyType == side))
+                    .Select(c => new DeliverySourceDocumentRowDto
+                    {
+                        Id = c.Id, Number = c.ContractNumber, Date = c.StartDate, PartyId = supplier ? c.SupplierId : c.CustomerId, PartyName = c.PartyName,
+                        Description = c.Title, ReferenceNumber = c.ReferenceNumber, ProjectName = c.ProjectName,
+                        CostCenterName = centers.Where(cc => cc.Id == c.CostCenterId).Select(cc => cc.NameAr).FirstOrDefault(),
+                        CostCenterNameEn = centers.Where(cc => cc.Id == c.CostCenterId).Select(cc => cc.NameEn).FirstOrDefault(),
+                        WarehouseName = warehouses.Where(w => w.Id == c.WarehouseId).Select(w => w.NameAr).FirstOrDefault(),
+                        Total = c.TotalValueWithVat, Status = c.Stage,
+                    });
+                return await EntityLoader.LoadRowsAsync(rows, options, key, ct, defaultSort);
+            }
+            default:
+                throw new ValidationFailedException(string.Format(Messages.InvalidLoadOptions, sourceType));
+        }
     }
 
     public async Task<DeliverySourceDto> GetContractSourceAsync(Guid contractId, CancellationToken ct = default)

@@ -50,6 +50,30 @@ public class DeliveryNoteEventDto
     public DateTime OccurredAt { get; set; }
 }
 
+/// <summary>
+/// صف نافذة اختيار مصدر البيان (فاتورة بيع/مشتريات مرحّلة أو اتفاقية): أعمدة العرض والبحث فقط بلا أسطر،
+/// تُحمَّل صفحةً صفحة من <c>deliverynotes/sources/load</c>. الأسطر والكميات المتبقية من نقطة المصدر بعد الاختيار.
+/// </summary>
+public class DeliverySourceDocumentRowDto
+{
+    public Guid Id { get; set; }
+    public string Number { get; set; } = string.Empty;
+    public DateTime? Date { get; set; }
+    public Guid? PartyId { get; set; }
+    public string PartyName { get; set; } = string.Empty;
+    public string? PartyVatNumber { get; set; }
+    public string? PartyPhone { get; set; }
+    /// <summary>البيان: ملاحظات الفاتورة أو عنوان الاتفاقية.</summary>
+    public string? Description { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public string? ProjectName { get; set; }
+    public string? CostCenterName { get; set; }
+    public string? CostCenterNameEn { get; set; }
+    public string? WarehouseName { get; set; }
+    public decimal Total { get; set; }
+    public string Status { get; set; } = string.Empty;
+}
+
 /// <summary>مصدر بيان التسليم (اتفاقية أو فاتورة بيع مرحّلة) بأسطره وكمياتها المتبقية للتسليم.</summary>
 public class DeliverySourceDto
 {

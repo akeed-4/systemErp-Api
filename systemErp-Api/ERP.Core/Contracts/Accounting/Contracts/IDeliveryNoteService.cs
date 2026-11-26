@@ -1,3 +1,4 @@
+using DevExtreme.AspNet.Data.ResponseModel;
 using ERP.Core.Contracts.Shared;
 using ERP.Core.DTOs.Accounting;
 using ERP.Core.DTOs.Shared;
@@ -26,6 +27,11 @@ public interface IDeliveryNoteService
     /// <summary>فاتورة مورد واحدة لعدة سندات استلام غير مفوترة من أمر شراء واحد.</summary>
     /// <summary>فاتورة بيع مرحّلة كمصدر بيان: أسطرها والمرتجع مالياً والمسلَّم والمتبقي، والخدمات غير قابلة للتسليم.</summary>
     Task<DeliverySourceDto> GetSalesInvoiceSourceAsync(Guid invoiceId, CancellationToken ct = default);
+    /// <summary>
+    /// المستندات المؤهلة مصدراً للبيان (sales_invoice | purchase_invoice | contract) بخيارات DevExtreme: البحث والفرز والترقيم في SQL
+    /// على صفوف عرض خفيفة. <paramref name="partyType"/> (customer | supplier) يحدد طرف الاتفاقيات.
+    /// </summary>
+    Task<LoadResult> LoadSourceDocumentsAsync(string sourceType, string? partyType, DataSourceLoadOptions options, CancellationToken ct = default);
     /// <summary>اتفاقية كمصدر بيان: بنودها والمسلَّم والمتبقي.</summary>
     Task<DeliverySourceDto> GetContractSourceAsync(Guid contractId, CancellationToken ct = default);
     /// <summary>سجل أحداث البيان.</summary>

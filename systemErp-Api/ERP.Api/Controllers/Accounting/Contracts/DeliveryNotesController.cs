@@ -20,6 +20,10 @@ public class DeliveryNotesController : ErpControllerBase
     // مصدر البيان: أسطر الاتفاقية أو فاتورة البيع المرحّلة بالمسلَّم والمتبقي (الفحص النهائي في الإنشاء بقفل المصدر)
     [HttpGet("sources/sales-invoice/{invoiceId:guid}")]
     public async Task<IActionResult> SalesInvoiceSource(Guid invoiceId, CancellationToken ct) => Success(await _notes.GetSalesInvoiceSourceAsync(invoiceId, ct));
+    /// <summary>نافذة اختيار المصدر: المستندات المؤهلة صفحةً صفحة ببحث وفرز من السرفر (LoadResult بلا مغلّف).</summary>
+    [HttpGet("sources/load")]
+    public async Task<IActionResult> LoadSources([FromQuery] string sourceType, [FromQuery] string? partyType, DataSourceLoadOptions loadOptions, CancellationToken ct)
+        => Ok(await _notes.LoadSourceDocumentsAsync(sourceType, partyType, loadOptions, ct));
     [HttpGet("sources/contract/{contractId:guid}")]
     public async Task<IActionResult> ContractSource(Guid contractId, CancellationToken ct) => Success(await _notes.GetContractSourceAsync(contractId, ct));
     [HttpGet("{id:guid}/events")]

@@ -90,6 +90,7 @@ public class TradeInvoiceEngine
         var due = await InvoiceBalances.ForAsync(_db, items.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, ct);
         var rows = items.Select(i => (Invoice: i, Dto: ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList();
         await ApplyProjectNamesAsync(rows, ct);
+        await ApplyDeliveryAsync(rows, ct);
         return new PagedResult<InvoiceDto>
         {
             Items = await MaskAsync(rows, ct),
@@ -110,6 +111,7 @@ public class TradeInvoiceEngine
             var due = await InvoiceBalances.ForAsync(_db, page.Where(i => i.Status == "posted").Select(i => i.Id).ToList(), null, token);
             var rows = page.Select(i => (Invoice: i, Dto: ToDto(i, due.GetValueOrDefault(i.Id)?.AmountDue ?? 0))).ToList();
             await ApplyProjectNamesAsync(rows, token);
+            await ApplyDeliveryAsync(rows, token);
             return await MaskAsync(rows, token);
         }, ct, EntityLoader.Desc(nameof(InvoiceBase.IssueDate)), EntityLoader.Desc(nameof(InvoiceBase.InvoiceNumber)));
     }
@@ -119,7 +121,9 @@ public class TradeInvoiceEngine
         var invoice = await Detailed(_db.Set<T>().AsNoTracking()).FirstOrDefaultAsync(i => i.Id == id, ct)
             ?? throw new NotFoundException(Messages.InvoiceNotFound);
         var dto = ToDto(invoice, invoice.Status == "posted" ? await InvoiceBalances.DueAsync(_db, id, ct) : 0);
-        await ApplyProjectNamesAsync(new List<(T Invoice, InvoiceDto Dto)> { (invoice, dto) }, ct);
+        var single = new List<(T Invoice, InvoiceDto Dto)> { (invoice, dto) };
+        await ApplyProjectNamesAsync(single, ct);
+        await ApplyDeliveryAsync(single, ct);
         if (invoice is Invoice car) foreach (var ext in _extensions) await ext.FillAsync(car, dto, ct);
         return (await MaskAsync(new List<(T, InvoiceDto)> { (invoice, dto) }, ct))[0];
     }
@@ -156,6 +160,21 @@ public class TradeInvoiceEngine
                       ContractNumber = contract.ContractNumber,
                       CostCenterId = contract.CostCenterId!.Value,
                   }).ToListAsync(ct);
+
+    /// <summary>
+    /// حالة التسليم لفواتير البيع وحالة الاستلام لفواتير المشتريات المرحّلة (عرض فقط، من بيانات التسليم وسندات الاستلام على الفاتورة).
+    /// </summary>
+    private async Task ApplyDeliveryAsync<T>(IReadOnlyCollection<(T Invoice, InvoiceDto Dto)> rows, CancellationToken ct) where T : InvoiceBase
+    {
+        var sales = rows.Select(r => r.Invoice).OfType<SalesInvoice>().ToList();
+        var purchases = rows.Select(r => r.Invoice).OfType<PurchaseInvoice>().ToList();
+        var states = sales.Count > 0 ? await DeliverySources.SalesInvoiceDeliveryAsync(_db, sales, ct)
+            : purchases.Count > 0 ? await PurchaseReceiptQuantities.InvoiceReceiptStatusAsync(_db, purchases, ct)
+            : null;
+        if (states == null) return;
+        foreach (var (invoice, dto) in rows)
+            if (states.TryGetValue(invoice.Id, out var d)) { dto.DeliveryStatus = d.Status; dto.DeliveryRemaining = d.Remaining; }
+    }
 
     private async Task ApplyProjectNamesAsync<T>(IReadOnlyCollection<(T Invoice, InvoiceDto Dto)> rows, CancellationToken ct)
         where T : InvoiceBase

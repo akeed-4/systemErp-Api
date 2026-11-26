@@ -156,6 +156,44 @@ internal static class PurchaseReceiptQuantities
         return result;
     }
 
+    /// <summary>
+    /// حالة استلام فواتير المشتريات المرحّلة (للعرض، دفعة واحدة لصفحة القائمة) بقيم <see cref="InvoiceDeliveryStatuses"/> وبكميات
+    /// <see cref="ForInvoicesAsync"/> نفسها: لا استلام للمشتريات «في الطريق»، فالحالات: لا يحتاج، لم يُستلم، جزئي، بالكامل.
+    /// الفاتورة الناتجة عن سندات استلام (اتفاقية أو أمر شراء) مستلمة بسنداتها. الفواتير الأخرى (مسودة، مرتجع) لا تُعاد.
+    /// </summary>
+    public static async Task<Dictionary<Guid, (string Status, bool Remaining)>> InvoiceReceiptStatusAsync(ErpDbContext db,
+        IReadOnlyCollection<PurchaseInvoice> invoices, CancellationToken ct)
+    {
+        var result = new Dictionary<Guid, (string Status, bool Remaining)>();
+        var eligible = invoices.Where(i => i.Kind == InvoiceKind.Purchase && i.Status == "posted" && !i.IsReturn && i.OriginalInvoiceId == null).ToList();
+        if (eligible.Count == 0) return result;
+        var ids = eligible.Select(i => i.Id).ToList();
+        var billedFromReceipts = (await db.Set<DeliveryNote>().AsNoTracking()
+            .Where(n => n.InvoiceId != null && ids.Contains(n.InvoiceId.Value)).Select(n => n.InvoiceId!.Value).ToListAsync(ct)).ToHashSet();
+
+        var open = new List<PurchaseInvoice>();
+        foreach (var invoice in eligible)
+        {
+            if (billedFromReceipts.Contains(invoice.Id)
+                || invoice.ReferenceType is "delivery_note" or PurchaseOrderReceipts.InvoiceReferenceType)
+                result[invoice.Id] = (InvoiceDeliveryStatuses.Delivered, false);
+            else open.Add(invoice);
+        }
+        if (open.Count == 0) return result;
+
+        foreach (var (id, lines) in await ForInvoicesAsync(db, open, null, ct))
+        {
+            var receivable = lines.Where(l => l.Receivable && l.OrderedQty - l.FinancialReturnedQty > Tolerance).ToList();
+            var remaining = receivable.Any(l => l.RemainingQty > Tolerance);
+            var status = receivable.Count == 0 ? InvoiceDeliveryStatuses.NotRequired
+                : !receivable.Any(l => l.ReceivedQty > Tolerance) ? InvoiceDeliveryStatuses.NotDelivered
+                : remaining ? InvoiceDeliveryStatuses.PartiallyDelivered
+                : InvoiceDeliveryStatuses.Delivered;
+            result[id] = (status, remaining);
+        }
+        return result;
+    }
+
     /// <summary>حالة الكميات: مستلم بالكامل (لا متبقٍ وقد استُلم شيء)، أو جزئي، أو معلّق.</summary>
     public static string StatusOf(IEnumerable<PurchaseReceiptSourceLineDto> lines)
     {

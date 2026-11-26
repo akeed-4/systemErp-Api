@@ -64,6 +64,8 @@ public abstract class InvoiceBase : BaseEntity, IScopedRecord, IPartyDocument
     /// <summary>رمز طريقة الدفع المؤسَّسة في النظام (جدول طرق الدفع): يُرحَّل على حسابها المرتبط. فارغ = أول طريقة فعّالة من النوع.</summary>
     public string? PaymentMethodCode { get; set; }
     public bool IsSplitPayment { get; set; }
+    /// <summary>الباقي المسلَّم للعميل نقداً عند دفعه نقداً أكثر من المستحق: بيان للطباعة لا يدخل القيد (أسطر الدفع صافية بعده)، والمستلم نقداً = النقد + الباقي.</summary>
+    public decimal ChangeAmount { get; set; }
     public string CurrencyCode { get; set; } = "SAR";
     public decimal ExchangeRate { get; set; } = 1.0m;
     /// <summary>المعالجة الضريبية للفاتورة كلها؛ غير «أساسي» يجعل كل الأسطر صفرية/معفاة بنسبة 0.</summary>

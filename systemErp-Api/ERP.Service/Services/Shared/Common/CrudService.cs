@@ -109,6 +109,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
             if (entity.Id == Guid.Empty) entity.Id = Guid.NewGuid(); // بعض الخدمات تحتاج المعرّف قبل الحفظ (حساب العميل...)
             await OnCreatingAsync(entity, dto, token);
             Db.Set<TEntity>().Add(entity);
+            await DuplicateEntityValidator.EnsureUniqueAsync(Db, entity, token);
             await SaveAsync(token);
             await OnCreatedAsync(entity, token);
             return ToDto(entity);
@@ -126,6 +127,7 @@ public abstract class CrudService<TEntity, TDto, TCreate, TUpdate> : ICrudServic
                 Db.Remove(removed);
     
             await OnUpdatingAsync(entity, dto, token);
+            await DuplicateEntityValidator.EnsureUniqueAsync(Db, entity, token);
             await SaveAsync(token);
             await OnUpdatedAsync(entity, token);
             return ToDto(entity);

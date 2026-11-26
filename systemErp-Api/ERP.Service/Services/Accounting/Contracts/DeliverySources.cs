@@ -15,7 +15,7 @@ namespace ERP.Service.Services.Accounting;
 /// </list>
 /// الفحص والحجز داخل معاملة بقفل المصدر (<c>sp_getapplock</c>) فلا يقرأ طلبان متزامنان المتبقي نفسه.
 /// </summary>
-internal static class DeliverySources
+internal static partial class DeliverySources
 {
     public const decimal Tolerance = 0.00005m;
 

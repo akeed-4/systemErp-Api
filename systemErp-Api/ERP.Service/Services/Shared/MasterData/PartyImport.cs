@@ -4,13 +4,13 @@ namespace ERP.Service.Services.Shared;
 
 /// <summary>
 /// فحص استيراد العملاء والموردين قبل الحفظ: صيغة الحقول، توحيد الهاتف، والتكرار مع المسجّل وداخل الملف.
-/// التكرار بالكود أو الرقم الضريبي أو السجل التجاري خطأ يمنع الصف؛ والتكرار بالهاتف أو الاسم تنبيه فقط
-/// (قد يكون فرعين لجهة واحدة). لا يُحدَّث طرف موجود أبداً: المطابق يُبلَّغ عنه فقط.
+/// التكرار بالكود أو الرقم الضريبي أو السجل التجاري أو الاسم (العربي أو الإنجليزي، كلٌّ وحده بتطبيع <see cref="DuplicateEntityValidator"/>)
+/// خطأ يمنع الصف؛ والتكرار بالهاتف تنبيه فقط (قد يكون فرعين لجهة واحدة). لا يُحدَّث طرف موجود أبداً: المطابق يُبلَّغ عنه فقط.
 /// </summary>
 internal static class PartyImport
 {
     /// <summary>بيانات الطرف التي يُفحص بها التكرار.</summary>
-    public sealed record PartyRecord(string Code, string NameAr, string? Vat, string? Cr, string? Phone);
+    public sealed record PartyRecord(string Code, string NameAr, string? NameEn, string? Vat, string? Cr, string? Phone);
 
     private static readonly Regex Mobile = new(@"^05\d{8}$", RegexOptions.Compiled);
     private static readonly Regex Landline = new(@"^01[1-7]\d{7}$", RegexOptions.Compiled);
@@ -66,11 +66,6 @@ internal static class PartyImport
         return remainder == 1;
     }
 
-    /// <summary>مفتاح مقارنة الأسماء: مسافات موحّدة، وحروف كبيرة/صغيرة، والهمزات والتاء المربوطة والألف المقصورة.</summary>
-    private static string NameKey(string name)
-        => Regex.Replace(name.Trim(), @"\s+", " ").ToLowerInvariant()
-            .Replace('أ', 'ا').Replace('إ', 'ا').Replace('آ', 'ا').Replace('ؤ', 'و').Replace('ئ', 'ي').Replace('ى', 'ي').Replace('ة', 'ه');
-
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static Dictionary<string, string> Index(IEnumerable<(string? Key, string Name)> pairs)
@@ -87,13 +82,15 @@ internal static class PartyImport
         var vats = Index(existing.Select(e => (Clean(e.Vat), e.NameAr)));
         var crs = Index(existing.Select(e => (Clean(e.Cr), e.NameAr)));
         var phones = Index(existing.Select(e => (NormalizePhone(e.Phone, out var ok) is { } p && ok ? p : null, e.NameAr)));
-        var names = Index(existing.Select(e => ((string?)NameKey(e.NameAr), e.NameAr)));
+        var names = Index(existing.Select(e => (DuplicateEntityValidator.NormalizeName(e.NameAr), e.NameAr)));
+        var namesEn = Index(existing.Select(e => (DuplicateEntityValidator.NormalizeName(e.NameEn), e.NameAr)));
         // ما سبق في الملف: المفتاح ← رقم الصف (من الصفوف المقبولة فقط، فصف مرفوض لا يحجب تاليه)
         var fileCodes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var fileVats = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var fileCrs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var filePhones = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var fileNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var fileNamesEn = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         var results = new List<PartyImportRowDto>();
         foreach (var row in rows)
@@ -118,16 +115,21 @@ internal static class PartyImport
             Unique(Clean(f.Vat), vats, fileVats, Messages.ImportVatExists, Messages.ImportVatRepeatedInFile);
             Unique(Clean(f.Cr), crs, fileCrs, Messages.ImportCrExists, Messages.ImportCrRepeatedInFile);
 
-            var nameKey = string.IsNullOrWhiteSpace(f.NameAr) ? null : NameKey(f.NameAr);
+            // الاسم العربي والإنجليزي كلٌّ مع نظيره (الإنجليزي الفارغ لا يُفحص)
+            var nameKey = DuplicateEntityValidator.NormalizeName(f.NameAr);
+            var nameEnKey = DuplicateEntityValidator.NormalizeName(f.NameEn);
+            void UniqueName(string? key, string? name, Dictionary<string, string> registered, Dictionary<string, int> inFile)
+            {
+                if (key == null) return;
+                if (registered.TryGetValue(key, out var owner)) errors.Add(string.Format(Messages.ImportNameExists, owner));
+                else if (inFile.TryGetValue(key, out var first)) errors.Add(string.Format(Messages.ImportNameRepeatedInFile, name!.Trim(), first));
+            }
+            UniqueName(nameKey, f.NameAr, names, fileNames);
+            UniqueName(nameEnKey, f.NameEn, namesEn, fileNamesEn);
             if (phone != null && phoneOk)
             {
                 if (phones.TryGetValue(phone, out var owner)) result.Warnings.Add(string.Format(Messages.ImportPhoneExists, phone, owner));
                 else if (filePhones.TryGetValue(phone, out var first)) result.Warnings.Add(string.Format(Messages.ImportPhoneRepeatedInFile, phone, first));
-            }
-            if (nameKey != null)
-            {
-                if (names.TryGetValue(nameKey, out var owner)) result.Warnings.Add(string.Format(Messages.ImportNameExists, owner));
-                else if (fileNames.TryGetValue(nameKey, out var first)) result.Warnings.Add(string.Format(Messages.ImportNameRepeatedInFile, f.NameAr, first));
             }
 
             result.Errors = errors.Distinct().ToList();
@@ -139,6 +141,7 @@ internal static class PartyImport
                 if (Clean(f.Cr) is { } cr) fileCrs.TryAdd(cr, row.RowNumber);
                 if (phone != null) filePhones.TryAdd(phone, row.RowNumber);
                 if (nameKey != null) fileNames.TryAdd(nameKey, row.RowNumber);
+                if (nameEnKey != null) fileNamesEn.TryAdd(nameEnKey, row.RowNumber);
             }
             results.Add(result);
         }

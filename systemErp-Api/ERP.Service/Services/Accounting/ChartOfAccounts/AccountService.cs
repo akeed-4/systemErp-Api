@@ -157,6 +157,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
             },
         };
         Db.Add(party);
+        // الاسم أدخله المستخدم للحساب فيُفحص تكراره بين كيانات نوعه أيضاً
+        await DuplicateEntityValidator.EnsureUniqueAsync(Db, party, ct);
         account.LinkedEntityType = type;
         account.LinkedEntityId = id;
     }
@@ -196,7 +198,11 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         {
             if (oldCode != entity.Code) owner.SetAccountCode(entity.Code);
             // اسم الكيان المملوك يتبع اسم حسابه (والعكس في شاشة الكيان): الاسمان متطابقان دائماً
-            if (nameChanged && !string.IsNullOrWhiteSpace(entity.NameAr)) owner.SetName(entity.NameAr.Trim(), entity.NameEn?.Trim());
+            if (nameChanged && !string.IsNullOrWhiteSpace(entity.NameAr))
+            {
+                owner.SetName(entity.NameAr.Trim(), entity.NameEn?.Trim());
+                await DuplicateEntityValidator.EnsureUniqueAsync(Db, owner.Entity, ct);
+            }
         }
         // طرق الدفع المرتبطة بالحساب (صندوق أو غيره): رمزه واسمه، وطريقة الصندوق التلقائية تتبع اسمه وحالته
         await CashBoxPaymentMethods.SyncAsync(Db, oldCode, original.GetValue<string>(nameof(Account.NameAr)), entity, ct);

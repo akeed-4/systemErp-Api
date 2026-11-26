@@ -89,6 +89,8 @@ public static class DeliveryNoteSources
     public const string Contract = "contract";
     /// <summary>فاتورة بيع مرحّلة: مستند تشغيلي للتوصيل فقط، لا فاتورة ولا حركة ولا قيد.</summary>
     public const string SalesInvoice = "sales_invoice";
+    /// <summary>فاتورة مشتريات مرحّلة: سند استلام تشغيلي فقط — الفاتورة أنشأت المخزون والقيد، فلا فاتورة ولا حركة ولا قيد من السند.</summary>
+    public const string PurchaseInvoice = "purchase_invoice";
 }
 
 /// <summary>حالات التوصيل (مستقلة عن <see cref="DeliveryNoteStatus"/> للفوترة والمرتجع).</summary>

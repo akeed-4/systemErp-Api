@@ -30,4 +30,9 @@ public partial class DeliveryNoteItemDto
     public decimal? ConfirmedQty { get; set; }
     /// <summary>للقراءة: ما فُوتر منها في فواتير مرحلية.</summary>
     public decimal InvoicedQty { get; set; }
+    /// <summary>للقراءة: المستلم فعلياً (المقبول + المرفوض)؛ فارغ = يساوي DeliveredQty (السجلات القديمة). يحسبه السرفر.</summary>
+    public decimal? ReceivedQty { get; set; }
+    /// <summary>المرفوض عند الاستلام (سند اتفاقية شراء أو فاتورة مشتريات)؛ DeliveredQty هو المقبول.</summary>
+    public decimal RejectedQty { get; set; }
+    public string? RejectionReason { get; set; }
 }

@@ -61,4 +61,26 @@ internal static class ContractDeliveries
                     line.Name, qty.ToString("0.####"), Math.Max(0, remaining).ToString("0.####"), line.Qty.ToString("0.####")));
         }
     }
+
+    /// <summary>
+    /// بعد إعادة كمية إلى سند غير متتبَّع على الاتفاقية (حذف مرتجع سند استلام): صافي سنداتها لكل بند لا يتجاوز المتفق عليه.
+    /// يقفل الاتفاقية ثم يحفظ ويقرأ، فلا يتجاوز مع سند لاحق أُنشئ على المتبقي الذي أعاده المرتجع.
+    /// </summary>
+    public static async Task EnsureRoomAfterChangeAsync(ErpDbContext db, Guid contractId, CancellationToken ct)
+    {
+        await LockAsync(db, contractId, ct);
+        await db.SaveChangesAsync(ct);
+        var agreed = await db.Set<CommercialContractItem>().AsNoTracking().Where(i => i.ContractId == contractId && !i.IsGroup)
+            .Select(i => new { Key = i.ItemId ?? i.Id, i.Description, i.Quantity }).ToListAsync(ct);
+        var delivered = await DeliverySources.Active(db.Set<DeliveryNoteItem>().AsNoTracking()).Where(i => i.DeliveryNote.ContractId == contractId)
+            .GroupBy(i => i.ItemId).Select(g => new { g.Key, Qty = g.Sum(i => (i.ConfirmedQty ?? i.DeliveredQty) - i.ReturnedQty) }).ToListAsync(ct);
+        foreach (var d in delivered)
+        {
+            var lines = agreed.Where(a => a.Key == d.Key).ToList();
+            var qty = lines.Sum(a => a.Quantity);
+            if (lines.Count > 0 && d.Qty > qty + Tolerance)
+                throw new ConflictException(string.Format(Messages.DeliveryExceedsContract, lines[0].Description, d.Qty.ToString("0.####"),
+                    qty.ToString("0.####"), qty.ToString("0.####")));
+        }
+    }
 }

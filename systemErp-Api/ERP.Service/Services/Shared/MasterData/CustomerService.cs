@@ -49,13 +49,13 @@ public class CustomerService : CrudService<Customer, CustomerDto, CreateCustomer
     private async Task<List<PartyImportRowDto>> CheckImportAsync(List<PartyImportRowInput<CreateCustomerDto>> rows, CancellationToken ct)
     {
         var existing = await Db.Set<Customer>().AsNoTracking()
-            .Select(c => new PartyImport.PartyRecord(c.Code, c.NameAr, c.VatNumber, c.CrNumber, c.Phone)).ToListAsync(ct);
+            .Select(c => new PartyImport.PartyRecord(c.Code, c.NameAr, c.NameEn, c.VatNumber, c.CrNumber, c.Phone)).ToListAsync(ct);
         return PartyImport.Check(rows, existing,
             d =>
             {
                 d.Code = d.Code?.Trim() ?? string.Empty; d.NameAr = d.NameAr?.Trim() ?? string.Empty;
                 d.VatNumber = d.VatNumber?.Trim(); d.CrNumber = d.CrNumber?.Trim();
-                return new PartyImport.PartyRecord(d.Code, d.NameAr, d.VatNumber, d.CrNumber, d.Phone);
+                return new PartyImport.PartyRecord(d.Code, d.NameAr, d.NameEn, d.VatNumber, d.CrNumber, d.Phone);
             },
             (d, phone) => d.Phone = phone ?? string.Empty,
             d =>

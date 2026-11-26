@@ -93,6 +93,7 @@ public class PosSaleService : IPosSaleService
             };
             if (configured != null) configured.ApplyTo(invoiceDto);
             else ApplyPaymentToInvoice(invoiceDto, method, cash, card + mada + apple, total);
+            invoiceDto.ChangeAmount = change;
             if (online != null) invoiceDto.SettlementAccountCode = await OnlinePaymentService.SettlementAccountAsync(_db, token);
             InvoiceDto invoice;
             if (offlineAt.HasValue)

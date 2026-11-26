@@ -3759,6 +3759,20 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal?>("ReceivedQty")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("RejectedQty")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<decimal>("ReturnedQty")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -3813,7 +3827,12 @@ namespace ERP.Service.Data.Migrations
 
                     b.HasIndex("TenantId", "SourceLineId");
 
-                    b.ToTable("DeliveryNoteItem");
+                    b.ToTable("DeliveryNoteItem", t =>
+                        {
+                            t.HasCheckConstraint("CK_DeliveryNoteItems_ReceivedQty", "[ReceivedQty] IS NULL OR [ReceivedQty] >= 0");
+
+                            t.HasCheckConstraint("CK_DeliveryNoteItems_RejectedQty", "[RejectedQty] >= 0");
+                        });
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.DeliveryReturnItem", b =>
@@ -5461,6 +5480,10 @@ namespace ERP.Service.Data.Migrations
 
                     b.Property<Guid?>("AssignedToUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("ChangeAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("CogsAccountCode")
                         .HasColumnType("nvarchar(max)");
@@ -8586,6 +8609,180 @@ namespace ERP.Service.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("PurchaseRfqSupplier");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseSupplyEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DeliveryNoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DocumentNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("TrackingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TrackingId");
+
+                    b.HasIndex("TenantId", "TrackingId", "OccurredAt");
+
+                    b.ToTable("PurchaseSupplyEvent");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseSupplyTracking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CancelledByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ExpectedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastReceiptDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("SourceDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)")
+                        .HasDefaultValue("pending");
+
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SupplierName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "SourceDate");
+
+                    b.HasIndex("TenantId", "SupplierId");
+
+                    b.HasIndex("TenantId", "SourceType", "SourceId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PurchaseSupplyTrackings_ActiveSource")
+                        .HasFilter("[Status] <> 'cancelled' AND [Status] <> 'rejected'");
+
+                    b.HasIndex("TenantId", "Status", "ExpectedDate");
+
+                    b.ToTable("PurchaseSupplyTracking", t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseSupplyTrackings_SourceType", "[SourceType] IN ('purchase_invoice', 'contract')");
+                        });
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>
@@ -22848,6 +23045,15 @@ namespace ERP.Service.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Rfq");
+                });
+
+            modelBuilder.Entity("ERP.Core.Models.Accounting.PurchaseSupplyEvent", b =>
+                {
+                    b.HasOne("ERP.Core.Models.Accounting.PurchaseSupplyTracking", null)
+                        .WithMany()
+                        .HasForeignKey("TrackingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Core.Models.Accounting.Quotation", b =>

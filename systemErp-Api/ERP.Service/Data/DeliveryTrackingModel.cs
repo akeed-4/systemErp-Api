@@ -46,6 +46,46 @@ internal static class DeliveryTrackingModel
             e.Property(i => i.ConfirmedQty).HasPrecision(18, 4);
             e.Property(i => i.InvoicedQty).HasPrecision(18, 4);
             e.HasIndex(i => new { i.TenantId, i.SourceLineId });
+            // استلام المشتريات (الهجرة PurchaseReceiptTracking): المستلم الفارغ = كمية السند (السجلات القديمة)
+            e.Property(i => i.ReceivedQty).HasPrecision(18, 4);
+            e.Property(i => i.RejectedQty).HasPrecision(18, 4).HasDefaultValue(0m);
+            e.Property(i => i.RejectionReason).HasMaxLength(500);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_DeliveryNoteItems_RejectedQty", "[RejectedQty] >= 0");
+                t.HasCheckConstraint("CK_DeliveryNoteItems_ReceivedQty", "[ReceivedQty] IS NULL OR [ReceivedQty] >= 0");
+            });
+        });
+        // متابعة توريد المشتريات: متابعة نشطة واحدة لكل مصدر (المرفوضة والملغاة لا تمنع إعادة فتحه)، وسندات الاتفاقية متعددة كما كانت
+        modelBuilder.Entity<PurchaseSupplyTracking>(e =>
+        {
+            e.Property(x => x.SourceType).HasMaxLength(20).IsRequired();
+            e.Property(x => x.SourceNumber).HasMaxLength(100).IsRequired();
+            e.Property(x => x.SupplierName).HasMaxLength(300).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsRequired().HasDefaultValue(PurchaseSupplyStatuses.Pending);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.RejectedByName).HasMaxLength(256);
+            e.Property(x => x.RejectionReason).HasMaxLength(500);
+            e.Property(x => x.CancelledByName).HasMaxLength(256);
+            e.Property(x => x.CancellationReason).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId }).IsUnique()
+                .HasFilter("[Status] <> 'cancelled' AND [Status] <> 'rejected'")
+                .HasDatabaseName("UX_PurchaseSupplyTrackings_ActiveSource");
+            e.HasIndex(x => new { x.TenantId, x.Status, x.ExpectedDate });
+            e.HasIndex(x => new { x.TenantId, x.SupplierId });
+            e.HasIndex(x => new { x.TenantId, x.SourceDate });
+            e.ToTable(t => t.HasCheckConstraint("CK_PurchaseSupplyTrackings_SourceType", "[SourceType] IN ('purchase_invoice', 'contract')"));
+        });
+        modelBuilder.Entity<PurchaseSupplyEvent>(e =>
+        {
+            e.Property(x => x.EventType).HasMaxLength(32).IsRequired();
+            e.Property(x => x.DocumentNumber).HasMaxLength(100);
+            e.Property(x => x.FromStatus).HasMaxLength(32);
+            e.Property(x => x.ToStatus).HasMaxLength(32);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.UserName).HasMaxLength(256);
+            e.HasIndex(x => new { x.TenantId, x.TrackingId, x.OccurredAt });
+            e.HasOne<PurchaseSupplyTracking>().WithMany().HasForeignKey(x => x.TrackingId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<DeliveryNoteEvent>(e =>
         {

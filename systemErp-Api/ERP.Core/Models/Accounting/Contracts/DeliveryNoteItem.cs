@@ -34,5 +34,14 @@ public class DeliveryNoteItem : BaseEntity
     /// <summary>ما فُوتر من الكمية المؤكدة في فواتير مرحلية (بيان اتفاقية متتبَّع).</summary>
     public decimal InvoicedQty { get; set; }
 
+    // ---------- استلام المشتريات: المستلم والمرفوض (الهجرة PurchaseReceiptTracking) ----------
+    /// <summary>
+    /// المستلم فعلياً في سند الاستلام = المقبول (<see cref="DeliveredQty"/>) + المرفوض. فارغ (السجلات القديمة وبيانات المبيعات) = يساوي <see cref="DeliveredQty"/>.
+    /// </summary>
+    public decimal? ReceivedQty { get; set; }
+    /// <summary>المرفوض عند الاستلام: لا يدخل كمية السند ولا فوترته ولا المخزون؛ في سند فاتورة المشتريات ينتظر مرتجع مشتريات مالياً.</summary>
+    public decimal RejectedQty { get; set; }
+    public string? RejectionReason { get; set; }
+
     public virtual DeliveryNote DeliveryNote { get; set; } = null!;
 }

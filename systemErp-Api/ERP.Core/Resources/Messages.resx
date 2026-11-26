@@ -2394,4 +2394,25 @@
   <data name="GeocodingDisabled" xml:space="preserve"><value>البحث الجغرافي غير مفعّل؛ أدخل العنوان أو حدّد الموقع على الخريطة.</value></data>
   <data name="GeocodingQueryInvalid" xml:space="preserve"><value>نص البحث من 3 إلى 200 حرف.</value></data>
   <data name="GeocodingUnavailable" xml:space="preserve"><value>خدمة البحث الجغرافي غير متاحة الآن؛ أدخل الموقع يدوياً.</value></data>
+  <data name="PurchaseReceiptSourceInvoiceNotPosted" xml:space="preserve"><value>سند الاستلام يُنشأ من فاتورة مشتريات مرحّلة فقط (لا مسودة ولا مرتجع).</value></data>
+  <data name="PurchaseReceiptSourceInvoiceFromReceipt" xml:space="preserve"><value>الفاتورة ناتجة عن سندات استلام سبق استلامها وفوترتها (اتفاقية أو أمر شراء)؛ لا يُنشأ منها سند استلام آخر.</value></data>
+  <data name="PurchaseReceiptLineNotInInvoice" xml:space="preserve"><value>كل سطر في سند الاستلام يجب أن يكون من أسطر فاتورة المشتريات المصدر.</value></data>
+  <data name="PurchaseReceiptLineNotReceivable" xml:space="preserve"><value>«{0}» خدمة أو بند غير مخزني: لا يُستلم بسند استلام.</value></data>
+  <data name="PurchaseReceiptExceedsInvoice" xml:space="preserve"><value>«{0}»: المستلم {1} يتجاوز المتبقي للاستلام {2} (المطلوب {3}).</value></data>
+  <data name="PurchaseReceiptQtyPositive" xml:space="preserve"><value>أدخل لكل سطر كمية مستلمة (مقبولة أو مرفوضة) أكبر من صفر.</value></data>
+  <data name="ReceiptRejectionReasonRequired" xml:space="preserve"><value>«{0}»: سبب الرفض إلزامي للكمية المرفوضة.</value></data>
+  <data name="ReceiptRejectionNotAllowed" xml:space="preserve"><value>الكمية المرفوضة تُسجَّل في سند استلام مشتريات من اتفاقية أو فاتورة مشتريات فقط.</value></data>
+  <data name="DeliveryNoteFromPurchaseInvoiceNotBillable" xml:space="preserve"><value>سند الاستلام من فاتورة مشتريات مرحّلة مستند تشغيلي: الفاتورة قائمة ولا يُفوتر مرة أخرى.</value></data>
+  <data name="PurchaseInvoiceHasReceipts" xml:space="preserve"><value>فاتورة المشتريات عليها سندات استلام قائمة ({0}): احذفها أولاً.</value></data>
+  <data name="PurchaseReturnExceedsReceipts" xml:space="preserve"><value>«{0}»: المرتجع المالي {1} يتجاوز غير المقبول في سندات الاستلام ({2}). سجّل مرتجع سند الاستلام أو الرفض في السند أولاً.</value></data>
+  <data name="PurchaseSupplyClosed" xml:space="preserve"><value>متابعة توريد {0} مرفوضة أو ملغاة: أعد فتح المتابعة قبل استلام جديد.</value></data>
+  <data name="PurchaseSupplyTrackingNotFound" xml:space="preserve"><value>متابعة التوريد غير موجودة.</value></data>
+  <data name="PurchaseSupplySourceInvalid" xml:space="preserve"><value>مصدر المتابعة فاتورة مشتريات مرحّلة أو اتفاقية شراء سارية من مورد.</value></data>
+  <data name="PurchaseSupplyAlreadyClosed" xml:space="preserve"><value>المتابعة مرفوضة أو ملغاة.</value></data>
+  <data name="PurchaseSupplyReasonRequired" xml:space="preserve"><value>السبب إلزامي.</value></data>
+  <data name="PurchaseSupplyAlreadyReceived" xml:space="preserve"><value>المتابعة مستلمة بالكامل؛ لا تُرفض ولا تُلغى.</value></data>
+  <data name="DuplicateEntityValue" xml:space="preserve"><value>{0} «{1}» مستخدم مسبقاً في {2} برمز {3}.</value></data>
+  <data name="DuplicateFieldNameAr" xml:space="preserve"><value>الاسم العربي</value></data>
+  <data name="DuplicateFieldNameEn" xml:space="preserve"><value>الاسم الإنجليزي</value></data>
+  <data name="DuplicateFieldIdNumber" xml:space="preserve"><value>رقم الهوية</value></data>
 </root>

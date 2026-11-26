@@ -48,13 +48,13 @@ public class SupplierService : CrudService<Supplier, SupplierDto, CreateSupplier
     private async Task<List<PartyImportRowDto>> CheckImportAsync(List<PartyImportRowInput<CreateSupplierDto>> rows, CancellationToken ct)
     {
         var existing = await Db.Set<Supplier>().AsNoTracking()
-            .Select(s => new PartyImport.PartyRecord(s.Code, s.NameAr, s.VatNumber, s.CrNumber, s.Phone)).ToListAsync(ct);
+            .Select(s => new PartyImport.PartyRecord(s.Code, s.NameAr, s.NameEn, s.VatNumber, s.CrNumber, s.Phone)).ToListAsync(ct);
         return PartyImport.Check(rows, existing,
             d =>
             {
                 d.Code = d.Code?.Trim() ?? string.Empty; d.NameAr = d.NameAr?.Trim() ?? string.Empty;
                 d.VatNumber = d.VatNumber?.Trim(); d.CrNumber = d.CrNumber?.Trim();
-                return new PartyImport.PartyRecord(d.Code, d.NameAr, d.VatNumber, d.CrNumber, d.Phone);
+                return new PartyImport.PartyRecord(d.Code, d.NameAr, d.NameEn, d.VatNumber, d.CrNumber, d.Phone);
             },
             (d, phone) => d.Phone = phone,
             d =>

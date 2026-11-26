@@ -61,31 +61,32 @@ public class PartyImportTests : TestBase
             Row(6, new { code = "C-6", nameAr = "سجل أول", phone = "0501230006", crNumber = "2020202020" }),
             Row(7, new { code = "C-7", nameAr = "سجل مكرر", phone = "0501230007", crNumber = "2020202020" }),         // مكرر في الملف
             Row(8, new { code = "C-8", nameAr = "فرع آخر", phone = "+966 55 111 2222" }),                           // هاتف مسجّل: تنبيه
-            Row(9, new { code = "C-9", nameAr = "  موسسة   الامل التجاريه ", phone = "0501230009" }),               // الاسم نفسه بصيغة أخرى: تنبيه
+            Row(9, new { code = "C-9", nameAr = "موسسة الامل التجاريه", phone = "0501230009" }),                     // همزات وتاء مختلفة: اسم آخر (لا توحيد للحروف)
             Row(10, new { code = "C-10", nameAr = "", phone = "0501230010" }),                                      // الاسم إلزامي
             Row(11, new { code = "C-11", nameAr = "ضريبي خطأ", phone = "0501230011", vatNumber = "12345" }),
             Row(12, new { code = "C-12", nameAr = "رصيد سالب للحد", phone = "0501230012", creditLimit = -1 }),
+            Row(13, new { code = "C-13", nameAr = "  مؤسسةُ   الأمل التجاريـــة ", phone = "0501230013" }),          // الاسم المسجّل بمسافات وتشكيل وتطويل: خطأ
         };
 
         var preview = await api.Post("/customers/import/preview", rows);
         Assert.Equal(200, preview.Status);
         var p = preview.Data!;
-        Assert.Equal(11, p["totalRows"].D());
-        Assert.Equal(2, p["validCount"].D()); Assert.Equal(2, p["warningCount"].D()); Assert.Equal(7, p["errorCount"].D());
+        Assert.Equal(12, p["totalRows"].D());
+        Assert.Equal(3, p["validCount"].D()); Assert.Equal(1, p["warningCount"].D()); Assert.Equal(8, p["errorCount"].D());
         var r = ByRow(p);
-        Assert.Equal("valid", r[2]["status"].S()); Assert.Equal("valid", r[6]["status"].S());
+        Assert.Equal("valid", r[2]["status"].S()); Assert.Equal("valid", r[6]["status"].S()); Assert.Equal("valid", r[9]["status"].S());
         Assert.Contains(Reasons(r[4], "errors"), e => e.Contains("C-EX") && e.Contains("مؤسسة الأمل التجارية"));
         Assert.Contains(Reasons(r[5], "errors"), e => e.Contains("300000000000003"));
         Assert.Contains(Reasons(r[7], "errors"), e => e.Contains("2020202020") && e.Contains('6'));
         Assert.Equal("warning", r[8]["status"].S()); Assert.Contains(Reasons(r[8], "warnings"), w => w.Contains("0551112222"));
-        Assert.Equal("warning", r[9]["status"].S()); Assert.Contains(Reasons(r[9], "warnings"), w => w.Contains("مؤسسة الأمل التجارية"));
+        Assert.Equal("error", r[13]["status"].S()); Assert.Contains(Reasons(r[13], "errors"), e => e.Contains("مؤسسة الأمل التجارية"));
         foreach (var n in new[] { 3, 10, 11, 12 }) Assert.Equal("error", r[n]["status"].S());
         // المعاينة لا تحفظ شيئاً
         Assert.Equal(countBefore, (await api.Get("/customers")).Data!["totalCount"].D());
 
         var import = await api.Post("/customers/import", rows);
         Assert.Equal(200, import.Status);
-        Assert.Equal(4, import.Data!["successCount"].D()); Assert.Equal(7, import.Data["failedCount"].D());
+        Assert.Equal(4, import.Data!["successCount"].D()); Assert.Equal(8, import.Data["failedCount"].D());
         var results = import.Data["results"]!.AsArray().ToDictionary(x => (int)x!["rowNumber"].D(), x => x!);
         Assert.False(results[4]["success"]!.GetValue<bool>()); Assert.Contains("C-EX", results[4]["error"].S());
         Assert.True(results[8]["success"]!.GetValue<bool>());

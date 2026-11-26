@@ -432,6 +432,14 @@ public class TradeInvoiceEngine
                 .Select(n => n.DeliveryNumber).ToListAsync(ct);
             if (notes.Count > 0) throw new ConflictException(string.Format(Messages.InvoiceHasDeliveryNotes, string.Join("، ", notes)));
         }
+        // فاتورة مشتريات عليها سندات استلام قائمة (أسطرها وكمياتها مرجع الاستلام): تُحذف السندات أولاً (حماية مستقلة عن المبيعات)
+        if (invoice.Kind == InvoiceKind.Purchase && !isReturnDoc)
+        {
+            var receipts = await _db.Set<DeliveryNote>().AsNoTracking()
+                .Where(n => n.SourceType == DeliveryNoteSources.PurchaseInvoice && n.SourceId == invoice.Id && n.Status != DeliveryNoteStatus.Cancelled)
+                .Select(n => n.DeliveryNumber).ToListAsync(ct);
+            if (receipts.Count > 0) throw new ConflictException(string.Format(Messages.PurchaseInvoiceHasReceipts, string.Join("، ", receipts)));
+        }
         // المرسلة للهيئة لا تُعدَّل، إلا المرفوضة: تُصحَّح وتُعاد بمعرّف جديد (الحذف ممنوع لها أيضاً: صارت حلقة في السلسلة)
         if (invoice.ZatcaStatus != ZatcaSubmissionStatus.NotSubmitted && (forDelete || invoice.ZatcaStatus != ZatcaSubmissionStatus.Rejected))
             throw new ConflictException(Messages.PostedInvoiceEditZatcaSubmitted);
@@ -693,6 +701,8 @@ public class TradeInvoiceEngine
         var previouslyReturned = await PreviouslyReturnedAsync<TReturn>(original, perSourceLine, token, excludeReturnId);
         var lines = NormalizeReturnLines(originalLines, r.Lines, previouslyReturned, perSourceLine, returnAllWhenEmpty: true);
         if (lines.Count == 0) throw new ConflictException(Messages.NoRemainingQtyToReturn);
+        // مرتجع مشتريات على فاتورة لها سندات استلام: يقابل المرفوض، ولا يُرجع مالياً كمية مقبولة لم تُرجع بمرتجع السند (لا احتساب مرتين)
+        await DeliverySources.EnsurePurchaseReturnFitsReceiptsAsync(_db, original, lines, excludeReturnId, token);
 
         var dto = BuildTradeReturn(original, r, lines, previouslyReturned, perSourceLine);
         if (r.RefundSplits.Count > 0) await ApplyRefundSplitsAsync(_db, dto, r.RefundSplits, token);
@@ -1800,6 +1810,9 @@ public class TradeInvoiceEngine
                 invoice.PaymentSplits.Add(new InvoicePaymentSplit { Method = method, PaymentMethodCode = s.PaymentMethodCode, Amount = s.Amount, Reference = s.Reference });
             }
         }
+        // الباقي النقدي للعميل: بيان فقط، يُقبل مع دفع فيه نقد (غير المرتجع) وإلا يُصفَّر
+        var paysCash = invoice.PaymentSplits.Count > 0 ? invoice.PaymentSplits.Any(s => s.Method == PaymentMethod.Cash) : invoice.PaymentMethod == PaymentMethod.Cash;
+        invoice.ChangeAmount = !isReturn && paysCash ? Math.Max(0, Math.Round(r.ChangeAmount, 2)) : 0;
         var hasCredit = invoice.PaymentMethod == PaymentMethod.Credit || invoice.PaymentSplits.Any(s => s.Method == PaymentMethod.Credit);
         if (hasCredit && !r.PartyId.HasValue)
             throw new ValidationFailedException(isSales ? Messages.CreditSaleRequiresCustomer : Messages.CreditPurchaseRequiresSupplier);

@@ -157,6 +157,11 @@ public static class PermissionCatalog
         // ترسية عروض الموردين (اعتماد العرض) وإلغاء طلب العروض منفصلة عن إدخال العروض؛ ترث «اعتماد» المشتريات حتى تُحفظ
         new(PurchaseQuotationAwardScreenId, "purchases", "دورة الشراء: ترسية عروض الموردين", "Purchase Cycle: Award Supplier Quotations",
             new[] { A.Approve }, Array.Empty<string>(), InheritsFrom: "purchases"),
+        // متابعة توريد المشتريات وتقاريرها: تُمنح يدوياً فقط (OptIn)، لا ترث المشتريات ولا تُمنح لأدوار عرضها تلقائياً
+        new(PurchaseReceiptTrackingScreenId, "purchases", "متابعة التوريد والاستلام", "Purchase Receipt Tracking",
+            new[] { A.View, A.Create, A.Edit, A.Reject, A.Cancel, A.Print, A.Export }, new[] { "purchases/receipt-tracking" }, OptIn: true),
+        new(PurchaseReceiptReportsScreenId, "purchases", "تقارير التوريد والاستلام", "Purchase Receipt Reports",
+            new[] { A.View, A.Print, A.Export, A.Pdf }, new[] { "purchases/receipt-reports" }, OptIn: true),
 
         new("accounts", "accounting", "دليل الحسابات والقيود اليومية", "Chart of Accounts",
             Crud(A.Approve, A.Post, A.Cancel, A.Close), new[] { "accounts-tree", "cost-centers", "bank-reconciliation", "fiscal-periods", "fixed-assets" }),
@@ -306,6 +311,10 @@ public static class PermissionCatalog
     public const string DeliveryTrackingScreenId = "delivery-tracking";
     /// <summary>تقارير التوصيل (قراءة وطباعة وتصدير).</summary>
     public const string DeliveryReportsScreenId = "delivery-reports";
+    /// <summary>متابعة توريد المشتريات: عرض، فتح متابعة/سند من فاتورة مشتريات (إضافة)، الموعد والملاحظات (تعديل)، رفض، إلغاء.</summary>
+    public const string PurchaseReceiptTrackingScreenId = "purchase-receipt-tracking";
+    /// <summary>تقارير التوريد والاستلام (قراءة وطباعة وتصدير).</summary>
+    public const string PurchaseReceiptReportsScreenId = "purchase-receipt-reports";
     public const string RentalBillingScreenId = "rental-billing";
     public const string RentalTimesheetsScreenId = "rental-timesheets";
     public const string RentalDepositsScreenId = "rental-deposits";

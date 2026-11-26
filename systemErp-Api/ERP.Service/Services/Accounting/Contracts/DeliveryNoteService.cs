@@ -201,12 +201,15 @@ public class DeliveryNoteService : IDeliveryNoteService
             foreach (var item in notes.SelectMany(n => n.Items))
                 if (names.TryGetValue(item.ItemId, out var nameEn) && !string.IsNullOrWhiteSpace(nameEn)) item.ItemNameEn = nameEn;
         }
+        // سند استلام على طلب شراء مشروع من دورة المقاولات أياً كان عقده
+        foreach (var note in notes) note.IsConstruction = note.RequisitionId.HasValue;
         var contractIds = notes.Where(note => note.ContractId.HasValue).Select(note => note.ContractId!.Value).Distinct().ToList();
         if (contractIds.Count == 0) return;
 
+        var boqTypes = _db.Set<ContractTypeDefinition>().AsNoTracking().Where(t => t.Billing == ContractBilling.BoqCertificate).Select(t => t.Code);
         var projects = await _db.Set<CommercialContract>().AsNoTracking()
             .Where(contract => contractIds.Contains(contract.Id))
-            .Select(contract => new { contract.Id, contract.ProjectName, contract.ProjectNameEn })
+            .Select(contract => new { contract.Id, contract.ProjectName, contract.ProjectNameEn, IsBoq = boqTypes.Contains(contract.ContractType) })
             .ToDictionaryAsync(contract => contract.Id, ct);
 
         foreach (var note in notes)
@@ -215,6 +218,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             {
                 note.ProjectName = project.ProjectName;
                 note.ProjectNameEn = project.ProjectNameEn;
+                // بيان/سند على عقد جدول كميات (مشروع مقاولات) لا على اتفاقية تجارية
+                if (project.IsBoq) note.IsConstruction = true;
             }
         }
     }

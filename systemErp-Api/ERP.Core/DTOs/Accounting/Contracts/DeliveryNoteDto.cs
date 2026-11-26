@@ -35,6 +35,11 @@ public partial class DeliveryNoteDto
     /// <summary>عهدة المشروع المنشأة من السند (سند استلام مشروع).</summary>
     public Guid? CustodyIssueId { get; set; }
     public Guid? PurchaseOrderId { get; set; }
+    /// <summary>
+    /// سند من دورة المقاولات (للعرض فقط، لا يُخزَّن): استلام على طلب شراء مشروع أو بيان على عقد جدول كميات.
+    /// الواجهة تعرضه في مساحة المقاولات وحدها، وبيانات النظام المحاسبي بدونه.
+    /// </summary>
+    public bool IsConstruction { get; set; }
     public string SourceType { get; set; } = "manual";
     public Guid? SourceId { get; set; }
     public string? SourceNumber { get; set; }

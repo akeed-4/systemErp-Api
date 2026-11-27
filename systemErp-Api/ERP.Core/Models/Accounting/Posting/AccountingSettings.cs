@@ -103,6 +103,16 @@ public class AccountingSettings : BaseEntity
     /// <summary>تأمينات عملاء التأجير (التزام): التأمين النقدي المستلم حتى خصمه أو رده؛ غير خاضع للضريبة.</summary>
     public string? RentalDepositsLiabilityAccountCode { get; set; }
 
+    // ---- الخياطة والتفصيل (إضافة tailoring) ----
+    /// <summary>أعمال خياطة تحت التنفيذ (أصل): مواد المحل المصروفة للأمر وأجور مراحله حتى تسليم القطعة.</summary>
+    public string? TailoringWipAccountCode { get; set; }
+    /// <summary>أجور خياطة محمّلة (مصروف دائن): مقابل الأجور المحمّلة على الأوامر.</summary>
+    public string? TailoringAbsorbedLaborAccountCode { get; set; }
+    /// <summary>تكلفة إيرادات الخياطة (مصروف): تكلفة القطع المسلّمة من تحت التنفيذ.</summary>
+    public string? TailoringCostOfRevenueAccountCode { get; set; }
+    /// <summary>دفعات مقدمة من عملاء الخياطة (التزام): صافي فاتورة العربون حتى يُسترد عند التسليم؛ ليس إيراداً مكتسباً.</summary>
+    public string? TailoringAdvancesReceivedAccountCode { get; set; }
+
     // فترة الإرجاع: أقصى عدد أيام بين تاريخ الفاتورة وتاريخ مرتجعها (فارغ = بلا حد). منع نهائي لكل مسارات الإرجاع.
     public int? SalesReturnPeriodDays { get; set; }
     public int? PurchaseReturnPeriodDays { get; set; }

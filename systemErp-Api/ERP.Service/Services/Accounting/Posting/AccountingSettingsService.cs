@@ -144,6 +144,7 @@ public class AccountingSettingsService : IAccountingSettingsService
         {
             PlatformModules.Workshop => ContractAccountsSetup.ModuleAccountSet.Workshop,
             PlatformModules.EquipmentRental => ContractAccountsSetup.ModuleAccountSet.Rental,
+            PlatformModules.Tailoring => ContractAccountsSetup.ModuleAccountSet.Tailoring,
             _ => throw new NotFoundException(Messages.ModuleAccountsUnknown),
         };
         if (!(await _entitlements.GetAsync(ct)).Allows(key)) throw new ForbiddenException(Messages.AddOnNotLicensed);

@@ -126,6 +126,14 @@ internal static class ChartTemplateSeed
         yield return Role("Rental.Deposits", "21", AccountCategory.Liability, "تأمينات عملاء التأجير", "Rental Customer Deposits", 3);
     }
 
+    private static IEnumerable<ChartTemplateAccount> TailoringAccounts()
+    {
+        yield return Role("Tailoring.WorkInProgress", "113", AccountCategory.Asset, "أعمال خياطة تحت التنفيذ", "Tailoring Work in Progress", 1);
+        yield return Role("Tailoring.AbsorbedLabor", "52", AccountCategory.Expense, "أجور خياطة محمّلة", "Tailoring Absorbed Labor", 2);
+        yield return Role("Tailoring.CostOfRevenue", "52", AccountCategory.Expense, "تكلفة إيرادات الخياطة", "Tailoring Cost of Revenue", 3);
+        yield return Role("Tailoring.AdvancesReceived", "21", AccountCategory.Liability, "دفعات مقدمة من عملاء الخياطة", "Tailoring Customer Advances", 4);
+    }
+
     private static IEnumerable<ChartTemplateAccount> ServicesAccounts()
     {
         // إيراد الخدمات هو حساب الإيراد الافتراضي نفسه (411) باسم النشاط: الفواتير تُرحَّل عليه كما هي
@@ -172,6 +180,8 @@ internal static class ChartTemplateSeed
                 WorkshopAccounts(), module: PlatformModules.Workshop),
             Template(ModuleKey(PlatformModules.EquipmentRental), "موديول تأجير المعدات", "Equipment Rental Module", ChartTemplateKind.Module, 24,
                 RentalAccounts(), module: PlatformModules.EquipmentRental),
+            Template(ModuleKey(PlatformModules.Tailoring), "موديول الخياطة والتفصيل", "Tailoring Module", ChartTemplateKind.Module, 25,
+                TailoringAccounts(), module: PlatformModules.Tailoring),
         };
         return list;
     }

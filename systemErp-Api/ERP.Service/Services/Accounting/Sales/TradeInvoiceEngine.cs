@@ -467,7 +467,8 @@ public class TradeInvoiceEngine
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
         // مرتجع فاتورة مستخلص يتبع إلغاء المستخلص نفسه، فلا يُعدَّل ولا يُحذف وحده
         if (isReturnDoc && invoice.OriginalInvoiceId is Guid originalId && await _db.Set<InvoiceBase>().AsNoTracking()
-                .AnyAsync(i => i.Id == originalId && (i.ReferenceType == "contract_certificate" || i.ReferenceType == "workshop_work_order" || i.ReferenceType == "rental_billing"), ct))
+                .AnyAsync(i => i.Id == originalId && (i.ReferenceType == "contract_certificate" || i.ReferenceType == "workshop_work_order" || i.ReferenceType == "rental_billing"
+                    || i.ReferenceType == "tailoring_advance" || i.ReferenceType == "tailoring_delivery"), ct))
             throw new ConflictException(Messages.InvoiceFromSourceDocument);
         // تكاليف إضافية معتمدة رفعت تكلفة حركات شرائها: إعادة الترحيل تُسقطها، فيُلغى السند أولاً
         if (invoice.Kind == InvoiceKind.Purchase && await _db.Set<PurchaseLandedCostInvoice>()
@@ -700,6 +701,9 @@ public class TradeInvoiceEngine
         // فاتورة فوترة التأجير تُلغى من الفوترة نفسها (تعيد المفوتر والرسوم)
         if (original.ReferenceType == "rental_billing" && !r.SystemGenerated)
             throw new ConflictException(Messages.RentalInvoiceReturnBlocked);
+        // فواتير الخياطة (الدفعة المقدمة والتسليم) تُلغى من أمر التفصيل نفسه (يعيد العربون أو القطع المسلّمة)
+        if (original.ReferenceType is "tailoring_advance" or "tailoring_delivery" && !r.SystemGenerated)
+            throw new ConflictException(Messages.TailoringInvoiceReturnBlocked);
         // فاتورة الدفعة المقدمة تستردها المستخلصات (وتخفض بها أساسها الضريبي): مرتجعها الحر يتركها تُسترد وهي ملغاة
         if (!r.SystemGenerated && await _db.Set<ContractInvoice>().AsNoTracking()
                 .AnyAsync(i => i.InvoiceId == original.Id && i.Kind == "advance", token))

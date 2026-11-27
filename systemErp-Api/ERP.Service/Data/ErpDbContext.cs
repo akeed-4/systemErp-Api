@@ -422,6 +422,57 @@ public class ErpDbContext : DbContext
         (typeof(WorkshopWarranty), nameof(WorkshopWarranty.LineId), typeof(WorkOrderLine)),
         (typeof(WorkshopWarranty), nameof(WorkshopWarranty.VehicleId), typeof(ServiceVehicle)),
         (typeof(WorkshopWarranty), nameof(WorkshopWarranty.ClaimWorkOrderId), typeof(WorkOrder)),
+        // الخياطة والتفصيل (المرحلة 1): الإعداد والقوالب وملفات العملاء ونسخ القياس
+        (typeof(TailoringSettings), nameof(TailoringSettings.DefaultWarehouseId), typeof(Warehouse)),
+        (typeof(TailoringGarmentType), nameof(TailoringGarmentType.ProductId), typeof(Product)),
+        (typeof(TailoringMeasurementField), nameof(TailoringMeasurementField.GarmentTypeId), typeof(TailoringGarmentType)),
+        (typeof(TailoringDesignOption), nameof(TailoringDesignOption.GarmentTypeId), typeof(TailoringGarmentType)),
+        (typeof(TailoringDesignOptionValue), nameof(TailoringDesignOptionValue.OptionId), typeof(TailoringDesignOption)),
+        (typeof(TailoringCustomerProfile), nameof(TailoringCustomerProfile.CustomerId), typeof(Customer)),
+        (typeof(TailoringMeasurementProfile), nameof(TailoringMeasurementProfile.CustomerId), typeof(Customer)),
+        (typeof(TailoringMeasurementProfile), nameof(TailoringMeasurementProfile.GarmentTypeId), typeof(TailoringGarmentType)),
+        (typeof(TailoringMeasurementVersion), nameof(TailoringMeasurementVersion.ProfileId), typeof(TailoringMeasurementProfile)),
+        (typeof(TailoringMeasurementVersion), nameof(TailoringMeasurementVersion.MeasuredByEmployeeId), typeof(Employee)),
+        // الخياطة (المرحلة 2): الأمر بأسطره وقطعه وسجله؛ فاتورة الدفعة مرجع بلا قيد (TPC)
+        (typeof(TailoringOrder), nameof(TailoringOrder.CustomerId), typeof(Customer)),
+        (typeof(TailoringOrder), nameof(TailoringOrder.WarehouseId), typeof(Warehouse)),
+        (typeof(TailoringOrderLine), nameof(TailoringOrderLine.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringOrderLine), nameof(TailoringOrderLine.GarmentTypeId), typeof(TailoringGarmentType)),
+        (typeof(TailoringOrderLine), nameof(TailoringOrderLine.ProductId), typeof(Product)),
+        (typeof(TailoringOrderLine), nameof(TailoringOrderLine.FabricProductId), typeof(Product)),
+        (typeof(TailoringOrderLine), nameof(TailoringOrderLine.MeasurementProfileId), typeof(TailoringMeasurementProfile)),
+        (typeof(TailoringOrderLine), nameof(TailoringOrderLine.MeasurementVersionId), typeof(TailoringMeasurementVersion)),
+        (typeof(TailoringGarment), nameof(TailoringGarment.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringGarment), nameof(TailoringGarment.LineId), typeof(TailoringOrderLine)),
+        (typeof(TailoringGarment), nameof(TailoringGarment.CurrentStageId), typeof(TailoringStage)),
+        (typeof(TailoringGarment), nameof(TailoringGarment.AssignedEmployeeId), typeof(Employee)),
+        (typeof(TailoringOrderStatusHistory), nameof(TailoringOrderStatusHistory.OrderId), typeof(TailoringOrder)),
+        // الخياطة (المرحلة 3): سجل المراحل والبروفات والتعديلات
+        (typeof(TailoringStageHistory), nameof(TailoringStageHistory.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringStageHistory), nameof(TailoringStageHistory.GarmentId), typeof(TailoringGarment)),
+        (typeof(TailoringStageHistory), nameof(TailoringStageHistory.EmployeeId), typeof(Employee)),
+        (typeof(TailoringFitting), nameof(TailoringFitting.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringFitting), nameof(TailoringFitting.GarmentId), typeof(TailoringGarment)),
+        (typeof(TailoringModification), nameof(TailoringModification.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringModification), nameof(TailoringModification.GarmentId), typeof(TailoringGarment)),
+        (typeof(TailoringModification), nameof(TailoringModification.FittingId), typeof(TailoringFitting)),
+        (typeof(TailoringModification), nameof(TailoringModification.AssignedEmployeeId), typeof(Employee)),
+        (typeof(TailoringMaterialIssue), nameof(TailoringMaterialIssue.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringMaterialIssue), nameof(TailoringMaterialIssue.GarmentId), typeof(TailoringGarment)),
+        (typeof(TailoringMaterialIssue), nameof(TailoringMaterialIssue.ProductId), typeof(Product)),
+        (typeof(TailoringMaterialIssue), nameof(TailoringMaterialIssue.WarehouseId), typeof(Warehouse)),
+        (typeof(TailoringMaterialIssue), nameof(TailoringMaterialIssue.ReturnOfId), typeof(TailoringMaterialIssue)),
+        (typeof(TailoringLaborEntry), nameof(TailoringLaborEntry.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringLaborEntry), nameof(TailoringLaborEntry.GarmentId), typeof(TailoringGarment)),
+        (typeof(TailoringLaborEntry), nameof(TailoringLaborEntry.StageId), typeof(TailoringStage)),
+        (typeof(TailoringLaborEntry), nameof(TailoringLaborEntry.EmployeeId), typeof(Employee)),
+        (typeof(TailoringWorkerRate), nameof(TailoringWorkerRate.EmployeeId), typeof(Employee)),
+        (typeof(TailoringWorkerRate), nameof(TailoringWorkerRate.StageId), typeof(TailoringStage)),
+        (typeof(TailoringDelivery), nameof(TailoringDelivery.OrderId), typeof(TailoringOrder)),
+        (typeof(TailoringGarment), nameof(TailoringGarment.DeliveryId), typeof(TailoringDelivery)),
+        (typeof(TailoringDeliveryPiece), nameof(TailoringDeliveryPiece.DeliveryId), typeof(TailoringDelivery)),
+        (typeof(TailoringDeliveryPiece), nameof(TailoringDeliveryPiece.GarmentId), typeof(TailoringGarment)),
+        (typeof(TailoringDeliveryPiece), nameof(TailoringDeliveryPiece.LineId), typeof(TailoringOrderLine)),
         // التكلفة المعيارية لساعة الموظف (الورش والتأجير): الموظف الذي له سجل تكلفة لا يُحذف
         (typeof(EmployeeStandardCostRate), nameof(EmployeeStandardCostRate.EmployeeId), typeof(Employee)),
         // محتوى المرفق المشترك (مزود قاعدة البيانات): يُحذف صراحة مع سجله
@@ -1621,6 +1672,198 @@ public class ErpDbContext : DbContext
             e.Property(x => x.AuthorizedBy).HasMaxLength(200);
             e.HasIndex(x => new { x.TenantId, x.LineId }).IsUnique();
         });
+        // الخياطة والتفصيل (المرحلة 1): الرموز والمفاتيح فريدة في نطاقها، والملف الواحد للعميل، ورقم النسخة فريد في ملفها
+        modelBuilder.Entity<TailoringGarmentType>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+            e.Property(x => x.Category).HasMaxLength(16).IsRequired();
+            e.Property(x => x.MeasurementUnit).HasMaxLength(8).IsRequired();
+            e.Property(x => x.BasePrice).HasPrecision(18, 2);
+            e.Property(x => x.DefaultFabricMeters).HasPrecision(18, 3);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<TailoringMeasurementField>(e =>
+        {
+            e.Property(x => x.Key).HasMaxLength(48).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+            e.Property(x => x.GroupName).HasMaxLength(100);
+            e.Property(x => x.MinValue).HasPrecision(18, 3);
+            e.Property(x => x.MaxValue).HasPrecision(18, 3);
+            e.Property(x => x.InputType).HasMaxLength(16).IsRequired().HasDefaultValue(TailoringOptionInputTypes.Number);
+            e.HasIndex(x => new { x.TenantId, x.GarmentTypeId, x.Key }).IsUnique();
+        });
+        modelBuilder.Entity<TailoringDesignOption>(e =>
+        {
+            e.Property(x => x.Key).HasMaxLength(48).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+            e.Property(x => x.InputType).HasMaxLength(16).IsRequired();
+            e.HasIndex(x => new { x.TenantId, x.GarmentTypeId, x.Key }).IsUnique();
+        });
+        modelBuilder.Entity<TailoringDesignOptionValue>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(48).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+            e.Property(x => x.PriceDelta).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.TenantId, x.OptionId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<TailoringStage>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+            e.Property(x => x.DefaultPieceRate).HasPrecision(18, 2);
+            e.Property(x => x.GarmentTypeIds).HasMaxLength(2000);
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<TailoringSettings>(e => e.Property(x => x.MinAdvancePercent).HasPrecision(5, 2));
+        modelBuilder.Entity<TailoringCustomerProfile>(e =>
+        {
+            e.Property(x => x.Preferences).HasMaxLength(2000);
+            e.Property(x => x.Notes).HasMaxLength(2000);
+            e.HasIndex(x => new { x.TenantId, x.CustomerId }).IsUnique();
+        });
+        modelBuilder.Entity<TailoringMeasurementProfile>(e =>
+        {
+            e.Property(x => x.WearerName).HasMaxLength(150).IsRequired();
+            e.Property(x => x.Relation).HasMaxLength(50);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.CustomerId });
+        });
+        modelBuilder.Entity<TailoringOrder>(e =>
+        {
+            e.Property(x => x.OrderNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.CustomerName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.CustomerPhone).HasMaxLength(30);
+            e.Property(x => x.Priority).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.AdvanceInvoiceNumber).HasMaxLength(50);
+            e.Property(x => x.ConfirmedBy).HasMaxLength(200);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            foreach (var p in new[] { nameof(TailoringOrder.GrossAmount), nameof(TailoringOrder.DiscountTotal), nameof(TailoringOrder.NetTotal),
+                nameof(TailoringOrder.VatTotal), nameof(TailoringOrder.GrandTotal), nameof(TailoringOrder.AdvanceAmount), nameof(TailoringOrder.AdvanceNet),
+                nameof(TailoringOrder.AdvanceVat), nameof(TailoringOrder.AdvanceRecovered), nameof(TailoringOrder.CloseCostAmount) })
+                e.Property<decimal>(p).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.TenantId, x.OrderNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status, x.ExpectedDeliveryDate });
+        });
+        modelBuilder.Entity<TailoringOrderLine>(e =>
+        {
+            e.Property(x => x.GarmentTypeName).HasMaxLength(150).IsRequired();
+            e.Property(x => x.WearerName).HasMaxLength(150);
+            e.Property(x => x.MeasurementUnit).HasMaxLength(8);
+            e.Property(x => x.DesignJson).IsRequired();
+            e.Property(x => x.FabricSource).HasMaxLength(16).IsRequired();
+            e.Property(x => x.FabricName).HasMaxLength(200);
+            e.Property(x => x.CustomerFabricDescription).HasMaxLength(300);
+            e.Property(x => x.CustomerFabricColor).HasMaxLength(100);
+            e.Property(x => x.Instructions).HasMaxLength(1000);
+            e.Property(x => x.FabricMeters).HasPrecision(18, 3);
+            e.Property(x => x.CustomerFabricMeters).HasPrecision(18, 3);
+            foreach (var p in new[] { nameof(TailoringOrderLine.FabricUnitPrice), nameof(TailoringOrderLine.BasePrice), nameof(TailoringOrderLine.OptionsPrice),
+                nameof(TailoringOrderLine.FabricPrice), nameof(TailoringOrderLine.SuggestedUnitPrice), nameof(TailoringOrderLine.UnitPrice),
+                nameof(TailoringOrderLine.DiscountAmount), nameof(TailoringOrderLine.NetAmount), nameof(TailoringOrderLine.VatRate),
+                nameof(TailoringOrderLine.VatAmount), nameof(TailoringOrderLine.TotalAmount) })
+                e.Property<decimal>(p).HasPrecision(18, 2);
+        });
+        modelBuilder.Entity<TailoringGarment>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsRequired();
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status });
+        });
+        modelBuilder.Entity<TailoringMaterialIssue>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.Property(x => x.TotalCost).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.TenantId, x.OrderId });
+            e.HasIndex(x => new { x.TenantId, x.Date });
+        });
+        modelBuilder.Entity<TailoringLaborEntry>(e =>
+        {
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.Date });
+        });
+        modelBuilder.Entity<TailoringWorkerRate>(e =>
+        {
+            e.Property(x => x.Rate).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.StageId }).IsUnique();
+        });
+        modelBuilder.Entity<TailoringDelivery>(e =>
+        {
+            e.Property(x => x.DeliveryNumber).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ReceivedBy).HasMaxLength(200);
+            e.Property(x => x.ReceiverPhone).HasMaxLength(50);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.InvoiceNumber).HasMaxLength(64);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            foreach (var p in new[] { nameof(TailoringDelivery.NetAmount), nameof(TailoringDelivery.AdvanceRecovery), nameof(TailoringDelivery.TaxableAmount),
+                nameof(TailoringDelivery.VatAmount), nameof(TailoringDelivery.TotalAmount), nameof(TailoringDelivery.CostAmount) })
+                e.Property<decimal>(p).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.TenantId, x.DeliveryNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.OrderId });
+            e.HasIndex(x => new { x.TenantId, x.Date });
+        });
+        modelBuilder.Entity<TailoringDeliveryPiece>(e =>
+        {
+            foreach (var p in new[] { nameof(TailoringDeliveryPiece.NetAmount), nameof(TailoringDeliveryPiece.AdvanceRecovery), nameof(TailoringDeliveryPiece.CostAmount) })
+                e.Property<decimal>(p).HasPrecision(18, 2);
+        });
+        modelBuilder.Entity<TailoringStageHistory>(e =>
+        {
+            e.Property(x => x.FromStatus).HasMaxLength(24);
+            e.Property(x => x.ToStatus).HasMaxLength(24).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(1000);
+            e.Property(x => x.ChangedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ChangedAt }); // تقارير الإنتاجية ومدد المراحل بالفترة
+        });
+        modelBuilder.Entity<TailoringFitting>(e =>
+        {
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Result).HasMaxLength(16);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.Status, x.ScheduledAt });
+        });
+        modelBuilder.Entity<TailoringModification>(e =>
+        {
+            e.Property(x => x.Instructions).HasMaxLength(2000).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+        });
+        modelBuilder.Entity<TailoringOrderStatusHistory>(e =>
+        {
+            e.Property(x => x.FromStatus).HasMaxLength(32);
+            e.Property(x => x.ToStatus).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(1000);
+            e.Property(x => x.ChangedBy).HasMaxLength(200);
+        });
+        modelBuilder.Entity<TailoringMeasurementVersion>(e =>
+        {
+            e.Property(x => x.MeasuredByName).HasMaxLength(200);
+            e.Property(x => x.Unit).HasMaxLength(8).IsRequired();
+            e.Property(x => x.ValuesJson).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ProfileId, x.VersionNo }).IsUnique();
+        });
+
         modelBuilder.Entity<WorkshopWarranty>(e =>
         {
             e.Property(x => x.Description).HasMaxLength(500).IsRequired();

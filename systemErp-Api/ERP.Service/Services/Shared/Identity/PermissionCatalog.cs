@@ -73,6 +73,8 @@ public static class PermissionCatalog
         new("car-showroom", "معارض السيارات", "Car Showroom", "directions_car"),
         new(WorkshopModuleId, "ورش السيارات", "Automotive Workshop", "car_repair"),
         new(EquipmentRentalModuleId, "تأجير المعدات", "Equipment Rental", "front_loader"),
+        new(TailoringModuleId, "الخياطة والتفصيل", "Tailoring & Garments", "checkroom"),
+        new(ManagementModuleId, "الإدارة", "Management", "admin_panel_settings"),
         new("reports", "التقارير", "Reports", "insights"),
         new("settings", "الإعدادات", "Settings", "settings"),
     };
@@ -233,6 +235,32 @@ public static class PermissionCatalog
         new(WorkshopCostViewScreenId, WorkshopModuleId, "الورش: رؤية التكلفة والربحية", "Workshop: View Cost & Profitability",
             new[] { A.View }.Concat(Docs).ToArray(), new[] { "workshop/reports" }, Restricted: true),
 
+        // الخياطة والتفصيل (إضافة tailoring). أمر التفصيل هو المستند الرئيسي: الإنتاج والبروفات والمواد والتسليم والجودة ترثه.
+        new(TailoringSettingsScreenId, TailoringModuleId, "الخياطة: الإعدادات وأنواع الملابس والقياسات والتصاميم ومراحل الإنتاج", "Tailoring: Settings, Garment Types, Measurements, Designs & Stages",
+            new[] { A.View, A.Edit }, new[] { "tailoring/settings" }),
+        new(TailoringCustomersScreenId, TailoringModuleId, "الخياطة: ملفات العملاء وقياساتهم ونسخها", "Tailoring: Customer Profiles & Measurements",
+            Crud(), new[] { "tailoring/customers" }),
+        // «اعتماد» = تأكيد الأمر وإصدار فاتورة الدفعة المقدمة، و«خصم يدوي» = سعر مخالف أو خصم على الأمر
+        new(TailoringOrdersScreenId, TailoringModuleId, "الخياطة: أوامر التفصيل وعروض الأسعار والدفعات المقدمة", "Tailoring: Orders, Quotations & Advance Payments",
+            Crud(A.Approve, A.Close, A.Cancel, A.Reopen, A.Discount), new[] { "tailoring", "tailoring/dashboard", "tailoring/orders" }),
+        new(TailoringProductionScreenId, TailoringModuleId, "الخياطة: لوحة الإنتاج وإسناد القطع ونقل المراحل", "Tailoring: Production Board, Assignment & Stage Moves",
+            new[] { A.View, A.Create, A.Edit }.Concat(Docs).ToArray(), new[] { "tailoring/production" }, InheritsFrom: TailoringOrdersScreenId),
+        new(TailoringFittingsScreenId, TailoringModuleId, "الخياطة: البروفات وطلبات التعديل", "Tailoring: Fittings & Modification Requests",
+            Crud(A.Cancel), new[] { "tailoring/fittings" }, InheritsFrom: TailoringOrdersScreenId),
+        // الترحيل = صرف المواد بحركة مخزون وقيد، والإلغاء = الإرجاع
+        new(TailoringMaterialsScreenId, TailoringModuleId, "الخياطة: صرف الأقمشة والمواد وإرجاعها", "Tailoring: Fabric & Material Issues and Returns",
+            Crud(A.Post, A.Cancel), new[] { "tailoring/materials" }, InheritsFrom: TailoringOrdersScreenId),
+        new(TailoringWorkersScreenId, TailoringModuleId, "الخياطة: الخياطون وتخصصاتهم وأجور القطعة", "Tailoring: Tailors, Specialties & Piece Rates",
+            new[] { A.View, A.Create, A.Edit }.Concat(Docs).ToArray(), new[] { "tailoring/workers" }),
+        new(TailoringDeliveryScreenId, TailoringModuleId, "الخياطة: التسليم وفاتورته", "Tailoring: Delivery & Invoicing",
+            new[] { A.View, A.Create, A.Cancel }.Concat(Docs).ToArray(), new[] { "tailoring/delivery" }, InheritsFrom: TailoringOrdersScreenId),
+        new(TailoringQualityScreenId, TailoringModuleId, "الخياطة: فحص الجودة قبل التسليم", "Tailoring: Quality Inspection Before Delivery",
+            new[] { A.View, A.Approve, A.Reject }, Array.Empty<string>(), InheritsFrom: TailoringOrdersScreenId),
+        new(TailoringReportsScreenId, TailoringModuleId, "الخياطة: التقارير التشغيلية", "Tailoring: Operational Reports",
+            new[] { A.View }.Concat(Docs).ToArray(), new[] { "tailoring/reports" }),
+        new(TailoringCostViewScreenId, TailoringModuleId, "الخياطة: رؤية التكلفة والربحية", "Tailoring: View Cost & Profitability",
+            new[] { A.View }.Concat(Docs).ToArray(), Array.Empty<string>(), Restricted: true),
+
         // تأجير المعدات (إضافة equipment_rental). سجل المعدات نفسه شاشة «equipment» القائمة؛ هنا دورة التأجير للعملاء.
         new(RentalSettingsScreenId, EquipmentRentalModuleId, "التأجير: الإعدادات والفئات والتسعير وأنواع الرسوم", "Rental: Settings, Categories, Pricing & Charge Types",
             new[] { A.View, A.Edit }, new[] { "rental/settings" }),
@@ -256,6 +284,10 @@ public static class PermissionCatalog
         // الإعفاء من رسم (تأخير، تلف، غرامة) أو تخفيضه بسبب: تفويض حسّاس
         new(RentalChargeWaiverScreenId, EquipmentRentalModuleId, "التأجير: الإعفاء من الرسوم والغرامات", "Rental: Waive Charges & Penalties",
             new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
+
+        // الإدارة: سجل التدقيق العام (من فعل ماذا ومتى) — حسّاس، للإداريين افتراضياً
+        new(ManagementAuditScreenId, ManagementModuleId, "الإدارة: سجل التدقيق", "Management: Audit Log",
+            new[] { A.View }.Concat(Docs).ToArray(), new[] { "management/audit-log" }, Restricted: true),
 
         new("dashboard", "reports", "لوحة المؤشرات والملخص المالي", "Dashboard & Summary", new[] { A.View }, new[] { "dashboard" }),
         // مركز المراقبة الإدارية: عرض = المؤشرات والسجلات، تعديل = تشغيل الفحص ومعالجة التنبيهات. حسّاس: للأدوار الإدارية افتراضياً
@@ -312,6 +344,20 @@ public static class PermissionCatalog
     public const string WorkshopCostViewScreenId = "workshop-cost-view";
 
     public const string EquipmentRentalModuleId = "equipment-rental";
+    public const string ManagementModuleId = "management";
+    public const string ManagementAuditScreenId = "management-audit";
+    public const string TailoringModuleId = "tailoring";
+    public const string TailoringSettingsScreenId = "tailoring-settings";
+    public const string TailoringCustomersScreenId = "tailoring-customers";
+    public const string TailoringOrdersScreenId = "tailoring-orders";
+    public const string TailoringProductionScreenId = "tailoring-production";
+    public const string TailoringFittingsScreenId = "tailoring-fittings";
+    public const string TailoringMaterialsScreenId = "tailoring-materials";
+    public const string TailoringWorkersScreenId = "tailoring-workers";
+    public const string TailoringDeliveryScreenId = "tailoring-delivery";
+    public const string TailoringQualityScreenId = "tailoring-quality";
+    public const string TailoringReportsScreenId = "tailoring-reports";
+    public const string TailoringCostViewScreenId = "tailoring-cost-view";
     public const string RentalSettingsScreenId = "rental-settings";
     public const string RentalBookingsScreenId = "rental-bookings";
     public const string RentalContractsScreenId = "rental-contracts";

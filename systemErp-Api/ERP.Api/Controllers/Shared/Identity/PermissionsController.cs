@@ -123,7 +123,8 @@ public class PermissionsController : ErpControllerBase
             {
                 var action = screen.Action ?? RequireScreenAttribute.FromMethod(method);
                 // النقطة المشتركة تظهر تحت شاشتيها
-                foreach (var screenId in new[] { screen.ScreenId, screen.AlsoAllow }.OfType<string>())
+                foreach (var screenId in new[] { screen.ScreenId }.Concat((screen.AlsoAllow ?? string.Empty)
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
                 {
                     if (!result.TryGetValue(screenId, out var list)) result[screenId] = list = new();
                     list.Add(new PermissionEndpointDto

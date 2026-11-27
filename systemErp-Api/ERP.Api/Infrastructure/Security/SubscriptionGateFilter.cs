@@ -61,6 +61,7 @@ public class SubscriptionGateFilter : IAsyncAuthorizationFilter
         PlatformModules.Construction => "إضافة المقاولات",
         PlatformModules.Workshop => "إضافة ورش السيارات",
         PlatformModules.EquipmentRental => "إضافة تأجير المعدات",
+        PlatformModules.Tailoring => "إضافة الخياطة والتفصيل",
         _ => module,
     };
 }

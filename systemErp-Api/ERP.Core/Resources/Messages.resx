@@ -2480,4 +2480,111 @@
   <data name="MonitoringNoteRequired" xml:space="preserve"><value>اكتب الملاحظة.</value></data>
   <data name="MonitoringAssigneeInvalid" xml:space="preserve"><value>اختر مستخدماً فعّالاً من مستخدمي المنشأة.</value></data>
   <data name="MonitoringCheckAlreadyRunning" xml:space="preserve"><value>يوجد فحص قيد التشغيل الآن. انتظر حتى ينتهي ثم أعد المحاولة.</value></data>
+  <data name="TailoringSettingsInvalid" xml:space="preserve"><value>القيم غير صالحة: المدد والمبالغ غير سالبة، ونسبة الدفعة المقدمة بين 0 و100.</value></data>
+  <data name="TailoringWarehouseNotFound" xml:space="preserve"><value>الموقع غير موجود.</value></data>
+  <data name="TailoringGarmentTypeNotFound" xml:space="preserve"><value>نوع اللباس غير موجود.</value></data>
+  <data name="TailoringGarmentTypeInactive" xml:space="preserve"><value>نوع اللباس موقوف.</value></data>
+  <data name="TailoringGarmentTypeInvalid" xml:space="preserve"><value>بيانات نوع اللباس غير صالحة (الفئة، الوحدة، السعر، الأمتار، أو الخيارات).</value></data>
+  <data name="TailoringGarmentTypeInUse" xml:space="preserve"><value>نوع اللباس عليه ملفات قياس؛ أوقفه بدلاً من حذفه.</value></data>
+  <data name="TailoringNameRequired" xml:space="preserve"><value>الاسم بالعربية مطلوب.</value></data>
+  <data name="TailoringProductNotService" xml:space="preserve"><value>الصنف المرتبط يجب أن يكون صنفاً خدمياً.</value></data>
+  <data name="TailoringKeyInvalid" xml:space="preserve"><value>المفتاح «{0}» غير صالح: حروف إنجليزية صغيرة وأرقام وشرطة سفلية، ويبدأ بحرف.</value></data>
+  <data name="TailoringKeyDuplicate" xml:space="preserve"><value>المفتاح «{0}» مكرر.</value></data>
+  <data name="TailoringFieldRangeInvalid" xml:space="preserve"><value>حدود الحقل «{0}» غير صالحة.</value></data>
+  <data name="TailoringFieldKeyLocked" xml:space="preserve"><value>مفتاح الحقل «{0}» مستخدم في قياسات محفوظة ولا يتغير؛ أوقف الحقل وأضف حقلاً جديداً بمفتاح آخر.</value></data>
+  <data name="TailoringOptionValuesRequired" xml:space="preserve"><value>الخيار «{0}» يحتاج قيمة فعّالة واحدة على الأقل.</value></data>
+  <data name="TailoringOptionDefaultMultiple" xml:space="preserve"><value>الخيار «{0}» له أكثر من قيمة افتراضية.</value></data>
+  <data name="TailoringStageNotFound" xml:space="preserve"><value>المرحلة غير موجودة.</value></data>
+  <data name="TailoringCodeDuplicate" xml:space="preserve"><value>الرمز مستخدم.</value></data>
+  <data name="TailoringCustomerNotFound" xml:space="preserve"><value>العميل غير موجود.</value></data>
+  <data name="TailoringProfileNotFound" xml:space="preserve"><value>ملف القياس غير موجود.</value></data>
+  <data name="TailoringWearerRequired" xml:space="preserve"><value>اسم صاحب القياس مطلوب.</value></data>
+  <data name="TailoringProfileTypeLocked" xml:space="preserve"><value>لا يتغير نوع اللباس بعد تسجيل قياس في الملف؛ أنشئ ملفاً جديداً.</value></data>
+  <data name="TailoringProfileHasVersions" xml:space="preserve"><value>ملف القياس له نسخ محفوظة فلا يُحذف؛ أوقفه بدلاً من ذلك.</value></data>
+  <data name="TailoringEmployeeNotFound" xml:space="preserve"><value>الموظف غير موجود.</value></data>
+  <data name="TailoringVersionNotFound" xml:space="preserve"><value>نسخة القياس غير موجودة.</value></data>
+  <data name="TailoringCompareDifferentProfiles" xml:space="preserve"><value>المقارنة بين نسختين من الملف نفسه فقط.</value></data>
+  <data name="TailoringMeasurementUnknownField" xml:space="preserve"><value>الحقل «{0}» ليس من حقول القياس الفعّالة لهذا النوع.</value></data>
+  <data name="TailoringMeasurementOutOfRange" xml:space="preserve"><value>قيمة «{0}» خارج الحدود المسموحة.</value></data>
+  <data name="TailoringFieldTypeLocked" xml:space="preserve"><value>الحقل «{0}» مستخدم في قياسات محفوظة ولا يتغير نوع إدخاله؛ أوقفه وأضف حقلاً جديداً.</value></data>
+  <data name="TailoringFieldChoicesRequired" xml:space="preserve"><value>الحقل «{0}» من نوع اختيار ويحتاج قيمة واحدة على الأقل.</value></data>
+  <data name="TailoringMeasurementChoiceInvalid" xml:space="preserve"><value>القيمة المختارة لـ«{0}» ليست من قائمته.</value></data>
+  <data name="TailoringDefaultsNotApplicable" xml:space="preserve"><value>الحقول الافتراضية متاحة لقالب الثوب السعودي (THOBE-M) فقط.</value></data>
+  <data name="TailoringMeasurementRequired" xml:space="preserve"><value>قياسات إلزامية ناقصة: {0}.</value></data>
+  <data name="TailoringOrderNotFound" xml:space="preserve"><value>أمر التفصيل غير موجود.</value></data>
+  <data name="TailoringOrderNotDraft" xml:space="preserve"><value>الأمر ليس مسودة؛ يُعدَّل ويُؤكَّد ويُحذف في المسودة فقط.</value></data>
+  <data name="TailoringOrderNotConfirmed" xml:space="preserve"><value>العملية لأمر مؤكد قائم فقط.</value></data>
+  <data name="TailoringOrderNoLines" xml:space="preserve"><value>أضف تشكيلة واحدة على الأقل.</value></data>
+  <data name="TailoringOrderTooManyLines" xml:space="preserve"><value>الحد الأقصى {0} تشكيلة في الأمر.</value></data>
+  <data name="TailoringOrderInvalid" xml:space="preserve"><value>بيانات الأمر غير صالحة (الكمية أو المبالغ أو الأولوية أو مصدر القماش).</value></data>
+  <data name="TailoringOrderDueBeforeDate" xml:space="preserve"><value>موعد التسليم لا يسبق تاريخ الأمر.</value></data>
+  <data name="TailoringOrderProfileMismatch" xml:space="preserve"><value>ملف القياس ليس لهذا العميل أو لنوع اللباس نفسه.</value></data>
+  <data name="TailoringOrderUnknownOption" xml:space="preserve"><value>خيار التصميم «{0}» غير معروف لهذا النوع.</value></data>
+  <data name="TailoringOrderOptionRequired" xml:space="preserve"><value>خيار التصميم «{0}» إلزامي.</value></data>
+  <data name="TailoringOrderOptionValueInvalid" xml:space="preserve"><value>قيمة خيار التصميم «{0}» غير صالحة.</value></data>
+  <data name="TailoringFabricNotFound" xml:space="preserve"><value>صنف القماش غير موجود.</value></data>
+  <data name="TailoringFabricNotStock" xml:space="preserve"><value>قماش المحل يجب أن يكون صنفاً مخزنياً.</value></data>
+  <data name="TailoringOrderDiscountForbidden" xml:space="preserve"><value>تعديل السعر أو الخصم يتطلب صلاحية «خصم يدوي».</value></data>
+  <data name="TailoringOrderDiscountTooHigh" xml:space="preserve"><value>الخصم أكبر من قيمة السطر.</value></data>
+  <data name="TailoringOrderMeasurementRequired" xml:space="preserve"><value>التشكيلة {0} ({1}) بلا قياس؛ اختر ملف قياس مسجّلاً.</value></data>
+  <data name="TailoringOrderServiceItemRequired" xml:space="preserve"><value>نوع اللباس «{0}» بلا صنف خدمي؛ اربطه به في إعدادات الخياطة قبل التأكيد.</value></data>
+  <data name="TailoringOrderHasAdvance" xml:space="preserve"><value>للأمر دفعة مقدمة قائمة؛ ألغها أولاً.</value></data>
+  <data name="TailoringOrderNoAdvance" xml:space="preserve"><value>لا دفعة مقدمة على الأمر.</value></data>
+  <data name="TailoringOrderProductionStarted" xml:space="preserve"><value>بدأ إنتاج قطع من الأمر.</value></data>
+  <data name="TailoringOrderCannotCancel" xml:space="preserve"><value>لا يُلغى الأمر في حالته الحالية.</value></data>
+  <data name="TailoringReasonRequired" xml:space="preserve"><value>السبب مطلوب.</value></data>
+  <data name="TailoringAdvanceAmountInvalid" xml:space="preserve"><value>مبلغ الدفعة يجب أن يكون أكبر من صفر ولا يتجاوز إجمالي الأمر.</value></data>
+  <data name="TailoringAdvanceBelowMinimum" xml:space="preserve"><value>الدفعة المقدمة أقل من الحد الأدنى ({0}).</value></data>
+  <data name="TailoringAdvanceDateInvalid" xml:space="preserve"><value>تاريخ الدفعة بين تاريخ الأمر واليوم.</value></data>
+  <data name="TailoringAdvanceMixedVat" xml:space="preserve"><value>أسطر الأمر بنسب ضريبة مختلفة؛ لا تُصدر دفعة مقدمة موحدة.</value></data>
+  <data name="TailoringAdvanceRecovered" xml:space="preserve"><value>استُرد جزء من الدفعة في فواتير التسليم فلا تُلغى.</value></data>
+  <data name="TailoringAccountsMissing" xml:space="preserve"><value>حسابات الخياطة غير مهيأة؛ هيّئها من إعدادات الحسابات.</value></data>
+  <data name="TailoringInvoiceReturnBlocked" xml:space="preserve"><value>فواتير الخياطة تُلغى من أمر التفصيل نفسه لا بمرتجع مستقل.</value></data>
+  <data name="TailoringHistoryAdvance" xml:space="preserve"><value>دفعة مقدمة</value></data>
+  <data name="TailoringHistoryAdvanceCancelled" xml:space="preserve"><value>إلغاء الدفعة المقدمة</value></data>
+  <data name="TailoringNoGarments" xml:space="preserve"><value>اختر قطعة واحدة على الأقل.</value></data>
+  <data name="TailoringGarmentNotFound" xml:space="preserve"><value>القطعة غير موجودة.</value></data>
+  <data name="TailoringGarmentFinished" xml:space="preserve"><value>القطعة مُسلَّمة أو ملغاة.</value></data>
+  <data name="TailoringModificationOpen" xml:space="preserve"><value>على القطعة طلب تعديل مفتوح.</value></data>
+  <data name="TailoringStageSkipped" xml:space="preserve"><value>لا تُتخطى المرحلة الإلزامية «{0}».</value></data>
+  <data name="TailoringQualityRequired" xml:space="preserve"><value>القطعة لا تصبح جاهزة قبل مرحلة فحص الجودة.</value></data>
+  <data name="TailoringStageNotApplicable" xml:space="preserve"><value>المرحلة غير فعّالة أو لا تنطبق على نوع القطعة.</value></data>
+  <data name="TailoringStageSame" xml:space="preserve"><value>القطعة في هذه المرحلة.</value></data>
+  <data name="TailoringAdvanceRequiredForProduction" xml:space="preserve"><value>لا يبدأ الإنتاج قبل دفعة مقدمة لا تقل عن {0}.</value></data>
+  <data name="TailoringFittingNotFound" xml:space="preserve"><value>البروفة غير موجودة.</value></data>
+  <data name="TailoringFittingClosed" xml:space="preserve"><value>سُجّلت نتيجة البروفة.</value></data>
+  <data name="TailoringFittingInvalid" xml:space="preserve"><value>نتيجة البروفة غير صالحة.</value></data>
+  <data name="TailoringModificationNotFound" xml:space="preserve"><value>طلب التعديل غير موجود.</value></data>
+  <data name="TailoringModificationClosed" xml:space="preserve"><value>طلب التعديل مغلق.</value></data>
+  <data name="TailoringModificationInstructionsRequired" xml:space="preserve"><value>تعليمات التعديل مطلوبة.</value></data>
+  <data name="TailoringHistoryFitting" xml:space="preserve"><value>موعد بروفة</value></data>
+  <data name="TailoringHistoryFittingDone" xml:space="preserve"><value>نتيجة البروفة</value></data>
+  <data name="TailoringHistoryModificationDone" xml:space="preserve"><value>إنجاز التعديل</value></data>
+  <data name="TailoringMaterialNotStock" xml:space="preserve"><value>الصرف لصنف مخزني فقط.</value></data>
+  <data name="TailoringMaterialQuantityInvalid" xml:space="preserve"><value>الكمية يجب أن تكون أكبر من صفر.</value></data>
+  <data name="TailoringMaterialDateInvalid" xml:space="preserve"><value>التاريخ غير صالح.</value></data>
+  <data name="TailoringMaterialNotAvailable" xml:space="preserve"><value>الرصيد غير كافٍ من {0}: المتاح {1}.</value></data>
+  <data name="TailoringMaterialNotFound" xml:space="preserve"><value>الصرف غير موجود.</value></data>
+  <data name="TailoringMaterialReturnExceeds" xml:space="preserve"><value>الإرجاع يتجاوز الباقي من الصرف ({0}).</value></data>
+  <data name="TailoringLaborAmountInvalid" xml:space="preserve"><value>المبلغ يجب أن يكون أكبر من صفر.</value></data>
+  <data name="TailoringLaborNotFound" xml:space="preserve"><value>الأجر غير موجود أو ملغى.</value></data>
+  <data name="TailoringNotInQuality" xml:space="preserve"><value>القطعة {0} ليست في فحص الجودة.</value></data>
+  <data name="TailoringHistoryQualityApproved" xml:space="preserve"><value>اعتماد الجودة</value></data>
+  <data name="TailoringDeliveryNotFound" xml:space="preserve"><value>التسليم غير موجود.</value></data>
+  <data name="TailoringDeliveryNotReady" xml:space="preserve"><value>القطعة {0} ليست جاهزة للتسليم.</value></data>
+  <data name="TailoringDeliveryDateInvalid" xml:space="preserve"><value>تاريخ التسليم بين تاريخ الأمر واليوم.</value></data>
+  <data name="TailoringSignatureInvalid" xml:space="preserve"><value>صورة التوقيع غير صالحة أو كبيرة جداً.</value></data>
+  <data name="TailoringDeliveryCancelled" xml:space="preserve"><value>التسليم ملغى.</value></data>
+  <data name="TailoringDeliveryHasPayments" xml:space="preserve"><value>على فاتورة التسليم سندات قبض؛ ألغها أولاً.</value></data>
+  <data name="TailoringOrderClosed" xml:space="preserve"><value>الأمر مغلق أو ملغى.</value></data>
+  <data name="TailoringOrderNotDelivered" xml:space="preserve"><value>يُغلق الأمر بعد تسليم كل قطعه.</value></data>
+  <data name="TailoringHistoryDelivered" xml:space="preserve"><value>تسليم</value></data>
+  <data name="TailoringHistoryDeliveryCancelled" xml:space="preserve"><value>إلغاء التسليم</value></data>
+  <data name="TailoringHistoryClosed" xml:space="preserve"><value>إغلاق الأمر</value></data>
+  <data name="TailoringNotifyReadyTitle" xml:space="preserve"><value>أمر التفصيل {0} جاهز للتسليم</value></data>
+  <data name="TailoringNotifyReadyBody" xml:space="preserve"><value>{0} — {1} قطعة جاهزة للتسليم.</value></data>
+  <data name="TailoringNotifyLateTitle" xml:space="preserve"><value>أوامر تفصيل متأخرة: {0} • مستحقة اليوم: {1}</value></data>
+  <data name="TailoringNotifyFittingsTitle" xml:space="preserve"><value>بروفات اليوم: {0}</value></data>
+  <data name="TailoringReportNotFound" xml:space="preserve"><value>التقرير غير موجود.</value></data>
+  <data name="TailoringReportPeriodInvalid" xml:space="preserve"><value>نهاية الفترة تسبق بدايتها.</value></data>
 </root>

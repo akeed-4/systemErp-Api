@@ -36,6 +36,15 @@ public class RequireScreenAttribute : Attribute, IAsyncAuthorizationFilter
     /// </summary>
     public string? AlsoAllow { get; set; }
 
+    /// <summary>الشاشات البديلة مفصولة بفاصلة؛ تكفي أي منها.</summary>
+    private async Task<bool> AlsoAllowedAsync(IPermissionService permissions, ScreenAction action, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(AlsoAllow)) return false;
+        foreach (var screen in AlsoAllow.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (await permissions.HasPermissionAsync(screen, action, _legacy, ct)) return true;
+        return false;
+    }
+
     /// <summary>الإجراء الصريح إن حُدِّد (لكتالوج نقاط الـ API).</summary>
     public ScreenAction? Action => _action;
 
@@ -60,7 +69,7 @@ public class RequireScreenAttribute : Attribute, IAsyncAuthorizationFilter
         var action = _action ?? FromMethod(context.HttpContext.Request.Method);
         var permissions = context.HttpContext.RequestServices.GetRequiredService<IPermissionService>();
         if (!await permissions.HasPermissionAsync(ScreenId, action, _legacy, context.HttpContext.RequestAborted)
-            && (AlsoAllow == null || !await permissions.HasPermissionAsync(AlsoAllow, action, _legacy, context.HttpContext.RequestAborted)))
+            && !await AlsoAllowedAsync(permissions, action, context.HttpContext.RequestAborted))
             // من لا يملك «اعتماد»: رسالة واضحة بأن يتواصل مع مسؤول الاعتماد، مع الأدوار المخوّلة به
             throw action == ScreenAction.Approve
                 ? await permissions.ApprovalDeniedAsync(ScreenId, _legacy, context.HttpContext.RequestAborted)

@@ -39,6 +39,12 @@ public static class PlatformModules
     /// </summary>
     public const string EquipmentRental = "equipment_rental";
 
+    /// <summary>
+    /// الخياطة والتفصيل: قياسات العملاء ونسخها، وتصاميم الملابس، وأوامر التفصيل بقطعها، ومراحل الإنتاج والبروفات والتعديلات، وصرف
+    /// الأقمشة وأجور الخياطين والتسليم. العميل والصنف والمخزون والفاتورة والقيد من خدماتها القائمة؛ إضافة فوق النظام المحاسبي.
+    /// </summary>
+    public const string Tailoring = "tailoring";
+
     /// <summary>الدليل المركزي للوحدات التي لها شاشات فعلية في النظام.</summary>
     public static readonly PlatformModuleDefinition[] Catalog =
     {
@@ -50,15 +56,16 @@ public static class PlatformModules
         new() { Number = 5, Key = WhatsApp, NameAr = "واتساب للأعمال", NameEn = "WhatsApp Business", DescriptionAr = "ربط رقم واتساب المنشأة وإرسال الفواتير للعملاء منه.", DescriptionEn = "Connect the company WhatsApp number and send invoices to customers from it.", Icon = "chat", SortOrder = 5 },
         new() { Number = 7, Key = Workshop, NameAr = "ورش السيارات", NameEn = "Automotive Workshop", DescriptionAr = "مركبات العملاء والاستقبال وأوامر العمل والتقديرات والفنيين وقطع الغيار والجودة والضمان.", DescriptionEn = "Customer vehicles, reception, work orders, estimates, technicians, spare parts, quality and warranty.", Icon = "car_repair", SortOrder = 7 },
         new() { Number = 8, Key = EquipmentRental, NameAr = "تأجير المعدات", NameEn = "Equipment Rental", DescriptionAr = "تسعير المعدات وتوفرها وحجوزاتها وعقود التأجير والتسليم والاستلام والفوترة الدورية والتأمينات.", DescriptionEn = "Equipment pricing, availability, bookings, rental contracts, handovers, periodic billing and deposits.", Icon = "front_loader", SortOrder = 8 },
+        new() { Number = 9, Key = Tailoring, NameAr = "الخياطة والتفصيل", NameEn = "Tailoring & Garments", DescriptionAr = "قياسات العملاء وتصاميم الملابس وأوامر التفصيل ومراحل الإنتاج والبروفات والأقمشة وأجور الخياطين والتسليم.", DescriptionEn = "Customer measurements, garment designs, tailoring orders, production stages, fittings, fabrics, tailor labor and delivery.", Icon = "checkroom", SortOrder = 9 },
     };
 
     /// <summary>الإضافات: تُرخَّص مع وحدة دفاتر ولا تحمل قيوداً ولا تقارير.</summary>
-    public static readonly string[] AddOns = { WhatsApp, Construction, Workshop, EquipmentRental };
+    public static readonly string[] AddOns = { WhatsApp, Construction, Workshop, EquipmentRental, Tailoring };
     /// <summary>
     /// إضافات بسعر حسب الاتفاق مع العميل (لا تدخل في سعر الباقة، يمنحها مدير المنصة بعد الاتفاق). الورش والتأجير هنا حتى يتقرر
     /// تسعيرهما، فلا تُضافان لباقة قبل ذلك.
     /// </summary>
-    public static readonly string[] PricedByAgreement = { Construction, Workshop, EquipmentRental };
+    public static readonly string[] PricedByAgreement = { Construction, Workshop, EquipmentRental, Tailoring };
     /// <summary>وحدات الدفاتر: وحدة القيد والسند والتقرير.</summary>
     public static readonly string[] All = Catalog.Select(module => module.Key).Except(AddOns).ToArray();
     /// <summary>كل ما يحمله الاشتراك: وحدات الدفاتر والإضافات.</summary>
@@ -77,6 +84,7 @@ public static class PlatformModules
         if (list.Contains(Construction) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة المقاولات تتطلب النظام المحاسبي.");
         if (list.Contains(Workshop) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة ورش السيارات تتطلب النظام المحاسبي.");
         if (list.Contains(EquipmentRental) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة تأجير المعدات تتطلب النظام المحاسبي.");
+        if (list.Contains(Tailoring) && !list.Contains(Accounting)) throw new ValidationFailedException("إضافة الخياطة والتفصيل تتطلب النظام المحاسبي.");
         return Licensable.Where(list.Contains).ToArray();
     }
 

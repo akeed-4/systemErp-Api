@@ -2472,4 +2472,111 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="MonitoringNoteRequired" xml:space="preserve"><value>Write the note.</value></data>
   <data name="MonitoringAssigneeInvalid" xml:space="preserve"><value>Choose an active user of this company.</value></data>
   <data name="MonitoringCheckAlreadyRunning" xml:space="preserve"><value>A check is already running. Wait for it to finish, then try again.</value></data>
+  <data name="TailoringSettingsInvalid" xml:space="preserve"><value>Invalid values: durations and amounts cannot be negative, and the advance percentage must be between 0 and 100.</value></data>
+  <data name="TailoringWarehouseNotFound" xml:space="preserve"><value>Location not found.</value></data>
+  <data name="TailoringGarmentTypeNotFound" xml:space="preserve"><value>Garment type not found.</value></data>
+  <data name="TailoringGarmentTypeInactive" xml:space="preserve"><value>The garment type is inactive.</value></data>
+  <data name="TailoringGarmentTypeInvalid" xml:space="preserve"><value>Invalid garment type data (category, unit, price, meters or options).</value></data>
+  <data name="TailoringGarmentTypeInUse" xml:space="preserve"><value>The garment type has measurement profiles; deactivate it instead of deleting it.</value></data>
+  <data name="TailoringNameRequired" xml:space="preserve"><value>The Arabic name is required.</value></data>
+  <data name="TailoringProductNotService" xml:space="preserve"><value>The linked item must be a service item.</value></data>
+  <data name="TailoringKeyInvalid" xml:space="preserve"><value>Key "{0}" is invalid: use lowercase English letters, digits and underscores, starting with a letter.</value></data>
+  <data name="TailoringKeyDuplicate" xml:space="preserve"><value>Key "{0}" is duplicated.</value></data>
+  <data name="TailoringFieldRangeInvalid" xml:space="preserve"><value>The limits of field "{0}" are invalid.</value></data>
+  <data name="TailoringFieldKeyLocked" xml:space="preserve"><value>Field key "{0}" is used in saved measurements and cannot change; deactivate the field and add a new one with another key.</value></data>
+  <data name="TailoringOptionValuesRequired" xml:space="preserve"><value>Option "{0}" needs at least one active value.</value></data>
+  <data name="TailoringOptionDefaultMultiple" xml:space="preserve"><value>Option "{0}" has more than one default value.</value></data>
+  <data name="TailoringStageNotFound" xml:space="preserve"><value>Stage not found.</value></data>
+  <data name="TailoringCodeDuplicate" xml:space="preserve"><value>The code is already used.</value></data>
+  <data name="TailoringCustomerNotFound" xml:space="preserve"><value>Customer not found.</value></data>
+  <data name="TailoringProfileNotFound" xml:space="preserve"><value>Measurement profile not found.</value></data>
+  <data name="TailoringWearerRequired" xml:space="preserve"><value>The wearer's name is required.</value></data>
+  <data name="TailoringProfileTypeLocked" xml:space="preserve"><value>The garment type cannot change after a measurement is recorded; create a new profile.</value></data>
+  <data name="TailoringProfileHasVersions" xml:space="preserve"><value>The measurement profile has saved versions and cannot be deleted; deactivate it instead.</value></data>
+  <data name="TailoringEmployeeNotFound" xml:space="preserve"><value>Employee not found.</value></data>
+  <data name="TailoringVersionNotFound" xml:space="preserve"><value>Measurement version not found.</value></data>
+  <data name="TailoringCompareDifferentProfiles" xml:space="preserve"><value>You can only compare two versions of the same profile.</value></data>
+  <data name="TailoringMeasurementUnknownField" xml:space="preserve"><value>Field "{0}" is not an active measurement field of this garment type.</value></data>
+  <data name="TailoringMeasurementOutOfRange" xml:space="preserve"><value>The value of "{0}" is outside the allowed limits.</value></data>
+  <data name="TailoringFieldTypeLocked" xml:space="preserve"><value>Field "{0}" is used in saved measurements and its input type cannot change; deactivate it and add a new field.</value></data>
+  <data name="TailoringFieldChoicesRequired" xml:space="preserve"><value>Field "{0}" is a choice field and needs at least one value.</value></data>
+  <data name="TailoringMeasurementChoiceInvalid" xml:space="preserve"><value>The selected value for "{0}" is not in its list.</value></data>
+  <data name="TailoringDefaultsNotApplicable" xml:space="preserve"><value>Default fields are available for the Saudi thobe template (THOBE-M) only.</value></data>
+  <data name="TailoringMeasurementRequired" xml:space="preserve"><value>Missing required measurements: {0}.</value></data>
+  <data name="TailoringOrderNotFound" xml:space="preserve"><value>Tailoring order not found.</value></data>
+  <data name="TailoringOrderNotDraft" xml:space="preserve"><value>The order is not a draft; only drafts can be edited, confirmed or deleted.</value></data>
+  <data name="TailoringOrderNotConfirmed" xml:space="preserve"><value>This operation requires an open confirmed order.</value></data>
+  <data name="TailoringOrderNoLines" xml:space="preserve"><value>Add at least one garment configuration.</value></data>
+  <data name="TailoringOrderTooManyLines" xml:space="preserve"><value>An order can have at most {0} configurations.</value></data>
+  <data name="TailoringOrderInvalid" xml:space="preserve"><value>Invalid order data (quantity, amounts, priority or fabric source).</value></data>
+  <data name="TailoringOrderDueBeforeDate" xml:space="preserve"><value>The delivery date cannot be before the order date.</value></data>
+  <data name="TailoringOrderProfileMismatch" xml:space="preserve"><value>The measurement profile does not belong to this customer or garment type.</value></data>
+  <data name="TailoringOrderUnknownOption" xml:space="preserve"><value>Design option "{0}" is not defined for this garment type.</value></data>
+  <data name="TailoringOrderOptionRequired" xml:space="preserve"><value>Design option "{0}" is required.</value></data>
+  <data name="TailoringOrderOptionValueInvalid" xml:space="preserve"><value>The value of design option "{0}" is invalid.</value></data>
+  <data name="TailoringFabricNotFound" xml:space="preserve"><value>Fabric item not found.</value></data>
+  <data name="TailoringFabricNotStock" xml:space="preserve"><value>Shop fabric must be a stock item.</value></data>
+  <data name="TailoringOrderDiscountForbidden" xml:space="preserve"><value>Changing the price or giving a discount requires the manual discount permission.</value></data>
+  <data name="TailoringOrderDiscountTooHigh" xml:space="preserve"><value>The discount exceeds the line amount.</value></data>
+  <data name="TailoringOrderMeasurementRequired" xml:space="preserve"><value>Configuration {0} ({1}) has no measurement; choose a measured profile.</value></data>
+  <data name="TailoringOrderServiceItemRequired" xml:space="preserve"><value>Garment type "{0}" has no service item; link one in tailoring settings before confirming.</value></data>
+  <data name="TailoringOrderHasAdvance" xml:space="preserve"><value>The order has an active advance payment; cancel it first.</value></data>
+  <data name="TailoringOrderNoAdvance" xml:space="preserve"><value>The order has no advance payment.</value></data>
+  <data name="TailoringOrderProductionStarted" xml:space="preserve"><value>Production has started on pieces of this order.</value></data>
+  <data name="TailoringOrderCannotCancel" xml:space="preserve"><value>The order cannot be cancelled in its current status.</value></data>
+  <data name="TailoringReasonRequired" xml:space="preserve"><value>A reason is required.</value></data>
+  <data name="TailoringAdvanceAmountInvalid" xml:space="preserve"><value>The advance must be greater than zero and not exceed the order total.</value></data>
+  <data name="TailoringAdvanceBelowMinimum" xml:space="preserve"><value>The advance is below the minimum ({0}).</value></data>
+  <data name="TailoringAdvanceDateInvalid" xml:space="preserve"><value>The advance date must be between the order date and today.</value></data>
+  <data name="TailoringAdvanceMixedVat" xml:space="preserve"><value>Order lines have different VAT rates; a single advance cannot be issued.</value></data>
+  <data name="TailoringAdvanceRecovered" xml:space="preserve"><value>Part of the advance has been recovered in delivery invoices and it cannot be cancelled.</value></data>
+  <data name="TailoringAccountsMissing" xml:space="preserve"><value>Tailoring accounts are not set up; set them up in accounting settings.</value></data>
+  <data name="TailoringInvoiceReturnBlocked" xml:space="preserve"><value>Tailoring invoices are cancelled from the tailoring order itself, not with a separate return.</value></data>
+  <data name="TailoringHistoryAdvance" xml:space="preserve"><value>Advance payment</value></data>
+  <data name="TailoringHistoryAdvanceCancelled" xml:space="preserve"><value>Advance payment cancelled</value></data>
+  <data name="TailoringNoGarments" xml:space="preserve"><value>Select at least one piece.</value></data>
+  <data name="TailoringGarmentNotFound" xml:space="preserve"><value>Piece not found.</value></data>
+  <data name="TailoringGarmentFinished" xml:space="preserve"><value>The piece is delivered or cancelled.</value></data>
+  <data name="TailoringModificationOpen" xml:space="preserve"><value>The piece has an open modification request.</value></data>
+  <data name="TailoringStageSkipped" xml:space="preserve"><value>Mandatory stage "{0}" cannot be skipped.</value></data>
+  <data name="TailoringQualityRequired" xml:space="preserve"><value>The piece cannot become ready before the quality inspection stage.</value></data>
+  <data name="TailoringStageNotApplicable" xml:space="preserve"><value>The stage is inactive or does not apply to this garment type.</value></data>
+  <data name="TailoringStageSame" xml:space="preserve"><value>The piece is already in this stage.</value></data>
+  <data name="TailoringAdvanceRequiredForProduction" xml:space="preserve"><value>Production cannot start before an advance of at least {0}.</value></data>
+  <data name="TailoringFittingNotFound" xml:space="preserve"><value>Fitting not found.</value></data>
+  <data name="TailoringFittingClosed" xml:space="preserve"><value>The fitting result is already recorded.</value></data>
+  <data name="TailoringFittingInvalid" xml:space="preserve"><value>Invalid fitting result.</value></data>
+  <data name="TailoringModificationNotFound" xml:space="preserve"><value>Modification request not found.</value></data>
+  <data name="TailoringModificationClosed" xml:space="preserve"><value>The modification request is closed.</value></data>
+  <data name="TailoringModificationInstructionsRequired" xml:space="preserve"><value>Modification instructions are required.</value></data>
+  <data name="TailoringHistoryFitting" xml:space="preserve"><value>Fitting scheduled</value></data>
+  <data name="TailoringHistoryFittingDone" xml:space="preserve"><value>Fitting result</value></data>
+  <data name="TailoringHistoryModificationDone" xml:space="preserve"><value>Modification completed</value></data>
+  <data name="TailoringMaterialNotStock" xml:space="preserve"><value>Only stock items can be issued.</value></data>
+  <data name="TailoringMaterialQuantityInvalid" xml:space="preserve"><value>Quantity must be greater than zero.</value></data>
+  <data name="TailoringMaterialDateInvalid" xml:space="preserve"><value>Invalid date.</value></data>
+  <data name="TailoringMaterialNotAvailable" xml:space="preserve"><value>Insufficient stock of {0}: available {1}.</value></data>
+  <data name="TailoringMaterialNotFound" xml:space="preserve"><value>Issue not found.</value></data>
+  <data name="TailoringMaterialReturnExceeds" xml:space="preserve"><value>Return exceeds the remaining issued quantity ({0}).</value></data>
+  <data name="TailoringLaborAmountInvalid" xml:space="preserve"><value>Amount must be greater than zero.</value></data>
+  <data name="TailoringLaborNotFound" xml:space="preserve"><value>Labor entry not found or cancelled.</value></data>
+  <data name="TailoringNotInQuality" xml:space="preserve"><value>Piece {0} is not in quality inspection.</value></data>
+  <data name="TailoringHistoryQualityApproved" xml:space="preserve"><value>Quality approved</value></data>
+  <data name="TailoringDeliveryNotFound" xml:space="preserve"><value>Delivery not found.</value></data>
+  <data name="TailoringDeliveryNotReady" xml:space="preserve"><value>Piece {0} is not ready for delivery.</value></data>
+  <data name="TailoringDeliveryDateInvalid" xml:space="preserve"><value>Delivery date must be between the order date and today.</value></data>
+  <data name="TailoringSignatureInvalid" xml:space="preserve"><value>The signature image is invalid or too large.</value></data>
+  <data name="TailoringDeliveryCancelled" xml:space="preserve"><value>The delivery is cancelled.</value></data>
+  <data name="TailoringDeliveryHasPayments" xml:space="preserve"><value>The delivery invoice has receipt vouchers; cancel them first.</value></data>
+  <data name="TailoringOrderClosed" xml:space="preserve"><value>The order is closed or cancelled.</value></data>
+  <data name="TailoringOrderNotDelivered" xml:space="preserve"><value>The order closes only after all its pieces are delivered.</value></data>
+  <data name="TailoringHistoryDelivered" xml:space="preserve"><value>Delivery</value></data>
+  <data name="TailoringHistoryDeliveryCancelled" xml:space="preserve"><value>Delivery cancelled</value></data>
+  <data name="TailoringHistoryClosed" xml:space="preserve"><value>Order closed</value></data>
+  <data name="TailoringNotifyReadyTitle" xml:space="preserve"><value>Tailoring order {0} is ready for delivery</value></data>
+  <data name="TailoringNotifyReadyBody" xml:space="preserve"><value>{0} — {1} pieces ready for delivery.</value></data>
+  <data name="TailoringNotifyLateTitle" xml:space="preserve"><value>Late tailoring orders: {0} • due today: {1}</value></data>
+  <data name="TailoringNotifyFittingsTitle" xml:space="preserve"><value>Fittings today: {0}</value></data>
+  <data name="TailoringReportNotFound" xml:space="preserve"><value>Report not found.</value></data>
+  <data name="TailoringReportPeriodInvalid" xml:space="preserve"><value>The period end is before its start.</value></data>
 </root>

@@ -164,16 +164,34 @@ internal static class ContractAccountsSetup
             new[] { "تأمينات عملاء التأجير", "تأمينات التأجير المستردة", "تأمينات نقدية للعملاء", "rental deposits", "customer security deposits", "rental customer deposits" }),
     };
 
+    /// <summary>الخياطة: تحت التنفيذ ومقابل الأجور المحمّلة وتكلفة الإيراد والدفعات المقدمة (التزام).</summary>
+    private static readonly Spec[] TailoringSpecs =
+    {
+        new(nameof(AccountingSettings.TailoringWipAccountCode), AccountCategory.Asset,
+            "أعمال خياطة تحت التنفيذ", "Tailoring Work in Progress", AssetAnchors,
+            new[] { "أعمال خياطة تحت التنفيذ", "أوامر تفصيل تحت التنفيذ", "tailoring work in progress", "tailoring wip" }),
+        new(nameof(AccountingSettings.TailoringAbsorbedLaborAccountCode), AccountCategory.Expense,
+            "أجور خياطة محمّلة", "Tailoring Absorbed Labor", ExpenseAnchors,
+            new[] { "أجور خياطة محملة", "أجور الخياطين المحملة", "tailoring absorbed labor", "tailoring absorbed labour" }),
+        new(nameof(AccountingSettings.TailoringCostOfRevenueAccountCode), AccountCategory.Expense,
+            "تكلفة إيرادات الخياطة", "Tailoring Cost of Revenue", ExpenseAnchors,
+            new[] { "تكلفة إيرادات الخياطة", "تكلفة الخياطة والتفصيل", "tailoring cost of revenue", "tailoring cost of sales" }),
+        new(nameof(AccountingSettings.TailoringAdvancesReceivedAccountCode), AccountCategory.Liability,
+            "دفعات مقدمة من عملاء الخياطة", "Tailoring Customer Advances", LiabilityAnchors,
+            new[] { "دفعات مقدمة من عملاء الخياطة", "عربونات الخياطة", "tailoring customer advances", "tailoring advances received" }),
+    };
+
     public static IEnumerable<string> RoleKeys => ContractSpecs.Select(s => s.Role);
     public static IEnumerable<string> PeriodicRoleKeys => PeriodicSpecs.Select(s => s.Role);
 
     /// <summary>مجموعة حسابات إضافة (الورش أو التأجير): لا تُنشأ مع المنشأة، بل من زرها أو قبل أول ترحيل يحتاجها في الوحدة.</summary>
-    public enum ModuleAccountSet { Workshop, Rental }
+    public enum ModuleAccountSet { Workshop, Rental, Tailoring }
 
     private static Spec[] SpecsOf(ModuleAccountSet set) => set switch
     {
         ModuleAccountSet.Workshop => WorkshopSpecs,
         ModuleAccountSet.Rental => RentalSpecs,
+        ModuleAccountSet.Tailoring => TailoringSpecs,
         _ => throw new ArgumentOutOfRangeException(nameof(set)),
     };
 

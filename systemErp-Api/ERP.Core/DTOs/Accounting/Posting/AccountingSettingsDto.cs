@@ -52,6 +52,10 @@ public class SaveAccountingSettingsDto
     public string? RentalRevenueAccountCode { get; set; }
     public string? RentalCompensationIncomeAccountCode { get; set; }
     public string? RentalDepositsLiabilityAccountCode { get; set; }
+    public string? TailoringWipAccountCode { get; set; }
+    public string? TailoringAbsorbedLaborAccountCode { get; set; }
+    public string? TailoringCostOfRevenueAccountCode { get; set; }
+    public string? TailoringAdvancesReceivedAccountCode { get; set; }
     /// <summary>فترة إرجاع المبيعات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>
     public int? SalesReturnPeriodDays { get; set; }
     /// <summary>فترة إرجاع المشتريات بالأيام: null = بلا تغيير، 0 = بلا حد.</summary>

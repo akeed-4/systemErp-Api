@@ -71,6 +71,10 @@ internal static class AccountSemanticKeys
         S("Rental.Revenue", nameof(AccountingSettings.RentalRevenueAccountCode), "إيراد تأجير المعدات", "Equipment rental revenue"),
         S("Rental.CompensationIncome", nameof(AccountingSettings.RentalCompensationIncomeAccountCode), "إيراد تعويضات التأجير", "Rental compensation income"),
         S("Rental.Deposits", nameof(AccountingSettings.RentalDepositsLiabilityAccountCode), "تأمينات عملاء التأجير", "Rental customer deposits"),
+        S("Tailoring.WorkInProgress", nameof(AccountingSettings.TailoringWipAccountCode), "أعمال خياطة تحت التنفيذ", "Tailoring work in progress"),
+        S("Tailoring.AbsorbedLabor", nameof(AccountingSettings.TailoringAbsorbedLaborAccountCode), "أجور خياطة محمّلة", "Tailoring absorbed labor"),
+        S("Tailoring.CostOfRevenue", nameof(AccountingSettings.TailoringCostOfRevenueAccountCode), "تكلفة إيرادات الخياطة", "Tailoring cost of revenue"),
+        S("Tailoring.AdvancesReceived", nameof(AccountingSettings.TailoringAdvancesReceivedAccountCode), "دفعات مقدمة من عملاء الخياطة", "Tailoring customer advances"),
 
         // أرقام محجوزة يقرؤها النظام مباشرة اليوم
         R("Treasury.CashBoxes", DefaultAccounts.CashBoxes, "الصناديق", "Cash boxes"),

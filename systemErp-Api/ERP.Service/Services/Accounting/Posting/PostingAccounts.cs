@@ -111,6 +111,14 @@ internal static class PostingAccounts
             (s, v) => s.RentalCompensationIncomeAccountCode = v, null, Revenue),
         new(nameof(AccountingSettings.RentalDepositsLiabilityAccountCode), s => s.RentalDepositsLiabilityAccountCode,
             (s, v) => s.RentalDepositsLiabilityAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
+        new(nameof(AccountingSettings.TailoringWipAccountCode), s => s.TailoringWipAccountCode,
+            (s, v) => s.TailoringWipAccountCode = v, null, Asset, LockedAfterUse: true),
+        new(nameof(AccountingSettings.TailoringAbsorbedLaborAccountCode), s => s.TailoringAbsorbedLaborAccountCode,
+            (s, v) => s.TailoringAbsorbedLaborAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.TailoringCostOfRevenueAccountCode), s => s.TailoringCostOfRevenueAccountCode,
+            (s, v) => s.TailoringCostOfRevenueAccountCode = v, null, Expense),
+        new(nameof(AccountingSettings.TailoringAdvancesReceivedAccountCode), s => s.TailoringAdvancesReceivedAccountCode,
+            (s, v) => s.TailoringAdvancesReceivedAccountCode = v, null, new[] { AccountCategory.Liability }, LockedAfterUse: true),
     };
 
     public static async Task<AccountingSettings> SettingsAsync(ErpDbContext db, CancellationToken ct)

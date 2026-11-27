@@ -48,6 +48,9 @@ public static class DocumentNumberTypes
         new("rental_transport", "مهام نقل المعدات", "Equipment transport jobs", "rental", "RTJ-", false),
         new("rental_billing", "فوترة التأجير", "Rental billing runs", "rental", "RB-", false),
         new("rental_timesheet", "كشوف ساعات المعدات", "Equipment timesheets", "rental", "RTS-", false),
+        // الخياطة والتفصيل
+        new("tailoring_order", "أوامر التفصيل", "Tailoring orders", "tailoring", "TO-", false),
+        new("tailoring_delivery", "تسليمات الخياطة", "Tailoring deliveries", "tailoring", "TD-", false),
         new("car_procurement_order", "أوامر شراء السيارات", "Car purchase orders", "showroom", "CPO-", true),
         new("car_sales_contract", "عقود بيع السيارات", "Car sales contracts", "showroom", "CSC-", true),
     };

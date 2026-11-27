@@ -12,6 +12,11 @@ public static class SubscriptionCatalog
 {
     public const decimal VatRate = 0.15m;
 
+    /// <summary>
+    /// وحدات الباقات العامة: بلا معارض السيارات، فلا يُزرع للمنشأة غير المعرض حساباته (412/413/116...). المعارض في باقتها وحدها.
+    /// </summary>
+    public const string GeneralModules = PlatformModules.Accounting + "," + PlatformModules.Pos;
+
     /// <summary>البيانات الأولية للباقات (تُزرع بالـ migration).</summary>
     public static readonly List<PlanDefinition> Seed = new()
     {
@@ -28,6 +33,7 @@ public static class SubscriptionCatalog
         new() { Id = SubscriptionPlanId.Starter, NameAr = "باقة البداية (Starter)", NameEn = "Starter Plan",
                 PriceMonthly = 199, PriceYearly = 1990, MaxUsers = 2, MaxInvoicesPerMonth = 500, Branches = 1,
                 ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 1,
+                ModuleKeys = GeneralModules,
                 DescriptionAr = "مثالية للمنشآت والمتاجر الناشئة ورواد الأعمال لتلبية متطلبات الفوترة الضريبية وإدارة المعاملات الأساسية.",
                 DescriptionEn = "Ideal for startups, sole proprietors, and small shops to meet basic invoicing and tax compliance.",
                 BadgeAr = "للمنشآت الناشئة", BadgeEn = "For Startups", IsPopular = false,
@@ -36,6 +42,7 @@ public static class SubscriptionCatalog
         new() { Id = SubscriptionPlanId.Professional, NameAr = "باقة الشركات المتقدمة (Professional)", NameEn = "Professional Business Plan",
                 PriceMonthly = 499, PriceYearly = 4990, MaxUsers = 10, MaxInvoicesPerMonth = null, Branches = 3,
                 ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 2,
+                ModuleKeys = GeneralModules,
                 DescriptionAr = "الخيار الأكثر طلباً للشركات والمؤسسات المتوسطة مع فواتير ضريبية برمز QR (المرحلة الأولى من ZATCA) ومحاسبة التكاليف.",
                 DescriptionEn = "Most popular choice for growing businesses with QR tax invoices (ZATCA Phase 1) and a costing engine.",
                 BadgeAr = "الأكثر طلباً ⭐", BadgeEn = "Most Popular ⭐", IsPopular = true,
@@ -44,11 +51,22 @@ public static class SubscriptionCatalog
         new() { Id = SubscriptionPlanId.Enterprise, NameAr = "باقة المجموعات والمؤسسات (Enterprise)", NameEn = "Enterprise Corporate Plan",
                 PriceMonthly = 999, PriceYearly = 9990, MaxUsers = null, MaxInvoicesPerMonth = null, Branches = null,
                 ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 3,
+                ModuleKeys = GeneralModules,
                 DescriptionAr = "حل متكامل ومخصص للمجموعات التجارية والشركات الكبرى وفروعها مع بنية تحتية مخصصة وربط API مفتوح.",
                 DescriptionEn = "Custom corporate solution for large holdings and chains with dedicated infrastructure and API webhooks.",
                 BadgeAr = "للمجموعات الكبرى", BadgeEn = "Corporate & Holding", IsPopular = false,
                 FeaturesAr = "عدد غير محدود من المستخدمين والمشرفين\nفروع ومواقع ومراكز تكلفة غير محدودة\nربط برمجي كامل (RESTful API Webhooks) مع المتاجر ونقاط البيع\nفواتير ضريبية برمز QR وفق المرحلة الأولى من ZATCA\nتعدد العملات وسعر الصرف التلقائي\nتقارير تحليلية ومؤشرات أداء مالية متقدمة وتصدير مخصص\nخادم وقاعدة بيانات مستقلة عالية الأداء ونسخ احتياطي فوري\nمدير حساب محاسبي معتمد مخصص ودعم على مدار الساعة 24/7",
                 FeaturesEn = "Unlimited users and branch supervisors\nUnlimited branches, warehouses & cost centers\nFull RESTful API & POS webhooks integration\nQR tax invoices compliant with ZATCA Phase 1\nMulti-currency support with auto FX rates\nAdvanced financial BI dashboards & custom export\nDedicated high-performance tenant database & real-time backup\nDedicated account manager & 24/7 priority SLA" },
+        // معارض السيارات: حدود الباقة المتقدمة ومعها وحدة المعارض (يعدّل مدير المنصة السعر من لوحته)
+        new() { Id = SubscriptionPlanId.CarShowroom, NameAr = "باقة معارض السيارات", NameEn = "Car Showroom Plan",
+                PriceMonthly = 499, PriceYearly = 4990, MaxUsers = 10, MaxInvoicesPerMonth = null, Branches = 3,
+                ZatcaPhase2Enabled = false, IsActive = true, SortOrder = 4,
+                ModuleKeys = PlatformModules.Accounting + "," + PlatformModules.CarShowroom + "," + PlatformModules.Pos,
+                DescriptionAr = "مخصصة لمعارض السيارات: مخزون المركبات وشراؤها واستيرادها وعقود بيعها، مع المحاسبة ونقاط البيع.",
+                DescriptionEn = "Built for car showrooms: vehicle inventory, procurement, import and sales contracts, with accounting and POS.",
+                BadgeAr = "لمعارض السيارات", BadgeEn = "For Car Showrooms", IsPopular = false,
+                FeaturesAr = "حتى 10 مستخدمين مع إدارة أدوار متقدمة\nفواتير غير محدودة شهرياً\nحتى 3 فروع ومواقع متعددة\nمخزون المركبات بالهيكل واللون والموديل\nأوامر شراء السيارات وتكاليف الاستيراد\nعقود بيع السيارات والعربون والإضافات\nتقارير المعرض وربحية كل مركبة\nنقاط البيع والفوترة الإلكترونية (ZATCA)",
+                FeaturesEn = "Up to 10 users with advanced roles\nUnlimited invoices per month\nUp to 3 branches & multi-warehouse\nVehicle inventory by VIN, color and model\nCar procurement orders and landed import costs\nCar sales contracts, deposits and add-ons\nShowroom reports and per-vehicle profitability\nPOS and e-invoicing (ZATCA)" },
     };
 
     public static SubscriptionPlanDto ToDto(PlanDefinition p) => new()
@@ -108,12 +126,15 @@ public static class SubscriptionCatalog
     /// <summary>
     /// الإضافات بسعر حسب الاتفاق (المقاولات) ليست في الباقة: تنتقل من الاشتراك السابق إلى الجديد عند التجديد أو تغيير الباقة
     /// (ما دام الجديد يشمل النظام المحاسبي) فلا تسقط بالتجديد؛ وإلغاؤها من «الوحدات» صراحةً.
+    /// معارض السيارات تنتقل كذلك لمن كانت في اشتراكه: الباقات العامة كانت تشملها قبل فصلها في باقتها، فلا يفقدها مشترك قائم
+    /// بالتجديد (وحساباتها وبياناتها في دليله أصلاً).
     /// </summary>
     public static void CarryAgreementAddOns(Subscription next, IEnumerable<Subscription> previous)
     {
         var modules = PlatformModules.Parse(next.ModuleKeys).ToList();
         if (!modules.Contains(PlatformModules.Accounting)) return;
-        var carried = previous.SelectMany(s => PlatformModules.Parse(s.ModuleKeys)).Where(PlatformModules.PricedByAgreement.Contains).Except(modules).ToList();
+        var carried = previous.SelectMany(s => PlatformModules.Parse(s.ModuleKeys))
+            .Where(m => PlatformModules.PricedByAgreement.Contains(m) || m == PlatformModules.CarShowroom).Except(modules).ToList();
         if (carried.Count > 0) next.ModuleKeys = PlatformModules.ToCsv(PlatformModules.Normalize(modules.Concat(carried)));
     }
 

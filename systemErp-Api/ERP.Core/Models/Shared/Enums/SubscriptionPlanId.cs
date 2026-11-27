@@ -11,6 +11,8 @@ public static class SubscriptionPlanId
     public const string Starter = "starter";
     public const string Professional = "professional";
     public const string Enterprise = "enterprise";
+    /// <summary>معارض السيارات: الباقة الوحيدة المزروعة التي تشمل وحدة car_showroom (وحساباتها في الدليل).</summary>
+    public const string CarShowroom = "car_showroom";
 
     /// <summary>طول الرمز الأقصى (يُتحقق منه عند الإنشاء).</summary>
     public const int MaxLength = 64;

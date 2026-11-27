@@ -9,6 +9,9 @@ public class ApiResponse<T>
     public List<string>? Errors { get; set; }
     public int StatusCode { get; set; } = 200;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    /// <summary>معرّف تتبع الخطأ غير المتوقع (500): يذكره المستخدم للدعم ويطابق سجل أخطاء الخادم. يغيب عن بقية الاستجابات.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? TraceId { get; set; }
 
     public static ApiResponse<T> Ok(T data, string? message = null) => new() { Data = data, Message = ApiMessageLocalizer.Localize(message) };
     public static ApiResponse<T> Fail(int statusCode, string message, List<string>? errors = null) =>

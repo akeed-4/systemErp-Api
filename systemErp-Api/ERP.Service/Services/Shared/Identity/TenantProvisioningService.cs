@@ -7,33 +7,53 @@ namespace ERP.Service.Services.Shared;
 public class TenantProvisioningService : ITenantProvisioningService
 {
     private readonly ErpDbContext _db;
+    private readonly ErpDbContext? _catalog;
 
     public TenantProvisioningService(ErpDbContext db) => _db = db;
 
-    public async Task SeedAsync(Guid tenantId, string baseCurrencyCode, CancellationToken ct = default)
+    /// <summary>قاعدة مستقلة: سياقها لا يعرف القاعدة المشتركة، فتُمرَّر ليُقرأ منها مصدر القوالب المركزي.</summary>
+    internal TenantProvisioningService(ErpDbContext db, ErpDbContext catalog)
     {
-        var levelByCode = new Dictionary<string, int>();
-        foreach (var (code, ar, en, type, parent) in DefaultAccounts.Chart)
-        {
-            var level = parent == null ? 1 : levelByCode[parent] + 1;
-            levelByCode[code] = level;
-            _db.Add(new Account
-            {
-                TenantId = tenantId,
-                Code = code, NameAr = ar, NameEn = en, Type = type,
-                ParentCode = parent, Level = level,
-                IsDebitNature = DefaultAccounts.IsDebitNature(code, type),
-                IsSystem = true,
-                IsGroup = DefaultAccounts.IsGroup(code),
-                Currency = baseCurrencyCode,
-            });
-        }
+        _db = db;
+        _catalog = catalog;
+    }
 
-        // حسابات العقود تحت مجموعات الشجرة الافتراضية نفسها، مربوطة بإعدادات الحسابات (فلا تنبيه إعداد ناقص عند أول فوترة عقد)
-        ContractAccountsSetup.Provision(_db, tenantId, baseCurrencyCode, DefaultAccounts.Chart.Select(a => new ContractAccountsSetup.Node
+    private ErpDbContext Catalog => _catalog ?? _db.Catalog;
+
+    public Task SeedAsync(Guid tenantId, string baseCurrencyCode, CancellationToken ct = default)
+        => SeedAsync(tenantId, baseCurrencyCode, null, null, ct);
+
+    public async Task SeedAsync(Guid tenantId, string baseCurrencyCode, string? activityKey, IEnumerable<string>? modules, CancellationToken ct = default)
+    {
+        if (_db.Database.CurrentTransaction != null) { await SeedCoreAsync(tenantId, baseCurrencyCode, activityKey, modules, ct); return; }
+        // القاعدة المستقلة تُزرع بلا معاملة مستدعٍ: معاملة هنا فلا يبقى دليل ناقص (إعادة التجهيز تبدأ من قاعدة نظيفة)
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await SeedCoreAsync(tenantId, baseCurrencyCode, activityKey, modules, ct);
+        await tx.CommitAsync(ct);
+    }
+
+    private async Task SeedCoreAsync(Guid tenantId, string baseCurrencyCode, string? activityKey, IEnumerable<string>? modules, CancellationToken ct)
+    {
+        // الدليل: الأساسي + النشاط + الموديولات (بلا نشاط = التركيبة القديمة الكاملة)، ثم التحقق من اكتماله قبل أي بيانات أخرى
+        var legacy = string.IsNullOrWhiteSpace(activityKey);
+        var licensed = legacy ? ChartTemplateCatalog.LegacyModules : (modules ?? Array.Empty<string>()).ToArray();
+        var all = await ChartTemplateCatalog.LoadAsync(Catalog, ct);
+        var templates = await ChartTemplateCatalog.SelectAsync(Catalog, all, includeBase: true, legacy ? BusinessActivities.Trading : activityKey,
+            licensed, ct);
+        var report = await ChartProvisioner.ApplyAsync(_db, new ChartProvisioner.Request
         {
-            Code = a.Code, NameAr = a.Ar, NameEn = a.En, Type = a.Type, ParentCode = a.Parent, Level = levelByCode[a.Code], IsSystem = true,
-        }));
+            Templates = templates, ActivityKey = legacy ? null : activityKey, SetActivity = true, Modules = licensed, Currency = baseCurrencyCode,
+        }, ct);
+        if (!report.Complete)
+            throw new ConflictException(Messages.ChartSetupIncomplete + " " + string.Join(" | ", report.Errors.Concat(report.Items
+                .Where(i => i.Status == ChartSetupItemStatus.Problem && i.Message != null).Select(i => i.Message!)).Take(5)));
+
+        var chart = await _db.Set<Account>().AsNoTracking()
+            .Where(a => a.Code == DefaultAccounts.InventoryGroup || a.Code == DefaultAccounts.Cogs || a.Code == DefaultAccounts.OtherRevenue)
+            .ToDictionaryAsync(a => a.Code, ct);
+        var costGroup = chart[DefaultAccounts.Cogs].ParentCode!;
+        var costGroupLevel = await _db.Set<Account>().Where(a => a.Code == costGroup).Select(a => a.Level).FirstAsync(ct);
+        int LevelOf(string code) => code == costGroup ? costGroupLevel : chart[code].Level;
 
         _db.Add(new Currency
         {
@@ -56,13 +76,13 @@ public class TenantProvisioningService : ITenantProvisioningService
             Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id,
             Code = "WH-001", NameAr = "الموقع الرئيسي", NameEn = "Main Warehouse", IsDefault = true,
         };
-        var inventoryGroup = DefaultAccounts.Chart.First(a => a.Code == DefaultAccounts.InventoryGroup);
+        var inventoryGroup = chart[DefaultAccounts.InventoryGroup];
         var siteAccount = new Account
         {
             TenantId = tenantId,
             Code = DefaultAccounts.InventoryGroup + "001",
             NameAr = WarehouseService.InventoryAccountName(warehouse.NameAr), NameEn = WarehouseService.InventoryAccountName(warehouse.NameEn, english: true),
-            Type = inventoryGroup.Type, ParentCode = inventoryGroup.Code, Level = levelByCode[inventoryGroup.Code] + 1,
+            Type = inventoryGroup.Type, ParentCode = inventoryGroup.Code, Level = inventoryGroup.Level + 1,
             IsDebitNature = true, Currency = baseCurrencyCode,
             LinkedEntityType = LinkedEntityType.Warehouse, LinkedEntityId = warehouse.Id,
         };
@@ -70,12 +90,11 @@ public class TenantProvisioningService : ITenantProvisioningService
         warehouse.InventoryAccountCode = siteAccount.Code;
 
         // تكلفة إيراد الموقع الرئيسي وعجز مخزونه تحت مجموعة تكلفة المبيعات (أب 511 و513)، وزيادة مخزونه إيراد تحت الإيرادات الأخرى (42)
-        var costGroup = DefaultAccounts.Chart.First(a => a.Code == DefaultAccounts.Cogs).Parent!;
         Account SiteAccount(string code, SiteAccounts.Role role, string parent, AccountCategory type) => new()
         {
             TenantId = tenantId, Code = code,
             NameAr = SiteAccounts.Name(role, warehouse.NameAr), NameEn = SiteAccounts.Name(role, warehouse.NameEn, english: true),
-            Type = type, ParentCode = parent, Level = levelByCode[parent] + 1,
+            Type = type, ParentCode = parent, Level = LevelOf(parent) + 1,
             IsDebitNature = DefaultAccounts.IsDebitNature(code, type), Currency = baseCurrencyCode,
             LinkedEntityType = LinkedEntityType.Warehouse, LinkedEntityId = warehouse.Id,
         };

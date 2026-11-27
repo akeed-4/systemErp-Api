@@ -13,4 +13,5 @@ public partial class AuditLogDto
     public string Details { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
     public string? ClientIpAddress { get; set; }
+    public Guid? UserId { get; set; }
 }

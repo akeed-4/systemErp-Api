@@ -258,6 +258,8 @@ public static class PermissionCatalog
             new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
 
         new("dashboard", "reports", "لوحة المؤشرات والملخص المالي", "Dashboard & Summary", new[] { A.View }, new[] { "dashboard" }),
+        // مركز المراقبة الإدارية: عرض = المؤشرات والسجلات، تعديل = تشغيل الفحص ومعالجة التنبيهات. حسّاس: للأدوار الإدارية افتراضياً
+        new("command-center", "reports", "مركز المراقبة الإدارية", "Command Center", new[] { A.View, A.Edit }, new[] { "command-center" }, Restricted: true),
         new("reports", "reports", "التقارير المالية والإقرار الضريبي", "Financial Reports",
             new[] { A.View }.Concat(Docs).ToArray(), new[] { "reports", "financial-statements" }),
 

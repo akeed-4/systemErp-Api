@@ -75,7 +75,7 @@ public class AuditTrailInterceptor : SaveChangesInterceptor
             if (details == null) continue;
             logs.Add(new AuditLog
             {
-                TenantId = entry.Entity.TenantId, CreatedAt = now, Timestamp = now, PerformedBy = _user.Name ?? "system",
+                TenantId = entry.Entity.TenantId, CreatedAt = now, Timestamp = now, PerformedBy = _user.Name ?? "system", UserId = _user.UserId,
                 Action = entry.State switch { EntityState.Added => "create", EntityState.Deleted => "delete", _ => "update" },
                 EntityName = entry.Entity.GetType().Name, EntityId = entry.Entity.Id.ToString(), Details = details,
             });

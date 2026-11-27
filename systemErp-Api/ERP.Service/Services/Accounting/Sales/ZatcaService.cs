@@ -45,10 +45,14 @@ public class ZatcaService : IZatcaService
     private readonly ISecretProtector _secrets;
     private readonly IAuditService _audit;
     private readonly ICurrentUser _user;
+    private readonly IMonitoringRecorder? _monitoring;
+    /// <summary>محاولة الإرسال الجارية (مركز المراقبة): تُملأ عند كل مخرج من الإرسال وتُسجَّل بعده في سياق مستقل.</summary>
+    private ZatcaSubmissionAttempt? _attempt;
 
-    public ZatcaService(ErpDbContext db, IZatcaApiClient api, ISecretProtector secrets, IAuditService audit, ICurrentUser user)
+    public ZatcaService(ErpDbContext db, IZatcaApiClient api, ISecretProtector secrets, IAuditService audit, ICurrentUser user,
+        IMonitoringRecorder? monitoring = null)
     {
-        _db = db; _api = api; _secrets = secrets; _audit = audit; _user = user;
+        _db = db; _api = api; _secrets = secrets; _audit = audit; _user = user; _monitoring = monitoring;
     }
 
     public string GenerateTlvQr(string sellerName, string vatNumber, DateTime timestamp, decimal total, decimal vat)
@@ -475,7 +479,31 @@ public class ZatcaService : IZatcaService
 
     // ---------------- إرسال الفاتورة ----------------
 
+    /// <summary>
+    /// الإرسال كما هو (الفحوص، القفل، السلسلة، إعادة المحاولة اليدوية)، ثم تسجيل المحاولة بنتيجتها الفعلية في سجل المحاولات.
+    /// الفاتورة المقبولة سابقاً لا تُعدّ محاولة. فشل التسجيل لا يغيّر نتيجة الإرسال.
+    /// </summary>
     public async Task<ZatcaSubmitResultDto> SubmitInvoiceAsync(Guid invoiceId, CancellationToken ct = default)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        _attempt = null;
+        try
+        {
+            return await SubmitInvoiceCoreAsync(invoiceId, ct);
+        }
+        finally
+        {
+            var attempt = _attempt;
+            _attempt = null;
+            if (attempt != null && _monitoring != null)
+            {
+                attempt.DurationMs = (int)Math.Min(int.MaxValue, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                await _monitoring.RecordZatcaAttemptAsync(attempt, CancellationToken.None);
+            }
+        }
+    }
+
+    private async Task<ZatcaSubmitResultDto> SubmitInvoiceCoreAsync(Guid invoiceId, CancellationToken ct)
     {
         var invoice = await _db.Set<InvoiceBase>().FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
             ?? throw new NotFoundException(Messages.InvoiceNotFound);
@@ -488,6 +516,14 @@ public class ZatcaService : IZatcaService
         if (invoice.ZatcaStatus is ZatcaSubmissionStatus.Cleared or ZatcaSubmissionStatus.Reported or ZatcaSubmissionStatus.Warning)
             return Result(invoice, success: true, Messages.ZatcaAlreadySubmitted);
 
+        // من هنا فصاعداً محاولة إرسال فعلية؛ الافتراضي «رُفضت قبل الإرسال» حتى يتقدّم الإرسال
+        _attempt = new ZatcaSubmissionAttempt
+        {
+            InvoiceId = invoice.Id, InvoiceNumber = invoice.InvoiceNumber, DocumentKind = invoice.Kind.ToString(), DocumentUuid = invoice.Uuid,
+            UserId = _user.UserId, UserName = _user.Name, AttemptedAt = DateTime.UtcNow, Outcome = ZatcaAttemptOutcome.PreCheckFailed,
+            IsResubmission = invoice.ZatcaStatus == ZatcaSubmissionStatus.Rejected,
+        };
+
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstAsync(ct);
         var config = tenant.ZatcaConfig;
         if (!config.IsEnabled) return await FailAsync(invoice, Messages.ZatcaNotEnabled, ct);
@@ -497,6 +533,7 @@ public class ZatcaService : IZatcaService
         var units = await _db.Set<ZatcaUnit>().AsNoTracking().Where(u => u.UserId == senderId)
             .Select(u => new { u.Id, u.IsActive, u.Environment, u.CertificatePem }).ToListAsync(ct);
         var unit = units.FirstOrDefault(u => u.IsActive);
+        if (unit != null && _attempt != null) _attempt.UnitId = unit.Id;
         if (unit == null)
             return await PreCheckFailAsync(invoice, new[] { units.Count == 0 ? "NoActiveUnit" : "UnitDisabled" }, ct,
                 string.Format(Messages.ZatcaUserNotLinked, _user.Name ?? _user.Email));
@@ -523,6 +560,7 @@ public class ZatcaService : IZatcaService
             // إعادة إرسال مرفوضة (بعد تصحيح إعدادات المنشأة أو شهادة الوحدة مثلاً): مستند جديد لدى الهيئة بمعرّف جديد،
             // فالهيئة لا تقبل UUID مكرراً؛ ومحاولتها المرفوضة تبقى حلقة في السلسلة
             if (invoice.ZatcaStatus == ZatcaSubmissionStatus.Rejected) invoice.Uuid = Guid.NewGuid();
+            if (_attempt != null) { _attempt.DocumentUuid = invoice.Uuid; _attempt.Icv = chain.Counter + 1; }
 
             ZatcaDocument document;
             ZatcaSignedInvoice signed;
@@ -545,6 +583,7 @@ public class ZatcaService : IZatcaService
             {
                 // تعذّر تجهيز الفاتورة أو توقيعها أو إرسالها قبل أي حكم (بيانات ناقصة، شهادة تالفة…): السلسلة لم تتغيّر،
                 // ويُحفظ السبب على الفاتورة ليظهر للمستخدم بدل رسالة عامة
+                if (_attempt != null) _attempt.Outcome = ZatcaAttemptOutcome.LocalError;
                 return await FailAsync(invoice, string.Format(Messages.ZatcaSubmitFailed, ex.Message), ct);
             }
 
@@ -553,6 +592,7 @@ public class ZatcaService : IZatcaService
             if (!response.Reached)
             {
                 var status = response.HttpStatus == 0 ? 503 : response.HttpStatus;
+                if (_attempt != null) { _attempt.Outcome = ZatcaAttemptOutcome.Unreachable; _attempt.HttpStatus = status; }
                 var http = ZatcaErrorDictionary.ResolveHttp(status);
                 var failed = await FailAsync(invoice, $"{Explain(http)}\n{string.Format(Messages.ZatcaUnreachable, response.Message)}", ct,
                     new List<ZatcaIssueDto> { IssueDto($"HTTP {status}", http with { Chain = ZatcaChainEffect.Keep }, response.Message) });
@@ -587,6 +627,20 @@ public class ZatcaService : IZatcaService
             }
             invoice.ZatcaValidationMessages = notes.Count == 0 ? null : string.Join("\n", notes);
             await _db.SaveChangesAsync(ct);
+            if (_attempt != null)
+            {
+                _attempt.Outcome = invoice.ZatcaStatus switch
+                {
+                    ZatcaSubmissionStatus.Rejected => ZatcaAttemptOutcome.Rejected,
+                    ZatcaSubmissionStatus.Warning => ZatcaAttemptOutcome.AcceptedWithWarnings,
+                    ZatcaSubmissionStatus.Reported => ZatcaAttemptOutcome.Reported,
+                    _ => ZatcaAttemptOutcome.Cleared,
+                };
+                _attempt.HttpStatus = response.HttpStatus;
+                _attempt.Icv = document.Counter;
+                _attempt.IssueCodes = issues.Count == 0 ? null : string.Join(",", issues.Select(i => i.Code).Distinct());
+                _attempt.Message = invoice.ZatcaValidationMessages;
+            }
 
             await _audit.LogAsync(response.Accepted ? "ZATCA_SUBMITTED" : "ZATCA_REJECTED", nameof(Invoice), invoice.Id.ToString(),
                 $"{invoice.InvoiceNumber}: {invoice.ZatcaStatus} (ICV {document.Counter} - {chain.UserName}, HTTP {response.HttpStatus})", ct);
@@ -616,6 +670,11 @@ public class ZatcaService : IZatcaService
     /// <summary>تعذّر الإرسال قبل حكم الهيئة: يُحفظ السبب على الفاتورة وتبقى حالتها كما هي (والسلسلة لم تُستهلك).</summary>
     private async Task<ZatcaSubmitResultDto> FailAsync(InvoiceBase invoice, string reason, CancellationToken ct, List<ZatcaIssueDto>? issues = null)
     {
+        if (_attempt != null)
+        {
+            _attempt.Message = reason;
+            _attempt.IssueCodes = issues is { Count: > 0 } ? string.Join(",", issues.Select(i => i.Code).Distinct()) : _attempt.IssueCodes;
+        }
         invoice.ZatcaValidationMessages = reason;
         await _db.SaveChangesAsync(ct);
         return new ZatcaSubmitResultDto { Success = false, Status = invoice.ZatcaStatus, Message = reason, QrCode = invoice.ZatcaQrCode, Issues = issues ?? new() };

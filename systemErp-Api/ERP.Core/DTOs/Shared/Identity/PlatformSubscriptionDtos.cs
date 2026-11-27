@@ -100,6 +100,8 @@ public class PlatformTenantSubscriptionDto
     /// <summary>قاعدة المنشأة: مشتركة (بلا سجل ربط) أو مستقلة، وحالة تجهيز المستقلة. لا يُعاد نص الاتصال أبداً.</summary>
     public TenantDatabaseMode DatabaseMode { get; set; } = TenantDatabaseMode.Shared;
     public TenantDatabaseStatus? DatabaseStatus { get; set; }
+    /// <summary>النشاط الرئيسي (null = منشأة أُسست قبل القوالب).</summary>
+    public string? ActivityKey { get; set; }
 }
 
 /// <summary>إعدادات المنصة التي يغيّرها مديرها من اللوحة.</summary>

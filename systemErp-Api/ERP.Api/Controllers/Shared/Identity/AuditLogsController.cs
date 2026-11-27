@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace ERP.Api.Controllers.Shared;
 
 /// <summary>قراءة سجل التدقيق فقط — لا يوجد Endpoint لإنشاء أو تعديل أو حذف سجلات التدقيق (تُكتب داخليًا فقط عبر IAuditService.LogAsync).</summary>
-[Route("api/v1/auditlogs"), RequireScreen("car-showroom")]
+// صلاحية مركز المراقبة (مالكة سجل التدقيق)، مع إبقاء صلاحية المعارض السابقة للمستهلكين القائمين؛ القراءة لمنشأة المستخدم وحدها (مرشّح المنشأة)
+[Route("api/v1/auditlogs"), RequireScreen("command-center", AlsoAllow = "car-showroom")]
 public class AuditLogsController : ErpControllerBase
 {
     private readonly IAuditService _audit;

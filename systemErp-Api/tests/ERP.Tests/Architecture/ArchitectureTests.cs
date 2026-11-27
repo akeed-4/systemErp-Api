@@ -97,6 +97,8 @@ public class ArchitectureTests
             // المحاسبة مشتركة بين كل الوحدات
             "Accounts", "BankReconciliations", "CostCenters", "FixedAssets", "FiscalPeriods", "JournalEntries", "Vouchers", "Reports", "AccountingSettings",
             "DocumentNumbering", "DocumentNumberingModes",
+            // قوالب الدليل المحاسبي والأنشطة (المنصة والتسجيل) ودليل المنشأة منها
+            "ChartTemplates", "BusinessActivities", "ChartSetup",
             // فواتير المعارض (Invoice) وأسباب الإعفاء الضريبي المشتركة؛ مستندات التجارة العامة لها controllers موسومة بوحدتها
             "Invoices",
             // البيانات الأساسية والأصناف والمخزون

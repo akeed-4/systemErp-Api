@@ -19,6 +19,13 @@ public class AuditService : CrudService<AuditLog, AuditLogDto, CreateAuditLogDto
     protected override IQueryable<AuditLog> ApplySearch(IQueryable<AuditLog> q, string term)
         => q.Where(a => a.EntityId == term || a.Action.Contains(term) || a.Details.Contains(term));
 
+    /// <summary>معرّف المنفّذ يُختم من الهوية (لا من الطلب) مع اسمه.</summary>
+    protected override Task OnCreatingAsync(AuditLog entity, CreateAuditLogDto dto, CancellationToken ct)
+    {
+        entity.UserId ??= _user.UserId;
+        return Task.CompletedTask;
+    }
+
     public async Task LogAsync(string action, string entityName, string entityId, string details, CancellationToken ct = default)
     {
         await CreateAsync(new CreateAuditLogDto

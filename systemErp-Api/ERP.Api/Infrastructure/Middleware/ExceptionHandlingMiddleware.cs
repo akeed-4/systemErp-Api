@@ -55,8 +55,11 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
-            await Write(context, 500, Messages.UnexpectedError, _env.IsDevelopment() ? new List<string> { ex.Message } : null);
+            // معرّف التتبع يُعاد للمستخدم ويُحفظ مع الخطأ (مركز مراقبة المنصة)؛ فشل الحفظ لا يغيّر الاستجابة
+            var traceId = context.TraceIdentifier;
+            _log.LogError(ex, "Unhandled exception for {Method} {Path} (trace {TraceId})", context.Request.Method, context.Request.Path, traceId);
+            await RecordAsync(context, ex, traceId);
+            await Write(context, 500, Messages.UnexpectedError, _env.IsDevelopment() ? new List<string> { ex.Message } : null, traceId);
         }
     }
 
@@ -68,12 +71,44 @@ public class ExceptionHandlingMiddleware
             || text.Contains("REFERENCE constraint", StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task Write(HttpContext context, int status, string message, List<string>? errors = null)
+    private async Task Write(HttpContext context, int status, string message, List<string>? errors = null, string? traceId = null)
     {
         if (context.Response.HasStarted) return;
         context.Response.Clear();
         context.Response.StatusCode = status;
         context.Response.ContentType = "application/json; charset=utf-8";
-        await context.Response.WriteAsync(JsonSerializer.Serialize(ApiResponse<object>.Fail(status, message, errors), _json));
+        var body = ApiResponse<object>.Fail(status, message, errors);
+        body.TraceId = traceId;
+        await context.Response.WriteAsync(JsonSerializer.Serialize(body, _json));
+    }
+
+    /// <summary>
+    /// معلومات آمنة فقط: المسار بلا الاستعلام، نوع الاستثناء وموضعه، ورسالة مقصوصة منقّاة (يتولاها المسجِّل). لا جسم ولا ترويسات.
+    /// </summary>
+    private async Task RecordAsync(HttpContext context, Exception ex, string traceId)
+    {
+        try
+        {
+            var recorder = context.RequestServices.GetService<IMonitoringRecorder>();
+            if (recorder == null) return;
+            var user = context.User;
+            var root = ex is AggregateException { InnerException: { } inner } ? inner : ex;
+            await recorder.RecordApiErrorAsync(new ApiErrorLog
+            {
+                TenantId = Guid.TryParse(user.FindFirstValue(CurrentUser.TenantClaim), out var tenantId) ? tenantId : null,
+                UserId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ? userId : null,
+                TraceId = traceId,
+                Method = context.Request.Method,
+                Path = context.Request.Path.Value ?? string.Empty,
+                StatusCode = 500,
+                ExceptionType = root.GetType().FullName ?? root.GetType().Name,
+                Source = root.TargetSite is { } site ? $"{site.DeclaringType?.Name}.{site.Name}" : null,
+                Message = root is Microsoft.Data.SqlClient.SqlException sql ? $"SQL error {sql.Number}" : root.Message,
+            });
+        }
+        catch (Exception logEx)
+        {
+            _log.LogWarning(logEx, "Monitoring: could not record API error {TraceId}", traceId);
+        }
     }
 }

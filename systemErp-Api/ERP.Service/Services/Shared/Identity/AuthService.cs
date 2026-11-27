@@ -33,17 +33,63 @@ public class AuthService : IAuthService
     private readonly IEmailSender _email;
     private readonly TenantDatabaseProvisioner _databases;
     private readonly IOptionsMonitor<PlatformOptions> _platform;
+    private readonly IMonitoringRecorder? _monitoring;
 
     public AuthService(ErpDbContext db, ITenantContext tenant, ITenantProvisioningService provisioning, ITransactionRunner tx,
         IJwtTokenService tokens, IPasswordHasher<User> hasher, IConfiguration config, ILogger<AuthService> log, IEmailSender email,
-        TenantDatabaseProvisioner databases, IOptionsMonitor<PlatformOptions> platform)
+        TenantDatabaseProvisioner databases, IOptionsMonitor<PlatformOptions> platform, IMonitoringRecorder? monitoring = null)
     {
+        _monitoring = monitoring;
         _db = db; _tenant = tenant; _provisioning = provisioning; _tx = tx;
         _tokens = tokens; _hasher = hasher; _config = config; _log = log; _email = email;
         _databases = databases; _platform = platform;
     }
 
     public async Task<AuthResultDto> LoginAsync(LoginRequestDto request, CancellationToken ct = default)
+    {
+        // سجل الدخول (مركز المراقبة): كل محاولة بنتيجتها، والمعرّف مقنَّع ولا تُحفظ كلمة المرور. التسجيل لا يغيّر نتيجة الدخول.
+        var identifier = MonitoringText.MaskIdentifier(request.Email);
+        try
+        {
+            var (result, tenantId, userId) = await LoginCoreAsync(request, ct);
+            await RecordLoginAsync(identifier, LoginOutcome.Succeeded, tenantId, userId);
+            return result;
+        }
+        catch (ErpException ex) when (LoginFailureOutcome(ex) is { } outcome)
+        {
+            await RecordLoginAsync(identifier, outcome.Outcome, outcome.TenantId, outcome.UserId);
+            throw;
+        }
+    }
+
+    private sealed class LoginFailedForTenant(Guid tenantId, Guid userId, string message) : ForbiddenException(message)
+    {
+        public Guid TenantId { get; } = tenantId;
+        public Guid UserId { get; } = userId;
+    }
+
+    /// <summary>بيانات دخول خاطئة لحساب معروف: الرسالة العامة نفسها (لا تكشف وجود الحساب)، والمنشأة للسجل فقط.</summary>
+    private sealed class InvalidCredentialsForUser(Guid tenantId, Guid userId) : UnauthorizedAppException()
+    {
+        public Guid TenantId { get; } = tenantId;
+        public Guid UserId { get; } = userId;
+    }
+
+    private static (LoginOutcome Outcome, Guid? TenantId, Guid? UserId)? LoginFailureOutcome(ErpException ex) => ex switch
+    {
+        LoginFailedForTenant f => (LoginOutcome.CompanyInactive, f.TenantId, f.UserId),
+        InvalidCredentialsForUser c => (LoginOutcome.InvalidCredentials, c.TenantId, c.UserId),
+        ValidationFailedException => (LoginOutcome.InvalidRequest, null, null),
+        UnauthorizedAppException u when u.Message == Messages.LoginAmbiguousUseEmail => (LoginOutcome.Ambiguous, null, null),
+        UnauthorizedAppException => (LoginOutcome.InvalidCredentials, null, null),
+        _ => null,
+    };
+
+    private Task RecordLoginAsync(string identifier, LoginOutcome outcome, Guid? tenantId, Guid? userId)
+        => _monitoring?.RecordLoginAsync(new LoginEvent { Identifier = identifier, Outcome = outcome, TenantId = tenantId, UserId = userId })
+           ?? Task.CompletedTask;
+
+    private async Task<(AuthResultDto Result, Guid TenantId, Guid UserId)> LoginCoreAsync(LoginRequestDto request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             throw new ValidationFailedException(Messages.EmailAndPasswordRequired);
@@ -55,13 +101,14 @@ public class AuthService : IAuthService
             : await FindByPhoneAsync(request.Email.Trim(), ct);
 
         var matches = MatchPassword(candidates, request.Password, ct);
-        if (matches.Count == 0) throw new UnauthorizedAppException();
+        // كلمة مرور خاطئة لحساب واحد معروف: تُنسب المحاولة لمنشأته (مركز المراقبة)، والرسالة للمستخدم هي نفسها
+        if (matches.Count == 0) throw candidates.Count == 1 ? new InvalidCredentialsForUser(candidates[0].TenantId, candidates[0].Id) : new UnauthorizedAppException();
         if (matches.Count > 1) throw new UnauthorizedAppException(Messages.LoginAmbiguousUseEmail);
         var user = matches[0];
 
         _tenant.SetTenant(user.TenantId);
         var tenant = await _db.Set<Tenant>().AsNoTracking().FirstOrDefaultAsync(t => t.Id == user.TenantId, ct);
-        if (tenant is not { IsActive: true }) throw new ForbiddenException(Messages.CompanyInactive);
+        if (tenant is not { IsActive: true }) throw new LoginFailedForTenant(user.TenantId, user.Id, Messages.CompanyInactive);
 
         // تحديث مباشر لعمود واحد: بلا تتبّع ولا مرور على سجل التدقيق (LastLoginAt ليس تعديلاً من مستخدم أصلاً).
         user.LastLoginAt = DateTime.UtcNow;
@@ -70,7 +117,7 @@ public class AuthService : IAuthService
         await _db.Set<User>().IgnoreQueryFilters().Where(u => u.Id == userId)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastLoginAt, loginAt), ct);
 
-        return Build(user, tenant, Messages.LoginSucceeded);
+        return (Build(user, tenant, Messages.LoginSucceeded), user.TenantId, user.Id);
     }
 
     /// <summary>
@@ -156,6 +203,8 @@ public class AuthService : IAuthService
         TenantOnboarding.Validate(r);
         var email = r.AdminEmail.Trim().ToLower();
         var tenant = TenantOnboarding.NewTenant(r, email);
+        // النشاط يحدد قالب الدليل (يُتحقق منه ويُزرع كتالوج القوالب قبل المعاملة)
+        tenant.ActivityKey = await ERP.Service.Services.Accounting.ChartTemplateCatalog.ResolveActivityKeyAsync(_db.Catalog, r.ActivityKey, ct);
         var dedicated = (await TenantOnboarding.DefaultDatabaseModeAsync(_db, _platform.CurrentValue, ct)).Mode == TenantDatabaseMode.Dedicated;
         // المنشأة الجديدة تُضبط قبل المعاملة: اتصالها يُفتح على القاعدة المشتركة (لا ربط لها بعد) مهما كان رمز المتصل
         _tenant.SetTenant(tenant.Id);
@@ -167,14 +216,16 @@ public class AuthService : IAuthService
 
             // فترة تجريبية مجانية على الباقة المختارة؛ بعد انتهائها يُحجب النظام حتى سداد الاشتراك (POST /payments/subscription)
             var plan = await SubscriptionCatalog.GetAsync(_db, r.PlanId, forSale: true, token);
-            _db.Add(SubscriptionCatalog.NewTrial(plan, r.BillingCycle));
+            var trial = SubscriptionCatalog.NewTrial(plan, r.BillingCycle);
+            _db.Add(trial);
 
             var admin = TenantOnboarding.NewOwner(r, email, _hasher);
             _db.Add(admin);
             if (dedicated) _db.Add(_databases.NewBinding(tenant.Id));
 
             await _db.SaveChangesAsync(token);
-            if (!dedicated) await _provisioning.SeedAsync(tenant.Id, tenant.Currency, token);
+            if (!dedicated)
+                await _provisioning.SeedAsync(tenant.Id, tenant.Currency, tenant.ActivityKey, PlatformModules.Parse(trial.ModuleKeys), token);
 
             return Build(admin, tenant, string.Format(Messages.CompanyRegisteredWithTrial, tenant.NameAr));
         }, ct);

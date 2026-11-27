@@ -54,10 +54,15 @@ public sealed class TenantDatabaseProvisioner
             tenant.SetTenant(tenantId);
             await using (var seed = new ErpDbContext(_resolver.OptionsFor(connection), tenant))
             {
+                // الزرع في معاملة واحدة (دليل مكتمل أو لا شيء)، فوجود حساب = زرع مكتمل، والمتعثّر يُعاد على قاعدة نظيفة.
+                // القوالب من القاعدة المشتركة (المصدر المركزي)، والنشاط والموديولات من سجلات الدليل المنسوخة للتو.
                 if (!await seed.Set<Account>().AnyAsync(ct))
                 {
-                    var currency = await seed.Set<Tenant>().Select(t => t.Currency).FirstAsync(ct);
-                    await new TenantProvisioningService(seed).SeedAsync(tenantId, currency, ct);
+                    var tenantRow = await seed.Set<Tenant>().Select(t => new { t.Currency, t.ActivityKey }).FirstAsync(ct);
+                    var modules = await seed.Set<Subscription>().OrderByDescending(s => s.StartDate).ThenByDescending(s => s.CreatedAt)
+                        .Select(s => s.ModuleKeys).FirstOrDefaultAsync(ct);
+                    await new TenantProvisioningService(seed, catalog)
+                        .SeedAsync(tenantId, tenantRow.Currency, tenantRow.ActivityKey, PlatformModules.Parse(modules), ct);
                 }
             }
 

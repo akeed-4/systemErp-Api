@@ -81,7 +81,7 @@ internal static class FeasibilityFinancialApproval
     private static void Audit(ErpDbContext db, ICurrentUser user, string action, CommercialContract c, string details)
         => db.Add(new AuditLog
         {
-            Action = action, EntityName = nameof(CommercialContract), EntityId = c.Id.ToString(), PerformedBy = user.Name ?? "system",
+            Action = action, EntityName = nameof(CommercialContract), EntityId = c.Id.ToString(), PerformedBy = user.Name ?? "system", UserId = user.UserId,
             Details = details.Length > 1000 ? details[..1000] : details, Timestamp = DateTime.UtcNow,
         });
 }

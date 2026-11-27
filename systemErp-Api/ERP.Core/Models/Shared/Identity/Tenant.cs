@@ -28,6 +28,8 @@ public class Tenant : BaseEntity
     public string TimeZoneId { get; set; } = "Asia/Riyadh";
     /// <summary>مراجعة موقع التوصيل إلزامية قبل خروج البيان المتتبَّع (معطّل افتراضياً).</summary>
     public bool RequireDeliveryLocationReview { get; set; }
-    
+    /// <summary>النشاط الرئيسي (مفتاح BusinessActivity): يحدد قالب الدليل عند التأسيس. فارغ = منشأة أُسست قبل القوالب.</summary>
+    public string? ActivityKey { get; set; }
+
     public ZatcaConfig ZatcaConfig { get; set; } = new();
 }

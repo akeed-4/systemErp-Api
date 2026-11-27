@@ -91,6 +91,14 @@ public class PlatformController : ErpControllerBase
     public async Task<IActionResult> SetModules(Guid tenantId, [FromBody] PlatformSetModulesRequestDto request, CancellationToken ct)
         => Success(await _platform.SetModulesAsync(tenantId, request, ct), "تم تحديث الوحدات");
 
+    /// <summary>حالة دليل المنشأة من القوالب (النشاط، الموديولات المطبَّقة والناقصة، آخر خطأ).</summary>
+    [HttpGet("tenants/{tenantId:guid}/chart"), RequirePlatformAdmin]
+    public async Task<IActionResult> ChartStatus(Guid tenantId, CancellationToken ct) => Success(await _platform.ChartStatusAsync(tenantId, ct));
+
+    /// <summary>إعادة تطبيق حسابات الموديولات الناقصة (بعد فشل أو تعديل قالب)؛ آمنة التكرار.</summary>
+    [HttpPost("tenants/{tenantId:guid}/chart/sync"), RequirePlatformAdmin]
+    public async Task<IActionResult> SyncChart(Guid tenantId, CancellationToken ct) => Success(await _platform.SyncChartAsync(tenantId, ct));
+
     // ---------- رموز خصم الاشتراكات ----------
     [HttpGet("promo-codes"), RequirePlatformAdmin]
     public async Task<IActionResult> PromoCodes(CancellationToken ct) => Success(await _promos.ListAsync(ct));

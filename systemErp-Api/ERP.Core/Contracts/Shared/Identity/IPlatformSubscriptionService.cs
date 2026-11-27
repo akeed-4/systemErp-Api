@@ -23,6 +23,10 @@ public interface IPlatformSubscriptionService
     Task<SubscriptionDto> ExtendAsync(Guid tenantId, PlatformExtendRequestDto request, CancellationToken ct = default);
     Task<SubscriptionDto> SetModulesAsync(Guid tenantId, PlatformSetModulesRequestDto request, CancellationToken ct = default);
     Task<SubscriptionDto> SetStatusAsync(Guid tenantId, PlatformSetStatusRequestDto request, CancellationToken ct = default);
+    /// <summary>حالة دليل المنشأة من القوالب (النشاط، الموديولات المطبَّقة والناقصة، آخر خطأ).</summary>
+    Task<ERP.Core.DTOs.Accounting.ChartSetupStatusDto> ChartStatusAsync(Guid tenantId, CancellationToken ct = default);
+    /// <summary>إعادة تطبيق حسابات الموديولات الناقصة للمنشأة (آمنة التكرار).</summary>
+    Task<ERP.Core.DTOs.Accounting.ChartSetupReportDto> SyncChartAsync(Guid tenantId, CancellationToken ct = default);
     Task<List<PlatformPlanDto>> ListPlansAsync(CancellationToken ct = default);
     /// <summary>باقة جديدة برمز فريد؛ تُعرض للبيع فور إنشائها إن كانت فعّالة.</summary>
     Task<PlatformPlanDto> CreatePlanAsync(CreatePlanRequestDto request, CancellationToken ct = default);

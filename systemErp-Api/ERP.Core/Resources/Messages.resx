@@ -2439,4 +2439,45 @@
   <data name="AccountRole_InventoryProjectIssueAccountCode" xml:space="preserve"><value>حساب الصرف لمشروع (تكلفة المشروع أو الأعمال تحت التنفيذ)</value></data>
   <data name="AccountRole_InventoryOpeningReceiptAccountCode" xml:space="preserve"><value>حساب استلام الرصيد الافتتاحي للمخزون</value></data>
   <data name="InventoryVoucherReasonInvalid" xml:space="preserve"><value>سبب الحركة غير صالح لهذا المستند.</value></data>
+  <data name="ChartTemplateParentMissing" xml:space="preserve"><value>الحساب {0}: الحساب الأب {1} غير موجود في القوالب ولا في الدليل.</value></data>
+  <data name="ChartTemplateParentTypeMismatch" xml:space="preserve"><value>الحساب {0}: نوعه يختلف عن نوع الحساب الأب {1}.</value></data>
+  <data name="ChartTemplateCodeRequiredForRoot" xml:space="preserve"><value>الحساب {0}: الحساب الجذر يحتاج رقماً (الترقيم التلقائي تحت أب فقط).</value></data>
+  <data name="ChartTemplateAccountNameRequired" xml:space="preserve"><value>الحساب {0}: الاسم العربي مطلوب.</value></data>
+  <data name="ChartTemplateCodeDigits" xml:space="preserve"><value>الحساب {0}: رقم الحساب أرقام فقط.</value></data>
+  <data name="ChartTemplateCodeOutsideParent" xml:space="preserve"><value>الحساب {0}: رقمه لا يبدأ برقم أبيه {1}.</value></data>
+  <data name="ChartTemplateSemanticKeyInvalid" xml:space="preserve"><value>المفتاح الوظيفي «{0}» غير صالح: مقاطع لاتينية مفصولة بنقطة مثل Construction.WorkInProgress.</value></data>
+  <data name="ChartTemplateReservedCodeChanged" xml:space="preserve"><value>الرقم {0} محجوز لحساب «{1}» الذي يقرؤه النظام: يبقى بنوعه وأبيه (الاسم وحده يُعدَّل).</value></data>
+  <data name="ChartTemplateReservedKeyNeedsCode" xml:space="preserve"><value>المفتاح {0} يقرؤه النظام برقمه المحجوز {1}: حدده رقماً للحساب.</value></data>
+  <data name="ChartTemplateKeyOnTwoCodes" xml:space="preserve"><value>المفتاح الوظيفي {0} مطلوب برقمين مختلفين ({1} و{2}) في القوالب.</value></data>
+  <data name="ChartTemplateMergeConflict" xml:space="preserve"><value>الحساب {0} في القالب {1} يختلف نوعه أو أبوه عن الحساب نفسه في قالب سابق.</value></data>
+  <data name="ChartTemplateTwoKeysOnCode" xml:space="preserve"><value>الحساب {0} يحمل مفتاحين وظيفيين مختلفين ({1} و{2}).</value></data>
+  <data name="ChartSetupCodeTakenByOtherType" xml:space="preserve"><value>الرقم {0} مستخدم في دليل المنشأة لحساب «{1}» من نوع آخر.</value></data>
+  <data name="ChartSetupParentHasEntries" xml:space="preserve"><value>الحساب {0} فرعي عليه قيود، فلا يُنشأ تحته حساب.</value></data>
+  <data name="ChartSetupParentProblem" xml:space="preserve"><value>تعذّر إنشاء الحساب الأب {0}.</value></data>
+  <data name="ChartSetupIncomplete" xml:space="preserve"><value>لم يكتمل تأسيس الدليل المحاسبي، ولم يُنشأ أي حساب. راجع المشكلات المذكورة.</value></data>
+  <data name="ChartSetupLegacyNeedsActivity" xml:space="preserve"><value>دليل هذه المنشأة أُسس قبل القوالب: اختر نشاطها وراجع قالبه واعتمده أولاً.</value></data>
+  <data name="ChartSetupUnusedCanDeactivate" xml:space="preserve"><value>غير مستخدم وموديوله غير مفعّل: يمكن إيقافه من شجرة الحسابات بعد التحقق.</value></data>
+  <data name="BusinessActivityInvalid" xml:space="preserve"><value>النشاط الرئيسي غير صالح أو موقوف.</value></data>
+  <data name="BusinessActivityKeyInvalid" xml:space="preserve"><value>مفتاح النشاط: حروف لاتينية صغيرة وأرقام وشرطة سفلية (2-64).</value></data>
+  <data name="BusinessActivityNameRequired" xml:space="preserve"><value>اسم النشاط العربي مطلوب.</value></data>
+  <data name="BusinessActivityParentInvalid" xml:space="preserve"><value>النشاط الأب يجب أن يكون نشاطاً رئيسياً موجوداً غير النشاط نفسه.</value></data>
+  <data name="ChartTemplateNotFound" xml:space="preserve"><value>القالب غير موجود.</value></data>
+  <data name="ChartTemplateBaseCannotBeDeleted" xml:space="preserve"><value>القالب الأساسي لا يُحذف (يمكن تعديله).</value></data>
+  <data name="ChartTemplateKeyInvalid" xml:space="preserve"><value>مفتاح القالب: حروف لاتينية صغيرة وأرقام ونقطة وشرطة سفلية (2-64).</value></data>
+  <data name="ChartTemplateNameRequired" xml:space="preserve"><value>اسم القالب العربي مطلوب.</value></data>
+  <data name="ChartTemplateKindInvalid" xml:space="preserve"><value>نوع القالب غير صالح.</value></data>
+  <data name="ChartTemplateKeyTaken" xml:space="preserve"><value>يوجد قالب بالمفتاح نفسه.</value></data>
+  <data name="ChartTemplateSingleBase" xml:space="preserve"><value>يوجد قالب أساسي واحد فقط.</value></data>
+  <data name="ChartTemplateModuleInvalid" xml:space="preserve"><value>الموديول غير معروف.</value></data>
+  <data name="AccountBindingUseSettings" xml:space="preserve"><value>هذا المفتاح من إعدادات الحسابات: عدّله من شاشتها.</value></data>
+  <data name="AccountBindingReserved" xml:space="preserve"><value>هذا المفتاح يقرؤه النظام برقمه المحجوز {0} فلا يُربط بحساب آخر.</value></data>
+  <data name="AccountBindingAccountNotFound" xml:space="preserve"><value>الحساب {0} غير موجود.</value></data>
+  <data name="AccountBindingNeedsPostingAccount" xml:space="preserve"><value>الحساب {0} رئيسي أو موقوف: اختر حساباً فرعياً فعّالاً.</value></data>
+  <data name="ChartTemplateSaved" xml:space="preserve"><value>تم حفظ القالب.</value></data>
+  <data name="ChartSetupApplied" xml:space="preserve"><value>تم تطبيق القوالب على الدليل.</value></data>
+  <data name="MonitoringAlertNotFound" xml:space="preserve"><value>التنبيه غير موجود.</value></data>
+  <data name="MonitoringActionInvalid" xml:space="preserve"><value>الإجراء غير متاح لحالة التنبيه الحالية.</value></data>
+  <data name="MonitoringNoteRequired" xml:space="preserve"><value>اكتب الملاحظة.</value></data>
+  <data name="MonitoringAssigneeInvalid" xml:space="preserve"><value>اختر مستخدماً فعّالاً من مستخدمي المنشأة.</value></data>
+  <data name="MonitoringCheckAlreadyRunning" xml:space="preserve"><value>يوجد فحص قيد التشغيل الآن. انتظر حتى ينتهي ثم أعد المحاولة.</value></data>
 </root>

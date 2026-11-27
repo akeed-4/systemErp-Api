@@ -629,6 +629,64 @@ public class ErpDbContext : DbContext
             e.Property(s => s.UpdatedBy).HasMaxLength(256);
         });
 
+        // الأنشطة وقوالب الدليل (على مستوى المنصة، بلا مرشّح منشأة): مصدر مركزي يُقرأ من القاعدة المشتركة وحدها عند التأسيس.
+        // تُزرع عند أول قراءة (ChartTemplateCatalog) لا في المهاجرة.
+        modelBuilder.Entity<BusinessActivity>(e =>
+        {
+            e.ToTable("BusinessActivity");
+            e.HasKey(a => a.Key);
+            e.Property(a => a.Key).HasMaxLength(64);
+            e.Property(a => a.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(a => a.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(a => a.DescriptionAr).HasMaxLength(500);
+            e.Property(a => a.DescriptionEn).HasMaxLength(500);
+            e.Property(a => a.ParentKey).HasMaxLength(64);
+        });
+        modelBuilder.Entity<ChartTemplate>(e =>
+        {
+            e.ToTable("ChartTemplate");
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Id).ValueGeneratedNever();
+            e.Property(t => t.Key).HasMaxLength(64).IsRequired();
+            e.HasIndex(t => t.Key).IsUnique();
+            e.Property(t => t.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(t => t.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(t => t.ActivityKey).HasMaxLength(64);
+            e.Property(t => t.ModuleKey).HasMaxLength(64);
+            e.Property(t => t.UpdatedBy).HasMaxLength(256);
+            e.HasIndex(t => new { t.Kind, t.ActivityKey, t.ModuleKey });
+            e.HasMany(t => t.Accounts).WithOne().HasForeignKey(a => a.TemplateId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ChartTemplateAccount>(e =>
+        {
+            e.ToTable("ChartTemplateAccount");
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Id).ValueGeneratedNever();
+            e.Property(a => a.Code).HasMaxLength(32);
+            e.Property(a => a.NameAr).HasMaxLength(200).IsRequired();
+            e.Property(a => a.NameEn).HasMaxLength(200).IsRequired();
+            e.Property(a => a.ParentCode).HasMaxLength(32);
+            e.Property(a => a.SemanticKey).HasMaxLength(100);
+            e.HasIndex(a => new { a.TemplateId, a.Code }).IsUnique().HasFilter("[Code] IS NOT NULL");
+            e.HasIndex(a => new { a.TemplateId, a.SemanticKey }).IsUnique().HasFilter("[SemanticKey] IS NOT NULL");
+        });
+
+        // حالة تأسيس الدليل (سجل واحد للمنشأة) وربط المفاتيح الوظيفية العامة (مفتاح واحد لكل منشأة)
+        modelBuilder.Entity<ChartProvisioning>(e =>
+        {
+            e.HasIndex(p => p.TenantId).IsUnique();
+            e.Property(p => p.ActivityKey).HasMaxLength(64);
+            e.Property(p => p.AppliedTemplates).HasMaxLength(2000).IsRequired();
+            e.Property(p => p.AppliedModules).HasMaxLength(500).IsRequired();
+            e.Property(p => p.LastError).HasMaxLength(1000);
+        });
+        modelBuilder.Entity<AccountBinding>(e =>
+        {
+            e.Property(b => b.SemanticKey).HasMaxLength(100).IsRequired();
+            e.HasIndex(b => new { b.TenantId, b.SemanticKey }).IsUnique();
+        });
+        modelBuilder.Entity<Tenant>().Property(t => t.ActivityKey).HasMaxLength(64);
+
         modelBuilder.Entity<ContractStageDefinition>(e =>
         {
             e.ToTable("ContractStageDefinition");
@@ -1632,6 +1690,95 @@ public class ErpDbContext : DbContext
             e.Property(s => s.Color).HasMaxLength(50).IsRequired();
             e.HasIndex(s => new { s.WorkflowType, s.Number }).IsUnique();
             e.HasData(CarStageCatalogSeed.All);
+        });
+
+        // ---------- المراقبة (مركز المراقبة) ----------
+        // سجل التدقيق: أعمدة البحث بطول محدد لتُفهرس، وفهرسا الفترة والكيان لاستعلامات المراقبة وسجل المستند.
+        modelBuilder.Entity<AuditLog>(e =>
+        {
+            e.Property(a => a.Action).HasMaxLength(100);
+            e.Property(a => a.EntityName).HasMaxLength(128);
+            e.Property(a => a.EntityId).HasMaxLength(128);
+            e.Property(a => a.PerformedBy).HasMaxLength(256);
+            e.Property(a => a.ClientIpAddress).HasMaxLength(64);
+            e.HasIndex(a => new { a.TenantId, a.Timestamp });
+            e.HasIndex(a => new { a.TenantId, a.EntityName, a.EntityId });
+        });
+        // محاولات الإرسال للهيئة: في قاعدة المنشأة، بلا XML ولا أسرار
+        modelBuilder.Entity<ZatcaSubmissionAttempt>(e =>
+        {
+            e.Property(a => a.InvoiceNumber).HasMaxLength(64);
+            e.Property(a => a.DocumentKind).HasMaxLength(32);
+            e.Property(a => a.UserName).HasMaxLength(256);
+            e.Property(a => a.IssueCodes).HasMaxLength(500);
+            e.Property(a => a.Message).HasMaxLength(1000);
+            e.Property(a => a.Outcome).HasMaxLength(32);
+            e.HasIndex(a => new { a.TenantId, a.AttemptedAt });
+            e.HasIndex(a => new { a.TenantId, a.InvoiceId });
+        });
+        modelBuilder.Entity<MonitoringAlert>(e =>
+        {
+            e.Property(a => a.RuleKey).HasMaxLength(64);
+            e.Property(a => a.Module).HasMaxLength(32);
+            e.Property(a => a.Fingerprint).HasMaxLength(200);
+            e.Property(a => a.SourceType).HasMaxLength(32);
+            e.Property(a => a.SourceNumber).HasMaxLength(64);
+            e.Property(a => a.ParamsJson).HasMaxLength(1000);
+            e.Property(a => a.AssignedToName).HasMaxLength(256);
+            e.Property(a => a.ResolvedByName).HasMaxLength(256);
+            e.Property(a => a.Severity).HasMaxLength(16);
+            e.Property(a => a.Status).HasMaxLength(16);
+            e.HasIndex(a => new { a.TenantId, a.Fingerprint }).IsUnique();
+            e.HasIndex(a => new { a.TenantId, a.Status, a.LastDetectedAt });
+        });
+        modelBuilder.Entity<MonitoringAlertEvent>(e =>
+        {
+            e.Property(a => a.Action).HasMaxLength(32);
+            e.Property(a => a.Note).HasMaxLength(1000);
+            e.Property(a => a.UserName).HasMaxLength(256);
+            e.HasIndex(a => new { a.TenantId, a.AlertId, a.At });
+        });
+        modelBuilder.Entity<MonitoringCheckRun>(e =>
+        {
+            e.Property(r => r.Status).HasMaxLength(16);
+            e.Property(r => r.RunByName).HasMaxLength(256);
+            e.Property(r => r.Error).HasMaxLength(500);
+            e.HasIndex(r => new { r.TenantId, r.StartedAt });
+        });
+        // على مستوى المنصة (القاعدة المشتركة وحدها، بلا مرشّح منشأة): الدخول وأخطاء الخادم وفحوص المنصة
+        modelBuilder.Entity<LoginEvent>(e =>
+        {
+            e.ToTable("LoginEvent");
+            e.HasKey(l => l.Id);
+            e.Property(l => l.Identifier).HasMaxLength(128).IsRequired();
+            e.Property(l => l.IpAddress).HasMaxLength(64);
+            e.Property(l => l.UserAgent).HasMaxLength(256);
+            e.Property(l => l.Outcome).HasMaxLength(32);
+            e.HasIndex(l => l.OccurredAt);
+            e.HasIndex(l => new { l.TenantId, l.OccurredAt });
+        });
+        modelBuilder.Entity<ApiErrorLog>(e =>
+        {
+            e.ToTable("ApiErrorLog");
+            e.HasKey(l => l.Id);
+            e.Property(l => l.TraceId).HasMaxLength(64).IsRequired();
+            e.Property(l => l.Method).HasMaxLength(10).IsRequired();
+            e.Property(l => l.Path).HasMaxLength(256).IsRequired();
+            e.Property(l => l.ExceptionType).HasMaxLength(256).IsRequired();
+            e.Property(l => l.Source).HasMaxLength(256);
+            e.Property(l => l.Message).HasMaxLength(500);
+            e.HasIndex(l => l.OccurredAt);
+            e.HasIndex(l => new { l.TenantId, l.OccurredAt });
+            e.HasIndex(l => l.TraceId);
+        });
+        modelBuilder.Entity<PlatformCheckRun>(e =>
+        {
+            e.ToTable("PlatformCheckRun");
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Status).HasMaxLength(16).IsRequired();
+            e.Property(r => r.RunByName).HasMaxLength(256).IsRequired();
+            e.Property(r => r.Error).HasMaxLength(500);
+            e.HasIndex(r => r.StartedAt);
         });
 
         // القيم المعدّدة كنصوص مقروءة في قاعدة البيانات.

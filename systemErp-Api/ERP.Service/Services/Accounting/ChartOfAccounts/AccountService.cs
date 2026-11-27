@@ -206,6 +206,8 @@ public class AccountService : CrudService<Account, AccountDto, CreateAccountDto,
         }
         // طرق الدفع المرتبطة بالحساب (صندوق أو غيره): رمزه واسمه، وطريقة الصندوق التلقائية تتبع اسمه وحالته
         await CashBoxPaymentMethods.SyncAsync(Db, oldCode, original.GetValue<string>(nameof(Account.NameAr)), entity, ct);
+        // الإعدادات المربوطة بالرقم القديم (أدوار الترحيل، حسابات المواقع، المعرض) تتبع الرقم الجديد
+        if (oldCode != entity.Code) await AccountCodeReferences.RenameAsync(Db, oldCode, entity.Code, ct);
     }
 
     /// <summary>هل الحساب <paramref name="code"/> هو المجموعة <paramref name="group"/> أو أحد فروعها؟</summary>

@@ -77,6 +77,7 @@ public class AccountingSettingsService : IAccountingSettingsService
             await SiteAccounts.EnsurePeriodicAllAsync(_db, settings, token);
 
             await _db.SaveChangesAsync(token);
+            AccountKeyResolver.Invalidate(_db.CurrentTenantId); // المفاتيح الوظيفية لأدوار الإعدادات
             if (periodicSetup is { Created: > 0 } or { Reused: > 0 }) await LogPeriodicSetupAsync(periodicSetup, token);
             var dto = ToDto(settings);
             dto.PeriodicAccountsSetup = periodicSetup;

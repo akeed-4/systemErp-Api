@@ -2431,4 +2431,45 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="AccountRole_InventoryProjectIssueAccountCode" xml:space="preserve"><value>Issue to project account (project cost or work in progress)</value></data>
   <data name="AccountRole_InventoryOpeningReceiptAccountCode" xml:space="preserve"><value>Opening stock receipt account</value></data>
   <data name="InventoryVoucherReasonInvalid" xml:space="preserve"><value>The movement reason is not valid for this document.</value></data>
+  <data name="ChartTemplateParentMissing" xml:space="preserve"><value>Account {0}: parent account {1} is not in the templates or the chart.</value></data>
+  <data name="ChartTemplateParentTypeMismatch" xml:space="preserve"><value>Account {0}: its type differs from parent account {1}.</value></data>
+  <data name="ChartTemplateCodeRequiredForRoot" xml:space="preserve"><value>Account {0}: a root account needs a code (automatic numbering works under a parent only).</value></data>
+  <data name="ChartTemplateAccountNameRequired" xml:space="preserve"><value>Account {0}: the Arabic name is required.</value></data>
+  <data name="ChartTemplateCodeDigits" xml:space="preserve"><value>Account {0}: the code must contain digits only.</value></data>
+  <data name="ChartTemplateCodeOutsideParent" xml:space="preserve"><value>Account {0}: its code does not start with its parent code {1}.</value></data>
+  <data name="ChartTemplateSemanticKeyInvalid" xml:space="preserve"><value>Semantic key "{0}" is invalid: use dot-separated Latin segments such as Construction.WorkInProgress.</value></data>
+  <data name="ChartTemplateReservedCodeChanged" xml:space="preserve"><value>Code {0} is reserved for "{1}", which the system reads directly: keep its type and parent (only the name can change).</value></data>
+  <data name="ChartTemplateReservedKeyNeedsCode" xml:space="preserve"><value>Key {0} is read by the system through its reserved code {1}: set that code on the account.</value></data>
+  <data name="ChartTemplateKeyOnTwoCodes" xml:space="preserve"><value>Semantic key {0} is requested with two different codes ({1} and {2}) in the templates.</value></data>
+  <data name="ChartTemplateMergeConflict" xml:space="preserve"><value>Account {0} in template {1} has a different type or parent than the same account in an earlier template.</value></data>
+  <data name="ChartTemplateTwoKeysOnCode" xml:space="preserve"><value>Account {0} carries two different semantic keys ({1} and {2}).</value></data>
+  <data name="ChartSetupCodeTakenByOtherType" xml:space="preserve"><value>Code {0} is already used in the chart by "{1}", an account of another type.</value></data>
+  <data name="ChartSetupParentHasEntries" xml:space="preserve"><value>Account {0} is a posting account with entries, so no account can be created under it.</value></data>
+  <data name="ChartSetupParentProblem" xml:space="preserve"><value>Parent account {0} could not be created.</value></data>
+  <data name="ChartSetupIncomplete" xml:space="preserve"><value>The chart of accounts setup is incomplete and no account was created. Review the listed problems.</value></data>
+  <data name="ChartSetupLegacyNeedsActivity" xml:space="preserve"><value>This company's chart was set up before templates: choose its activity, review its template and approve it first.</value></data>
+  <data name="ChartSetupUnusedCanDeactivate" xml:space="preserve"><value>Unused and its module is not active: it can be deactivated from the accounts tree after review.</value></data>
+  <data name="BusinessActivityInvalid" xml:space="preserve"><value>The main activity is invalid or inactive.</value></data>
+  <data name="BusinessActivityKeyInvalid" xml:space="preserve"><value>Activity key: lowercase Latin letters, digits and underscore (2-64).</value></data>
+  <data name="BusinessActivityNameRequired" xml:space="preserve"><value>The activity Arabic name is required.</value></data>
+  <data name="BusinessActivityParentInvalid" xml:space="preserve"><value>The parent activity must be an existing main activity other than itself.</value></data>
+  <data name="ChartTemplateNotFound" xml:space="preserve"><value>Template not found.</value></data>
+  <data name="ChartTemplateBaseCannotBeDeleted" xml:space="preserve"><value>The base template cannot be deleted (it can be edited).</value></data>
+  <data name="ChartTemplateKeyInvalid" xml:space="preserve"><value>Template key: lowercase Latin letters, digits, dot and underscore (2-64).</value></data>
+  <data name="ChartTemplateNameRequired" xml:space="preserve"><value>The template Arabic name is required.</value></data>
+  <data name="ChartTemplateKindInvalid" xml:space="preserve"><value>Invalid template kind.</value></data>
+  <data name="ChartTemplateKeyTaken" xml:space="preserve"><value>A template with the same key already exists.</value></data>
+  <data name="ChartTemplateSingleBase" xml:space="preserve"><value>Only one base template is allowed.</value></data>
+  <data name="ChartTemplateModuleInvalid" xml:space="preserve"><value>Unknown module.</value></data>
+  <data name="AccountBindingUseSettings" xml:space="preserve"><value>This key belongs to the accounting settings: change it from that screen.</value></data>
+  <data name="AccountBindingReserved" xml:space="preserve"><value>This key is read by the system through its reserved code {0}, so it cannot be bound to another account.</value></data>
+  <data name="AccountBindingAccountNotFound" xml:space="preserve"><value>Account {0} was not found.</value></data>
+  <data name="AccountBindingNeedsPostingAccount" xml:space="preserve"><value>Account {0} is a group or inactive account: choose an active posting account.</value></data>
+  <data name="ChartTemplateSaved" xml:space="preserve"><value>Template saved.</value></data>
+  <data name="ChartSetupApplied" xml:space="preserve"><value>Templates applied to the chart.</value></data>
+  <data name="MonitoringAlertNotFound" xml:space="preserve"><value>Alert not found.</value></data>
+  <data name="MonitoringActionInvalid" xml:space="preserve"><value>This action is not available for the alert in its current status.</value></data>
+  <data name="MonitoringNoteRequired" xml:space="preserve"><value>Write the note.</value></data>
+  <data name="MonitoringAssigneeInvalid" xml:space="preserve"><value>Choose an active user of this company.</value></data>
+  <data name="MonitoringCheckAlreadyRunning" xml:space="preserve"><value>A check is already running. Wait for it to finish, then try again.</value></data>
 </root>

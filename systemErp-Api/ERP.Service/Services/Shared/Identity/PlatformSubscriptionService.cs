@@ -20,10 +20,13 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
     private readonly IAuditService _audit;
     private readonly ISecretProtector _secrets;
     private readonly PaymobOptions _paymob;
+    private readonly ITransactionRunner _tx;
 
     public PlatformSubscriptionService(ErpDbContext db, ITenantContext tenant, IPasswordHasher<User> hasher, TenantDatabaseProvisioner databases,
-        IOptionsMonitor<PlatformOptions> options, ICurrentUser user, IAuditService audit, ISecretProtector secrets, IOptions<PaymobOptions> paymob)
+        IOptionsMonitor<PlatformOptions> options, ICurrentUser user, IAuditService audit, ISecretProtector secrets, IOptions<PaymobOptions> paymob,
+        ITransactionRunner tx)
     {
+        _tx = tx;
         _db = db;
         _tenant = tenant;
         _hasher = hasher;
@@ -87,6 +90,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
                 DaysRemaining = sub == null ? null : (int)Math.Ceiling((sub.ExpiryDate - now).TotalDays),
                 DatabaseMode = database?.Mode ?? TenantDatabaseMode.Shared,
                 DatabaseStatus = database?.Status,
+                ActivityKey = t.ActivityKey,
             };
         }).ToList();
     }
@@ -176,6 +180,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         var dedicated = r.DatabaseMode == TenantDatabaseMode.Dedicated;
 
         var tenant = TenantOnboarding.NewTenant(r, email);
+        tenant.ActivityKey = await ERP.Service.Services.Accounting.ChartTemplateCatalog.ResolveActivityKeyAsync(Catalog, r.ActivityKey, ct);
         _tenant.SetTenant(tenant.Id);
         // المنشأة ومالكها واشتراكها (وربط قاعدتها المستقلة) في الدليل بمعاملة واحدة؛ المشتركة تُزرع بياناتها الافتتاحية معها
         await using (var tx = await Catalog.Database.BeginTransactionAsync(ct))
@@ -187,7 +192,8 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
             Catalog.Add(TenantOnboarding.NewOwner(r, email, _hasher));
             if (dedicated) Catalog.Add(_databases.NewBinding(tenant.Id));
             await Catalog.SaveChangesAsync(ct);
-            if (!dedicated) await new TenantProvisioningService(Catalog).SeedAsync(tenant.Id, tenant.Currency, ct);
+            if (!dedicated)
+                await new TenantProvisioningService(Catalog).SeedAsync(tenant.Id, tenant.Currency, tenant.ActivityKey, PlatformModules.Parse(sub.ModuleKeys), ct);
             await tx.CommitAsync(ct);
         }
 
@@ -278,6 +284,7 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         sub.TransactionReference = $"ADM-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
         _db.Add(sub);
         await _db.SaveChangesAsync(ct);
+        await SyncChartModulesAsync(sub, ct);
         return SubscriptionCatalog.ToDto(sub);
     }
 
@@ -319,7 +326,51 @@ public class PlatformSubscriptionService : IPlatformSubscriptionService
         sub.ModuleKeys = PlatformModules.ToCsv(modules);
         if (request.FeatureKeys != null) sub.FeatureKeys = PlanFeatures.ToCsv(PlanFeatures.Normalize(request.FeatureKeys));
         await _db.SaveChangesAsync(ct);
+        await SyncChartModulesAsync(sub, ct);
         return SubscriptionCatalog.ToDto(sub);
+    }
+
+    // ---------- دليل المنشأة من القوالب ----------
+
+    /// <summary>
+    /// بعد حفظ الاشتراك (والسياق على قاعدة المنشأة): حسابات الموديولات المفعّلة الناقصة فقط. الفشل لا يُبطل الاشتراك المحفوظ؛
+    /// يُسجَّل في حالة التأسيس ويُعاد من اللوحة (<see cref="SyncChartAsync"/>). المنشأة القديمة لا تُمس.
+    /// </summary>
+    private async Task SyncChartModulesAsync(Subscription sub, CancellationToken ct)
+    {
+        var report = await ERP.Service.Services.Accounting.ChartSetupRunner.SyncModulesAsync(_db, _tx, PlatformModules.Parse(sub.ModuleKeys), ct);
+        if (report is { Created: > 0 })
+            await _audit.LogAsync("CHART_MODULES_SYNCED", nameof(ChartProvisioning), sub.TenantId.ToString(),
+                $"حسابات الموديولات: أُنشئ {report.Created} ({string.Join("، ", report.Templates)})", ct);
+    }
+
+    public async Task<ChartSetupStatusDto> ChartStatusAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        await ScopeToTenantAsync(tenantId, ct);
+        var log = await _db.Set<ChartProvisioning>().AsNoTracking().FirstOrDefaultAsync(ct);
+        var licensed = PlatformModules.Parse((await LatestAsync(ct)).ModuleKeys).ToList();
+        var applied = ERP.Service.Services.Accounting.ChartTemplateCatalog.ParseCsv(log?.AppliedModules).ToList();
+        return new ChartSetupStatusDto
+        {
+            IsLegacy = log == null,
+            ActivityKey = log?.ActivityKey ?? await _db.Set<Tenant>().Select(t => t.ActivityKey).FirstOrDefaultAsync(ct),
+            Status = log?.Status, LastError = log?.LastError, CompletedAt = log?.CompletedAt,
+            AppliedTemplates = ERP.Service.Services.Accounting.ChartTemplateCatalog.ParseCsv(log?.AppliedTemplates).ToList(),
+            AppliedModules = applied, LicensedModules = licensed,
+            PendingModules = log == null ? new List<string>() : licensed.Except(applied).ToList(),
+        };
+    }
+
+    /// <summary>إعادة مطابقة حسابات الموديولات (بعد فشل سابق أو تعديل قالب): الناقص فقط، وتقرير النتيجة.</summary>
+    public async Task<ChartSetupReportDto> SyncChartAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        await ScopeToTenantAsync(tenantId, ct);
+        var sub = await LatestAsync(ct);
+        var report = await ERP.Service.Services.Accounting.ChartSetupRunner.SyncModulesAsync(_db, _tx, PlatformModules.Parse(sub.ModuleKeys), ct)
+            ?? throw new ValidationFailedException(Messages.ChartSetupLegacyNeedsActivity);
+        await _audit.LogAsync("CHART_MODULES_SYNCED", nameof(ChartProvisioning), tenantId.ToString(),
+            $"إعادة مطابقة حسابات الموديولات: أُنشئ {report.Created}، مشكلات {report.Problems}", ct);
+        return report;
     }
 
     // ---------- الباقات ----------

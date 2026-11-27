@@ -11,7 +11,10 @@ public class CompanyRegistrationRequestDto
     public string Address { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    /// <summary>نص حر قديم لا يُحفظ (أبقي لتوافق الواجهات القديمة)؛ النشاط الفعلي في <see cref="ActivityKey"/>.</summary>
     public string Industry { get; set; } = string.Empty;
+    /// <summary>مفتاح النشاط الرئيسي (BusinessActivity). فارغ = التجارة العامة.</summary>
+    public string? ActivityKey { get; set; }
 
     public string PlanId { get; set; } = SubscriptionPlanId.Professional;
     public SubscriptionBillingCycle BillingCycle { get; set; } = SubscriptionBillingCycle.Yearly;

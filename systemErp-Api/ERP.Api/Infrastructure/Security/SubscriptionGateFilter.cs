@@ -17,7 +17,7 @@ public class SubscriptionGateFilter : IAsyncAuthorizationFilter
 {
     private static readonly HashSet<string> AlwaysAllowed = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Auth", "Subscriptions", "Platform", "Payments", "Company", "SupportTickets", "Notifications", "Permissions",
+        "Auth", "Subscriptions", "Platform", "PlatformMonitoring", "Payments", "Company", "SupportTickets", "Notifications", "Permissions",
     };
 
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)

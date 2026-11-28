@@ -93,6 +93,8 @@ public partial class InvoiceDto
     /// حالة تسليم فاتورة البيع المرحّلة (محسوبة، للعرض فقط) <see cref="InvoiceDeliveryStatuses"/>؛ null لغير فاتورة البيع المرحّلة.
     /// </summary>
     public string? DeliveryStatus { get; set; }
+    /// <summary>فاتورة البيع «غير مسلّمة»: المخزون يخرج ببيانات التسليم لا بالفاتورة.</summary>
+    public bool DeliveryDeferred { get; set; }
     /// <summary>يبقى في الفاتورة ما يُسلَّم ببيان جديد (المتبقي بعد المرتجع المالي والبيانات النشطة).</summary>
     public bool DeliveryRemaining { get; set; }
     public List<InvoiceItemDto> Items { get; set; } = new();

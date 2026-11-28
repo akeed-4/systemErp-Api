@@ -89,6 +89,7 @@ internal static class AccountSemanticKeys
         R("Purchases.PriceVariance", DefaultAccounts.PurchasePriceVariance, "فروق أسعار المشتريات", "Purchase price variance"),
         R("Purchases.Freight", DefaultAccounts.PurchaseFreightExpense, "مصاريف شحن المشتريات", "Purchase freight"),
         R("Purchases.Services", DefaultAccounts.PurchasedServices, "خدمات ومصروفات مشتراة", "Purchased services"),
+        R("Purchases.GoodsNotReceived", DefaultAccounts.GoodsNotReceived, "بضاعة مشتراة لم تُستلم", "Purchased goods not received"),
         R("Assets.Fixed", DefaultAccounts.FixedAssets, "الأصول الثابتة", "Fixed assets"),
         R("Assets.AccumulatedDepreciation", DefaultAccounts.AccumulatedDepreciation, "مجمع الإهلاك", "Accumulated depreciation"),
         R("Assets.DepreciationExpense", DefaultAccounts.DepreciationExpense, "مصروف الإهلاك", "Depreciation expense"),

@@ -10,7 +10,7 @@ public interface IInventoryVoucherService
 {
     Task<PagedResult<InventoryVoucherDto>> ListAsync(string kind, PaginationParams query, CancellationToken ct = default);
     Task<InventoryVoucherDto> GetAsync(string kind, Guid id, CancellationToken ct = default);
-    Task<InventoryVoucherDefaultsDto> DefaultsAsync(string kind, CancellationToken ct = default);
+    Task<InventoryVoucherDefaultsDto> DefaultsAsync(string kind, Guid? warehouseId = null, CancellationToken ct = default);
     Task<InventoryVoucherDto> CreateAsync(string kind, SaveInventoryVoucherDto request, CancellationToken ct = default);
     Task<InventoryVoucherDto> UpdateAsync(string kind, Guid id, SaveInventoryVoucherDto request, CancellationToken ct = default);
     Task DeleteAsync(string kind, Guid id, CancellationToken ct = default);

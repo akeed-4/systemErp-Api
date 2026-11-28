@@ -1402,9 +1402,12 @@ public class TradeInvoiceEngine
                 break;
             case "delivery_note":
                 // حذف فاتورة البيان يعيده قابلاً للفوترة بدل أن يبقى مرتبطاً بفاتورة محذوفة (المتتبَّع حُرِّر أعلاه)
-                var n = await _db.Set<DeliveryNote>().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == sourceId && x.InvoiceId == invoice.Id, ct);
-                if (n != null && !DeliveryTrackingStatuses.IsTracked(n.DeliveryStatus))
+                // وفاتورة البيانات المستقلة المجمّعة تعيدها كلها (المرجع أولها، والبقية مربوطة بالفاتورة نفسها)
+                foreach (var n in await _db.Set<DeliveryNote>().Include(x => x.Items)
+                             .Where(x => x.InvoiceId == invoice.Id && (x.Id == sourceId || (x.ContractId == null && x.SourceType == DeliveryNoteSources.Manual)))
+                             .ToListAsync(ct))
                 {
+                    if (DeliveryTrackingStatuses.IsTracked(n.DeliveryStatus)) continue;
                     n.InvoiceId = null; n.InvoiceNumber = null;
                     n.Status = n.Items.Any(i => i.ReturnedQty > 0) ? DeliveryNoteStatus.PartiallyReturned : DeliveryNoteStatus.Delivered;
                 }
@@ -1698,6 +1701,18 @@ public class TradeInvoiceEngine
             ?? await _db.Set<Tenant>().AsNoTracking().Select(t => t.ZatcaConfig.AutoSubmitOnInvoiceSave).FirstAsync(ct));
         invoice.ZatcaQrCode = null; invoice.ZatcaHash = null; invoice.ZatcaUblXml = null; invoice.ZatcaPih = null;
         invoice.JournalEntryId = null;
+
+        // حالة التسليم «غير مسلّمة»: لفاتورة البيع العامة وحدها (لا نقطة البيع ولا الفواتير الآلية من بيان أو مستند مصدر)،
+        // وبلا أصناف مجمّعة/مركّبة (مكوناتها تُصرف مع الفاتورة)
+        // وفاتورة الشراء «غير مستلمة» بالقواعد نفسها: قيمتها على «بضاعة مشتراة لم تُستلم» حتى يُدخلها بيان الاستلام
+        if (invoice is SalesInvoice { DeliveryDeferred: true } or PurchaseInvoice { DeliveryDeferred: true })
+        {
+            if (invoice.Kind is not (InvoiceKind.Sales or InvoiceKind.Purchase) || isReturn
+                || (r.ReferenceType != null && !IsCommercialSource(r.ReferenceType)))
+                throw new ValidationFailedException(Messages.InvoiceDeliveryDeferredNotAllowed);
+            if (r.Items.Any(i => products.TryGetValue(i.ItemId, out var kp) && ProductItemTypes.SellsComponents(ProductItemTypes.Normalize(kp.ItemType))))
+                throw new ValidationFailedException(Messages.InvoiceDeliveryDeferredKitLines);
+        }
 
         // وحدة كل سطر ومعاملها إلى الأساسية: البيع من وحدات الصنف، والمرتجع من سطر أصله؛ وغيرهما بالوحدة الأساسية كما كان
         var lineUnits = await ResolveLineUnitsAsync(r, products, ct);
@@ -2134,6 +2149,31 @@ public class TradeInvoiceEngine
 
     // ---------------- الترحيل: مخزون + قيد + QR ----------------
     /// <param name="preview">معاينة القيد: يتخطى إنشاء/بيع المركبات و QR (لا أثر لهما على القيد) ليُسمح بمعاينة مسودة ناقصة الشواسيه.</param>
+    /// <summary>
+    /// مرتجع فاتورة «غير مسلّمة»: لكل سطر مخزني الكمية التي تعود للمخزون (بالأساسية) وتكلفة وحدتها. المرتجع يخرج من غير المسلَّم أولاً
+    /// (بلا حركة)، وما زاد عنه = ما سُلّم فعلاً ويعود بتكلفة ما خرج ببيانات الفاتورة. الحساب تراكمي مع المرتجعات المرحّلة السابقة فلا يتكرر.
+    /// </summary>
+    private async Task<Dictionary<Guid, (decimal Qty, decimal UnitCost)>> DeferredReturnStockAsync(InvoiceBase ret, Guid originalId, CancellationToken ct)
+    {
+        var original = (await _db.Set<SalesInvoiceItem>().AsNoTracking().Where(i => i.InvoiceId == originalId).ToListAsync(ct)).Cast<InvoiceItemBase>().ToList();
+        var issued = await DeferredDeliveryStock.IssuedByInvoiceLineAsync(_db, originalId, ct);
+        var returned = await DeferredDeliveryStock.ReturnedBaseByLineAsync(_db, original, originalId, ret.Id, ct);
+        var result = new Dictionary<Guid, (decimal Qty, decimal UnitCost)>();
+        foreach (var item in ret.Lines.Where(InvoiceLineStock.MovesItself))
+        {
+            if (DeferredDeliveryStock.OriginOf(original, item.OriginalInvoiceItemId, item.ItemId) is not Guid originId) continue;
+            var origin = original.First(o => o.Id == originId);
+            var (deliveredQty, deliveredValue) = issued.GetValueOrDefault(originId);
+            var undelivered = Math.Max(0, InvoiceLineStock.BaseQuantity(origin) - deliveredQty);
+            var before = returned.GetValueOrDefault(originId);
+            var after = before + InvoiceLineStock.BaseQuantity(item);
+            returned[originId] = after;
+            var stock = Math.Max(0, after - undelivered) - Math.Max(0, before - undelivered);
+            result[item.Id] = (Math.Round(stock, 4), deliveredQty > 0 ? Math.Round(deliveredValue / deliveredQty, 4) : 0);
+        }
+        return result;
+    }
+
     private async Task FinalizeAsync(InvoiceBase invoice, CancellationToken ct, bool preview = false)
     {
         if (invoice.InvoiceNumber.StartsWith(DraftPrefix, StringComparison.Ordinal))
@@ -2174,8 +2214,21 @@ public class TradeInvoiceEngine
         // المرتجع على أصل: يعود لتشغيلات الأصل بترتيبها، بعد خصم ما أعادته مرتجعاته السابقة
         var returnPools = await ReturnBatchPoolsAsync(invoice, ct);
 
+        // فاتورة «غير مسلّمة»: لا صرف ولا تكلفة الآن؛ بيانات التسليم منها تصرف الأصناف وترحّل تكلفتها (DeferredDeliveryStock)
+        var deferredSale = invoice is SalesInvoice { DeliveryDeferred: true } && invoice.Kind == InvoiceKind.Sales;
+        // مرتجع فاتورة «غير مسلّمة»: يخرج من غير المسلَّم أولاً بلا حركة، وما زاد عنه يعود للمخزون بتكلفة ما سُلّم
+        var deferredReturn = invoice.Kind == InvoiceKind.SalesReturn && invoice.OriginalInvoiceId is Guid deferredOriginalId
+            && await _db.Set<SalesInvoice>().AsNoTracking().AnyAsync(i => i.Id == deferredOriginalId && i.DeliveryDeferred, ct)
+            ? await DeferredReturnStockAsync(invoice, deferredOriginalId, ct) : null;
+        // فاتورة شراء «غير مستلمة» ومرتجعها: لا حركة مخزون؛ قيمة الأصناف بصافيها على «بضاعة مشتراة لم تُستلم» (بيان الاستلام يُدخلها).
+        // المرتجع المالي لا يتجاوز غير المستلَم (EnsurePurchaseReturnFitsReceiptsAsync)، فيخرج من الحساب نفسه بلا حركة
+        var goodsNotReceived = invoice is PurchaseInvoice { DeliveryDeferred: true } && invoice.Kind == InvoiceKind.Purchase
+            || invoice.Kind == InvoiceKind.PurchaseReturn && invoice.OriginalInvoiceId is Guid purchaseOriginalId
+                && await _db.Set<PurchaseInvoice>().AsNoTracking().AnyAsync(i => i.Id == purchaseOriginalId && i.DeliveryDeferred, ct);
+        var noStockNow = deferredSale || goodsNotReceived;
+
         // المجمّع والمركّب: تُصرف مكوناته (أو تعود في المرتجع) بكمياتها، وتكلفة السطر مجموع قيمة ما خرج منها
-        foreach (var item in invoice.Lines.Where(InvoiceLineStock.SellsComponents))
+        foreach (var item in invoice.Lines.Where(l => !noStockNow && InvoiceLineStock.SellsComponents(l)))
         {
             var components = InvoiceLineStock.Components(item);
             // المرتجع على أصل: المكونات التي خرجت فعلاً مع الأصل بتكلفتها، بنسبة الكمية المرتجعة
@@ -2210,8 +2263,17 @@ public class TradeInvoiceEngine
             stockByCenter.Add(item.CostCenterId, lineValue, SiteOf(invoice, item));
         }
 
-        foreach (var item in invoice.Lines.Where(InvoiceLineStock.MovesItself))
+        foreach (var item in invoice.Lines.Where(l => !noStockNow && InvoiceLineStock.MovesItself(l)))
         {
+            // مرتجع «غير المسلّمة»: الكمية العائدة للمخزون (بالأساسية) وتكلفتها مما سُلّم؛ صفر = من غير المسلَّم، بلا حركة ولا تكلفة
+            decimal? deferredQty = null;
+            if (deferredReturn != null)
+            {
+                var (qty, unitCost) = deferredReturn.GetValueOrDefault(item.Id);
+                if (qty <= 0) { item.UnitCost = 0; continue; }
+                deferredQty = qty;
+                originalCosts[item.ItemId] = unitCost;
+            }
             var movement = invoice.Kind switch
             {
                 InvoiceKind.Sales => new RecordStockMovementDto { Type = StockMovementType.OutSales },
@@ -2222,7 +2284,7 @@ public class TradeInvoiceEngine
             };
             // المخزون بالوحدة الأساسية: الكمية × معامل وحدة السطر، وسعر الوحدة الأساسية = سعر وحدة السطر ÷ المعامل
             var factor = InvoiceLineStock.Factor(item);
-            movement.ItemId = item.ItemId; movement.Quantity = InvoiceLineStock.BaseQuantity(item);
+            movement.ItemId = item.ItemId; movement.Quantity = deferredQty ?? InvoiceLineStock.BaseQuantity(item);
             movement.UnitPrice = Math.Round(VatPricing.NetUnitPrice(invoice.PricingMethod, item.UnitPrice, item.VatRate) / factor, 4);
             movement.ReferenceNumber = invoice.InvoiceNumber;
             movement.Date = invoice.IssueDate;
@@ -2237,8 +2299,21 @@ public class TradeInvoiceEngine
             // تغيّر القيمة الدفترية للصنف لا الكمية × التكلفة: حساب المخزون يبقى مساوياً لقيمة الأصناف بلا هللات تقريب
             // بإشارته: الإضافة بآخر سعر شراء أقل تُنقص قيمة الرصيد كله
             var valueChange = invoice.Kind is InvoiceKind.Purchase or InvoiceKind.SalesReturn ? recorded.ValueChange : -recorded.ValueChange;
+            // مرتجع جزؤه من غير المسلَّم: تكلفة السطر لكل وحدة من قيمة ما عاد فعلاً على كمية السطر كلها
+            if (deferredQty != null) item.UnitCost = item.Quantity == 0 ? 0 : Math.Round(valueChange / item.Quantity, 4);
             totalCost += valueChange;
             stockByCenter.Add(item.CostCenterId, valueChange, SiteOf(invoice, item));
+        }
+        if (goodsNotReceived)
+        {
+            // صافي كل سطر مخزني (بعد خصم الفاتورة) قيمةً على حساب البضاعة غير المستلمة، بمركزه وموقعه، فلا فرق سعر الآن
+            foreach (var (line, amount) in LineNets(invoice, fx, baseNet).Where(x => !InvoiceLineStock.IsNonStock(x.Line)))
+            {
+                line.UnitCost = line.Quantity == 0 ? 0 : Math.Round(amount / line.Quantity, 4);
+                totalCost += amount;
+                stockByCenter.Add(line.CostCenterId, amount, SiteOf(invoice, line));
+            }
+            await DefaultAccounts.EnsureAsync(_db, ct, DefaultAccounts.GoodsNotReceived);
         }
         var stockCost = totalCost; // قيمة ما دخل/خرج من المخزون فعلاً (الأصناف المخزنية فقط)
         var costByCenter = stockByCenter.Copy(); // تكلفة المبيعات لكل مركز: مخزون أسطره ثم تكلفة بنود خدماته
@@ -2305,7 +2380,8 @@ public class TradeInvoiceEngine
                 SourceNumber = invoice.InvoiceNumber, IsReturn = invoice.IsReturn, PartyAccountCode = partyAccount,
                 NetAmount = baseNet, VatAmount = baseVat, Payments = payments,
                 ExpenseAmount = expenseAmount, InventoryAmount = inventoryAmount, VarianceAccountCode = varianceAccount,
-                InventoryAccountCode = invoice.InventoryAccountCode, WarehouseId = invoice.WarehouseId,
+                // «غير مستلمة» ومرتجعها: الأصناف على «بضاعة مشتراة لم تُستلم» لا على مخزون الموقع (ولا المشتريات في الجرد الدوري)
+                InventoryAccountCode = goodsNotReceived ? DefaultAccounts.GoodsNotReceived : invoice.InventoryAccountCode, WarehouseId = invoice.WarehouseId,
                 CostCenterShares = PurchaseShares(invoice, fx, baseNet, expenseAmount, inventoryAmount, stockByCenter),
                 CostCenterByAccount = JournalCostCenterMap.Map(invoice.JournalCostCentersJson),
             }, ct);

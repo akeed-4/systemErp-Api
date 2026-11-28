@@ -48,6 +48,7 @@ public static class DefaultAccounts
     public const string DepreciationExpense = "523"; // مصروف إهلاك الأصول الثابتة (الحساب الافتراضي لأصل جديد)
     public const string CustomerDeposits = "216";    // عربونات عملاء السيارات (خصم دائن حتى يُطبَّق على فاتورة البيع)
     public const string PurchasedServices = "524";   // خدمات ومصروفات مشتراة بفاتورة (بنود غير مخزنية)
+    public const string GoodsNotReceived = "1145";   // بضاعة مشتراة لم تُستلم: فاتورة شراء «غير مستلمة» حتى يُدخلها بيان الاستلام
     // حسابات معرض السيارات: افتراضيات إعدادات المعرض (CarShowroomSettings) فقط؛ القيود تقرأ الحساب من الإعدادات.
     public const string VehiclesInTransit = "1143";
     public const string ImportCostsClearing = "1144";
@@ -84,6 +85,7 @@ public static class DefaultAccounts
         ("1142", "مخزون السيارات",                  "Vehicle Inventory",         AccountCategory.Asset,     "114"),
         ("1143", "سيارات في الطريق",                "Vehicles in Transit",       AccountCategory.Asset,     "114"),
         ("1144", "تكاليف استيراد تحت التسوية",      "Import Costs Under Settlement", AccountCategory.Asset, "114"),
+        ("1145", "بضاعة مشتراة لم تُستلم",          "Purchased Goods Not Received", AccountCategory.Asset, "114"),
         ("115",  "سلف وقروض الموظفين",              "Employee Loans and Advances", AccountCategory.Asset,   "11"),
         ("116",  "مدفوعات نيابة عن العملاء",        "Disbursements on Behalf of Customers", AccountCategory.Asset, "11"),
         ("117",  "مصروفات مدفوعة مقدماً",           "Prepaid Expenses",          AccountCategory.Asset,     "11"),

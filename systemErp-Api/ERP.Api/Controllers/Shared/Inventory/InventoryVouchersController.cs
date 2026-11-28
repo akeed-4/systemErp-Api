@@ -20,7 +20,7 @@ public class InventoryIssuesController : ErpControllerBase
 
     /// <summary>الحساب المقابل الافتراضي وطريقة الجرد (لنموذج المستند الجديد).</summary>
     [HttpGet("defaults")]
-    public async Task<IActionResult> Defaults(CancellationToken ct) => Success(await _vouchers.DefaultsAsync(Kind, ct));
+    public async Task<IActionResult> Defaults([FromQuery] Guid? warehouseId, CancellationToken ct) => Success(await _vouchers.DefaultsAsync(Kind, warehouseId, ct));
 
     [HttpPost, RequireScreen(Screen, ScreenAction.Create)]
     public async Task<IActionResult> Create([FromBody] SaveInventoryVoucherDto request, CancellationToken ct)
@@ -67,7 +67,7 @@ public class InventoryReceiptsController : ErpControllerBase
     public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Success(await _vouchers.GetAsync(Kind, id, ct));
 
     [HttpGet("defaults")]
-    public async Task<IActionResult> Defaults(CancellationToken ct) => Success(await _vouchers.DefaultsAsync(Kind, ct));
+    public async Task<IActionResult> Defaults([FromQuery] Guid? warehouseId, CancellationToken ct) => Success(await _vouchers.DefaultsAsync(Kind, warehouseId, ct));
 
     [HttpPost, RequireScreen(Screen, ScreenAction.Create)]
     public async Task<IActionResult> Create([FromBody] SaveInventoryVoucherDto request, CancellationToken ct)

@@ -73,8 +73,13 @@ public class SaveInventoryVoucherDto
 {
     public DateTime? Date { get; set; }
     public Guid? WarehouseId { get; set; }
-    /// <summary>سبب الحركة (فارغ = الافتراضي للنوع). الحساب المقابل منه في إعدادات الحسابات، لا يرسله المستخدم.</summary>
+    /// <summary>سبب الحركة (فارغ = الافتراضي للنوع). الحساب المقابل الافتراضي منه في إعدادات الحسابات بحسب الموقع.</summary>
     public string? Reason { get; set; }
+    /// <summary>
+    /// الحساب المقابل يدوياً (فارغ = حساب السبب لموقع كل سطر). يغيّره من يملك تعديل دليل الحسابات فقط، ويُفحص كالافتراضي
+    /// (فرعي فعّال، لا ذمم ولا مخزون ولا حساب مقفل)، ويُثبَّت على أسطر المستند عند الترحيل.
+    /// </summary>
+    public string? CounterAccountCode { get; set; }
     public Guid? CostCenterId { get; set; }
     public string? Reference { get; set; }
     public string? Notes { get; set; }
@@ -92,7 +97,7 @@ public class SaveInventoryVoucherLineDto
     public decimal Quantity { get; set; }
     public Guid? WarehouseId { get; set; }
     public Guid? CostCenterId { get; set; }
-    /// <summary>الاستلام: سعر الشراء لوحدة السطر. يُتجاهل في الصرف.</summary>
+    /// <summary>الاستلام: سعر الشراء لوحدة السطر. الصرف: سعر المستند للعرض والطباعة فقط (القيد بالتكلفة الفعلية).</summary>
     public decimal UnitPrice { get; set; }
     /// <summary>الاستلام: خصم السطر مبلغاً. يُتجاهل في الصرف.</summary>
     public decimal Discount { get; set; }
@@ -114,6 +119,13 @@ public class InventoryVoucherDefaultsDto
     public string DefaultReason { get; set; } = string.Empty;
     public bool IsPeriodic { get; set; }
     public bool CanViewAccounts { get; set; }
+    /// <summary>يغيّر الحساب المقابل في المستند (تعديل دليل الحسابات).</summary>
+    public bool CanEditAccounts { get; set; }
+    /// <summary>الموقع الذي حُسبت له الحسابات (المطلوب أو الافتراضي).</summary>
+    public Guid? WarehouseId { get; set; }
+    /// <summary>حساب مخزون الموقع (المستمر؛ الدوري على المشتريات) لمن يملك عرض الحسابات.</summary>
+    public string? InventoryAccountCode { get; set; }
+    public string? InventoryAccountName { get; set; }
     public List<InventoryVoucherReasonDto> Reasons { get; set; } = new();
 }
 

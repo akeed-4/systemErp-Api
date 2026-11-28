@@ -37,6 +37,7 @@ public class InventoryVoucherService : IInventoryVoucherService
     }
 
     private Task<bool> CanViewAccountsAsync(CancellationToken ct) => _permissions.HasPermissionAsync(AccountsScreen, ScreenAction.View, ct);
+    private Task<bool> CanEditAccountsAsync(CancellationToken ct) => _permissions.HasPermissionAsync(AccountsScreen, ScreenAction.Edit, ct);
 
     // ---------------- القراءة ----------------
 
@@ -83,15 +84,22 @@ public class InventoryVoucherService : IInventoryVoucherService
         return dto;
     }
 
-    public async Task<InventoryVoucherDefaultsDto> DefaultsAsync(string kind, CancellationToken ct = default)
+    /// <summary>
+    /// أسباب الحركة وحساب كل سبب للموقع المختار (لا لإعدادات المنشأة وحدها): التسويات بحساب فروقات الموقع، ومعها حساب مخزون الموقع.
+    /// </summary>
+    public async Task<InventoryVoucherDefaultsDto> DefaultsAsync(string kind, Guid? warehouseId = null, CancellationToken ct = default)
     {
         kind = Kind(kind);
         var settings = await PostingAccounts.SettingsAsync(_db, ct);
         var showAccounts = await CanViewAccountsAsync(ct);
-        var site = await WarehouseStocks.ResolveAsync(_db, null, ct);
+        var site = await WarehouseStocks.ResolveAsync(_db, warehouseId, ct);
+        _db.EnsureWarehouseAllowed(site.Id);
+        var periodic = settings.IsPeriodic(SaudiTime.Today);
         var dto = new InventoryVoucherDefaultsDto
         {
-            DefaultReason = InventoryVoucherReasons.DefaultOf(kind), IsPeriodic = settings.IsPeriodic(SaudiTime.Today), CanViewAccounts = showAccounts,
+            DefaultReason = InventoryVoucherReasons.DefaultOf(kind), IsPeriodic = periodic, CanViewAccounts = showAccounts,
+            CanEditAccounts = showAccounts && await CanEditAccountsAsync(ct), WarehouseId = site.Id,
+            InventoryAccountCode = showAccounts && !periodic ? await settings.InventoryAsync(_db, site.Id, ct) : null,
         };
         foreach (var reason in InventoryVoucherReasons.Of(kind))
         {
@@ -101,9 +109,10 @@ public class InventoryVoucherService : IInventoryVoucherService
         }
         if (showAccounts)
         {
-            var codes = dto.Reasons.Select(r => r.AccountCode).OfType<string>().Distinct().ToList();
+            var codes = dto.Reasons.Select(r => r.AccountCode).Append(dto.InventoryAccountCode).OfType<string>().Distinct().ToList();
             var names = await _db.Set<Account>().AsNoTracking().Where(a => codes.Contains(a.Code)).ToDictionaryAsync(a => a.Code, a => a.NameAr, ct);
             foreach (var r in dto.Reasons) r.AccountName = r.AccountCode == null ? null : names.GetValueOrDefault(r.AccountCode);
+            dto.InventoryAccountName = dto.InventoryAccountCode == null ? null : names.GetValueOrDefault(dto.InventoryAccountCode);
         }
         return dto;
     }
@@ -234,7 +243,14 @@ public class InventoryVoucherService : IInventoryVoucherService
         var reason = string.IsNullOrWhiteSpace(r.Reason) ? InventoryVoucherReasons.DefaultOf(v.Kind) : r.Reason.Trim();
         if (!InventoryVoucherReasons.IsValid(v.Kind, reason)) throw new ValidationFailedException(Messages.InventoryVoucherReasonInvalid);
         v.Reason = reason;
-        v.CounterAccountCode = string.Empty; // يُحدَّد من الإعدادات عند الترحيل ويُثبَّت
+        // فارغ = يُحدَّد من الإعدادات لموقع كل سطر عند الترحيل ويُثبَّت؛ والمختار يدوياً (تعديل دليل الحسابات) يُحفظ مع المسودة ويُفحص الآن
+        // من لا يرى الحسابات لا يُرسل الحساب: يبقى ما اختاره غيره في المسودة؛ والحساب نفسه دون تغيير لا يحتاج صلاحية التعديل
+        var previous = v.CounterAccountCode ?? string.Empty;
+        var manualCounter = !await CanViewAccountsAsync(ct) ? previous
+            : string.IsNullOrWhiteSpace(r.CounterAccountCode) ? string.Empty : r.CounterAccountCode.Trim();
+        if (manualCounter != previous && !await CanEditAccountsAsync(ct)) throw new ForbiddenException();
+        if (manualCounter.Length > 0) await EnsureCounterAccountAsync(await PostingAccounts.SettingsAsync(_db, ct), manualCounter, ct);
+        v.CounterAccountCode = manualCounter;
 
         var inputs = r.Lines.Where(l => l.ItemId != Guid.Empty).ToList();
         if (inputs.Count == 0) throw new ValidationFailedException(Messages.InventoryVoucherLinesRequired);
@@ -273,6 +289,12 @@ public class InventoryVoucherService : IInventoryVoucherService
                 var pl = priced.Lines[i];
                 line.UnitPrice = l.UnitPrice; line.Discount = pl.Discount; line.AllocatedDiscount = pl.AllocatedInvoiceDiscount; line.LineTotal = pl.Net;
             }
+            else
+            {
+                // الصرف: سعر المستند للعرض والطباعة فقط؛ القيد والحركة بالتكلفة الفعلية حسب السياسة
+                if (l.UnitPrice < 0) throw new ValidationFailedException(Messages.AmountsCannotBeNegative);
+                line.UnitPrice = Math.Round(l.UnitPrice, 4);
+            }
             if (p.TracksLots)
             {
                 if (receipt)
@@ -286,7 +308,8 @@ public class InventoryVoucherService : IInventoryVoucherService
             v.Lines.Add(line);
             if (tracked) _db.Add(line);
         }
-        v.Subtotal = priced?.Subtotal ?? 0;
+        // الصرف: الإجمالي بسعر المستند (للعرض)، وصافيه بعد الترحيل قيمة ما خرج بالتكلفة
+        v.Subtotal = priced?.Subtotal ?? DocumentPricing.Round(v.Lines.Sum(x => x.Quantity * x.UnitPrice));
         v.DocumentDiscount = priced?.InvoiceDiscount ?? 0;
         v.DiscountTotal = priced?.DiscountTotal ?? 0;
         v.NetTotal = priced?.NetTotal ?? 0;
@@ -304,11 +327,13 @@ public class InventoryVoucherService : IInventoryVoucherService
         var values = new List<(Guid? Site, Guid? CostCenter, decimal Value, decimal Net, string Counter)>();
         var settings = await PostingAccounts.SettingsAsync(_db, ct);
         var counters = new Dictionary<Guid, string>();
+        // الحساب المختار يدوياً في المسودة يغلب حساب السبب لكل المواقع
+        var manualCounter = v.CounterAccountCode;
         async Task<string> CounterOf(Guid? site)
         {
             var key = site ?? Guid.Empty;
             if (counters.TryGetValue(key, out var known)) return known;
-            var code = await CounterAccountAsync(settings, v.Reason, site, ct);
+            var code = manualCounter.Length > 0 ? manualCounter : await CounterAccountAsync(settings, v.Reason, site, ct);
             await DefaultAccounts.EnsureAsync(_db, ct, code); // الافتراضي (532/424/517/33) يُنشأ للمنشأة القديمة عند أول استخدام
             await EnsureCounterAccountAsync(settings, code, ct);
             return counters[key] = code;

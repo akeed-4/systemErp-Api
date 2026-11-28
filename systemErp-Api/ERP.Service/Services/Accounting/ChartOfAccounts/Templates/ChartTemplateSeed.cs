@@ -32,7 +32,7 @@ internal static class ChartTemplateSeed
     };
 
     /// <summary>حسابات حركة البضاعة غير الأساسية (تُنشأ أيضاً عند أول استخدام بأرقامها المحجوزة لمن لا يملكها).</summary>
-    private static readonly string[] TradingCodes = { "514", "516", "531", "532", "424" };
+    private static readonly string[] TradingCodes = { "514", "516", "531", "532", "424", "1145" };
 
     private static readonly string[] CarCodes =
         { "1142", "1143", "1144", "116", "118", "119", "212", "216", "412", "413", "423", "512", "515", "529", "530" };

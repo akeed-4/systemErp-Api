@@ -34,6 +34,12 @@ public class DeliveryNoteItem : BaseEntity
     /// <summary>ما فُوتر من الكمية المؤكدة في فواتير مرحلية (بيان اتفاقية متتبَّع).</summary>
     public decimal InvoicedQty { get; set; }
 
+    // ---------- صرف بيان فاتورة «غير مسلّمة» (الهجرة InvoiceDeliveryDeferred) ----------
+    /// <summary>ما خرج من المخزون بهذا السطر بالوحدة الأساسية (فاتورة غير مسلّمة فقط؛ صفر لغيرها): أساس المزامنة والعكس بلا تكرار.</summary>
+    public decimal StockIssuedQty { get; set; }
+    /// <summary>قيمة ما خرج بالتكلفة (ما رُحِّل لتكلفة المبيعات)، ويُعكس بها.</summary>
+    public decimal StockIssuedValue { get; set; }
+
     // ---------- استلام المشتريات: المستلم والمرفوض (الهجرة PurchaseReceiptTracking) ----------
     /// <summary>
     /// المستلم فعلياً في سند الاستلام = المقبول (<see cref="DeliveredQty"/>) + المرفوض. فارغ (السجلات القديمة وبيانات المبيعات) = يساوي <see cref="DeliveredQty"/>.

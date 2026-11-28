@@ -4011,6 +4011,14 @@ namespace ERP.Service.Data.Migrations
                     b.Property<Guid?>("SourceLineId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("StockIssuedQty")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("StockIssuedValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -24554,6 +24562,9 @@ namespace ERP.Service.Data.Migrations
                 {
                     b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
 
+                    b.Property<bool>("DeliveryDeferred")
+                        .HasColumnType("bit");
+
                     b.HasIndex("TenantId", "PartyId", "IssueDate");
 
                     b.HasIndex("TenantId", "IssueDate", "InvoiceNumber", "Id")
@@ -24572,6 +24583,9 @@ namespace ERP.Service.Data.Migrations
             modelBuilder.Entity("ERP.Core.Models.Accounting.SalesInvoice", b =>
                 {
                     b.HasBaseType("ERP.Core.Models.Accounting.InvoiceBase");
+
+                    b.Property<bool>("DeliveryDeferred")
+                        .HasColumnType("bit");
 
                     b.HasIndex("TenantId", "PartyId", "IssueDate");
 

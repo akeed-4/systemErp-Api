@@ -68,6 +68,11 @@ public partial class CreateInvoiceDto
     public string? VatTreatmentReasonCode { get; set; }
     /// <summary>طريقة التسعير: «غير شامل» افتراضياً (الطلبات القديمة والمستندات المحوّلة)، و«شامل» بصلاحيته.</summary>
     public InvoicePricingMethod PricingMethod { get; set; } = InvoicePricingMethod.Exclusive;
+    /// <summary>
+    /// فاتورة البيع «غير مسلّمة»: لا صرف عند الترحيل، والأصناف المادية تخرج ببيانات التسليم من موقع كل سطر. false (الافتراضي) = «مسلّمة».
+    /// لا يُقبل لغير فاتورة البيع العامة (نقطة البيع، المعارض، الفواتير الآلية) ولا مع الأصناف المجمّعة/المركّبة.
+    /// </summary>
+    public bool DeliveryDeferred { get; set; }
     public decimal Subtotal { get; set; }
     public decimal ItemsDiscountTotal { get; set; }
     public decimal InvoiceDiscount { get; set; }

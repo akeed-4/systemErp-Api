@@ -2610,4 +2610,10 @@
   <data name="WorkshopTechnicianNotLinked" xml:space="preserve"><value>حسابك غير مربوط بملف موظف نشط؛ اطلب من الإدارة ربطه.</value></data>
   <data name="WorkshopJobNotAssigned" xml:space="preserve"><value>أمر العمل غير مسند إليك.</value></data>
   <data name="WorkshopNoOpenLog" xml:space="preserve"><value>لا يوجد سجل عمل مفتوح لك.</value></data>
+  <data name="StandaloneNotesToInvoiceRequired" xml:space="preserve"><value>اختر بياناً مستقلاً واحداً على الأقل للفوترة.</value></data>
+  <data name="StandaloneNotesNotCombinable" xml:space="preserve"><value>البيانات المختارة يجب أن تكون بيانات مستقلة (بلا اتفاقية ولا فاتورة) من نوع واحد ولطرف واحد.</value></data>
+  <data name="StandaloneNoteCustomerRequired" xml:space="preserve"><value>البيان المستقل يتطلب اختيار العميل أو المورد.</value></data>
+  <data name="InvoiceDeliveryDeferredNotAllowed" xml:space="preserve"><value>حالة «غير مسلّمة / غير مستلمة» لفاتورة البيع أو الشراء العامة فقط (لا نقطة البيع ولا المرتجع ولا الفواتير الناتجة عن مستند مصدر).</value></data>
+  <data name="InvoiceDeliveryDeferredKitLines" xml:space="preserve"><value>الأصناف المجمّعة أو المركّبة تُصرف مع الفاتورة: اختر «مسلّمة» أو افصلها في فاتورة أخرى.</value></data>
+  <data name="DeferredDeliveryReturnedStock" xml:space="preserve"><value>لا يمكن تقليل المسلَّم من «{0}»: مرتجع الفاتورة أعاد للمخزون جزءاً مما سُلّم.</value></data>
 </root>

@@ -2602,4 +2602,10 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="WorkshopTechnicianNotLinked" xml:space="preserve"><value>Your account is not linked to an active employee record; ask an administrator to link it.</value></data>
   <data name="WorkshopJobNotAssigned" xml:space="preserve"><value>This work order is not assigned to you.</value></data>
   <data name="WorkshopNoOpenLog" xml:space="preserve"><value>You have no open time log.</value></data>
+  <data name="StandaloneNotesToInvoiceRequired" xml:space="preserve"><value>Select at least one standalone note to invoice.</value></data>
+  <data name="StandaloneNotesNotCombinable" xml:space="preserve"><value>The selected notes must be standalone notes (no agreement or invoice) of one type for a single party.</value></data>
+  <data name="StandaloneNoteCustomerRequired" xml:space="preserve"><value>A standalone note requires a registered customer or supplier.</value></data>
+  <data name="InvoiceDeliveryDeferredNotAllowed" xml:space="preserve"><value>"Not delivered / not received" applies to standard sales or purchase invoices only (not POS, returns or invoices generated from a source document).</value></data>
+  <data name="InvoiceDeliveryDeferredKitLines" xml:space="preserve"><value>Kit or composite items move with the invoice: choose "Delivered" or put them on another invoice.</value></data>
+  <data name="DeferredDeliveryReturnedStock" xml:space="preserve"><value>Cannot reduce the delivered quantity of "{0}": an invoice return already put part of the delivered goods back in stock.</value></data>
 </root>

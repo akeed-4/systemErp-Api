@@ -91,6 +91,16 @@ public static class DeliveryNoteSources
     public const string SalesInvoice = "sales_invoice";
     /// <summary>فاتورة مشتريات مرحّلة: سند استلام تشغيلي فقط — الفاتورة أنشأت المخزون والقيد، فلا فاتورة ولا حركة ولا قيد من السند.</summary>
     public const string PurchaseInvoice = "purchase_invoice";
+    /// <summary>
+    /// نية الطلب فقط (لا تُخزَّن): بيان تسليم (عميل) أو بيان استلام (مورد) مستقل بلا اتفاقية ولا فاتورة، على طرف مسجَّل. يُحفظ
+    /// <see cref="Manual"/> بلا عقد وبلا متابعة توصيل، فيُفوتر مباشرة (وحده أو مع بيانات الطرف الأخرى)، والمخزون يتحرك بالفاتورة
+    /// من موقع كل سطر — كبيان الاتفاقية، فلا حركة مكررة.
+    /// </summary>
+    public const string Standalone = "standalone";
+
+    /// <summary>بيان مستقل: يدوي بلا عقد ولا طلب ولا أمر، على طرف مسجَّل (عميل للتسليم، مورد للاستلام).</summary>
+    public static bool IsStandalone(DeliveryNote n)
+        => n.SourceType == Manual && n.ContractId == null && n.RequisitionId == null && n.PurchaseOrderId == null && n.PartyId != null;
 }
 
 /// <summary>حالات التوصيل (مستقلة عن <see cref="DeliveryNoteStatus"/> للفوترة والمرتجع).</summary>

@@ -8,7 +8,8 @@ namespace ERP.Service.Services.Accounting;
 /// <summary>
 /// متابعة التوصيل (شاشة <c>delivery-tracking</c>، وصلاحية لكل إجراء: عرض، خروج «إرسال»، تأكيد الاستلام «استلام»، إلغاء)
 /// والتقارير (شاشة <c>delivery-reports</c>). كل إجراء بقفل البيان داخل معاملة، ويُسجَّل في سجل أحداثه.
-/// لا حركة مخزون ولا قيد ولا فاتورة: الأثر المالي والمخزني بالفاتورة (مسار الاتفاقية) أو حدث سابقاً في فاتورة البيع.
+/// لا فاتورة: الأثر المالي والمخزني بالفاتورة (مسار الاتفاقية) أو حدث سابقاً في فاتورة البيع، عدا بيان الفاتورة «غير المسلّمة»:
+/// الإلغاء والتأكيد بأقل يعيدان ما خرج للمخزون (<see cref="DeferredDeliveryStock"/>).
 /// </summary>
 public class DeliveryTrackingService : IDeliveryTrackingService
 {
@@ -21,9 +22,13 @@ public class DeliveryTrackingService : IDeliveryTrackingService
     private readonly ICurrentUser _user;
 
 
-    public DeliveryTrackingService(ErpDbContext db, ITransactionRunner tx, IPermissionService permissions, ICurrentUser user)
+    private readonly IInventoryService _inventory;
+    private readonly IAccountingPostingService _posting;
+
+    public DeliveryTrackingService(ErpDbContext db, ITransactionRunner tx, IPermissionService permissions, ICurrentUser user,
+        IInventoryService inventory, IAccountingPostingService posting)
     {
-        _db = db; _tx = tx; _permissions = permissions; _user = user;
+        _db = db; _tx = tx; _permissions = permissions; _user = user; _inventory = inventory; _posting = posting;
     }
 
     private async Task RequireAsync(string screen, ScreenAction action, CancellationToken ct)
@@ -142,6 +147,8 @@ public class DeliveryTrackingService : IDeliveryTrackingService
             DeliverySources.AddEvent(_db, note, _user, note.DeliveryStatus, from, note.DeliveryStatus,
                 string.IsNullOrWhiteSpace(r.Notes) ? $"المستلم: {note.ReceiverName}" : $"المستلم: {note.ReceiverName} — {r.Notes}");
             await _db.SaveChangesAsync(token);
+            // فاتورة «غير مسلّمة»: النقص المؤكد عن البيان يعود للمخزون (يُسلَّم ببيان آخر)
+            await DeferredDeliveryStock.SyncAsync(_db, _inventory, _posting, note, removing: false, token);
             return Mapper.Map<DeliveryNoteDto>(note);
         }, ct);
 
@@ -168,6 +175,8 @@ public class DeliveryTrackingService : IDeliveryTrackingService
             note.CancellationReason = r.Reason.Trim();
             DeliverySources.AddEvent(_db, note, _user, "cancelled", from, note.DeliveryStatus, note.CancellationReason);
             await _db.SaveChangesAsync(token);
+            // فاتورة «غير مسلّمة»: ما خرج بالبيان يعود للمخزون وتُعكس تكلفته
+            await DeferredDeliveryStock.SyncAsync(_db, _inventory, _posting, note, removing: false, token);
             return Mapper.Map<DeliveryNoteDto>(note);
         }, ct);
 

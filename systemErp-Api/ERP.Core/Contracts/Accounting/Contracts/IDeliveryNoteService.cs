@@ -37,4 +37,6 @@ public interface IDeliveryNoteService
     /// <summary>سجل أحداث البيان.</summary>
     Task<List<DeliveryNoteEventDto>> GetEventsAsync(Guid id, CancellationToken ct = default);
     Task<InvoiceDto> CreatePurchaseOrderInvoiceAsync(Guid purchaseOrderId, IReadOnlyCollection<Guid> deliveryNoteIds, DateTime? date = null, CancellationToken ct = default);
+    /// <summary>الفوترة المرحلية للبيانات المستقلة: فاتورة بيع أو شراء واحدة لبيان أو أكثر غير مفوتر لطرف واحد.</summary>
+    Task<InvoiceDto> CreateStandaloneInvoiceAsync(Guid partyId, IReadOnlyCollection<Guid> deliveryNoteIds, DateTime? date = null, CancellationToken ct = default);
 }

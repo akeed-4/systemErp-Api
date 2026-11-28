@@ -367,3 +367,14 @@ public class RentalTimesheetsController : ErpControllerBase
     public async Task<IActionResult> Reopen(Guid id, [FromBody] RentalReasonDto request, CancellationToken ct)
         => Success(await _timesheets.ReopenAsync(id, request, ct));
 }
+
+/// <summary>لوحة التأجير: الأسطول والعقود وحركة اليوم والمتأخر والكشوف والرسوم والفوترة (بشاشة عقود التأجير).</summary>
+[Route("api/v1/rental/dashboard"), RequireScreen(PermissionCatalog.RentalContractsScreenId), RequireModule(PlatformModules.EquipmentRental)]
+public class RentalDashboardController : ErpControllerBase
+{
+    private readonly IRentalDashboardService _dashboard;
+    public RentalDashboardController(IRentalDashboardService dashboard) => _dashboard = dashboard;
+
+    [HttpGet]
+    public async Task<IActionResult> Get(CancellationToken ct) => Success(await _dashboard.DashboardAsync(ct));
+}

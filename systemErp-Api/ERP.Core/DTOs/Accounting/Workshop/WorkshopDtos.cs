@@ -11,6 +11,9 @@ public class WorkshopSettingsDto
     public Guid? DefaultWarehouseId { get; set; }
     public string? DefaultWarehouseName { get; set; }
     public bool RequireReceptionInspection { get; set; }
+    public int? FollowUpCallDays { get; set; }
+    public int? ServiceReminderMonths { get; set; }
+    public int? ServiceReminderKm { get; set; }
 }
 
 public class SaveWorkshopSettingsDto
@@ -21,6 +24,9 @@ public class SaveWorkshopSettingsDto
     public int DefaultWarrantyKm { get; set; }
     public Guid? DefaultWarehouseId { get; set; }
     public bool RequireReceptionInspection { get; set; }
+    public int? FollowUpCallDays { get; set; }
+    public int? ServiceReminderMonths { get; set; }
+    public int? ServiceReminderKm { get; set; }
 }
 
 public class WorkshopStageDto
@@ -338,6 +344,12 @@ public class WorkOrderDto
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoicedAt { get; set; }
     public string? DeliveredTo { get; set; }
+    public Guid? BayId { get; set; }
+    public string? BayName { get; set; }
+    public Guid? AssignedTechnicianId { get; set; }
+    public string? AssignedTechnicianName { get; set; }
+    public DateTime? PlannedStartAt { get; set; }
+    public DateTime? PlannedEndAt { get; set; }
     public string? CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }
     public int AttachmentCount { get; set; }

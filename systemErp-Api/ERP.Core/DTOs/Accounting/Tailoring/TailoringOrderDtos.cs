@@ -95,6 +95,16 @@ public class TailoringGarmentDto
     public DateTime? ReadyAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public Guid? DeliveryId { get; set; }
+    public Guid? StageId { get; set; }
+    public string? StageNameAr { get; set; }
+    public string? StageNameEn { get; set; }
+    public DateTime? StageStartedAt { get; set; }
+    public Guid? EmployeeId { get; set; }
+    public string? EmployeeName { get; set; }
+    public DateTime? NextFittingAt { get; set; }
+    /// <summary>تعديلات مفتوحة (ومنها ما بعد التسليم).</summary>
+    public int OpenModifications { get; set; }
+    public bool AfterSalesOpen { get; set; }
 }
 
 public class TailoringOrderHistoryDto
@@ -145,6 +155,33 @@ public class TailoringOrderDto
     public List<TailoringOrderLineDto> Lines { get; set; } = new();
     public List<TailoringGarmentDto> Garments { get; set; } = new();
     public List<TailoringOrderHistoryDto> History { get; set; } = new();
+    /// <summary>دفعات الأمر: فاتورة العربون وفواتير التسليم القائمة (التسوية بلا فاتورة لا تظهر).</summary>
+    public List<TailoringPaymentDto> Payments { get; set; } = new();
+    /// <summary>المحصّل فعلاً: الفاتورة غير الآجلة مدفوعة بإصدارها، والآجلة بما خُصص لها من سندات القبض.</summary>
+    public decimal PaidTotal { get; set; }
+    /// <summary>المستحق على العميل = الإجمالي − المحصّل (لا يقل عن صفر).</summary>
+    public decimal BalanceDue { get; set; }
+    /// <summary>unpaid | partial | paid</summary>
+    public string PaymentStatus { get; set; } = "unpaid";
+}
+
+/// <summary>دفعة على أمر التفصيل كما يحسبها السرفر (لا حساب مالي في الواجهة).</summary>
+public class TailoringPaymentDto
+{
+    /// <summary>advance | delivery</summary>
+    public string Kind { get; set; } = "advance";
+    public Guid InvoiceId { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    /// <summary>رقم التسليم لفاتورة التسليم.</summary>
+    public string? Reference { get; set; }
+    public DateTime Date { get; set; }
+    public decimal Total { get; set; }
+    public decimal Vat { get; set; }
+    public decimal Paid { get; set; }
+    /// <summary>المستحق على الأمر بعد هذه الدفعة (للإيصال).</summary>
+    public decimal BalanceAfter { get; set; }
+    public PaymentMethod PaymentMethod { get; set; }
+    public string? PaymentMethodCode { get; set; }
 }
 
 public class TailoringOrderRowDto

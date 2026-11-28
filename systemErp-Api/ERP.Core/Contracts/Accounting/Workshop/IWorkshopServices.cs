@@ -143,4 +143,47 @@ public interface IWorkshopReportService
     Task<WorkshopProfitabilityDto> ProfitabilityAsync(DateTime from, DateTime to, CancellationToken ct = default);
     Task<List<TechnicianPerformanceRowDto>> TechniciansAsync(DateTime from, DateTime to, CancellationToken ct = default);
     Task<List<PartProfitRowDto>> PartsAsync(DateTime from, DateTime to, CancellationToken ct = default);
+    Task<WorkshopTeamDto> TeamAsync(DateTime from, DateTime to, CancellationToken ct = default);
+}
+
+/// <summary>التخطيط والجدولة: المنصات، وإسناد أوامر العمل لمنصة وفني ونافذة زمنية، ولوحة الجدول.</summary>
+public interface IWorkshopPlanningService
+{
+    Task<List<WorkshopBayDto>> BaysAsync(CancellationToken ct = default);
+    Task<WorkshopBayDto> CreateBayAsync(SaveWorkshopBayDto request, CancellationToken ct = default);
+    Task<WorkshopBayDto> UpdateBayAsync(Guid id, SaveWorkshopBayDto request, CancellationToken ct = default);
+    Task DeleteBayAsync(Guid id, CancellationToken ct = default);
+    Task<WorkOrderDto> PlanAsync(Guid workOrderId, PlanWorkOrderDto request, CancellationToken ct = default);
+    Task<WorkshopScheduleDto> ScheduleAsync(DateTime from, DateTime to, Guid? warehouseId, CancellationToken ct = default);
+}
+
+/// <summary>المواعيد قبل الاستقبال. الوصول يربط الموعد بأمر العمل المستلم لنفس العميل.</summary>
+public interface IWorkshopAppointmentService
+{
+    Task<List<WorkshopAppointmentDto>> ListAsync(DateTime? from, DateTime? to, string? status, Guid? customerId, CancellationToken ct = default);
+    Task<WorkshopAppointmentDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<WorkshopAppointmentDto> CreateAsync(SaveWorkshopAppointmentDto request, CancellationToken ct = default);
+    Task<WorkshopAppointmentDto> UpdateAsync(Guid id, SaveWorkshopAppointmentDto request, CancellationToken ct = default);
+    Task<WorkshopAppointmentDto> SetStatusAsync(Guid id, AppointmentStatusDto request, CancellationToken ct = default);
+    Task<WorkshopAppointmentDto> ArriveAsync(Guid id, AppointmentArriveDto request, CancellationToken ct = default);
+    Task<WorkshopAppointmentDto> CancelAsync(Guid id, WorkshopReasonDto request, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
+}
+
+/// <summary>متابعات ما بعد التسليم وتذكيرات الصيانة الدورية.</summary>
+public interface IWorkshopFollowUpService
+{
+    Task<List<WorkshopFollowUpDto>> ListAsync(string? status, bool dueOnly, Guid? vehicleId, CancellationToken ct = default);
+    Task<WorkshopFollowUpDto> CreateAsync(SaveWorkshopFollowUpDto request, CancellationToken ct = default);
+    Task<WorkshopFollowUpDto> CompleteAsync(Guid id, CompleteFollowUpDto request, CancellationToken ct = default);
+    Task<WorkshopFollowUpDto> CancelAsync(Guid id, WorkshopReasonDto request, CancellationToken ct = default);
+}
+
+/// <summary>تجربة الفني (الجوال): أوامره المسندة وسجل عمله هو فقط، بهوية الموظف المربوط بالمستخدم الحالي.</summary>
+public interface IWorkshopTechnicianService
+{
+    Task<MyJobsDto> MyJobsAsync(CancellationToken ct = default);
+    Task<MyJobsDto> StartAsync(Guid workOrderId, MyJobStartDto request, CancellationToken ct = default);
+    Task<MyJobsDto> StopAsync(StopTimeLogDto request, CancellationToken ct = default);
+    Task<MyJobsDto> CompleteLineAsync(Guid workOrderId, Guid lineId, CancellationToken ct = default);
 }

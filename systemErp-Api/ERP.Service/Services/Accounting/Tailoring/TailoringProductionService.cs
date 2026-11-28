@@ -238,6 +238,7 @@ public class TailoringProductionService : ITailoringProductionService
                           select new TailoringModificationDto
                           {
                               Id = m.Id, OrderId = o.Id, OrderNumber = o.OrderNumber, GarmentId = g.Id, GarmentCode = g.Code, Instructions = m.Instructions,
+                              CustomerName = o.CustomerName, CustomerPhone = o.CustomerPhone, AfterDelivery = m.AfterDelivery,
                               EmployeeId = m.AssignedEmployeeId, Status = m.Status, CreatedAt = m.CreatedAt,
                           }).Take(500).ToListAsync(ct);
         var ids = rows.Where(m => m.EmployeeId != null).Select(m => m.EmployeeId!.Value).Distinct().ToList();
@@ -251,6 +252,7 @@ public class TailoringProductionService : ITailoringProductionService
         var id = await _tx.RunAsync(async token =>
         {
             var g = await LoadGarmentAsync(r.GarmentId, token);
+            if (g.Status == G.Delivered) return (await AddAfterDeliveryAsync(g, r, token)).Id;
             var order = await RequireOpenAsync(g, token);
             var m = await AddModificationAsync(g, null, r.Instructions, r.EmployeeId, token);
             await _db.SaveChangesAsync(token);
@@ -270,6 +272,14 @@ public class TailoringProductionService : ITailoringProductionService
         {
             var m = await _db.Set<TailoringModification>().FirstOrDefaultAsync(x => x.Id == id, token) ?? throw new NotFoundException(Messages.TailoringModificationNotFound);
             if (m.Status != TailoringModificationStatuses.Open) throw new ConflictException(Messages.TailoringModificationClosed);
+            if (m.AfterDelivery)
+            {
+                // ما بعد التسليم: إنجازه = إعادة القطعة للعميل؛ لا حالة قطعة ولا أمر ولا أثر مالي
+                m.Status = done ? TailoringModificationStatuses.Done : TailoringModificationStatuses.Cancelled; m.DoneAt = SaudiTime.Now;
+                await _db.SaveChangesAsync(token);
+                await _audit.LogAsync(done ? "TAILORING_AFTER_SALES_DONE" : "TAILORING_AFTER_SALES_CANCELLED", nameof(TailoringModification), m.Id.ToString(), m.GarmentId.ToString(), token);
+                return true;
+            }
             var g = await LoadGarmentAsync(m.GarmentId, token);
             var order = await RequireOpenAsync(g, token);
             m.Status = done ? TailoringModificationStatuses.Done : TailoringModificationStatuses.Cancelled; m.DoneAt = SaudiTime.Now;
@@ -289,6 +299,28 @@ public class TailoringProductionService : ITailoringProductionService
             return true;
         }, ct);
         return (await ModificationsAsync(null, false, ct)).First(x => x.Id == id);
+    }
+
+    /// <summary>
+    /// تعديل ما بعد التسليم: لقطعة «مُسلَّمة» بتسليم قائم، واحد مفتوح لكل قطعة. مجاني (ت13) فلا فاتورة؛ القطعة تبقى مُسلَّمة والأمر لا يُعاد
+    /// اشتقاقه، والأجر إن لزم يُقيَّد يدوياً من شاشة الأجور.
+    /// </summary>
+    private async Task<TailoringModification> AddAfterDeliveryAsync(TailoringGarment g, SaveTailoringModificationDto r, CancellationToken ct)
+    {
+        var text = Trim(r.Instructions, 2000) ?? throw new ValidationFailedException(Messages.TailoringModificationInstructionsRequired);
+        if (r.EmployeeId is Guid eid) await RequireWorkerAsync(eid, ct);
+        var status = await _db.Set<TailoringOrder>().AsNoTracking().Where(o => o.Id == g.OrderId).Select(o => o.Status).FirstAsync(ct);
+        if (status == St.Cancelled) throw new ConflictException(Messages.TailoringGarmentFinished);
+        if (await _db.Set<TailoringModification>().AnyAsync(m => m.GarmentId == g.Id && m.Status == TailoringModificationStatuses.Open, ct))
+            throw new ConflictException(Messages.TailoringModificationOpen);
+        var m = new TailoringModification
+        {
+            OrderId = g.OrderId, GarmentId = g.Id, AfterDelivery = true, Instructions = text, AssignedEmployeeId = r.EmployeeId, CreatedBy = By,
+        };
+        _db.Add(m);
+        await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync("TAILORING_AFTER_SALES_OPENED", nameof(TailoringModification), m.Id.ToString(), g.Code, ct);
+        return m;
     }
 
     private async Task<TailoringModification> AddModificationAsync(TailoringGarment g, Guid? fittingId, string? instructions, Guid? employeeId, CancellationToken ct)

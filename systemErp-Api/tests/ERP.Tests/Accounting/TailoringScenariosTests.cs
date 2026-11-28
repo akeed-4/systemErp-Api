@@ -6,7 +6,7 @@ namespace ERP.Tests;
 /// <summary>
 /// الخياطة — سيناريوهات التكامل A–D (المرحلة 6) عبر الواجهة البرمجية:
 /// A دورة كاملة بعربون وتسليم واحد وإغلاق؛ B تسليم جزئي باسترداد نسبي وآخر تسليم يسترد الباقي؛ C رفض الجودة وتعديل ثم تسليم وإلغاؤه
-/// وإعادته؛ D عربون كامل = تسوية بلا فاتورة، وقماش العميل، واللوحة والتقارير، وعزل المنشآت.
+/// وإعادته؛ D عربون كامل = تسوية بلا فاتورة، وقماش العميل، واللوحة والتقارير، وعزل المنشآت؛ E تعديل ما بعد التسليم مجاني ولا يغيّر الحالة ويمنع إلغاء التسليم.
 /// النوع بلا حقول ولا خيارات وسعر أساسي 100 وضريبة 15% (صنف خدمي)، والمراحل الافتراضية (الإلزامية: القص، الخياطة، التشطيب، الجودة).
 /// </summary>
 [Collection("api")]
@@ -214,5 +214,37 @@ public class TailoringScenariosTests : TestBase
         Assert.Equal(404, (await other.Get($"/tailoring/deliveries/{delivery.Data["id"].S()}")).Status);
         Assert.Empty((await other.Get("/tailoring/deliveries")).Data!.AsArray());
         Assert.Equal(404, (await other.Post("/tailoring/deliveries", new { orderId, garmentIds = new[] { piece }, paymentMethod = "cash" })).Status);
+    }
+
+    [Fact]
+    public async Task E_after_sales_alteration_is_free_keeps_piece_delivered_and_blocks_delivery_cancel()
+    {
+        var s = await SetupAsync();
+        var order = await ConfirmedOrderAsync(s, 1);
+        var orderId = order["id"].S();
+        var piece = Pieces(order)[0];
+        await ToQualityAsync(s.Api, piece);
+        Ok(await InspectAsync(s.Api, true, null, piece), "approve");
+        var delivery = await DeliverAsync(s.Api, orderId, piece);
+        Ok(delivery, "deliver");
+        var invoices = (await s.Api.Get($"/tailoring/deliveries?orderId={orderId}")).Data!.AsArray().Count;
+
+        Assert.Equal(400, (await s.Api.Post("/tailoring/modifications", new { garmentId = piece, instructions = "" })).Status);
+        var mod = await s.Api.Post("/tailoring/modifications", new { garmentId = piece, instructions = "تقصير الطول 2 سم" });
+        Ok(mod, "after-sales alteration");
+        Assert.True(mod.Data!["afterDelivery"]!.GetValue<bool>());
+        Assert.Equal(409, (await s.Api.Post("/tailoring/modifications", new { garmentId = piece, instructions = "ثانٍ" })).Status); // واحد مفتوح لكل قطعة
+
+        var view = (await s.Api.Get($"/tailoring/orders/{orderId}")).Data!;
+        Assert.Equal("delivered", view["status"].S());                               // الأمر لا يُعاد اشتقاقه
+        var g = view["garments"]!.AsArray().Single()!;
+        Assert.Equal("delivered", g["status"].S());
+        Assert.True(g["afterSalesOpen"]!.GetValue<bool>());
+        Assert.Equal(409, (await s.Api.Post($"/tailoring/deliveries/{delivery.Data!["id"].S()}/cancel", new { reason = "تجربة" })).Status);
+
+        Ok(await s.Api.Post($"/tailoring/modifications/{mod.Data["id"].S()}/complete"), "hand back");
+        Assert.Equal("delivered", await StatusAsync(s.Api, orderId));
+        Assert.Equal(invoices, (await s.Api.Get($"/tailoring/deliveries?orderId={orderId}")).Data!.AsArray().Count); // بلا فاتورة جديدة
+        Assert.False((await s.Api.Get($"/tailoring/orders/{orderId}")).Data!["garments"]![0]!["afterSalesOpen"]!.GetValue<bool>());
     }
 }

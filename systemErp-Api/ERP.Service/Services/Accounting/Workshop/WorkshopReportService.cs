@@ -168,6 +168,83 @@ public class WorkshopReportService : IWorkshopReportService
         }).OrderByDescending(r => r.Revenue).ToList();
     }
 
+    /// <summary>
+    /// فريق الورشة: الفنيون المسجلون ومن أُسند إليهم أمر قائم أو سجّل في الفترة (النشطون فقط إلا من له سجل). الحالة الآن من السجل المفتوح،
+    /// ودقائق اليوم تشمل المنقضي منه، وأداء الفترة من السجلات المغلقة بأيامها وأسباب توقفها، والساعات المعيارية والكفاءة من تقرير الفنيين، وأوامره
+    /// القائمة المسندة إليه أو التي يعمل عليها الآن. بلا تكلفة أو إيراد.
+    /// </summary>
+    public async Task<WorkshopTeamDto> TeamAsync(DateTime from, DateTime to, CancellationToken ct = default)
+    {
+        var (start, end) = Range(from, to);
+        var now = SaudiTime.Now;
+        var today = SaudiTime.Today;
+        var tomorrow = today.AddDays(1);
+
+        var openLogs = await _execution.OpenLogsAsync(null, ct);
+        var logs = await _db.Set<WorkOrderTimeLog>().AsNoTracking()
+            .Where(l => l.EndedAt != null && ((l.StartedAt >= start && l.StartedAt < end) || (l.StartedAt >= today && l.StartedAt < tomorrow)))
+            .Select(l => new { l.EmployeeId, l.WorkOrderId, l.Kind, l.PauseReasonId, l.StartedAt, l.Minutes }).ToListAsync(ct);
+        var orders = await _db.Set<WorkOrder>().AsNoTracking().Where(o => St.Editable.Contains(o.Status))
+            .Where(o => o.AssignedTechnicianId != null || openLogs.Select(l => l.WorkOrderId).Contains(o.Id)).ToListAsync(ct);
+        var registered = await _db.Set<EmployeeStandardCostRate>().AsNoTracking().Where(x => x.Purpose == EmployeeCostPurposes.Technician)
+            .Select(x => x.EmployeeId).Distinct().ToListAsync(ct);
+
+        var logged = logs.Select(l => l.EmployeeId).Concat(openLogs.Select(l => l.EmployeeId)).ToHashSet();
+        var ids = registered.Concat(orders.Where(o => o.AssignedTechnicianId != null).Select(o => o.AssignedTechnicianId!.Value)).Concat(logged).Distinct().ToList();
+        var employees = await _db.Set<Employee>().AsNoTracking().Where(e => ids.Contains(e.Id))
+            .Select(e => new { e.Id, e.Code, e.NameAr, e.NameEn, e.JobTitle, e.Phone, e.UserId, e.Status }).ToListAsync(ct);
+        employees = employees.Where(e => e.Status == EmployeeStatuses.Active || logged.Contains(e.Id)).OrderBy(e => e.NameAr).ToList();
+
+        var performance = (await TechniciansAsync(from, to, ct)).ToDictionary(p => p.EmployeeId);
+        var vehicleIds = orders.Select(o => o.VehicleId).Distinct().ToList();
+        var plates = await _db.Set<ServiceVehicle>().AsNoTracking().Where(v => vehicleIds.Contains(v.Id)).ToDictionaryAsync(v => v.Id, v => v.PlateNumber, ct);
+        var days = Enumerable.Range(0, (int)(end - start).TotalDays).Select(i => start.AddDays(i)).ToList();
+
+        static decimal Overlap(DateTime? s, DateTime? e, DateTime from, DateTime to)
+            => s is DateTime a && e is DateTime b && b > from && a < to ? (decimal)((b < to ? b : to) - (a > from ? a : from)).TotalMinutes : 0;
+
+        return new WorkshopTeamDto
+        {
+            From = start, To = end.AddDays(-1),
+            Members = employees.Select(e =>
+            {
+                var open = openLogs.FirstOrDefault(l => l.EmployeeId == e.Id);
+                var running = open == null ? 0 : Math.Max(0, (decimal)(now - (open.StartedAt > today ? open.StartedAt : today)).TotalMinutes);
+                var mineToday = logs.Where(l => l.EmployeeId == e.Id && l.StartedAt >= today && l.StartedAt < tomorrow).ToList();
+                var mine = logs.Where(l => l.EmployeeId == e.Id && l.StartedAt >= start && l.StartedAt < end).ToList();
+                var perf = performance.GetValueOrDefault(e.Id);
+                var jobs = orders.Where(o => o.AssignedTechnicianId == e.Id || (open != null && o.Id == open.WorkOrderId)).ToList();
+                return new WorkshopTeamMemberDto
+                {
+                    EmployeeId = e.Id, Code = e.Code, Name = e.NameAr, NameEn = e.NameEn, JobTitle = e.JobTitle, Phone = e.Phone, HasUser = e.UserId != null,
+                    OpenLog = open,
+                    TodayWorkMinutes = decimal.Round(mineToday.Where(l => l.Kind == TimeLogKinds.Work).Sum(l => l.Minutes) + (open?.Kind == TimeLogKinds.Work ? running : 0), 0),
+                    TodayIdleMinutes = decimal.Round(mineToday.Where(l => l.Kind == TimeLogKinds.Idle).Sum(l => l.Minutes) + (open?.Kind == TimeLogKinds.Idle ? running : 0), 0),
+                    TodayPlannedMinutes = (int)jobs.Where(o => o.AssignedTechnicianId == e.Id).Sum(o => Overlap(o.PlannedStartAt, o.PlannedEndAt, today, tomorrow)),
+                    WorkMinutes = mine.Where(l => l.Kind == TimeLogKinds.Work).Sum(l => l.Minutes),
+                    IdleMinutes = mine.Where(l => l.Kind == TimeLogKinds.Idle).Sum(l => l.Minutes),
+                    OrdersWorked = mine.Where(l => l.Kind == TimeLogKinds.Work).Select(l => l.WorkOrderId).Distinct().Count(),
+                    BilledHours = perf?.BilledHours ?? 0, EfficiencyPercent = perf?.EfficiencyPercent,
+                    IdleReasons = perf?.IdleReasons ?? new(),
+                    Days = days.Select(d => new WorkshopTeamDayDto
+                    {
+                        Date = d,
+                        WorkMinutes = mine.Where(l => l.Kind == TimeLogKinds.Work && l.StartedAt >= d && l.StartedAt < d.AddDays(1)).Sum(l => l.Minutes),
+                        IdleMinutes = mine.Where(l => l.Kind == TimeLogKinds.Idle && l.StartedAt >= d && l.StartedAt < d.AddDays(1)).Sum(l => l.Minutes),
+                    }).ToList(),
+                    Jobs = jobs.OrderByDescending(o => o.Priority == WorkOrderPriorities.Urgent).ThenBy(o => o.PlannedStartAt ?? o.PromisedAt ?? DateTime.MaxValue)
+                        .Select(o => new WorkshopTeamJobDto
+                        {
+                            WorkOrderId = o.Id, OrderNumber = o.OrderNumber, Status = o.Status, Priority = o.Priority, CustomerName = o.CustomerName,
+                            PlateNumber = o.PlateSnapshot ?? plates.GetValueOrDefault(o.VehicleId), PlannedStartAt = o.PlannedStartAt, PlannedEndAt = o.PlannedEndAt,
+                            PromisedAt = o.PromisedAt,
+                            IsOverdue = (o.PromisedAt is DateTime due && due < now && o.Status != St.Ready) || (o.PlannedEndAt is DateTime pe && pe < now),
+                        }).ToList(),
+                };
+            }).ToList(),
+        };
+    }
+
     private static (DateTime Start, DateTime End) Range(DateTime from, DateTime to)
     {
         var start = from.Date;

@@ -407,4 +407,9 @@ public class WorkshopReportsController : ErpControllerBase
     [HttpGet("parts")]
     public async Task<IActionResult> Parts([FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
         => Success(await _reports.PartsAsync(from, to, ct));
+
+    /// <summary>فريق الفنيين بلا مبالغ: بشاشة أوامر العمل مثل اللوحة.</summary>
+    [HttpGet("team"), RequireScreen(PermissionCatalog.WorkshopOrdersScreenId)]
+    public async Task<IActionResult> Team([FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
+        => Success(await _reports.TeamAsync(from, to, ct));
 }

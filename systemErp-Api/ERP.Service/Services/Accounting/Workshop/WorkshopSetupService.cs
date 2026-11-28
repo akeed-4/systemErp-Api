@@ -34,7 +34,8 @@ public class WorkshopSetupService : IWorkshopSetupService
 
     public async Task<WorkshopSettingsDto> SaveSettingsAsync(SaveWorkshopSettingsDto r, CancellationToken ct = default)
     {
-        if (r.DefaultLaborRate < 0 || r.ReservationHoldDays < 0 || r.DefaultWarrantyMonths < 0 || r.DefaultWarrantyKm < 0)
+        if (r.DefaultLaborRate < 0 || r.ReservationHoldDays < 0 || r.DefaultWarrantyMonths < 0 || r.DefaultWarrantyKm < 0
+            || r.FollowUpCallDays < 0 || r.ServiceReminderMonths < 0 || r.ServiceReminderKm < 0)
             throw new ValidationFailedException(Messages.WorkshopSettingsNegative);
         if (r.DefaultWarehouseId is Guid wh && !await _db.Set<Warehouse>().AnyAsync(w => w.Id == wh, ct))
             throw new ValidationFailedException(Messages.WorkshopWarehouseNotFound);
@@ -43,6 +44,9 @@ public class WorkshopSetupService : IWorkshopSetupService
         s.DefaultLaborRate = decimal.Round(r.DefaultLaborRate, 4); s.ReservationHoldDays = r.ReservationHoldDays;
         s.DefaultWarrantyMonths = r.DefaultWarrantyMonths; s.DefaultWarrantyKm = r.DefaultWarrantyKm; s.DefaultWarehouseId = r.DefaultWarehouseId;
         s.RequireReceptionInspection = r.RequireReceptionInspection;
+        s.FollowUpCallDays = r.FollowUpCallDays is > 0 ? r.FollowUpCallDays : null;
+        s.ServiceReminderMonths = r.ServiceReminderMonths is > 0 ? r.ServiceReminderMonths : null;
+        s.ServiceReminderKm = r.ServiceReminderKm is > 0 ? r.ServiceReminderKm : null;
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("WORKSHOP_SETTINGS_SAVED", nameof(WorkshopSettings), s.Id.ToString(), $"{s.DefaultLaborRate:0.##}", ct);
         return await ToDtoAsync(s, ct);
@@ -52,6 +56,7 @@ public class WorkshopSetupService : IWorkshopSetupService
     {
         DefaultLaborRate = s.DefaultLaborRate, ReservationHoldDays = s.ReservationHoldDays, DefaultWarrantyMonths = s.DefaultWarrantyMonths,
         DefaultWarrantyKm = s.DefaultWarrantyKm, DefaultWarehouseId = s.DefaultWarehouseId, RequireReceptionInspection = s.RequireReceptionInspection,
+        FollowUpCallDays = s.FollowUpCallDays, ServiceReminderMonths = s.ServiceReminderMonths, ServiceReminderKm = s.ServiceReminderKm,
         DefaultWarehouseName = s.DefaultWarehouseId is Guid wh
             ? await _db.Set<Warehouse>().AsNoTracking().Where(w => w.Id == wh).Select(w => w.NameAr).FirstOrDefaultAsync(ct) : null,
     };

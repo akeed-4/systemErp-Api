@@ -148,3 +148,9 @@ public interface IRentalTimesheetService
     Task<RentalTimesheetDto> RejectAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
     Task<RentalTimesheetDto> ReopenAsync(Guid id, RentalReasonDto request, CancellationToken ct = default);
 }
+
+/// <summary>لوحة التأجير (قراءة فقط، بشاشة عقود التأجير).</summary>
+public interface IRentalDashboardService
+{
+    Task<RentalDashboardDto> DashboardAsync(CancellationToken ct = default);
+}

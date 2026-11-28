@@ -82,3 +82,61 @@ public class WorkshopProfitabilityDto
     public WorkshopReportTotalsDto Totals { get; set; } = new();
     public List<WorkOrderProfitRowDto> Rows { get; set; } = new();
 }
+
+/// <summary>
+/// لوحة فريق الورشة (بشاشة أوامر العمل، بلا مبالغ): لكل فني حالته الآن وسجله المفتوح، ودقائق اليوم، وأداء الفترة بأيامها، وأوامره المسندة القائمة.
+/// </summary>
+public class WorkshopTeamDto
+{
+    public DateTime From { get; set; }
+    public DateTime To { get; set; }
+    public List<WorkshopTeamMemberDto> Members { get; set; } = new();
+}
+
+public class WorkshopTeamMemberDto
+{
+    public Guid EmployeeId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? JobTitle { get; set; }
+    public string? Phone { get; set; }
+    /// <summary>مربوط بمستخدم (يرى «مهامي»).</summary>
+    public bool HasUser { get; set; }
+    public TimeLogDto? OpenLog { get; set; }
+    /// <summary>دقائق اليوم المغلقة مع المنقضي من السجل المفتوح.</summary>
+    public decimal TodayWorkMinutes { get; set; }
+    public decimal TodayIdleMinutes { get; set; }
+    /// <summary>دقائق أوامره المخططة في نافذة اليوم.</summary>
+    public int TodayPlannedMinutes { get; set; }
+    public decimal WorkMinutes { get; set; }
+    public decimal IdleMinutes { get; set; }
+    /// <summary>عدد الأوامر التي سجّل عليها عملاً في الفترة.</summary>
+    public int OrdersWorked { get; set; }
+    public decimal BilledHours { get; set; }
+    public decimal? EfficiencyPercent { get; set; }
+    public List<WorkshopTeamDayDto> Days { get; set; } = new();
+    public List<IdleReasonDto> IdleReasons { get; set; } = new();
+    public List<WorkshopTeamJobDto> Jobs { get; set; } = new();
+}
+
+public class WorkshopTeamDayDto
+{
+    public DateTime Date { get; set; }
+    public decimal WorkMinutes { get; set; }
+    public decimal IdleMinutes { get; set; }
+}
+
+public class WorkshopTeamJobDto
+{
+    public Guid WorkOrderId { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Priority { get; set; } = string.Empty;
+    public string CustomerName { get; set; } = string.Empty;
+    public string? PlateNumber { get; set; }
+    public DateTime? PlannedStartAt { get; set; }
+    public DateTime? PlannedEndAt { get; set; }
+    public DateTime? PromisedAt { get; set; }
+    public bool IsOverdue { get; set; }
+}

@@ -422,6 +422,19 @@ public class ErpDbContext : DbContext
         (typeof(WorkshopWarranty), nameof(WorkshopWarranty.LineId), typeof(WorkOrderLine)),
         (typeof(WorkshopWarranty), nameof(WorkshopWarranty.VehicleId), typeof(ServiceVehicle)),
         (typeof(WorkshopWarranty), nameof(WorkshopWarranty.ClaimWorkOrderId), typeof(WorkOrder)),
+        // ورش السيارات (التخطيط والمواعيد والمتابعة)
+        (typeof(WorkshopBay), nameof(WorkshopBay.WarehouseId), typeof(Warehouse)),
+        (typeof(WorkOrder), nameof(WorkOrder.BayId), typeof(WorkshopBay)),
+        (typeof(WorkOrder), nameof(WorkOrder.AssignedTechnicianId), typeof(Employee)),
+        (typeof(WorkshopAppointment), nameof(WorkshopAppointment.CustomerId), typeof(Customer)),
+        (typeof(WorkshopAppointment), nameof(WorkshopAppointment.VehicleId), typeof(ServiceVehicle)),
+        (typeof(WorkshopAppointment), nameof(WorkshopAppointment.WarehouseId), typeof(Warehouse)),
+        (typeof(WorkshopAppointment), nameof(WorkshopAppointment.BayId), typeof(WorkshopBay)),
+        (typeof(WorkshopAppointment), nameof(WorkshopAppointment.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkshopFollowUp), nameof(WorkshopFollowUp.VehicleId), typeof(ServiceVehicle)),
+        (typeof(WorkshopFollowUp), nameof(WorkshopFollowUp.CustomerId), typeof(Customer)),
+        (typeof(WorkshopFollowUp), nameof(WorkshopFollowUp.WorkOrderId), typeof(WorkOrder)),
+        (typeof(WorkshopFollowUp), nameof(WorkshopFollowUp.AppointmentId), typeof(WorkshopAppointment)),
         // الخياطة والتفصيل (المرحلة 1): الإعداد والقوالب وملفات العملاء ونسخ القياس
         (typeof(TailoringSettings), nameof(TailoringSettings.DefaultWarehouseId), typeof(Warehouse)),
         (typeof(TailoringGarmentType), nameof(TailoringGarmentType.ProductId), typeof(Product)),
@@ -1870,6 +1883,35 @@ public class ErpDbContext : DbContext
             e.Property(x => x.Status).HasMaxLength(16).IsRequired();
             e.Property(x => x.VoidReason).HasMaxLength(500);
             e.HasIndex(x => new { x.TenantId, x.VehicleId });
+        });
+        modelBuilder.Entity<WorkshopBay>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NameAr).HasMaxLength(150).IsRequired();
+            e.Property(x => x.NameEn).HasMaxLength(150);
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<WorkshopAppointment>(e =>
+        {
+            e.Property(x => x.CustomerName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.CustomerPhone).HasMaxLength(30);
+            e.Property(x => x.VehicleDescription).HasMaxLength(200);
+            e.Property(x => x.Complaint).HasMaxLength(2000);
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.ScheduledAt });
+        });
+        modelBuilder.Entity<WorkshopFollowUp>(e =>
+        {
+            e.Property(x => x.Kind).HasMaxLength(24).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.Outcome).HasMaxLength(1000);
+            e.Property(x => x.CompletedBy).HasMaxLength(200);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.Status, x.DueDate });
         });
         modelBuilder.Entity<WorkOrderTimeLog>(e =>
         {

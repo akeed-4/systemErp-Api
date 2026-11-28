@@ -14,6 +14,10 @@ public class WorkshopSettings : BaseEntity
     public Guid? DefaultWarehouseId { get; set; }
     /// <summary>فحص الاستقبال إلزامي قبل نقل أمر العمل من «مستلم».</summary>
     public bool RequireReceptionInspection { get; set; }
+    // المتابعة بعد التسليم: فارغ = لا تُنشأ تلقائياً
+    public int? FollowUpCallDays { get; set; }
+    public int? ServiceReminderMonths { get; set; }
+    public int? ServiceReminderKm { get; set; }
 }
 
 /// <summary>طريقة تسعير الخدمة: مبلغ ثابت، أو بالساعات المعيارية × سعر الساعة.</summary>

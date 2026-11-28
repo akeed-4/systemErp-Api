@@ -246,6 +246,7 @@ public class WorkOrderBillingService : IWorkOrderBillingService
                     EndDate = months > 0 ? at.Date.AddMonths(months) : null, KmLimit = km > 0 ? odometer + km : null, Status = WarrantyStatuses.Active,
                 });
             }
+            WorkshopFollowUpRules.AddOnDelivery(_db, settings, o, at, odometer, By);
             Move(o, St.Delivered, to);
             await _db.SaveChangesAsync(token);
             await LogAsync("WORK_ORDER_DELIVERED", o, $"{to} • {odometer:0}", token);

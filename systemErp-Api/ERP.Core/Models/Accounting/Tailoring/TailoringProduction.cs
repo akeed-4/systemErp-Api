@@ -52,12 +52,15 @@ public static class TailoringModificationStatuses
     public const string Cancelled = "cancelled";
 }
 
-/// <summary>طلب تعديل على قطعة (من بروفة أو مباشرة). القياس والتصميم الأصليان لا يتغيران؛ التعليمات هنا. إنجازه يعيد القطعة للجودة.</summary>
+/// <summary>طلب تعديل على قطعة (من بروفة أو مباشرة). القياس والتصميم الأصليان لا يتغيران؛ التعليمات هنا. إنجازه يعيد القطعة للجودة.
+/// تعديل ما بعد التسليم (<see cref="AfterDelivery"/>) لقطعة سُلّمت: مجاني بلا فاتورة ولا تغيير على حالة القطعة أو الأمر، وإنجازه = إعادتها للعميل.</summary>
 public class TailoringModification : BaseEntity
 {
     public Guid OrderId { get; set; }
     public Guid GarmentId { get; set; }
     public Guid? FittingId { get; set; }
+    /// <summary>تعديل بعد التسليم (القطعة «مُسلَّمة» وتبقى كذلك).</summary>
+    public bool AfterDelivery { get; set; }
     public string Instructions { get; set; } = string.Empty;
     public Guid? AssignedEmployeeId { get; set; }
     public string Status { get; set; } = TailoringModificationStatuses.Open;

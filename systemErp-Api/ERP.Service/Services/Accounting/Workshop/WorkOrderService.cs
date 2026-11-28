@@ -288,6 +288,9 @@ public class WorkOrderService : IWorkOrderService
             {
                 warranty.Status = WarrantyStatuses.Active; warranty.ClaimWorkOrderId = null;
             }
+            // الموعد المرتبط يعود مفتوحاً (المركبة لم تُستقبل فعلياً)
+            await _db.Set<WorkshopAppointment>().Where(a => a.WorkOrderId == id).ExecuteUpdateAsync(x => x
+                .SetProperty(a => a.WorkOrderId, (Guid?)null).SetProperty(a => a.Status, AppointmentStatuses.Confirmed), token);
             _db.RemoveRange(o.DamageMarks);
             _db.Remove(o);
             await _db.SaveChangesAsync(token);
@@ -438,6 +441,10 @@ public class WorkOrderService : IWorkOrderService
             ? (await _db.Set<WorkOrderStatusHistory>().AsNoTracking().Where(h => ids.Contains(h.WorkOrderId)).ToListAsync(ct))
                 .OrderBy(h => h.ChangedAt).ThenBy(h => h.CreatedAt).ToList()
             : new List<WorkOrderStatusHistory>();
+        var bayIds = list.Where(o => o.BayId != null).Select(o => o.BayId!.Value).Distinct().ToList();
+        var bays = bayIds.Count == 0 ? new Dictionary<Guid, string>() : await _db.Set<WorkshopBay>().AsNoTracking().Where(b => bayIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id, b => b.NameAr, ct);
+        var techIds = list.Where(o => o.AssignedTechnicianId != null).Select(o => o.AssignedTechnicianId!.Value).Distinct().ToList();
+        var techs = techIds.Count == 0 ? new Dictionary<Guid, string>() : await _db.Set<Employee>().AsNoTracking().Where(e => techIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.NameAr, ct);
         var now = SaudiTime.Now;
 
         return list.Select(o =>
@@ -457,6 +464,8 @@ public class WorkOrderService : IWorkOrderService
                 ReadyAt = o.ReadyAt, DeliveredAt = o.DeliveredAt, Notes = o.Notes, CancelReason = o.CancelReason, CreatedBy = o.CreatedBy, CreatedAt = o.CreatedAt,
                 IsWarrantyJob = o.IsWarrantyJob, WarrantyId = o.WarrantyId, InvoiceId = o.InvoiceId, InvoiceNumber = o.InvoiceNumber, InvoicedAt = o.InvoicedAt,
                 DeliveredTo = o.DeliveredTo,
+                BayId = o.BayId, BayName = o.BayId is Guid bay ? bays.GetValueOrDefault(bay) : null, AssignedTechnicianId = o.AssignedTechnicianId,
+                AssignedTechnicianName = o.AssignedTechnicianId is Guid tech ? techs.GetValueOrDefault(tech) : null, PlannedStartAt = o.PlannedStartAt, PlannedEndAt = o.PlannedEndAt,
                 AttachmentCount = attachments.GetValueOrDefault(o.Id), NextStatuses = NextStatuses(o.Status),
                 Damages = o.DamageMarks.OrderBy(d => d.SortOrder).Select(d => new DamageMarkDto
                 {

@@ -77,6 +77,37 @@ public class TailoringDashboardService : ITailoringDashboardService
                                   Id = f.Id, OrderId = o.Id, OrderNumber = o.OrderNumber, CustomerName = o.CustomerName, CustomerPhone = o.CustomerPhone,
                                   GarmentId = g.Id, GarmentCode = g.Code, ScheduledAt = f.ScheduledAt, Status = f.Status, Result = f.Result, Notes = f.Notes,
                               }).Take(ListMax).ToListAsync(ct);
+        dto.NewOrdersThisMonth = await _db.Set<TailoringOrder>().AsNoTracking()
+            .CountAsync(o => o.OrderDate >= monthStart && o.OrderDate < tomorrow && o.Status != St.Draft && o.Status != St.Cancelled, ct);
+
+        var assigned = await (from g in _db.Set<TailoringGarment>().AsNoTracking()
+                              join o in _db.Set<TailoringOrder>().AsNoTracking() on g.OrderId equals o.Id
+                              where g.AssignedEmployeeId != null && g.Status != G.Cancelled
+                                    && ((St.Open.Contains(o.Status) && g.Status != G.Delivered && g.Status != G.Ready) || (g.ReadyAt >= monthStart && g.ReadyAt < tomorrow))
+                              select new { EmployeeId = g.AssignedEmployeeId!.Value, g.Status, g.ReadyAt, o.ExpectedDeliveryDate, Open = St.Open.Contains(o.Status) })
+            .ToListAsync(ct);
+        var tailorIds = assigned.Select(a => a.EmployeeId).Distinct().ToList();
+        var tailorNames = await _db.Set<Employee>().AsNoTracking().Where(e => tailorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.NameAr, ct);
+        dto.Tailors = assigned.GroupBy(a => a.EmployeeId).Select(g =>
+        {
+            var active = g.Where(a => a.Open && a.Status != G.Ready && a.Status != G.Delivered).ToList();
+            return new TailoringTailorLoadDto
+            {
+                EmployeeId = g.Key, Name = tailorNames.GetValueOrDefault(g.Key) ?? "—", ActivePieces = active.Count,
+                LatePieces = active.Count(a => a.ExpectedDeliveryDate != null && a.ExpectedDeliveryDate < today),
+                ReadyThisMonth = g.Count(a => a.ReadyAt >= monthStart && a.ReadyAt < tomorrow),
+            };
+        }).OrderByDescending(t => t.ActivePieces).ThenBy(t => t.Name).ToList();
+
+        var trendStart = today.AddDays(-13);
+        var trend = await _db.Set<TailoringDelivery>().AsNoTracking()
+            .Where(d => d.Status == TailoringDeliveryStatuses.Posted && d.Date >= trendStart && d.Date < tomorrow)
+            .Select(d => new { d.Date, d.TotalAmount }).ToListAsync(ct);
+        dto.Trend = Enumerable.Range(0, 14).Select(i => trendStart.AddDays(i)).Select(d => new TailoringDayTrendDto
+        {
+            Date = d, Deliveries = trend.Count(x => x.Date.Date == d), Amount = trend.Where(x => x.Date.Date == d).Sum(x => x.TotalAmount),
+        }).ToList();
+
         return dto;
     }
 }

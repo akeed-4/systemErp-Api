@@ -239,6 +239,10 @@ public class TailoringDeliveryService : ITailoringDeliveryService
             var reason = Trim(r.Reason, 500) ?? throw new ValidationFailedException(Messages.TailoringReasonRequired);
             var o = await _db.Set<TailoringOrder>().FirstAsync(x => x.Id == d.OrderId, token);
             if (o.Status is St.Closed or St.Cancelled) throw new ConflictException(Messages.TailoringOrderClosed);
+            // تعديل ما بعد التسليم مفتوح على إحدى قطعه يُنجز أو يُلغى أولاً
+            if (await _db.Set<TailoringModification>().AnyAsync(m => m.AfterDelivery && m.Status == TailoringModificationStatuses.Open
+                    && _db.Set<TailoringGarment>().Any(g => g.Id == m.GarmentId && g.DeliveryId == d.Id), token))
+                throw new ConflictException(Messages.TailoringModificationOpen);
             var text = $"إلغاء التسليم {d.DeliveryNumber} لأمر التفصيل {o.OrderNumber}{(d.InvoiceNumber == null ? string.Empty : $" ({d.InvoiceNumber})")}: {reason}";
 
             if (d.InvoiceId is Guid invoiceId)

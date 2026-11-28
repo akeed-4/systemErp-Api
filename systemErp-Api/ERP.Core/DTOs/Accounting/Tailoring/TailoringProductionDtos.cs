@@ -113,6 +113,10 @@ public class TailoringModificationDto
     public string OrderNumber { get; set; } = string.Empty;
     public Guid GarmentId { get; set; }
     public string GarmentCode { get; set; } = string.Empty;
+    public string CustomerName { get; set; } = string.Empty;
+    public string? CustomerPhone { get; set; }
+    /// <summary>تعديل بعد التسليم (مجاني، القطعة تبقى مُسلَّمة).</summary>
+    public bool AfterDelivery { get; set; }
     public string Instructions { get; set; } = string.Empty;
     public string? EmployeeName { get; set; }
     public Guid? EmployeeId { get; set; }

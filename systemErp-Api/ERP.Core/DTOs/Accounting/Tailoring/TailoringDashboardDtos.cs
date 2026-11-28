@@ -19,6 +19,12 @@ public class TailoringDashboardDto
     public List<TailoringStageCountDto> Stages { get; set; } = new();
     public List<TailoringLateOrderDto> Late { get; set; } = new();
     public List<TailoringFittingDto> Fittings { get; set; } = new();
+    /// <summary>أوامر الشهر الجديدة (غير المسودة وغير الملغاة بتاريخ الأمر).</summary>
+    public int NewOrdersThisMonth { get; set; }
+    /// <summary>حمل الخياطين: القطع القائمة المسندة لكلٍّ، والجاهز منها هذا الشهر.</summary>
+    public List<TailoringTailorLoadDto> Tailors { get; set; } = new();
+    /// <summary>التسليمات المرحّلة آخر 14 يوماً بعددها ومبلغها.</summary>
+    public List<TailoringDayTrendDto> Trend { get; set; } = new();
 }
 
 public class TailoringStageCountDto
@@ -41,4 +47,20 @@ public class TailoringLateOrderDto
     public int DaysLate { get; set; }
     public string Status { get; set; } = string.Empty;
     public string Priority { get; set; } = string.Empty;
+}
+
+public class TailoringTailorLoadDto
+{
+    public Guid EmployeeId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int ActivePieces { get; set; }
+    public int LatePieces { get; set; }
+    public int ReadyThisMonth { get; set; }
+}
+
+public class TailoringDayTrendDto
+{
+    public DateTime Date { get; set; }
+    public int Deliveries { get; set; }
+    public decimal Amount { get; set; }
 }

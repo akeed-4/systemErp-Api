@@ -221,7 +221,7 @@ public static class PermissionCatalog
             Crud(A.Import), new[] { "workshop/vehicles" }),
         // الاستقبال وأمر العمل والتقديرات وموافقة العميل والفوترة والتسليم. «خصم يدوي» = خصم على التقدير أو الفاتورة
         new(WorkshopOrdersScreenId, WorkshopModuleId, "الورش: الاستقبال وأوامر العمل والتقديرات والفوترة والتسليم", "Workshop: Reception, Work Orders, Estimates, Billing & Delivery",
-            Crud(A.Approve, A.Close, A.Cancel, A.Reopen, A.Discount), new[] { "workshop", "workshop/reception", "workshop/orders", "workshop/board" }),
+            Crud(A.Approve, A.Close, A.Cancel, A.Reopen, A.Discount), new[] { "workshop", "workshop/reception", "workshop/orders", "workshop/board", "workshop/team" }),
         new(WorkshopTimeLogsScreenId, WorkshopModuleId, "الورش: ساعات الفنيين والتوقف", "Workshop: Technician Time & Downtime",
             new[] { A.View, A.Create, A.Edit, A.Delete }.Concat(Docs).ToArray(), new[] { "workshop/technicians" }, InheritsFrom: WorkshopOrdersScreenId),
         // حجز قطع الغيار وصرفها وإرجاعها لأمر العمل: الترحيل = الصرف بحركة مخزون وقيد، والإلغاء = الإرجاع
@@ -234,6 +234,15 @@ public static class PermissionCatalog
             new[] { A.Approve }, Array.Empty<string>(), Restricted: true),
         new(WorkshopCostViewScreenId, WorkshopModuleId, "الورش: رؤية التكلفة والربحية", "Workshop: View Cost & Profitability",
             new[] { A.View }.Concat(Docs).ToArray(), new[] { "workshop/reports" }, Restricted: true),
+        // التخطيط والجدولة: المنصات والمواعيد وإسناد الأوامر لمنصة وفني ونافذة («إلغاء» = إلغاء موعد)
+        new(WorkshopPlanningScreenId, WorkshopModuleId, "الورش: التخطيط والجدولة والمواعيد والمنصات", "Workshop: Planning, Scheduling, Appointments & Bays",
+            Crud(A.Cancel), new[] { "workshop/schedule", "workshop/appointments" }, InheritsFrom: WorkshopOrdersScreenId),
+        // متابعة ما بعد التسليم وتذكيرات الصيانة: «إغلاق» = إنجاز المتابعة، «إلغاء» = إلغاؤها بسبب
+        new(WorkshopFollowUpsScreenId, WorkshopModuleId, "الورش: المتابعة بعد التسليم وتذكيرات الصيانة", "Workshop: Post-Delivery Follow-up & Service Reminders",
+            new[] { A.View, A.Create, A.Close, A.Cancel }, new[] { "workshop/follow-ups" }, InheritsFrom: WorkshopOrdersScreenId),
+        // تجربة الفني (الجوال): أوامره المسندة وسجل عمله هو فقط («إنشاء» = بدء، «تعديل» = إيقاف وإنهاء سطر)
+        new(WorkshopMyJobsScreenId, WorkshopModuleId, "الورش: مهامي (الفني)", "Workshop: My Jobs (Technician)",
+            new[] { A.View, A.Create, A.Edit }, new[] { "workshop/my-jobs" }, InheritsFrom: WorkshopTimeLogsScreenId),
 
         // الخياطة والتفصيل (إضافة tailoring). أمر التفصيل هو المستند الرئيسي: الإنتاج والبروفات والمواد والتسليم والجودة ترثه.
         new(TailoringSettingsScreenId, TailoringModuleId, "الخياطة: الإعدادات وأنواع الملابس والقياسات والتصاميم ومراحل الإنتاج", "Tailoring: Settings, Garment Types, Measurements, Designs & Stages",
@@ -268,7 +277,7 @@ public static class PermissionCatalog
             Crud(A.Approve, A.Cancel), new[] { "rental", "rental/availability", "rental/bookings" }),
         // العقد وتمديده وتجديده: «إغلاق» = إغلاق العقد بعد الاستلام والتسوية، و«إعادة فتح» = فتح عقد مغلق بسبب
         new(RentalContractsScreenId, EquipmentRentalModuleId, "التأجير: عقود التأجير وتمديدها وتجديدها", "Rental: Rental Contracts, Extensions & Renewals",
-            Crud(A.Submit, A.Approve, A.Close, A.Reopen, A.Cancel, A.Discount), new[] { "rental/contracts" }),
+            Crud(A.Submit, A.Approve, A.Close, A.Reopen, A.Cancel, A.Discount), new[] { "rental/contracts", "rental/dashboard" }),
         // محاضر التسليم والاستلام والنقل: «ترحيل» = اعتماد المحضر فيتغير حال المعدة
         new(RentalHandoversScreenId, EquipmentRentalModuleId, "التأجير: محاضر التسليم والاستلام والنقل", "Rental: Handover, Return & Transport Records",
             Crud(A.Post, A.Cancel), new[] { "rental/handovers" }, InheritsFrom: RentalContractsScreenId),
@@ -342,6 +351,9 @@ public static class PermissionCatalog
     public const string WorkshopQualityScreenId = "workshop-quality";
     public const string WorkshopUnapprovedExecutionScreenId = "workshop-unapproved-execution";
     public const string WorkshopCostViewScreenId = "workshop-cost-view";
+    public const string WorkshopPlanningScreenId = "workshop-planning";
+    public const string WorkshopFollowUpsScreenId = "workshop-follow-ups";
+    public const string WorkshopMyJobsScreenId = "workshop-my-jobs";
 
     public const string EquipmentRentalModuleId = "equipment-rental";
     public const string ManagementModuleId = "management";

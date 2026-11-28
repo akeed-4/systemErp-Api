@@ -2587,4 +2587,27 @@
   <data name="TailoringNotifyFittingsTitle" xml:space="preserve"><value>بروفات اليوم: {0}</value></data>
   <data name="TailoringReportNotFound" xml:space="preserve"><value>التقرير غير موجود.</value></data>
   <data name="TailoringReportPeriodInvalid" xml:space="preserve"><value>نهاية الفترة تسبق بدايتها.</value></data>
+  <data name="WorkshopBayBusy" xml:space="preserve"><value>المنصة محجوزة بأمر عمل أو موعد آخر في نفس الوقت.</value></data>
+  <data name="WorkshopBayNotFound" xml:space="preserve"><value>المنصة غير موجودة أو غير نشطة.</value></data>
+  <data name="WorkshopBayCodeRequired" xml:space="preserve"><value>رمز المنصة مطلوب.</value></data>
+  <data name="WorkshopBayNameRequired" xml:space="preserve"><value>اسم المنصة مطلوب.</value></data>
+  <data name="WorkshopBayCodeExists" xml:space="preserve"><value>رمز المنصة مستخدم.</value></data>
+  <data name="WorkshopBayInUse" xml:space="preserve"><value>لا يمكن حذف منصة مستخدمة في أوامر عمل أو مواعيد؛ أوقفها بدلاً من ذلك.</value></data>
+  <data name="WorkshopPlanOrderLocked" xml:space="preserve"><value>لا يُخطط أمر عمل بعد فوترته أو إلغائه.</value></data>
+  <data name="WorkshopPlanWindowInvalid" xml:space="preserve"><value>النافذة المخططة غير صالحة: البداية والنهاية معاً والبداية قبل النهاية.</value></data>
+  <data name="WorkshopScheduleRangeInvalid" xml:space="preserve"><value>فترة الجدول غير صالحة (حتى 31 يوماً).</value></data>
+  <data name="WorkshopAppointmentNotFound" xml:space="preserve"><value>الموعد غير موجود.</value></data>
+  <data name="WorkshopAppointmentNotOpen" xml:space="preserve"><value>الموعد ليس مفتوحاً (وصل أو أُلغي أو لم يحضر العميل).</value></data>
+  <data name="WorkshopAppointmentVehicleMismatch" xml:space="preserve"><value>المركبة ليست لهذا العميل.</value></data>
+  <data name="WorkshopAppointmentDurationInvalid" xml:space="preserve"><value>مدة الموعد بين 15 دقيقة و24 ساعة.</value></data>
+  <data name="WorkshopAppointmentTimeInvalid" xml:space="preserve"><value>وقت الموعد مطلوب.</value></data>
+  <data name="WorkshopAppointmentStatusInvalid" xml:space="preserve"><value>الحالة غير صالحة للموعد (مؤكد أو لم يحضر).</value></data>
+  <data name="WorkshopAppointmentCustomerMismatch" xml:space="preserve"><value>أمر العمل ليس لعميل الموعد أو أنه ملغى.</value></data>
+  <data name="WorkshopAppointmentOrderLinked" xml:space="preserve"><value>أمر العمل مرتبط بموعد آخر.</value></data>
+  <data name="WorkshopFollowUpKindInvalid" xml:space="preserve"><value>نوع المتابعة غير صالح.</value></data>
+  <data name="WorkshopFollowUpNotFound" xml:space="preserve"><value>المتابعة غير موجودة.</value></data>
+  <data name="WorkshopFollowUpNotPending" xml:space="preserve"><value>المتابعة منجزة أو ملغاة.</value></data>
+  <data name="WorkshopTechnicianNotLinked" xml:space="preserve"><value>حسابك غير مربوط بملف موظف نشط؛ اطلب من الإدارة ربطه.</value></data>
+  <data name="WorkshopJobNotAssigned" xml:space="preserve"><value>أمر العمل غير مسند إليك.</value></data>
+  <data name="WorkshopNoOpenLog" xml:space="preserve"><value>لا يوجد سجل عمل مفتوح لك.</value></data>
 </root>

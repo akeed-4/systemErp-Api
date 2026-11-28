@@ -2579,4 +2579,27 @@ Track it from "My documents awaiting approval".</value></data>
   <data name="TailoringNotifyFittingsTitle" xml:space="preserve"><value>Fittings today: {0}</value></data>
   <data name="TailoringReportNotFound" xml:space="preserve"><value>Report not found.</value></data>
   <data name="TailoringReportPeriodInvalid" xml:space="preserve"><value>The period end is before its start.</value></data>
+  <data name="WorkshopBayBusy" xml:space="preserve"><value>The bay is already booked by another work order or appointment at that time.</value></data>
+  <data name="WorkshopBayNotFound" xml:space="preserve"><value>The bay does not exist or is inactive.</value></data>
+  <data name="WorkshopBayCodeRequired" xml:space="preserve"><value>The bay code is required.</value></data>
+  <data name="WorkshopBayNameRequired" xml:space="preserve"><value>The bay name is required.</value></data>
+  <data name="WorkshopBayCodeExists" xml:space="preserve"><value>The bay code is already used.</value></data>
+  <data name="WorkshopBayInUse" xml:space="preserve"><value>A bay used by work orders or appointments cannot be deleted; deactivate it instead.</value></data>
+  <data name="WorkshopPlanOrderLocked" xml:space="preserve"><value>A work order cannot be planned after it is invoiced or cancelled.</value></data>
+  <data name="WorkshopPlanWindowInvalid" xml:space="preserve"><value>Invalid planned window: start and end are both required and start must be before end.</value></data>
+  <data name="WorkshopScheduleRangeInvalid" xml:space="preserve"><value>Invalid schedule range (up to 31 days).</value></data>
+  <data name="WorkshopAppointmentNotFound" xml:space="preserve"><value>The appointment does not exist.</value></data>
+  <data name="WorkshopAppointmentNotOpen" xml:space="preserve"><value>The appointment is no longer open (arrived, cancelled or no-show).</value></data>
+  <data name="WorkshopAppointmentVehicleMismatch" xml:space="preserve"><value>The vehicle does not belong to this customer.</value></data>
+  <data name="WorkshopAppointmentDurationInvalid" xml:space="preserve"><value>The appointment duration must be between 15 minutes and 24 hours.</value></data>
+  <data name="WorkshopAppointmentTimeInvalid" xml:space="preserve"><value>The appointment time is required.</value></data>
+  <data name="WorkshopAppointmentStatusInvalid" xml:space="preserve"><value>Invalid appointment status (confirmed or no-show).</value></data>
+  <data name="WorkshopAppointmentCustomerMismatch" xml:space="preserve"><value>The work order is not for the appointment's customer or is cancelled.</value></data>
+  <data name="WorkshopAppointmentOrderLinked" xml:space="preserve"><value>The work order is already linked to another appointment.</value></data>
+  <data name="WorkshopFollowUpKindInvalid" xml:space="preserve"><value>Invalid follow-up type.</value></data>
+  <data name="WorkshopFollowUpNotFound" xml:space="preserve"><value>The follow-up does not exist.</value></data>
+  <data name="WorkshopFollowUpNotPending" xml:space="preserve"><value>The follow-up is already done or cancelled.</value></data>
+  <data name="WorkshopTechnicianNotLinked" xml:space="preserve"><value>Your account is not linked to an active employee record; ask an administrator to link it.</value></data>
+  <data name="WorkshopJobNotAssigned" xml:space="preserve"><value>This work order is not assigned to you.</value></data>
+  <data name="WorkshopNoOpenLog" xml:space="preserve"><value>You have no open time log.</value></data>
 </root>

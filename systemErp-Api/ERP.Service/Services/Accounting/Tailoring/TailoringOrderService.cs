@@ -62,15 +62,74 @@ public class TailoringOrderService : ITailoringOrderService
         var garments = await _db.Set<TailoringGarment>().AsNoTracking().Where(g => g.OrderId == id).OrderBy(g => g.Code).ToListAsync(ct);
         var history = await _db.Set<TailoringOrderStatusHistory>().AsNoTracking().Where(h => h.OrderId == id).OrderBy(h => h.ChangedAt).ToListAsync(ct);
         var dto = await ToDtoAsync(o, lines, ct);
-        dto.Garments = garments.Select(g => new TailoringGarmentDto
+        // تقدّم كل قطعة: مرحلتها وخياطها وأقرب بروفة وتعديلاتها المفتوحة
+        var stageIds = garments.Where(g => g.CurrentStageId != null).Select(g => g.CurrentStageId!.Value).Distinct().ToList();
+        var stages = await _db.Set<TailoringStage>().AsNoTracking().Where(s => stageIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, ct);
+        var employeeIds = garments.Where(g => g.AssignedEmployeeId != null).Select(g => g.AssignedEmployeeId!.Value).Distinct().ToList();
+        var employees = await _db.Set<Employee>().AsNoTracking().Where(e => employeeIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.NameAr, ct);
+        var fittings = (await _db.Set<TailoringFitting>().AsNoTracking().Where(f => f.OrderId == id && f.Status == TailoringFittingStatuses.Scheduled)
+            .Select(f => new { f.GarmentId, f.ScheduledAt }).ToListAsync(ct)).GroupBy(f => f.GarmentId).ToDictionary(x => x.Key, x => x.Min(f => f.ScheduledAt));
+        var mods = await _db.Set<TailoringModification>().AsNoTracking().Where(m => m.OrderId == id && m.Status == TailoringModificationStatuses.Open)
+            .Select(m => new { m.GarmentId, m.AfterDelivery }).ToListAsync(ct);
+        dto.Garments = garments.Select(g =>
         {
-            Id = g.Id, LineId = g.LineId, PieceNo = g.PieceNo, Code = g.Code, Status = g.Status, ReadyAt = g.ReadyAt, DeliveredAt = g.DeliveredAt, DeliveryId = g.DeliveryId,
+            var stage = g.CurrentStageId is Guid sid ? stages.GetValueOrDefault(sid) : null;
+            return new TailoringGarmentDto
+            {
+                Id = g.Id, LineId = g.LineId, PieceNo = g.PieceNo, Code = g.Code, Status = g.Status, ReadyAt = g.ReadyAt, DeliveredAt = g.DeliveredAt, DeliveryId = g.DeliveryId,
+                StageId = g.CurrentStageId, StageNameAr = stage?.NameAr, StageNameEn = stage?.NameEn, StageStartedAt = g.StageStartedAt, EmployeeId = g.AssignedEmployeeId,
+                EmployeeName = g.AssignedEmployeeId is Guid eid ? employees.GetValueOrDefault(eid) : null,
+                NextFittingAt = fittings.TryGetValue(g.Id, out var next) ? next : null,
+                OpenModifications = mods.Count(m => m.GarmentId == g.Id), AfterSalesOpen = mods.Any(m => m.GarmentId == g.Id && m.AfterDelivery),
+            };
         }).ToList();
         dto.History = history.Select(h => new TailoringOrderHistoryDto
         {
             FromStatus = h.FromStatus, ToStatus = h.ToStatus, Note = h.Note, ChangedBy = h.ChangedBy, ChangedAt = h.ChangedAt,
         }).ToList();
+        await FillPaymentsAsync(dto, o, ct);
         return dto;
+    }
+
+    /// <summary>
+    /// دفعات الأمر من فواتيره الفعلية: العربون ثم فواتير التسليمات القائمة بترتيبها. الفاتورة النقدية/الشبكة/التحويل مدفوعة بإصدارها،
+    /// والآجلة بما خُصص لها من سندات القبض. الحالة: مدفوع إذا غطى المحصّل الإجمالي، وجزئي إذا وُجد محصّل.
+    /// </summary>
+    private async Task FillPaymentsAsync(TailoringOrderDto dto, TailoringOrder o, CancellationToken ct)
+    {
+        var deliveries = await _db.Set<TailoringDelivery>().AsNoTracking()
+            .Where(d => d.OrderId == o.Id && d.Status == TailoringDeliveryStatuses.Posted && d.InvoiceId != null)
+            .Select(d => new { InvoiceId = d.InvoiceId!.Value, d.DeliveryNumber }).ToListAsync(ct);
+        var ids = deliveries.Select(d => d.InvoiceId).ToList();
+        if (o.AdvanceInvoiceId is Guid adv) ids.Add(adv);
+        if (ids.Count == 0) { dto.BalanceDue = Math.Max(0, o.GrandTotal); return; }
+
+        var invoices = await _db.Set<InvoiceBase>().AsNoTracking().Where(i => ids.Contains(i.Id))
+            .Select(i => new { i.Id, i.InvoiceNumber, i.IssueDate, i.GrandTotal, i.VatTotal, i.PaymentMethod, i.PaymentMethodCode }).ToListAsync(ct);
+        var allocated = await _db.Set<VoucherAllocation>().AsNoTracking().Where(a => ids.Contains(a.InvoiceId))
+            .GroupBy(a => a.InvoiceId).Select(g => new { g.Key, Amount = g.Sum(a => a.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
+
+        TailoringPaymentDto? Map(Guid invoiceId, string kind, string? reference)
+        {
+            var i = invoices.FirstOrDefault(x => x.Id == invoiceId);
+            if (i == null) return null;
+            var paid = i.PaymentMethod == PaymentMethod.Credit ? Math.Min(i.GrandTotal, allocated.GetValueOrDefault(i.Id)) : i.GrandTotal;
+            return new TailoringPaymentDto
+            {
+                Kind = kind, InvoiceId = i.Id, InvoiceNumber = i.InvoiceNumber, Reference = reference, Date = i.IssueDate, Total = i.GrandTotal,
+                Vat = i.VatTotal, Paid = DocumentPricing.Round(paid), PaymentMethod = i.PaymentMethod, PaymentMethodCode = i.PaymentMethodCode,
+            };
+        }
+
+        var payments = new List<TailoringPaymentDto>();
+        if (o.AdvanceInvoiceId is Guid a && Map(a, "advance", null) is { } advance) payments.Add(advance);
+        payments.AddRange(deliveries.Select(d => Map(d.InvoiceId, "delivery", d.DeliveryNumber)).OfType<TailoringPaymentDto>().OrderBy(p => p.Date).ThenBy(p => p.InvoiceNumber));
+        var running = 0m;
+        foreach (var p in payments) { running += p.Paid; p.BalanceAfter = Math.Max(0, DocumentPricing.Round(o.GrandTotal - running)); }
+        dto.Payments = payments;
+        dto.PaidTotal = DocumentPricing.Round(payments.Sum(p => p.Paid));
+        dto.BalanceDue = Math.Max(0, DocumentPricing.Round(o.GrandTotal - dto.PaidTotal));
+        dto.PaymentStatus = dto.PaidTotal <= 0 ? "unpaid" : dto.BalanceDue <= 0 ? "paid" : "partial";
     }
 
     public async Task<TailoringOrderDto> PreviewAsync(SaveTailoringOrderDto r, Guid? id, CancellationToken ct = default)

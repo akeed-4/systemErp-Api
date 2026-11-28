@@ -137,6 +137,11 @@ public class WorkOrder : BaseEntity
     public DateTime? InvoicedAt { get; set; }
     public string? DeliveredTo { get; set; }
     public string? DeliveredBy { get; set; }
+    // التخطيط: المنصة والفني المسؤول والنافذة المخططة (لا تغيّر الحالة)
+    public Guid? BayId { get; set; }
+    public Guid? AssignedTechnicianId { get; set; }
+    public DateTime? PlannedStartAt { get; set; }
+    public DateTime? PlannedEndAt { get; set; }
     public virtual ICollection<WorkOrderDamageMark> DamageMarks { get; set; } = new List<WorkOrderDamageMark>();
 }
 

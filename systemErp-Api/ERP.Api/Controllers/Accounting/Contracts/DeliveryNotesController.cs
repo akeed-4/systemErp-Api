@@ -83,4 +83,9 @@ public class DeliveryNotesController : ErpControllerBase
     [HttpPost("{id:guid}/Invoice")]
     public async Task<IActionResult> Invoice(Guid id, [FromBody] CreateDeliveryInvoiceRequestDto? dto, CancellationToken ct)
         => Success(await _notes.CreateInvoiceAsync(id, dto?.Date, dto?.SupplierId, ct), Messages.InvoiceIssued);
+
+    /// <summary>الفوترة المرحلية للبيانات المستقلة: طرف واحد وبيان أو أكثر غير مفوتر في فاتورة واحدة (بيع أو شراء).</summary>
+    [HttpPost("standalone-invoice")]
+    public async Task<IActionResult> StandaloneInvoice([FromBody] CreateStandaloneDeliveryInvoiceDto dto, CancellationToken ct)
+        => Success(await _notes.CreateStandaloneInvoiceAsync(dto.PartyId, dto.DeliveryNoteIds, dto.Date, ct), Messages.InvoiceIssued);
 }
